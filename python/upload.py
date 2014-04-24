@@ -106,8 +106,8 @@ if __name__ == '__main__':
                     "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
 
         with open(filepath, "rb") as f:
-            encoded_string = base64.b64encode(f.read())
-
+            encoded_string = f.read()
+        
         data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
         request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
         response = urllib2.urlopen(request)
