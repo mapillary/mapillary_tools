@@ -77,6 +77,39 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
+def upload_file(filepath, move_files=True):
+    '''
+    Upload file at filepath.
+
+    Move to subfolders 'success'/'failed' on completion if move_files is True.
+    '''
+    filename = os.path.basename(filepath)
+    print("Uploading: {0}".format(filename))
+
+    parameters = {"key": filename, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
+                "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
+
+    with open(filepath, "rb") as f:
+        encoded_string = f.read()
+
+    data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
+    request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
+    response = urllib2.urlopen(request)
+
+    if response.getcode()==204:
+        os.rename(filepath, "success/"+filename)
+        print("Success: {0}".format(filename))
+    else:
+        os.rename(filepath, "failed/"+filename)
+        print("Failed: {0}".format(filename))
+
+
+def create_dirs():
+    if not os.path.exists("success"):
+        os.mkdir("success")
+    if not os.path.exists("failed"):
+        os.mkdir("failed")
+
 
 if __name__ == '__main__':
     '''
@@ -89,6 +122,8 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
+    create_dirs()
+
     if path.endswith(".jpg"):
         # single file
         file_list = [path]
@@ -99,22 +134,6 @@ if __name__ == '__main__':
             file_list += [os.path.join(root, filename) for filename in files if filename.endswith(".jpg")]
 
     for filepath in file_list:
-        filename = os.path.basename(filepath)
-        print("Uploading: {0}".format(filename))
-
-        parameters = {"key": filename, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
-                    "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
-
-        with open(filepath, "rb") as f:
-            encoded_string = f.read()
-        
-        data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
-        request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
-        response = urllib2.urlopen(request)
-
-        if response.getcode()==204:
-            print("Success: {0}".format(filename))
-        else:
-            print("Failed: {0}".format(filename))
+        upload_file(filepath)
 
     print("Done uploading.")
