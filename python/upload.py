@@ -5,6 +5,8 @@ import base64
 import mimetypes
 import random
 import string
+from Queue import Queue
+import threading
 
 '''
 Script for uploading images taken with the Mapillary
@@ -23,6 +25,8 @@ MAPILLARY_UPLOAD_URL = "http://mapillary.uploads.images.s3.amazonaws.com/"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwxMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "foNqRicU/vySm8/qU82kGESiQhY="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
+NUMBER_THREADS = 4
+
 
 def encode_multipart(fields, files, boundary=None):
     """
@@ -77,6 +81,57 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
+def upload_file(filepath, move_files=True):
+    '''
+    Upload file at filepath.
+
+    Move to subfolders 'success'/'failed' on completion if move_files is True.
+    '''
+    filename = os.path.basename(filepath)
+    print("Uploading: {0}".format(filename))
+
+    parameters = {"key": filename, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
+                "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
+
+    with open(filepath, "rb") as f:
+        encoded_string = f.read()
+
+    data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
+    request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
+    response = urllib2.urlopen(request)
+
+    if response.getcode()==204:
+        os.rename(filepath, "success/"+filename)
+        print("Success: {0}".format(filename))
+    else:
+        os.rename(filepath, "failed/"+filename)
+        print("Failed: {0}".format(filename))
+
+
+def create_dirs():
+    if not os.path.exists("success"):
+        os.mkdir("success")
+    if not os.path.exists("failed"):
+        os.mkdir("failed")
+
+
+class UploadThread(threading.Thread):
+    def __init__(self, queue):
+        threading.Thread.__init__(self)
+        self.q = queue
+
+    def run(self):
+        while True:
+            # fetch file from the queue and upload
+            filepath = self.q.get()
+            if filepath is None:
+                self.q.task_done()
+                break
+            else:
+                upload_file(filepath)
+                self.q.task_done()
+
+
 
 if __name__ == '__main__':
     '''
@@ -89,6 +144,9 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
+    # if no success/failed folders, create them
+    create_dirs()
+
     if path.endswith(".jpg"):
         # single file
         file_list = [path]
@@ -98,23 +156,25 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.endswith(".jpg")]
 
+    # create upload queue with all files
+    q = Queue()
     for filepath in file_list:
-        filename = os.path.basename(filepath)
-        print("Uploading: {0}".format(filename))
+        q.put(filepath)
 
-        parameters = {"key": filename, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
-                    "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
+    # create uploader threads
+    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
 
-        with open(filepath, "rb") as f:
-            encoded_string = f.read()
-        
-        data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
-        request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
-        response = urllib2.urlopen(request)
+    # start uploaders as daemon threads that can be stopped (ctrl-c)
+    try:
+        for uploader in uploaders:
+            uploader.daemon = True
+            uploader.start()
 
-        if response.getcode()==204:
-            print("Success: {0}".format(filename))
-        else:
-            print("Failed: {0}".format(filename))
+        q.join()
+        for uploader in uploaders:
+            uploaders[i].join(1)
+    except (KeyboardInterrupt, SystemExit):
+        print("BREAK: Stopping upload.")
+        sys.exit()
 
     print("Done uploading.")
