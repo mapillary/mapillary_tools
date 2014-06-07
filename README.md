@@ -10,7 +10,7 @@ This tool uploads images taken with mapillary to the mapillary server. Just call
 
 On Android Systems you can find the images under ` /storage/emulated/0/Android/data/app.mapillary/files/pictures/`.
 
-On iOS, open iTunes, select your device, and scroll down to Malippary under apps. You can see the files and copy them over from there.
+On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.
 
 
 time_split.py
