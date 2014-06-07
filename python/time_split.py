@@ -8,7 +8,7 @@ from datetime import datetime
 '''
 Script for organizing images into sequence groups based on
 a cutoff time. This is useful as a step before uploading
-lots of photos with the manual uploaderif.
+lots of photos with the manual uploader.
 
 If you used a camera with a 2s timer and took lots of sequences,
 running this script with a 3s cutoff will produce nice subfolders,
