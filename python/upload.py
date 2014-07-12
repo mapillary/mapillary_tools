@@ -101,7 +101,11 @@ def upload_file(filepath, move_files=True):
     response = urllib2.urlopen(request)
 
     if response.getcode()==204:
-        os.rename(filepath, "success/"+filename)
+        if move_files==True:
+            os.rename(filepath, "success/"+filename)
+        else:
+            os.remove(filepath)
+
         print("Success: {0}".format(filename))
     else:
         os.rename(filepath, "failed/"+filename)
@@ -116,9 +120,10 @@ def create_dirs():
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue):
+    def __init__(self, queue, move_files):
         threading.Thread.__init__(self)
         self.q = queue
+        self.move = move_files
 
     def run(self):
         while True:
@@ -128,7 +133,7 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                upload_file(filepath)
+                upload_file(filepath, self.move)
                 self.q.task_done()
 
 
@@ -138,11 +143,15 @@ if __name__ == '__main__':
     Use from command line as: python upload.py path
     '''
 
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 3:
         print("Usage: python upload.py path")
         raise IOError("Bad input parameters.")
 
     path = sys.argv[1]
+
+    move_files = True
+    if ( len(sys.argv) == 3 and sys.argv[2] == '-d' ):
+        move_files=False
 
     # if no success/failed folders, create them
     create_dirs()
@@ -162,7 +171,7 @@ if __name__ == '__main__':
         q.put(filepath)
 
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q, move_files) for i in range(NUMBER_THREADS)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
