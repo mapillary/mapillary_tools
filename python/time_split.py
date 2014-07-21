@@ -1,8 +1,9 @@
+#!/usr/bin/python
+
 import sys
 import os
-from PIL import Image
-from PIL.ExifTags import TAGS
 from datetime import datetime
+import exifread
 
 
 '''
@@ -21,15 +22,16 @@ time difference.
 
 def read_capture_time(filepath):
     '''
-    Use PIL to parse capture time from EXIF.
+    Use exifread to parse capture time from EXIF.
     '''
-    img = Image.open(filepath)
-    imexif = img._getexif()
-    exif = { TAGS[k]: v for k, v in imexif.items() if k in TAGS }
+    time_tag = "EXIF DateTimeOriginal"
+
+    with open(filepath, 'rb') as f:
+        tags = exifread.process_file(f)
 
     # read and format capture time
-    if 'DateTimeOriginal' in exif:
-        capture_time = exif['DateTimeOriginal']
+    if time_tag in tags:
+        capture_time = tags[time_tag].values
         capture_time = capture_time.replace(" ","_")
         capture_time = capture_time.replace(":","_")
     else:
