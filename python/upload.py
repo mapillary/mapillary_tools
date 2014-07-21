@@ -9,6 +9,7 @@ import random
 import string
 from Queue import Queue
 import threading
+import exifread
 
 '''
 Script for uploading images taken with the Mapillary
@@ -17,6 +18,9 @@ iOS or Android apps.
 Intended use is for cases when you have multiple SD cards
 or for other reasons have copied the files to a computer
 and you want to bulk upload.
+
+Requires exifread, run "pip install exifread" first
+(or use your favorite installer).
 
 NB: DO NOT USE THIS ON OTHER IMAGE FILES THAN THOSE FROM
 THE MAPILLARY APPS, WITHOUT PROPER TOKENS IN EXIF, UPLOADED
@@ -28,6 +32,7 @@ PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb
 SIGNATURE_HASH = "foNqRicU/vySm8/qU82kGESiQhY="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = 4
+UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
 
 
 def encode_multipart(fields, files, boundary=None):
@@ -83,31 +88,39 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def upload_file(filepath, move_files=True):
-    '''
-    Upload file at filepath.
+def upload_file(filepath, url, permission, signature, key=None, move_files=True):
+        '''
+        Upload file at filepath.
 
-    Move to subfolders 'success'/'failed' on completion if move_files is True.
-    '''
-    filename = os.path.basename(filepath)
-    print("Uploading: {0}".format(filename))
+        Move to subfolders 'success'/'failed' on completion if move_files is True.
+        '''
+        filename = os.path.basename(filepath)
+        print("Uploading: {0}".format(filename))
 
-    parameters = {"key": filename, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
-                "policy": PERMISSION_HASH, "signature": SIGNATURE_HASH, "Content-Type":"image/jpeg" }
+        # add S3 'path' if given
+        if key is None:
+            s3_key = filename
+        else:
+            s3_key = key+filename
 
-    with open(filepath, "rb") as f:
-        encoded_string = f.read()
+        parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
+                    "policy": permission, "signature": signature, "Content-Type":"image/jpeg" }
 
-    data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
-    request = urllib2.Request(MAPILLARY_UPLOAD_URL, data=data, headers=headers)
-    response = urllib2.urlopen(request)
+        with open(filepath, "rb") as f:
+            encoded_string = f.read()
 
-    if response.getcode()==204:
-        os.rename(filepath, "success/"+filename)
-        print("Success: {0}".format(filename))
-    else:
-        os.rename(filepath, "failed/"+filename)
-        print("Failed: {0}".format(filename))
+        data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
+        request = urllib2.Request(url, data=data, headers=headers)
+        response = urllib2.urlopen(request)
+
+        if response.getcode()==204:
+            if move_files:
+                os.rename(filepath, "success/"+filename)
+            print("Success: {0}".format(filename))
+        else:
+            if move_files:
+                os.rename(filepath, "failed/"+filename)
+            print("Failed: {0}".format(filename))
 
 
 def create_dirs():
@@ -117,10 +130,31 @@ def create_dirs():
         os.mkdir("failed")
 
 
+def exif_has_mapillary_tags(filename):
+    '''
+    Check that image file has the required Mapillary tags in EXIF fields.
+    '''
+    description_tag = "Image ImageDescription"
+    with open(filename, 'rb') as f:
+        tags = exifread.process_file(f)
+
+    # make sure there are Mapillary tags in Image Decription
+    if description_tag in tags:
+        if "MAPSequenceUUID" in tags[description_tag].values:
+            return True
+        else:
+            print("File does not have Mapillary EXIF tags, consider using upload_with_authentication.py instead.")
+            return False
+    else:
+        print("File does not have any Image Description in EXIF tags.")
+        return False
+
+
 class UploadThread(threading.Thread):
-    def __init__(self, queue):
+    def __init__(self, queue, params=UPLOAD_PARAMS):
         threading.Thread.__init__(self)
         self.q = queue
+        self.params = params
 
     def run(self):
         while True:
@@ -130,7 +164,7 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                upload_file(filepath)
+                upload_file(filepath, **self.params)
                 self.q.task_done()
 
 
@@ -149,7 +183,7 @@ if __name__ == '__main__':
     # if no success/failed folders, create them
     create_dirs()
 
-    if path.endswith(".jpg"):
+    if path.lower().endswith(".jpg"):
         # single file
         file_list = [path]
     else:
@@ -161,7 +195,10 @@ if __name__ == '__main__':
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
-        q.put(filepath)
+        if exif_has_mapillary_tags(filepath):
+            q.put(filepath)
+        else:
+            print("Skipping: {0}".format(filepath))
 
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
