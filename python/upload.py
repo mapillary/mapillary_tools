@@ -2,6 +2,7 @@
 
 import sys
 import urllib2, urllib
+import socket
 import os
 import base64
 import mimetypes
@@ -32,6 +33,7 @@ PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb
 SIGNATURE_HASH = "foNqRicU/vySm8/qU82kGESiQhY="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = 4
+MAX_ATTEMPTS = 4
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
 
 
@@ -110,17 +112,31 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
             encoded_string = f.read()
 
         data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
-        request = urllib2.Request(url, data=data, headers=headers)
-        response = urllib2.urlopen(request)
 
-        if response.getcode()==204:
-            if move_files:
-                os.rename(filepath, "success/"+filename)
-            print("Success: {0}".format(filename))
-        else:
-            if move_files:
-                os.rename(filepath, "failed/"+filename)
-            print("Failed: {0}".format(filename))
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                request = urllib2.Request(url, data=data, headers=headers)
+                response = urllib2.urlopen(request)
+
+                if response.getcode()==204:
+                    if move_files:
+                        os.rename(filepath, "success/"+filename)
+                    print("Success: {0}".format(filename))
+                else:
+                    if move_files:
+                        os.rename(filepath, "failed/"+filename)
+                    print("Failed: {0}".format(filename))
+                break # attempts
+
+            except urllib2.URLError, e:
+                # For Python 2.6
+                if isinstance(e.reason, socket.timeout):
+                    print("Timeout error: {0} (retrying)".format(filename))
+                else:
+                    raise
+            except socket.timeout, e:
+                # For Python 2.7
+                print("Timeout error: {0} (retrying)".format(filename))
 
 
 def create_dirs():
