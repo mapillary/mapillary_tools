@@ -32,7 +32,7 @@ if __name__ == '__main__':
     params = urllib.urlencode( {"email": MAPILLARY_USERNAME, "password": MAPILLARY_PASSWORD })
     response =urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
     resp = json.loads(response.read())
-    print resp
+    # print resp
     projects = resp['projects']
     upload_token = resp['upload_token']
 
@@ -62,17 +62,19 @@ if __name__ == '__main__':
 
     for filepath in file_list:
         base, filename = os.path.split(filepath)
-        print filename
+        print "Processing %s" % filename
         exif = pyexiv2.ImageMetadata(filepath)
         exif.read()
         description_ = exif['Exif.Image.ImageDescription'].value
-        print description_
+        # print description_
         imgDesc = json.loads(description_)
-        print imgDesc
+        # print imgDesc
         imgDesc['MAPSettingsProject']=project_key
         exif['Exif.Image.ImageDescription'].value = json.dumps(imgDesc)
         exif.write()
         #hash = hashlib.sha256("%s%s%s" %(upload_token,MAPILLARY_USERNAME,filename)).hexdigest()
         #print hash
+
+    print "Done, processed %s files" % len(file_list)
 
 
