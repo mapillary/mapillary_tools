@@ -37,12 +37,12 @@ if __name__ == '__main__':
     upload_token = resp['upload_token']
 
     #check projects
-    found = 0
+    found = False
     print "Your projects:"
     for project in projects:
         print "'%s'" % project['name']
         if project['name'] == project_name :
-            found =1
+            found = True
             project_key = project['key']
 
     if not found :
