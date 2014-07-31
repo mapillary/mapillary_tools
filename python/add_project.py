@@ -68,11 +68,11 @@ if __name__ == '__main__':
         description_ = exif['Exif.Image.ImageDescription'].value
         imgDesc = json.loads(description_)
         imgDesc['MAPSettingsProject'] = project_key
-        exif['Exif.Image.ImageDescription'].value = json.dumps(imgDesc)
 
         #adjust hash if needed or constructing the Mapillary info from scratch
         #hash = hashlib.sha256("%s%s%s" %(upload_token,MAPILLARY_USERNAME,filename)).hexdigest()
         #imgDesc['MAPSettingsUploadHash'] = hash
+        exif['Exif.Image.ImageDescription'].value = json.dumps(imgDesc)
         exif.write()
 
 
