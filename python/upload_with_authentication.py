@@ -150,6 +150,7 @@ if __name__ == '__main__':
         print("BREAK: Stopping upload.")
         sys.exit()
 
-
+    # upload an empty DONE file, don't move it after
+    params["move_files"] = False
     upload_done_file(params)
     print("Done uploading.")
