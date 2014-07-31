@@ -66,14 +66,15 @@ if __name__ == '__main__':
         exif = pyexiv2.ImageMetadata(filepath)
         exif.read()
         description_ = exif['Exif.Image.ImageDescription'].value
-        # print description_
         imgDesc = json.loads(description_)
-        # print imgDesc
-        imgDesc['MAPSettingsProject']=project_key
+        imgDesc['MAPSettingsProject'] = project_key
         exif['Exif.Image.ImageDescription'].value = json.dumps(imgDesc)
-        exif.write()
+
+        #adjust hash if needed or constructing the Mapillary info from scratch
         #hash = hashlib.sha256("%s%s%s" %(upload_token,MAPILLARY_USERNAME,filename)).hexdigest()
-        #print hash
+        #imgDesc['MAPSettingsUploadHash'] = hash
+        exif.write()
+
 
     print "Done, processed %s files" % len(file_list)
 
