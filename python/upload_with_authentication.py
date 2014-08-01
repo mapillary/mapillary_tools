@@ -31,6 +31,8 @@ will be considered part of a single sequence.
 
 NB: DO NOT USE THIS SCRIPT ON IMAGE FILES FROM THE MAPILLARY APPS,
 USE UPLOAD.PY INSTEAD.
+
+(assumes Python 2.x, for Python 3.x you need to change some module names)
 '''
 
 
@@ -39,6 +41,7 @@ NUMBER_THREADS = 4
 
 
 def upload_done_file(params):
+    print("Upload a DONE file to tell the backend that the sequence is all uploaded and ready to submit.")
     if not os.path.exists('DONE'):
         open("DONE", 'a').close()
     #upload
@@ -124,7 +127,7 @@ if __name__ == '__main__':
     # set upload parameters
     params = {"url": MAPILLARY_UPLOAD_URL, "key": s3_bucket,
             "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
-            "move_files":True}
+            "move_files":False}
 
     # create upload queue with all files
     q = Queue()
@@ -150,7 +153,12 @@ if __name__ == '__main__':
         print("BREAK: Stopping upload.")
         sys.exit()
 
-    # upload an empty DONE file, don't move it after
-    params["move_files"] = False
-    upload_done_file(params)
-    print("Done uploading.")
+    # ask user if finalize upload to check that everything went fine
+    print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
+    proceed = raw_input("Finalize upload? [y/n]: ")
+    if proceed in ["y", "Y", "yes", "Yes"]:
+        # upload an empty DONE file
+        upload_done_file(params)
+        print("Done uploading.")
+    else:
+        print("Aborted. No files were submitted. Try again if you had failures.")
