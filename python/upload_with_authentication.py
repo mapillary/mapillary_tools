@@ -4,9 +4,9 @@ import sys
 import urllib2, urllib
 import os
 from Queue import Queue
-import threading
 import uuid
 import exifread
+import time
 
 from upload import create_dirs, UploadThread, upload_file
 
@@ -146,11 +146,14 @@ if __name__ == '__main__':
             uploader.daemon = True
             uploader.start()
 
-        q.join()
         for uploader in uploaders:
             uploaders[i].join(1)
+
+        while q.unfinished_tasks:
+            time.sleep(1)
+        q.join()
     except (KeyboardInterrupt, SystemExit):
-        print("BREAK: Stopping upload.")
+        print("\nBREAK: Stopping upload.")
         sys.exit()
 
     # ask user if finalize upload to check that everything went fine

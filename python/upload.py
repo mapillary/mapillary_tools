@@ -11,6 +11,7 @@ import string
 from Queue import Queue
 import threading
 import exifread
+import time
 
 '''
 Script for uploading images taken with the Mapillary
@@ -225,11 +226,14 @@ if __name__ == '__main__':
             uploader.daemon = True
             uploader.start()
 
-        q.join()
         for uploader in uploaders:
             uploaders[i].join(1)
+
+        while q.unfinished_tasks:
+            time.sleep(1)
+        q.join()
     except (KeyboardInterrupt, SystemExit):
-        print("BREAK: Stopping upload.")
+        print("\nBREAK: Stopping upload.")
         sys.exit()
 
     print("Done uploading.")
