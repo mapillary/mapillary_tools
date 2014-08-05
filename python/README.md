@@ -22,6 +22,15 @@ Script for uploading images taken with other cameras than the Mapillary apps. Yo
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
 
+**geotag_from_gpx.py**
+
+A lightweight script for geotagging images with GPS data from a gpx file. Writes lat, lon, and bearing to the right EXIF tags. Use it like:
+
+    python geotag_from_gpx.py path gpx_file time_offset
+
+The time_offset is optional and is used if your camera clock is offset from your GPS clock. *This script needs testing with different images and gpx files. File issues if you find anything.*
+
+
 **time_split.py**
 
 This script organizes images into sequence groups based on a cutoff time. This is useful as a step before uploading lots of photos with the manual uploader. For example:
