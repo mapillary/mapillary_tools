@@ -158,10 +158,20 @@ if __name__ == '__main__':
 
     # ask user if finalize upload to check that everything went fine
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
-    proceed = raw_input("Finalize upload? [y/n]: ")
-    if proceed in ["y", "Y", "yes", "Yes"]:
-        # upload an empty DONE file
-        upload_done_file(params)
-        print("Done uploading.")
-    else:
-        print("Aborted. No files were submitted. Try again if you had failures.")
+
+    # ask 3 times if input is unclear
+    for i in range(3):
+        proceed = raw_input("Finalize upload? [y/n]: ")
+        if proceed in ["y", "Y", "yes", "Yes"]:
+            # upload an empty DONE file
+            upload_done_file(params)
+            print("Done uploading.")
+            break
+        elif proceed in ["n", "N", "no", "No"]:
+            print("Aborted. No files were submitted. Try again if you had failures.")
+            break
+        else:
+            if i==2:
+                print("Aborted. No files were submitted. Try again if you had failures.")
+            else:
+                print('Please answer y or n. Try again.')
