@@ -131,10 +131,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
 
             except urllib2.URLError, e:
                 # For Python 2.6
-                if isinstance(e.reason, socket.timeout):
-                    print("Timeout error: {0} (retrying)".format(filename))
-                else:
-                    raise
+                print filename, " URL error. Attempt ", attempt
             except socket.timeout, e:
                 # For Python 2.7
                 print("Timeout error: {0} (retrying)".format(filename))
