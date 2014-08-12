@@ -129,11 +129,12 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
                     print("Failed: {0}".format(filename))
                 break # attempts
 
-            except urllib2.URLError, e:
-                # For Python 2.6
-                print filename, " URL error. Attempt ", attempt
-            except socket.timeout, e:
-                # For Python 2.7
+            except urllib2.HTTPError as e:
+                print("HTTP error: {0} on {1}".format(e, filename))
+            except urllib2.URLError as e:
+                print("URL error: {0} on {1}".format(e, filename))
+            except socket.timeout as e:
+                # Specific timeout handling for Python 2.7
                 print("Timeout error: {0} (retrying)".format(filename))
 
 
