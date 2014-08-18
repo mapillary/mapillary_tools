@@ -29,7 +29,7 @@ THE MAPILLARY APPS, WITHOUT PROPER TOKENS IN EXIF, UPLOADED
 FILES WILL BE IGNORED SERVER-SIDE.
 '''
 
-MAPILLARY_UPLOAD_URL = "http://mapillary.uploads.images.s3.amazonaws.com/"
+MAPILLARY_UPLOAD_URL = "http://upload.mapillary.com/"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwxMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "foNqRicU/vySm8/qU82kGESiQhY="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
