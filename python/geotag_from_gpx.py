@@ -221,6 +221,6 @@ if __name__ == '__main__':
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), gpx_filename))
 
     for filepath in file_list:
-        add_exif_using_timestamp(filepath, gpx)
+        add_exif_using_timestamp(filepath, gpx, time_offset)
 
     print("Done geotagging {0} images in {1} seconds.".format(len(file_list), time.time()-t))
