@@ -21,7 +21,7 @@ for each image, and writes the values to the EXIF of the image.
 
 You can supply a time offset in seconds if the GPS clock and camera clocks are not in sync.
 
-Requires gpgpx, e.g. 'pip install gpgpx'
+Requires gpxpy, e.g. 'pip install gpxpy'
 
 Requires pyexiv2, see install instructions at http://tilloy.net/dev/pyexiv2/
 (or use your favorite installer, e.g. 'brew install pyexiv2').
