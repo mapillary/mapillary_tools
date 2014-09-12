@@ -15,15 +15,13 @@ Script for uploading images taken with other cameras than
 the Mapillary iOS or Android apps.
 
 Intended use is for when you have used an action camera such as a GoPro
-or Garmin VIRB, or any other camera where the location and image direction
-is included in the image EXIF.
+or Garmin VIRB, or any other camera where the location is included in the image EXIF.
 
 The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
--DateTimeOriginal
+-(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
 -Orientation
--GPSImgDirection
 
 Before uploading put all images that belong together in a sequence, in a
 specific folder, for example using 'time_split.py'. All images in a session
@@ -57,7 +55,7 @@ def verify_exif(filename):
     Incompatible files will be ignored server side.
     '''
     # required tags in IFD name convention
-    required_exif = ["GPS GPSLongitude", "GPS GPSLatitude", "EXIF DateTimeOriginal", "Image Orientation", "GPS GPSImgDirection"]
+    required_exif = [["GPS GPSLongitude"], ["GPS GPSLatitude"], ["EXIF DateTimeOriginal","EXIF DateTimeDigitized","Image DateTime","GPS GPSDate"], ["Image Orientation"]]
     description_tag = "Image ImageDescription"
 
     with open(filename, 'rb') as f:
@@ -71,8 +69,12 @@ def verify_exif(filename):
 
     # make sure all required tags are there
     for rexif in required_exif:
-        if not rexif in tags:
-            print("Missing required EXIF tag: {0}".format(rexif))
+        vflag = False
+        for subrexif in rexif:
+            if subrexif in tags:
+                vflag = True
+        if not vflag:
+            print("Missing required EXIF tag: {0}".format(rexif[0]))
             return False
 
     return True
