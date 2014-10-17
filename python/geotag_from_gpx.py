@@ -48,7 +48,7 @@ def get_lat_lon_time(gpx_file):
     for track in gpx.tracks:
         for segment in track.segments:
             for point in segment.points:
-                points.append( (utc_to_localtime(point.time), point.latitude, point.longitude) )
+                points.append( (utc_to_localtime(point.time), point.latitude, point.longitude, point.elevation) )
 
     # sort by time just in case
     points.sort()
@@ -89,7 +89,7 @@ def interpolate_lat_lon(points, t):
     '''
     Return interpolated lat, lon and compass bearing for time t.
 
-    Points is a list of tuples (time, lat, lon), t a datetime object.
+    Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
     '''
 
     # find the enclosing points in sorted list
@@ -115,7 +115,12 @@ def interpolate_lat_lon(points, t):
 
     bearing = compute_bearing(before[1], before[2], after[1], after[2])
 
-    return lat, lon, bearing
+    if before[3] is not None:
+        ele = (before[3]*dt_after + after[3]*dt_before) / (dt_before + dt_after)
+    else:
+        ele = None
+
+    return lat, lon, bearing, ele
 
 
 
@@ -151,7 +156,7 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
     t = t - datetime.timedelta(seconds=offset_time)
 
     try:
-        lat, lon, bearing = interpolate_lat_lon(points, t)
+        lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
 
         lat_deg = to_deg(lat, ["S", "N"])
         lon_deg = to_deg(lon, ["W", "E"])
@@ -173,9 +178,14 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
         metadata["Exif.GPSInfo.GPSVersionID"] = '2 0 0 0'
         metadata["Exif.GPSInfo.GPSImgDirection"] = exiv_bearing
         metadata["Exif.GPSInfo.GPSImgDirectionRef"] = "T"
+        
+        if elevation is not None:
+            exiv_elevation = make_fraction(int(elevation*10),10)
+            metadata["Exif.GPSInfo.GPSAltitude"] = exiv_elevation
+            metadata["Exif.GPSInfo.GPSAltitudeRef"] = '0' if elevation >= 0 else '1'
 
         metadata.write()
-        print("Added geodata to: {0} ({1}, {2}, {3})".format(filename, lat, lon, bearing))
+        print("Added geodata to: {0} ({1}, {2}, {3}), altitude {4}".format(filename, lat, lon, bearing, elevation))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
 
