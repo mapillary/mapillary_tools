@@ -13,6 +13,10 @@ the EXIF tag of the next image in a set of consecutive images.
 Uses the capture time in EXIF and looks up an interpolated lat, lon, bearing
 for each image, and writes the values to the EXIF of the image.
 
+An offset angele relative to the direction of movement may be given as an optional 
+argument to compensate for a sidelooking camera. This angle should be positive for 
+clockwise offset. eg. 90 for a rightlooking camera and 270 (or -90) for a left looking camera 
+
 @attention: Requires pyexiv2; see install instructions at http://tilloy.net/dev/pyexiv2/
 @author: mprins
 @license: MIT
@@ -80,10 +84,15 @@ def write_direction_to_image(filename, direction):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: python interpolate_direction.py path")
+    if len(sys.argv) > 3:
+        print("Usage: python interpolate_direction.py path [offset_angle]")
         raise IOError("Bad input parameters.")
     path = sys.argv[1]
+    
+    # offset angle, relative to camera position, clockwise is positive
+    offset_angle = 0
+    if len(sys.argv) == 3 :
+        offset_angle = int(sys.argv[2])
 
     # list of file tuples sorted by timestamp
     imageList = list_images(path)
@@ -91,6 +100,8 @@ if __name__ == '__main__':
     # calculate and write direction by looking at next file in the list of files
     for curImg, nextImg in zip(imageList, imageList[1:]):
         direction = compute_bearing(curImg[2], curImg[3], nextImg[2], nextImg[3])
+        # correct for offset angle
+        direction = (direction + offset_angle + 360) % 360
         write_direction_to_image(curImg[1], direction)
     # the last image gets the same direction as the second to last
     write_direction_to_image(nextImg[1], direction)
