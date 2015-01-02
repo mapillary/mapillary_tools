@@ -36,6 +36,7 @@ USE UPLOAD.PY INSTEAD.
 
 MAPILLARY_UPLOAD_URL = "https://mapillary.uploads.manual.images.s3-eu-west-1.amazonaws.com"
 NUMBER_THREADS = 4
+MOVE_FILES = False
 
 
 def upload_done_file(params):
@@ -129,7 +130,7 @@ if __name__ == '__main__':
     # set upload parameters
     params = {"url": MAPILLARY_UPLOAD_URL, "key": s3_bucket,
             "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
-            "move_files":False}
+            "move_files": MOVE_FILES}
 
     # create upload queue with all files
     q = Queue()
