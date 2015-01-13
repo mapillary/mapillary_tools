@@ -34,7 +34,7 @@ USE UPLOAD.PY INSTEAD.
 '''
 
 
-MAPILLARY_UPLOAD_URL = "https://mapillary.uploads.manual.images.s3-eu-west-1.amazonaws.com"
+MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
 NUMBER_THREADS = 4
 MOVE_FILES = False
 
