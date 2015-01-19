@@ -42,9 +42,9 @@ USE UPLOAD.PY INSTEAD.
 def dms_to_decimal(degrees, minutes, seconds, sign=' '):
     """Convert degrees, minutes, seconds into decimal degrees.
 
-    >>> dms_to_decimal(10, 10, 10)
+    # >>> dms_to_decimal(10, 10, 10)
     10.169444444444444
-    >>> dms_to_decimal(8, 9, 10, 'S')
+    # >>> dms_to_decimal(8, 9, 10, 'S')
     -8.152777777777779
     """
     return (-1 if sign[0] in 'SWsw' else 1) * (
@@ -69,14 +69,13 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     ]
 
     mapillary_infos = []
-    description_tag = "Exif.Image.ImageDescription"
 
     print "Processing %s" % filename
     with open(filename, 'rw') as f:
         tags = pyexiv2.ImageMetadata(filepath)
         tags.read()
         # for tag in tags:
-        # print "{0} {1}".format(tag, tags[tag].value)
+        #     print "{0}  {1}".format(tag, tags[tag].value)
 
     # make sure all required tags are there
     for rexif in required_exif:
@@ -93,8 +92,8 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
 
     # write the mapillary tag
     mapillary_description = {}
-    mapillary_description["MAPLongitude"] = dms_to_decimal(mapillary_infos[0].value[0], mapillary_infos[1].value[1],
-                                                           mapillary_infos[1].value[2],
+    mapillary_description["MAPLongitude"] = dms_to_decimal(mapillary_infos[0].value[0], mapillary_infos[0].value[1],
+                                                           mapillary_infos[0].value[2],
                                                            tags["Exif.GPSInfo.GPSLongitudeRef"].value)
     mapillary_description["MAPLatitude"] = dms_to_decimal(mapillary_infos[1].value[0], mapillary_infos[1].value[1],
                                                           mapillary_infos[1].value[2],
@@ -109,6 +108,8 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_description['MAPSettingsUploadHash'] = hash
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
+    mapillary_description['MAPDeviceModel'] = tags["Exif.Photo.LensModel"].value if "Exif.Photo.LensModel" in tags else "none"
+    mapillary_description['MAPDeviceMake'] = tags["Exif.Photo.LensMake"].value if "Exif.Photo.LensMake" in tags else "none"
 
     json_desc = json.dumps(mapillary_description)
     print "tag: {0}".format(json_desc)
@@ -145,8 +146,9 @@ if __name__ == '__main__':
     else:
         # folder(s)
         file_list = []
-        for root, sub_folders, files in os.walk(path):
-            file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+
+    for root, sub_folders, files in os.walk(path):
+        file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
     for filepath in file_list:
         sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
