@@ -15,7 +15,7 @@ If you used a camera with a 2s timer and took lots of sequences,
 running this script with a 3s cutoff will produce nice subfolders,
 one for each sequence.
 
-If no cutoff time is given, one will be estiated based on the median
+If no cutoff time is given, one will be estimated based on the median
 time difference.
 '''
 

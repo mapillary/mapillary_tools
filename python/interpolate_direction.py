@@ -1,4 +1,4 @@
-#!/usr/bin/python
+ #!/usr/bin/python
 
 import os, sys, pyexiv2
 
@@ -96,6 +96,7 @@ if __name__ == '__main__':
 
     # list of file tuples sorted by timestamp
     imageList = list_images(path)
+    direction =0
 
     # calculate and write direction by looking at next file in the list of files
     for curImg, nextImg in zip(imageList, imageList[1:]):
@@ -104,5 +105,11 @@ if __name__ == '__main__':
         direction = (direction + offset_angle + 360) % 360
         write_direction_to_image(curImg[1], direction)
     # the last image gets the same direction as the second to last
-    write_direction_to_image(nextImg[1], direction)
+
+    #if there is only one file in the list, just write the direction 0 and offset
+    if len(imageList)==1:
+        print ("{0}".format(imageList[0]))
+        write_direction_to_image(imageList[0][1], (direction + offset_angle + 360) % 360)
+    else:
+        write_direction_to_image(nextImg[1], direction)
         
