@@ -39,7 +39,7 @@ if __name__ == '__main__':
     upload_token = resp['upload_token']
 
     if len(sys.argv) > 3 or len(sys.argv) < 2:
-        print("Usage: python uplaoad_each_folder_as_sequence.py path [project_name]")
+        print("Usage: python upload_each_folder_as_sequence.py path [project_name]")
         raise IOError("Bad input parameters.")
     path = sys.argv[1]
 
@@ -53,8 +53,9 @@ if __name__ == '__main__':
         # folder_list = next(os.walk(path))[1]
         for root, sub_folders, files in os.walk(path):
             print root
-            os.system("export MAPILLARY_UPLOAD_TOKEN=%s && python add_mapillary_tag_from_exif.py %s %s" % (
-            upload_token, root, uuid.uuid4()))
+            os.environ["MAPILLARY_UPLOAD_TOKEN"] = upload_token
+            os.system("python add_mapillary_tag_from_exif.py %s %s" % (
+            root, uuid.uuid4()))
             if len(sys.argv) == 3:
                 os.system("python add_project.py %s %s" % (root, sys.argv[2]))
                 # os.system("python upload.py %s" % dir)
