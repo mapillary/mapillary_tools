@@ -71,7 +71,7 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_infos = []
 
     print "Processing %s" % filename
-    with open(filename, 'rw') as f:
+    with open(filename, 'r+') as f:
         tags = pyexiv2.ImageMetadata(filepath)
         tags.read()
         # for tag in tags:
