@@ -56,7 +56,10 @@ def verify_exif(filename):
     Incompatible files will be ignored server side.
     '''
     # required tags in IFD name convention
-    required_exif = [["GPS GPSLongitude"], ["GPS GPSLatitude"], ["EXIF DateTimeOriginal","EXIF DateTimeDigitized","Image DateTime","GPS GPSDate"], ["Image Orientation"]]
+    required_exif = [ ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
+                      ["GPS GPSLatitude", "EXIF GPS GPSLatitude"],
+                      ["EXIF DateTimeOriginal", "EXIF DateTimeDigitized", "Image DateTime", "GPS GPSDate", "EXIF GPS GPSDate"],
+                      ["Image Orientation"]]
     description_tag = "Image ImageDescription"
 
     with open(filename, 'rb') as f:
