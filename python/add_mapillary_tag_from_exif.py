@@ -40,13 +40,6 @@ USE UPLOAD.PY INSTEAD.
 
 
 def dms_to_decimal(degrees, minutes, seconds, sign=' '):
-    """Convert degrees, minutes, seconds into decimal degrees.
-
-    # >>> dms_to_decimal(10, 10, 10)
-    10.169444444444444
-    # >>> dms_to_decimal(8, 9, 10, 'S')
-    -8.152777777777779
-    """
     return (-1 if sign[0] in 'SWsw' else 1) * (
         float(degrees) +
         float(minutes) / 60 +
@@ -98,7 +91,8 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_description["MAPLatitude"] = dms_to_decimal(mapillary_infos[1].value[0], mapillary_infos[1].value[1],
                                                           mapillary_infos[1].value[2],
                                                           tags["Exif.GPSInfo.GPSLatitudeRef"].value)
-    mapillary_description["MAPCaptureTime"] = time.mktime(mapillary_infos[2].value.timetuple()) * 1000
+    #required date format: 2015_01_14_09_37_01_000
+    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(mapillary_infos[2].value, "%Y_%m_%d_%H_%M_%S_000")
     mapillary_description["MAPOrientation"] = mapillary_infos[3].value
     heading = float(tags["Exif.GPSInfo.GPSImgDirection"].value) if "Exif.GPSInfo.GPSImgDirection" in tags else 0
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
