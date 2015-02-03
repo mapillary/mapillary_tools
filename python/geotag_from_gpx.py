@@ -180,7 +180,7 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
         metadata["Exif.GPSInfo.GPSImgDirectionRef"] = "T"
         
         if elevation is not None:
-            exiv_elevation = make_fraction(int(elevation*10),10)
+            exiv_elevation = make_fraction(abs(int(elevation*10)),10)
             metadata["Exif.GPSInfo.GPSAltitude"] = exiv_elevation
             metadata["Exif.GPSInfo.GPSAltitudeRef"] = '0' if elevation >= 0 else '1'
 
