@@ -7,6 +7,9 @@ from Queue import Queue
 import uuid
 import exifread
 import time
+import requests
+import argparse
+
 
 from upload import create_dirs, UploadThread, upload_file
 
@@ -84,7 +87,6 @@ def verify_exif(filename):
     return True
 
 
-
 if __name__ == '__main__':
     '''
     Use from command line as: python upload_with_authentication.py path
@@ -97,11 +99,25 @@ if __name__ == '__main__':
     script uses pieces of that.
     '''
 
-    if len(sys.argv) > 2:
-        print("Usage: python upload_with_authentication.py path")
-        raise IOError("Bad input parameters.")
-    path = sys.argv[1]
+    # CLI
+    parser = argparse.ArgumentParser(description="Mapillary Upload with Authentication tool.")
+    parser.add_argument('input', type=str, nargs="*", help="Folder to be uploaded.")
+    parser.add_argument('-e', '--email', help="Login: Mapillary email")
+    parser.add_argument('-p', '--password', help="Login: Mapillary password")
+    args = parser.parse_args()
 
+    if not args.email:
+        print 'Please input your [Email]: upload.py <path> --email your@email.com --password Password'
+        exit()
+    if not args.password:
+        print 'Please input your [Password]: upload.py <path> --email your@email.com --password Password'
+        exit()
+    if not args.input:
+        print 'Please input a [Folder Path]: upload.py <path> --email your@email.com --password Password'
+        exit()
+    else:
+        path = args.input[0]
+        
     # if no success/failed folders, create them
     create_dirs()
 
@@ -114,14 +130,27 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
-    # get env variables
+    # Connect to Mapillary for Permission & Signature Hash
+    payload = {'email': args.email, 'password': args.password}
+    session = requests.Session()
+    session.post('https://api.mapillary.com/v1/u/loginform', data=payload)
+    r = session.get('http://api.mapillary.com/v1/u/uploadhashes')
     try:
-        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
-        MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
-        MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
-    except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
-        sys.exit()
+        content = r.json()
+        status = content.get('status')
+    except:
+        print '[ERROR] Please confirm your Mapillary email/password'
+        print '--email:', args.email
+        print '--password:', args.password
+        exit()
+        
+    if status == 200:
+        print '[SUCCESS] Mapillary connection established.'
+
+    # Get variables
+    MAPILLARY_USERNAME = args.email
+    MAPILLARY_PERMISSION_HASH = hashes.get('permission_hash')
+    MAPILLARY_SIGNATURE_HASH = hashes.get('signature_hash')
 
     # generate a sequence UUID
     sequence_id = uuid.uuid4()
