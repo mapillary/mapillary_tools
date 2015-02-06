@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# coding: utf8
 
 import sys
 import urllib2, urllib
@@ -87,7 +88,27 @@ def verify_exif(filename):
     return True
 
 
-if __name__ == '__main__':
+def retrieve_hashes(email, password):
+    # Connect to Mapillary for Permission & Signature Hash
+    payload = {'email': email, 'password': password}
+    session = requests.Session()
+    session.post('https://api.mapillary.com/v1/u/loginform', data=payload)
+    r = session.get('http://api.mapillary.com/v1/u/uploadhashes')
+
+    try:
+        content = r.json()
+        status = content.get('status')
+    except:
+        print '[ERROR] Please confirm your Mapillary email/password'
+        print '--email:', email
+        print '--password:', password
+        exit()
+        
+    if status == 200:
+        print '[SUCCESS] Mapillary connection established.'
+        return content
+
+def cli():
     '''
     Use from command line as: python upload_with_authentication.py path
 
@@ -98,26 +119,47 @@ if __name__ == '__main__':
     You also need upload.py in the same folder or in your PYTHONPATH since this
     script uses pieces of that.
     '''
-
-    # CLI
     parser = argparse.ArgumentParser(description="Mapillary Upload with Authentication tool.")
     parser.add_argument('input', type=str, nargs="*", help="Folder to be uploaded.")
     parser.add_argument('-e', '--email', help="Login: Mapillary email")
+    parser.add_argument('-u', '--username', help="Login: Mapillary username")
     parser.add_argument('-p', '--password', help="Login: Mapillary password")
     args = parser.parse_args()
 
-    if not args.email:
-        print 'Please input [Email]: upload.py <path> -e your@email.com -p Password'
-        exit()
-    if not args.password:
-        print 'Please input [Password]: upload.py <path> -e your@email.com -p Password'
-        exit()
-    if not args.input:
-        print 'Please input [Folder Path]: upload.py <path> -e your@email.com -p Password'
-        exit()
+    # Mapillary Username
+    if args.username:
+        MAPILLARY_USERNAME = args.username
+    elif 'MAPILLARY_USERNAME' in os.environ:
+        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
     else:
+        print '<ERROR> Please input [Username]'
+        print '$ upload.py <path> -u Username -e your@email.com -p Password'
+        exit()
+
+    # Mapillary Password/Hashes
+    condition1 = 'MAPILLARY_PERMISSION_HASH' in os.environ
+    condition2 = 'MAPILLARY_SIGNATURE_HASH' in os.environ
+
+    if bool(condition1 and condition2):
+        MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+        MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
+    elif bool(args.password and args.email):
+        content = retrieve_hashes(args.email, args.password)
+        MAPILLARY_SIGNATURE_HASH = content['signature_hash']
+        MAPILLARY_PERMISSION_HASH = content['permission_hash']
+    else:
+        print '<ERROR> Please input [Password & Email]'
+        print '$ upload.py <path> -u Username -e your@email.com -p Password'
+        exit()
+
+    # Folder Path
+    if args.input:
         path = args.input[0]
-        
+    else:
+        print '<ERROR> Please input [Folder Path]'
+        print '$ upload.py <path> -u Username -e your@email.com -p Password'
+        exit()
+
     # if no success/failed folders, create them
     create_dirs()
 
@@ -130,39 +172,21 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
-    # Connect to Mapillary for Permission & Signature Hash
-    payload = {'email': args.email, 'password': args.password}
-    session = requests.Session()
-    session.post('https://api.mapillary.com/v1/u/loginform', data=payload)
-    r = session.get('http://api.mapillary.com/v1/u/uploadhashes')
-    try:
-        content = r.json()
-        status = content.get('status')
-    except:
-        print '[ERROR] Please confirm your Mapillary email/password'
-        print '--email:', args.email
-        print '--password:', args.password
-        exit()
-        
-    if status == 200:
-        print '[SUCCESS] Mapillary connection established.'
-
-    # Get variables
-    MAPILLARY_USERNAME = args.email
-    MAPILLARY_PERMISSION_HASH = hashes.get('permission_hash')
-    MAPILLARY_SIGNATURE_HASH = hashes.get('signature_hash')
-
     # generate a sequence UUID
     sequence_id = uuid.uuid4()
 
     # S3 bucket
-    s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_id)+"/"
+    s3_bucket = MAPILLARY_USERNAME + "/" + str(sequence_id) + "/"
     print("Uploading sequence {0}.".format(sequence_id))
 
     # set upload parameters
-    params = {"url": MAPILLARY_UPLOAD_URL, "key": s3_bucket,
-            "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
-            "move_files": MOVE_FILES}
+    params = {
+        "url": MAPILLARY_UPLOAD_URL,
+        "key": s3_bucket,
+        "permission": MAPILLARY_PERMISSION_HASH,
+        "signature": MAPILLARY_SIGNATURE_HASH,
+        "move_files": MOVE_FILES
+    }
 
     # create upload queue with all files
     q = Queue()
@@ -210,3 +234,6 @@ if __name__ == '__main__':
                 print("Aborted. No files were submitted. Try again if you had failures.")
             else:
                 print('Please answer y or n. Try again.')
+
+if __name__ == '__main__':
+    cli()

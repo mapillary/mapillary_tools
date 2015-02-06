@@ -12,6 +12,7 @@ from Queue import Queue
 import threading
 import exifread
 import time
+import requests
 
 '''
 Script for uploading images taken with the Mapillary
@@ -104,22 +105,26 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
         if key is None:
             s3_key = filename
         else:
-            s3_key = key+filename
+            s3_key = key + filename
 
-        parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
-                    "policy": permission, "signature": signature, "Content-Type":"image/jpeg" }
+        headers = {
+            "key": s3_key,
+            "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA",
+            "acl": "private",
+            "policy": permission,
+            "signature": signature,
+            "Content-Type":"image/jpeg"
+        }
 
-        with open(filepath, "rb") as f:
-            encoded_string = f.read()
-
-        data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
+        files = {'file': open(filepath, "rb")}
+        files.update(headers)
 
         for attempt in range(MAX_ATTEMPTS):
             try:
-                request = urllib2.Request(url, data=data, headers=headers)
-                response = urllib2.urlopen(request)
+                r = requests.post(url, files=files)
+                print r.status_code
 
-                if response.getcode()==204:
+                if r.status_code == 200:
                     if move_files:
                         os.rename(filepath, "success/"+filename)
                     print("Success: {0}".format(filename))
