@@ -107,13 +107,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if not args.email:
-        print 'Please input your [Email]: upload.py <path> --email your@email.com --password Password'
+        print 'Please input [Email]: upload.py <path> -e your@email.com -p Password'
         exit()
     if not args.password:
-        print 'Please input your [Password]: upload.py <path> --email your@email.com --password Password'
+        print 'Please input [Password]: upload.py <path> -e your@email.com -p Password'
         exit()
     if not args.input:
-        print 'Please input a [Folder Path]: upload.py <path> --email your@email.com --password Password'
+        print 'Please input [Folder Path]: upload.py <path> -e your@email.com -p Password'
         exit()
     else:
         path = args.input[0]
