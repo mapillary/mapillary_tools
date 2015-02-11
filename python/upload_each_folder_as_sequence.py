@@ -13,7 +13,10 @@ if __name__ == '__main__':
     '''
     Use from command line as: python uplaoad_each_folder_as_sequence.py path [project_name]
 
-    You need to set the environment variables MAPILLARY_USERNAME,
+    This script requires sub-scripts add_mapillary_tag_from_exif.py, add_project.py and 
+    upload.py
+    
+    You need to set the environment variables MAPILLARY_USERNAME, MAPILLARY_USERNAME,
     MAPILLARY_PASSWORD to your
     unique values.
 
@@ -24,14 +27,15 @@ if __name__ == '__main__':
     # get env variables
     try:
         MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
         MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
     except KeyError:
         print(
-        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PASSWORD. These are required.")
+        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD. These are required.")
         sys.exit()
 
     # log in, get the projects
-    params = urllib.urlencode({"email": MAPILLARY_USERNAME, "password": MAPILLARY_PASSWORD})
+    params = urllib.urlencode({"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD})
     response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
     resp = json.loads(response.read())
     print json.dumps(resp)
