@@ -128,10 +128,9 @@ if __name__ == '__main__':
     # print resp
 
     args = sys.argv
-    print args
     if len(args) < 2 or len(args) > 3:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_id]")
-        raise IOError("Bad input parameters.")
+        sys.exit("Usage: %s root_path [sequence_id]" % args[0])
+
     path = args[1]
 
     if path.lower().endswith(".jpg"):

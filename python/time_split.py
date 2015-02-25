@@ -74,9 +74,8 @@ if __name__ == '__main__':
     Use from command line as: python time_split.py path cutoff_time
     '''
 
-    if len(sys.argv) > 3:
-        print("Usage: python time_split.py path cutoff_time")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        sys.exit("Usage: %s path [cutoff_time]" % sys.argv[0])
 
     path = sys.argv[1]
 

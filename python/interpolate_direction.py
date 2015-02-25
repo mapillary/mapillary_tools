@@ -84,9 +84,9 @@ def write_direction_to_image(filename, direction):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 3:
-        print("Usage: python interpolate_direction.py path [offset_angle]")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: %s path [offset_angle]" % sys.argv[0])
+
     path = sys.argv[1]
     
     # offset angle, relative to camera position, clockwise is positive

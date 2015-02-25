@@ -23,8 +23,7 @@ if __name__ == '__main__':
 
 
     if len(sys.argv) != 3:
-        print("Usage: python add_project.py path 'project name'")
-        raise IOError("Bad input parameters.")
+        sys.exit("Usage: %s path 'project name'" % sys.argv[0])
 
     path = sys.argv[1]
     project_name = sys.argv[2]

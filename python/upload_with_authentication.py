@@ -97,9 +97,9 @@ if __name__ == '__main__':
     script uses pieces of that.
     '''
 
-    if len(sys.argv) > 2:
-        print("Usage: python upload_with_authentication.py path")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) != 2:
+        sys.exit("Usage: python upload_with_authentication.py path" % sys.argv[0])
+
     path = sys.argv[1]
 
     # if no success/failed folders, create them

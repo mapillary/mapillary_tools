@@ -38,9 +38,9 @@ if __name__ == '__main__':
     print resp
     upload_token = resp['upload_token']
 
-    if len(sys.argv) > 3 or len(sys.argv) < 2:
-        print("Usage: python upload_each_folder_as_sequence.py path [project_name]")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        sys.exit("Usage: %s path [project_name]" % sys.argv[0])
+
     path = sys.argv[1]
 
     if path.lower().endswith(".jpg"):
