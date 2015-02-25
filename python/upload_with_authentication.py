@@ -98,7 +98,7 @@ if __name__ == '__main__':
     '''
 
     if len(sys.argv) != 2:
-        sys.exit("Usage: python upload_with_authentication.py path" % sys.argv[0])
+        sys.exit("Usage: %s path" % sys.argv[0])
 
     path = sys.argv[1]
 
