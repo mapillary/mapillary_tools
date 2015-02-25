@@ -189,9 +189,8 @@ if __name__ == '__main__':
     Use from command line as: python upload.py path
     '''
 
-    if len(sys.argv) > 2:
-        print("Usage: python upload.py path")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) != 2:
+        sys.exit("Usage: %s <path>" % sys.argv[0])
 
     path = sys.argv[1]
 

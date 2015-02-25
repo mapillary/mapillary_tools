@@ -202,9 +202,9 @@ if __name__ == '__main__':
     then the offset is 2.
     '''
 
-    if len(sys.argv) > 4:
-        print("Usage: python geotag_from_gpx.py path gpx_file time_offset")
-        raise IOError("Bad input parameters.")
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        sys.exit("Usage: %s path gpx_file [time_offset]" % sys.argv[0])
+
     path = sys.argv[1]
     gpx_filename = sys.argv[2]
 
