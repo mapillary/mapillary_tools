@@ -190,47 +190,38 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
         print("Skipping {0}: {1}".format(filename, e))
 
 
+def getArgs():
+    import argparse
+    p = argparse.ArgumentParser(description='Geotag one or more photos with location and orientation from GPX file.')
+    p.add_argument('path', help='Path containing JPG files, or location of one JPG file.')
+    p.add_argument('gpx_file', help='Location of GPX file to get locations from.')
+    p.add_argument('time_offset', 
+        help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.', 
+        default=0, type=int, nargs='?') # nargs='?' is how you make the last positional argument optional.
+    return p.parse_args()
 
 
 if __name__ == '__main__':
-    '''
-    Use from command line as: python geotag_from_gpx.py path gpx_file time_offset
-
-    The time_offset is optional and defaults to 0.
-    It is defined as 'exif time' - 'gpx time' in whole seconds,
-    so if your camera clock is ahead of the gpx clock by 2s,
-    then the offset is 2.
-    '''
-
-    if len(sys.argv) > 4:
-        print("Usage: python geotag_from_gpx.py path gpx_file time_offset")
-        raise IOError("Bad input parameters.")
-    path = sys.argv[1]
-    gpx_filename = sys.argv[2]
-
-    if len(sys.argv) == 4:
-        time_offset = int(sys.argv[3])
-    else:
-        time_offset = 0
-
-    if path.lower().endswith(".jpg"):
+    args = getArgs()
+    
+    if args.path.lower().endswith(".jpg"):
         # single file
-        file_list = [path]
+        file_list = [args.path]
     else:
         # folder(s)
         file_list = []
-        for root, sub_folders, files in os.walk(path):
+        for root, sub_folders, files in os.walk(args.path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
     # start time
     t = time.time()
 
     # read gpx file to get track locations
-    gpx = get_lat_lon_time(gpx_filename)
+    gpx = get_lat_lon_time(args.gpx_file)
 
-    print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), gpx_filename))
+    print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
     for filepath in file_list:
-        add_exif_using_timestamp(filepath, gpx, time_offset)
+        add_exif_using_timestamp(filepath, gpx, args.time_offset)
 
-    print("Done geotagging {0} images in {1} seconds.".format(len(file_list), time.time()-t))
+    print("Done geotagging {0} images in {1:.1f} seconds.".format(len(file_list), time.time()-t))
