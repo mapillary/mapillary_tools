@@ -16,7 +16,7 @@ if __name__ == '__main__':
     This script requires sub-scripts add_mapillary_tag_from_exif.py, add_project.py and 
     upload.py
     
-    You need to set the environment variables MAPILLARY_USERNAME, MAPILLARY_USERNAME,
+    You need to set the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL,
     MAPILLARY_PASSWORD to your
     unique values.
 
