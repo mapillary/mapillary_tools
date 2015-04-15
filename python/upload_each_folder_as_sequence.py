@@ -6,8 +6,7 @@ import uuid
 import urllib, urllib2
 import json
 
-reload(sys)
-sys.setdefaultencoding("utf-8")
+sys.cleansetdefaultencoding("utf-8")
 
 if __name__ == '__main__':
     '''
