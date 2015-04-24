@@ -46,7 +46,8 @@ def upload_done_file(params):
     #upload
     upload_file("DONE", **params)
     #remove
-    os.remove("DONE")
+    if not MOVE_FILES:
+        os.remove("DONE")
 
 
 def verify_exif(filename):
