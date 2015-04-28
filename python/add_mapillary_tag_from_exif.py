@@ -47,7 +47,7 @@ def dms_to_decimal(degrees, minutes, seconds, sign=' '):
     )
 
 
-def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
+def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid):
     '''
     Check that image file has the required EXIF fields.
 
@@ -98,6 +98,7 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email
+    mapillary_description["MAPSettingsUsername"] = username
     hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
     mapillary_description['MAPSettingsUploadHash'] = hash
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
@@ -118,11 +119,12 @@ if __name__ == '__main__':
     # get env variables
     try:
         MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
         MAPILLARY_UPLOAD_TOKEN = os.environ['MAPILLARY_UPLOAD_TOKEN']
 
     except KeyError:
         print(
-        "You are missing one of the environment variables MAPILLARY_USERNAME or MAPILLARY_UPLOAD_TOKEN. These are required.")
+        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_UPLOAD_TOKEN. These are required.")
         sys.exit()
     # log in, get the projects
     # print resp
@@ -146,4 +148,4 @@ if __name__ == '__main__':
 
     for filepath in file_list:
         sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
-        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
+        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
