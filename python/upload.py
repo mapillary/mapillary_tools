@@ -135,6 +135,9 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
             except urllib2.URLError as e:
                 print("URL error: {0} on {1}".format(e, filename))
                 time.sleep(5)
+            except OSError as e:
+                print("OS error: {0} on {1}".format(e, filename))
+                time.sleep(5)
             except socket.timeout as e:
                 # Specific timeout handling for Python 2.7
                 print("Timeout error: {0} (retrying)".format(filename))
