@@ -1,12 +1,9 @@
-__author__ = 'peterneubauer'
-
 import sys
 import os
 import uuid
 import urllib, urllib2
 import json
 
-sys.cleansetdefaultencoding("utf-8")
 
 if __name__ == '__main__':
     '''
