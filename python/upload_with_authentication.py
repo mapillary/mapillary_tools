@@ -8,7 +8,11 @@ import uuid
 import exifread
 import time
 
-from upload import create_dirs, UploadThread, upload_file
+if os.path.isfile("upload.py"):
+    from upload import create_dirs, UploadThread, upload_file
+else:
+    print("To run this script you require upload.py.")
+    sys.exit()
 
 '''
 Script for uploading images taken with other cameras than
