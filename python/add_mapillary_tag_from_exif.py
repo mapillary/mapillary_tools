@@ -117,12 +117,12 @@ if __name__ == '__main__':
     '''
     # get env variables
     try:
-        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
         MAPILLARY_UPLOAD_TOKEN = os.environ['MAPILLARY_UPLOAD_TOKEN']
 
     except KeyError:
         print(
-        "You are missing one of the environment variables MAPILLARY_USERNAME or MAPILLARY_UPLOAD_TOKEN. These are required.")
+        "You are missing one of the environment variables MAPILLARY_EMAIL or MAPILLARY_UPLOAD_TOKEN. These are required.")
         sys.exit()
     # log in, get the projects
     # print resp
@@ -146,4 +146,4 @@ if __name__ == '__main__':
 
     for filepath in file_list:
         sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
-        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
+        create_mapillary_desc(filepath, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
