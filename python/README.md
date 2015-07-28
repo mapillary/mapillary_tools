@@ -52,6 +52,16 @@ the EXIF tag of the next image in a set of consecutive images.
 
     python interpolate_direction.py path-to-images/ [offset_angle]
 
+
+**remove_duplicates.py**
+
+Supports the work flow of an action camera, by moving images taken too close together into another folder. This is for example when waiting for a green light. Images with bad or unrealistic exif data is moved to an error folder. Run using:
+
+    python remove_duplicates.py [-d min-distance-meters] src-path/ [duplicate-path/]
+
+Run with -h to see all options. Requires either the PIL or Pillow package to be installed. Pillow is newest and is the only one which will be supported in the future. Install using pip install Pillow or see http://pillow.readthedocs.org/.
+
+
 **time_split.py**
 
 This script organizes images into sequence groups based on a cutoff time. This is useful as a step before uploading lots of photos with the manual uploader. For example:
