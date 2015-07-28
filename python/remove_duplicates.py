@@ -23,7 +23,7 @@ class GPSDirectionDuplicateFinder:
     if not isDuplicate:
       self.prevUniqueRotation = self.prevRotation
   def isDuplicate(self, filepath, exifReader):
-    rotation = exifReader.getRotation()
+    rotation = exifReader.get_rotation()
 
     if rotation == None:
       return False
@@ -86,7 +86,7 @@ class GPSSpeedErrorFinder:
     The given image is an instance of PIL's Image class.
     the given exif is the data from the get_exif_data function.
     """
-    speedGPS = exifReader.getSpeed()
+    speedGPS = exifReader.get_speed()
     if speedGPS == None:
       self.latestText = "None or corrupt exif data."
       return True
@@ -101,7 +101,7 @@ class GPSSpeedErrorFinder:
       return True
 
     latlong = exifReader.get_lat_lon()
-    timestamp = exifReader.getTime()
+    timestamp = exifReader.get_time()
 
     if self.prevLatLon == None or self.prevTime == None:
       self.prevLatLon = latlong
