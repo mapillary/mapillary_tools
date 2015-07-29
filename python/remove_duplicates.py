@@ -1,48 +1,51 @@
 #!/usr/bin/python
 
+import getopt
 import os
 import sys
-import getopt
-from math import radians, cos, sin, asin, sqrt
-from lib_gps_exif import PILExifReader
+from math import asin, cos, radians, sin, sqrt
+
 from PIL import Image
+
+from lib_gps_exif import PILExifReader
+
 
 class GPSDirectionDuplicateFinder:
   """Finds duplicates based on the direction the camera is pointing.
   This supports the case where a panorama is being made."""
-  def __init__(self, maxDiff):
-    self.prevRotation = None
-    self.prevUniqueRotation = None
-    self.maxDiff = maxDiff
-    self.latestText = ""
+  def __init__(self, max_diff):
+    self._prev_rotation = None
+    self._prev_unique_rotation = None
+    self._max_diff = max_diff
+    self._latest_text = ""
 
-  def getLatestText(self):
-    return self.latestText
+  def get_latest_text(self):
+    return self._latest_text
 
-  def latestIsDuplicate(self, isDuplicate):
-    if not isDuplicate:
-      self.prevUniqueRotation = self.prevRotation
-  def isDuplicate(self, filepath, exifReader):
-    rotation = exifReader.getRotation()
+  def latest_is_duplicate(self, is_duplicate):
+    if not is_duplicate:
+      self._prev_unique_rotation = self._prev_rotation
+  def is_duplicate(self, file_path, exif_reader):
+    rotation = exif_reader.get_rotation()
 
     if rotation == None:
       return False
 
-    if self.prevUniqueRotation == None:
-      self.prevRotation = rotation
+    if self._prev_unique_rotation == None:
+      self._prev_rotation = rotation
       return False
 
-    diff = abs(rotation - self.prevUniqueRotation)
-    isDuplicate = diff < self.maxDiff
+    diff = abs(rotation - self._prev_unique_rotation)
+    is_duplicate = diff < self._max_diff
 
-    self.prevRotation = rotation
-    self.latestText = str(int(diff))+" deg: "+str(isDuplicate)
-    return isDuplicate
+    self._prev_rotation = rotation
+    self._latest_text = str(int(diff))+" deg: "+str(is_duplicate)
+    return is_duplicate
 
 class GPSDistance:
   """Calculates the distance between two sets of GPS coordinates."""
   @staticmethod
-  def getGPSDistance(lat1, lon1, lat2, lon2):
+  def get_gps_distance(lat1, lon1, lat2, lon2):
     """
     Calculate the great circle distance between two points
     on the earth (specified in decimal degrees with a result in meters).
@@ -66,256 +69,236 @@ class GPSSpeedErrorFinder:
   """Finds images in a sequence that might have an error in GPS data
      or suggest a track to be split. It is done by looking at the
      speed it would take to travel the distance in question."""
-  def __init__(self, maxSpeedKmH, wayTooHighSpeedKmH):
-    self.prevLatLon = None
-    self.previous = None
-    self.latestText = ""
-    self.previousFilepath = None
-    self.maxSpeedKmH = maxSpeedKmH
-    self.wayTooHighSpeedKmH = wayTooHighSpeedKmH
-    self.highSpeed = False
-    self.tooHighSpeed = False
+  def __init__(self, max_speed_km_h, way_too_high_speed_km_h):
+    self._prev_lat_lon = None
+    self._previous = None
+    self._latest_text = ""
+    self._previous_filepath = None
+    self._max_speed_km_h = max_speed_km_h
+    self._way_too_high_speed_km_h = way_too_high_speed_km_h
+    self._high_speed = False
+    self._too_high_speed = False
 
-  def setVerbose(self, verbose):
+  def set_verbose(self, verbose):
     self.verbose = verbose
-  def getLatestText(self):
-    return self.latestText
-  def isError(self, filepath, exifReader):
+  def get_latest_text(self):
+    return self._latest_text
+  def is_error(self, file_path, exif_reader):
     """
     Returns if there is an obvious error in the images exif data.
     The given image is an instance of PIL's Image class.
     the given exif is the data from the get_exif_data function.
     """
-    speedGPS = exifReader.getSpeed()
-    if speedGPS == None:
-      self.latestText = "None or corrupt exif data."
+    speed_gps = exif_reader.get_speed()
+    if speed_gps == None:
+      self._latest_text = "None or corrupt exif data."
       return True
-    self.latestText = "Speed GPS: "+str(speedGPS)+" km/h"
-    if speedGPS > self.wayTooHighSpeedKmH:
-      self.latestText = "GPS speed is unrealistically high: %s km/h."
-      self.tooHighSpeed = True
+    self._latest_text = "Speed GPS: "+str(speed_gps)+" km/h"
+    if speed_gps > self._way_too_high_speed_km_h:
+      self._latest_text = "GPS speed is unrealistically high: %s km/h."
+      self._too_high_speed = True
       return True
-    elif speedGPS > self.maxSpeedKmH:
-      self.latestText = "GPS speed is high: %s km/h."
-      self.highSpeed = True
+    elif speed_gps > self._max_speed_km_h:
+      self._latest_text = "GPS speed is high: %s km/h."
+      self._high_speed = True
       return True
 
-    latlong = exifReader.get_lat_lon()
-    timestamp = exifReader.getTime()
+    latlong = exif_reader.get_lat_lon()
+    timestamp = exif_reader.get_time()
 
-    if self.prevLatLon == None or self.prevTime == None:
-      self.prevLatLon = latlong
-      self.prevTime = timestamp
-      self.previousFilepath = filepath
+    if self._prev_lat_lon == None or self._prev_time == None:
+      self._prev_lat_lon = latlong
+      self._prev_time = timestamp
+      self._previous_filepath = file_path
       return False
 
     if latlong == None or timestamp == None:
       return False
-    diffMeters = GPSDistance.getGPSDistance(self.prevLatLon[0], self.prevLatLon[1], latlong[0], latlong[1])
-    diffSecs = (timestamp - self.prevTime).total_seconds()
+    diff_meters = GPSDistance.get_gps_distance(
+        self._prev_lat_lon[0], self._prev_lat_lon[1], latlong[0], latlong[1])
+    diff_secs = (timestamp - self._prev_time).total_seconds()
 
-    if diffSecs == 0:
+    if diff_secs == 0:
       return False
-    speedKmH = (diffMeters / diffSecs) * 3.6
+    speed_km_h = (diff_meters / diff_secs) * 3.6
 
-    if speedKmH > self.wayTooHighSpeedKmH:
-      self.latestText = "Speed between %s and %s is %s km/h, which is unrealistically high." % (self.previousFilepath, filepath, int(speedKmH))
-      self.tooHighSpeed = True
+    if speed_km_h > self._way_too_high_speed_km_h:
+      self._latest_text = "Speed between %s and %s is %s km/h, which is"
+      +" unrealistically high." % (self._previous_filepath,
+      file_path, int(speed_km_h))
+      self._too_high_speed = True
       return True
-    elif speedKmH > self.maxSpeedKmH:
-      self.latestText = "Speed between %s and %s is %s km/h." % (self.previousFilepath, filepath, int(speedKmH))
-      self.highSpeed = True
+    elif speed_km_h > self._max_speed_km_h:
+      self._latest_text = "Speed between %s and %s is %s km/h." % (
+          self._previous_filepath, file_path, int(speed_km_h))
+      self._high_speed = True
       return True
     else:
       return False
 
 class GPSDistanceDuplicateFinder:
-  """Finds duplicates images by looking at the distance between two GPS points."""
+  """Finds duplicates images by looking at the distance between
+  two GPS points."""
   def __init__(self, distance):
-    self.distance = distance
-    self.prevLatLon = None
-    self.previous = None
-    self.latestText = ""
-    self.previousFilepath = None
-    self.prevUniqueLatLon = None
+    self._distance = distance
+    self._prev_lat_lon = None
+    self._previous = None
+    self._latest_text = ""
+    self._previous_filepath = None
+    self._prev_unique_lat_lon = None
 
-  def getLatestText(self):
-    return self.latestText
-  def latestIsDuplicate(self, isDuplicate):
-    if not isDuplicate:
-      self.prevUniqueLatLon = self.prevLatLon
-  def isDuplicate(self, filepath, exifReader):
+  def get_latest_text(self):
+    return self._latest_text
+  def latest_is_duplicate(self, is_duplicate):
+    if not is_duplicate:
+      self._prev_unique_lat_lon = self._prev_lat_lon
+  def is_duplicate(self, file_path, exif_reader):
     """
     Returns if the given image is a duplicate of the previous image.
     The given image is an instance of PIL's Image class.
     the given exif is the data from the get_exif_data function.
     """
-    latlong = exifReader.get_lat_lon()
+    latlong = exif_reader.get_lat_lon()
 
-    if self.prevLatLon == None:
-      self.prevLatLon = latlong
+    if self._prev_lat_lon == None:
+      self._prev_lat_lon = latlong
       return False
 
-    if self.prevUniqueLatLon != None and latlong != None:
-      diffMeters = GPSDistance.getGPSDistance(
-              self.prevUniqueLatLon[0], self.prevUniqueLatLon[1], latlong[0], latlong[1])
-      self.previousFilepath = filepath
-      isDuplicate = diffMeters <= self.distance
-      self.prevLatLon = latlong
-      self.latestText = str(int(diffMeters)) + " m: "+str(isDuplicate)
-      return isDuplicate
+    if self._prev_unique_lat_lon != None and latlong != None:
+      diff_meters = GPSDistance.get_gps_distance(
+              self._prev_unique_lat_lon[0], self._prev_unique_lat_lon[1],
+              latlong[0], latlong[1])
+      self._previous_filepath = file_path
+      is_duplicate = diff_meters <= self._distance
+      self._prev_lat_lon = latlong
+      self._latest_text = str(int(diff_meters)) + " m: "+str(is_duplicate)
+      return is_duplicate
     else:
       return False
 
 class ImageRemover:
-  """Moves images that are (almost) duplicates or contains errors in GPS data into
-  separate directories."""
-  def __init__(self, srcDir, duplicateDir, errorDir):
-    self.testers = []
-    self.errorFinders = []
-    self.currentDuplicates = []
-    self.srcDir = srcDir
-    self.duplicateDir = duplicateDir
-    self.errorDir = errorDir
-    self.dryrun = False
-    self.minDuplicates = 3
+  """Moves images that are (almost) duplicates or contains errors in GPS
+  data into separate directories."""
+  def __init__(self, src_dir, duplicate_dir, error_dir):
+    self._testers = []
+    self._error_finders = []
+    self._src_dir = src_dir
+    self._duplicate_dir = duplicate_dir
+    self._error_dir = error_dir
+    self._dryrun = False
+    self._min_duplicates = 3
     self.verbose = 0
-  def setVerbose(self, verbose):
+  def set_verbose(self, verbose):
     self.verbose = verbose
-  def setDryRun(self, dryrun):
-    self.dryrun = dryrun
-  def setMinDuplicates(self, minDuplicates):
-    self.minDuplicates = int(minDuplicates)
-  def addDuplicateFinder(self, tester):
-    self.testers.append(tester)
-  def addErrorFinder(self, finder):
-    self.errorFinders.append(finder)
-  def moveIntoErrorDir(self, file):
-    self.moveIntoDir(file, self.errorDir)
-  def moveIntoDuplicateDir(self, file):
-    self.moveIntoDir(file, self.duplicateDir)
-  def moveIntoDir(self, file, dir):
-    if not self.dryrun and not os.path.exists(dir):
+  def set_dry_run(self, dryrun):
+    self._dryrun = dryrun
+  def add_duplicate_finder(self, tester):
+    self._testers.append(tester)
+  def add_error_finder(self, finder):
+    self._error_finders.append(finder)
+  def _move_into_error_dir(self, file):
+    self._move_into_dir(file, self._error_dir)
+  def _move_into_duplicate_dir(self, file):
+    self._move_into_dir(file, self._duplicate_dir)
+  def _move_into_dir(self, file, dir):
+    if not self._dryrun and not os.path.exists(dir):
       os.makedirs(dir)
     filename = os.path.basename(file)
-    if not self.dryrun:
+    if not self._dryrun:
       os.rename(file, os.path.join(dir, filename))
     print file, " => ", dir
 
-  def doMagic(self):
+  def do_magic(self):
     """Perform the task of finding and moving images."""
-    files = [f for f in os.listdir(self.srcDir) if os.path.isfile(self.srcDir+'/'+f) and f.lower().endswith('.jpg')]
+    files = [f for f in os.listdir(self._src_dir)
+        if os.path.isfile(self._src_dir+'/'+f) and f.lower().endswith('.jpg')]
     list.sort(files)
 
     for file in files:
-      filepath = os.path.join(self.srcDir, file)
-      exifReader = PILExifReader(filepath)
-      isError = self.handlePossibleError(filepath, exifReader)
-      if not isError:
-        self.handlePossibleDuplicate(filepath, exifReader)
-    self.finishSequence()
+      file_path = os.path.join(self._src_dir, file)
+      exif_reader = PILExifReader(file_path)
+      is_error = self._handle_possible_erro(file_path, exif_reader)
+      if not is_error:
+        self._handle_possible_duplicate(file_path, exif_reader)
 
-  def handlePossibleDuplicate(self, filepath, exifReader):
-    """Takes apropriate actions on images which are duplicates.
-       The rest are untouched."""
-    isDuplicate = True
-    verboseText = []
-    # Is this a duplicate?
-    for tester in self.testers:
-      isDuplicate &= tester.isDuplicate(filepath, exifReader)
-      verboseText.append(tester.getLatestText())
+  def _handle_possible_duplicate(self, file_path, exif_reader):
+    is_duplicate = True
+    verbose_text = []
+    for tester in self._testers:
+      is_duplicate &= tester.is_duplicate(file_path, exif_reader)
+      verbose_text.append(tester.get_latest_text())
 
     if self.verbose >= 1:
-      print ", ".join(verboseText), "=>", isDuplicate
+      print ", ".join(verbose_text), "=>", is_duplicate
+    if is_duplicate:
+      self._move_into_duplicate_dir(file_path)
+    for tester in self._testers:
+      tester.latest_is_duplicate(is_duplicate)
+    return is_duplicate
 
-    # Perform actions based on the result.
-    if isDuplicate:
-      self.imageIsDuplicate(filepath)
-    else:
-      self.imageIsNotDuplicate(filepath)
-
-    # Tell the testers if this was a duplicate.
-    for tester in self.testers:
-      tester.latestIsDuplicate(isDuplicate)
-    return isDuplicate
-
-  def finishSequence(self):
-    """Call after processing a sequence. This will do some final cleanup."""
-    self.imageIsNotDuplicate()
-
-  def imageIsDuplicate(self, filepath):
-    """Tells that the image with the given file path is a duplicate."""
-    self.currentDuplicates.append(filepath)
-
-  def imageIsNotDuplicate(self, filepath = None):
-    """Tells that the image with the given filepath is not a duplicate."""
-    if len(self.currentDuplicates) > self.minDuplicates:
-      for path in self.currentDuplicates:
-        self.moveIntoDuplicateDir(path)
-    else:
-      if self.verbose >= 1 and len(self.currentDuplicates) > 0:
-        print "Not duplicate anyway - in too small group:"
-        for path in self.currentDuplicates:
-          print " - ", path
-    self.currentDuplicates = []
-
-  def handlePossibleError(self, filepath, exifReader):
-    isError = False
-    for finder in self.errorFinders:
-      err = finder.isError(file, exifReader)
+  def _handle_possible_erro(self, file_path, exif_reader):
+    is_error = False
+    for finder in self._error_finders:
+      err = finder.is_error(file, exif_reader)
       if err:
-        print finder.getLatestText()
-      isError |= err
-    if isError:
-      self.moveIntoErrorDir(filepath)
-    return isError
+        print finder.get_latest_text()
+      is_error |= err
+    if is_error:
+      self._move_into_error_dir(file_path)
+    return is_error
 
 if __name__ == "__main__":
   distance = 4
   pan = 20
-  errorDir = "errors"
-  fastKmH = 150
-  tooFastKmH = 200
-  minDuplicates = 3
-  def printHelp():
-    print """Usage: remove-duplicates.py [-h | -d] srcDir duplicateDir
-    Finds images in srcDir and moves duplicates to duplicateDir.
+  error_dir = "errors"
+  fast_km_h = 150
+  too_fast_km_h = 200
+  def print_help():
+    print """Usage: remove-duplicates.py [-h | -d] src_dir duplicate_dir
+    Finds images in src_dir and moves duplicates to duplicate_dir.
 
-    Both srcDir and duplicateDir are mandatory. If srcDir is not .
-    and duplicateDir is not given, it will be named "duplicate" and put
+    Both src_dir and duplicate_dir are mandatory. If src_dir is not .
+    and duplicate_dir is not given, it will be named "duplicate" and put
     in the current directory.
-    If duplicateDir does not exist, it will be created in the current
+    If duplicate_dir does not exist, it will be created in the current
     directory (no matter if it will be used or not).
 
     In order to be considered a duplicate, the image must match ALL criteria
     to be a duplicate. With default settings that is, it must have travelled
-    less than """+str(distance)+"""  meters and be panned less than """+str(pan)+""" degrees.
+    less than """+str(distance)+"""  meters and be panned less than """
+    +str(pan)+""" degrees.
     This supports that you ride straight ahead with a significant speed,
     that you make panoramas standing still and standing still waiting for
     the red light to change into green.
 
     Important: The upload.py from Mapillary uploads *recursively* so do not
-    put the duplicateDir under the dir your are uploading from!
+    put the duplicate_dir under the dir your are uploading from!
 
     Options:
-    -e --error-dir Give the directory to put pictures into, if they contains obvious errors.
-                   Default value is """ +errorDir+ """
+    -e --error-dir Give the directory to put pictures into, if they contains """
+    +"""obvious errors.
+                   Default value is """ +error_dir+ """
     -h --help      Print this message and exit.
     -d --distance  Give the maximum distance in meters images must be taken
-                   not to be considered duplicates. Default is """+str(distance)+""" meters.
+                   not to be considered duplicates. Default is """
+                   +str(distance)+""" meters.
                    The distance is calculated from embedded GPS data. If there
                    is no GPS data the images are ignored.
     -a --fast      The speed (km/h) which is a bit too fast. E.g. 40 for a bicycle.
-                   Default value is: """ +str(fastKmH)+ """ km/h
+                   Default value is: """ +str(fast_km_h)+ """ km/h
     -t --too-fast  The speed (km/h) which is way too fast. E.g. 70 for a bicycle.
-                   Default value is: """ +str(tooFastKmH)+ """ km/h
+                   Default value is: """ +str(too_fast_km_h)+ """ km/h
     -p --pan       The maximum distance in degrees (0-360) the image must be
                    panned in order not to be considered a duplicate.
                    Default is """+str(pan)+""" degrees.
-    -m --min-dup   Minimum duplicates for a duplicate to be removed. Default is """ +str(minDuplicates)+""".
-                   When larger than 0 the duplicate feature is only used to remove images due to larger stops,
-                   like a red traffic light. If going really slow this will also cause moving images.
-                   When 0 individual images are also moved, when the speed is slow, images will be moved
+    -m --min-dup   Minimum duplicates for a duplicate to be removed. Default is """
+                   +str(min_duplicates)+""".
+                   When larger than 0 the duplicate feature is only used to """
+                   +"""remove images due to larger stops,
+                   like a red traffic light. If going really slow this will also"""
+                   +"""cause moving images.
+                   When 0 individual images are also moved, when the speed is"""
+                   +"""slow, images will be moved
                    giving a more consistent expirience when viewing them one by one.
     -n --dry-run   Do not move any files. Just simulate.
     -v --verbose   Print extra info.
@@ -325,13 +308,14 @@ if __name__ == "__main__":
   verbose = 0
   try:
       opts, args = getopt.getopt(sys.argv[1:], "hd:p:nve:m:",
-                    ["help", "distance=", "pan=", "dry-run", "verbose", "error-dir", "min-dup"])
+                    ["help", "distance=", "pan=", "dry-run", "verbose",
+                    "error-dir", "min-dup"])
   except getopt.GetoptError, err:
     print str(err)
     sys.exit(2)
   for switch, value in opts:
     if switch in ("-h", "--help"):
-      printHelp()
+      print_help()
       sys.exit(0)
     elif switch in ("-d", "--distance"):
       distance = float(value)
@@ -342,52 +326,55 @@ if __name__ == "__main__":
     elif switch in ("-v", "--verbose"):
       verbose += 1
     elif switch in ("-e", "--error-dir"):
-      errorDir = value
+      error_dir = value
     elif switch in ("-m", "--min-dup"):
-      minDuplicates = int(value)
+      min_duplicates = int(value)
 
   if len(args) == 1 and args[0] != ".":
-    duplicateDir = "duplicates"
+    duplicate_dir = "duplicates"
   elif len(args) < 2:
-    printHelp()
+    print_help()
     sys.exit(2)
   else:
-    duplicateDir = args[1]
+    duplicate_dir = args[1]
 
-  srcDir = args[0]
+  src_dir = args[0]
 
-  distanceFinder = GPSDistanceDuplicateFinder(distance)
-  directionFinder = GPSDirectionDuplicateFinder(pan)
-  speedErrorFinder = GPSSpeedErrorFinder(fastKmH, tooFastKmH)
+  distance_finder = GPSDistanceDuplicateFinder(distance)
+  direction_finder = GPSDirectionDuplicateFinder(pan)
+  speedError_finder = GPSSpeedErrorFinder(fast_km_h, too_fast_km_h)
 
-  imageRemover = ImageRemover(srcDir, duplicateDir, errorDir)
-  imageRemover.setDryRun(dryrun)
-  imageRemover.setVerbose(verbose)
-  imageRemover.setMinDuplicates(minDuplicates)
+  image_remover = ImageRemover(src_dir, duplicate_dir, error_dir)
+  image_remover.set_dry_run(dryrun)
+  image_remover.set_verbose(verbose)
 
   # Modular: Multiple testers can be added.
-  imageRemover.addDuplicateFinder(distanceFinder)
-  imageRemover.addDuplicateFinder(directionFinder)
-  imageRemover.addErrorFinder(speedErrorFinder)
+  image_remover.add_duplicate_finder(distance_finder)
+  image_remover.add_duplicate_finder(direction_finder)
+  image_remover.add_error_finder(speedError_finder)
 
   try:
-    imageRemover.doMagic()
+    image_remover.do_magic()
   except KeyboardInterrupt:
     print "You cancelled."
     sys.exit(1)
-  if False:
-    showSplit = False
-    if False and distanceFinder.isLongDistanceBetween():
-      showSplit = True
+  if False: # TODO Finish.
+    show_split = False
+    if distance_finder.isLongDistanceBetween():
+      show_split = True
       print
       print "Some of your images have a long distance between them."
       print "Strongly consider splitting them into multiple series."
-    if False and distanceFinder.isTooLongDistanceBetween():
-      showSplit = True
+    if distance_finder.isTooLongDistanceBetween():
+      show_split = True
       print
-      print "Some of your images have way too long a distance between them to be ok."
-      print "Mabye your GPS started out with a wrong location or you traveled between sets?"
-    if showSplit:
+      print "Some of your images have way too long a distance between them to"
+      +" be ok."
+      print "Mabye your GPS started out with a wrong location or you traveled "
+      +"between sets?"
+    if show_split:
       print
-      print "See http://blog.mapillary.com/update/2014/06/16/actioncam-workflow.html on how"
-      print "to use time_split.py to automatically split a lot of images into multiple series."
+      print "See http://blog.mapillary.com/update/2014/06/16/actioncam-workflow.html"
+      +"on how"
+      print "to use time_split.py to automatically split a lot of images into"
+      +"multiple series."

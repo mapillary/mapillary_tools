@@ -1,7 +1,7 @@
-from PIL import Image
-from PIL.ExifTags import TAGS, GPSTAGS
 import datetime
 import struct # Only to catch struct.error due to error in PIL / Pillow.
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 
 # Original:  https://gist.github.com/erans/983821
 # License:   MIT
@@ -9,15 +9,15 @@ import struct # Only to catch struct.error due to error in PIL / Pillow.
 
 class ExifException(Exception):
   def __init__(self, message):
-    self.message = message
+    self._message = message
   def __str__(self):
-    return self.message
+    return self._message
 
 class PILExifReader:
   def __init__(self, filepath):
-    self.filepath = filepath
-    self.image = Image.open(filepath)
-    self.exif = self.get_exif_data(self.image)
+    self._filepath = filepath
+    self._image = Image.open(filepath)
+    self._exif = self.get_exif_data(self._image)
   def get_exif_data(self, image):
     """Returns a dictionary from the exif data of an PIL Image item. Also converts the GPS Tags"""
     exif_data = {}
@@ -29,7 +29,7 @@ class PILExifReader:
         return None 
       else:
         raise e
-    except struct.error, e: 
+    except struct.error as e: 
       if e.message == "unpack requires a string argument of length 2":
         # Error in PIL when exif data is corrupt.
         return None
@@ -75,8 +75,8 @@ class PILExifReader:
     lat = None
     lon = None
 
-    gps_info = self.getGpsInfo()
-    if gps_info == None:
+    gps_info = self.get_gps_info()
+    if gps_info is None:
       return None
 
     gps_latitude = self._get_if_exist(gps_info, "GPSLatitude")
@@ -98,62 +98,62 @@ class PILExifReader:
     else:
       return None
       
-  def calcTuple(self, tup):
-    if tup == None or len(tup) != 2 or tup[1] == 0:
+  def calc_tuple(self, tup):
+    if tup is None or len(tup) != 2 or tup[1] == 0:
       return None
     return int(tup[0]) / int(tup[1])
     
-  def getGpsInfo(self):
-    if self.exif == None or not "GPSInfo" in self.exif:
+  def get_gps_info(self):
+    if self._exif is None or not "GPSInfo" in self._exif:
       return None
     else:
-      return self.exif["GPSInfo"]
+      return self._exif["GPSInfo"]
     
-  def getRotation(self):
+  def get_rotation(self):
     """Returns the direction of the GPS receiver in degrees."""
-    gps_info = self.getGpsInfo()
-    if gps_info == None:
+    gps_info = self.get_gps_info()
+    if gps_info is None:
       return None
 
     gps_direction = self._get_if_exist(gps_info, "GPSTrack")
-    if gps_direction == None:
+    if gps_direction is None:
       return None
     if len(gps_direction) < 2 or gps_direction[1] == 0:
       return None
-    direction = self.calcTuple(gps_direction)
+    direction = self.calc_tuple(gps_direction)
     return direction
 
-  def getSpeed(self):
+  def get_speed(self):
     """Returns the GPS speed in km/h or None if it does not exists."""
-    gps_info = self.getGpsInfo()
-    if gps_info == None:
+    gps_info = self.get_gps_info()
+    if gps_info is None:
       return None
     
     if not "GPSSpeed" in gps_info or not "GPSSpeedRef" in gps_info:
       return None
-    speedFrac = gps_info["GPSSpeed"]
-    speedRef = gps_info["GPSSpeedRef"]
+    speed_frac = gps_info["GPSSpeed"]
+    speed_ref = gps_info["GPSSpeedRef"]
     
-    speed = self.calcTuple(speedFrac)
-    if speed == None or speedRef == None:
+    speed = self.calc_tuple(speed_frac)
+    if speed is None or speed_ref is None:
       return None
 
-    speedRef = speedRef.lower()
-    if speedRef == "k":
+    speed_ref = speed_ref.lower()
+    if speed_ref == "k":
       pass # km/h - we are happy.
-    elif speedRef == "m":
+    elif speed_ref == "m":
       #Miles pr. hour => km/h
       speed *= 1.609344
-    elif speedRef == "n":
+    elif speed_ref == "n":
       # Knots => km/h
       speed *= 1.852
     else:
-      print "Warning: Unknown format for GPS speed '%s' in '%s'." % (speedRef, self.filepath)
+      print "Warning: Unknown format for GPS speed '%s' in '%s'." % (speed_ref, self._filepath)
       print "Please file a bug and attache the image."
       return None
     return speed
 
-  def isOKNum(self, val, minVal, maxVal):
+  def is_ok_num(self, val, minVal, maxVal):
     try:
       num = int(val)
     except ValueError:
@@ -162,12 +162,12 @@ class PILExifReader:
       return False
     return True
 
-  def getTime(self):
+  def get_time(self):
     # Example data
     # GPSTimeStamp': ((9, 1), (14, 1), (9000, 1000))
     # 'GPSDateStamp': u'2015:05:17'
-    gps_info = self.getGpsInfo()
-    if gps_info == None:
+    gps_info = self.get_gps_info()
+    if gps_info is None:
       return None
     
     if not 'GPSTimeStamp' in gps_info or not 'GPSDateStamp' in gps_info:
@@ -178,16 +178,16 @@ class PILExifReader:
     if len(timestamp) != 3:
       raise ExifException("Timestamp does not have length 3: %s" % len(timestamp))
     (timeH, timeM, timeS) = timestamp
-    h = self.calcTuple(timeH)
-    m = self.calcTuple(timeM)
-    s = self.calcTuple(timeS)
+    h = self.calc_tuple(timeH)
+    m = self.calc_tuple(timeM)
+    s = self.calc_tuple(timeS)
     if None in (h, m, s):
       raise ExifException("Hour, minute or second is not valid: '%s':'%s':'%s'." % (timeH, timeM, timeS))
 
     if datestamp.count(':') != 2:
       raise ExifException("Datestamp does not contain 2 colons: '%s'" % datestamp)
     (y, mon, d) = [int(str) for str in datestamp.split(':')]
-    if not self.isOKNum(y, 1970, 2100) or not self.isOKNum(mon, 1, 12) or not self.isOKNum(d, 1, 31):
+    if not self.is_ok_num(y, 1970, 2100) or not self.is_ok_num(mon, 1, 12) or not self.is_ok_num(d, 1, 31):
       raise ExifException("Date parsed from the following is not OK: '%s'" % datestamp)
 
     return datetime.datetime(y, mon, d, h, m, s);
