@@ -15,10 +15,10 @@ class GPSDirectionDuplicateFinder:
     self.prevUniqueRotation = None
     self.maxDiff = maxDiff
     self.latestText = ""
-    
+
   def getLatestText(self):
     return self.latestText
-    
+
   def latestIsDuplicate(self, isDuplicate):
     if not isDuplicate:
       self.prevUniqueRotation = self.prevRotation
@@ -27,7 +27,7 @@ class GPSDirectionDuplicateFinder:
 
     if rotation == None:
       return False
-      
+
     if self.prevUniqueRotation == None:
       self.prevRotation = rotation
       return False
@@ -44,20 +44,20 @@ class GPSDistance:
   @staticmethod
   def getGPSDistance(lat1, lon1, lat2, lon2):
     """
-    Calculate the great circle distance between two points 
+    Calculate the great circle distance between two points
     on the earth (specified in decimal degrees with a result in meters).
-      
+
     This is done using the Haversine Formula.
     """
-    # Convert decimal degrees to radians 
+    # Convert decimal degrees to radians
     lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
 
     # Haversine formula
     difflat = lat2 - lat1
     difflon = lon2 - lon1
     a = (sin(difflat / 2) ** 2) + (cos(lat1) * cos(lat2) * sin(difflon / 2) ** 2)
-    difflon = lon2 - lon1 
-    c = 2 * asin(sqrt(a)) 
+    difflon = lon2 - lon1
+    c = 2 * asin(sqrt(a))
     r = 6371000 # Radius of The Earth in meters.
                 # It is not a perfect sphere, so this is just good enough.
     return c * r
@@ -75,7 +75,7 @@ class GPSSpeedErrorFinder:
     self.wayTooHighSpeedKmH = wayTooHighSpeedKmH
     self.highSpeed = False
     self.tooHighSpeed = False
-    
+
   def setVerbose(self, verbose):
     self.verbose = verbose
   def getLatestText(self):
@@ -108,7 +108,7 @@ class GPSSpeedErrorFinder:
       self.prevTime = timestamp
       self.previousFilepath = filepath
       return False
-      
+
     if latlong == None or timestamp == None:
       return False
     diffMeters = GPSDistance.getGPSDistance(self.prevLatLon[0], self.prevLatLon[1], latlong[0], latlong[1])
@@ -117,7 +117,7 @@ class GPSSpeedErrorFinder:
     if diffSecs == 0:
       return False
     speedKmH = (diffMeters / diffSecs) * 3.6
-    
+
     if speedKmH > self.wayTooHighSpeedKmH:
       self.latestText = "Speed between %s and %s is %s km/h, which is unrealistically high." % (self.previousFilepath, filepath, int(speedKmH))
       self.tooHighSpeed = True
@@ -138,7 +138,7 @@ class GPSDistanceDuplicateFinder:
     self.latestText = ""
     self.previousFilepath = None
     self.prevUniqueLatLon = None
-    
+
   def getLatestText(self):
     return self.latestText
   def latestIsDuplicate(self, isDuplicate):
@@ -151,7 +151,7 @@ class GPSDistanceDuplicateFinder:
     the given exif is the data from the get_exif_data function.
     """
     latlong = exifReader.get_lat_lon()
-    
+
     if self.prevLatLon == None:
       self.prevLatLon = latlong
       return False
@@ -173,15 +173,19 @@ class ImageRemover:
   def __init__(self, srcDir, duplicateDir, errorDir):
     self.testers = []
     self.errorFinders = []
+    self.currentDuplicates = []
     self.srcDir = srcDir
     self.duplicateDir = duplicateDir
     self.errorDir = errorDir
     self.dryrun = False
+    self.minDuplicates = 3
     self.verbose = 0
   def setVerbose(self, verbose):
     self.verbose = verbose
   def setDryRun(self, dryrun):
     self.dryrun = dryrun
+  def setMinDuplicates(self, minDuplicates):
+    self.minDuplicates = int(minDuplicates)
   def addDuplicateFinder(self, tester):
     self.testers.append(tester)
   def addErrorFinder(self, finder):
@@ -197,33 +201,63 @@ class ImageRemover:
     if not self.dryrun:
       os.rename(file, os.path.join(dir, filename))
     print file, " => ", dir
-       
+
   def doMagic(self):
     """Perform the task of finding and moving images."""
     files = [f for f in os.listdir(self.srcDir) if os.path.isfile(self.srcDir+'/'+f) and f.lower().endswith('.jpg')]
     list.sort(files)
-    
+
     for file in files:
       filepath = os.path.join(self.srcDir, file)
       exifReader = PILExifReader(filepath)
       isError = self.handlePossibleError(filepath, exifReader)
       if not isError:
         self.handlePossibleDuplicate(filepath, exifReader)
-      
+    self.finishSequence()
+
   def handlePossibleDuplicate(self, filepath, exifReader):
+    """Takes apropriate actions on images which are duplicates.
+       The rest are untouched."""
     isDuplicate = True
     verboseText = []
+    # Is this a duplicate?
     for tester in self.testers:
       isDuplicate &= tester.isDuplicate(filepath, exifReader)
       verboseText.append(tester.getLatestText())
 
     if self.verbose >= 1:
       print ", ".join(verboseText), "=>", isDuplicate
+
+    # Perform actions based on the result.
     if isDuplicate:
-      self.moveIntoDuplicateDir(filepath)
+      self.imageIsDuplicate(filepath)
+    else:
+      self.imageIsNotDuplicate(filepath)
+
+    # Tell the testers if this was a duplicate.
     for tester in self.testers:
       tester.latestIsDuplicate(isDuplicate)
     return isDuplicate
+
+  def finishSequence(self):
+    """Call after processing a sequence. This will do some final cleanup."""
+    self.imageIsNotDuplicate()
+
+  def imageIsDuplicate(self, filepath):
+    """Tells that the image with the given file path is a duplicate."""
+    self.currentDuplicates.append(filepath)
+
+  def imageIsNotDuplicate(self, filepath = None):
+    """Tells that the image with the given filepath is not a duplicate."""
+    if len(self.currentDuplicates) > self.minDuplicates:
+      for path in self.currentDuplicates:
+        self.moveIntoDuplicateDir(path)
+    else:
+      if self.verbose >= 1 and len(self.currentDuplicates) > 0:
+        print "Not duplicate anyway - in too small group:"
+        for path in self.currentDuplicates:
+          print " - ", path
+    self.currentDuplicates = []
 
   def handlePossibleError(self, filepath, exifReader):
     isError = False
@@ -235,17 +269,18 @@ class ImageRemover:
     if isError:
       self.moveIntoErrorDir(filepath)
     return isError
-    
+
 if __name__ == "__main__":
   distance = 4
   pan = 20
   errorDir = "errors"
   fastKmH = 150
   tooFastKmH = 200
+  minDuplicates = 3
   def printHelp():
     print """Usage: remove-duplicates.py [-h | -d] srcDir duplicateDir
     Finds images in srcDir and moves duplicates to duplicateDir.
-    
+
     Both srcDir and duplicateDir are mandatory. If srcDir is not .
     and duplicateDir is not given, it will be named "duplicate" and put
     in the current directory.
@@ -257,11 +292,11 @@ if __name__ == "__main__":
     less than """+str(distance)+"""  meters and be panned less than """+str(pan)+""" degrees.
     This supports that you ride straight ahead with a significant speed,
     that you make panoramas standing still and standing still waiting for
-    the red light to change into green.    
+    the red light to change into green.
 
     Important: The upload.py from Mapillary uploads *recursively* so do not
     put the duplicateDir under the dir your are uploading from!
-    
+
     Options:
     -e --error-dir Give the directory to put pictures into, if they contains obvious errors.
                    Default value is """ +errorDir+ """
@@ -277,15 +312,20 @@ if __name__ == "__main__":
     -p --pan       The maximum distance in degrees (0-360) the image must be
                    panned in order not to be considered a duplicate.
                    Default is """+str(pan)+""" degrees.
+    -m --min-dup   Minimum duplicates for a duplicate to be removed. Default is """ +str(minDuplicates)+""".
+                   When larger than 0 the duplicate feature is only used to remove images due to larger stops,
+                   like a red traffic light. If going really slow this will also cause moving images.
+                   When 0 individual images are also moved, when the speed is slow, images will be moved
+                   giving a more consistent expirience when viewing them one by one.
     -n --dry-run   Do not move any files. Just simulate.
     -v --verbose   Print extra info.
     """
-    
+
   dryrun = False
   verbose = 0
   try:
-      opts, args = getopt.getopt(sys.argv[1:], "hd:p:nve:",
-                    ["help", "distance=", "pan=", "dry-run", "verbose", "error-dir"])
+      opts, args = getopt.getopt(sys.argv[1:], "hd:p:nve:m:",
+                    ["help", "distance=", "pan=", "dry-run", "verbose", "error-dir", "min-dup"])
   except getopt.GetoptError, err:
     print str(err)
     sys.exit(2)
@@ -303,7 +343,9 @@ if __name__ == "__main__":
       verbose += 1
     elif switch in ("-e", "--error-dir"):
       errorDir = value
-    
+    elif switch in ("-m", "--min-dup"):
+      minDuplicates = int(value)
+
   if len(args) == 1 and args[0] != ".":
     duplicateDir = "duplicates"
   elif len(args) < 2:
@@ -317,11 +359,12 @@ if __name__ == "__main__":
   distanceFinder = GPSDistanceDuplicateFinder(distance)
   directionFinder = GPSDirectionDuplicateFinder(pan)
   speedErrorFinder = GPSSpeedErrorFinder(fastKmH, tooFastKmH)
-  
+
   imageRemover = ImageRemover(srcDir, duplicateDir, errorDir)
   imageRemover.setDryRun(dryrun)
   imageRemover.setVerbose(verbose)
-  
+  imageRemover.setMinDuplicates(minDuplicates)
+
   # Modular: Multiple testers can be added.
   imageRemover.addDuplicateFinder(distanceFinder)
   imageRemover.addDuplicateFinder(directionFinder)
@@ -341,11 +384,10 @@ if __name__ == "__main__":
       print "Strongly consider splitting them into multiple series."
     if False and distanceFinder.isTooLongDistanceBetween():
       showSplit = True
-      print 
+      print
       print "Some of your images have way too long a distance between them to be ok."
       print "Mabye your GPS started out with a wrong location or you traveled between sets?"
     if showSplit:
       print
       print "See http://blog.mapillary.com/update/2014/06/16/actioncam-workflow.html on how"
       print "to use time_split.py to automatically split a lot of images into multiple series."
-
