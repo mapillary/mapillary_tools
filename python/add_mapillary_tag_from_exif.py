@@ -64,11 +64,10 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
     mapillary_infos = []
 
     print "Processing %s" % filename
-    with open(filename, 'r+') as f:
-        tags = pyexiv2.ImageMetadata(filepath)
-        tags.read()
-        # for tag in tags:
-        #     print "{0}  {1}".format(tag, tags[tag].value)
+    tags = pyexiv2.ImageMetadata(filename)
+    tags.read()
+    # for tag in tags:
+    #     print "{0}  {1}".format(tag, tags[tag].value)
 
     # make sure all required tags are there
     for rexif in required_exif:
@@ -105,6 +104,8 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
     mapillary_description['MAPDeviceModel'] = tags["Exif.Photo.LensModel"].value if "Exif.Photo.LensModel" in tags else "none"
     mapillary_description['MAPDeviceMake'] = tags["Exif.Photo.LensMake"].value if "Exif.Photo.LensMake" in tags else "none"
+    mapillary_description['MAPDeviceModel'] = tags["Exif.Image.Model"].value if (("Exif.Image.Model" in tags) and (mapillary_description['MAPDeviceModel'] == "none")) else "none"
+    mapillary_description['MAPDeviceMake'] = tags["Exif.Image.Make"].value if ( ("Exif.Image.Make" in tags) and (mapillary_description['MAPDeviceMake'] == "none")) else "none"
 
     json_desc = json.dumps(mapillary_description)
     print "tag: {0}".format(json_desc)
