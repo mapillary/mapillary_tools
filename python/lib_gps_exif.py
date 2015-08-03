@@ -23,8 +23,8 @@ class PILExifReader:
         self._exif = self.get_exif_data(self._image)
 
     def get_exif_data(self, image):
-        """Returns a dictionary from the exif data of an PIL Image"""
-        +""" item. Also converts the GPS Tags"""
+        """Returns a dictionary from the exif data of an PIL Image
+        item. Also converts the GPS Tags"""
         exif_data = {}
         try:
             info = image._getexif()
