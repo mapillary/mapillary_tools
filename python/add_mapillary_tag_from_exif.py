@@ -47,7 +47,7 @@ def dms_to_decimal(degrees, minutes, seconds, sign=' '):
     )
 
 
-def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
+def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid):
     '''
     Check that image file has the required EXIF fields.
 
@@ -64,11 +64,10 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_infos = []
 
     print "Processing %s" % filename
-    with open(filename, 'r+') as f:
-        tags = pyexiv2.ImageMetadata(filepath)
-        tags.read()
-        # for tag in tags:
-        #     print "{0}  {1}".format(tag, tags[tag].value)
+    tags = pyexiv2.ImageMetadata(filename)
+    tags.read()
+    # for tag in tags:
+    #     print "{0}  {1}".format(tag, tags[tag].value)
 
     # make sure all required tags are there
     for rexif in required_exif:
@@ -98,12 +97,15 @@ def create_mapillary_desc(filename, email, upload_hash, sequence_uuid):
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email
+    mapillary_description["MAPSettingsUsername"] = username
     hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
     mapillary_description['MAPSettingsUploadHash'] = hash
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
     mapillary_description['MAPDeviceModel'] = tags["Exif.Photo.LensModel"].value if "Exif.Photo.LensModel" in tags else "none"
     mapillary_description['MAPDeviceMake'] = tags["Exif.Photo.LensMake"].value if "Exif.Photo.LensMake" in tags else "none"
+    mapillary_description['MAPDeviceModel'] = tags["Exif.Image.Model"].value if (("Exif.Image.Model" in tags) and (mapillary_description['MAPDeviceModel'] == "none")) else "none"
+    mapillary_description['MAPDeviceMake'] = tags["Exif.Image.Make"].value if ( ("Exif.Image.Make" in tags) and (mapillary_description['MAPDeviceMake'] == "none")) else "none"
 
     json_desc = json.dumps(mapillary_description)
     print "tag: {0}".format(json_desc)
@@ -117,12 +119,13 @@ if __name__ == '__main__':
     '''
     # get env variables
     try:
+        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
         MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
         MAPILLARY_UPLOAD_TOKEN = os.environ['MAPILLARY_UPLOAD_TOKEN']
 
     except KeyError:
         print(
-        "You are missing one of the environment variables MAPILLARY_EMAIL or MAPILLARY_UPLOAD_TOKEN. These are required.")
+        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_UPLOAD_TOKEN. These are required.")
         sys.exit()
     # log in, get the projects
     # print resp
@@ -146,4 +149,4 @@ if __name__ == '__main__':
 
     for filepath in file_list:
         sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
-        create_mapillary_desc(filepath, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
+        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)

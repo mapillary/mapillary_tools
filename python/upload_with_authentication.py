@@ -8,7 +8,12 @@ import uuid
 import exifread
 import time
 
-from upload import create_dirs, UploadThread, upload_file
+try:
+    from upload import create_dirs, UploadThread, upload_file
+except ImportError:
+    print("To run this script you need upload.py in your PYTHONPATH or the same folder.")
+    sys.exit()
+
 
 '''
 Script for uploading images taken with other cameras than
@@ -46,7 +51,8 @@ def upload_done_file(params):
     #upload
     upload_file("DONE", **params)
     #remove
-    os.remove("DONE")
+    if not MOVE_FILES:
+        os.remove("DONE")
 
 
 def verify_exif(filename):
@@ -97,7 +103,7 @@ if __name__ == '__main__':
     script uses pieces of that.
     '''
 
-    if len(sys.argv) > 2:
+    if len(sys.argv) < 2:
         print("Usage: python upload_with_authentication.py path")
         raise IOError("Bad input parameters.")
     path = sys.argv[1]

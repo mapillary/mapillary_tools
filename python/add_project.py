@@ -15,10 +15,11 @@ if __name__ == '__main__':
     # get env variables
     try:
         MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
         MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
 
     except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME or MAPILLARY_PASSWORD. These are required.")
+        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
         sys.exit()
 
 
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     print "Adding images in %s to project '%s'" % (path, project_name)
 
     # log in, get the projects
-    params = urllib.urlencode( {"email": MAPILLARY_USERNAME, "password": MAPILLARY_PASSWORD })
+    params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
     response =urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
     response_read = response.read()
     print response_read

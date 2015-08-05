@@ -52,6 +52,16 @@ the EXIF tag of the next image in a set of consecutive images.
 
     python interpolate_direction.py path-to-images/ [offset_angle]
 
+
+**remove_duplicates.py**
+
+Supports the work flow of an action camera, by moving images taken too close together into another folder. This is for example when waiting for a green light. Images with bad or unrealistic exif data is moved to an error folder. Run using:
+
+    python remove_duplicates.py [-d min-distance-meters] src-path/ [duplicate-path/]
+
+Run with -h to see all options. Requires either the PIL or Pillow package to be installed. Pillow is newest and is the only one which will be supported in the future. Install using pip install Pillow or see http://pillow.readthedocs.org/.
+
+
 **time_split.py**
 
 This script organizes images into sequence groups based on a cutoff time. This is useful as a step before uploading lots of photos with the manual uploader. For example:
@@ -79,7 +89,8 @@ Allows images in subfolders to be assigned unique sequence IDs.
 
     python upload_each_folder_as_sequence.py path-to-images/ 
 
-(Requires enviroment variables set: MAPILLARY_USERNAME, MAPILLARY_PASSWORD)
+Requires enviroment variables: MAPILLARY_USERNAME, MAPILLARY_PASSWORD.  
+Also requires upload.py to be in the same folder or in the PYTHONPATH since this script uses upload.py.
 
 **upload_with_authentication.py**
 
@@ -87,8 +98,9 @@ Script for uploading images taken with other cameras than the Mapillary apps. Yo
 
     python upload_with_authentication.py path-to-images/
 
-(Requires enviroment variables set: MAPILLARY_USERNAME, 'MAPILLARY_PERMISSION_HASH', 'MAPILLARY_SIGNATURE_HASH)
-from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes)
+Requires environment variables MAPILLARY_USERNAME, 'MAPILLARY_PERMISSION_HASH', 'MAPILLARY_SIGNATURE_HASH
+from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes).  
+Also requires upload.py to be in the same folder or in the PYTHONPATH since this script uses upload.py.
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
