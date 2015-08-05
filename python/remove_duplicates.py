@@ -104,11 +104,13 @@ class GPSSpeedErrorFinder:
             return True
         self._latest_text = "Speed GPS: " + str(speed_gps) + " km/h"
         if speed_gps > self._way_too_high_speed_km_h:
-            self._latest_text = "GPS speed is unrealistically high: %s km/h."
+            self._latest_text = ("GPS speed is unrealistically high: %s km/h."
+                % speed_gps)
             self._too_high_speed = True
             return True
         elif speed_gps > self._max_speed_km_h:
-            self._latest_text = "GPS speed is high: %s km/h."
+            self._latest_text = ("GPS speed is high: %s km/h."
+                % speed_gps )
             self._high_speed = True
             return True
 
@@ -133,9 +135,9 @@ class GPSSpeedErrorFinder:
         speed_km_h = (diff_meters / diff_secs) * 3.6
 
         if speed_km_h > self._way_too_high_speed_km_h:
-            self._latest_text = "Speed between %s and %s is %s km/h, which is"
-            + " unrealistically high." % (self._previous_filepath, file_path,
-                                          int(speed_km_h))
+            self._latest_text = ("Speed between %s and %s is %s km/h, which is"
+            " unrealistically high." % (self._previous_filepath, file_path,
+                                          int(speed_km_h)))
             self._too_high_speed = True
             return True
         elif speed_km_h > self._max_speed_km_h:
@@ -146,6 +148,12 @@ class GPSSpeedErrorFinder:
             return True
         else:
             return False
+
+    def is_fast(self):
+      return self._high_speed
+
+    def is_too_fast(self):
+      return self._too_high_speed
 
 
 class GPSDistanceDuplicateFinder:
@@ -190,7 +198,7 @@ class GPSDistanceDuplicateFinder:
                 int(diff_meters)) + " m: " + str(is_duplicate)
             return is_duplicate
         else:
-            return False
+           return False
 
 
 class ImageRemover:
@@ -337,9 +345,10 @@ if __name__ == "__main__":
     dryrun = False
     verbose = 0
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hd:p:nve:m:",
+        opts, args = getopt.getopt(sys.argv[1:], "hd:p:nve:m:a:t:",
                                    ["help", "distance=", "pan=", "dry-run",
-                                    "verbose", "error-dir", "min-dup"])
+                                    "verbose", "error-dir", "min-dup",
+                                    "fast=", "too-fast="])
     except getopt.GetoptError, err:
         print str(err)
         sys.exit(2)
@@ -357,6 +366,12 @@ if __name__ == "__main__":
             verbose += 1
         elif switch in ("-e", "--error-dir"):
             error_dir = value
+        elif switch in ("-m", "--min-dup"):
+            min_duplicates = int(value)
+        elif switch in ("-a", "--fast"):
+            fast_km_h = float(value)
+        elif switch in ("-t", "--too-fast"):
+            too_fast_km_h = float(value)
 
     if len(args) == 1 and args[0] != ".":
         duplicate_dir = "duplicates"
@@ -370,7 +385,7 @@ if __name__ == "__main__":
 
     distance_finder = GPSDistanceDuplicateFinder(distance)
     direction_finder = GPSDirectionDuplicateFinder(pan)
-    speedError_finder = GPSSpeedErrorFinder(fast_km_h, too_fast_km_h)
+    speed_error_finder = GPSSpeedErrorFinder(fast_km_h, too_fast_km_h)
 
     image_remover = ImageRemover(src_dir, duplicate_dir, error_dir)
     image_remover.set_dry_run(dryrun)
@@ -379,10 +394,33 @@ if __name__ == "__main__":
     # Modular: Multiple testers can be added.
     image_remover.add_duplicate_finder(distance_finder)
     image_remover.add_duplicate_finder(direction_finder)
-    image_remover.add_error_finder(speedError_finder)
+    image_remover.add_error_finder(speed_error_finder)
 
     try:
         image_remover.do_magic()
     except KeyboardInterrupt:
         print "You cancelled."
         sys.exit(1)
+    finally:
+        show_split = False
+        if speed_error_finder.is_fast():
+            show_split = True
+            print
+            print ("It looks like you have gone really fast between"
+                +" some images.")
+            print "Strongly consider splitting them into multiple series."
+            print "See the messages earlier."
+        if speed_error_finder.is_too_fast():
+            show_split = True
+            print
+            print ("It looks like yo have gone unrealistically fast"
+                 + "between some images to be ok.")
+            print ("Mabye your GPS started out with a wrong location "
+                 + "or you traveled between sets?")
+            print "See the messages earlier."
+        if show_split:
+            print
+            print ("See http://blog.mapillary.com/update/2014/06/16/actioncam-workflow.html"
+                + " on how")
+            print ("to use time_split.py to automatically split a lot "
+                + "of images into multiple series.")
