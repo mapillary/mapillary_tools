@@ -204,11 +204,7 @@ class ImageRemover:
         self._duplicate_dir = duplicate_dir
         self._error_dir = error_dir
         self._dryrun = False
-        self._min_duplicates = 3
         self.verbose = 0
-
-    def set_min_duplicates(self, min_duplicates):
-        self._min_duplicates = min_duplicates
 
     def set_verbose(self, verbose):
         self.verbose = verbose
@@ -361,8 +357,6 @@ if __name__ == "__main__":
             verbose += 1
         elif switch in ("-e", "--error-dir"):
             error_dir = value
-        elif switch in ("-m", "--min-dup"):
-            min_duplicates = int(value)
 
     if len(args) == 1 and args[0] != ".":
         duplicate_dir = "duplicates"
@@ -381,7 +375,6 @@ if __name__ == "__main__":
     image_remover = ImageRemover(src_dir, duplicate_dir, error_dir)
     image_remover.set_dry_run(dryrun)
     image_remover.set_verbose(verbose)
-    image_remover.set_min_duplicates(min_duplicates)
 
     # Modular: Multiple testers can be added.
     image_remover.add_duplicate_finder(distance_finder)
@@ -393,23 +386,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print "You cancelled."
         sys.exit(1)
-    if False:  # TODO Finish.
-        show_split = False
-        if distance_finder.isLongDistanceBetween():
-            show_split = True
-            print
-            print "Some of your images have a long distance between them."
-            print "Strongly consider splitting them into multiple series."
-        if distance_finder.isTooLongDistanceBetween():
-            show_split = True
-            print
-            print "Some of your images have way too long a distance "
-            + "between them to be ok."
-            print "Mabye your GPS started out with a wrong location "
-            + "or you traveled between sets?"
-        if show_split:
-            print
-            print "See http://blog.mapillary.com/update/2014/06/16/actioncam-workflow.html"
-            + "on how"
-            print "to use time_split.py to automatically split a lot "
-            + "of images into multiple series."
