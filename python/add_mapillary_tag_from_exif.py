@@ -121,17 +121,23 @@ if __name__ == '__main__':
     try:
         MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
         MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_UPLOAD_TOKEN = os.environ['MAPILLARY_UPLOAD_TOKEN']
+        MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
 
     except KeyError:
         print(
-        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_UPLOAD_TOKEN. These are required.")
+        "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
         sys.exit()
     # log in, get the projects
+    params = urllib.urlencode({"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD})
+    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    resp = json.loads(response.read())
+    # print resp
+    MAPILLARY_UPLOAD_TOKEN = resp['upload_token']
+
     # print resp
 
     args = sys.argv
-    print args
+    # print args
     if len(args) < 2 or len(args) > 3:
         print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_id]")
         raise IOError("Bad input parameters.")
