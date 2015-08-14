@@ -46,12 +46,12 @@ MOVE_FILES = False
 
 def upload_done_file(params):
     print("Upload a DONE file to tell the backend that the sequence is all uploaded and ready to submit.")
-    if not os.path.exists('DONE'):
+    if not os.path.exists("DONE"):
         open("DONE", 'a').close()
     #upload
     upload_file("DONE", **params)
     #remove
-    if not MOVE_FILES:
+    if os.path.exists("DONE"):
         os.remove("DONE")
 
 
