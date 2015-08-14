@@ -40,7 +40,7 @@ USE UPLOAD.PY INSTEAD.
 
 
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
-NUMBER_THREADS = 4
+NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MOVE_FILES = False
 
 
