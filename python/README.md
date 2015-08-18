@@ -4,7 +4,7 @@ Python tools for Mapillary
 
 **add_fix_dates.py**
 
-Script for adding dates to jpg files extracted from video with no tags. if you have a directory of files 
+Script for adding dates to jpg files extracted from video with no tags. if you have a directory of files
 provide the directory, the datetime for the first file, and an increment in seconds. Ie if the photos are  
 taken every 2 seconds  
 
@@ -13,13 +13,13 @@ taken every 2 seconds
 
 **add_mapillary_tag_from_exif.py**
 
-Script for uploading images taken with other cameras than the Mapillary iOS or Android apps. 
-Adds Mapillary data to EXIF tag to enable image to be handled in the same way as mapillary
+Script for uploading images taken with other cameras than the Mapillary iOS or Android apps.
+Adds Mapillary data to EXIF tag to enable image to be handled in the same way as Mapillary
 native images.
 
     python add_mapillary_tag_from_exif path-to-images/ [sequence_id]
 
-(Requires enviroment variables set: MAPILLARY_USERNAME, MAPILLARY_UPLOAD_TOKEN)
+(Requires environment variables set: MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD)
 
 **add_project.py**
 
@@ -42,13 +42,13 @@ A lightweight script for geotagging images with GPS data from a gpx file. Writes
 
     python geotag_from_gpx.py path-to-images/ gpx_file [time_offset]
 
-The time_offset is optional and is used if your camera clock is offset from your GPS clock.
+The time_offset is optional and is used if your camera clock is offset from your GPS clock. (Requires gpxpy, e.g. 'pip install gpxpy').
 
 
 **interpolate_direction.py**
 
 Interpolates the direction of an image based on the coordinates stored in  
-the EXIF tag of the next image in a set of consecutive images. 
+the EXIF tag of the next image in a set of consecutive images.
 
     python interpolate_direction.py path-to-images/ [offset_angle]
 
@@ -75,7 +75,7 @@ If no cutoff time is given, it will be estimated based on the between-photo diff
 
 This script uploads images taken with any of the Mapillary apps to the Mapillary backend. Just run:
 
-    python upload.py path-to-images/ 
+    python upload.py path-to-images/
 
 
 On Android Systems you can find the images under `/storage/emulated/0/Android/data/app.mapillary/files/pictures/`.
@@ -87,7 +87,7 @@ On iOS, open iTunes, select your device, and scroll down to Mapillary under apps
 
 Allows images in subfolders to be assigned unique sequence IDs.
 
-    python upload_each_folder_as_sequence.py path-to-images/ 
+    python upload_each_folder_as_sequence.py path-to-images/
 
 Requires enviroment variables: MAPILLARY_USERNAME, MAPILLARY_PASSWORD.  
 Also requires upload.py to be in the same folder or in the PYTHONPATH since this script uses upload.py.
@@ -105,4 +105,3 @@ Also requires upload.py to be in the same folder or in the PYTHONPATH since this
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
-
