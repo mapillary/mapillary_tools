@@ -16,24 +16,18 @@ import base64
 from upload import create_dirs, UploadThread, upload_file
 
 '''
-Script for uploading images taken with other cameras than
-the Mapillary iOS or Android apps.
+Script for reading the EXIF data from images and create the
+Mapillary tags in Image Description (including the upload hashes)
+needed to be able to upload without authentication.
 
-Intended use is for when you have used an action camera such as a GoPro
-or Garmin VIRB, or any other camera where the location is included in the image EXIF.
+Allows the optional argument to submit a sequence key. This allows for
+grouping of photos into sequences.
 
 The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
 -Orientation
-
-Before uploading put all images that belong together in a sequence, in a
-specific folder, for example using 'time_split.py'. All images in a session
-will be considered part of a single sequence.
-
-NB: DO NOT USE THIS SCRIPT ON IMAGE FILES FROM THE MAPILLARY APPS,
-USE UPLOAD.PY INSTEAD.
 
 (assumes Python 2.x, for Python 3.x you need to change some module names)
 '''
