@@ -102,6 +102,9 @@ if __name__ == '__main__':
     You also need upload.py in the same folder or in your PYTHONPATH since this
     script uses pieces of that.
     '''
+    if sys.version_info >= (3, 0):
+        raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
+
 
     if len(sys.argv) < 2:
         print("Usage: python upload_with_authentication.py path")
