@@ -197,7 +197,7 @@ def get_args():
     p.add_argument('gpx_file', help='Location of GPX file to get locations from.')
     p.add_argument('time_offset',
         help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.',
-        default=0, type=int, nargs='?') # nargs='?' is how you make the last positional argument optional.
+        default=0, type=float, nargs='?') # nargs='?' is how you make the last positional argument optional.
     return p.parse_args()
 
 
