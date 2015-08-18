@@ -8,7 +8,7 @@ import pyexiv2
 import math
 import time
 from pyexiv2.utils import make_fraction
-
+from dateutil.tz import tzlocal
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
@@ -125,8 +125,6 @@ def interpolate_lat_lon(points, t):
     return lat, lon, bearing, ele
 
 
-
-
 def to_deg(value, loc):
     '''
     Convert decimal position to degrees.
@@ -180,7 +178,7 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
         metadata["Exif.GPSInfo.GPSVersionID"] = '2 0 0 0'
         metadata["Exif.GPSInfo.GPSImgDirection"] = exiv_bearing
         metadata["Exif.GPSInfo.GPSImgDirectionRef"] = "T"
-        
+
         if elevation is not None:
             exiv_elevation = make_fraction(abs(int(elevation*10)),10)
             metadata["Exif.GPSInfo.GPSAltitude"] = exiv_elevation
@@ -192,20 +190,23 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
         print("Skipping {0}: {1}".format(filename, e))
 
 
-def getArgs():
+def get_args():
     import argparse
     p = argparse.ArgumentParser(description='Geotag one or more photos with location and orientation from GPX file.')
     p.add_argument('path', help='Path containing JPG files, or location of one JPG file.')
     p.add_argument('gpx_file', help='Location of GPX file to get locations from.')
-    p.add_argument('time_offset', 
-        help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.', 
+    p.add_argument('time_offset',
+        help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.',
         default=0, type=int, nargs='?') # nargs='?' is how you make the last positional argument optional.
     return p.parse_args()
 
 
 if __name__ == '__main__':
-    args = getArgs()
-    
+    args = get_args()
+
+    now = datetime.datetime.now(tzlocal())
+    print("Your local timezone is {0}, if this is not correct, your geotags will be wrong.".format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+
     if args.path.lower().endswith(".jpg"):
         # single file
         file_list = [args.path]
