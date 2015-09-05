@@ -31,7 +31,7 @@ class GPSDirectionDuplicateFinder:
         rotation = exif_reader.get_rotation()
 
         if rotation is None:
-            return False
+            return None
 
         if self._prev_unique_rotation is None:
             self._prev_rotation = rotation
@@ -41,7 +41,7 @@ class GPSDirectionDuplicateFinder:
         is_duplicate = diff < self._max_diff
 
         self._prev_rotation = rotation
-        self._latest_text = str(int(diff)) + " deg: " + str(is_duplicate) + "(%s -  %s)" % (rotation, self._prev_unique_rotation)
+        self._latest_text = str(int(diff)) + " deg: " + str(is_duplicate)
         return is_duplicate
 
 
@@ -255,14 +255,13 @@ class ImageRemover:
 
     def do_magic(self):
         """Perform the task of finding and moving images."""
-        files = [f for f in os.listdir(self._src_dir)
-                 if os.path.isfile(self._src_dir + '/' + f) and
+        files = [os.path.join(self._src_dir, f) for f in os.listdir(self._src_dir)
+                 if os.path.isfile(os.path.join(self._src_dir, f)) and
                  f.lower().endswith('.jpg')]
-        #list.sort(files)
+        
         self._sort_file_list(files)
 
-        for file in files:
-            file_path = os.path.join(self._src_dir, file)
+        for file_path in files:
             exif_reader = PILExifReader(file_path)
             is_error = self._handle_possible_erro(file_path, exif_reader)
             if not is_error:
@@ -272,8 +271,12 @@ class ImageRemover:
         is_duplicate = True
         verbose_text = []
         for tester in self._testers:
-            is_duplicate &= tester.is_duplicate(file_path, exif_reader)
-            verbose_text.append(tester.get_latest_text())
+            is_this_duplicate = tester.is_duplicate(file_path, exif_reader)
+            if is_this_duplicate != None:
+              is_duplicate &= is_this_duplicate
+              verbose_text.append(tester.get_latest_text())
+            else:
+              verbose_text.append("No orientation")
 
         if self.verbose >= 1:
             print ", ".join(verbose_text), "=>", is_duplicate
@@ -390,7 +393,6 @@ if __name__ == "__main__":
     if len(args) == 1 and args[0] != ".":
         duplicate_dir = "duplicates"
     elif len(args) < 2:
-        print "Only got %s arguments" % len(args)
         print_help()
         sys.exit(2)
     else:
