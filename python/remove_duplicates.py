@@ -41,7 +41,7 @@ class GPSDirectionDuplicateFinder:
         is_duplicate = diff < self._max_diff
 
         self._prev_rotation = rotation
-        self._latest_text = str(int(diff)) + " deg: " + str(is_duplicate)
+        self._latest_text = str(int(diff)) + " deg: " + str(is_duplicate) + "(%s -  %s)" % (rotation, self._prev_unique_rotation)
         return is_duplicate
 
 
@@ -376,6 +376,7 @@ if __name__ == "__main__":
     if len(args) == 1 and args[0] != ".":
         duplicate_dir = "duplicates"
     elif len(args) < 2:
+        print "Only got %s arguments" % len(args)
         print_help()
         sys.exit(2)
     else:
