@@ -240,12 +240,26 @@ class ImageRemover:
             os.rename(file, os.path.join(dir, filename))
         print file, " => ", dir
 
+    def _read_capture_time(self, filepath):
+        reader = PILExifReader(filepath)
+        return reader.read_capture_time()
+
+    def _sort_file_list(self, file_list):
+        '''
+        Read capture times and sort files in time order.
+        '''
+        capture_times = [self._read_capture_time(filepath) for filepath in file_list]
+        sorted_times_files = zip(capture_times, file_list)
+        sorted_times_files.sort()
+        return zip(*sorted_times_files)
+
     def do_magic(self):
         """Perform the task of finding and moving images."""
         files = [f for f in os.listdir(self._src_dir)
                  if os.path.isfile(self._src_dir + '/' + f) and
                  f.lower().endswith('.jpg')]
-        list.sort(files)
+        #list.sort(files)
+        self._sort_file_list(files)
 
         for file in files:
             file_path = os.path.join(self._src_dir, file)
