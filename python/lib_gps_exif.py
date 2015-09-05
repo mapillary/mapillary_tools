@@ -19,8 +19,9 @@ class ExifException(Exception):
 class PILExifReader:
     def __init__(self, filepath):
         self._filepath = filepath
-        self._image = Image.open(filepath)
-        self._exif = self.get_exif_data(self._image)
+        image = Image.open(filepath)
+        self._exif = self.get_exif_data(image)
+        image.close()
 
     def get_exif_data(self, image):
         """Returns a dictionary from the exif data of an PIL Image
