@@ -31,7 +31,7 @@ class GPSDirectionDuplicateFinder:
         rotation = exif_reader.get_rotation()
 
         if rotation is None:
-            return False
+            return None
 
         if self._prev_unique_rotation is None:
             self._prev_rotation = rotation
@@ -240,15 +240,28 @@ class ImageRemover:
             os.rename(file, os.path.join(dir, filename))
         print file, " => ", dir
 
+    def _read_capture_time(self, filepath):
+        reader = PILExifReader(filepath)
+        return reader.read_capture_time()
+
+    def _sort_file_list(self, file_list):
+        '''
+        Read capture times and sort files in time order.
+        '''
+        capture_times = [self._read_capture_time(filepath) for filepath in file_list]
+        sorted_times_files = zip(capture_times, file_list)
+        sorted_times_files.sort()
+        return zip(*sorted_times_files)
+
     def do_magic(self):
         """Perform the task of finding and moving images."""
-        files = [f for f in os.listdir(self._src_dir)
-                 if os.path.isfile(self._src_dir + '/' + f) and
+        files = [os.path.join(self._src_dir, f) for f in os.listdir(self._src_dir)
+                 if os.path.isfile(os.path.join(self._src_dir, f)) and
                  f.lower().endswith('.jpg')]
-        list.sort(files)
+        
+        self._sort_file_list(files)
 
-        for file in files:
-            file_path = os.path.join(self._src_dir, file)
+        for file_path in files:
             exif_reader = PILExifReader(file_path)
             is_error = self._handle_possible_erro(file_path, exif_reader)
             if not is_error:
@@ -258,8 +271,12 @@ class ImageRemover:
         is_duplicate = True
         verbose_text = []
         for tester in self._testers:
-            is_duplicate &= tester.is_duplicate(file_path, exif_reader)
-            verbose_text.append(tester.get_latest_text())
+            is_this_duplicate = tester.is_duplicate(file_path, exif_reader)
+            if is_this_duplicate != None:
+              is_duplicate &= is_this_duplicate
+              verbose_text.append(tester.get_latest_text())
+            else:
+              verbose_text.append("No orientation")
 
         if self.verbose >= 1:
             print ", ".join(verbose_text), "=>", is_duplicate

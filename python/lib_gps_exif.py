@@ -19,8 +19,9 @@ class ExifException(Exception):
 class PILExifReader:
     def __init__(self, filepath):
         self._filepath = filepath
-        self._image = Image.open(filepath)
-        self._exif = self.get_exif_data(self._image)
+        image = Image.open(filepath)
+        self._exif = self.get_exif_data(image)
+        image.close()
 
     def get_exif_data(self, image):
         """Returns a dictionary from the exif data of an PIL Image
@@ -52,6 +53,21 @@ class PILExifReader:
                 else:
                     exif_data[decoded] = value
         return exif_data
+
+    def read_capture_time(self):
+        time_tag = "DateTimeOriginal"
+
+        # read and format capture time
+        if time_tag in self._exif:
+            capture_time = self._exif[time_tag]
+            capture_time = capture_time.replace(" ","_")
+            capture_time = capture_time.replace(":","_")
+        else:
+            print self._exif
+            capture_time = 0
+
+        # return as datetime object
+        return datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
 
     def _get_if_exist(self, data, key):
         if key in data:
