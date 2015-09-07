@@ -100,8 +100,8 @@ class GPSSpeedErrorFinder:
     """
         speed_gps = exif_reader.get_speed()
         if speed_gps is None:
-            self._latest_text = "None or corrupt exif data."
-            return True
+            self._latest_text = "No speed given in EXIF data."
+            return False
         self._latest_text = "Speed GPS: " + str(speed_gps) + " km/h"
         if speed_gps > self._way_too_high_speed_km_h:
             self._latest_text = ("GPS speed is unrealistically high: %s km/h."
