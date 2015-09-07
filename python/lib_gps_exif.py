@@ -58,6 +58,8 @@ class PILExifReader:
         time_tag = "DateTimeOriginal"
 
         # read and format capture time
+        if self._exif == None:
+            print "Exif is none."
         if time_tag in self._exif:
             capture_time = self._exif[time_tag]
             capture_time = capture_time.replace(" ","_")
@@ -139,13 +141,14 @@ class PILExifReader:
         if gps_info is None:
             return None
 
-        gps_direction = self._get_if_exist(gps_info, "GPSTrack")
-        if gps_direction is None:
-            return None
-        if len(gps_direction) < 2 or gps_direction[1] == 0:
-            return None
-        direction = self.calc_tuple(gps_direction)
-        return direction
+        for tag in ('GPSTrack', 'DSC07558.JPG'):
+            gps_direction = self._get_if_exist(gps_info, tag)
+            direction = self.calc_tuple(gps_direction)
+            if direction == None:
+                continue
+            else:
+                return direction
+        return None
 
     def get_speed(self):
         """Returns the GPS speed in km/h or None if it does not exists."""
