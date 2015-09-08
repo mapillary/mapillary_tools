@@ -141,7 +141,7 @@ class PILExifReader:
         if gps_info is None:
             return None
 
-        for tag in ('GPSTrack', 'DSC07558.JPG'):
+        for tag in ('GPSSpeed', 'GPSTrack'):
             gps_direction = self._get_if_exist(gps_info, tag)
             direction = self.calc_tuple(gps_direction)
             if direction == None:
