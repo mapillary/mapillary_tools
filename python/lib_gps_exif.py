@@ -63,7 +63,7 @@ class PILExifReader:
             capture_time = capture_time.replace(" ","_")
             capture_time = capture_time.replace(":","_")
         else:
-            print self._exif
+            print "No time tag in "+self._filepath
             capture_time = 0
 
         # return as datetime object

@@ -194,7 +194,7 @@ class GPSDistanceDuplicateFinder:
             self._previous_filepath = file_path
             is_duplicate = diff_meters <= self._distance
             self._prev_lat_lon = latlong
-            self._latest_text = str(
+            self._latest_text = file_path + ": " + str(
                 int(diff_meters)) + " m: " + str(is_duplicate)
             return is_duplicate
         else:
@@ -258,10 +258,11 @@ class ImageRemover:
         files = [os.path.join(self._src_dir, f) for f in os.listdir(self._src_dir)
                  if os.path.isfile(os.path.join(self._src_dir, f)) and
                  f.lower().endswith('.jpg')]
-        
-        self._sort_file_list(files)
+
+        capturetime, files = self._sort_file_list(files)
 
         for file_path in files:
+            #print file_path
             exif_reader = PILExifReader(file_path)
             is_error = self._handle_possible_erro(file_path, exif_reader)
             if not is_error:
