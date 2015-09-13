@@ -151,6 +151,13 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
     metadata = pyexiv2.ImageMetadata(filename)
     metadata.read()
     t = metadata['Exif.Photo.DateTimeOriginal'].value
+    try:
+        t_subsec = metadata['Exif.Photo.SubSecTimeOriginal'].value
+        t_subsec_delta = datetime.timedelta(seconds=float("0."+t_subsec))
+        t += t_subsec_delta
+    except KeyError:
+        pass
+
 
     # subtract offset in s beween gpx time and exif time
     t = t - datetime.timedelta(seconds=offset_time)
@@ -183,9 +190,12 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
             exiv_elevation = make_fraction(abs(int(elevation*10)),10)
             metadata["Exif.GPSInfo.GPSAltitude"] = exiv_elevation
             metadata["Exif.GPSInfo.GPSAltitudeRef"] = '0' if elevation >= 0 else '1'
+        try:
+            metadata.write()
+            print("Added geodata to: {0} ({1}, {2}, {3}), altitude {4}".format(filename, lat, lon, bearing, elevation))
+        except IOError:
+            print("Failed writing to: {0}".format(filename))
 
-        metadata.write()
-        print("Added geodata to: {0} ({1}, {2}, {3}), altitude {4}".format(filename, lat, lon, bearing, elevation))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
 
@@ -215,6 +225,9 @@ if __name__ == '__main__':
         file_list = []
         for root, sub_folders, files in os.walk(args.path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+
+    # sort, so that the order of the photos is well-defined, which enables better debugging
+    file_list.sort()
 
     # start time
     t = time.time()
