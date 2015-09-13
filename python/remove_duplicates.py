@@ -100,8 +100,8 @@ class GPSSpeedErrorFinder:
     """
         speed_gps = exif_reader.get_speed()
         if speed_gps is None:
-            self._latest_text = "None or corrupt exif data."
-            return True
+            self._latest_text = "No speed given in EXIF data."
+            return False
         self._latest_text = "Speed GPS: " + str(speed_gps) + " km/h"
         if speed_gps > self._way_too_high_speed_km_h:
             self._latest_text = ("GPS speed is unrealistically high: %s km/h."
@@ -194,7 +194,7 @@ class GPSDistanceDuplicateFinder:
             self._previous_filepath = file_path
             is_duplicate = diff_meters <= self._distance
             self._prev_lat_lon = latlong
-            self._latest_text = str(
+            self._latest_text = file_path + ": " + str(
                 int(diff_meters)) + " m: " + str(is_duplicate)
             return is_duplicate
         else:
@@ -258,10 +258,11 @@ class ImageRemover:
         files = [os.path.join(self._src_dir, f) for f in os.listdir(self._src_dir)
                  if os.path.isfile(os.path.join(self._src_dir, f)) and
                  f.lower().endswith('.jpg')]
-        
-        self._sort_file_list(files)
+
+        capturetime, files = self._sort_file_list(files)
 
         for file_path in files:
+            #print file_path
             exif_reader = PILExifReader(file_path)
             is_error = self._handle_possible_erro(file_path, exif_reader)
             if not is_error:
