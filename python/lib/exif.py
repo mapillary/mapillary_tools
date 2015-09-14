@@ -39,13 +39,23 @@ def extract_exif_from_file(fileobj):
     return d
 
 class EXIF:
-
-    def __init__(self, fileobj):
-        self.tags = exifread.process_file(fileobj, details=False)
+    '''
+    EXIF class for reading exif from an image
+    '''
+    def __init__(self, FILE):
+        '''
+        Initialize EXIF object with FILE as filename or fileobj
+        '''
+        if type(FILE)==str:
+            with open(FILE, 'rb') as fileobj:
+                self.tags = exifread.process_file(fileobj, details=False)
+        else:
+            self.tags = exifread.process_file(FILE, details=False)
 
     def extract_image_size(self):
-        print self.tags
-        # Image Width and Image Height
+        '''
+        Extract image height and width
+        '''
         if 'Image ImageWidth' in self.tags and 'Image ImageLength' in self.tags:
             width, height = (int(self.tags['Image ImageWidth'].values[0]),
                             int(self.tags['Image ImageLength'].values[0]) )
@@ -54,7 +64,9 @@ class EXIF:
         return width, height
 
     def extract_make(self):
-        # Camera make and model
+        '''
+        Extract camera make
+        '''
         if 'EXIF LensMake' in self.tags:
             make = self.tags['EXIF LensMake'].values
         elif 'Image Make' in self.tags:
@@ -64,6 +76,9 @@ class EXIF:
         return make
 
     def extract_model(self):
+        '''
+        Extract camera model
+        '''
         if 'EXIF LensModel' in self.tags:
             model = self.tags['EXIF LensModel'].values
         elif 'Image Model' in self.tags:
@@ -78,12 +93,6 @@ class EXIF:
         else:
             orientation = 1
         return orientation
-
-    def extract_distortion(self):
-        make, model = self.extract_make(), self.extract_model()
-        fmm35, fratio = self.extract_focal()
-        distortion = get_distortion(make, model, fmm35)
-        return distortion[0], distortion[1]
 
     def extract_lon_lat(self):
         if 'GPS GPSLatitude' in self.tags:
@@ -110,6 +119,9 @@ class EXIF:
         return dop
 
     def extract_geo(self):
+        '''
+        Extract geo-related information from exif
+        '''
         altitude = self.extract_altitude()
         dop = self.extract_dop()
         lon, lat = self.extract_lon_lat()
@@ -126,7 +138,7 @@ class EXIF:
 
     def extract_capture_time(self):
         '''
-        Extract time from EXIF
+        Extract capture time from EXIF
         '''
         time_string = ["EXIF DateTimeOriginal",
                        "EXIF DateTimeDigitized",
@@ -145,7 +157,9 @@ class EXIF:
         return capture_time
 
     def extract_exif(self):
-
+        '''
+        Extract a list of exif infos
+        '''
         width, height = self.extract_image_size()
         make, model = self.extract_make(), self.extract_model()
         orientation = self.extract_orientation()
@@ -159,11 +173,5 @@ class EXIF:
                 'model': model,
                 'capture_time': capture
             }
-        # GPS
         d['gps'] = geo
         return d
-
-
-
-
-
