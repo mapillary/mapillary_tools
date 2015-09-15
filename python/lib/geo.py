@@ -74,6 +74,12 @@ def to_deg(value, loc):
     sec = round((t1 - mint)* 60, 6)
     return (deg, mint, sec, loc_value)
 
+def offset_bearing(bearing, offset):
+    '''
+    Add offset to bearing
+    '''
+    bearing = (bearing + offset + 360) % 360
+    return bearing
 
 def compute_bearing(start_lat, start_lon, end_lat, end_lon):
     '''
