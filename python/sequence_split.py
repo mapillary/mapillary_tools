@@ -29,7 +29,7 @@ time difference.
 
 if __name__ == '__main__':
     '''
-    Use from command line as: python sequence_split.py path cutoff_time cutoff_distance
+    Use from command line as: python sequence_split.py path cutoff_distance [cutoff_time]
     @params path: path to the photos
     @params cutoff_time: cutoff time in seconds
     @params cutoff_distance: cutoff distance in meters
