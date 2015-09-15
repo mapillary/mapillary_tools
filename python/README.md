@@ -67,13 +67,13 @@ Supports the work flow of an action camera, by moving images taken too close tog
 Run with -h to see all options. Requires either the PIL or Pillow package to be installed. Pillow is newest and is the only one which will be supported in the future. Install using pip install Pillow or see http://pillow.readthedocs.org/.
 
 
-**sequence_split.py** 
+**time_split.py** 
 
-This script organizes images into sequence groups based on a cutoff distance (in meters) and a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
+This script organizes images into sequence groups based on a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
 
-    python time_split.py path-to-images/ cutoff_distance [cutoff_time]
+    python time_split.py path-to-images/ [cutoff_time]
 
-The default cutoff distance is 500 meteres. If no cutoff time is given, it will be estimated based on the between-photo differences.
+If no cutoff time is given, it will be estimated based on the between-photo differences.
 
 
 ## Upload
