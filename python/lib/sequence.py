@@ -16,6 +16,14 @@ class Sequence(object):
 
     def __init__(self, filepath):
         self.filepath = filepath
+        self.get_file_list(filepath)
+
+    def get_file_list(self, filepath):
+        file_list = []
+        for root, sub_folders, files in os.walk(self.filepath):
+            file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+        self.file_list = file_list
+        return file_list
 
     def read_capture_time(self, filename):
         '''
@@ -46,9 +54,7 @@ class Sequence(object):
         for i,group in enumerate(groups):
             group_path = os.path.dirname(group[0])
             new_dir = os.path.join(group_path, str(i))
-            if not os.path.exists(new_dir):
-                os.mkdir(new_dir)
-
+            lib.io.mkdir_p(new_dir)
             for filepath in group:
                 os.rename(filepath, os.path.join(new_dir, os.path.basename(filepath)))
             print("Moved {0} photos to {1}".format(len(group), new_dir))
@@ -60,9 +66,7 @@ class Sequence(object):
         @params cutoff_time:     maximum time interval in seconds
         '''
 
-        file_list = []
-        for root, sub_folders, files in os.walk(self.filepath):
-            file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+        file_list = self.file_list
 
         # sort based on EXIF capture time
         capture_times, file_list = self.sort_file_list(file_list)
@@ -106,3 +110,33 @@ class Sequence(object):
 
         print("Done split photos in {} into {} sequences".format(self.filepath, len(groups)))
         return groups
+
+    def interpolate_direction(self, offset=0):
+        '''
+        Interpolate bearing of photos in a sequence with an offset
+        @author: mprins
+        '''
+
+        bearings = {}
+        file_list = self.file_list
+        num_file = len(file_list)
+
+        if num_file>1:
+            # sort based on EXIF capture time
+            capture_times, file_list = self.sort_file_list(file_list)
+
+            # read gps for ordered files
+            latlons = [self.read_lat_lon(filepath) for filepath in file_list]
+
+            if len(file_list)>1:
+                # bearing between consecutive images
+                bearings = [lib.geo.compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
+                                for ll1, ll2 in zip(latlons, latlons[1:])]
+                bearings.append(bearings[-1])
+                print bearings
+                bearings = {file_list[i]: lib.geo.offset_bearing(b, offset) for i, b in enumerate(bearings)}
+        elif num_file==1:
+            #if there is only one file in the list, just write the direction 0 and offset
+            bearings = {file_list[0]: lib.geo.offset_bearing(0.0, offset)}
+
+        return bearings

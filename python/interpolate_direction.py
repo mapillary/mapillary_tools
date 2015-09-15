@@ -1,9 +1,9 @@
  #!/usr/bin/python
 
 import os, sys, pyexiv2
-
 from pyexiv2.utils import make_fraction
-from lib.geo import compute_bearing, DMStoDD
+from lib.geo import compute_bearing, DMStoDD, offset_bearing
+from lib.sequence import Sequence
 
 '''
 Interpolates the direction of an image based on the coordinates stored in
@@ -20,39 +20,6 @@ clockwise offset. eg. 90 for a rightlooking camera and 270 (or -90) for a left l
 @author: mprins
 @license: MIT
 '''
-
-def list_images(directory):
-    '''
-    Create a list of image tuples sorted by capture timestamp.
-    @param directory: directory with JPEG files
-    @return: a list of image tuples with time, directory, lat,long...
-    '''
-    file_list = []
-    for root, sub_folders, files in os.walk(directory):
-        file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
-
-    files = []
-    # get GPS data from the images and sort the list by timestamp
-    for filepath in file_list:
-        metadata = pyexiv2.ImageMetadata(filepath)
-        metadata.read()
-        try:
-            t = metadata["Exif.Photo.DateTimeOriginal"].value
-            lat = metadata["Exif.GPSInfo.GPSLatitude"].value
-            latRef = metadata["Exif.GPSInfo.GPSLatitudeRef"].value
-            lon = metadata["Exif.GPSInfo.GPSLongitude"].value
-            lonRef = metadata["Exif.GPSInfo.GPSLongitudeRef"].value
-            # assume that metadata["Exif.GPSInfo.GPSMapDatum"] is "WGS-84"
-            dmslat = DMStoDD(lat[0], lat[1], lat[2], latRef)
-            dmslon = DMStoDD(lon[0], lon[1], lon[2], lonRef)
-            files.append((t, filepath, dmslat, dmslon))
-        except KeyError, e:
-            # if any of the required tags are not set the image is not added to the list
-            print("Skipping {0}: {1}".format(filename, e))
-
-    files.sort()
-    return files
-
 
 def write_direction_to_image(filename, direction):
     '''
@@ -82,24 +49,10 @@ if __name__ == '__main__':
     # offset angle, relative to camera position, clockwise is positive
     offset_angle = 0
     if len(sys.argv) == 3 :
-        offset_angle = int(sys.argv[2])
+        offset_angle = float(sys.argv[2])
 
-    # list of file tuples sorted by timestamp
-    imageList = list_images(path)
-    direction =0
-
-    # calculate and write direction by looking at next file in the list of files
-    for curImg, nextImg in zip(imageList, imageList[1:]):
-        direction = compute_bearing(curImg[2], curImg[3], nextImg[2], nextImg[3])
-        # correct for offset angle
-        direction = (direction + offset_angle + 360) % 360
-        write_direction_to_image(curImg[1], direction)
-    # the last image gets the same direction as the second to last
-
-    #if there is only one file in the list, just write the direction 0 and offset
-    if len(imageList)==1:
-        print ("{0}".format(imageList[0]))
-        write_direction_to_image(imageList[0][1], (direction + offset_angle + 360) % 360)
-    else:
-        write_direction_to_image(nextImg[1], direction)
+    s = Sequence(path)
+    bearings = s.interpolate_direction(offset_angle)
+    for image_name, bearing in bearings.iteritems():
+        write_direction_to_image(image_name, bearing)
 
