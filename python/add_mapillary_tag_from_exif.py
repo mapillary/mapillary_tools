@@ -147,28 +147,16 @@ if __name__ == '__main__':
 
     args = sys.argv
     # print args
-    if len(args) < 2 or len(args) > 3:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_id]")
+    if len(args) != 2:
+        print("Usage: python add_mapillary_tag_from_exif.py root_path")
         raise IOError("Bad input parameters.")
     path = args[1]
-
-    if path.lower().endswith(".jpg"):
-        # single file
-        file_list = [path]
-    else:
-        # folder(s)
-        file_list = []
 
     for root, sub_folders, files in os.walk(path):
         sequence_uuid = uuid.uuid4()
         print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
-        # if len(sys.argv) == 3:
-        #     os.system("python add_project.py %s %s" % (root, sys.argv[2]))
-        # else:
-        # tfe.create_mapillary_desc(root, sequence_uuid))
         for file in files:
             if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
-                # print "processing {0}".format(file)
                 create_mapillary_desc(os.path.join(root,file), MAPILLARY_USERNAME, MAPILLARY_EMAIL, upload_token, sequence_uuid)
             else:
                 print "Ignoring {0}".format(os.path.join(root,file))
