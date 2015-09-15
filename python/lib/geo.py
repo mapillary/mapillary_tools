@@ -43,7 +43,10 @@ def gps_distance(latlon_1, latlon_2):
     return dis
 
 def DMStoDD(degrees, minutes, seconds, hemisphere):
-    ''' Convert from degrees, minutes, seconds to decimal degrees. '''
+    '''
+    Convert from degrees, minutes, seconds to decimal degrees.
+    @author: mprins
+    '''
     dms = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
     if hemisphere == "W" or hemisphere == "S":
         dms = -1 * dms
