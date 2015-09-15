@@ -5,6 +5,7 @@ Python Tools for Mapillary
 
 * [exifread] []
 * [gpxpy] []
+* [PIL] []
 * [pyexiv2] []
 
 ## Installing on MacOSX
@@ -50,7 +51,7 @@ A lightweight script for geotagging images with GPS data from a gpx file. Writes
 The time_offset is optional and is used if your camera clock is offset from your GPS clock. (Requires gpxpy, e.g. 'pip install gpxpy').
 
 
-**interpolate_direction.py** 
+**interpolate_direction.py**
 
 Interpolates the direction of an image based on the coordinates stored in
 the EXIF tag of the next image in a set of consecutive images.
@@ -58,7 +59,7 @@ the EXIF tag of the next image in a set of consecutive images.
     python interpolate_direction.py path-to-images/ [offset_angle]
 
 
-**remove_duplicates.py** 
+**remove_duplicates.py**
 
 Supports the work flow of an action camera, by moving images taken too close together into another folder. This is for example when waiting for a green light. Images with bad or unrealistic exif data is moved to an error folder. Run using:
 
@@ -67,7 +68,7 @@ Supports the work flow of an action camera, by moving images taken too close tog
 Run with -h to see all options. Requires either the PIL or Pillow package to be installed. Pillow is newest and is the only one which will be supported in the future. Install using pip install Pillow or see http://pillow.readthedocs.org/.
 
 
-**time_split.py** 
+**time_split.py**
 
 This script organizes images into sequence groups based on a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
 
@@ -128,4 +129,5 @@ Script to download images using the Mapillary image search API. Downloads images
 
 [exifread]: https://pypi.python.org/pypi/ExifRead
 [gpxpy]: https://pypi.python.org/pypi/gpxpy
+[PIL]: https://pypi.python.org/pypi/Pillow/2.2.1
 [pyexiv2]: http://tilloy.net/dev/pyexiv2/
