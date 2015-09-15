@@ -20,8 +20,8 @@ Script for reading the EXIF data from images and create the
 Mapillary tags in Image Description (including the upload hashes)
 needed to be able to upload without authentication.
 
-Allows the optional argument to submit a sequence key. This allows for
-grouping of photos into sequences.
+This script will add all photos in the same folder to one sequence,
+so group your photos into one subfolder per sequence (works deeply nested, too).
 
 The following EXIF tags are required:
 -GPSLongitude
@@ -107,6 +107,14 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
     tags.write()
 
 
+def get_upload_token(mail, pwd):
+    # log in, get the projects
+    params = urllib.urlencode({"email": mail, "password": pwd})
+    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    resp = json.loads(response.read())
+    # print resp
+    return resp['upload_token']
+
 if __name__ == '__main__':
     '''
     Use from command line as: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]
@@ -121,13 +129,8 @@ if __name__ == '__main__':
         print(
         "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
         sys.exit()
-    # log in, get the projects
-    params = urllib.urlencode({"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD})
-    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
-    resp = json.loads(response.read())
-    # print resp
-    MAPILLARY_UPLOAD_TOKEN = resp['upload_token']
 
+    upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
     # print resp
 
     args = sys.argv
@@ -145,8 +148,15 @@ if __name__ == '__main__':
         file_list = []
 
     for root, sub_folders, files in os.walk(path):
-        file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
-
-    for filepath in file_list:
-        sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
-        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
+        sequence_uuid = uuid.uuid4()
+        print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
+        # if len(sys.argv) == 3:
+        #     os.system("python add_project.py %s %s" % (root, sys.argv[2]))
+        # else:
+        # tfe.create_mapillary_desc(root, sequence_uuid))
+        for file in files:
+            if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
+                # print "processing {0}".format(file)
+                create_mapillary_desc(os.path.join(root,file), MAPILLARY_USERNAME, MAPILLARY_EMAIL, upload_token, sequence_uuid)
+            else:
+                print "Ignoring {0}".format(os.path.join(root,file))
