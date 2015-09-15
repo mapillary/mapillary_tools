@@ -84,8 +84,18 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
     mapillary_description["MAPLatitude"] = dms_to_decimal(mapillary_infos[1].value[0], mapillary_infos[1].value[1],
                                                           mapillary_infos[1].value[2],
                                                           tags["Exif.GPSInfo.GPSLatitudeRef"].value)
+
+    #collect sub-second time from different time sources, if present, and add to time.: 
+    subsectime = float(0)
+    for tag in ["Exif.Photo.SubSecTimeOriginal", "Exif.Photo.SubSecTimeDigitized", "Exif.Photo.SubSecTime"]:
+        if tag in tags:
+            subsectime = float("0."+tags[tag].value)
+            break
+    photodatetime = mapillary_infos[2].value + datetime.timedelta(seconds=subsectime)
+
+
     #required date format: 2015_01_14_09_37_01_000
-    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(mapillary_infos[2].value, "%Y_%m_%d_%H_%M_%S_000")
+    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(photodatetime, "%Y_%m_%d_%H_%M_%S_") + "%.3d"%(photodatetime.microsecond/1000)
     mapillary_description["MAPOrientation"] = mapillary_infos[3].value
     heading = float(tags["Exif.GPSInfo.GPSImgDirection"].value) if "Exif.GPSInfo.GPSImgDirection" in tags else 0
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
