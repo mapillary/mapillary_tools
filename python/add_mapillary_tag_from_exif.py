@@ -120,11 +120,9 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
 
 
 def get_upload_token(mail, pwd):
-    # log in, get the projects
     params = urllib.urlencode({"email": mail, "password": pwd})
     response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
     resp = json.loads(response.read())
-    # print resp
     return resp['upload_token']
 
 if __name__ == '__main__':
@@ -143,7 +141,6 @@ if __name__ == '__main__':
         sys.exit()
 
     upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
-    # print resp
 
     args = sys.argv
     # print args
