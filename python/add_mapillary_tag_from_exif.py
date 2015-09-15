@@ -23,6 +23,18 @@ needed to be able to upload without authentication.
 This script will add all photos in the same folder to one sequence,
 so group your photos into one subfolder per sequence (works deeply nested, too).
 
+-root
+    |
+    |- seq1
+    |  |- seq1_1.jpg
+    |  |- seq1_2.jpg
+    |  |
+    |  |- seq2
+    |     |- seq2_1.jpg
+    |
+    |- seq3
+       |- seq3_1.jpg
+
 The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
