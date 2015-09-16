@@ -5,6 +5,7 @@ Python Tools for Mapillary
 
 * [exifread] []
 * [gpxpy] []
+* [PIL] []
 * [pyexiv2] []
 
 ## Installing on MacOSX
@@ -69,11 +70,19 @@ Run with -h to see all options. Requires either the PIL or Pillow package to be 
 
 **sequence_split.py**
 
+<<<<<<< HEAD
 This script organizes images into sequence groups based on a cutoff distance (in meters) and a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
+=======
+This script organizes images into sequence groups based on a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
+>>>>>>> master
 
     python time_split.py path-to-images/ [cutoff_time]
 
 If no cutoff time is given, it will be estimated based on the between-photo differences.
+
+## Upload
+
+Use the upload script that suits your photos best.
 
 ## Upload
 
@@ -127,4 +136,5 @@ Script to download images using the Mapillary image search API. Downloads images
 
 [exifread]: https://pypi.python.org/pypi/ExifRead
 [gpxpy]: https://pypi.python.org/pypi/gpxpy
+[PIL]: https://pypi.python.org/pypi/Pillow/2.2.1
 [pyexiv2]: http://tilloy.net/dev/pyexiv2/

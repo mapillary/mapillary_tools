@@ -20,8 +20,20 @@ Script for reading the EXIF data from images and create the
 Mapillary tags in Image Description (including the upload hashes)
 needed to be able to upload without authentication.
 
-Allows the optional argument to submit a sequence key. This allows for
-grouping of photos into sequences.
+This script will add all photos in the same folder to one sequence,
+so group your photos into one subfolder per sequence (works deeply nested, too).
+
+-root
+    |
+    |- seq1
+    |  |- seq1_1.jpg
+    |  |- seq1_2.jpg
+    |  |
+    |  |- seq2
+    |     |- seq2_1.jpg
+    |
+    |- seq3
+       |- seq3_1.jpg
 
 The following EXIF tags are required:
 -GPSLongitude
@@ -107,6 +119,12 @@ def create_mapillary_desc(filename, username, email, upload_hash, sequence_uuid)
     tags.write()
 
 
+def get_upload_token(mail, pwd):
+    params = urllib.urlencode({"email": mail, "password": pwd})
+    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    resp = json.loads(response.read())
+    return resp['upload_token']
+
 if __name__ == '__main__':
     '''
     Use from command line as: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]
@@ -121,32 +139,21 @@ if __name__ == '__main__':
         print(
         "You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
         sys.exit()
-    # log in, get the projects
-    params = urllib.urlencode({"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD})
-    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
-    resp = json.loads(response.read())
-    # print resp
-    MAPILLARY_UPLOAD_TOKEN = resp['upload_token']
 
-    # print resp
+    upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
 
     args = sys.argv
     # print args
-    if len(args) < 2 or len(args) > 3:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_id]")
+    if len(args) != 2:
+        print("Usage: python add_mapillary_tag_from_exif.py root_path")
         raise IOError("Bad input parameters.")
     path = args[1]
 
-    if path.lower().endswith(".jpg"):
-        # single file
-        file_list = [path]
-    else:
-        # folder(s)
-        file_list = []
-
     for root, sub_folders, files in os.walk(path):
-        file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
-
-    for filepath in file_list:
-        sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
-        create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
+        sequence_uuid = uuid.uuid4()
+        print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
+        for file in files:
+            if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
+                create_mapillary_desc(os.path.join(root,file), MAPILLARY_USERNAME, MAPILLARY_EMAIL, upload_token, sequence_uuid)
+            else:
+                print "Ignoring {0}".format(os.path.join(root,file))
