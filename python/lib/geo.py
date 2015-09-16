@@ -42,24 +42,20 @@ def gps_distance(latlon_1, latlon_2):
 
     return dis
 
-def DMStoDD(degrees, minutes, seconds, hemisphere):
+def dms_to_decimal(degrees, minutes, seconds, hemisphere):
     '''
     Convert from degrees, minutes, seconds to decimal degrees.
     @author: mprins
     '''
     dms = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
-    if hemisphere == "W" or hemisphere == "S":
+    if hemisphere in "WwSs":
         dms = -1 * dms
 
     return dms
 
-def utc_to_localtime(utc_time):
-    utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
-    return utc_time - utc_offset_timedelta
-
-def to_deg(value, loc):
+def decimal_to_dms(value, loc):
     '''
-    Convert decimal position to degrees.
+    Convert decimal position to degrees, minutes, seconds
     '''
     if value < 0:
         loc_value = loc[0]
@@ -73,6 +69,10 @@ def to_deg(value, loc):
     mint = int(t1)
     sec = round((t1 - mint)* 60, 6)
     return (deg, mint, sec, loc_value)
+
+def utc_to_localtime(utc_time):
+    utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
+    return utc_time - utc_offset_timedelta
 
 def offset_bearing(bearing, offset):
     '''

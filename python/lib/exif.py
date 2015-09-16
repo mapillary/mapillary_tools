@@ -58,6 +58,9 @@ class EXIF:
         if 'Image ImageWidth' in self.tags and 'Image ImageLength' in self.tags:
             width, height = (int(self.tags['Image ImageWidth'].values[0]),
                             int(self.tags['Image ImageLength'].values[0]) )
+        elif 'EXIF ExifImageWidth' in self.tags and 'EXIF ExifImageLength' in self.tags:
+            width, height = (int(self.tags['EXIF ExifImageWidth'].values[0]),
+                            int(self.tags['EXIF ExifImageLength'].values[0]) )
         else:
             width, height = -1, -1
         return width, height
@@ -71,7 +74,7 @@ class EXIF:
         elif 'Image Make' in self.tags:
             make = self.tags['Image Make'].values
         else:
-            make = 'unknown'
+            make = 'none'
         return make
 
     def extract_model(self):
@@ -83,12 +86,12 @@ class EXIF:
         elif 'Image Model' in self.tags:
             model = self.tags['Image Model'].values
         else:
-            model = 'unknown'
+            model = 'none'
         return model
 
     def extract_orientation(self):
         if 'Image Orientation' in self.tags:
-            orientation = self.tags.get('Image Orientation').values[0]
+            orientation = int(self.tags.get('Image Orientation').values[0])
         else:
             orientation = 1
         return orientation
@@ -109,6 +112,13 @@ class EXIF:
         else:
             altitude = None
         return altitude
+
+    def extract_direction(self):
+        if 'GPS GPSImgDirection' in self.tags:
+            direction = eval_frac(self.tags['GPS GPSImgDirection'].values[0])
+        else:
+            direction = None
+        return direction
 
     def extract_dop(self):
         if 'GPS GPSDOP' in self.tags:
@@ -164,10 +174,12 @@ class EXIF:
         orientation = self.extract_orientation()
         geo = self.extract_geo()
         capture = self.extract_capture_time()
+        direction = self.extract_direction()
         d = {
                 'width': width,
                 'height': height,
                 'orientation': orientation,
+                'direction': direction,
                 'make': make,
                 'model': model,
                 'capture_time': capture

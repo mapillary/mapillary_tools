@@ -9,7 +9,7 @@ import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
-from lib.geo import interpolate_lat_lon, to_deg
+from lib.geo import interpolate_lat_lon, decimal_to_dms
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
@@ -68,8 +68,8 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
     try:
         lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
 
-        lat_deg = to_deg(lat, ["S", "N"])
-        lon_deg = to_deg(lon, ["W", "E"])
+        lat_deg = decimal_to_dms(lat, ["S", "N"])
+        lon_deg = decimal_to_dms(lon, ["W", "E"])
 
         # convert decimal coordinates into degrees, minutes and seconds as fractions for EXIF
         exiv_lat = (make_fraction(lat_deg[0],1), make_fraction(int(lat_deg[1]),1), make_fraction(int(lat_deg[2]*1000000),1000000))
