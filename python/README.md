@@ -70,19 +70,12 @@ Run with -h to see all options. Requires either the PIL or Pillow package to be 
 
 **sequence_split.py**
 
-<<<<<<< HEAD
 This script organizes images into sequence groups based on a cutoff distance (in meters) and a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
-=======
-This script organizes images into sequence groups based on a cutoff time (in seconds). This is useful as a step before uploading lots of photos with the manual uploader. For example:
->>>>>>> master
 
-    python time_split.py path-to-images/ [cutoff_time]
+    python sequence_split.py path-to-images/ cutoff_distance [cutoff_time]
 
 If no cutoff time is given, it will be estimated based on the between-photo differences.
 
-## Upload
-
-Use the upload script that suits your photos best.
 
 ## Upload
 
@@ -99,15 +92,6 @@ On Android Systems you can find the images under `/storage/emulated/0/Android/da
 
 On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.
 
-
-**upload_each_folder_as_sequence.py**
-
-Allows images in subfolders to be assigned unique sequence IDs.
-
-    python upload_each_folder_as_sequence.py path-to-images/
-
-Requires enviroment variables: MAPILLARY_USERNAME, MAPILLARY_PASSWORD.
-Also requires upload.py to be in the same folder or in the PYTHONPATH since this script uses upload.py.
 
 **upload_with_authentication.py**
 
