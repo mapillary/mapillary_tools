@@ -215,6 +215,8 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
+    file_list.sort()
+
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:

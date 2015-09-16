@@ -157,6 +157,8 @@ if __name__ == '__main__':
     for root, sub_folders, files in os.walk(path):
         file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
+    file_list.sort()
+
     for filepath in file_list:
         sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
         create_mapillary_desc(filepath, MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, sequence_uuid)
