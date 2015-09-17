@@ -184,13 +184,14 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
     Move to subfolders 'success'/'failed' on completion if move_files is True.
     '''
     filename = os.path.basename(filepath)
+    s3_filename = EXIF(filepath).exif_name()
     print("Uploading: {0}".format(filename))
 
     # add S3 'path' if given
     if key is None:
-        s3_key = filename
+        s3_key = s3_filename
     else:
-        s3_key = key+filename
+        s3_key = key+s3_filename
 
     parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
                 "policy": permission, "signature": signature, "Content-Type":"image/jpeg" }
@@ -235,7 +236,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
             print("Timeout error: {0} (retrying)".format(filename))
 
 
-def upload_file_list(file_list):
+def upload_file_list(file_list, params):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
@@ -245,7 +246,7 @@ def upload_file_list(file_list):
             print("Skipping: {0}".format(filepath))
 
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q, params) for i in range(NUMBER_THREADS)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:

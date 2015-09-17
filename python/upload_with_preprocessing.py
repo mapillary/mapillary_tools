@@ -68,11 +68,14 @@ if __name__ == '__main__':
     cutoff_time = args.cutoff_time
 
     # Fetch authetication info
-    info = get_authentication_info()
-    if info is not None:
-        MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = info
-    else:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
+    try:
+        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
+        MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
+        MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+    except KeyError:
+        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
 
     upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
@@ -113,12 +116,25 @@ if __name__ == '__main__':
                     print "Ignoring {0}".format(os.path.join(root,filename))
             if count:
                 print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, count, sequence_uuid))
+
+                # upload
+                s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
+                print("Uploading sequence {0}.".format(sequence_uuid))
+
+                # set upload parameters
+                params = {"url": MAPILLARY_UPLOAD_URL,
+                          "key": s3_bucket,
+                          "permission": MAPILLARY_PERMISSION_HASH,
+                          "signature": MAPILLARY_SIGNATURE_HASH,
+                          "move_files": MOVE_FILES}
+
+                # Upload images
+                s = Sequence(root, skip_folders=['duplicates'])
+                file_list = s.file_list
+                upload_file_list(file_list, params)
         else:
             print("Skipping images in {}".format(root))
 
     # TODO: Add a confirm step before moving the files
 
-    # Upload images
-    s = Sequence(path, skip_folders=['duplicates'])
-    file_list = s.file_list
-    upload_file_list(file_list)
+

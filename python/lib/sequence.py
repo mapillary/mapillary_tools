@@ -84,7 +84,6 @@ class Sequence(object):
         Move the files in the groups to new folders.
         '''
         for i,group in enumerate(groups):
-            # group_path = os.path.dirname(group[0])
             new_dir = os.path.join(self.filepath, sub_path, str(i))
             lib.io.mkdir_p(new_dir)
             for filepath in group:
