@@ -2,8 +2,9 @@
 
 import os, sys, pyexiv2
 from pyexiv2.utils import make_fraction
-from lib.geo import compute_bearing, DMStoDD, offset_bearing
+from lib.geo import compute_bearing, dms_to_decimal, offset_bearing
 from lib.sequence import Sequence
+from lib.exifedit import ExifEdit
 
 '''
 Interpolates the direction of an image based on the coordinates stored in
@@ -27,18 +28,13 @@ def write_direction_to_image(filename, direction):
     @param filename: photograph filename
     @param direction: direction of view in degrees
     '''
-    metadata = pyexiv2.ImageMetadata(filename)
-    metadata.read()
-
-    exiv_direction = make_fraction(int(direction * 10), 10)
+    exif = ExifEdit(filename)
     try:
-        metadata["Exif.GPSInfo.GPSImgDirection"] = exiv_direction
-        metadata["Exif.GPSInfo.GPSImgDirectionRef"] = "T"
-        metadata.write()
-        print("Added direction to: {0} ({1} degrees)".format(filename, float(exiv_direction)))
+        exif.add_direction(direction, precision=10)
+        exif.write()
+        print("Added direction to: {0} ({1} degrees)".format(filename, float(direction)))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
-
 
 if __name__ == '__main__':
     if len(sys.argv) > 3:
