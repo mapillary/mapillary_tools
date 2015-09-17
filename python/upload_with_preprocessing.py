@@ -8,9 +8,8 @@ import uuid
 import time
 import argparse
 
-from lib.uploader import upload_done_file, verify_exif, create_mapillary_description, get_authentication_info, get_upload_token
+from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list
 from lib.sequence import Sequence
-
 
 '''
 Script for uploading images taken with other cameras than
@@ -40,6 +39,7 @@ MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.man
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MOVE_FILES = True
 
+
 if __name__ == '__main__':
     '''
     Use from command line as: python upload_with_preprocessing.py path
@@ -58,24 +58,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--cutoff_distance', default=500, help='maximum gps distance in meters within a sequence')
-    parser.add_argument('--cutoff_time', default=None, help='maximum time interval in seconds within a sequence')
-    parser.add_argument('--remove_duplicate', help='flag to perform duplicate removal or not', action='store_true')
+    parser.add_argument('--cutoff_time', default=10, help='maximum time interval in seconds within a sequence')
+    parser.add_argument('--remove_duplicates', help='flag to perform duplicate removal or not', action='store_true')
+    parser.add_argument('--rerun', help='flag to rerun the preprocessing and uploading', action='store_true')
     args = parser.parse_args()
 
     path = sys.argv[1]
-
     cutoff_distance = args.cutoff_distance
     cutoff_time = args.cutoff_time
-
-    # Initialize sequence object
-    s = Sequence(path)
-
-    # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
-    if args.remove_duplicate:
-        duplicate_groups = s.remove_duplicate
-
-    # Split sequence based on distance and time
-    split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
 
     # Fetch authetication info
     info = get_authentication_info()
@@ -87,8 +77,27 @@ if __name__ == '__main__':
 
     upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
 
+    # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
+    if args.rerun:
+        skip_folders = []
+    else:
+        skip_folders = ['success', 'duplicates']
+    s = Sequence(path, skip_folders=skip_folders)
+
+    if s.num_images == 0:
+        print("No images in the folder or all images have been successfully uploaded to Mapillary.")
+        sys.exit()
+
+    if args.remove_duplicates:
+        duplicate_groups = s.remove_duplicates()
+
+    # Split sequence based on distance and time
+    s = Sequence(path, skip_folders=['duplicates'])
+    split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
+
     # Add Mapillary tags
     for root, sub_folders, files in os.walk(path):
+        # Add a sequence uuid per sub-folder
         sequence_uuid = uuid.uuid4()
         if ('duplicates' not in root) and ('success' not in root):
             count = 0
@@ -109,5 +118,7 @@ if __name__ == '__main__':
 
     # TODO: Add a confirm step before moving the files
 
-    # TODO: Upload images
-
+    # Upload images
+    s = Sequence(path, skip_folders=['duplicates'])
+    file_list = s.file_list
+    upload_file_list(file_list)
