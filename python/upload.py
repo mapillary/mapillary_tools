@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
-    s = Sequence(path, skip_folders=[])
+    s = Sequence(path, skip_folders=['success'])
 
     upload_file_list(s.file_list)
 
