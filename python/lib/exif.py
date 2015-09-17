@@ -251,3 +251,16 @@ class EXIF:
             if "MAPSequenceUUID" in self.tags[description_tag].values:
                 return True
         return False
+
+    def exif_name(self):
+        '''
+        Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}
+        '''
+        lon, lat = self.extract_lon_lat()
+        ca = self.extract_direction()
+        if ca is None: ca = 0
+        date_time = self.extract_capture_time()
+        date_time = date_time.strftime("%Y_%m_%d_%H_%M_%s_%f")
+        date_time = date_time[:-3]
+        filename = '{}_{}_{}_{}_{}'.format(lat, lon, ca, date_time, os.path.basename(self.filename))
+        return filename
