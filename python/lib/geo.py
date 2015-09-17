@@ -74,12 +74,6 @@ def utc_to_localtime(utc_time):
     utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
     return utc_time - utc_offset_timedelta
 
-def offset_bearing(bearing, offset):
-    '''
-    Add offset to bearing
-    '''
-    bearing = (bearing + offset + 360) % 360
-    return bearing
 
 def compute_bearing(start_lat, start_lon, end_lat, end_lon):
     '''
@@ -109,6 +103,20 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon):
 
     return bearing
 
+def diff_bearing(b1, b2):
+    '''
+    Compute difference between two bearings
+    '''
+    d = abs(b2-b1)
+    d = 360-d if d>180 else d
+    return d
+
+def offset_bearing(bearing, offset):
+    '''
+    Add offset to bearing
+    '''
+    bearing = (bearing + offset + 360) % 360
+    return bearing
 
 def interpolate_lat_lon(points, t):
     '''
