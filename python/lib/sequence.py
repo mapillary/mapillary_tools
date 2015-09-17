@@ -58,11 +58,15 @@ class Sequence(object):
         '''
         Get the list of JPEGs in the folder (nested folders)
         '''
-        file_list = []
-        for root, sub_folders, files in os.walk(self.filepath):
-            if not self._is_skip(root):
-                file_list += [os.path.join(root, filename) for filename in files
-                                if (filename.lower().endswith(".jpg"))]
+        if filepath.lower().endswith(".jpg"):
+            # single file
+            file_list = [filepath]
+        else:
+            file_list = []
+            for root, sub_folders, files in os.walk(self.filepath):
+                if not self._is_skip(root):
+                    file_list += [os.path.join(root, filename) for filename in files
+                                    if (filename.lower().endswith(".jpg"))]
         self.file_list = file_list
         return file_list
 

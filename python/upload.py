@@ -3,6 +3,7 @@
 import sys
 import os
 from lib.uploader import upload_file_list
+from lib.sequence import Sequence
 
 '''
 Script for uploading images taken with the Mapillary
@@ -34,16 +35,8 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
-    if path.lower().endswith(".jpg"):
-        # single file
-        file_list = [path]
-    else:
-        # folder(s)
-        file_list = []
-        for root, sub_folders, files in os.walk(path):
-            if '/success' not in root:
-                file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+    s = Sequence(path, skip_folders=[])
 
-    upload_file_list(file_list)
+    upload_file_list(s.file_list)
 
-    print("Done uploading {}.".format(len(file_list)))
+    print("Done uploading {}.".format(len(s.file_list)))
