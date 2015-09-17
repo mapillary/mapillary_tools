@@ -5,15 +5,9 @@ import urllib2, urllib
 import os
 from Queue import Queue
 import uuid
-import exifread
 import time
-
-try:
-    from upload import create_dirs, UploadThread, upload_file
-except ImportError:
-    print("To run this script you need upload.py in your PYTHONPATH or the same folder.")
-    sys.exit()
-
+from lib.uploader import upload_done_file, verify_exif, create_dirs, get_authentication_info, get_upload_token, UploadThread
+from lib.sequence import Sequence
 
 '''
 Script for uploading images taken with other cameras than
@@ -29,7 +23,7 @@ The following EXIF tags are required:
 -Orientation
 
 Before uploading put all images that belong together in a sequence, in a
-specific folder, for example using 'time_split.py'. All images in a session
+specific folder, for example using 'sequence_split.py'. All images in a session
 will be considered part of a single sequence.
 
 NB: DO NOT USE THIS SCRIPT ON IMAGE FILES FROM THE MAPILLARY APPS,
@@ -42,54 +36,6 @@ USE UPLOAD.PY INSTEAD.
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MOVE_FILES = False
-
-
-def upload_done_file(params):
-    print("Upload a DONE file to tell the backend that the sequence is all uploaded and ready to submit.")
-    if not os.path.exists("DONE"):
-        open("DONE", 'a').close()
-    #upload
-    upload_file("DONE", **params)
-    #remove
-    if os.path.exists("DONE"):
-        os.remove("DONE")
-
-
-def verify_exif(filename):
-    '''
-    Check that image file has the required EXIF fields.
-
-    Incompatible files will be ignored server side.
-    '''
-    # required tags in IFD name convention
-    required_exif = [ ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
-                      ["GPS GPSLatitude", "EXIF GPS GPSLatitude"],
-                      ["EXIF DateTimeOriginal", "EXIF DateTimeDigitized", "Image DateTime", "GPS GPSDate", "EXIF GPS GPSDate"],
-                      ["Image Orientation"]]
-    description_tag = "Image ImageDescription"
-
-    with open(filename, 'rb') as f:
-        tags = exifread.process_file(f)
-
-    # make sure no Mapillary tags
-    if description_tag in tags:
-        if "MAPSequenceUUID" in tags[description_tag].values:
-            print("File contains Mapillary EXIF tags, use upload.py instead.")
-            return False
-
-    # make sure all required tags are there
-    for rexif in required_exif:
-        vflag = False
-        for subrexif in rexif:
-            if subrexif in tags:
-                vflag = True
-        if not vflag:
-            print("Missing required EXIF tag: {0}".format(rexif[0]))
-            return False
-
-    return True
-
-
 
 if __name__ == '__main__':
     '''
@@ -105,7 +51,6 @@ if __name__ == '__main__':
     if sys.version_info >= (3, 0):
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
 
-
     if len(sys.argv) < 2:
         print("Usage: python upload_with_authentication.py path")
         raise IOError("Bad input parameters.")
@@ -113,15 +58,6 @@ if __name__ == '__main__':
 
     # if no success/failed folders, create them
     create_dirs()
-
-    if path.lower().endswith(".jpg"):
-        # single file
-        file_list = [path]
-    else:
-        # folder(s)
-        file_list = []
-        for root, sub_folders, files in os.walk(path):
-            file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
     # get env variables
     try:
@@ -131,7 +67,6 @@ if __name__ == '__main__':
     except KeyError:
         print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
-
     # generate a sequence UUID
     sequence_id = uuid.uuid4()
 
@@ -144,10 +79,18 @@ if __name__ == '__main__':
             "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
             "move_files": MOVE_FILES}
 
+    # get the list of images in the folder (nested folders will be merged into one sequence)
+    s = Sequence(path, skip_folders=['success'])
+    file_list = s.file_list
+
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
-        if verify_exif(filepath):
+        # make sure no Mapillary tags
+        mapillary_tag_exists = exif.mapillary_tag_exists()
+        if mapillary_tag_exists:
+            print("File contains Mapillary EXIF tags, use upload.py instead.")
+        if verify_exif(filepath) and (not mapillary_tag_exists):
             q.put(filepath)
         else:
             print("Skipping: {0}".format(filepath))
