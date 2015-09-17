@@ -13,9 +13,11 @@ Sequence class for organizing/cleaning up photos in a folder
 
 class Sequence(object):
 
-    def __init__(self, filepath):
+    def __init__(self, filepath, skip_folders=[]):
         self.filepath = filepath
+        self._skip_folders = skip_folders
         self.get_file_list(filepath)
+        self.num_images = len(self.file_list)
 
     def _is_skip(self, filepath):
         '''
@@ -23,7 +25,10 @@ class Sequence(object):
             - filepath/duplicates: it stores potential duplicate photos
                                    detected by method 'remove_duplicates`
         '''
-        _is_skip = True if 'duplicates' in filepath else False
+        _is_skip = False
+        for folder in self._skip_folders:
+            if folder in filepath:
+                _is_skip = True
         return _is_skip
 
     def _read_capture_time(self, filename):
@@ -82,56 +87,66 @@ class Sequence(object):
                 os.rename(filepath, os.path.join(new_dir, os.path.basename(filepath)))
             print("Moved {0} photos to {1}".format(len(group), new_dir))
 
+    def set_skip_folders(self, folders):
+        '''
+        Set folders to skip when iterating through the path
+        '''
+        self._skip_folders = folders
+
     def split(self, cutoff_distance=500., cutoff_time=None):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
-        @params cutoff_time:     maximum time interval in seconds
+        @params cutoff_time:     maximum time interval in seconds (if None, use 1.5 x median time interval in the sequence)
         '''
 
         file_list = self.file_list
-
-        # sort based on EXIF capture time
-        capture_times, file_list = self.sort_file_list(file_list)
-
-        # diff in capture time
-        capture_deltas = [t2-t1 for t1,t2 in zip(capture_times, capture_times[1:])]
-
-        # read gps for ordered files
-        latlons = [self._read_lat_lon(filepath) for filepath in file_list]
-
-        # distance between consecutive images
-        distances = [lib.geo.gps_distance(ll1, ll2) for ll1, ll2 in zip(latlons, latlons[1:])]
-
-        # if cutoff time is given use that, else assume cutoff is 1.5x median time delta
-        if cutoff_time is None:
-            median = sorted(capture_deltas)[len(capture_deltas)//2]
-            cutoff_time = 1.5*median.total_seconds()
-
-        # extract groups by cutting using cutoff time
         groups = []
-        group = [file_list[0]]
-        cut = 0
-        for i,filepath in enumerate(file_list[1:]):
-            cut_time = capture_deltas[i].total_seconds() > cutoff_time
-            cut_distance = distances[i] > cutoff_distance
-            if cut_time or cut_distance:
-                cut += 1
-                # delta too big, save current group, start new
-                groups.append(group)
-                group = [filepath]
-                if cut_time:
-                    print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
-                elif cut_distance:
-                    print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
-            else:
-                group.append(filepath)
-        groups.append(group)
 
-        # move groups to subfolders
-        self.move_groups(groups)
+        if len(file_list) >= 1:
+            # sort based on EXIF capture time
+            capture_times, file_list = self.sort_file_list(file_list)
 
-        print("Done split photos in {} into {} sequences".format(self.filepath, len(groups)))
+            # diff in capture time
+            capture_deltas = [t2-t1 for t1,t2 in zip(capture_times, capture_times[1:])]
+
+            # read gps for ordered files
+            latlons = [self._read_lat_lon(filepath) for filepath in file_list]
+
+            # distance between consecutive images
+            distances = [lib.geo.gps_distance(ll1, ll2) for ll1, ll2 in zip(latlons, latlons[1:])]
+
+            # if cutoff time is given use that, else assume cutoff is 1.5x median time delta
+            if cutoff_time is None:
+                median = sorted(capture_deltas)[len(capture_deltas)//2]
+                if type(median) is not  int:
+                    median = median.total_seconds()
+                cutoff_time = 1.5*median
+
+            # extract groups by cutting using cutoff time
+            group = [file_list[0]]
+            cut = 0
+            for i,filepath in enumerate(file_list[1:]):
+                cut_time = capture_deltas[i].total_seconds() > cutoff_time
+                cut_distance = distances[i] > cutoff_distance
+                if cut_time or cut_distance:
+                    cut += 1
+                    # delta too big, save current group, start new
+                    groups.append(group)
+                    group = [filepath]
+                    if cut_time:
+                        print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
+                    elif cut_distance:
+                        print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
+                else:
+                    group.append(filepath)
+
+            groups.append(group)
+
+            # move groups to subfolders
+            self.move_groups(groups)
+
+            print("Done split photos in {} into {} sequences".format(self.filepath, len(groups)))
         return groups
 
     def interpolate_direction(self, offset=0):
@@ -156,7 +171,6 @@ class Sequence(object):
                 bearings = [lib.geo.compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
                                 for ll1, ll2 in zip(latlons, latlons[1:])]
                 bearings.append(bearings[-1])
-                print bearings
                 bearings = {file_list[i]: lib.geo.offset_bearing(b, offset) for i, b in enumerate(bearings)}
         elif num_file==1:
             #if there is only one file in the list, just write the direction 0 and offset
@@ -190,11 +204,15 @@ class Sequence(object):
         for i, filename in enumerate(file_list[1:]):
             k = i+1
             distance = lib.geo.gps_distance(latlons[k], prev_latlon)
-            if bearings[i] is not None and prev_bearing is not None:
+            if bearings[k] is not None and prev_bearing is not None:
                 bearing_diff = lib.geo.diff_bearing(bearings[k], prev_bearing)
             else:
                 # Not use bearing difference if no bearings are available
                 bearing_diff = 360
+                print bearings[k], filename,  prev_latlon
+
+            print distance, bearing_diff
+
             if distance < min_distance and bearing_diff < min_angle:
                 is_duplicate = True
             else:
