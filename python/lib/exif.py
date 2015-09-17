@@ -4,9 +4,30 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import exifread
 import datetime
+import json
 
 def eval_frac(value):
     return float(value.num) / float(value.den)
+
+def exif_gps_fields():
+    '''
+    GPS fields in EXIF
+    '''
+    return [  ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
+              ["GPS GPSLatitude", "EXIF GPS GPSLatitude"] ]
+
+def exif_datetime_fields():
+    '''
+    Date time fileds in EXIF
+    '''
+    return [["EXIF DateTimeOriginal",
+            "EXIF DateTimeDigitized",
+            "Image DateTime",
+            "GPS GPSDate",
+            "EXIF GPS GPSDate",
+            "Image DateTimeOriginal",
+            "Image DateTimeDigitized",
+            "EXIF DateTimeModified"]]
 
 def gps_to_decimal(values, reference):
     sign = 1 if reference in 'NE' else -1
@@ -37,19 +58,21 @@ def extract_exif_from_file(fileobj):
     d = exif_data.extract_exif()
     return d
 
+
 class EXIF:
     '''
     EXIF class for reading exif from an image
     '''
-    def __init__(self, FILE):
+    def __init__(self, filename, details=False):
         '''
         Initialize EXIF object with FILE as filename or fileobj
         '''
-        if type(FILE)==str:
-            with open(FILE, 'rb') as fileobj:
-                self.tags = exifread.process_file(fileobj, details=False)
+        self.filename = filename
+        if type(filename)==str:
+            with open(filename, 'rb') as fileobj:
+                self.tags = exifread.process_file(fileobj, details=details)
         else:
-            self.tags = exifread.process_file(FILE, details=False)
+            self.tags = exifread.process_file(filename, details=details)
 
     def extract_image_size(self):
         '''
@@ -97,11 +120,16 @@ class EXIF:
         return orientation
 
     def extract_lon_lat(self):
-        if 'GPS GPSLatitude' in self.tags:
+        if 'GPS GPSLatitude' in self.tags and 'GPS GPSLatitude' in self.tags:
             lat = gps_to_decimal(self.tags['GPS GPSLatitude'].values,
                                  self.tags['GPS GPSLatitudeRef'].values)
             lon = gps_to_decimal(self.tags['GPS GPSLongitude'].values,
                                  self.tags['GPS GPSLongitudeRef'].values)
+        elif 'EXIF GPS GPSLatitude' in self.tags and 'EXIF GPS GPSLatitude' in self.tags:
+            lat = gps_to_decimal(self.tags['EXIF GPS GPSLatitude'].values,
+                                 self.tags['EXIF GPS GPSLatitudeRef'].values)
+            lon = gps_to_decimal(self.tags['EXIF GPS GPSLongitude'].values,
+                                 self.tags['EXIF GPS GPSLongitudeRef'].values)
         else:
             lon, lat = None, None
         return lon, lat
@@ -118,6 +146,9 @@ class EXIF:
             direction = eval_frac(self.tags['GPS GPSImgDirection'].values[0])
         else:
             direction = None
+
+        # To Add GPS GPSTrack as direction candidate
+
         return direction
 
     def extract_dop(self):
@@ -153,7 +184,8 @@ class EXIF:
                        "EXIF DateTimeDigitized",
                        "Image DateTimeOriginal",
                        "Image DateTimeDigitized",
-                       "Image DateTime"]
+                       "Image DateTime",
+                       "EXIF DateTimeModified"]
 
         capture_time = 0
         for ts in time_string:
@@ -163,6 +195,15 @@ class EXIF:
                 capture_time = capture_time.replace(" ","_")
                 capture_time = capture_time.replace(":","_")
                 capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
+
+        if capture_time is 0:
+            try:
+                capture_time = datetime.datetime.strptime(os.path.basename(self.filename)[:-4]+'000', '%Y_%m_%d_%H_%M_%S_%f')
+            except:
+                pass
+
+        # TODO: handle GPS GPSDate
+
         return capture_time
 
     def extract_exif(self):
@@ -186,3 +227,27 @@ class EXIF:
             }
         d['gps'] = geo
         return d
+
+    def fileds_exist(self, fields):
+        '''
+        Check existence of a list fields in exif
+        '''
+        for rexif in fields:
+            vflag = False
+            for subrexif in rexif:
+                if subrexif in self.tags:
+                    vflag = True
+            if not vflag:
+                print("Missing required EXIF tag: {0}".format(rexif[0]))
+                return False
+        return True
+
+    def mapillary_tag_exists(self):
+        '''
+        Check existence of Mapillary tag
+        '''
+        description_tag = "Image ImageDescription"
+        if description_tag in self.tags:
+            if "MAPSequenceUUID" in self.tags[description_tag].values:
+                return True
+        return False
