@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
                 # Upload images
                 file_list = s.file_list
-                # upload_file_list(file_list, params)
+                upload_file_list(file_list, params)
         else:
             print("Skipping images in {}".format(root))
 

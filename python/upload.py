@@ -13,9 +13,6 @@ Intended use is for cases when you have multiple SD cards
 or for other reasons have copied the files to a computer
 and you want to bulk upload.
 
-Requires exifread, run "pip install exifread" first
-(or use your favorite installer).
-
 NB: DO NOT USE THIS ON OTHER IMAGE FILES THAN THOSE FROM
 THE MAPILLARY APPS, WITHOUT PROPER TOKENS IN EXIF, UPLOADED
 FILES WILL BE IGNORED SERVER-SIDE.
@@ -39,4 +36,4 @@ if __name__ == '__main__':
 
     upload_file_list(s.file_list)
 
-    print("Done uploading {}.".format(len(s.file_list)))
+    print("Done uploading {} images.".format(len(s.file_list)))
