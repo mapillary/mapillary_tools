@@ -16,7 +16,7 @@ class Sequence(object):
     def __init__(self, filepath, skip_folders=[]):
         self.filepath = filepath
         self._skip_folders = skip_folders
-        self.get_file_list(filepath)
+        self.file_list = self.get_file_list(filepath)
         self.num_images = len(self.file_list)
 
     def _is_skip(self, filepath):
@@ -67,7 +67,6 @@ class Sequence(object):
                 if not self._is_skip(root):
                     file_list += [os.path.join(root, filename) for filename in files
                                     if (filename.lower().endswith(".jpg"))]
-        self.file_list = file_list
         return file_list
 
     def sort_file_list(self, file_list):
@@ -197,6 +196,15 @@ class Sequence(object):
         # read bearing for ordered files
         bearings = [self._read_direction(filepath) for filepath in file_list]
 
+        # interploated bearings
+        interpolated_bearings = [lib.geo.compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
+                                for ll1, ll2 in zip(latlons, latlons[1:])]
+        interpolated_bearings.append(bearings[-1])
+
+        # use interploated bearings if bearing not available in EXIF
+        for i, b in enumerate(bearings):
+            bearings[i] = b if b is not None else interpolated_bearings[i]
+
         is_duplicate = False
 
         prev_unique = file_list[0]
@@ -212,9 +220,6 @@ class Sequence(object):
             else:
                 # Not use bearing difference if no bearings are available
                 bearing_diff = 360
-                print bearings[k], filename,  prev_latlon
-
-            print distance, bearing_diff
 
             if distance < min_distance and bearing_diff < min_angle:
                 is_duplicate = True
