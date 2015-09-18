@@ -4,7 +4,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import exifread
 import datetime
 import json
+from lib.geo import normalize_bearing
 
+#TODO: replace exifread with pyexiv2
 
 def eval_frac(value):
     return float(value.num) / float(value.den)
@@ -25,11 +27,11 @@ def exif_datetime_fields():
     return [["EXIF DateTimeOriginal",
              "Image DateTimeOriginal",
              "EXIF DateTimeDigitized",
+             "Image DateTimeDigitized",
+             "EXIF DateTime"
              "Image DateTime",
              "GPS GPSDate",
              "EXIF GPS GPSDate",
-             "EXIF DateTimeDigitized"
-             "Image DateTimeDigitized",
              "EXIF DateTimeModified"]]
 
 
@@ -126,7 +128,6 @@ class EXIF:
         '''
         Extract capture time from EXIF
         return a datetime object
-        TODO: handle microseconds in exif
         TODO: handle GPS DateTime
         '''
         time_string = exif_datetime_fields()[0]
@@ -134,7 +135,8 @@ class EXIF:
         capture_time = capture_time.replace(" ","_")
         capture_time = capture_time.replace(":","_")
         capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
-        print capture_time
+        sub_sec = self.extract_subsec()
+        capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/1e6)
         if capture_time is 0:
             # try interpret the filename
             try:
@@ -154,6 +156,7 @@ class EXIF:
                   'GPS GPSTrack',
                   'EXIF GPS GPSTrack']
         direction, _ = self._extract_alternative_fields(fields)
+        if direction is not None: direction = normalize_bearing(direction)
         return direction
 
 
@@ -255,8 +258,24 @@ class EXIF:
         Extract image orientation
         '''
         fields = ['Image Orientation']
-        orientation, _ = self._extract_alternative_fields(fields, default=2, field_type=int)
+        orientation, _ = self._extract_alternative_fields(fields, default=1, field_type=int)
         return orientation
+
+
+    def extract_subsec(self):
+        '''
+        Extract microseconds
+        '''
+        fields = ['Image SubSecTimeOriginal',
+                  'EXIF SubSecTimeOriginal',
+                  'Image SubSecTimeDigitized',
+                  'EXIF SubSecTimeDigitized',
+                  'Image SubSecTime',
+                  'EXIF SubSecTime'
+                 ]
+        sub_sec, _ = self._extract_alternative_fields(fields, default=0, field_type=str)
+        sub_sec = int(sub_sec)
+        return sub_sec
 
 
     def fileds_exist(self, fields):
