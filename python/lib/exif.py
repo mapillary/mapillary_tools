@@ -22,7 +22,7 @@ def exif_gps_fields():
 
 def exif_datetime_fields():
     '''
-    Date time fileds in EXIF
+    Date time fields in EXIF
     '''
     return [["EXIF DateTimeOriginal",
              "Image DateTimeOriginal",
@@ -278,7 +278,7 @@ class EXIF:
         return sub_sec
 
 
-    def fileds_exist(self, fields):
+    def fields_exist(self, fields):
         '''
         Check existence of a list fields in exif
         '''

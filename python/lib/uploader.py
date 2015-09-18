@@ -281,5 +281,5 @@ def verify_exif(filename):
     required_exif = exif_gps_fields() + exif_datetime_fields() + [["Image Orientation"]]
     exif = EXIF(filename)
     tags = exif.tags
-    required_exif_exist = exif.fileds_exist(required_exif)
+    required_exif_exist = exif.fields_exist(required_exif)
     return required_exif_exist
