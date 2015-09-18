@@ -167,7 +167,7 @@ def get_authentication_info():
 
 
 def upload_done_file(params):
-    print("Upload a DONE file to tell the backend that the sequence is all uploaded and ready to submit.")
+    print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(params['key']))
     if not os.path.exists("DONE"):
         open("DONE", 'a').close()
     #upload
@@ -184,7 +184,10 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
     Move to subfolders 'success'/'failed' on completion if move_files is True.
     '''
     filename = os.path.basename(filepath)
-    s3_filename = EXIF(filepath).exif_name()
+    try:
+        s3_filename = EXIF(filepath).exif_name()
+    except:
+        s3_filename = filename
     print("Uploading: {0}".format(filename))
 
     # add S3 'path' if given
@@ -273,10 +276,8 @@ def create_dirs(root_path=''):
 def verify_exif(filename):
     '''
     Check that image file has the required EXIF fields.
-
     Incompatible files will be ignored server side.
     '''
-
     # required tags in IFD name convention
     required_exif = exif_gps_fields() + exif_datetime_fields() + [["Image Orientation"]]
     exif = EXIF(filename)
