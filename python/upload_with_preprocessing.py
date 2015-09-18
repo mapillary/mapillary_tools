@@ -8,7 +8,7 @@ import uuid
 import time
 import argparse
 
-from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list
+from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list, upload_done_file
 from lib.sequence import Sequence
 
 '''
@@ -39,6 +39,20 @@ MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.man
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MOVE_FILES = True
 
+def log_file(path):
+    return os.path.join(path, 'UPLOAD_LOG.txt')
+
+def write_log(path):
+    with open(log_file(path), 'wb') as f:
+        f.write(lines)
+
+def read_log(path):
+    if os.path.exists(log_file(path)):
+        with open(log_file(path), 'rb') as f:
+            lines = f.read()
+    else:
+        return None
+    return lines
 
 if __name__ == '__main__':
     '''
@@ -80,51 +94,86 @@ if __name__ == '__main__':
 
     upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
 
-    # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
-    if args.rerun:
-        skip_folders = []
-    else:
-        skip_folders = ['success', 'duplicates']
-    s = Sequence(path, skip_folders=skip_folders)
+    # Check whether the directory has been processed before
+    logs = read_log(path)
+    retry_upload = False
+    if logs is not None:
+        s = Sequence(path)
+        total_failed = len([f for f in s.file_list if 'failed' in f])
+        print("This folder has been processed before. See summary below: \n{}".format(logs))
+        if total_failed:
+            print ("There are {} failed images.".format(total_failed))
+            proceed = raw_input("Retry uploading failed images? [y/n]: ")
+            if proceed in ["y", "Y", "yes", "Yes"]:
+                retry_upload = True
+                print("Start uploading failed images ...")
+            elif proceed in ["n", "N", "no", "No"]:
+                retry_upload = False
+                print("Aborted. No retry on failed uploads")
+                sys.exit()
+            else:
+                print('Please answer y or n. Try again.')
+        else:
+            print("Aborted. All uploads were successfully in your last upload section.")
+            sys.exit()
 
-    if s.num_images == 0:
-        print("No images in the folder or all images have been successfully uploaded to Mapillary.")
-        sys.exit()
+    duplicate_groups = {}
+    split_groups = {}
+    s3_bucket_list = []
+    total_uploads = 0
 
-    if args.remove_duplicates:
-        duplicate_groups = s.remove_duplicates()
+    if not retry_upload:
+        # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
+        if args.rerun:
+            skip_folders = []
+        else:
+            skip_folders = ['success', 'duplicates']
+        s = Sequence(path, skip_folders=skip_folders)
 
-    # Split sequence based on distance and time
-    s = Sequence(path, skip_folders=['duplicates'])
-    split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
+        if s.num_images == 0:
+            print("No images in the folder or all images have been successfully uploaded to Mapillary.")
+            sys.exit()
+
+        if args.remove_duplicates:
+            print("\n=== Removing potentially duplicate images ...")
+            duplicate_groups = s.remove_duplicates()
+
+        # Split sequence based on distance and time
+        print("\n=== Spliting photos into sequences based on time and distance ...")
+        s = Sequence(path, skip_folders=['duplicates'])
+        split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
+
 
     # Add Mapillary tags
+    print("\n=== Adding Mapillary tags and uploading per sequence ...")
     for root, sub_folders, files in os.walk(path):
         # Add a sequence uuid per sub-folder
         sequence_uuid = uuid.uuid4()
         if ('duplicates' not in root) and ('success' not in root):
-            count = 0
             s = Sequence(root, skip_folders=['duplicates', 'success'])
+            file_list = s.file_list
+            count = len(file_list)
             directions = s.interpolate_direction()
             for filename in files:
-                if filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
+                if (filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
+                    and (not retry_upload)):
                     filepath = os.path.join(root, filename)
-                    print directions[filepath], filepath
                     create_mapillary_description(filepath,
                                                     MAPILLARY_USERNAME,
                                                     MAPILLARY_EMAIL,
                                                     upload_token,
                                                     sequence_uuid,
                                                     directions[filepath])
-                    count += 1
                 else:
                     print "Ignoring {0}".format(os.path.join(root,filename))
-            if count:
-                print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, count, sequence_uuid))
 
+            if count:
+                print("  sequence uuid: {}".format(sequence_uuid))
+                print("Processed folder {0}, {1} files".format(root, count))
                 # upload a sequence
                 s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
-                print("Uploading sequence {0}.".format(sequence_uuid))
+                s3_bucket_list.append(s3_bucket)
+                print("Uploading sequence ...")
 
                 # set upload parameters
                 params = {"url": MAPILLARY_UPLOAD_URL,
@@ -134,9 +183,64 @@ if __name__ == '__main__':
                           "move_files": MOVE_FILES}
 
                 # Upload images
-                file_list = s.file_list
+                total_uploads += len(file_list)
                 upload_file_list(file_list, params)
         else:
             print("Skipping images in {}".format(root))
+
+    # A short summary of the uploads
+    s = Sequence(path)
+    total_success = len([f for f in s.file_list if 'success' in f])
+    total_failed = len([f for f in s.file_list if 'failed' in f])
+
+    print('\n========= Summary of your uploads ==============')
+    lines = []
+    if duplicate_groups:
+        lines.append('Duplicates (skipping):')
+        lines.append('  groups:       {}'.format(len(duplicate_groups)))
+        lines.append('  total:        {}'.format(sum([len(g) for g in duplicate_groups])))
+    lines.append('Sequences:')
+    lines.append('  groups:       {}'.format(len(split_groups)))
+    lines.append('  total:        {}'.format(sum([len(g) for g in split_groups])))
+    lines.append('Uploads:')
+    lines.append('  total:        {}'.format(total_uploads))
+    lines.append('  success:      {}'.format(total_success))
+    lines.append('  failed:       {}'.format(total_failed))
+
+    lines = '\n'.join(lines)
+    print lines
+    print("==================================================")
+
+    print("You can now preview your uploads at http://www.mapillary.com/map/upload/im")
+
+    # Finalizing the upload by uploading done files for all sequence
+    print("\nFinalizing upload will submit all successful uploads and ignore all failed and duplicates.")
+    print("If all files were marked as successful, everything is fine, just press 'y'.")
+
+    # ask 3 times if input is unclear
+    for i in range(3):
+        proceed = raw_input("Finalize upload? [y/n]: ")
+        if proceed in ["y", "Y", "yes", "Yes"]:
+            for s3_bucket in s3_bucket_list:
+                # upload an empty DONE file for each sequence
+                params = {"url": MAPILLARY_UPLOAD_URL,
+                          "key": s3_bucket,
+                          "permission": MAPILLARY_PERMISSION_HASH,
+                          "signature": MAPILLARY_SIGNATURE_HASH,
+                          "move_files": False}
+                upload_done_file(params)
+                print("Done uploading.")
+                # store the logs after finalizing
+                with open(os.path.join(path, 'UPLOAD_LOG.txt'), 'wb') as f:
+                    f.write(lines)
+            break
+        elif proceed in ["n", "N", "no", "No"]:
+            print("Aborted. No files were submitted. Try again if you had failures.")
+            break
+        else:
+            if i==2:
+                print("Aborted. No files were submitted. Try again if you had failures.")
+            else:
+                print('Please answer y or n. Try again.')
 
 
