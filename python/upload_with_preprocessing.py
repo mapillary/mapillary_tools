@@ -104,20 +104,25 @@ if __name__ == '__main__':
         sequence_uuid = uuid.uuid4()
         if ('duplicates' not in root) and ('success' not in root):
             count = 0
+            s = Sequence(root, skip_folders=['duplicates', 'success'])
+            directions = s.interpolate_direction()
             for filename in files:
                 if filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
-                    create_mapillary_description(os.path.join(root, filename),
+                    filepath = os.path.join(root, filename)
+                    print directions[filepath], filepath
+                    create_mapillary_description(filepath,
                                                     MAPILLARY_USERNAME,
                                                     MAPILLARY_EMAIL,
                                                     upload_token,
-                                                    sequence_uuid)
+                                                    sequence_uuid,
+                                                    directions[filepath])
                     count += 1
                 else:
                     print "Ignoring {0}".format(os.path.join(root,filename))
             if count:
                 print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, count, sequence_uuid))
 
-                # upload
+                # upload a sequence
                 s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
                 print("Uploading sequence {0}.".format(sequence_uuid))
 
@@ -129,12 +134,9 @@ if __name__ == '__main__':
                           "move_files": MOVE_FILES}
 
                 # Upload images
-                s = Sequence(root, skip_folders=['duplicates'])
                 file_list = s.file_list
-                upload_file_list(file_list, params)
+                # upload_file_list(file_list, params)
         else:
             print("Skipping images in {}".format(root))
-
-    # TODO: Add a confirm step before moving the files
 
 

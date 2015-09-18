@@ -50,7 +50,7 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
 
 
-def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, verbose=False):
+def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, interpolated_heading=0.0, verbose=False):
     '''
     Check that image file has the required EXIF fields.
 
@@ -66,10 +66,10 @@ def create_mapillary_description(filename, username, email, upload_hash, sequenc
     mapillary_description = {}
     mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
     #required date format: 2015_01_14_09_37_01_000
-    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_000")
+    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
     mapillary_description["MAPOrientation"] = exif.extract_orientation()
     heading = exif.extract_direction()
-    heading = 0.0 if heading is None else normalize_bearing(heading)
+    heading = normalize_bearing(interpolated_heading) if heading is None else normalize_bearing(heading)
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email
