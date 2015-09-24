@@ -67,6 +67,23 @@ def extract_exif_from_file(fileobj):
     d = exif_data.extract_exif()
     return d
 
+def required_fields():
+    return exif_gps_fields() + exif_datetime_fields()
+
+
+def verify_exif(filename):
+    '''
+    Check that image file has the required EXIF fields.
+    Incompatible files will be ignored server side.
+    '''
+    # required tags in IFD name convention
+    required_exif = required_fields()
+    exif = EXIF(filename)
+    required_exif_exist = exif.fields_exist(required_exif)
+    return required_exif_exist
+
+def is_image(filename):
+    return filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
 
 class EXIF:
     '''
