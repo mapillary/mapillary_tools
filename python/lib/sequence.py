@@ -11,6 +11,8 @@ Sequence class for organizing/cleaning up photos in a folder
     - remove duplicate images (e.g. waiting for red light, in traffic etc) @simonmikkelsen
 '''
 
+MAXIMUM_SEQUENCE_LENGTH = 1000
+
 class Sequence(object):
 
     def __init__(self, filepath, skip_folders=[]):
@@ -58,8 +60,6 @@ class Sequence(object):
         '''
         Get the list of JPEGs in the folder (nested folders)
         '''
-        ## TODO: get only the valid files (i.e. with GPS and datetime)
-
         if filepath.lower().endswith(".jpg"):
             # single file
             file_list = [filepath]
@@ -97,7 +97,7 @@ class Sequence(object):
         '''
         self._skip_folders = folders
 
-    def split(self, cutoff_distance=500., cutoff_time=None):
+    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
@@ -133,7 +133,8 @@ class Sequence(object):
             for i,filepath in enumerate(file_list[1:]):
                 cut_time = capture_deltas[i].total_seconds() > cutoff_time
                 cut_distance = distances[i] > cutoff_distance
-                if cut_time or cut_distance:
+                cut_sequence_length = len(group) > max_sequence_length
+                if cut_time or cut_distance or cut_sequence_length:
                     cut += 1
                     # delta too big, save current group, start new
                     groups.append(group)
@@ -142,6 +143,8 @@ class Sequence(object):
                         print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
                     elif cut_time:
                         print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
+                    elif cut_sequence_length:
+                        print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
                 else:
                     group.append(filepath)
 
