@@ -37,7 +37,6 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
 
-
 def encode_multipart(fields, files, boundary=None):
     """
     Encode dict of form fields and dict of files as multipart/form-data.
@@ -171,11 +170,13 @@ def exif_has_mapillary_tags(filename):
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, params=UPLOAD_PARAMS):
+   
+    def __init__(self, queue, params=UPLOAD_PARAMS, total_task = 0):
         threading.Thread.__init__(self)
         self.q = queue
         self.params = params
-
+        self.total_task = self.q.qsize()
+        
     def run(self):
         while True:
             # fetch file from the queue and upload
@@ -184,8 +185,9 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
+                print "Uploading: {0:.0f}%".format((self.total_task - self.q.qsize())*100/self.total_task)
                 upload_file(filepath, **self.params)
-                self.q.task_done()
+                self.q.task_done()      
 
 
 
@@ -223,6 +225,7 @@ if __name__ == '__main__':
         else:
             print("Skipping: {0}".format(filepath))
 
+    
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
 
