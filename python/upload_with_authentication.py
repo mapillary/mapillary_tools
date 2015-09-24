@@ -6,7 +6,8 @@ import os
 from Queue import Queue
 import uuid
 import time
-from lib.uploader import upload_done_file, verify_exif, create_dirs, get_authentication_info, get_upload_token, UploadThread
+from lib.uploader import upload_done_file, create_dirs, get_authentication_info, get_upload_token, UploadThread
+from lib.exif import verify_exif
 from lib.sequence import Sequence
 
 '''
