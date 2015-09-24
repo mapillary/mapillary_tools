@@ -19,6 +19,10 @@ If no cutoff time is given, one will be estimated based on the median
 time difference.
 '''
 
+# Prefered maximum length for a sequence.
+# Sequences with length larger than MAX_SEQUENCE_LENGTH will be split into shorter ones
+MAX_SEQUENCE_LENGTH = 1000
+
 
 def read_capture_time(filepath):
     '''
@@ -101,7 +105,7 @@ if __name__ == '__main__':
     groups = []
     group = [file_list[0]]
     for i,filepath in enumerate(file_list[1:]):
-        if capture_deltas[i].total_seconds() > cutoff_time:
+        if capture_deltas[i].total_seconds() > cutoff_time or len(group)>=MAX_SEQUENCE_LENGTH:
             # delta too big, save current group, start new
             groups.append(group)
             group = [filepath]
