@@ -108,8 +108,9 @@ class EXIF:
         lon, lat = self.extract_lon_lat()
         ca = self.extract_direction()
         if ca is None: ca = 0
+        ca = int(ca)
         date_time = self.extract_capture_time()
-        date_time = date_time.strftime("%Y_%m_%d_%H_%M_%s_%f")
+        date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
         date_time = date_time[:-3]
         filename = '{}_{}_{}_{}_{}'.format(lat, lon, ca, date_time, os.path.basename(self.filename))
         return filename
@@ -143,7 +144,6 @@ class EXIF:
                 capture_time = datetime.datetime.strptime(os.path.basename(self.filename)[:-4]+'000', '%Y_%m_%d_%H_%M_%S_%f')
             except:
                 pass
-
         return capture_time
 
 

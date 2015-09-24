@@ -58,6 +58,8 @@ class Sequence(object):
         '''
         Get the list of JPEGs in the folder (nested folders)
         '''
+        ## TODO: get only the valid files (i.e. with GPS and datetime)
+
         if filepath.lower().endswith(".jpg"):
             # single file
             file_list = [filepath]
@@ -136,10 +138,10 @@ class Sequence(object):
                     # delta too big, save current group, start new
                     groups.append(group)
                     group = [filepath]
-                    if cut_time:
-                        print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
-                    elif cut_distance:
+                    if cut_distance:
                         print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
+                    elif cut_time:
+                        print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
                 else:
                     group.append(filepath)
 
