@@ -11,6 +11,7 @@ import json
 
 from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list, upload_done_file
 from lib.sequence import Sequence
+from lib.exif import is_image, verify_exif
 
 '''
 Script for uploading images taken with other cameras than
@@ -124,6 +125,7 @@ if __name__ == '__main__':
 
     duplicate_groups = {}
     split_groups = {}
+    missing_groups = []
     s3_bucket_list = []
     total_uploads = 0
 
@@ -163,17 +165,20 @@ if __name__ == '__main__':
                 directions = s.interpolate_direction()
                 file_list = []
                 for filename in files:
-                    if (filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))):
+                    if is_image(filename):
                         filepath = os.path.join(root, filename)
-                        if not retry_upload:
-                            # skip creating new sequence id for failed images
-                            create_mapillary_description(filepath,
-                                                            MAPILLARY_USERNAME,
-                                                            MAPILLARY_EMAIL,
-                                                            upload_token,
-                                                            sequence_uuid,
-                                                            directions[filepath])
-                        file_list.append(filepath)
+                        if verify_exif(filepath):
+                            if not retry_upload:
+                                # skip creating new sequence id for failed images
+                                create_mapillary_description(filepath,
+                                                                MAPILLARY_USERNAME,
+                                                                MAPILLARY_EMAIL,
+                                                                upload_token,
+                                                                sequence_uuid,
+                                                                directions[filepath])
+                            file_list.append(filepath)
+                        else:
+                            missing_groups.append(filepath)
                     else:
                         print "   Ignoring {0}".format(os.path.join(root,filename))
 
@@ -194,7 +199,6 @@ if __name__ == '__main__':
         for sequence_uuid, file_list in sequence_list.iteritems():
             file_list = [str(f) for f in file_list if os.path.exists(f)]
             count = len(file_list)
-            print len(file_list)
             s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
             s3_bucket_list.append(s3_bucket)
             if count and not skip_upload:
@@ -223,6 +227,10 @@ if __name__ == '__main__':
         lines.append('Duplicates (skipping):')
         lines.append('  groups:       {}'.format(len(duplicate_groups)))
         lines.append('  total:        {}'.format(sum([len(g) for g in duplicate_groups])))
+    if missing_groups:
+        lines.append('Missing Required EXIF (skipping):')
+        lines.append('  total:        {}'.format(sum([len(g) for g in missing_groups])))
+
     lines.append('Sequences:')
     lines.append('  groups:       {}'.format(len(split_groups)))
     lines.append('  total:        {}'.format(sum([len(g) for g in split_groups])))

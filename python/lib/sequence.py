@@ -2,7 +2,7 @@ import os
 import sys
 import lib.io
 import lib.geo
-from lib.exif import EXIF
+from lib.exif import EXIF, verify_exif
 
 '''
 Sequence class for organizing/cleaning up photos in a folder
@@ -68,7 +68,7 @@ class Sequence(object):
             for root, sub_folders, files in os.walk(self.filepath):
                 if not self._is_skip(root):
                     file_list += [os.path.join(root, filename) for filename in files
-                                    if (filename.lower().endswith(".jpg"))]
+                                    if (filename.lower().endswith(".jpg")) and verify_exif(os.path.join(root, filename))]
         return file_list
 
     def sort_file_list(self, file_list):

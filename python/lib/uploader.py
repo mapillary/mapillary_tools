@@ -1,4 +1,4 @@
-from lib.exif import EXIF, exif_gps_fields, exif_datetime_fields
+from lib.exif import EXIF, exif_gps_fields, exif_datetime_fields, verify_exif
 from lib.geo import dms_to_decimal, normalize_bearing
 from lib.exifedit import ExifEdit
 import lib.io
@@ -272,15 +272,3 @@ def create_dirs(root_path=''):
     lib.io.mkdir_p(os.path.join(root_path, "success"))
     lib.io.mkdir_p(os.path.join(root_path, "failed"))
 
-
-def verify_exif(filename):
-    '''
-    Check that image file has the required EXIF fields.
-    Incompatible files will be ignored server side.
-    '''
-    # required tags in IFD name convention
-    required_exif = exif_gps_fields() + exif_datetime_fields() + [["Image Orientation"]]
-    exif = EXIF(filename)
-    tags = exif.tags
-    required_exif_exist = exif.fields_exist(required_exif)
-    return required_exif_exist
