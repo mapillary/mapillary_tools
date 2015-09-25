@@ -12,6 +12,7 @@ from Queue import Queue
 import threading
 import exifread
 import time
+from datetime import timedelta
 
 '''
 Script for uploading images taken with the Mapillary
@@ -36,6 +37,8 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
+
+START_TIME = time.time()
 
 def encode_multipart(fields, files, boundary=None):
     """
@@ -185,7 +188,9 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                print "Uploading: {0:.0f}%".format((self.total_task - self.q.qsize())*100/self.total_task)
+                elapsed_time = time.time() - START_TIME
+                s = 'Uploading:' + format((self.total_task - self.q.qsize())*100/self.total_task) + '% Elapsed Time: ' + str(timedelta(seconds=elapsed_time)).split(".")[0] + ' Estimated Time: ' +str(timedelta(seconds=(elapsed_time/(self.total_task - self.q.qsize()))*self.total_task)).split(".")[0]
+                print s
                 upload_file(filepath, **self.params)
                 self.q.task_done()      
 
