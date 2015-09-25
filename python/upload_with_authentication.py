@@ -122,6 +122,7 @@ if __name__ == '__main__':
         file_list = []
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+        print "found %d images for upload" % (len(file_list))
 
     # get env variables
     try:

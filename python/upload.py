@@ -37,7 +37,6 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
 
-
 def encode_multipart(fields, files, boundary=None):
     """
     Encode dict of form fields and dict of files as multipart/form-data.
@@ -171,10 +170,12 @@ def exif_has_mapillary_tags(filename):
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, params=UPLOAD_PARAMS):
+
+    def __init__(self, queue, params=UPLOAD_PARAMS, total_task = 0):
         threading.Thread.__init__(self)
         self.q = queue
         self.params = params
+        self.total_task = self.q.qsize()
 
     def run(self):
         while True:
@@ -184,6 +185,7 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
+                print "Uploading: {0:.0f}%".format((self.total_task - self.q.qsize())*100/self.total_task)
                 upload_file(filepath, **self.params)
                 self.q.task_done()
 
@@ -196,7 +198,7 @@ if __name__ == '__main__':
 
     if sys.version_info >= (3, 0):
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
-    
+
     if len(sys.argv) > 2:
         print("Usage: python upload.py path")
         raise IOError("Bad input parameters.")
@@ -222,6 +224,7 @@ if __name__ == '__main__':
             q.put(filepath)
         else:
             print("Skipping: {0}".format(filepath))
+
 
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
