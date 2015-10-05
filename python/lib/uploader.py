@@ -37,6 +37,7 @@ class UploadThread(threading.Thread):
         threading.Thread.__init__(self)
         self.q = queue
         self.params = params
+        self.total_task = self.q.qsize()
 
     def run(self):
         while True:
@@ -46,8 +47,14 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
+                lib.io.progress(self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
                 upload_file(filepath, **self.params)
                 self.q.task_done()
+
+
+def create_dirs(root_path=''):
+    lib.io.mkdir_p(os.path.join(root_path, "success"))
+    lib.io.mkdir_p(os.path.join(root_path, "failed"))
 
 
 def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, interpolated_heading=0.0, verbose=False):
@@ -188,7 +195,9 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
         s3_filename = EXIF(filepath).exif_name()
     except:
         s3_filename = filename
+
     print("Uploading: {0}".format(filename))
+    # sys.stdout.write('Uploading: {}\n\r'.format(filename))
 
     # add S3 'path' if given
     if key is None:
@@ -266,9 +275,3 @@ def upload_file_list(file_list, params):
     except (KeyboardInterrupt, SystemExit):
         print("\nBREAK: Stopping upload.")
         sys.exit()
-
-
-def create_dirs(root_path=''):
-    lib.io.mkdir_p(os.path.join(root_path, "success"))
-    lib.io.mkdir_p(os.path.join(root_path, "failed"))
-
