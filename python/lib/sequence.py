@@ -56,7 +56,7 @@ class Sequence(object):
         direction = exif.extract_direction()
         return direction
 
-    def get_file_list(self, filepath):
+    def get_file_list(self, filepath, check_exif=True):
         '''
         Get the list of JPEGs in the folder (nested folders)
         '''
@@ -68,7 +68,7 @@ class Sequence(object):
             for root, sub_folders, files in os.walk(self.filepath):
                 if not self._is_skip(root):
                     file_list += [os.path.join(root, filename) for filename in files
-                                    if (filename.lower().endswith(".jpg")) and verify_exif(os.path.join(root, filename))]
+                                    if (filename.lower().endswith(".jpg")) and (verify_exif(os.path.join(root, filename)) or not check_exif)]
         return file_list
 
     def sort_file_list(self, file_list):
