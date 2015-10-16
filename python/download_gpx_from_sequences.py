@@ -37,7 +37,7 @@ CLIENT_ID = 'dTBiWGgweEdleXJhVVBmOFNfVVRxZzpkYThkNzBkYTI3ZGNhMGI1'
 
 START_TIME = time.time()
 LOG_FILE = "downloaded_"+format(START_TIME)+".txt"
-MAX_ATTEMPTS = 2
+MAX_ATTEMPTS = 10
 
 def create_dirs(base_path):
     if not os.path.exists(base_path):
