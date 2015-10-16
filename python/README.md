@@ -129,7 +129,7 @@ Script to download images using the Mapillary image search API. Downloads images
 
 **download_gpx_from_sequences.py**
 
-this scripts is a fast way to download  GPS traces from the sequences uploaded to mapillary inside a rect (min_lat, max_lat, min_lon, max_lon).
+this scripts is a fast way to download  GPS traces from the sequences uploaded to mapillary. Download traces inside a rect (min_lat, max_lat, min_lon, max_lon).
    
    python download_gpx_from_sequences.py min_lat max_lat min_lon max_lon [max_results] [filter_by_user_name]
 
