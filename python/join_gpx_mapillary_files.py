@@ -18,11 +18,9 @@ by danilo@lacosox.org
 '''
 
 HEAD_FILE="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n \
-<gpx xmlns=\"http://www.topografix.com/GPX/1/1\" creator=\"\" version=\"1.1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n \
- <trk>\n\
-  <name>Mapillary tracklog</name>\n"
+<gpx xmlns=\"http://www.topografix.com/GPX/1/1\" creator=\"\" version=\"1.1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n"
           
-FOOT_FILE=" </trk>\n</gpx>"
+FOOT_FILE="</gpx>"
 
 if __name__ == '__main__':
     try:
@@ -41,8 +39,8 @@ if __name__ == '__main__':
                 gpx_read = open(file, 'r')
                 gpx_file_txt=gpx_read.read()
                 
-                track_segment=gpx_file_txt[(gpx_file_txt.index('<trkseg>')):]
-                track_segment=track_segment[:(track_segment.index('</trkseg>')+9)]+"\n"
+                track_segment=gpx_file_txt[(gpx_file_txt.index('<trk>')):]
+                track_segment=track_segment[:(track_segment.index('</trk>')+6)]+"\n"
                 final_file.write(track_segment)
         except:
                 print "Unexpected error:", sys.exc_info()[0]

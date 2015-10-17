@@ -49,9 +49,9 @@ def query_search_api(client_id,min_lat, max_lat, min_lon, max_lon, max_results, 
     Send query to the search API and get dict with image data.
     '''
     if user_filter:
-        params = urllib.urlencode(zip(['client_id','min-lat', 'max-lat', 'min-lon', 'max-lon', 'limit', 'user'],[client_id, min_lat, max_lat, min_lon, max_lon, max_results, user_filter]))
+        params = urllib.urlencode(zip(['client_id','min_lat', 'max_lat', 'min_lon', 'max_lon', 'limit', 'user'],[client_id, min_lat, max_lat, min_lon, max_lon, max_results, user_filter]))
     else:
-        params = urllib.urlencode(zip(['client_id','min-lat', 'max-lat', 'min-lon', 'max-lon', 'limit'],[client_id, min_lat, max_lat, min_lon, max_lon, max_results]))
+        params = urllib.urlencode(zip(['client_id','min_lat', 'max_lat', 'min_lon', 'max_lon', 'limit'],[client_id, min_lat, max_lat, min_lon, max_lon, max_results]))
         
 #    print params
     query = urllib2.urlopen(MAPILLARY_API_IM_SEARCH_URL + params).read()
