@@ -17,14 +17,12 @@ by danilo@lacosox.org
 
 '''
 
-HEAD_FILE="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n \
-           <gpx version=\"1.0\">\n \
-           <name></name>\n \
-           <trk>\n \
-           <name/>\n \
-           <number>1</number>\n"
+HEAD_FILE="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n \
+<gpx xmlns=\"http://www.topografix.com/GPX/1/1\" creator=\"\" version=\"1.1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n \
+ <trk>\n\
+  <name>Mapillary tracklog</name>\n"
           
-FOOT_FILE="</trk>\n</gpx>"
+FOOT_FILE=" </trk>\n</gpx>"
 
 if __name__ == '__main__':
     try:
