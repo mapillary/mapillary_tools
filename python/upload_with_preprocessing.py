@@ -9,9 +9,10 @@ import time
 import argparse
 import json
 
-from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list, upload_done_file
+from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif
+import lib.io
 
 '''
 Script for uploading images taken with other cameras than
@@ -20,6 +21,7 @@ the Mapillary iOS or Android apps.
 It runs in the following steps:
     - Skip images that are potential duplicates (Move to path/duplicates)
     - Group images into sequences based on gps and time
+    - Interpolate compass angles for each sequence
     - Add Mapillary tags to the images
     - Upload the images
 
@@ -44,7 +46,7 @@ MOVE_FILES = True
 def log_file(path):
     return os.path.join(path, 'UPLOAD_LOG.txt')
 
-def write_log(path):
+def write_log(lines, path):
     with open(log_file(path), 'wb') as f:
         f.write(lines)
 
@@ -56,16 +58,30 @@ def read_log(path):
         return None
     return lines
 
-def edit_log_file(path):
-    return os.path.join(path, 'EDIT_LOG.json')
+def processing_log_file(path):
+    return os.path.join(path, 'PROCESSING_LOG.json')
+
+def read_processing_log(path):
+    with open(processing_log_file(path), 'rb') as f:
+        log = json.loads(f.read())
+    return log
+
+def write_processing_log(log, path):
+    with open(processing_log_file(path), 'wb') as f:
+        f.write(json.dumps(log, indent=4))
+    return log
 
 if __name__ == '__main__':
     '''
     Use from command line as: python upload_with_preprocessing.py path
 
-    You need to set the environment variables MAPILLARY_USERNAME,
-    MAPILLARY_PERMISSION_HASH and MAPILLARY_SIGNATURE_HASH to your
-    unique values.
+    You need to set the environment variables
+        MAPILLARY_USERNAME
+        MAPILLARY_EMAIL
+        MAPILLARY_PASSWORD
+        MAPILLARY_PERMISSION_HASH
+        MAPILLARY_SIGNATURE_HASH
+    to your unique values.
 
     You also need upload.py in the same folder or in your PYTHONPATH since this
     script uses pieces of that.
@@ -76,7 +92,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--cutoff_distance', default=300, help='maximum gps distance in meters within a sequence')
+    parser.add_argument('--cutoff_distance', default=500, help='maximum gps distance in meters within a sequence')
     parser.add_argument('--cutoff_time', default=30, help='maximum time interval in seconds within a sequence')
     parser.add_argument('--remove_duplicates', help='flag to perform duplicate removal or not', action='store_true')
     parser.add_argument('--rerun', help='flag to rerun the preprocessing and uploading', action='store_true')
@@ -96,7 +112,7 @@ if __name__ == '__main__':
         MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
         MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
     except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
+        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
     upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
 
@@ -129,18 +145,19 @@ if __name__ == '__main__':
     s3_bucket_list = []
     total_uploads = 0
 
-    if (not retry_upload) and (not os.path.exists(edit_log_file(path))):
-        # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
+    if (not retry_upload) and (not os.path.exists(processing_log_file(path))):
         if args.rerun:
             skip_folders = []
         else:
             skip_folders = ['success', 'duplicates']
+
         s = Sequence(path, skip_folders=skip_folders)
 
         if s.num_images == 0:
             print("No images in the folder or all images have been successfully uploaded to Mapillary.")
             sys.exit()
 
+        # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
         if args.remove_duplicates:
             print("\n=== Removing potentially duplicate images ...")
             duplicate_groups = s.remove_duplicates()
@@ -150,23 +167,29 @@ if __name__ == '__main__':
         s = Sequence(path, skip_folders=['duplicates'])
         split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
 
-    if not os.path.exists(edit_log_file(path)) or args.rerun:
 
-        # Add Mapillary tags
+
+    # Add Mapillary tags
+    if not os.path.exists(processing_log_file(path)) or args.rerun:
         print("\n=== Adding Mapillary tags and uploading per sequence ...")
         sequence_list = {}
         for root, sub_folders, files in os.walk(path):
             if ('duplicates' not in root) and ('success' not in root):
+
+                s = Sequence(root, skip_folders=['duplicates', 'success'])
+                print root, len(s.file_list), len(files)
+                # interpolate compass direction if missing
+                directions = s.interpolate_direction()
+
                 # Add a sequence uuid per sub-folder
-                if len(files) > 0:
+                if len(s.file_list) > 0:
                     sequence_uuid = uuid.uuid4()
                     print("  sequence uuid: {}".format(sequence_uuid))
-                s = Sequence(root, skip_folders=['duplicates', 'success'])
-                directions = s.interpolate_direction()
+
                 file_list = []
-                for filename in files:
+                for i, filename in enumerate(s.file_list):
                     if is_image(filename):
-                        filepath = os.path.join(root, filename)
+                        filepath = os.path.join(filename)
                         if verify_exif(filepath):
                             if not retry_upload:
                                 # skip creating new sequence id for failed images
@@ -181,18 +204,17 @@ if __name__ == '__main__':
                             missing_groups.append(filepath)
                     else:
                         print "   Ignoring {0}".format(os.path.join(root,filename))
-
+                    lib.io.progress(i, len(s.file_list), 'Adding Mapillary tags')
                 count = len(file_list)
                 if count > 0:
                     sequence_list[str(sequence_uuid)] = file_list
             else:
                 print("      Skipping images in {}".format(root))
 
-        with open(edit_log_file(path), 'wb') as f:
-            f.write(json.dumps(sequence_list, indent=4))
+        write_processing_log(sequence_list, path)
     else:
-        with open(edit_log_file(path), 'rb') as f:
-            sequence_list = json.loads(f.read())
+        print('This folder has been processed. Resuming unfinished uploads ...')
+        sequence_list = read_processing_log(path)
 
     if not skip_upload:
         # Uploading images in each subfolder as a sequence
@@ -218,33 +240,13 @@ if __name__ == '__main__':
 
     # A short summary of the uploads
     s = Sequence(path)
-    total_success = len([f for f in s.file_list if 'success' in f])
-    total_failed = len([f for f in s.file_list if 'failed' in f])
-
+    lines = upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups)
     print('\n========= Summary of your uploads ==============')
-    lines = []
-    if duplicate_groups:
-        lines.append('Duplicates (skipping):')
-        lines.append('  groups:       {}'.format(len(duplicate_groups)))
-        lines.append('  total:        {}'.format(sum([len(g) for g in duplicate_groups])))
-    if missing_groups:
-        lines.append('Missing Required EXIF (skipping):')
-        lines.append('  total:        {}'.format(sum([len(g) for g in missing_groups])))
-
-    lines.append('Sequences:')
-    lines.append('  groups:       {}'.format(len(split_groups)))
-    lines.append('  total:        {}'.format(sum([len(g) for g in split_groups])))
-    lines.append('Uploads:')
-    lines.append('  total:        {}'.format(total_uploads))
-    lines.append('  success:      {}'.format(total_success))
-    lines.append('  failed:       {}'.format(total_failed))
-
-    lines = '\n'.join(lines)
     print lines
     print("==================================================")
 
     print("You can now preview your uploads at http://www.mapillary.com/map/upload/im")
-    print s3_bucket_list
+
     if not skip_upload:
         # Finalizing the upload by uploading done files for all sequence
         print("\nFinalizing upload will submit all successful uploads and ignore all failed and duplicates.")
@@ -261,9 +263,8 @@ if __name__ == '__main__':
                               "permission": MAPILLARY_PERMISSION_HASH,
                               "signature": MAPILLARY_SIGNATURE_HASH,
                               "move_files": False}
-                    upload_done_file(params)
+                    # upload_done_file(params)
                     print("Done uploading.")
-                    # store the logs after finalizing
                 break
             elif proceed in ["n", "N", "no", "No"]:
                 print("Aborted. No files were submitted. Try again if you had failures.")
@@ -273,5 +274,6 @@ if __name__ == '__main__':
                     print("Aborted. No files were submitted. Try again if you had failures.")
                 else:
                     print('Please answer y or n. Try again.')
-        write_log(path)
+        # store the logs after finalizing
+        write_log(lines, path)
 
