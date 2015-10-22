@@ -150,6 +150,27 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
+def finalize_upload(params, retry=3):
+    '''
+    Finalize and confirm upload
+    '''
+    # retry if input is unclear
+    for i in range(retry):
+        proceed = raw_input("Finalize upload? [y/n]: ")
+        if proceed in ["y", "Y", "yes", "Yes"]:
+            # upload an empty DONE file
+            upload_done_file(params)
+            print("Done uploading.")
+            break
+        elif proceed in ["n", "N", "no", "No"]:
+            print("Aborted. No files were submitted. Try again if you had failures.")
+            break
+        else:
+            if i==2:
+                print("Aborted. No files were submitted. Try again if you had failures.")
+            else:
+                print('Please answer y or n. Try again.')
+
 def get_upload_token(mail, pwd):
     '''
     Get upload token
@@ -191,6 +212,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
     Move to subfolders 'success'/'failed' on completion if move_files is True.
     '''
     filename = os.path.basename(filepath)
+
     try:
         s3_filename = EXIF(filepath).exif_name()
     except:
@@ -249,10 +271,7 @@ def upload_file_list(file_list, params=UPLOAD_PARAMS):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
-        if EXIF(filepath).mapillary_tag_exists():
-            q.put(filepath)
-        else:
-            print("Skipping: {0}".format(filepath))
+        q.put(filepath)
 
     # create uploader threads
     uploaders = [UploadThread(q, params) for i in range(NUMBER_THREADS)]
@@ -295,3 +314,5 @@ def upload_summary(file_list, split_groups, duplicate_groups, missing_groups):
     lines.append('  success:      {}'.format(total_success))
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
+
+
