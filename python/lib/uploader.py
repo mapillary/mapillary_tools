@@ -30,7 +30,7 @@ SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
-UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True}
+UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
 
 class UploadThread(threading.Thread):
     def __init__(self, queue, params=UPLOAD_PARAMS):
@@ -205,7 +205,7 @@ def upload_done_file(params):
         os.remove("DONE")
 
 
-def upload_file(filepath, url, permission, signature, key=None, move_files=True):
+def upload_file(filepath, url, permission, signature, key=None, move_files=True, keep_file_names=True):
     '''
     Upload file at filepath.
 
@@ -213,10 +213,13 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
     '''
     filename = os.path.basename(filepath)
 
-    try:
-        s3_filename = EXIF(filepath).exif_name()
-    except:
+    if keep_file_names:
         s3_filename = filename
+    else:
+        try:
+            s3_filename = EXIF(filepath).exif_name()
+        except:
+            s3_filename = filename
 
     # add S3 'path' if given
     if key is None:
