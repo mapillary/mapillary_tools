@@ -7,7 +7,7 @@ from math import asin, cos, radians, sin, sqrt
 
 from PIL import Image
 
-from exif_lib import PILExifReader
+from lib.exif_pil import PILExifReader
 
 
 class GPSDirectionDuplicateFinder:
