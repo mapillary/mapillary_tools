@@ -230,7 +230,8 @@ if __name__ == '__main__':
                           "key": s3_bucket,
                           "permission": MAPILLARY_PERMISSION_HASH,
                           "signature": MAPILLARY_SIGNATURE_HASH,
-                          "move_files": MOVE_FILES}
+                          "move_files": MOVE_FILES,
+                          "keep_file_names": False}
 
                 # Upload images
                 total_uploads += len(file_list)
