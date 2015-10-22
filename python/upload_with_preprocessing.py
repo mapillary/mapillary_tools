@@ -29,7 +29,6 @@ The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
--Orientation
 
 NB: RUN geotag_from_gpx.py first for images with GPS in a separated GPX file (e.g. GoPro)
 
@@ -168,7 +167,6 @@ if __name__ == '__main__':
         split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
 
 
-
     # Add Mapillary tags
     if not os.path.exists(processing_log_file(path)) or args.rerun:
         print("\n=== Adding Mapillary tags and uploading per sequence ...")
@@ -177,7 +175,7 @@ if __name__ == '__main__':
             if ('duplicates' not in root) and ('success' not in root):
 
                 s = Sequence(root, skip_folders=['duplicates', 'success'])
-                print root, len(s.file_list), len(files)
+
                 # interpolate compass direction if missing
                 directions = s.interpolate_direction()
 
@@ -216,8 +214,8 @@ if __name__ == '__main__':
         print('This folder has been processed. Resuming unfinished uploads ...')
         sequence_list = read_processing_log(path)
 
+    # Uploading images in each subfolder as a sequence
     if not skip_upload:
-        # Uploading images in each subfolder as a sequence
         for sequence_uuid, file_list in sequence_list.iteritems():
             file_list = [str(f) for f in file_list if os.path.exists(f)]
             count = len(file_list)
@@ -247,8 +245,8 @@ if __name__ == '__main__':
 
     print("You can now preview your uploads at http://www.mapillary.com/map/upload/im")
 
+    # Finalizing the upload by uploading done files for all sequence
     if not skip_upload:
-        # Finalizing the upload by uploading done files for all sequence
         print("\nFinalizing upload will submit all successful uploads and ignore all failed and duplicates.")
         print("If all files were marked as successful, everything is fine, just press 'y'.")
 
@@ -263,7 +261,7 @@ if __name__ == '__main__':
                               "permission": MAPILLARY_PERMISSION_HASH,
                               "signature": MAPILLARY_SIGNATURE_HASH,
                               "move_files": False}
-                    # upload_done_file(params)
+                    upload_done_file(params)
                     print("Done uploading.")
                 break
             elif proceed in ["n", "N", "no", "No"]:
@@ -274,6 +272,7 @@ if __name__ == '__main__':
                     print("Aborted. No files were submitted. Try again if you had failures.")
                 else:
                     print('Please answer y or n. Try again.')
+
         # store the logs after finalizing
         write_log(lines, path)
 
