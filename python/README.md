@@ -95,17 +95,33 @@ On iOS, open iTunes, select your device, and scroll down to Mapillary under apps
 
 **upload_with_authentication.py**
 
-Script for uploading images taken with other cameras than the Mapillary apps. You need to set environment variables with your permission hashes, then you can upload as:
+Script for uploading images taken with other cameras than the Mapillary apps. You can upload as:
 
     python upload_with_authentication.py path-to-images/
-
-Requires environment variables MAPILLARY_USERNAME, 'MAPILLARY_PERMISSION_HASH', 'MAPILLARY_SIGNATURE_HASH
-from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes).
-Also requires upload.py to be in the same folder or in the PYTHONPATH since this script uses upload.py.
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
+
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
+
+**upload_with_preprocessing.py**
+
+Script for preprocessing and uploading images taken with other cameras than
+the Mapillary iOS or Android apps.
+
+    python upload_with_preprocessing.py path-to-images/
+
+It runs in the following steps:
+    
+- Skip images that are potential duplicates (optional with --remove_duplicates)
+- Group images into sequences based on gps and time 
+- Interpolate compass angles for each sequence 
+- Add Mapillary tags to the images
+- Upload the images
+
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
+
 
 ## Download
 
