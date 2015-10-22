@@ -13,8 +13,7 @@ import pyexiv2
 import datetime, time
 import base64
 
-from upload import create_dirs, UploadThread, upload_file
-from lib.uploader import get_upload_token, create_mapillary_description
+from lib.uploader import get_upload_token, create_mapillary_description, get_authentication_info
 from lib.geo import dms_to_decimal
 
 '''
