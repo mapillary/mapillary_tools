@@ -18,6 +18,7 @@ THE MAPILLARY APPS, WITHOUT PROPER TOKENS IN EXIF, UPLOADED
 FILES WILL BE IGNORED SERVER-SIDE.
 '''
 
+
 if __name__ == '__main__':
     '''
     Use from command line as: python upload.py path
