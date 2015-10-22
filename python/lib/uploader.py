@@ -47,7 +47,7 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                lib.io.progress(self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
+                lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
                 upload_file(filepath, **self.params)
                 self.q.task_done()
 
@@ -196,9 +196,6 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
     except:
         s3_filename = filename
 
-    print("Uploading: {0}".format(filename))
-    # sys.stdout.write('Uploading: {}\n\r'.format(filename))
-
     # add S3 'path' if given
     if key is None:
         s3_key = s3_filename
@@ -227,7 +224,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
             if response.getcode()==204:
                 if move_files:
                     os.rename(filepath, os.path.join(success_path, filename))
-                print("Success: {0}".format(filename))
+                # print("Success: {0}".format(filename))
             else:
                 if move_files:
                     os.rename(filepath, os.path.join(failed_path,filename))
@@ -248,7 +245,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True)
             print("Timeout error: {0} (retrying)".format(filename))
 
 
-def upload_file_list(file_list, params):
+def upload_file_list(file_list, params=UPLOAD_PARAMS):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
@@ -275,3 +272,26 @@ def upload_file_list(file_list, params):
     except (KeyboardInterrupt, SystemExit):
         print("\nBREAK: Stopping upload.")
         sys.exit()
+
+
+def upload_summary(file_list, split_groups, duplicate_groups, missing_groups):
+    total_success = len([f for f in file_list if 'success' in f])
+    total_failed = len([f for f in file_list if 'failed' in f])
+    lines = []
+    if duplicate_groups:
+        lines.append('Duplicates (skipping):')
+        lines.append('  groups:       {}'.format(len(duplicate_groups)))
+        lines.append('  total:        {}'.format(sum([len(g) for g in duplicate_groups])))
+    if missing_groups:
+        lines.append('Missing Required EXIF (skipping):')
+        lines.append('  total:        {}'.format(sum([len(g) for g in missing_groups])))
+
+    lines.append('Sequences:')
+    lines.append('  groups:       {}'.format(len(split_groups)))
+    lines.append('  total:        {}'.format(sum([len(g) for g in split_groups])))
+    lines.append('Uploads:')
+    lines.append('  total uploads this run: {}'.format(total_uploads))
+    lines.append('  total:        {}'.format(total_success+total_failed))
+    lines.append('  success:      {}'.format(total_success))
+    lines.append('  failed:       {}'.format(total_failed))
+    lines = '\n'.join(lines)
