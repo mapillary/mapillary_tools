@@ -6,8 +6,9 @@ import os
 from Queue import Queue
 import uuid
 import time
-from lib.uploader import upload_done_file, create_dirs, get_authentication_info, get_upload_token, UploadThread
+from lib.uploader import upload_done_file, create_dirs, get_authentication_info, get_upload_token, UploadThread, upload_file_list, finalize_upload
 from lib.exif import verify_exif
+from lib.exif import EXIF
 from lib.sequence import Sequence
 
 '''
@@ -21,7 +22,6 @@ The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
--Orientation
 
 Before uploading put all images that belong together in a sequence, in a
 specific folder, for example using 'sequence_split.py'. All images in a session
@@ -68,69 +68,45 @@ if __name__ == '__main__':
     except KeyError:
         print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
+
     # generate a sequence UUID
     sequence_id = uuid.uuid4()
 
     # S3 bucket
     s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_id)+"/"
-    print("Uploading sequence {0}.".format(sequence_id))
 
     # set upload parameters
     params = {"url": MAPILLARY_UPLOAD_URL, "key": s3_bucket,
             "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
             "move_files": MOVE_FILES}
 
-    # get the list of images in the folder (nested folders will be merged into one sequence)
-    s = Sequence(path, skip_folders=['success'])
-    file_list = s.file_list
+    # get the list of images in the folder
+    # Caution: all nested folders will be merged into one sequence!
+    s = Sequence(path, skip_folders=['success', 'duplicates'])
 
-    # create upload queue with all files
-    q = Queue()
-    for filepath in file_list:
-        # make sure no Mapillary tags
-        mapillary_tag_exists = exif.mapillary_tag_exists()
-        if mapillary_tag_exists:
-            print("File contains Mapillary EXIF tags, use upload.py instead.")
-        if verify_exif(filepath) and (not mapillary_tag_exists):
-            q.put(filepath)
-        else:
-            print("Skipping: {0}".format(filepath))
-
-    # create uploader threads with permission parameters
-    uploaders = [UploadThread(q, params) for i in range(NUMBER_THREADS)]
-
-    # start uploaders as daemon threads that can be stopped (ctrl-c)
-    try:
-        for uploader in uploaders:
-            uploader.daemon = True
-            uploader.start()
-
-        for uploader in uploaders:
-            uploaders[i].join(1)
-
-        while q.unfinished_tasks:
-            time.sleep(1)
-        q.join()
-    except (KeyboardInterrupt, SystemExit):
-        print("\nBREAK: Stopping upload.")
+    if len(s.file_list) == 0:
+        print('No images in the folder or all images have all ready been uploaded to Mapillary')
+        print('Note: If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server at http://www.mapillary.com/map/upload/im/ and pressing "push to Mapillary".')
         sys.exit()
+
+    print("Uploading sequence {0}.".format(sequence_id))
+    # check mapillary tag and required exif
+    file_list = []
+    for filepath in s.file_list:
+        mapillary_tag_exists = EXIF(filepath).mapillary_tag_exists()
+        if mapillary_tag_exists:
+            print("File {} contains Mapillary EXIF tags, use upload.py instead.".format(filepath))
+
+        required_exif_exist = verify_exif(filepath)
+        if not required_exif_exist:
+            print("File {} missing required exif".format(filepath))
+
+        if required_exif_exist and (not mapillary_tag_exists):
+            file_list.append(filepath)
+
+    # upload valid files
+    upload_file_list(file_list, params)
 
     # ask user if finalize upload to check that everything went fine
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
-
-    # ask 3 times if input is unclear
-    for i in range(3):
-        proceed = raw_input("Finalize upload? [y/n]: ")
-        if proceed in ["y", "Y", "yes", "Yes"]:
-            # upload an empty DONE file
-            upload_done_file(params)
-            print("Done uploading.")
-            break
-        elif proceed in ["n", "N", "no", "No"]:
-            print("Aborted. No files were submitted. Try again if you had failures.")
-            break
-        else:
-            if i==2:
-                print("Aborted. No files were submitted. Try again if you had failures.")
-            else:
-                print('Please answer y or n. Try again.')
+    finalize_upload(params)
