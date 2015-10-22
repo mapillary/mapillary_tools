@@ -48,9 +48,10 @@ def point(lat, lon, alt, datetime, num_image):
                 'num_image': num_image
            }
 
-if __name__ == '__main__':
-
-    image_path = sys.argv[1]
+def test_run(image_path):
+    '''
+    Test run for images
+    '''
     s = Sequence(image_path)
     file_list = s.get_file_list(image_path, check_exif=False)
     num_image = len(file_list)
