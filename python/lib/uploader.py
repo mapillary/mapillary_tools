@@ -293,7 +293,7 @@ def upload_file_list(file_list, params=UPLOAD_PARAMS):
         sys.exit()
 
 
-def upload_summary(file_list, split_groups, duplicate_groups, missing_groups):
+def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups):
     total_success = len([f for f in file_list if 'success' in f])
     total_failed = len([f for f in file_list if 'failed' in f])
     lines = []
@@ -314,5 +314,6 @@ def upload_summary(file_list, split_groups, duplicate_groups, missing_groups):
     lines.append('  success:      {}'.format(total_success))
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
+    return lines
 
 
