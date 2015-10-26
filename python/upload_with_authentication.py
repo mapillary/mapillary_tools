@@ -6,6 +6,7 @@ import os
 from Queue import Queue
 import uuid
 import time
+import argparse
 from lib.uploader import upload_done_file, create_dirs, get_authentication_info, get_upload_token, UploadThread, upload_file_list, finalize_upload
 from lib.exif import verify_exif
 from lib.exif import EXIF
@@ -52,10 +53,13 @@ if __name__ == '__main__':
     if sys.version_info >= (3, 0):
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
 
-    if len(sys.argv) < 2:
-        print("Usage: python upload_with_authentication.py path")
-        raise IOError("Bad input parameters.")
+    parser = argparse.ArgumentParser(description='Upload images with authentication')
+    parser.add_argument('path', help='path to your photos')
+    parser.add_argument('--skip_subfolders', help='option to skip subfolders', action='store_true')
+    args = parser.parse_args()
+
     path = sys.argv[1]
+    skip_subfolders = args.skip_subfolders
 
     # if no success/failed folders, create them
     create_dirs()
@@ -82,7 +86,7 @@ if __name__ == '__main__':
 
     # get the list of images in the folder
     # Caution: all nested folders will be merged into one sequence!
-    s = Sequence(path, skip_folders=['success', 'duplicates'])
+    s = Sequence(path, skip_folders=['success', 'duplicates'], skip_subfolders=skip_subfolders)
 
     if len(s.file_list) == 0:
         print('No images in the folder or all images have all ready been uploaded to Mapillary')
@@ -90,6 +94,7 @@ if __name__ == '__main__':
         sys.exit()
 
     print("Uploading sequence {0}.".format(sequence_id))
+
     # check mapillary tag and required exif
     file_list = []
     for filepath in s.file_list:
@@ -104,7 +109,7 @@ if __name__ == '__main__':
         if required_exif_exist and (not mapillary_tag_exists):
             file_list.append(filepath)
 
-    # upload valid files
+    #upload valid files
     upload_file_list(file_list, params)
 
     # ask user if finalize upload to check that everything went fine

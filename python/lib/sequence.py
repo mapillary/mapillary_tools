@@ -15,9 +15,10 @@ MAXIMUM_SEQUENCE_LENGTH = 1000
 
 class Sequence(object):
 
-    def __init__(self, filepath, skip_folders=[]):
+    def __init__(self, filepath, skip_folders=[], skip_subfolders=False):
         self.filepath = filepath
         self._skip_folders = skip_folders
+        self._skip_subfolders = skip_subfolders
         self.file_list = self.get_file_list(filepath)
         self.num_images = len(self.file_list)
 
@@ -25,12 +26,15 @@ class Sequence(object):
         '''
         Skip photos in specified folders
             - filepath/duplicates: it stores potential duplicate photos
-                                   detected by method 'remove_duplicates`
+                                   detected by method 'remove_duplicates'
+            - filepath/success:    it stores photos that have been successfully
         '''
         _is_skip = False
         for folder in self._skip_folders:
             if folder in filepath:
                 _is_skip = True
+        if self._skip_subfolders and filepath != self.filepath:
+            _is_skip = True
         return _is_skip
 
     def _read_capture_time(self, filename):
@@ -96,6 +100,12 @@ class Sequence(object):
         Set folders to skip when iterating through the path
         '''
         self._skip_folders = folders
+
+    def set_file_list(self, file_list):
+        '''
+        Set file list for the sequence
+        '''
+        self.file_list = file_list
 
     def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH):
         '''
