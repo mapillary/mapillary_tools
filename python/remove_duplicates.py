@@ -7,7 +7,7 @@ from math import asin, cos, radians, sin, sqrt
 
 from PIL import Image
 
-from lib_gps_exif import PILExifReader
+from lib.exif_pil import PILExifReader
 
 
 class GPSDirectionDuplicateFinder:
@@ -262,7 +262,6 @@ class ImageRemover:
         capturetime, files = self._sort_file_list(files)
 
         for file_path in files:
-            #print file_path
             exif_reader = PILExifReader(file_path)
             is_error = self._handle_possible_erro(file_path, exif_reader)
             if not is_error:

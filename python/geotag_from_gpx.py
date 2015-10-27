@@ -9,6 +9,7 @@ import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
+from lib.geo import interpolate_lat_lon, decimal_to_dms
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
@@ -26,10 +27,6 @@ Requires gpxpy, e.g. 'pip install gpxpy'
 Requires pyexiv2, see install instructions at http://tilloy.net/dev/pyexiv2/
 (or use your favorite installer, e.g. 'brew install pyexiv2').
 '''
-
-def utc_to_localtime(utc_time):
-    utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
-    return utc_time - utc_offset_timedelta
 
 
 def get_lat_lon_time(gpx_file):
@@ -56,93 +53,6 @@ def get_lat_lon_time(gpx_file):
     return points
 
 
-def compute_bearing(start_lat, start_lon, end_lat, end_lon):
-    '''
-    Get the compass bearing from start to end.
-
-    Formula from
-    http://www.movable-type.co.uk/scripts/latlong.html
-    '''
-    # make sure everything is in radians
-    start_lat = math.radians(start_lat)
-    start_lon = math.radians(start_lon)
-    end_lat = math.radians(end_lat)
-    end_lon = math.radians(end_lon)
-
-    dLong = end_lon - start_lon
-
-    dPhi = math.log(math.tan(end_lat/2.0+math.pi/4.0)/math.tan(start_lat/2.0+math.pi/4.0))
-    if abs(dLong) > math.pi:
-        if dLong > 0.0:
-            dLong = -(2.0 * math.pi - dLong)
-        else:
-            dLong = (2.0 * math.pi + dLong)
-
-    y = math.sin(dLong)*math.cos(end_lat)
-    x = math.cos(start_lat)*math.sin(end_lat) - math.sin(start_lat)*math.cos(end_lat)*math.cos(dLong)
-    bearing = (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
-
-    return bearing
-
-
-def interpolate_lat_lon(points, t):
-    '''
-    Return interpolated lat, lon and compass bearing for time t.
-
-    Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
-    '''
-
-    # find the enclosing points in sorted list
-    if t<points[0][0]:
-        raise ValueError("Photo's timestamp is earlier than the earliest time in the GPX file.")
-    if t>=points[-1][0]:
-        raise ValueError("Photo's timestamp is later than the latest time in the GPX file.")
-
-    for i,point in enumerate(points):
-        if t<point[0]:
-            if i>0:
-                before = points[i-1]
-            else:
-                before = points[i]
-            after = points[i]
-            break
-
-    # time diff
-    dt_before = (t-before[0]).total_seconds()
-    dt_after = (after[0]-t).total_seconds()
-
-    # simple linear interpolation
-    lat = (before[1]*dt_after + after[1]*dt_before) / (dt_before + dt_after)
-    lon = (before[2]*dt_after + after[2]*dt_before) / (dt_before + dt_after)
-
-    bearing = compute_bearing(before[1], before[2], after[1], after[2])
-
-    if before[3] is not None:
-        ele = (before[3]*dt_after + after[3]*dt_before) / (dt_before + dt_after)
-    else:
-        ele = None
-
-    return lat, lon, bearing, ele
-
-
-def to_deg(value, loc):
-    '''
-    Convert decimal position to degrees.
-    '''
-    if value < 0:
-        loc_value = loc[0]
-    elif value > 0:
-        loc_value = loc[1]
-    else:
-        loc_value = ""
-    abs_value = abs(value)
-    deg =  int(abs_value)
-    t1 = (abs_value-deg)*60
-    mint = int(t1)
-    sec = round((t1 - mint)* 60, 6)
-    return (deg, mint, sec, loc_value)
-
-
 def add_exif_using_timestamp(filename, points, offset_time=0):
     '''
     Find lat, lon and bearing of filename and write to EXIF.
@@ -158,8 +68,8 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
     try:
         lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
 
-        lat_deg = to_deg(lat, ["S", "N"])
-        lon_deg = to_deg(lon, ["W", "E"])
+        lat_deg = decimal_to_dms(lat, ["S", "N"])
+        lon_deg = decimal_to_dms(lon, ["W", "E"])
 
         # convert decimal coordinates into degrees, minutes and seconds as fractions for EXIF
         exiv_lat = (make_fraction(lat_deg[0],1), make_fraction(int(lat_deg[1]),1), make_fraction(int(lat_deg[2]*1000000),1000000))
