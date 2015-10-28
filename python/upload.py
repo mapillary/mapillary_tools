@@ -1,9 +1,8 @@
 #!/usr/bin/python
 
 import sys
-import urllib2, urllib
-import socket
 import os
+<<<<<<< HEAD
 import base64
 import mimetypes
 import random
@@ -13,6 +12,10 @@ import threading
 import exifread
 import time
 from datetime import timedelta
+=======
+from lib.uploader import upload_file_list
+from lib.sequence import Sequence
+>>>>>>> mapillary/master
 
 '''
 Script for uploading images taken with the Mapillary
@@ -22,14 +25,12 @@ Intended use is for cases when you have multiple SD cards
 or for other reasons have copied the files to a computer
 and you want to bulk upload.
 
-Requires exifread, run "pip install exifread" first
-(or use your favorite installer).
-
 NB: DO NOT USE THIS ON OTHER IMAGE FILES THAN THOSE FROM
 THE MAPILLARY APPS, WITHOUT PROPER TOKENS IN EXIF, UPLOADED
 FILES WILL BE IGNORED SERVER-SIDE.
 '''
 
+<<<<<<< HEAD
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
@@ -195,6 +196,8 @@ class UploadThread(threading.Thread):
                 self.q.task_done()      
 
 
+=======
+>>>>>>> mapillary/master
 
 if __name__ == '__main__':
     '''
@@ -203,51 +206,15 @@ if __name__ == '__main__':
 
     if sys.version_info >= (3, 0):
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
-    
+
     if len(sys.argv) > 2:
         print("Usage: python upload.py path")
         raise IOError("Bad input parameters.")
 
     path = sys.argv[1]
 
-    # if no success/failed folders, create them
-    create_dirs()
+    s = Sequence(path, skip_folders=['success'])
 
-    if path.lower().endswith(".jpg"):
-        # single file
-        file_list = [path]
-    else:
-        # folder(s)
-        file_list = []
-        for root, sub_folders, files in os.walk(path):
-            file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
+    upload_file_list(s.file_list)
 
-    # create upload queue with all files
-    q = Queue()
-    for filepath in file_list:
-        if exif_has_mapillary_tags(filepath):
-            q.put(filepath)
-        else:
-            print("Skipping: {0}".format(filepath))
-
-    
-    # create uploader threads
-    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
-
-    # start uploaders as daemon threads that can be stopped (ctrl-c)
-    try:
-        for uploader in uploaders:
-            uploader.daemon = True
-            uploader.start()
-
-        for uploader in uploaders:
-            uploaders[i].join(1)
-
-        while q.unfinished_tasks:
-            time.sleep(1)
-        q.join()
-    except (KeyboardInterrupt, SystemExit):
-        print("\nBREAK: Stopping upload.")
-        sys.exit()
-
-    print("Done uploading.")
+    print("Done uploading {} images.".format(len(s.file_list)))
