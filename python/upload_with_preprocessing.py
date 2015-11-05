@@ -91,8 +91,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--cutoff_distance', default=500, help='maximum gps distance in meters within a sequence')
-    parser.add_argument('--cutoff_time', default=30, help='maximum time interval in seconds within a sequence')
+    parser.add_argument('--cutoff_distance', default=600, help='maximum gps distance in meters within a sequence')
+    parser.add_argument('--cutoff_time', default=60, help='maximum time interval in seconds within a sequence')
     parser.add_argument('--remove_duplicates', help='flag to perform duplicate removal or not', action='store_true')
     parser.add_argument('--rerun', help='flag to rerun the preprocessing and uploading', action='store_true')
     parser.add_argument('--skip_upload', help='upload to server or not', action='store_true')
@@ -135,7 +135,7 @@ if __name__ == '__main__':
             else:
                 print('Please answer y or n. Try again.')
         else:
-            print("Aborted. All uploads were successfully in your last upload section.")
+            print("Aborted. All uploads were successful in your last upload section.")
             sys.exit()
 
     duplicate_groups = {}
@@ -174,7 +174,7 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             if ('duplicates' not in root) and ('success' not in root):
 
-                s = Sequence(root, skip_folders=['duplicates', 'success'])
+                s = Sequence(root, skip_folders=['duplicates', 'success'], skip_subfolders=True)
 
                 # interpolate compass direction if missing
                 directions = s.interpolate_direction()
