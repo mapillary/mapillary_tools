@@ -61,6 +61,8 @@ LOG_FILE = "downloaded_"+time.strftime("%Y%m%d",time.localtime(START_TIME))+".tx
 MAX_ATTEMPTS = 10
 START_ESTIMATED_TIME_AFTER = 2 #start calc estimated time after this count.
 
+START_TIME_1970 = datetime.datetime(1970,1,1)
+
 def create_dirs(base_path):
     if not os.path.exists(base_path):
         os.mkdir(base_path)
@@ -179,7 +181,8 @@ if __name__ == '__main__':
        int(limit_start_time[4:6])<=12 and \
        int(limit_start_time[6:8])>=1 and \
        int(limit_start_time[6:8])<=31:
-          limit_start_time = int(datetime.datetime(int(limit_start_time[:4]),int(limit_start_time[4:6]),int(limit_start_time[6:8]),0,0).strftime('%s')) * 1000
+          t1 = datetime.datetime(int(limit_start_time[:4]),int(limit_start_time[4:6]),int(limit_start_time[6:8]),0,0)
+          limit_start_time = int((t1-START_TIME_1970).total_seconds()*1000)     
     else:
 	  error_exit("star_time bad defined")
 
@@ -191,7 +194,8 @@ if __name__ == '__main__':
        int(limit_end_time[4:6])<=12 and \
        int(limit_end_time[6:8])>=1 and \
        int(limit_end_time[6:8])<=31:
-	  limit_end_time = int(datetime.datetime(int(limit_end_time[:4]),int(limit_end_time[4:6]),int(limit_end_time[6:8]),23,59).strftime('%s')) * 1000
+          t2 = datetime.datetime(int(limit_end_time[:4]),int(limit_end_time[4:6]),int(limit_end_time[6:8]),23,59)
+	  limit_end_time = int((t2-START_TIME_1970).total_seconds()*1000)
     else:
 	  error_exit("end_time bad defined")
 
