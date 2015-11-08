@@ -9,7 +9,7 @@ import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
-from lib.geo import interpolate_lat_lon, decimal_to_dms
+from lib.geo import interpolate_lat_lon, decimal_to_dms, utc_to_localtime
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
