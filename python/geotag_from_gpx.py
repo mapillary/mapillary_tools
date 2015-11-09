@@ -9,6 +9,7 @@ import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
+import matplotlib.pyplot as plt
 from lib.geo import interpolate_lat_lon, decimal_to_dms, utc_to_localtime
 
 '''
@@ -53,17 +54,16 @@ def get_lat_lon_time(gpx_file):
     return points
 
 
-def add_exif_using_timestamp(filename, points, offset_time=0):
+def add_exif_using_timestamp(filename, time, points, offset_time=0):
     '''
     Find lat, lon and bearing of filename and write to EXIF.
     '''
 
     metadata = pyexiv2.ImageMetadata(filename)
     metadata.read()
-    t = metadata['Exif.Photo.DateTimeOriginal'].value
 
     # subtract offset in s beween gpx time and exif time
-    t = t - datetime.timedelta(seconds=offset_time)
+    t = time - datetime.timedelta(seconds=offset_time)
 
     try:
         lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
@@ -95,9 +95,49 @@ def add_exif_using_timestamp(filename, points, offset_time=0):
             metadata["Exif.GPSInfo.GPSAltitudeRef"] = '0' if elevation >= 0 else '1'
 
         metadata.write()
-        print("Added geodata to: {0} ({1}, {2}, {3}), altitude {4}".format(filename, lat, lon, bearing, elevation))
+        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, time, lat, lon, elevation, bearing))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
+
+
+def exif_time(filename):
+    '''
+    Get image capture time from exif
+    '''
+    m = pyexiv2.ImageMetadata(filename)
+    m.read()
+    return m['Exif.Photo.DateTimeOriginal'].value
+
+
+def estimate_sub_second_time(files, interval):
+    '''
+    Estimate the capture time of a sequence with sub-second precision
+
+    EXIF times are only given up to a second of precission. This function
+    uses the given interval between shots to Estimate the time inside that
+    second that each picture was taken.
+    '''
+    if interval <= 0.0:
+        return [exif_time(f) for f in files]
+
+    onesecond = datetime.timedelta(seconds=1.0)
+    T = datetime.timedelta(seconds=interval)
+    for i, f in enumerate(files):
+        m = exif_time(f)
+        if i == 0:
+            smin = m
+            smax = m + onesecond
+        else:
+            m0 = m - T * i
+            smin = max(smin, m0)
+            smax = min(smax, m0 + onesecond)
+
+    if smin > smax:
+        print('Interval not compatible with EXIF times')
+        return None
+    else:
+        s = smin + (smax - smin) / 2
+        return [s + T * i for i in range(len(files))]
 
 
 def get_args():
@@ -105,9 +145,12 @@ def get_args():
     p = argparse.ArgumentParser(description='Geotag one or more photos with location and orientation from GPX file.')
     p.add_argument('path', help='Path containing JPG files, or location of one JPG file.')
     p.add_argument('gpx_file', help='Location of GPX file to get locations from.')
-    p.add_argument('time_offset',
+    p.add_argument('--time-offset',
         help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.',
-        default=0, type=float, nargs='?') # nargs='?' is how you make the last positional argument optional.
+        default=0, type=float)
+    p.add_argument('--interval',
+        help='Time between shots. Used to set images times with sub-second precission',
+        type=float, default=0.0)
     return p.parse_args()
 
 
@@ -127,14 +170,19 @@ if __name__ == '__main__':
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
     # start time
-    t = time.time()
+    start_time = time.time()
+
+    # Estimate capture time with sub-second precision
+    sub_second_times = estimate_sub_second_time(file_list, args.interval)
+    if not sub_second_times:
+        sys.exit(1)
 
     # read gpx file to get track locations
     gpx = get_lat_lon_time(args.gpx_file)
 
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
-    for filepath in file_list:
-        add_exif_using_timestamp(filepath, gpx, args.time_offset)
+    for filepath, filetime in zip(file_list, sub_second_times):
+        add_exif_using_timestamp(filepath, filetime, gpx, args.time_offset)
 
-    print("Done geotagging {0} images in {1:.1f} seconds.".format(len(file_list), time.time()-t))
+    print("Done geotagging {0} images in {1:.1f} seconds.".format(len(file_list), time.time()-start_time))
