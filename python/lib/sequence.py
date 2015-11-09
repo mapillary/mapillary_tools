@@ -15,11 +15,11 @@ MAXIMUM_SEQUENCE_LENGTH = 1000
 
 class Sequence(object):
 
-    def __init__(self, filepath, skip_folders=[], skip_subfolders=False):
+    def __init__(self, filepath, skip_folders=[], skip_subfolders=False, check_exif=True):
         self.filepath = filepath
         self._skip_folders = skip_folders
         self._skip_subfolders = skip_subfolders
-        self.file_list = self.get_file_list(filepath)
+        self.file_list = self.get_file_list(filepath, check_exif)
         self.num_images = len(self.file_list)
 
     def _is_skip(self, filepath):
@@ -71,8 +71,10 @@ class Sequence(object):
             file_list = []
             for root, sub_folders, files in os.walk(self.filepath):
                 if not self._is_skip(root):
-                    file_list += [os.path.join(root, filename) for filename in files
-                                    if (filename.lower().endswith(".jpg")) and (verify_exif(os.path.join(root, filename)) or not check_exif)]
+                    image_files = [os.path.join(root, filename) for filename in files if (filename.lower().endswith(".jpg"))]
+                    if check_exif:
+                        image_files = [f for f in image_files if verify_exif(f)]
+                    file_list += image_files
         return file_list
 
     def sort_file_list(self, file_list):

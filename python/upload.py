@@ -4,6 +4,7 @@ import sys
 import os
 from lib.uploader import upload_file_list
 from lib.sequence import Sequence
+from lib.exif import verify_mapillary_tag
 
 '''
 Script for uploading images taken with the Mapillary
@@ -33,8 +34,14 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
-    s = Sequence(path, skip_folders=['success'])
+    s = Sequence(path, skip_folders=['success'], check_exif=False)
+
+    num_image_file = len(s.file_list)
+
+    file_list = [f for f in s.file_list if verify_mapillary_tag(f)]
+
+    print ("Uploading {} images with valid mapillary tags (Skipping {})".format(len(file_list), num_image_file-len(file_list)))
 
     upload_file_list(s.file_list)
 
-    print("Done uploading {} images.".format(len(s.file_list)))
+    print("Done uploading {} images.".format(len(file_list)))

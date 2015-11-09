@@ -82,8 +82,17 @@ def verify_exif(filename):
     required_exif_exist = exif.fields_exist(required_exif)
     return required_exif_exist
 
+
+def verify_mapillary_tag(filename):
+    '''
+    Check that image file has the required Mapillary tag
+    '''
+    return EXIF(filename).mapillary_tag_exists()
+
+
 def is_image(filename):
     return filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
+
 
 class EXIF:
     '''
