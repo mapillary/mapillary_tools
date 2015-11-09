@@ -42,6 +42,6 @@ if __name__ == '__main__':
 
     print ("Uploading {} images with valid mapillary tags (Skipping {})".format(len(file_list), num_image_file-len(file_list)))
 
-    upload_file_list(s.file_list)
+    upload_file_list(file_list)
 
     print("Done uploading {} images.".format(len(file_list)))
