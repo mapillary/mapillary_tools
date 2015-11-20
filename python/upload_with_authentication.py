@@ -73,9 +73,17 @@ if __name__ == '__main__':
         print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
 
-    # generate a sequence UUID
-    sequence_id = uuid.uuid4()
-
+    if os.path.isfile('SEQUENCE'):
+        # read previous sequence UUID from the file
+        print('--- SEQUENCE FILE FOUND, RESUMING UPLOAD ---')
+        with file('SEQUENCE') as f:
+            sequence_id = f.read().rstrip()
+    else:
+        # generate a sequence UUID
+        sequence_id = uuid.uuid4()
+        sfile = open('SEQUENCE','w')
+        sfile.write(str(sequence_id)+'\n')
+        sfile.close()
     # S3 bucket
     s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_id)+"/"
 
