@@ -81,7 +81,7 @@ if __name__ == '__main__':
     else:
         # generate a sequence UUID
         sequence_id = uuid.uuid4()
-        sfile = open('SEQUENCE','w')
+        sfile = open(os.path.join(path,'SEQUENCE'),'w')
         sfile.write(str(sequence_id)+'\n')
         sfile.close()
     # S3 bucket
