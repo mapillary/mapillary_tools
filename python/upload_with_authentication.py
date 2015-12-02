@@ -40,7 +40,7 @@ USE UPLOAD.PY INSTEAD.
 
 
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
-NUMBER_THREADS = 4
+NUMBER_THREADS = 1
 MOVE_FILES = False
 
 
@@ -172,6 +172,10 @@ if __name__ == '__main__':
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
 
     # ask 3 times if input is unclear
+    upload_done_file(params)
+    print("Done uploading.")
+    sys.exit()
+
     for i in range(3):
         proceed = raw_input("Finalize upload? [y/n]: ")
         if proceed in ["y", "Y", "yes", "Yes"]:
