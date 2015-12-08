@@ -2,3 +2,4 @@ gpxpy
 exifread
 Pillow
 python-dateutil
+matplotlib

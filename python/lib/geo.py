@@ -136,7 +136,6 @@ def interpolate_lat_lon(points, t):
 
     Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
     '''
-
     # find the enclosing points in sorted list
     if t<points[0][0]:
         raise ValueError("Photo's timestamp is earlier than the earliest time in the GPX file.")
