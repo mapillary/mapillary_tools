@@ -55,11 +55,11 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Upload images with authentication')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--skip_subfolders', help='option to skip subfolders', action='store_true')
+    parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
     args = parser.parse_args()
 
     path = sys.argv[1]
-    skip_subfolders = args.skip_subfolders
+    skip_subfolders = not args.upload_subfolders
 
     # if no success/failed folders, create them
     create_dirs()
