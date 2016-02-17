@@ -9,7 +9,6 @@ import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
-import matplotlib.pyplot as plt
 from lib.geo import interpolate_lat_lon, decimal_to_dms, utc_to_localtime
 
 '''
