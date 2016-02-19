@@ -3,7 +3,6 @@ from lib.geo import dms_to_decimal, normalize_bearing
 from lib.exifedit import ExifEdit
 import lib.io
 
-import pyexiv2
 import json
 import os
 import datetime
@@ -318,5 +317,3 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
     return lines
-
-
