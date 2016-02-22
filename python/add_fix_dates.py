@@ -30,11 +30,12 @@ def add_exif_using_timestamp(filename, start_time, offset_time):
 
     metadata = pyexiv2.ImageMetadata(filename)
     metadata.read()
-    t = start_time + datetime.timedelta(seconds=offset_time)
+    t = start_time + datetime.timedelta(seconds=int(offset_time))
     print("setting {0} time to {1} due to offset {2}".format(filename, t, offset_time))
 	
     try:
        metadata["Exif.Photo.DateTimeOriginal"] = t;
+       metadata["Exif.Photo.SubSecTimeOriginal"] = str(int((offset_time%1) * 1000))
        metadata.write()
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
@@ -55,7 +56,7 @@ if __name__ == '__main__':
         raise IOError("Bad input parameters.")
     path = sys.argv[1]
     start_time = sys.argv[2]
-    time_offset = int(sys.argv[3])
+    time_offset = float(sys.argv[3])
     #print("time offset is {0}".format(time_offset))
     
     if path.lower().endswith(".jpg"):

@@ -109,7 +109,16 @@ def exif_time(filename):
     '''
     m = pyexiv2.ImageMetadata(filename)
     m.read()
-    return m['Exif.Photo.DateTimeOriginal'].value
+    image_millisec = 0
+    try:
+        image_time = m['Exif.Photo.DateTimeOriginal'].value
+        image_millisec = int(m['Exif.Photo.SubSecTimeOriginal'].value)
+    except ValueError, e:
+        print("Error reading EXIF at {0}: {1}".format(filename, e))
+    except KeyError, e: # thrown if "Exif.Photo.SubSecTimeOriginal" is not set
+        print("Error reading {0}: {1}".format(filename, e))
+    image_time = image_time + datetime.timedelta(milliseconds=int(image_millisec))
+    return image_time
 
 
 def estimate_sub_second_time(files, interval):
