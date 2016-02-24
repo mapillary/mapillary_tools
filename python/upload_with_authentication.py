@@ -56,10 +56,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Upload images with authentication')
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
+    parser.add_argument('--auto_done', help='option to send DONE file without user confirmation', action='store_true')
     args = parser.parse_args()
 
     path = sys.argv[1]
     skip_subfolders = not args.upload_subfolders
+    auto_done = args.auto_done
 
     # if no success/failed folders, create them
     create_dirs()
@@ -114,4 +116,4 @@ if __name__ == '__main__':
 
     # ask user if finalize upload to check that everything went fine
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
-    finalize_upload(params)
+    finalize_upload(params, auto_done=auto_done)

@@ -102,13 +102,16 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3):
+def finalize_upload(params, retry=3, auto_done=False):
     '''
     Finalize and confirm upload
     '''
     # retry if input is unclear
     for i in range(retry):
-        proceed = raw_input("Finalize upload? [y/n]: ")
+        if not auto_done:
+            proceed = raw_input("Finalize upload? [y/n]: ")
+        else:
+            proceed = "y"
         if proceed in ["y", "Y", "yes", "Yes"]:
             # upload an empty DONE file
             upload_done_file(params)
