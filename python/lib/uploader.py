@@ -1,15 +1,7 @@
-from lib.exif import EXIF, exif_gps_fields, exif_datetime_fields, verify_exif
-from lib.geo import dms_to_decimal, normalize_bearing
-from lib.exifedit import ExifEdit
+from lib.exif import EXIF
 import lib.io
-
-import pyexiv2
 import json
 import os
-import datetime
-import hashlib
-import base64
-import uuid
 import string
 import threading
 import sys
@@ -55,46 +47,6 @@ class UploadThread(threading.Thread):
 def create_dirs(root_path=''):
     lib.io.mkdir_p(os.path.join(root_path, "success"))
     lib.io.mkdir_p(os.path.join(root_path, "failed"))
-
-
-def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, interpolated_heading=0.0, verbose=False):
-    '''
-    Check that image file has the required EXIF fields.
-
-    Incompatible files will be ignored server side.
-    '''
-    # read exif
-    exif = EXIF(filename)
-
-    if not verify_exif(filename):
-        return False
-
-    # write the mapillary tag
-    mapillary_description = {}
-    mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
-    #required date format: 2015_01_14_09_37_01_000
-    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
-    mapillary_description["MAPOrientation"] = exif.extract_orientation()
-    heading = exif.extract_direction()
-    heading = normalize_bearing(interpolated_heading) if heading is None else normalize_bearing(heading)
-    mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
-    mapillary_description["MAPSettingsUploadHash"] = upload_hash
-    mapillary_description["MAPSettingsEmail"] = email
-    mapillary_description["MAPSettingsUsername"] = username
-    settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
-    mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
-    mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
-    mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
-    mapillary_description['MAPDeviceModel'] = exif.extract_model()
-    mapillary_description['MAPDeviceMake'] = exif.extract_make()
-
-    # write to file
-    json_desc = json.dumps(mapillary_description)
-    if verbose:
-        print "tag: {0}".format(json_desc)
-    metadata = ExifEdit(filename)
-    metadata.add_image_description(json_desc)
-    metadata.write()
 
 
 def encode_multipart(fields, files, boundary=None):
@@ -150,13 +102,16 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3):
+def finalize_upload(params, retry=3, auto_done=False):
     '''
     Finalize and confirm upload
     '''
     # retry if input is unclear
     for i in range(retry):
-        proceed = raw_input("Finalize upload? [y/n]: ")
+        if not auto_done:
+            proceed = raw_input("Finalize upload? [y/n]: ")
+        else:
+            proceed = "y"
         if proceed in ["y", "Y", "yes", "Yes"]:
             # upload an empty DONE file
             upload_done_file(params)
@@ -318,5 +273,3 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
     return lines
-
-

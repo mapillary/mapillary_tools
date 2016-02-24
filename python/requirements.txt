@@ -1,5 +1,4 @@
 gpxpy
 exifread
-Pillow
+Pillow==2.9.0
 python-dateutil
-matplotlib

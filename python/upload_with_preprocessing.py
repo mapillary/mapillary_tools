@@ -9,9 +9,10 @@ import time
 import argparse
 import json
 
-from lib.uploader import create_mapillary_description, get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary
+from lib.uploader import get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif
+from lib.exifedit import create_mapillary_description
 import lib.io
 
 '''

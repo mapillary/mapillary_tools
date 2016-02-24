@@ -103,7 +103,7 @@ See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scri
 
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
 
 **upload_with_preprocessing.py**
 
@@ -120,8 +120,7 @@ It runs in the following steps:
 - Add Mapillary tags to the images
 - Upload the images
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
-
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
 
 ## Download
 
