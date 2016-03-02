@@ -57,9 +57,10 @@ if __name__ == '__main__':
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
     parser.add_argument('--auto_done', help='option to send DONE file without user confirmation', action='store_true')
+
     args = parser.parse_args()
 
-    path = sys.argv[1]
+    path = args.path
     skip_subfolders = not args.upload_subfolders
     auto_done = args.auto_done
 
@@ -98,6 +99,7 @@ if __name__ == '__main__':
     print("Uploading sequence {0}.".format(sequence_id))
 
     # check mapillary tag and required exif
+    num_image_file = len(s.file_list)
     file_list = []
     for filepath in s.file_list:
         mapillary_tag_exists = EXIF(filepath).mapillary_tag_exists()
@@ -112,6 +114,7 @@ if __name__ == '__main__':
             file_list.append(filepath)
 
     #upload valid files
+    print ("Uploading {} images with valid exif tags (Skipping {}) ...".format(len(file_list), num_image_file-len(file_list)))
     upload_file_list(file_list, params)
 
     # ask user if finalize upload to check that everything went fine

@@ -99,7 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--skip_upload', help='upload to server or not', action='store_true')
     args = parser.parse_args()
 
-    path = sys.argv[1]
+    path = args.path
     cutoff_distance = args.cutoff_distance
     cutoff_time = args.cutoff_time
     skip_upload = args.skip_upload
