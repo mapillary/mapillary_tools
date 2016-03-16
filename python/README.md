@@ -8,9 +8,19 @@ Python Tools for Mapillary
 * [PIL] []
 * [pyexiv2] []
 
-## Installing on MacOSX
-    sudo pip install -r requirements.txt
-    brew install pyexiv2
+## Installing on Mac OS X
+If brew is installed already:
+```
+sudo pip install -r requirements.txt
+brew install pyexiv2
+```
+    
+Otherwise:
+```
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+sudo pip install -r requirements.txt
+brew install pyexiv2
+```
 
 ## Preprocessing
 Use these scripts to process your photos before uploading to improve the upload quality.
@@ -85,23 +95,27 @@ Use the upload script that suits your photos best.
 
 This script uploads images taken with any of the Mapillary apps to the Mapillary backend. Just run:
 
-    python upload.py path-to-images/
+    python upload.py [--upload_subfolders] path
 
 
 On Android Systems you can find the images under `/storage/emulated/0/Android/data/app.mapillary/files/pictures/`.
 
 On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.
 
+`--upload_subfolders` will scan the path directory recursively to find all photos, useful when you want to upload all the photos from many directories after taking them in the app as they are stored by date.
+
 
 **upload_with_authentication.py**
 
 Script for uploading images taken with other cameras than the Mapillary apps. You can upload as:
 
-    python upload_with_authentication.py path-to-images/
+    python upload_with_authentication.py [--upload_subfolders] path
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
+
+`--upload_subfolders` will scan the path directory recursively to find all photos.
 
 (Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
 

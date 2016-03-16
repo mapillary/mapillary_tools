@@ -41,7 +41,7 @@ MOVE_FILES = True
 
 if __name__ == '__main__':
     '''
-    Use from command line as: python upload_with_authentication.py path
+    Usage: python [--upload_subfolders] upload_with_authentication.py path
 
     You need to set the environment variables MAPILLARY_USERNAME,
     MAPILLARY_PERMISSION_HASH and MAPILLARY_SIGNATURE_HASH to your
