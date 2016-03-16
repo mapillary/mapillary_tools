@@ -23,7 +23,7 @@ FILES WILL BE IGNORED SERVER-SIDE.
 
 if __name__ == '__main__':
     '''
-    Use from command line as: python upload.py path
+    Usage: python upload.py [--upload_subfolders] path
     '''
 
     if sys.version_info >= (3, 0):
