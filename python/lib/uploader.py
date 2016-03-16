@@ -25,9 +25,11 @@ MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, params=UPLOAD_PARAMS):
+    def __init__(self, queue, delete_after_upload=0, params=UPLOAD_PARAMS):
         threading.Thread.__init__(self)
         self.q = queue
+        self.delete_after_upload = delete_after_upload
+        params['delete_after_upload'] = delete_after_upload
         self.params = params
         self.total_task = self.q.qsize()
 
@@ -43,11 +45,10 @@ class UploadThread(threading.Thread):
                 upload_file(filepath, **self.params)
                 self.q.task_done()
 
-
-def create_dirs(root_path=''):
-    lib.io.mkdir_p(os.path.join(root_path, "success"))
+def create_dirs(root_path='', delete_after_upload=0):
+    if delete_after_upload is 0:
+        lib.io.mkdir_p(os.path.join(root_path, "success"))
     lib.io.mkdir_p(os.path.join(root_path, "failed"))
-
 
 def encode_multipart(fields, files, boundary=None):
     """
@@ -160,7 +161,7 @@ def upload_done_file(params):
         os.remove("DONE")
 
 
-def upload_file(filepath, url, permission, signature, key=None, move_files=True, keep_file_names=True):
+def upload_file(filepath, url, permission, signature, delete_after_upload, key=None, move_files=True, keep_file_names=True):
     '''
     Upload file at filepath.
 
@@ -191,9 +192,10 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
     data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
 
     root_path = os.path.dirname(filepath)
-    success_path = os.path.join(root_path, 'success')
+    if delete_after_upload is 0:
+        success_path = os.path.join(root_path, 'success')
+        lib.io.mkdir_p(success_path)
     failed_path = os.path.join(root_path, 'failed')
-    lib.io.mkdir_p(success_path)
     lib.io.mkdir_p(failed_path)
 
     for attempt in range(MAX_ATTEMPTS):
@@ -202,7 +204,9 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
             response = urllib2.urlopen(request)
 
             if response.getcode()==204:
-                if move_files:
+                if delete_after_upload is 1:
+                    os.remove(filepath)
+                elif move_files:
                     os.rename(filepath, os.path.join(success_path, filename))
                 # print("Success: {0}".format(filename))
             else:
