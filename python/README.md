@@ -103,6 +103,7 @@ On Android Systems you can find the images under `/storage/emulated/0/Android/da
 On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.
 
 `--upload_subfolders` will scan the path directory recursively to find all photos, useful when you want to upload all the photos from many directories after taking them in the app as they are stored by date.
+`--delete_after_upload` will delete photos after they are successfully uploaded.
 
 
 **upload_with_authentication.py**
@@ -116,6 +117,7 @@ See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scri
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
 
 `--upload_subfolders` will scan the path directory recursively to find all photos.
+`--delete_after_upload` will delete photos after they are successfully uploaded.
 
 (Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
 
