@@ -14,7 +14,7 @@ If [Homebrew](http://brew.sh/) is installed already:
 sudo pip install -r requirements.txt
 brew install pyexiv2
 ```
-[Instructions on how to install Homebrew](http://brew.sh/)
+[Install Homebrew](http://brew.sh/)
 
 ## Preprocessing
 Use these scripts to process your photos before uploading to improve the upload quality.
