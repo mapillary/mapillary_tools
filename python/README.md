@@ -10,13 +10,17 @@ Python Tools for Mapillary
 
 ## Installing on Mac OS X
 If brew is installed already:
+```
     sudo pip install -r requirements.txt
     brew install pyexiv2
+```
     
 Otherwise:
+```
     /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
     sudo pip install -r requirements.txt
     brew install pyexiv2
+```
 
 ## Preprocessing
 Use these scripts to process your photos before uploading to improve the upload quality.
