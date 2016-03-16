@@ -9,7 +9,7 @@ Python Tools for Mapillary
 * [pyexiv2] []
 
 ## Installing on Mac OS X
-If brew is installed already:
+If [Homebrew](http://brew.sh/) is installed already:
 ```
 sudo pip install -r requirements.txt
 brew install pyexiv2
