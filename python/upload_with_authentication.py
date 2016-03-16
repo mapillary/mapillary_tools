@@ -41,7 +41,7 @@ MOVE_FILES = True
 
 if __name__ == '__main__':
     '''
-    Usage: python [--upload_subfolders] upload_with_authentication.py path
+    Usage: python [--upload_subfolders] [--delete_after_upload] upload_with_authentication.py path
 
     You need to set the environment variables MAPILLARY_USERNAME,
     MAPILLARY_PERMISSION_HASH and MAPILLARY_SIGNATURE_HASH to your
@@ -56,6 +56,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Upload images with authentication')
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
+    parser.add_argument('--delete_after_upload', help='option to upload subfolders', action='store_true')
     parser.add_argument('--auto_done', help='option to send DONE file without user confirmation', action='store_true')
 
     args = parser.parse_args()
@@ -63,9 +64,13 @@ if __name__ == '__main__':
     path = args.path
     skip_subfolders = not args.upload_subfolders
     auto_done = args.auto_done
+    if args.delete_after_upload is True:
+        delete_after_upload = 1;
+    else:
+        delete_after_upload = 0;
 
     # if no success/failed folders, create them
-    create_dirs()
+    create_dirs('', delete_after_upload)
 
     # get env variables
     try:
@@ -85,7 +90,7 @@ if __name__ == '__main__':
     # set upload parameters
     params = {"url": MAPILLARY_UPLOAD_URL, "key": s3_bucket,
             "permission": MAPILLARY_PERMISSION_HASH, "signature": MAPILLARY_SIGNATURE_HASH,
-            "move_files": MOVE_FILES}
+            "move_files": MOVE_FILES, "delete_after_upload": delete_after_upload}
 
     # get the list of images in the folder
     # Caution: all nested folders will be merged into one sequence!
