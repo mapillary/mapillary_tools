@@ -11,15 +11,15 @@ Python Tools for Mapillary
 ## Installing on Mac OS X
 If brew is installed already:
 ```
-    sudo pip install -r requirements.txt
-    brew install pyexiv2
+sudo pip install -r requirements.txt
+brew install pyexiv2
 ```
     
 Otherwise:
 ```
-    /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-    sudo pip install -r requirements.txt
-    brew install pyexiv2
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+sudo pip install -r requirements.txt
+brew install pyexiv2
 ```
 
 ## Preprocessing
