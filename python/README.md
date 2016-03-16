@@ -17,8 +17,8 @@ brew install pyexiv2
     
 Otherwise:
 ```
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 sudo pip install -r requirements.txt
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 brew install pyexiv2
 ```
 
