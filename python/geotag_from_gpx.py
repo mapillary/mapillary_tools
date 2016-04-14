@@ -22,6 +22,8 @@ for each image, and writes the values to the EXIF of the image.
 
 You can supply a time offset in seconds if the GPS clock and camera clocks are not in sync.
 
+You can supply a bearing offset in degrees if the camera is not facing the direction of travel.
+
 Requires gpxpy, e.g. 'pip install gpxpy'
 
 Requires pyexiv2, see install instructions at http://tilloy.net/dev/pyexiv2/
@@ -57,7 +59,7 @@ def get_lat_lon_time(gpx_file):
     return points
 
 
-def add_exif_using_timestamp(filename, time, points, offset_time=0):
+def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_bearing=0):
     '''
     Find lat, lon and bearing of filename and write to EXIF.
     '''
@@ -78,8 +80,11 @@ def add_exif_using_timestamp(filename, time, points, offset_time=0):
         exiv_lat = (make_fraction(lat_deg[0],1), make_fraction(int(lat_deg[1]),1), make_fraction(int(lat_deg[2]*1000000),1000000))
         exiv_lon = (make_fraction(lon_deg[0],1), make_fraction(int(lon_deg[1]),1), make_fraction(int(lon_deg[2]*1000000),1000000))
 
+        corrected_bearing = bearing + offset_bearing
+        if corrected_bearing < 0:
+            corrected_bearing += 360
         # convert direction into fraction
-        exiv_bearing = make_fraction(int(bearing*100),100)
+        exiv_bearing = make_fraction(int(corrected_bearing*100),100)
 
         # add to exif
         metadata["Exif.GPSInfo.GPSLatitude"] = exiv_lat
@@ -154,6 +159,9 @@ def get_args():
     p.add_argument('--interval',
         help='Time between shots. Used to set images times with sub-second precission',
         type=float, default=0.0)
+    p.add_argument('--bearing-offset',
+        help='Direction of the camera in degrees, relative to the direction of travel',
+        type=float, default=0.0)
     return p.parse_args()
 
 
@@ -186,6 +194,6 @@ if __name__ == '__main__':
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
     for filepath, filetime in zip(file_list, sub_second_times):
-        add_exif_using_timestamp(filepath, filetime, gpx, args.time_offset)
+        add_exif_using_timestamp(filepath, filetime, gpx, args.time_offset, args.bearing_offset)
 
     print("Done geotagging {0} images in {1:.1f} seconds.".format(len(file_list), time.time()-start_time))
