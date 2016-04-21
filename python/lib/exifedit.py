@@ -9,7 +9,11 @@ from pyexiv2.utils import make_fraction
 from lib.geo import decimal_to_dms, normalize_bearing
 from lib.exif import EXIF, verify_exif
 
-def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, interpolated_heading=0.0, verbose=False):
+def create_mapillary_description(filename, username, email,
+                                 upload_hash, sequence_uuid,
+                                 interpolated_heading=None,
+                                 orientation=1,
+                                 verbose=False):
     '''
     Check that image file has the required EXIF fields.
 
@@ -28,7 +32,9 @@ def create_mapillary_description(filename, username, email, upload_hash, sequenc
     mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
     mapillary_description["MAPOrientation"] = exif.extract_orientation()
     heading = exif.extract_direction()
-    heading = normalize_bearing(interpolated_heading) if heading is None else normalize_bearing(heading)
+    if heading is None:
+        heading = 0.0
+    heading = normalize_bearing(interpolated_heading) if interpolated_heading is not None else normalize_bearing(heading)
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email
@@ -46,6 +52,8 @@ def create_mapillary_description(filename, username, email, upload_hash, sequenc
         print "tag: {0}".format(json_desc)
     metadata = ExifEdit(filename)
     metadata.add_image_description(json_desc)
+    metadata.add_orientation(orientation)
+    metadata.add_direction(heading)
     metadata.write()
 
 
