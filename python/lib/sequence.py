@@ -237,7 +237,6 @@ class Sequence(object):
             else:
                 # Not use bearing difference if no bearings are available
                 bearing_diff = 360
-
             if distance < min_distance and bearing_diff < min_angle:
                 is_duplicate = True
             else:
@@ -252,6 +251,7 @@ class Sequence(object):
                 group = []
 
             is_duplicate = False
+        groups.append(group)
 
         # move to filepath/duplicates/group_id (TODO: uploader should skip the duplicate folder)
         self.move_groups(groups, 'duplicates')
