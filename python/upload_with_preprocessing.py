@@ -94,15 +94,24 @@ if __name__ == '__main__':
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--cutoff_distance', default=600, help='maximum gps distance in meters within a sequence')
     parser.add_argument('--cutoff_time', default=60, help='maximum time interval in seconds within a sequence')
-    parser.add_argument('--remove_duplicates', help='flag to perform duplicate removal or not', action='store_true')
-    parser.add_argument('--rerun', help='flag to rerun the preprocessing and uploading', action='store_true')
-    parser.add_argument('--skip_upload', help='upload to server or not', action='store_true')
+    parser.add_argument('--orientation', help='specify orientation of the images', default=1)
+    parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
+    parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
+    parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
+    parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
     args = parser.parse_args()
 
     path = args.path
-    cutoff_distance = args.cutoff_distance
-    cutoff_time = args.cutoff_time
+    cutoff_distance = float(args.cutoff_distance)
+    cutoff_time = float(args.cutoff_time)
     skip_upload = args.skip_upload
+    interpolate_directions = args.interpolate_directions
+    orientation = int(args.orientation)
+
+    # Distance/Angle threshold for duplicate removal
+    # NOTE: This might lead to removal of panorama sequences
+    min_duplicate_distance = 0.1
+    min_duplicate_angle = 5
 
     # Fetch authetication info
     try:
@@ -160,13 +169,12 @@ if __name__ == '__main__':
         # Remove duplicates in a sequence (e.g. in case of red lights and in traffic)
         if args.remove_duplicates:
             print("\n=== Removing potentially duplicate images ...")
-            duplicate_groups = s.remove_duplicates()
+            duplicate_groups = s.remove_duplicates(min_duplicate_distance, min_duplicate_angle)
 
         # Split sequence based on distance and time
         print("\n=== Spliting photos into sequences based on time and distance ...")
         s = Sequence(path, skip_folders=['duplicates'])
         split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
-
 
     # Add Mapillary tags
     if not os.path.exists(processing_log_file(path)) or args.rerun:
@@ -174,7 +182,6 @@ if __name__ == '__main__':
         sequence_list = {}
         for root, sub_folders, files in os.walk(path):
             if ('duplicates' not in root) and ('success' not in root):
-
                 s = Sequence(root, skip_folders=['duplicates', 'success'], skip_subfolders=True)
 
                 # interpolate compass direction if missing
@@ -189,20 +196,28 @@ if __name__ == '__main__':
                 for i, filename in enumerate(s.file_list):
                     if is_image(filename):
                         filepath = os.path.join(filename)
+
+                        # Determine whether use interpolated direction or not
+                        if interpolate_directions and len(s.file_list):
+                            bearing = directions[filepath]
+                        else:
+                            bearing = None
+
                         if verify_exif(filepath):
                             if not retry_upload:
                                 # skip creating new sequence id for failed images
                                 create_mapillary_description(filepath,
-                                                                MAPILLARY_USERNAME,
-                                                                MAPILLARY_EMAIL,
-                                                                upload_token,
-                                                                sequence_uuid,
-                                                                directions[filepath])
+                                                             MAPILLARY_USERNAME,
+                                                             MAPILLARY_EMAIL,
+                                                             upload_token,
+                                                             sequence_uuid,
+                                                             bearing,
+                                                             orientation)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)
                     else:
-                        print "   Ignoring {0}".format(os.path.join(root,filename))
+                        print "   Ignoring {0}".format(os.path.join(root, filename))
                     lib.io.progress(i, len(s.file_list), 'Adding Mapillary tags')
                 count = len(file_list)
                 if count > 0:
