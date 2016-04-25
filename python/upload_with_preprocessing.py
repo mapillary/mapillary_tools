@@ -200,7 +200,7 @@ if __name__ == '__main__':
                         filepath = os.path.join(filename)
 
                         # Determine whether use interpolated direction or not
-                        if interpolate_directions and len(s.file_list):
+                        if interpolate_directions and len(s.file_list) > 1:
                             bearing = directions[filepath]
                         else:
                             bearing = None
