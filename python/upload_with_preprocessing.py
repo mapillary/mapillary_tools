@@ -99,6 +99,8 @@ if __name__ == '__main__':
     parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
     parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
     parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
+    parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
+    parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
     args = parser.parse_args()
 
     path = args.path
@@ -110,8 +112,8 @@ if __name__ == '__main__':
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
-    min_duplicate_distance = 0.1
-    min_duplicate_angle = 5
+    min_duplicate_distance = float(args.duplicate_distance)
+    min_duplicate_angle = float(args.duplicate_angle)
 
     # Fetch authetication info
     try:

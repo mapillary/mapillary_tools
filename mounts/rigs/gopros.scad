@@ -1,11 +1,10 @@
 use <../modules/gopro_mounts_mooncactus.scad>
-include <write.scad>
 
 
 
-total_width = 200;
+total_width = 150;
 base_thickness = 15;
-screw_hole_difference = 100;
+screw_hole_distance = 70;
 
 
 difference (){
@@ -31,13 +30,9 @@ difference (){
         for (angle=[0:90:360])
           rotate([-90, 0, 0])
           rotate([0,angle,0])
-          translate([screw_hole_difference/2,-10, screw_hole_difference/2])
+          translate([screw_hole_distance/2,-10, screw_hole_distance/2])
           rotate([-90, 0, 0])
-              cylinder(r=6,h=60);
-        translate([total_width/3,total_width/3,-30])
-        cylinder(r=10,h=60);
-
-        //}
+              cylinder(r=8,h=60);
 	}
 }
 

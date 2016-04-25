@@ -2,3 +2,4 @@ gpxpy
 exifread
 Pillow==2.9.0
 python-dateutil
+bs4

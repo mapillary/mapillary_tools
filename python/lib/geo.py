@@ -138,7 +138,7 @@ def interpolate_lat_lon(points, t):
     '''
     # find the enclosing points in sorted list
     if t<points[0][0]:
-        raise ValueError("Photo's timestamp is earlier than the earliest time in the GPX file.")
+        raise ValueError("Photo's timestamp {0} is earlier than the earliest time {1} in the GPX file.".format(t, points[0][0]))
     if t>=points[-1][0]:
         raise ValueError("Photo's timestamp is later than the latest time in the GPX file.")
 
