@@ -101,6 +101,7 @@ if __name__ == '__main__':
     parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
     parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
+    parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
     args = parser.parse_args()
 
     path = args.path
@@ -109,6 +110,7 @@ if __name__ == '__main__':
     skip_upload = args.skip_upload
     interpolate_directions = args.interpolate_directions
     orientation = int(args.orientation)
+    auto_done = args.auto_done
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -271,7 +273,9 @@ if __name__ == '__main__':
 
         # ask 3 times if input is unclear
         for i in range(3):
-            proceed = raw_input("Finalize upload? [y/n]: ")
+            proceed = "y"
+            if not auto_done:
+                proceed = raw_input("Finalize upload? [y/n]: ")
             if proceed in ["y", "Y", "yes", "Yes"]:
                 for s3_bucket in s3_bucket_list:
                     # upload an empty DONE file for each sequence
