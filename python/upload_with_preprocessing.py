@@ -189,6 +189,7 @@ if __name__ == '__main__':
                 s = Sequence(root, skip_folders=['duplicates', 'success'], skip_subfolders=True)
 
                 # interpolate compass direction if missing
+                print("\n=== Interpolating direction per sequence ...")
                 directions = s.interpolate_direction()
 
                 # Add a sequence uuid per sub-folder
