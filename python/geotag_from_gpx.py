@@ -103,7 +103,7 @@ def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_beari
             metadata["Exif.GPSInfo.GPSAltitudeRef"] = '0' if elevation >= 0 else '1'
 
         metadata.write()
-        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, time, lat, lon, elevation, bearing))
+        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, time, lat, lon, elevation, exiv_bearing))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
 
