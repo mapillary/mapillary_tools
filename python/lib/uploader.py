@@ -131,7 +131,7 @@ def get_upload_token(mail, pwd):
     Get upload token
     '''
     params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
     resp = json.loads(response.read())
     return resp['upload_token']
 
