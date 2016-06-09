@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     # log in, get the projects
     params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
-    response =urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    response =urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
     response_read = response.read()
     print response_read
     resp = json.loads(response_read)

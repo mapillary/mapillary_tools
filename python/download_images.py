@@ -5,7 +5,7 @@ import os
 import shutil
 
 
-MAPILLARY_API_IM_SEARCH_URL = 'http://api.mapillary.com/v1/im/search?'
+MAPILLARY_API_IM_SEARCH_URL = 'http://a.mapillary.com/v1/im/search?'
 MAX_RESULTS = 400
 BASE_DIR = 'downloaded/'
 
