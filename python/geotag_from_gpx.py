@@ -2,7 +2,6 @@
 
 import sys
 import os
-import gpxpy
 import datetime
 import pyexiv2
 import math
@@ -11,6 +10,10 @@ from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
 from lib.geo import interpolate_lat_lon, decimal_to_dms, utc_to_localtime
 
+try:
+    import gpxpy
+except ImportError:
+    print("gpxpy not found, running unable to read GPX tracks")
 '''
 Script for geotagging images using a gpx file from an external GPS.
 Intended as a lightweight tool.
