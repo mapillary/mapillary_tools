@@ -101,9 +101,9 @@ Script for uploading images taken with other cameras than the Mapillary apps. Yo
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
-If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
+If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](https://www.mapillary.com/app/uploader) and pressing "push to Mapillary".
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/uploader))
 
 **upload_with_preprocessing.py**
 
@@ -120,7 +120,7 @@ It runs in the following steps:
 - Add Mapillary tags to the images
 - Upload the images
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](http://www.mapillary.com/map/upload/im))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/uploader))
 
 ## Download
 
