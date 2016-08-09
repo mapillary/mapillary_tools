@@ -163,7 +163,7 @@ class EXIF:
         capture_time = capture_time.replace(":","_")
         capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
         sub_sec = self.extract_subsec()
-        capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/1e6)
+        capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec))
         if capture_time is 0:
             # try interpret the filename
             try:
