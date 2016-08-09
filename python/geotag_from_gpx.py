@@ -112,7 +112,21 @@ def exif_time(filename):
     '''
     m = pyexiv2.ImageMetadata(filename)
     m.read()
-    return m['Exif.Photo.DateTimeOriginal'].value
+    keys = m.exif_keys
+    date_time_original = 'Exif.Photo.DateTimeOriginal'
+    if date_time_original in keys:
+        return m[date_time_original].value
+    '''
+    Fall back to Exif.Image.DateTime
+    '''
+    image_date_time = 'Exif.Image.DateTime'
+    if image_date_time in keys:
+        value = m[image_date_time].value
+        print value
+        parsed = datetime.datetime.strptime(value, "%Y/%m/%d %H:%M:%S")
+        print parsed
+        return parsed
+
 
 
 def estimate_sub_second_time(files, interval):
