@@ -5,7 +5,7 @@ import os
 import string
 import threading
 import sys
-import urllib2, urllib
+import urllib2, urllib, httplib
 import socket
 import mimetypes
 import random
@@ -216,6 +216,9 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
             time.sleep(5)
         except urllib2.URLError as e:
             print("URL error: {0} on {1}".format(e, filename))
+            time.sleep(5)
+        except httplib.HTTPException as e:
+            print("HTTP exception: {0} on {1}".format(e, filename))
             time.sleep(5)
         except OSError as e:
             print("OS error: {0} on {1}".format(e, filename))
