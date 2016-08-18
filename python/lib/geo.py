@@ -116,18 +116,20 @@ def offset_bearing(bearing, offset):
     '''
     Add offset to bearing
     '''
-    bearing = (bearing + offset + 360) % 360
+    bearing = (bearing + offset) % 360
     return bearing
 
-def normalize_bearing(bearing):
-    if bearing > 360:
+def normalize_bearing(bearing, check_hex=False):
+    '''
+    Normalize bearing and convert from hex if
+    '''
+    if bearing > 360 and check_hex:
         # fix negative value wrongly parsed in exifread
         # -360 degree -> 4294966935 when converting from hex
         bearing = bin(int(bearing))[2:]
         bearing = ''.join([str(int(int(a)==0)) for a in bearing])
         bearing = -float(int(bearing, 2))
-        bearing %= 360
-    bearing = (bearing+360.0)%360
+    bearing %= 360
     return bearing
 
 def interpolate_lat_lon(points, t):

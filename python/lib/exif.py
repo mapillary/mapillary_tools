@@ -182,7 +182,9 @@ class EXIF:
                   'GPS GPSTrack',
                   'EXIF GPS GPSTrack']
         direction, _ = self._extract_alternative_fields(fields)
-        if direction is not None: direction = normalize_bearing(direction)
+
+        if direction is not None:
+            direction = normalize_bearing(direction, check_hex=True)
         return direction
 
 
