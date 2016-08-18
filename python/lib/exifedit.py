@@ -12,6 +12,7 @@ from lib.exif import EXIF, verify_exif
 def create_mapillary_description(filename, username, email,
                                  upload_hash, sequence_uuid,
                                  interpolated_heading=None,
+                                 offset_angle=0.0,
                                  orientation=1,
                                  verbose=False):
     '''
@@ -34,7 +35,7 @@ def create_mapillary_description(filename, username, email,
     heading = exif.extract_direction()
     if heading is None:
         heading = 0.0
-    heading = normalize_bearing(interpolated_heading) if interpolated_heading is not None else normalize_bearing(heading)
+    heading = normalize_bearing(interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email

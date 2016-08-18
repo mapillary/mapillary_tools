@@ -98,6 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
     parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
     parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
+    parser.add_argument('--offset_angle', help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', default=0)
     parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
     parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
@@ -108,6 +109,7 @@ if __name__ == '__main__':
     cutoff_distance = float(args.cutoff_distance)
     cutoff_time = float(args.cutoff_time)
     skip_upload = args.skip_upload
+    offset_angle = float(args.offset_angle)
     interpolate_directions = args.interpolate_directions
     orientation = int(args.orientation)
     auto_done = args.auto_done
@@ -217,6 +219,7 @@ if __name__ == '__main__':
                                                              upload_token,
                                                              sequence_uuid,
                                                              bearing,
+                                                             offset_angle,
                                                              orientation)
                             file_list.append(filepath)
                         else:
