@@ -80,9 +80,8 @@ def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_beari
         exiv_lat = (make_fraction(lat_deg[0],1), make_fraction(int(lat_deg[1]),1), make_fraction(int(lat_deg[2]*1000000),1000000))
         exiv_lon = (make_fraction(lon_deg[0],1), make_fraction(int(lon_deg[1]),1), make_fraction(int(lon_deg[2]*1000000),1000000))
 
-        corrected_bearing = bearing + offset_bearing
-        if corrected_bearing < 0:
-            corrected_bearing += 360
+        corrected_bearing = (bearing + offset_bearing) % 360
+
         # convert direction into fraction
         exiv_bearing = make_fraction(int(corrected_bearing*100),100)
 
