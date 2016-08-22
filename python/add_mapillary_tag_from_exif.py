@@ -66,10 +66,11 @@ if __name__ == '__main__':
     if len(args) != 2:
         print("Usage: python add_mapillary_tag_from_exif.py root_path")
         raise IOError("Bad input parameters.")
+
     path = args[1]
 
     for root, sub_folders, files in os.walk(path):
-        sequence_uuid = uuid.uuid4()
+        sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
         print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
         for file in files:
             if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
