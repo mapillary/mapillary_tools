@@ -63,8 +63,8 @@ if __name__ == '__main__':
 
     args = sys.argv
 
-    if len(args) != 2:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path")
+    if len(args) < 2:
+        print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]")
         raise IOError("Bad input parameters.")
 
     path = args[1]
