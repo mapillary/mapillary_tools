@@ -58,6 +58,32 @@ def create_mapillary_description(filename, username, email,
     metadata.write()
 
 
+def add_mapillary_description(filename, username, email,
+                              project, upload_hash, image_description):
+    """ Add Mapillary description tags directly with user info."""
+
+    # write the mapillary tag
+    image_description["MAPSettingsUploadHash"] = upload_hash
+    image_description["MAPSettingsEmail"] = email
+    image_description["MAPSettingsUsername"] = username
+    settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+    image_description['MAPSettingsUploadHash'] = settings_upload_hash
+    image_description["MAPSettingsProject"] = project
+
+    assert("MAPSequenceUUID" in image_description)
+
+    # write to file
+    json_desc = json.dumps(image_description)
+    metadata = ExifEdit(filename)
+    metadata.add_image_description(json_desc)
+    metadata.add_orientation(image_description["MAPOrientation"])
+    metadata.add_direction(image_description["MAPCompassHeading"]["TrueHeading"])
+    metadata.add_lat_lon(image_description["MAPLatitude"], image_description["MAPLongitude"])
+    date_time = datetime.datetime.strptime(image_description["MAPCaptureTime"]+"000", "%Y_%m_%d_%H_%M_%S_%f")
+    metadata.add_date_time_original(date_time)
+    metadata.write()
+
+
 '''
 A class for edit EXIF using pyexiv2
 '''
@@ -81,11 +107,10 @@ class ExifEdit(object):
         '''
         self.metadata['Exif.Image.Orientation'] = int(orientation)
 
-    def add_date_time_original(self, date_time):
+    def add_date_time_original(self, date_time, date_format='%Y:%m:%d %H:%M:%S'):
         ''' Add date time original
         @params date_time: datetime object
         '''
-        date_format='%Y:%m:%d %H:%M:%S'
         self.metadata['Exif.Photo.DateTimeOriginal'] = date_time.strftime(date_format)
 
     def add_lat_lon(self, lat, lon, precision=1000000):
