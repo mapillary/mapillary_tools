@@ -149,6 +149,34 @@ def get_authentication_info():
     return MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
 
 
+def get_project_key(project_name):
+    '''
+    Get project key given project name
+    '''
+    if project_name is not None:
+        MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = get_authentication_info()
+        params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
+        response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
+        response_read = response.read()
+        resp = json.loads(response_read)
+        projects = resp['projects']
+
+        # check projects
+        found = False
+        print "Your projects: "
+        for project in projects:
+            print project["name"]
+            if project['name'].decode('utf-8') == project_name:
+                found = True
+                project_key = project['key']
+
+        if not found:
+            print "Project {} not found.".format(project_name)
+            project_key = ""
+
+    return ""
+
+
 def upload_done_file(params):
     print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(params['key']))
     if not os.path.exists("DONE"):
