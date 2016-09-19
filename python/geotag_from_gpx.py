@@ -4,16 +4,12 @@ import sys
 import os
 import datetime
 import pyexiv2
-import math
 import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
-from lib.geo import interpolate_lat_lon, decimal_to_dms, utc_to_localtime
+from lib.geo import interpolate_lat_lon, decimal_to_dms
+from lib.gps_parse import get_lat_lon_time_from_gpx
 
-try:
-    import gpxpy
-except ImportError:
-    print("gpxpy not found, running unable to read GPX tracks")
 '''
 Script for geotagging images using a gpx file from an external GPS.
 Intended as a lightweight tool.
@@ -32,34 +28,6 @@ Requires gpxpy, e.g. 'pip install gpxpy'
 Requires pyexiv2, see install instructions at http://tilloy.net/dev/pyexiv2/
 (or use your favorite installer, e.g. 'brew install pyexiv2').
 '''
-
-
-def get_lat_lon_time(gpx_file):
-    '''
-    Read location and time stamps from a track in a GPX file.
-
-    Returns a list of tuples (time, lat, lon).
-
-    GPX stores time in UTC, assume your camera used the local
-    timezone and convert accordingly.
-    '''
-    with open(gpx_file, 'r') as f:
-        gpx = gpxpy.parse(f)
-
-    points = []
-    if len(gpx.tracks)>0:
-        for track in gpx.tracks:
-            for segment in track.segments:
-                for point in segment.points:
-                    points.append( (utc_to_localtime(point.time), point.latitude, point.longitude, point.elevation) )
-    if len(gpx.waypoints) > 0:
-        for point in gpx.waypoints:
-            points.append( (utc_to_localtime(point.time), point.latitude, point.longitude, point.elevation) )
-
-    # sort by time just in case
-    points.sort()
-
-    return points
 
 
 def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_bearing=0):
@@ -206,7 +174,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # read gpx file to get track locations
-    gpx = get_lat_lon_time(args.gpx_file)
+    gpx = get_lat_lon_time_from_gpx(args.gpx_file)
 
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
