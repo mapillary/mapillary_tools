@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import os
 import sys
 import subprocess
@@ -21,7 +23,8 @@ def sample_video(video_file, image_path, sample_interval):
     :params sample_interval: sample interval in seconds
     """
     io.mkdir_p(image_path)
-    s = "ffmpeg -i {} -loglevel quiet -vf fps=1/{} {}/%0{}d.jpg".format(video_path, sample_interval, image_path, ZERO_PADDING)
+    video_file = video_file.replace(" ", "\ ")
+    s = "ffmpeg -i {} -loglevel quiet -vf fps=1/{} -qscale 1 {}/%0{}d.jpg".format(video_file, sample_interval, image_path, ZERO_PADDING)
     os.system(s)
 
 
@@ -32,8 +35,11 @@ def get_video_duration(video_file):
 
 def get_video_start_time(video_file):
     """Get video duration in seconds"""
-    time_string = FFProbe(video_file).video[0].creation_time
-    creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+    try:
+        time_string = FFProbe(video_file).video[0].creation_time
+        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+    except:
+        return None
     return creation_time
 
 
@@ -61,7 +67,7 @@ def timestamp_from_filename(filename, sample_interval, start_time, video_duratio
 
 def get_args():
     p = argparse.ArgumentParser(description='Sample and geotag video with location and orientation from GPX file.')
-    p.add_argument('video_path', help='File path to the data file that contains the metadata')
+    p.add_argument('video_file', help='File path to the data file that contains the metadata')
     p.add_argument('--image_path', help='Path to save sampled images.', default="video_samples")
     p.add_argument('--sample_interval', help='Time interval for sampled frames in seconds', default=2, type=float)
     p.add_argument('--gps_trace', help='GPS track file')
@@ -73,32 +79,31 @@ def get_args():
 if __name__ == "__main__":
 
     args = get_args()
-    video_path = args.video_path
+    video_file = args.video_file
     image_path = args.image_path
     sample_interval = float(args.sample_interval)
     gps_trace_file = args.gps_trace
     time_offset = args.time_offset
+    make = os.environ.get("MAKE", "none")
+    model = os.environ.get("MODEL", "none")
 
     # Parse gps trace
     local_time = False
     points = parse_gps_trace(gps_trace_file, local_time)
 
     # Get sync between video and gps trace
-    start_time = get_video_start_time(video_path)
-    start_time = None
-    if start_time is None:
-        start_time = points[0][0]
+    start_time = points[0][0]
     start_time += datetime.timedelta(seconds=time_offset)
     print "Video starts at : {}".format(start_time)
     print "GPS trace starts at: {}".format(points[0][0])
 
     # Get duration of the video
-    video_duration = get_video_duration(video_path)
+    video_duration = get_video_duration(video_file)
     gps_duration = (points[-1][0] - points[0][0])
 
     # Sample video
     if not args.skip_sampling:
-        sample_video(video_path, image_path, sample_interval)
+        sample_video(video_file, image_path, sample_interval)
 
     # Add EXIF data to sample images
     image_list = list_images(image_path)
@@ -112,7 +117,6 @@ if __name__ == "__main__":
                                             start_time,
                                             video_duration,
                                             time_offset)
-        print timestamp
 
         try:
             lat, lon, bearing, altitude = geo.interpolate_lat_lon(points, timestamp)
@@ -121,7 +125,9 @@ if __name__ == "__main__":
                 "lon": lon,
                 "altitude": altitude,
                 "capture_time": timestamp,
-                "bearing": bearing
+                "bearing": bearing,
+                "make": make,
+                "model": model
             }
             exifedit.add_exif_data(os.path.join(image_path, im), data)
         except Exception as e:
