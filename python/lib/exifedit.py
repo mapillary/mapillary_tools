@@ -15,6 +15,7 @@ def create_mapillary_description(filename, username, email,
                                  interpolated_heading=None,
                                  offset_angle=0.0,
                                  orientation=1,
+                                 secret_hash=None,
                                  verbose=False):
     '''
     Check that image file has the required EXIF fields.
@@ -38,15 +39,18 @@ def create_mapillary_description(filename, username, email,
         heading = 0.0
     heading = normalize_bearing(interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
-    mapillary_description["MAPSettingsUploadHash"] = upload_hash
     mapillary_description["MAPSettingsEmail"] = email
     mapillary_description["MAPSettingsUsername"] = username
-    settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
-    mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
+    if upload_hash is not None:
+        settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+        mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
     mapillary_description['MAPDeviceModel'] = exif.extract_model()
     mapillary_description['MAPDeviceMake'] = exif.extract_make()
+    if upload_hash is None and secret_hash is not None:
+        mapillary_description['MAPVideoSecure'] = secret_hash
+
 
     # write to file
     json_desc = json.dumps(mapillary_description)
@@ -101,6 +105,7 @@ def add_exif_data(filename, data, output_file=None):
     metadata.add_direction(data.get("bearing", 0))
     metadata.add_lat_lon(data["lat"], data["lon"])
     metadata.add_date_time_original(data["capture_time"])
+    metadata.add_camera_make_model(data["make"], data["model"])
     metadata.write()
 
 '''
@@ -173,6 +178,12 @@ class ExifEdit(object):
         exiv_direction = self.make_fraction(direction, precision)
         self.metadata["Exif.GPSInfo.GPSImgDirection"] = exiv_direction
         self.metadata["Exif.GPSInfo.GPSImgDirectionRef"] = "T"
+
+    def add_camera_make_model(self, make, model):
+        ''' Add camera make and model
+        '''
+        self.metadata["Exif.Image.Make"] = make
+        self.metadata["Exif.Image.Model"] = model
 
     def make_fraction(self, v, precision=1000):
         ''' Make fraction with the specified precision
