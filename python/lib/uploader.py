@@ -17,6 +17,7 @@ import time
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
@@ -147,6 +148,30 @@ def get_authentication_info():
     except KeyError:
         return None
     return MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
+
+
+def get_full_authentication_info(user=None, email=None):
+    # Fetch full authetication info
+    try:
+        MAPILLARY_EMAIL = email if email is not None else os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
+        MAPILLARY_UPLOAD_TOKEN = None
+
+        if MAPILLARY_SECRET_HASH is None:
+            MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
+            MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
+            MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+            MAPILLARY_UPLOAD_TOKEN = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
+            UPLOAD_URL = MAPILLARY_UPLOAD_URL
+        else:
+            secret_hash = MAPILLARY_SECRET_HASH
+            MAPILLARY_PERMISSION_HASH = PERMISSION_HASH
+            MAPILLARY_SIGNATURE_HASH = SIGNATURE_HASH
+            UPLOAD_URL = MAPILLARY_DIRECT_UPLOAD_URL
+        return MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, MAPILLARY_SECRET_HASH, UPLOAD_URL
+    except KeyError:
+        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
+        sys.exit()
 
 
 def get_project_key(project_name):
