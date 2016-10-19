@@ -159,17 +159,20 @@ class EXIF:
         '''
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
-        capture_time = capture_time.replace(" ","_")
-        capture_time = capture_time.replace(":","_")
-        capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
-        sub_sec = self.extract_subsec()
-        capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
+
         if capture_time is 0:
             # try interpret the filename
             try:
                 capture_time = datetime.datetime.strptime(os.path.basename(self.filename)[:-4]+'000', '%Y_%m_%d_%H_%M_%S_%f')
             except:
                 pass
+        else:
+            capture_time = capture_time.replace(" ","_")
+            capture_time = capture_time.replace(":","_")
+            capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
+            sub_sec = self.extract_subsec()
+            capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
+
         return capture_time
 
 
@@ -316,7 +319,7 @@ class EXIF:
                 if subrexif in self.tags:
                     vflag = True
             if not vflag:
-                print("Missing required EXIF tag: {0}".format(rexif[0]))
+                print("Missing required EXIF tag: {0} for image {1}".format(rexif[0], self.filename))
                 return False
         return True
 
