@@ -109,7 +109,7 @@ class Sequence(object):
         '''
         self.file_list = file_list
 
-    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH):
+    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
@@ -163,7 +163,8 @@ class Sequence(object):
             groups.append(group)
 
             # move groups to subfolders
-            self.move_groups(groups)
+            if move_files:
+                self.move_groups(groups)
 
             print("Done split photos in {} into {} sequences".format(self.filepath, len(groups)))
         return groups
