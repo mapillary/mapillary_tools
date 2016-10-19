@@ -78,9 +78,10 @@ def download_done_file(image_path):
 
 def get_args():
     p = argparse.ArgumentParser(description='Export Panoramio photos for a user')
-    p.add_argument('user_id', help='Panoramio user id')
-    p.add_argument('data_path', help="Path to save image and meta data")
-    p.add_argument("--email", help="Email address for the Mapillary account")
+    p.add_argument("user_id", help='Panoramio user id')
+    p.add_argument("data_path", help="Path to save image and meta data")
+    p.add_argument("--user", help="Mapillary user name")
+    p.add_argument("--email", help="Mapillary user email")
     p.add_argument('--size', help='Image size (medium, original, small)', default="original")
     return p.parse_args()
 
@@ -145,7 +146,7 @@ if __name__ == "__main__":
     for p in meta["photos"]:
         photo_file = p["photo_file_path"]
         create_mapillary_description(
-            photo_file, None, email,
+            photo_file, args.user, email,
             upload_token, sequence_uuid,
             secret_hash=None,
             verbose=False
