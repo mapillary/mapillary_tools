@@ -117,9 +117,15 @@ if __name__ == "__main__":
     print("\nAdding GPS ...")
 
     # Add GPS positions
-    for p in meta["photos"]:
+    for i, p in enumerate(meta["photos"]):
         photo_file = p["photo_file_path"]
-        exif = EXIF(photo_file)
+
+        try:
+            exif = EXIF(photo_file)
+        except Exception as e:
+            print "EXIF read error '{}' for image {}. Skipping".format(e, photo_file)
+            continue
+
         exifedit = ExifEdit(photo_file)
 
         capture_time = exif.extract_capture_time()
