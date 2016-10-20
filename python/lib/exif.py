@@ -167,8 +167,9 @@ class EXIF:
             except:
                 pass
         else:
-            capture_time = capture_time.replace(" ","_")
-            capture_time = capture_time.replace(":","_")
+            capture_time = capture_time.replace(" ", "_")
+            capture_time = capture_time.replace(":", "_")
+            capture_time = "_".join(["{0:02d}".format(int(ts)) for ts in capture_time.split("_") if ts.isdigit()])
             capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
             sub_sec = self.extract_subsec()
             capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
