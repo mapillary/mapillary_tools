@@ -35,6 +35,8 @@ def create_mapillary_description(filename, username, email,
     # write the mapillary tag
     mapillary_description = {}
     mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
+    mapillary_description["MAPAltitude"] = exif.extract_altitude()
+
     #required date format: 2015_01_14_09_37_01_000
     mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
     mapillary_description["MAPOrientation"] = orientation
