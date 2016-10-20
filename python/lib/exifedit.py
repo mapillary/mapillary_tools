@@ -14,8 +14,9 @@ def create_mapillary_description(filename, username, email,
                                  upload_hash, sequence_uuid,
                                  interpolated_heading=None,
                                  offset_angle=0.0,
-                                 orientation=1,
+                                 orientation=None,
                                  secret_hash=None,
+                                 external_properties=None,
                                  verbose=False):
     '''
     Check that image file has the required EXIF fields.
@@ -28,19 +29,23 @@ def create_mapillary_description(filename, username, email,
     if not verify_exif(filename):
         return False
 
+    if orientation is None:
+        orientation = exif.extract_orientation()
+
     # write the mapillary tag
     mapillary_description = {}
     mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
     #required date format: 2015_01_14_09_37_01_000
     mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
-    mapillary_description["MAPOrientation"] = exif.extract_orientation()
+    mapillary_description["MAPOrientation"] = orientation
     heading = exif.extract_direction()
     if heading is None:
         heading = 0.0
     heading = normalize_bearing(interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
     mapillary_description["MAPSettingsEmail"] = email
-    mapillary_description["MAPSettingsUsername"] = username
+    if username is not None:
+        mapillary_description["MAPSettingsUsername"] = username
     if upload_hash is not None:
         settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
         mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
@@ -50,7 +55,8 @@ def create_mapillary_description(filename, username, email,
     mapillary_description['MAPDeviceMake'] = exif.extract_make()
     if upload_hash is None and secret_hash is not None:
         mapillary_description['MAPVideoSecure'] = secret_hash
-
+    if external_properties is not None:
+        mapillary_description['MAPExternalProperties'] = external_properties
 
     # write to file
     json_desc = json.dumps(mapillary_description)

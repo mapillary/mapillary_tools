@@ -1,11 +1,11 @@
 """
-Script to export panoramio photos for a user
+Script to export Panoramio photos for a user
     - Download meta data from panoramio API
     - Download geotagged photos
     - Organize photos into sequences
     - Add Mapillary tags
 
-NOTE: Use only with permissions from the original authors of the photos in panoramio
+NOTE: Use only with permissions from the original authors of the photos in Panoramio
 """
 
 import argparse
@@ -61,7 +61,7 @@ def download_photos(meta, image_path):
     num_photo = len(photos)
     photo_files = []
     for i, p in enumerate(photos):
-        io.progress(i+1, num_photo, "Downloading {}/{}".format(i, num_photo))
+        io.progress(i + 1, num_photo, "{}/{}".format(i + 1, num_photo))
         url = p["photo_file_url"]
         photo_file = os.path.join(image_path, "{}.jpg".format(p["photo_id"]))
         if not os.path.isfile(photo_file):
@@ -111,7 +111,10 @@ if __name__ == "__main__":
             meta = json.loads(f.read())
 
     # Download photos
+    print("Downloading photos ...")
     photos = download_photos(meta, image_path)
+
+    print("\nAdding GPS ...")
 
     # Add GPS positions
     for p in meta["photos"]:
@@ -122,8 +125,9 @@ if __name__ == "__main__":
         capture_time = exif.extract_capture_time()
         if capture_time == 0:
             # Use upload time + 12:00:00 instead
-            upload_time = p["upload_date"] + " 120000"
-            capture_time = datetime.datetime.strptime(upload_time, "%d %B %Y %H%M%S")
+            upload_time = p["upload_date"] + " 12:00:00"
+            capture_time = datetime.datetime.strptime(upload_time, "%d %B %Y %H:%M:%S")
+            print("Image {} missing time stamp. Using update date instead.".format(photo_file))
 
         exifedit.add_lat_lon(p["latitude"], p["longitude"])
         exifedit.add_altitude(p.get("altitude", 0))
@@ -132,7 +136,7 @@ if __name__ == "__main__":
 
     # Sequence Cut
     s = sequence.Sequence(image_path, skip_subfolders=True)
-    sequences = s.split(move_files=False)
+    sequences = s.split(move_files=False, cutoff_distance=100)
     sequence_ids = {}
     for s in sequences:
         sequence_uuid = str(uuid.uuid4())
@@ -142,12 +146,22 @@ if __name__ == "__main__":
     # Get authentication info
     email, upload_token, secret_hash, upload_url = uploader.get_full_authentication_info(email=args.email)
 
+    print("Add Mapillary tags ...")
     # Encode Mapillary meta
     for p in meta["photos"]:
         photo_file = p["photo_file_path"]
+        external_properties = {
+            "photo_id": p["photo_id"]
+        }
         create_mapillary_description(
             photo_file, args.user, email,
-            upload_token, sequence_uuid,
+            upload_token, sequence_ids[photo_file],
             secret_hash=None,
+            external_properties=external_properties,
             verbose=False
         )
+
+    print('Export Completed!' +
+          '\nYou can now review your photos at "{}".'.format(image_path) +
+          '\nMove the photos you want to skip to another folder.' +
+          '\nUpload the photos by running "python upload.py {}"'.format(image_path))

@@ -109,7 +109,7 @@ class Sequence(object):
         '''
         self.file_list = file_list
 
-    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True):
+    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True, verbose=False):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
@@ -151,12 +151,13 @@ class Sequence(object):
                     # delta too big, save current group, start new
                     groups.append(group)
                     group = [filepath]
-                    if cut_distance:
-                        print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
-                    elif cut_time:
-                        print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
-                    elif cut_sequence_length:
-                        print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
+                    if verbose:
+                        if cut_distance:
+                            print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
+                        elif cut_time:
+                            print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
+                        elif cut_sequence_length:
+                            print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
                 else:
                     group.append(filepath)
 
