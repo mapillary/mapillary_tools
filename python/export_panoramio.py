@@ -14,6 +14,7 @@ import json
 import os
 import datetime
 import uuid
+import shutil
 
 from lib import io
 from lib import uploader
@@ -63,7 +64,7 @@ def download_photos(meta, image_path):
     for i, p in enumerate(photos):
         io.progress(i + 1, num_photo, "{}/{}".format(i + 1, num_photo))
         url = p["photo_file_url"]
-        photo_file = os.path.join(image_path, "{}.jpg".format(p["photo_id"]))
+        photo_file = download_path(image_path, photo_id)
         if not os.path.isfile(photo_file):
             urllib.urlretrieve(url, photo_file)
         meta["photos"][i]["photo_file_path"] = photo_file
@@ -73,8 +74,14 @@ def download_photos(meta, image_path):
         f.write("\n".join(photo_files))
     return photo_files
 
+def download_path(image_path, photo_id):
+    return os.path.join(image_path, "{}.jpg".format(photo_id))
+
 def download_done_file(image_path):
     return os.path.join(image_path, "DOWNLOAD_DONE")
+
+def processing_done_file(image_path):
+    return os.path.join(image_path, "PROCESSING_DONE")
 
 def get_args():
     p = argparse.ArgumentParser(description='Export Panoramio photos for a user')
@@ -98,6 +105,7 @@ if __name__ == "__main__":
 
     meta_file = os.path.join(data_path, "meta.json")
 
+
     # Prepare meta data
     if os.path.isfile(meta_file) is False:
         # Download meta data
@@ -111,34 +119,58 @@ if __name__ == "__main__":
             meta = json.loads(f.read())
 
     # Download photos
-    print("Downloading photos ...")
-    photos = download_photos(meta, image_path)
+    if not os.path.exists(download_done_file(image_path)):
+        print("Downloading photos ...")
+        photos = download_photos(meta, image_path)
+    else:
+        for i, m in enumerate(meta["photos"]):
+            meta["photos"][i]["photo_file_path"] = download_path(image_path, m["photo_id"])
+
+
+    # Handle EXIF errors
+    num_missing_date = 0
+    num_exif_error = 0
+    failed_folder = os.path.join(data_path, "failed")
+    io.mkdir_p(failed_folder)
+    valid_files = []
 
     print("\nAdding GPS ...")
-
     # Add GPS positions
     for i, p in enumerate(meta["photos"]):
+
         photo_file = p["photo_file_path"]
 
-        try:
-            exif = EXIF(photo_file)
-        except Exception as e:
-            print "EXIF read error '{}' for image {}. Skipping".format(e, photo_file)
-            continue
+        if os.path.isfile(photo_file):
 
-        exifedit = ExifEdit(photo_file)
+            try:
+                exif = EXIF(photo_file)
+            except Exception as e:
+                print "EXIF read error '{}' for image {}. Skipping".format(e, photo_file)
+                shutil.move(photo_file, os.path.join(failed_folder, os.path.basename(photo_file)))
+                num_exif_error += 1
+                continue
 
-        capture_time = exif.extract_capture_time()
-        if capture_time == 0:
-            # Use upload time + 12:00:00 instead
-            upload_time = p["upload_date"] + " 12:00:00"
-            capture_time = datetime.datetime.strptime(upload_time, "%d %B %Y %H:%M:%S")
-            print("Image {} missing time stamp. Using update date instead.".format(photo_file))
+            try: 
+                capture_time = exif.extract_capture_time()
+                print "Datetime error '{}' for image {}. Skipping".format(e, photo_file)
+            except:
+                shutil.move(photo_file, os.path.join(failed_folder, os.path.basename(photo_file)))
+                num_exif_error += 1
+                continue
 
-        exifedit.add_lat_lon(p["latitude"], p["longitude"])
-        exifedit.add_altitude(p.get("altitude", 0))
-        exifedit.add_date_time_original(capture_time)
-        exifedit.write()
+            if capture_time == 0:
+                # Use upload time + 12:00:00 instead
+                upload_time = p["upload_date"] + " 12:00:00"
+                capture_time = datetime.datetime.strptime(upload_time, "%d %B %Y %H:%M:%S")
+                print("Image {} missing time stamp. Using update date instead.".format(photo_file))
+                num_missing_date += 1
+
+            exifedit = ExifEdit(photo_file)
+            exifedit.add_lat_lon(p["latitude"], p["longitude"])
+            exifedit.add_altitude(p.get("altitude", 0))
+            exifedit.add_date_time_original(capture_time)
+            exifedit.write()
+            valid_files.append(photo_file)
 
     # Sequence Cut
     s = sequence.Sequence(image_path, skip_subfolders=True)
@@ -152,22 +184,25 @@ if __name__ == "__main__":
     # Get authentication info
     email, upload_token, secret_hash, upload_url = uploader.get_full_authentication_info(email=args.email)
 
-    print("Add Mapillary tags ...")
     # Encode Mapillary meta
+    print("Adding Mapillary tags ...")
     for p in meta["photos"]:
         photo_file = p["photo_file_path"]
-        external_properties = {
-            "photo_id": p["photo_id"]
-        }
-        create_mapillary_description(
-            photo_file, args.user, email,
-            upload_token, sequence_ids[photo_file],
-            secret_hash=None,
-            external_properties=external_properties,
-            verbose=False
-        )
+        if photo_file in sequence_ids:
+            external_properties = {
+                "photo_id": p["photo_id"]
+            }
+            create_mapillary_description(
+                photo_file, args.user, email,
+                upload_token, sequence_ids[photo_file],
+                secret_hash=secret_hash,
+                external_properties=external_properties,
+                verbose=False
+            )
 
-    print('Export Completed!' +
+    print "".join(['\nExport completed:' +
+          '\nPhotos with no timestamp : {}'.format(num_missing_date),
+          '\nPhotos with exif error : {}'.format(num_exif_error),
           '\nYou can now review your photos at "{}".'.format(image_path) +
           '\nMove the photos you want to skip to another folder.' +
-          '\nUpload the photos by running "python upload.py {}"'.format(image_path))
+          '\nUpload the photos by running "python upload.py {}"'.format(image_path)])
