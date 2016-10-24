@@ -64,7 +64,7 @@ def download_photos(meta, image_path):
     for i, p in enumerate(photos):
         io.progress(i + 1, num_photo, "{}/{}".format(i + 1, num_photo))
         url = p["photo_file_url"]
-        photo_file = download_path(image_path, photo_id)
+        photo_file = download_path(image_path, p["photo_id"])
         if not os.path.isfile(photo_file):
             urllib.urlretrieve(url, photo_file)
         meta["photos"][i]["photo_file_path"] = photo_file
