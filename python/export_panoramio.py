@@ -141,7 +141,7 @@ if __name__ == "__main__":
         photo_file = p["photo_file_path"]
 
         if os.path.isfile(photo_file):
-
+            exif = EXIF(photo_file)
             try:
                 exif = EXIF(photo_file)
             except Exception as e:
@@ -152,8 +152,8 @@ if __name__ == "__main__":
 
             try: 
                 capture_time = exif.extract_capture_time()
+            except Exception as e:
                 print "Datetime error '{}' for image {}. Skipping".format(e, photo_file)
-            except:
                 shutil.move(photo_file, os.path.join(failed_folder, os.path.basename(photo_file)))
                 num_exif_error += 1
                 continue
