@@ -12,6 +12,8 @@ Python Tools for Mapillary
     sudo pip install -r requirements.txt
     brew install pyexiv2
 
+If you don't have pip on your system, you can install it by `sudo easy_install pip`.
+
 ## Preprocessing
 Use these scripts to process your photos before uploading to improve the upload quality.
 
