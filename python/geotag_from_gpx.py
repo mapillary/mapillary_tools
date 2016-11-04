@@ -8,7 +8,7 @@ import time
 from pyexiv2.utils import make_fraction
 from dateutil.tz import tzlocal
 from lib.geo import interpolate_lat_lon, decimal_to_dms
-from lib.gps_parse import get_lat_lon_time_from_gpx
+from lib.gps_parser import get_lat_lon_time_from_gpx
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
