@@ -103,6 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
     parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
+    parser.add_argument('--verbose', help='print debug info', action='store_true')
     args = parser.parse_args()
 
     path = args.path
@@ -113,6 +114,7 @@ if __name__ == '__main__':
     interpolate_directions = args.interpolate_directions
     orientation = int(args.orientation)
     auto_done = args.auto_done
+    verbose = args.verbose
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -180,7 +182,7 @@ if __name__ == '__main__':
         # Split sequence based on distance and time
         print("\n=== Spliting photos into sequences based on time and distance ...")
         s = Sequence(path, skip_folders=['duplicates'])
-        split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)
+        split_groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time, verbose=verbose)
 
     # Add Mapillary tags
     if not os.path.exists(processing_log_file(path)) or args.rerun:

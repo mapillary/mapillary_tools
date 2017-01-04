@@ -109,7 +109,7 @@ class Sequence(object):
         '''
         self.file_list = file_list
 
-    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True, verbose=False):
+    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True, verbose=False, skip_cutoff=False):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
@@ -134,6 +134,8 @@ class Sequence(object):
 
             # if cutoff time is given use that, else assume cutoff is 1.5x median time delta
             if cutoff_time is None:
+                if verbose:
+                    print "Cut-off time is None"
                 median = sorted(capture_deltas)[len(capture_deltas)//2]
                 if type(median) is not  int:
                     median = median.total_seconds()
@@ -153,9 +155,9 @@ class Sequence(object):
                     group = [filepath]
                     if verbose:
                         if cut_distance:
-                            print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
+                            print 'Cut {}: Delta in distance {} meters is too bigger than cutoff_distance {} meters at {}'.format(cut,distances[i], cutoff_distance, file_list[i+1])
                         elif cut_time:
-                            print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
+                            print 'Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i+1])
                         elif cut_sequence_length:
                             print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
                 else:
