@@ -9,7 +9,7 @@ import time
 import argparse
 import json
 
-from lib.uploader import get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary
+from lib.uploader import get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif
 from lib.exifedit import create_mapillary_description
@@ -71,6 +71,24 @@ def write_processing_log(log, path):
         f.write(json.dumps(log, indent=4))
     return log
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
+    parser.add_argument('path', help='path to your photos')
+    parser.add_argument('--cutoff_distance', default=600, help='maximum gps distance in meters within a sequence')
+    parser.add_argument('--cutoff_time', default=60, help='maximum time interval in seconds within a sequence')
+    parser.add_argument('--orientation', help='specify orientation of the images', default=1)
+    parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
+    parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
+    parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
+    parser.add_argument('--offset_angle', help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', default=0)
+    parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
+    parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
+    parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
+    parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
+    parser.add_argument('--project', help="add project to EXIF (project name)", default=None)
+    parser.add_argument('--verbose', help='print debug info', action='store_true')
+    return parser.parse_args()
+
 if __name__ == '__main__':
     '''
     Use from command line as: python upload_with_preprocessing.py path
@@ -90,22 +108,7 @@ if __name__ == '__main__':
     if sys.version_info >= (3, 0):
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
 
-    parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
-    parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--cutoff_distance', default=600, help='maximum gps distance in meters within a sequence')
-    parser.add_argument('--cutoff_time', default=60, help='maximum time interval in seconds within a sequence')
-    parser.add_argument('--orientation', help='specify orientation of the images', default=1)
-    parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
-    parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
-    parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
-    parser.add_argument('--offset_angle', help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', default=0)
-    parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
-    parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
-    parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
-    parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
-    parser.add_argument('--verbose', help='print debug info', action='store_true')
-    args = parser.parse_args()
-
+    args = get_args()
     path = args.path
     cutoff_distance = float(args.cutoff_distance)
     cutoff_time = float(args.cutoff_time)
@@ -115,6 +118,7 @@ if __name__ == '__main__':
     orientation = int(args.orientation)
     auto_done = args.auto_done
     verbose = args.verbose
+    project_key = get_project_key(args.project)
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -222,7 +226,8 @@ if __name__ == '__main__':
                                                              sequence_uuid,
                                                              bearing,
                                                              offset_angle,
-                                                             orientation)
+                                                             orientation,
+                                                             project_key)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)

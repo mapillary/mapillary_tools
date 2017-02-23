@@ -194,10 +194,10 @@ def get_project_key(project_name):
             if project['name'].decode('utf-8') == project_name:
                 found = True
                 project_key = project['key']
+                return project_key
 
         if not found:
             print "Project {} not found.".format(project_name)
-            project_key = ""
 
     return ""
 
