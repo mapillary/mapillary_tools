@@ -10,6 +10,7 @@ import argparse
 import json
 
 from lib.uploader import get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
+import lib.uploader as uploader
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif
 from lib.exifedit import create_mapillary_description
@@ -40,6 +41,7 @@ USE UPLOAD.PY INSTEAD.
 '''
 
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
+MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '2'))
 MOVE_FILES = True
 
@@ -87,6 +89,8 @@ def get_args():
     parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
     parser.add_argument('--project', help="add project to EXIF (project name)", default=None)
     parser.add_argument('--verbose', help='print debug info', action='store_true')
+    parser.add_argument("--user", help="user name")
+    parser.add_argument("--email", help="user email")
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -109,6 +113,7 @@ if __name__ == '__main__':
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
 
     args = get_args()
+
     path = args.path
     cutoff_distance = float(args.cutoff_distance)
     cutoff_time = float(args.cutoff_time)
@@ -116,9 +121,10 @@ if __name__ == '__main__':
     offset_angle = float(args.offset_angle)
     interpolate_directions = args.interpolate_directions
     orientation = int(args.orientation)
-    auto_done = args.auto_done
-    verbose = args.verbose
     project_key = get_project_key(args.project)
+    verbose = args.verbose
+    auto_done = args.auto_done
+
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -127,15 +133,25 @@ if __name__ == '__main__':
 
     # Fetch authetication info
     try:
-        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
-        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
-        MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
-        MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+        MAPILLARY_USERNAME = args.user if args.user is not None else os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_EMAIL = args.email if args.email is not None else os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
+        secret_hash = None
+        upload_token = None
+
+        if MAPILLARY_SECRET_HASH is None:
+            MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
+            MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
+            MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+            upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
+        else:
+            secret_hash = MAPILLARY_SECRET_HASH
+            MAPILLARY_PERMISSION_HASH = uploader.PERMISSION_HASH
+            MAPILLARY_SIGNATURE_HASH = uploader.SIGNATURE_HASH
+            MAPILLARY_UPLOAD_URL = MAPILLARY_DIRECT_UPLOAD_URL
     except KeyError:
         print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
-    upload_token = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
 
     # Check whether the directory has been processed before
     logs = read_log(path)
@@ -215,7 +231,6 @@ if __name__ == '__main__':
                             bearing = directions[filepath]
                         else:
                             bearing = None
-
                         if verify_exif(filepath):
                             if not retry_upload:
                                 # skip creating new sequence id for failed images
@@ -227,7 +242,8 @@ if __name__ == '__main__':
                                                              bearing,
                                                              offset_angle,
                                                              orientation,
-                                                             project_key)
+                                                             project_key,
+                                                             secret_hash)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)
@@ -250,7 +266,10 @@ if __name__ == '__main__':
         for sequence_uuid, file_list in sequence_list.iteritems():
             file_list = [str(f) for f in file_list if os.path.exists(f)]
             count = len(file_list)
-            s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
+            if secret_hash is None:
+                s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
+            else:
+                s3_bucket = ""
             s3_bucket_list.append(s3_bucket)
             if count and not skip_upload:
                 # upload a sequence
@@ -270,7 +289,7 @@ if __name__ == '__main__':
 
     # A short summary of the uploads
     s = Sequence(path)
-    lines = upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups)
+    lines = upload_summary(s.file_list, total_uploads, split_groups, duplicate_groups, missing_groups)
     print('\n========= Summary of your uploads ==============')
     print lines
     print("==================================================")
@@ -278,7 +297,7 @@ if __name__ == '__main__':
     print("You can now preview your uploads at http://www.mapillary.com/map/upload/im")
 
     # Finalizing the upload by uploading done files for all sequence
-    if not skip_upload:
+    if not skip_upload and secret_hash is None:
         print("\nFinalizing upload will submit all successful uploads and ignore all failed and duplicates.")
         print("If all files were marked as successful, everything is fine, just press 'y'.")
 

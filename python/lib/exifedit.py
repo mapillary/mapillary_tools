@@ -15,6 +15,7 @@ def create_mapillary_description(filename, username, email,
                                  interpolated_heading=None,
                                  offset_angle=0.0,
                                  orientation=None,
+                                 project="",
                                  secret_hash=None,
                                  external_properties=None,
                                  verbose=False):
@@ -59,6 +60,7 @@ def create_mapillary_description(filename, username, email,
         mapillary_description['MAPVideoSecure'] = secret_hash
     if external_properties is not None:
         mapillary_description['MAPExternalProperties'] = external_properties
+    mapillary_description["MAPSettingsProject"] = project
 
     # write to file
     json_desc = json.dumps(mapillary_description)
