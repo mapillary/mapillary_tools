@@ -45,6 +45,6 @@ if __name__ == "__main__":
             "--duplicate_angle", "360",
             "--user", args.user,
             "--email", args.email,
-            "--project", args.project
+            "--project", repr(args.project)
         ]
         run(upload_cmd)
