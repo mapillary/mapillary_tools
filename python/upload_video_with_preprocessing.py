@@ -15,6 +15,7 @@ def get_args():
     p.add_argument("--skip_upload", help="Skip upload images", action="store_true")
     p.add_argument("--user", help="User name")
     p.add_argument("--email", help="User email")
+    p.add_argument("--project", help="Specify project for the video")
 
     return p.parse_args()
 
@@ -35,12 +36,15 @@ if __name__ == "__main__":
     assert(args.user is not None and args.email is not None)
 
     if not args.skip_upload:
-        upload_cmd = ["python", "upload_with_preprocessing.py",
-                      image_path,
-                      "--remove_duplicates",
-                      "--interpolate_directions",
-                      "--duplicate_distance", "0.5",
-                      "--duplicate_angle", "360",
-                      "--user", args.user,
-                      "--email", args.email]
+        upload_cmd = [
+            "python", "upload_with_preprocessing.py",
+            image_path,
+            "--remove_duplicates",
+            "--interpolate_directions",
+            "--duplicate_distance", "0.5",
+            "--duplicate_angle", "360",
+            "--user", args.user,
+            "--email", args.email,
+            "--project", args.project
+        ]
         run(upload_cmd)
