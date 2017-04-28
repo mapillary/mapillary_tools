@@ -80,9 +80,12 @@ class FFStream:
     """
     def __init__(self,datalines):
         for a in datalines:
-            (key,val)=a.strip().split('=')
-            key = key.lstrip("TAG:")
-            self.__dict__[key]=val
+            if re.match(r'^.+=.+$', a) is None:
+                print "Warning: detected incorrect stream metadata line format: %s" % a
+            else:
+                (key,val)=a.strip().split('=')
+                key = key.lstrip("TAG:")
+                self.__dict__[key]=val
 
     def isAudio(self):
         """
