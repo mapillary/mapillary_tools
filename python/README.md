@@ -3,10 +3,10 @@ Python Tools for Mapillary
 
 ## Dependencies
 
-* [exifread] []
-* [gpxpy] []
-* [PIL] []
-* [pyexiv2] []
+* [exifread]
+* [gpxpy] 
+* [PIL] 
+* [pyexiv2] 
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
@@ -108,7 +108,7 @@ See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scri
 
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](https://legacy.mapillary.com/map/upload/im) and pressing "push to Mapillary".
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://legacy.mapillary.com/map/upload/im))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/settings/developers))
 
 **upload_with_preprocessing.py**
 
@@ -125,7 +125,7 @@ It runs in the following steps:
 - Add Mapillary tags to the images
 - Upload the images
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://legacy.mapillary.com/map/upload/im))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/settings/developers))
 
 ## Download
 
