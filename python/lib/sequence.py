@@ -3,6 +3,8 @@ import sys
 import lib.io
 import lib.geo
 from lib.exif import EXIF, verify_exif
+from collections import OrderedDict
+import datetime
 
 '''
 Sequence class for organizing/cleaning up photos in a folder
@@ -182,24 +184,62 @@ class Sequence(object):
         file_list = self.file_list
         num_file = len(file_list)
 
-        if num_file>1:
+        if num_file > 1:
             # sort based on EXIF capture time
             capture_times, file_list = self.sort_file_list(file_list)
 
             # read gps for ordered files
             latlons = [self._read_lat_lon(filepath) for filepath in file_list]
 
-            if len(file_list)>1:
+            if len(file_list) > 1:
                 # bearing between consecutive images
                 bearings = [lib.geo.compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
-                                for ll1, ll2 in zip(latlons, latlons[1:])]
+                    for ll1, ll2 in zip(latlons, latlons[1:])]
                 bearings.append(bearings[-1])
                 bearings = {file_list[i]: lib.geo.offset_bearing(b, offset) for i, b in enumerate(bearings)}
-        elif num_file==1:
+        elif num_file == 1:
             #if there is only one file in the list, just write the direction 0 and offset
             bearings = {file_list[0]: lib.geo.offset_bearing(0.0, offset)}
 
         return bearings
+
+    def interpolate_timestamp(self):
+        '''
+        Interpolate time stamps in case of identical timestamps within a sequence
+        '''
+        timestamps = []
+        file_list = self.file_list
+        num_file = len(file_list)
+        time_dict = OrderedDict()
+
+        if num_file > 0:
+            capture_times, file_list = self.sort_file_list(file_list)
+            # trace identical timestamps (always assume capture_times is sorted)
+            time_dict = OrderedDict()
+            for i, t in enumerate(capture_times):
+                if t not in time_dict:
+                    time_dict[t] = {
+                        "count": 0,
+                        "pointer": 0
+                    }
+
+                    interval = 0
+                    if i != 0:
+                        interval = (t - capture_times[i-1]).total_seconds()
+                        time_dict[capture_times[i-1]]["interval"] = interval
+
+                time_dict[t]["count"] += 1
+
+            time_dict[time_dict.keys()[-1]]["interval"] = time_dict[time_dict.keys()[-2]]["interval"]
+
+            for f, t in zip(file_list, capture_times):
+                d = time_dict[t]
+                s = datetime.timedelta(seconds=d["pointer"] * d["interval"] / float(d["count"]))
+                updated_time = t + s
+                time_dict[t]["pointer"] += 1
+                timestamps.append(updated_time)
+        return timestamps
+
 
     def remove_duplicates(self, min_distance=1e-5, min_angle=5):
         '''
