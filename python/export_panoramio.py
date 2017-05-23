@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Script to export Panoramio photos for a user
     - Download meta data from panoramio API
@@ -150,7 +152,7 @@ if __name__ == "__main__":
                 num_exif_error += 1
                 continue
 
-            try: 
+            try:
                 capture_time = exif.extract_capture_time()
             except Exception as e:
                 print "Datetime error '{}' for image {}. Skipping".format(e, photo_file)

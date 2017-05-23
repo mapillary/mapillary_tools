@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import datetime
 from lib.geo import interpolate_lat_lon, compute_bearing, offset_bearing
 from lib.sequence import Sequence
