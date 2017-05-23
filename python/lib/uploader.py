@@ -14,6 +14,7 @@ from Queue import Queue
 import threading
 import exifread
 import time
+from datetime import timedelta
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -24,6 +25,8 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
+START_TIME = time.time()
+
 
 class UploadThread(threading.Thread):
     def __init__(self, queue, params=UPLOAD_PARAMS):
@@ -40,7 +43,13 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
+                if NUMBER_THREADS >=  self.total_task-self.q.qsize():
+                        estimated_time = '...'
+                else:
+                        elapsed_time = time.time() - START_TIME
+                        estimated_time = str(timedelta(seconds=(elapsed_time/(self.total_task - self.q.qsize()))*self.q.qsize())).split(".")[0]
+                        
+                lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... '+format(self.q.qsize())+' images left. ET '+estimated_time+'')
                 upload_file(filepath, **self.params)
                 self.q.task_done()
 
