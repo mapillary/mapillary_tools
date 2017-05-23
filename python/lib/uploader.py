@@ -280,6 +280,9 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
         except socket.timeout as e:
             # Specific timeout handling for Python 2.7
             print("Timeout error: {0} (retrying)".format(filename))
+        finally:
+            if response is not None:
+                response.close()
 
 
 def upload_file_list(file_list, params=UPLOAD_PARAMS):
