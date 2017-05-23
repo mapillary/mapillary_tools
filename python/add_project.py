@@ -9,6 +9,14 @@ from lib import io
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Add project id to Mapillary EXIF')
+    parser.add_argument('path', help='path to your photos')
+    parser.add_argument('project_name', help='name of the project')
+    parser.add_argument('--overwrite', help='overwrite existing project id', action='store_true')
+    args = parser.parse_args()
+    return args
+
 if __name__ == '__main__':
     '''
     Use from command line as: python add_project.py path 'project name'
@@ -21,15 +29,9 @@ if __name__ == '__main__':
         MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
 
     except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
-        sys.exit()
+        sys.exit("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
 
-    parser = argparse.ArgumentParser(description='Add project id to Mapillary EXIF')
-    parser.add_argument('path', help='path to your photos')
-    parser.add_argument('project_name', help='name of the project')
-    parser.add_argument('--overwrite', help='overwrite existing project id', action='store_true')
-    args = parser.parse_args()
-
+    args = get_args()
     path = args.path
     project_name = args.project_name
     overwrite = args.overwrite

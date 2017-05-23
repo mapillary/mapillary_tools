@@ -2,6 +2,7 @@
 
 import os, sys, pyexiv2
 from pyexiv2.utils import make_fraction
+import argparse
 from lib.geo import compute_bearing, dms_to_decimal, offset_bearing
 from lib.sequence import Sequence
 from lib.exifedit import ExifEdit
@@ -36,16 +37,21 @@ def write_direction_to_image(filename, direction):
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Interpolate direction given GPS positions')
+    parser.add_argument('path', help='path to your photos')
+    parser.add_argument('--offset_angle',
+        type=float, help='offset angle relative to camera position', default=0.0)
+    args = parser.parse_args()
+    return args
+
 if __name__ == '__main__':
-    if len(sys.argv) > 3:
-        print("Usage: python interpolate_direction.py path [offset_angle]")
-        raise IOError("Bad input parameters.")
-    path = sys.argv[1]
+
+    args = get_args()
+    path = args.path
 
     # offset angle, relative to camera position, clockwise is positive
-    offset_angle = 0
-    if len(sys.argv) == 3 :
-        offset_angle = float(sys.argv[2])
+    offset_angle = args.offset_angle
 
     s = Sequence(path)
     bearings = s.interpolate_direction(offset_angle)

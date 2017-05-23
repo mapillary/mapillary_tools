@@ -51,8 +51,8 @@ if __name__ == '__main__':
     '''
 
     if len(sys.argv) != 4:
-        print("Usage: python add_fix_dates.py images-path starttime (yyyy-mm-dd hh:mm:ss) increment-in-seconds")
-        raise IOError("Bad input parameters.")
+        sys.exit("Usage: %s images-path starttime (yyyy-mm-dd hh:mm:ss) increment-in-seconds" % sys.argv[0])
+
     path = sys.argv[1]
     start_time = sys.argv[2]
     time_offset = float(sys.argv[3])

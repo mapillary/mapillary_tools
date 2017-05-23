@@ -51,7 +51,7 @@ if __name__ == '__main__':
     Use from command line as: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]
     '''
 
-    # Fetch authetication info from env
+    Fetch authetication info from env
     info = get_authentication_info()
     if info is not None:
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = info
@@ -63,9 +63,8 @@ if __name__ == '__main__':
 
     args = sys.argv
 
-    if len(args) < 2:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]")
-        raise IOError("Bad input parameters.")
+    if len(args) < 2 or len(args) > 3:
+        sys.exit("Usage: python %s root_path [sequence_id]" % args[0])
 
     path = args[1]
 

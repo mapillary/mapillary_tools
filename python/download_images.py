@@ -68,15 +68,11 @@ if __name__ == '__main__':
 
     # handle command line parameters
     if len(sys.argv) < 5:
-        print("Usage: python download_images.py min_lat max_lat min_lon max_lon max_results(optional)")
+        sys.exit("Usage: python download_images.py min_lat max_lat min_lon max_lon [max_results](optional)")
 
-    try:
-        min_lat, max_lat, min_lon, max_lon = sys.argv[1:5]
-    except:
-        print("Usage: python download_images.py min_lat max_lat min_lon max_lon max_results(optional)")
-        raise IOError("Bad input parameters.")
+    min_lat, max_lat, min_lon, max_lon = sys.argv[1:5]
 
-    if len(sys.argv)==6:
+    if len(sys.argv) == 6:
         max_results = sys.argv[5]
     else:
         max_results = MAX_RESULTS

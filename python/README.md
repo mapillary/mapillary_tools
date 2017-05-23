@@ -4,9 +4,9 @@ Python Tools for Mapillary
 ## Dependencies
 
 * [exifread]
-* [gpxpy] 
-* [PIL] 
-* [pyexiv2] 
+* [gpxpy]
+* [PIL]
+* [pyexiv2]
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
@@ -58,7 +58,7 @@ The time_offset is optional and is used if your camera clock is offset from your
 Interpolates the direction of an image based on the coordinates stored in
 the EXIF tag of the next image in a set of consecutive images.
 
-    python interpolate_direction.py path-to-images/ [offset_angle]
+    python interpolate_direction.py path-to-images/ --offset_angle [offset_angle]
 
 
 **remove_duplicates.py**
@@ -118,10 +118,10 @@ the Mapillary iOS or Android apps.
     python upload_with_preprocessing.py path-to-images/
 
 It runs in the following steps:
-    
+
 - Skip images that are potential duplicates (optional with --remove_duplicates)
-- Group images into sequences based on gps and time 
-- Interpolate compass angles for each sequence 
+- Group images into sequences based on gps and time
+- Interpolate compass angles for each sequence
 - Add Mapillary tags to the images
 - Upload the images
 
