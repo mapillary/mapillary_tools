@@ -135,7 +135,7 @@ Download images from Mapillary.
 
 Script to download images using the Mapillary image search API. Downloads images inside a rect (min_lat, max_lat, min_lon, max_lon).
 
-    download_images.py min_lat max_lat min_lon max_lon [max_results]
+    download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 
 
 [exifread]: https://pypi.python.org/pypi/ExifRead
