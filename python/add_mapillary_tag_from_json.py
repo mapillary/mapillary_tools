@@ -38,7 +38,7 @@ if __name__ == '__main__':
     output_path = args.output_path
 
     if not args.skip_authentication:
-        # Fetch authetication info from env
+        # Fetch authentication info from env
         info = get_authentication_info()
         if info is not None:
             MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = info
