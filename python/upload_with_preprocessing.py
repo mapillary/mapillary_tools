@@ -131,7 +131,7 @@ if __name__ == '__main__':
     min_duplicate_distance = float(args.duplicate_distance)
     min_duplicate_angle = float(args.duplicate_angle)
 
-    # Fetch authetication info
+    # Fetch authentication info
     try:
         MAPILLARY_USERNAME = args.user if args.user is not None else os.environ['MAPILLARY_USERNAME']
         MAPILLARY_EMAIL = args.email if args.email is not None else os.environ['MAPILLARY_EMAIL']

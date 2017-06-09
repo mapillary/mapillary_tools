@@ -51,7 +51,7 @@ if __name__ == '__main__':
     Use from command line as: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]
     '''
 
-    Fetch authetication info from env
+    # Fetch authentication info from env
     info = get_authentication_info()
     if info is not None:
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = info
