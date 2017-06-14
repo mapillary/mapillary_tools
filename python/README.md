@@ -8,6 +8,9 @@ Python Tools for Mapillary
 * [PIL]
 * [pyexiv2]
 
+#### NOTE
+* [pyexiv2] is not compatible with Python 3. 
+
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
     brew install pyexiv2
