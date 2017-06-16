@@ -76,7 +76,7 @@ if __name__ == '__main__':
     if os.path.isfile(sequence_file):
         # read previous sequence UUID from the file
         print('--- SEQUENCE FILE FOUND, RESUMING UPLOAD ---')
-        with file(sequence_file) as f:
+        with open(sequence_file,'r') as f:
             sequence_id = f.read().rstrip()
     else:
         # generate a sequence UUID
