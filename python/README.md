@@ -20,7 +20,7 @@ If you don't have pip on your system, you can install it by `sudo easy_install p
 ## Installing on Ubuntu
 
     sudo apt install python python-virtualenv python-dev python-pyexiv2
-    python -m virtualenv --python=python2 .env
+    python -m virtualenv --python=python2 --system-site-packages .env
     source .env/bin/activate
     pip install -r requirements.txt
     
