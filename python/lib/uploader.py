@@ -306,7 +306,7 @@ def upload_file_list(file_list, params=UPLOAD_PARAMS):
             time.sleep(1)
         q.join()
     except (KeyboardInterrupt, SystemExit):
-        print("\nBREAK: Stopping upload.")
+        print("\nBREAK: Stopping upload (re-running will resume).")
         sys.exit()
 
 

@@ -38,6 +38,7 @@ USE UPLOAD.PY INSTEAD.
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MOVE_FILES = True
+CUR_SEQ_FILENAME = 'current_sequence.txt'
 
 if __name__ == '__main__':
     '''
@@ -76,8 +77,18 @@ if __name__ == '__main__':
         print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
         sys.exit()
 
-    # generate a sequence UUID
-    sequence_id = uuid.uuid4()
+    if os.path.exists(CUR_SEQ_FILENAME):
+        # use current sequence UUID
+        cur_seq_file = open(CUR_SEQ_FILENAME, 'r')
+        sequence_id = cur_seq_file.read()
+        print("Resuming sequence {0}.".format(sequence_id))
+        cur_seq_file.close()
+    else:
+        # generate a new sequence UUID
+        cur_seq_file = open(CUR_SEQ_FILENAME, 'w')
+        sequence_id = uuid.uuid4()
+        cur_seq_file.write(sequence_id)
+        cur_seq_file.close()
 
     # S3 bucket
     s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_id)+"/"
@@ -120,3 +131,6 @@ if __name__ == '__main__':
     # ask user if finalize upload to check that everything went fine
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
     finalize_upload(params, auto_done=auto_done)
+
+    # clean up sequence file
+    os.remove(CUR_SEQ_FILENAME);
