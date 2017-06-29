@@ -14,6 +14,7 @@ from lib.ffprobe import FFProbe
 
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 def sample_video(video_file, image_path, sample_interval):
     """Sample video frame with the specified time interval
@@ -34,10 +35,13 @@ def get_video_duration(video_file):
 
 
 def get_video_start_time(video_file):
-    """Get video duration in seconds"""
+    """Get video start time in seconds"""
     try:
         time_string = FFProbe(video_file).video[0].creation_time
-        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+        try:
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+        except:
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
     except:
         return None
     return creation_time
