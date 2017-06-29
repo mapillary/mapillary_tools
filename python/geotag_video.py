@@ -71,7 +71,7 @@ def get_args():
     p.add_argument('--image_path', help='Path to save sampled images.', default="video_samples")
     p.add_argument('--sample_interval', help='Time interval for sampled frames in seconds', default=2, type=float)
     p.add_argument('--gps_trace', help='GPS track file')
-    p.add_argument('--time_offset', help='Time offset between video and gpx file in seconds', default=0, type=float)
+    p.add_argument('--time_offset', help='Time offset between video and gpx file in seconds (e.g. "3" means that video is ahead of GPX time by 3 seconds; negative offset is also possible)', default=0, type=float)
     p.add_argument("--skip_sampling", help="Skip video sampling step", action="store_true")
     return p.parse_args()
 
