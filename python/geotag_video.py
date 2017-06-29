@@ -96,9 +96,10 @@ if __name__ == "__main__":
     points = parse_gps_trace(gps_trace_file, local_time)
 
     # Get sync between video and gps trace
-    start_time = points[0][0]
+    start_time = get_video_start_time(video_file) or points[0][0]
     start_time += datetime.timedelta(seconds=time_offset)
-    print "Video starts at : {}".format(start_time)
+
+    print "Video starts at: {}".format(start_time)
     print "GPS trace starts at: {}".format(points[0][0])
 
     # Get duration of the video
