@@ -11,7 +11,7 @@ Sequence class for organizing/cleaning up photos in a folder
     - remove duplicate images (e.g. waiting for red light, in traffic etc) @simonmikkelsen
 '''
 
-MAXIMUM_SEQUENCE_LENGTH = 6000
+MAXIMUM_SEQUENCE_LENGTH = 1000
 
 class Sequence(object):
 
