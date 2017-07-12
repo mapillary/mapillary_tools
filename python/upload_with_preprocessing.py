@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
 import sys
-import urllib2, urllib
 import os
-from Queue import Queue
 import uuid
-import time
 import argparse
 import json
 
@@ -19,24 +16,19 @@ import lib.io
 '''
 Script for uploading images taken with other cameras than
 the Mapillary iOS or Android apps.
-
 It runs in the following steps:
     - Skip images that are potential duplicates (Move to path/duplicates)
     - Group images into sequences based on gps and time
     - Interpolate compass angles for each sequence
     - Add Mapillary tags to the images
     - Upload the images
-
 The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
-
 NB: RUN geotag_from_gpx.py first for images with GPS in a separated GPX file (e.g. GoPro)
-
 NB: DO NOT USE THIS SCRIPT ON IMAGE FILES FROM THE MAPILLARY APPS,
 USE UPLOAD.PY INSTEAD.
-
 (assumes Python 2.x, for Python 3.x you need to change some module names)
 '''
 
@@ -76,13 +68,13 @@ def write_processing_log(log, path):
 def get_args():
     parser = argparse.ArgumentParser(description='Upload photos to Mapillary with preprocessing')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--cutoff_distance', default=600, help='maximum gps distance in meters within a sequence')
-    parser.add_argument('--cutoff_time', default=60, help='maximum time interval in seconds within a sequence')
-    parser.add_argument('--orientation', help='specify orientation of the images', default=1)
+    parser.add_argument('--cutoff_distance', default=600., type=float, help='maximum gps distance in meters within a sequence')
+    parser.add_argument('--cutoff_time', default=60., type=float, help='maximum time interval in seconds within a sequence')
+    parser.add_argument('--orientation', help='specify orientation of the images', type=int)
     parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
     parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
     parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
-    parser.add_argument('--offset_angle', help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', default=0)
+    parser.add_argument('--offset_angle', default=0., type=float, help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)')
     parser.add_argument('--skip_upload', help='skip uploading to server', action='store_true')
     parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
@@ -96,7 +88,6 @@ def get_args():
 if __name__ == '__main__':
     '''
     Use from command line as: python upload_with_preprocessing.py path
-
     You need to set the environment variables
         MAPILLARY_USERNAME
         MAPILLARY_EMAIL
@@ -104,7 +95,6 @@ if __name__ == '__main__':
         MAPILLARY_PERMISSION_HASH
         MAPILLARY_SIGNATURE_HASH
     to your unique values.
-
     You also need upload.py in the same folder or in your PYTHONPATH since this
     script uses pieces of that.
     '''
@@ -115,16 +105,15 @@ if __name__ == '__main__':
     args = get_args()
 
     path = args.path
-    cutoff_distance = float(args.cutoff_distance)
-    cutoff_time = float(args.cutoff_time)
+    cutoff_distance = args.cutoff_distance
+    cutoff_time = args.cutoff_time
     skip_upload = args.skip_upload
-    offset_angle = float(args.offset_angle)
+    offset_angle = args.offset_angle
     interpolate_directions = args.interpolate_directions
-    orientation = int(args.orientation)
+    orientation = args.orientation
     project_key = get_project_key(args.project)
     verbose = args.verbose
     auto_done = args.auto_done
-
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -328,4 +317,3 @@ if __name__ == '__main__':
 
         # store the logs after finalizing
         write_log(lines, path)
-
