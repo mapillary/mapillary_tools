@@ -1,23 +1,24 @@
 #!/usr/bin/env python
-import os.path, sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import os
+import sys
 import exifread
 import datetime
-import json
 from lib.geo import normalize_bearing
 
-#TODO: replace exifread with pyexiv2
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def eval_frac(value):
     return float(value.num) / float(value.den)
-
 
 def exif_gps_fields():
     '''
     GPS fields in EXIF
     '''
-    return [  ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
-              ["GPS GPSLatitude", "EXIF GPS GPSLatitude"] ]
+    return [
+        ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
+        ["GPS GPSLatitude", "EXIF GPS GPSLatitude"]
+    ]
 
 
 def exif_datetime_fields():
@@ -115,7 +116,7 @@ class EXIF:
         Initialize EXIF object with FILE as filename or fileobj
         '''
         self.filename = filename
-        if type(filename)==str:
+        if type(filename) == str:
             with open(filename, 'rb') as fileobj:
                 self.tags = exifread.process_file(fileobj, details=details)
         else:
@@ -145,7 +146,8 @@ class EXIF:
         '''
         lon, lat = self.extract_lon_lat()
         ca = self.extract_direction()
-        if ca is None: ca = 0
+        if ca is None:
+            ca = 0
         ca = int(ca)
         date_time = self.extract_capture_time()
         date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
@@ -159,7 +161,7 @@ class EXIF:
         Extract altitude
         '''
         fields = ['GPS GPSAltitude', 'EXIF GPS GPSAltitude']
-        altitude, _ = self._extract_alternative_fields(fields)
+        altitude, _ = self._extract_alternative_fields(fields, 0, float)
         return altitude
 
 
@@ -171,6 +173,9 @@ class EXIF:
         '''
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
+
+        # if "GPSDate" in time_field:
+        #     return self.extract_gps_time()
 
         if capture_time is 0:
             # try interpret the filename
@@ -252,8 +257,6 @@ class EXIF:
             gps_time += microseconds
         return gps_time
 
-
-
     def extract_exif(self):
         '''
         Extract a list of exif infos
@@ -265,14 +268,14 @@ class EXIF:
         capture = self.extract_capture_time()
         direction = self.extract_direction()
         d = {
-                'width': width,
-                'height': height,
-                'orientation': orientation,
-                'direction': direction,
-                'make': make,
-                'model': model,
-                'capture_time': capture
-            }
+            'width': width,
+            'height': height,
+            'orientation': orientation,
+            'direction': direction,
+            'make': make,
+            'model': model,
+            'capture_time': capture
+        }
         d['gps'] = geo
         return d
 
@@ -284,6 +287,14 @@ class EXIF:
         width, _ = self._extract_alternative_fields(['Image ImageWidth', 'EXIF ExifImageWidth'], -1, int)
         height, _ = self._extract_alternative_fields(['Image ImageLength', 'EXIF ExifImageLength'], -1, int)
         return width, height
+
+
+    def extract_image_description(self):
+        '''
+        Extract image description
+        '''
+        description, _ = self._extract_alternative_fields(['Image ImageDescription'], "{}", str)
+        return description
 
 
     def extract_lon_lat(self):
@@ -326,6 +337,8 @@ class EXIF:
         '''
         fields = ['Image Orientation']
         orientation, _ = self._extract_alternative_fields(fields, default=1, field_type=int)
+        if orientation not in [1, 3, 6, 8]:
+            return 1
         return orientation
 
 
@@ -333,13 +346,14 @@ class EXIF:
         '''
         Extract microseconds
         '''
-        fields = ['Image SubSecTimeOriginal',
-                  'EXIF SubSecTimeOriginal',
-                  'Image SubSecTimeDigitized',
-                  'EXIF SubSecTimeDigitized',
-                  'Image SubSecTime',
-                  'EXIF SubSecTime'
-                 ]
+        fields = [
+            'Image SubSecTimeOriginal',
+            'EXIF SubSecTimeOriginal',
+            'Image SubSecTimeDigitized',
+            'EXIF SubSecTimeDigitized',
+            'Image SubSecTime',
+            'EXIF SubSecTime'
+        ]
         sub_sec, _ = self._extract_alternative_fields(fields, default=0, field_type=str)
         sub_sec = int(sub_sec)
         return sub_sec
