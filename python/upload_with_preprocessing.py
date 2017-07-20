@@ -80,9 +80,11 @@ def get_args():
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
     parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
     parser.add_argument('--project', help="add project to EXIF (project name)", default=None)
+    parser.add_argument('--add_file_name', help="add original file name to EXIF", action='store_true')
     parser.add_argument('--verbose', help='print debug info', action='store_true')
     parser.add_argument("--user", help="user name")
     parser.add_argument("--email", help="user email")
+    parser.add_argument("--userkey", help="user key")
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -114,6 +116,7 @@ if __name__ == '__main__':
     project_key = get_project_key(args.project)
     verbose = args.verbose
     auto_done = args.auto_done
+    add_file_name = args.add_file_name
 
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
@@ -124,6 +127,7 @@ if __name__ == '__main__':
     try:
         MAPILLARY_USERNAME = args.user if args.user is not None else os.environ['MAPILLARY_USERNAME']
         MAPILLARY_EMAIL = args.email if args.email is not None else os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_USERKEY = args.userkey
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
@@ -205,6 +209,10 @@ if __name__ == '__main__':
                 print("\n=== Interpolating direction per sequence ...")
                 directions = s.interpolate_direction()
 
+                # interpolate timestamps if there exist identical timestamps in consecutive photos
+                print("\n=== Interpolating timestamps per sequence ...")
+                timestamps = s.interpolate_timestamp()
+
                 # Add a sequence uuid per sub-folder
                 if len(s.file_list) > 0:
                     sequence_uuid = uuid.uuid4()
@@ -213,26 +221,36 @@ if __name__ == '__main__':
                 file_list = []
                 for i, filename in enumerate(s.file_list):
                     if is_image(filename):
+
                         filepath = os.path.join(filename)
+                        timestamp = timestamps[i]
+                        bearing = None
+                        external_properties = None
 
                         # Determine whether use interpolated direction or not
                         if interpolate_directions and len(s.file_list) > 1:
                             bearing = directions[filepath]
-                        else:
-                            bearing = None
+
+                        # Add original file name to EXIF
+                        if add_file_name:
+                            external_properties = {"file_name": os.path.abspath(filename)}
+
                         if verify_exif(filepath):
                             if not retry_upload:
                                 # skip creating new sequence id for failed images
                                 create_mapillary_description(filepath,
                                                              MAPILLARY_USERNAME,
                                                              MAPILLARY_EMAIL,
+                                                             MAPILLARY_USERKEY,
                                                              upload_token,
                                                              sequence_uuid,
                                                              bearing,
                                                              offset_angle,
+                                                             timestamp,
                                                              orientation,
                                                              project_key,
-                                                             secret_hash)
+                                                             secret_hash,
+                                                             external_properties)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)
@@ -256,7 +274,7 @@ if __name__ == '__main__':
             file_list = [str(f) for f in file_list if os.path.exists(f)]
             count = len(file_list)
             if secret_hash is None:
-                s3_bucket = MAPILLARY_USERNAME+"/"+str(sequence_uuid)+"/"
+                s3_bucket = MAPILLARY_USERNAME + "/" + str(sequence_uuid) + "/"
             else:
                 s3_bucket = ""
             s3_bucket_list.append(s3_bucket)

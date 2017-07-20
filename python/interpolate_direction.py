@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-import os, sys, pyexiv2
-from pyexiv2.utils import make_fraction
+import os
+import sys
 import argparse
-from lib.geo import compute_bearing, dms_to_decimal, offset_bearing
 from lib.sequence import Sequence
 from lib.exifedit import ExifEdit
 
@@ -18,7 +17,6 @@ An offset angele relative to the direction of movement may be given as an option
 argument to compensate for a sidelooking camera. This angle should be positive for
 clockwise offset. eg. 90 for a rightlooking camera and 270 (or -90) for a left looking camera
 
-@attention: Requires pyexiv2; see install instructions at http://tilloy.net/dev/pyexiv2/
 @author: mprins
 @license: MIT
 '''

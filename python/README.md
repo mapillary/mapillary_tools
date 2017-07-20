@@ -6,14 +6,9 @@ Python Tools for Mapillary
 * [exifread]
 * [gpxpy]
 * [PIL]
-* [pyexiv2]
-
-#### NOTE
-* [pyexiv2] is not compatible with Python 3. 
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
-    brew install pyexiv2
 
 If you don't have pip on your system, you can install it by `sudo easy_install pip`.
 
@@ -144,4 +139,3 @@ Script to download images using the Mapillary image search API. Downloads images
 [exifread]: https://pypi.python.org/pypi/ExifRead
 [gpxpy]: https://pypi.python.org/pypi/gpxpy
 [PIL]: https://pypi.python.org/pypi/Pillow/2.2.1
-[pyexiv2]: http://tilloy.net/dev/pyexiv2/

@@ -2,20 +2,11 @@
 
 from __future__ import division
 import sys
-import urllib2, urllib
 import os
-from Queue import Queue
-import hashlib
 import uuid
-import time
-import json
-import pyexiv2
-import datetime, time
-import base64
 
 from lib.uploader import get_upload_token, get_authentication_info
 from lib.exifedit import create_mapillary_description
-from lib.geo import dms_to_decimal
 
 '''
 Script for reading the EXIF data from images and create the
@@ -41,7 +32,6 @@ The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
--Orientation
 
 (assumes Python 2.x, for Python 3.x you need to change some module names)
 '''

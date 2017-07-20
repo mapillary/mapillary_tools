@@ -1,8 +1,9 @@
  #!/usr/bin/python
 
-import os, sys, pyexiv2, argparse, json
-from pyexiv2.utils import make_fraction
-from lib.geo import compute_bearing, dms_to_decimal, offset_bearing
+import os
+import argparse
+import json
+from lib.geo import offset_bearing
 from lib.sequence import Sequence
 from lib.exifedit import ExifEdit
 from lib.exif import EXIF
@@ -22,7 +23,6 @@ Image orientation can be overridden when needed (false reading from orientation 
 
 Updates Mapillary tags in JSON object stored in description field.
 
-@attention: Requires pyexiv2; see install instructions at http://tilloy.net/dev/pyexiv2/
 @author: mprins, kolesar-andras
 @license: MIT
 '''
@@ -58,12 +58,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    # see http://sylvana.net/jpegcrop/exif_orientation.html
     orientations = {
         0: 1,
         90: 6,
         180: 3,
         270: 8
-    } # see http://sylvana.net/jpegcrop/exif_orientation.html
+    }
 
     if args.orientation is not None:
         exifOrientation = orientations[args.orientation]
@@ -75,13 +76,12 @@ if __name__ == '__main__':
     for filename in s.get_file_list(args.path):
         stat = os.stat(filename)
         exifRead = EXIF(filename)
-        mapillaryTag = json.loads(exifRead.tags['Image ImageDescription'].values)
-        # print filename, exifRead.extract_orientation(), mapillaryTag['MAPCameraRotation']
+        mapillaryTag = json.loads(exifRead.extract_image_description())
 
         if args.interpolate:
-            bearing = bearings[filename];
+            bearing = bearings[filename]
         else:
-            bearing = exifRead.extract_direction();
+            bearing = exifRead.extract_direction()
 
         if args.offset:
             bearing = offset_bearing(bearing, args.offset)
@@ -103,10 +103,10 @@ if __name__ == '__main__':
                 if 'backup' not in mapillaryTag: mapillaryTag['backup'] = {}
                 mapillaryTag['backup']['MAPCameraRotation'] = mapillaryTag['MAPCameraRotation']
 
-            mapillaryTag['MAPOrientation'] = exifOrientation;
-            mapillaryTag['MAPCameraRotation'] = str(args.orientation);
+            mapillaryTag['MAPOrientation'] = exifOrientation
+            mapillaryTag['MAPCameraRotation'] = str(args.orientation)
 
-        exifEdit.add_image_description(json.dumps(mapillaryTag, sort_keys=True))
+        exifEdit.add_image_description(mapillaryTag)
         exifEdit.write()
 
         if args.timestamp:
