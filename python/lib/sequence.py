@@ -238,7 +238,7 @@ class Sequence(object):
                 updated_time = t + s
                 time_dict[t]["pointer"] += 1
                 timestamps.append(updated_time)
-        return timestamps
+        return timestamps, file_list
 
 
     def remove_duplicates(self, min_distance=1e-5, min_angle=5):

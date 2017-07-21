@@ -212,7 +212,8 @@ if __name__ == '__main__':
 
                 # interpolate timestamps if there exist identical timestamps in consecutive photos
                 print("\n=== Interpolating timestamps per sequence ...")
-                timestamps = s.interpolate_timestamp()
+                timestamps, sort_file_list = s.interpolate_timestamp()
+                s.file_list = sort_file_list
 
                 # Add a sequence uuid per sub-folder
                 if len(s.file_list) > 0:
