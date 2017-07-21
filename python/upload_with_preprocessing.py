@@ -6,7 +6,7 @@ import uuid
 import argparse
 import json
 
-from lib.uploader import get_authentication_info, get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
+from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
 import lib.uploader as uploader
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif
@@ -80,6 +80,7 @@ def get_args():
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
     parser.add_argument('--auto_done', help='don`t ask for confirmation after every sequence but submit all', action='store_true')
     parser.add_argument('--project', help="add project to EXIF (project name)", default=None)
+    parser.add_argument('--project_key', help="add project to EXIF (project key)", default=None)
     parser.add_argument('--add_file_name', help="add original file name to EXIF", action='store_true')
     parser.add_argument('--verbose', help='print debug info', action='store_true')
     parser.add_argument("--user", help="user name")
@@ -113,7 +114,7 @@ if __name__ == '__main__':
     offset_angle = args.offset_angle
     interpolate_directions = args.interpolate_directions
     orientation = args.orientation
-    project_key = get_project_key(args.project)
+    project_key = get_project_key(args.project, args.project_key)
     verbose = args.verbose
     auto_done = args.auto_done
     add_file_name = args.add_file_name

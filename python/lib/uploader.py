@@ -174,11 +174,11 @@ def get_full_authentication_info(user=None, email=None):
         sys.exit()
 
 
-def get_project_key(project_name):
+def get_project_key(project_name, project_key=None):
     '''
     Get project key given project name
     '''
-    if project_name is not None:
+    if project_name is not None or project_key is not None:
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = get_authentication_info()
         params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
         response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
@@ -190,11 +190,12 @@ def get_project_key(project_name):
         found = False
         print "Your projects: "
         for project in projects:
-            print project["name"]
-            if project['name'].decode('utf-8') == project_name:
+            print(project["name"])
+            project_name_matched = project['name'].encode('utf-8').decode('utf-8') == project_name
+            project_key_matched = project["key"] == project_key
+            if project_name_matched or project_key_matched:
                 found = True
-                project_key = project['key']
-                return project_key
+                return project['key']
 
         if not found:
             print "Project {} not found.".format(project_name)
