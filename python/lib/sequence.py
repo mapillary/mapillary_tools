@@ -83,6 +83,8 @@ class Sequence(object):
         '''
         Read capture times and sort files in time order.
         '''
+        if len(file_list) == 0:
+            return [], []
         capture_times = [self._read_capture_time(filepath) for filepath in file_list]
         sorted_times_files = zip(capture_times, file_list)
         sorted_times_files.sort()
@@ -210,34 +212,44 @@ class Sequence(object):
         timestamps = []
         file_list = self.file_list
         num_file = len(file_list)
+
         time_dict = OrderedDict()
+        capture_times, file_list = self.sort_file_list(file_list)
 
-        if num_file > 0:
-            capture_times, file_list = self.sort_file_list(file_list)
-            # trace identical timestamps (always assume capture_times is sorted)
-            time_dict = OrderedDict()
-            for i, t in enumerate(capture_times):
-                if t not in time_dict:
-                    time_dict[t] = {
-                        "count": 0,
-                        "pointer": 0
-                    }
+        if num_file < 2:
+            return capture_times, file_list
 
-                    interval = 0
-                    if i != 0:
-                        interval = (t - capture_times[i-1]).total_seconds()
-                        time_dict[capture_times[i-1]]["interval"] = interval
+        # trace identical timestamps (always assume capture_times is sorted)
+        time_dict = OrderedDict()
+        for i, t in enumerate(capture_times):
+            if t not in time_dict:
+                time_dict[t] = {
+                    "count": 0,
+                    "pointer": 0
+                }
 
-                time_dict[t]["count"] += 1
+                interval = 0
+                if i != 0:
+                    interval = (t - capture_times[i-1]).total_seconds()
+                    time_dict[capture_times[i-1]]["interval"] = interval
 
+            time_dict[t]["count"] += 1
+
+        if len(time_dict) >= 2:
+            # set time interval as the last available time interval
             time_dict[time_dict.keys()[-1]]["interval"] = time_dict[time_dict.keys()[-2]]["interval"]
+        else:
+            # set time interval assuming capture interval is 1 second
+            time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[0]["count"] * 1.
 
-            for f, t in zip(file_list, capture_times):
-                d = time_dict[t]
-                s = datetime.timedelta(seconds=d["pointer"] * d["interval"] / float(d["count"]))
-                updated_time = t + s
-                time_dict[t]["pointer"] += 1
-                timestamps.append(updated_time)
+        # interpolate timestampes
+        for f, t in zip(file_list, capture_times):
+            d = time_dict[t]
+            s = datetime.timedelta(seconds=d["pointer"] * d["interval"] / float(d["count"]))
+            updated_time = t + s
+            time_dict[t]["pointer"] += 1
+            timestamps.append(updated_time)
+
         return timestamps, file_list
 
 

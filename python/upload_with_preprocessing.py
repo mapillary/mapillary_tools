@@ -204,7 +204,11 @@ if __name__ == '__main__':
         sequence_list = {}
         for root, sub_folders, files in os.walk(path):
             if ('duplicates' not in root) and ('success' not in root):
+
                 s = Sequence(root, skip_folders=['duplicates', 'success'], skip_subfolders=True)
+
+                if len(s.file_list) == 0:
+                    continue
 
                 # interpolate compass direction if missing
                 print("\n=== Interpolating direction per sequence ...")
@@ -216,9 +220,8 @@ if __name__ == '__main__':
                 s.file_list = sort_file_list
 
                 # Add a sequence uuid per sub-folder
-                if len(s.file_list) > 0:
-                    sequence_uuid = uuid.uuid4()
-                    print("  sequence uuid: {}".format(sequence_uuid))
+                sequence_uuid = uuid.uuid4()
+                print("  sequence uuid: {}".format(sequence_uuid))
 
                 file_list = []
                 for i, filename in enumerate(s.file_list):
