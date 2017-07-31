@@ -195,7 +195,7 @@ if __name__ == "__main__":
                 "photo_id": p["photo_id"]
             }
             create_mapillary_description(
-                photo_file, args.user, email,
+                photo_file, args.user, email, None,
                 upload_token, sequence_ids[photo_file],
                 secret_hash=secret_hash,
                 external_properties=external_properties,

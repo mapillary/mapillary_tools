@@ -63,6 +63,7 @@ if __name__ == '__main__':
         print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
         for file in files:
             if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
-                create_mapillary_description(os.path.join(root,file), MAPILLARY_USERNAME, MAPILLARY_EMAIL, upload_token, sequence_uuid)
+                create_mapillary_description(os.path.join(root, file),
+                    MAPILLARY_USERNAME, MAPILLARY_EMAIL, None, upload_token, sequence_uuid)
             else:
-                print "Ignoring {0}".format(os.path.join(root,file))
+                print "Ignoring {0}".format(os.path.join(root, file))
