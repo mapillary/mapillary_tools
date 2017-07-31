@@ -251,6 +251,10 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
     lib.io.mkdir_p(failed_path)
 
     for attempt in range(MAX_ATTEMPTS):
+
+        # Initialize response before each attempt
+        response = None
+
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
@@ -261,7 +265,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
                 # print("Success: {0}".format(filename))
             else:
                 if move_files:
-                    os.rename(filepath, os.path.join(failed_path,filename))
+                    os.rename(filepath, os.path.join(failed_path, filename))
                 print("Failed: {0}".format(filename))
             break # attempts
 
