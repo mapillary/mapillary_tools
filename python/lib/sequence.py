@@ -240,7 +240,7 @@ class Sequence(object):
             time_dict[time_dict.keys()[-1]]["interval"] = time_dict[time_dict.keys()[-2]]["interval"]
         else:
             # set time interval assuming capture interval is 1 second
-            time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[0]["count"] * 1.
+            time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[0]]["count"] * 1.
 
         # interpolate timestampes
         for f, t in zip(file_list, capture_times):
