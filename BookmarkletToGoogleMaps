@@ -1,0 +1,16 @@
+javascript:
+(function() {
+params = location.href.match(/www.mapillary.com\/app\/.+lat=(-?\d{1,2}.\d+)&lng=(-?\d{1,2}.\d+)&z=(\d{1,2}.?\d*)/) ;
+if (params != null) {
+window.open("https://www.google.com/maps/@" + params[1] + "," + params[2] + "," + params[3] + "z") ;
+}
+else {
+params = location.href.match(/www.google.[a-z]{2,4}\/maps\/.*@(-?\d{1,3}.\d+),(-?\d{1,3}.\d+),(\d+.?\d{0,2})(a|m|z)/) ;
+if(params!=null) { window.open("https://www.mapillary.com/app/?lat="+params[1]+"&lng="+params[2]+"&z="+params[3]) ;
+}
+else {
+alert("mapillary <-> google maps\nimpossible") ;
+}
+}
+}
+)()
