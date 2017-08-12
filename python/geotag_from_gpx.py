@@ -99,7 +99,7 @@ def get_args():
         help='Time offset between GPX and photos. If your camera is ahead by one minute, time_offset is 60.',
         default=0, type=float)
     p.add_argument('--interval',
-        help='Time between shots. Used to set images times with sub-second precission',
+        help='Time between shots. Used to set images times with sub-second precision',
         type=float, default=0.0)
     p.add_argument('--bearing-offset',
         help='Direction of the camera in degrees, relative to the direction of travel',
