@@ -35,19 +35,29 @@ def create_mapillary_description(filename, username, email, userkey,
 
     # write the mapillary tag
     mapillary_description = {}
+
+    # lat, lon of the image, takes precedence over EXIF GPS values
     mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
+
+    # altitude of the image, takes precedence over EXIF GPS values, assumed 0 if missing
     mapillary_description["MAPAltitude"] = exif.extract_altitude()
 
-    # capture time: required date format: 2015_01_14_09_37_01_000
+    # capture time: required date format: 2015_01_14_09_37_01_000, TZ MUST be UTC
     if timestamp is None:
         timestamp = exif.extract_capture_time()
+
+    #  The capture time of the image in UTC. Will take precedence over any other time tags in the EXIF
     mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+
+    # EXIF orientation of the image
     mapillary_description["MAPOrientation"] = orientation
     heading = exif.extract_direction()
 
     if heading is None:
         heading = 0.0
     heading = normalize_bearing(interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
+
+    # bearing of the image
     mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
 
     # authentication
@@ -56,23 +66,34 @@ def create_mapillary_description(filename, username, email, userkey,
         mapillary_description["MAPSettingsEmail"] = email
     if username is not None:
         mapillary_description["MAPSettingsUsername"] = username
+
+    # use this if available, and omit MAPSettingsUsername and MAPSettingsEmail for privacy reasons
     if userkey is not None:
         mapillary_description["MAPSettingsUserKey"] = userkey
     if upload_hash is not None:
         settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+        # this is not checked in the backend right now, will likely be changed to have user_key instead of email as part
+        # of the hash
         mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
 
+    # a unique photo ID to check for duplicates in the backend in case the image gets uploaded more than once
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
+    # a sequene ID to make the images go together (order by MAPCaptureTime)
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
+
+    # The device model
     mapillary_description['MAPDeviceModel'] = exif.extract_model()
+
+    # The device manufacturer
     mapillary_description['MAPDeviceMake'] = exif.extract_make()
     if upload_hash is None and secret_hash is not None:
         mapillary_description['MAPVideoSecure'] = secret_hash
 
     mapillary_description["MAPSettingsProject"] = project
 
-    # external properties
+    # external properties (optional)
     if external_properties is not None:
+        # externl proerties can be saved and searched in Mapillary later on
         mapillary_description['MAPExternalProperties'] = external_properties
 
     # write to file
@@ -95,7 +116,10 @@ def add_mapillary_description(filename, username, email,
         image_description["MAPSettingsEmail"] = email
         image_description["MAPSettingsUsername"] = username
         settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+
         image_description['MAPSettingsUploadHash'] = settings_upload_hash
+
+        # if this image is part of a projet, the project UUID
         image_description["MAPSettingsProject"] = project
 
     assert("MAPSequenceUUID" in image_description)
