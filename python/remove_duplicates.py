@@ -1,8 +1,9 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import getopt
 import os
 import sys
+import shutil
 from math import asin, cos, radians, sin, sqrt
 
 from PIL import Image
@@ -237,7 +238,7 @@ class ImageRemover:
             os.makedirs(dir)
         filename = os.path.basename(file)
         if not self._dryrun:
-            os.rename(file, os.path.join(dir, filename))
+            shutil.move(file, os.path.join(dir, filename))
         print file, " => ", dir
 
     def _read_capture_time(self, filepath):

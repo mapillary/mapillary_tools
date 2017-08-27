@@ -3,6 +3,8 @@ import sys
 import lib.io
 import lib.geo
 from lib.exif import EXIF, verify_exif
+from collections import OrderedDict
+import datetime
 
 '''
 Sequence class for organizing/cleaning up photos in a folder
@@ -15,11 +17,11 @@ MAXIMUM_SEQUENCE_LENGTH = 1000
 
 class Sequence(object):
 
-    def __init__(self, filepath, skip_folders=[], skip_subfolders=False):
+    def __init__(self, filepath, skip_folders=[], skip_subfolders=False, check_exif=True):
         self.filepath = filepath
         self._skip_folders = skip_folders
         self._skip_subfolders = skip_subfolders
-        self.file_list = self.get_file_list(filepath)
+        self.file_list = self.get_file_list(filepath, check_exif)
         self.num_images = len(self.file_list)
 
     def _is_skip(self, filepath):
@@ -71,14 +73,18 @@ class Sequence(object):
             file_list = []
             for root, sub_folders, files in os.walk(self.filepath):
                 if not self._is_skip(root):
-                    file_list += [os.path.join(root, filename) for filename in files
-                                    if (filename.lower().endswith(".jpg")) and (verify_exif(os.path.join(root, filename)) or not check_exif)]
+                    image_files = [os.path.join(root, filename) for filename in files if (filename.lower().endswith(".jpg"))]
+                    if check_exif:
+                        image_files = [f for f in image_files if verify_exif(f)]
+                    file_list += image_files
         return file_list
 
     def sort_file_list(self, file_list):
         '''
         Read capture times and sort files in time order.
         '''
+        if len(file_list) == 0:
+            return [], []
         capture_times = [self._read_capture_time(filepath) for filepath in file_list]
         sorted_times_files = zip(capture_times, file_list)
         sorted_times_files.sort()
@@ -107,7 +113,7 @@ class Sequence(object):
         '''
         self.file_list = file_list
 
-    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH):
+    def split(self, cutoff_distance=500., cutoff_time=None, max_sequence_length=MAXIMUM_SEQUENCE_LENGTH, move_files=True, verbose=False, skip_cutoff=False):
         '''
         Split photos into sequences in case of large distance gap or large time interval
         @params cutoff_distance: maximum distance gap in meters
@@ -132,6 +138,8 @@ class Sequence(object):
 
             # if cutoff time is given use that, else assume cutoff is 1.5x median time delta
             if cutoff_time is None:
+                if verbose:
+                    print "Cut-off time is None"
                 median = sorted(capture_deltas)[len(capture_deltas)//2]
                 if type(median) is not  int:
                     median = median.total_seconds()
@@ -149,19 +157,21 @@ class Sequence(object):
                     # delta too big, save current group, start new
                     groups.append(group)
                     group = [filepath]
-                    if cut_distance:
-                        print 'Cut {}: Delta in distance {} meters is too big at {}'.format(cut,distances[i], file_list[i+1])
-                    elif cut_time:
-                        print 'Cut {}: Delta in time {} seconds is too big at {}'.format(cut, capture_deltas[i].total_seconds(), file_list[i+1])
-                    elif cut_sequence_length:
-                        print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
+                    if verbose:
+                        if cut_distance:
+                            print 'Cut {}: Delta in distance {} meters is too bigger than cutoff_distance {} meters at {}'.format(cut,distances[i], cutoff_distance, file_list[i+1])
+                        elif cut_time:
+                            print 'Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i+1])
+                        elif cut_sequence_length:
+                            print 'Cut {}: Maximum sequence length {} reached at {}'.format(cut, max_sequence_length, file_list[i+1])
                 else:
                     group.append(filepath)
 
             groups.append(group)
 
             # move groups to subfolders
-            self.move_groups(groups)
+            if move_files:
+                self.move_groups(groups)
 
             print("Done split photos in {} into {} sequences".format(self.filepath, len(groups)))
         return groups
@@ -176,24 +186,72 @@ class Sequence(object):
         file_list = self.file_list
         num_file = len(file_list)
 
-        if num_file>1:
+        if num_file > 1:
             # sort based on EXIF capture time
             capture_times, file_list = self.sort_file_list(file_list)
 
             # read gps for ordered files
             latlons = [self._read_lat_lon(filepath) for filepath in file_list]
 
-            if len(file_list)>1:
+            if len(file_list) > 1:
                 # bearing between consecutive images
                 bearings = [lib.geo.compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
-                                for ll1, ll2 in zip(latlons, latlons[1:])]
+                    for ll1, ll2 in zip(latlons, latlons[1:])]
                 bearings.append(bearings[-1])
                 bearings = {file_list[i]: lib.geo.offset_bearing(b, offset) for i, b in enumerate(bearings)}
-        elif num_file==1:
+        elif num_file == 1:
             #if there is only one file in the list, just write the direction 0 and offset
             bearings = {file_list[0]: lib.geo.offset_bearing(0.0, offset)}
 
         return bearings
+
+    def interpolate_timestamp(self):
+        '''
+        Interpolate time stamps in case of identical timestamps within a sequence
+        '''
+        timestamps = []
+        file_list = self.file_list
+        num_file = len(file_list)
+
+        time_dict = OrderedDict()
+        capture_times, file_list = self.sort_file_list(file_list)
+
+        if num_file < 2:
+            return capture_times, file_list
+
+        # trace identical timestamps (always assume capture_times is sorted)
+        time_dict = OrderedDict()
+        for i, t in enumerate(capture_times):
+            if t not in time_dict:
+                time_dict[t] = {
+                    "count": 0,
+                    "pointer": 0
+                }
+
+                interval = 0
+                if i != 0:
+                    interval = (t - capture_times[i-1]).total_seconds()
+                    time_dict[capture_times[i-1]]["interval"] = interval
+
+            time_dict[t]["count"] += 1
+
+        if len(time_dict) >= 2:
+            # set time interval as the last available time interval
+            time_dict[time_dict.keys()[-1]]["interval"] = time_dict[time_dict.keys()[-2]]["interval"]
+        else:
+            # set time interval assuming capture interval is 1 second
+            time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[0]]["count"] * 1.
+
+        # interpolate timestampes
+        for f, t in zip(file_list, capture_times):
+            d = time_dict[t]
+            s = datetime.timedelta(seconds=d["pointer"] * d["interval"] / float(d["count"]))
+            updated_time = t + s
+            time_dict[t]["pointer"] += 1
+            timestamps.append(updated_time)
+
+        return timestamps, file_list
+
 
     def remove_duplicates(self, min_distance=1e-5, min_angle=5):
         '''
@@ -235,7 +293,6 @@ class Sequence(object):
             else:
                 # Not use bearing difference if no bearings are available
                 bearing_diff = 360
-
             if distance < min_distance and bearing_diff < min_angle:
                 is_duplicate = True
             else:
@@ -250,6 +307,7 @@ class Sequence(object):
                 group = []
 
             is_duplicate = False
+        groups.append(group)
 
         # move to filepath/duplicates/group_id (TODO: uploader should skip the duplicate folder)
         self.move_groups(groups, 'duplicates')

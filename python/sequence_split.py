@@ -1,7 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 import os
+import argparse
 from datetime import datetime
 from lib.exif import EXIF
 from lib.sequence import Sequence
@@ -29,19 +30,18 @@ time difference.
 
 if __name__ == '__main__':
     '''
-    Use from command line as: python sequence_split.py path [cutoff_time] [cutoff_time]
+    Use from command line as: python sequence_split.py path [cutoff_time] [cutoff_distance]
     @params path: path to the photos
     @params cutoff_time: cutoff time in seconds
     @params cutoff_distance: cutoff distance in meters
     '''
 
     if len(sys.argv) > 4 or len(sys.argv) < 2:
-        print("Usage: python sequence_split.py path [cutoff_time] [cutoff_distance] ")
-        raise IOError("Bad input parameters.")
+        sys.exit("Usage: python sequence_split.py path [cutoff_time] [cutoff_distance] ")
 
     path = sys.argv[1]
-    cutoff_time = None if len(sys.argv)<3 else float(sys.argv[2])
-    cutoff_distance = 500 if len(sys.argv)<4 else float(sys.argv[3])
+    cutoff_time = None if len(sys.argv) < 3 else float(sys.argv[2])
+    cutoff_distance = 500 if len(sys.argv) < 4 else float(sys.argv[3])
 
     s = Sequence(path)
     groups = s.split(cutoff_distance=cutoff_distance, cutoff_time=cutoff_time)

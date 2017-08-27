@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import datetime
 import math
 
 WGS84_a = 6378137.0
@@ -70,6 +71,18 @@ def decimal_to_dms(value, loc):
     sec = round((t1 - mint)* 60, 6)
     return (deg, mint, sec, loc_value)
 
+def gpgga_to_dms(gpgga):
+    '''
+    Convert GPS coordinate in GPGGA format to degree/minute/second
+
+    Reference: http://us.cactii.net/~bb/gps.py
+    '''
+    deg_min, dmin = gpgga.split('.')
+    degrees = int(deg_min[:-2])
+    minutes = float('%s.%s' % (deg_min[-2:], dmin))
+    decimal = degrees + (minutes/60)
+    return decimal
+
 def utc_to_localtime(utc_time):
     utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
     return utc_time - utc_offset_timedelta
@@ -111,45 +124,68 @@ def diff_bearing(b1, b2):
     d = 360-d if d>180 else d
     return d
 
+
 def offset_bearing(bearing, offset):
     '''
     Add offset to bearing
     '''
-    bearing = (bearing + offset + 360) % 360
+    bearing = (bearing + offset) % 360
     return bearing
 
-def normalize_bearing(bearing):
-    if bearing > 360:
+def normalize_bearing(bearing, check_hex=False):
+    '''
+    Normalize bearing and convert from hex if
+    '''
+    if bearing > 360 and check_hex:
         # fix negative value wrongly parsed in exifread
         # -360 degree -> 4294966935 when converting from hex
         bearing = bin(int(bearing))[2:]
         bearing = ''.join([str(int(int(a)==0)) for a in bearing])
         bearing = -float(int(bearing, 2))
-        bearing %= 360
-    bearing = (bearing+360.0)%360
+    bearing %= 360
     return bearing
 
-def interpolate_lat_lon(points, t):
+def interpolate_lat_lon(points, t, max_dt=1):
     '''
     Return interpolated lat, lon and compass bearing for time t.
 
     Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
     '''
-
     # find the enclosing points in sorted list
-    if t<points[0][0]:
-        raise ValueError("Photo's timestamp is earlier than the earliest time in the GPX file.")
-    if t>=points[-1][0]:
-        raise ValueError("Photo's timestamp is later than the latest time in the GPX file.")
+    if (t<=points[0][0]) or (t>=points[-1][0]):
+        if t<=points[0][0]:
+            dt = abs((points[0][0]-t).total_seconds())
+        else:
+            dt = (t-points[-1][0]).total_seconds()
+        if dt>max_dt:
+            raise ValueError("Time t not in scope of gpx file.")
+        else:
+            print ("Warning: Time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
 
-    for i,point in enumerate(points):
-        if t<point[0]:
-            if i>0:
-                before = points[i-1]
-            else:
-                before = points[i]
-            after = points[i]
-            break
+        if t < points[0][0]:
+            before = points[0]
+            after = points[1]
+        else:
+            before = points[-2]
+            after = points[-1]
+        bearing = compute_bearing(before[1], before[2], after[1], after[2])
+
+        if t==points[0][0]:
+            x = points[0]
+            return (x[1], x[2], bearing, x[3])
+
+        if t==points[-1][0]:
+            x = points[-1]
+            return (x[1], x[2], bearing, x[3])
+    else:
+        for i,point in enumerate(points):
+            if t<point[0]:
+                if i>0:
+                    before = points[i-1]
+                else:
+                    before = points[i]
+                after = points[i]
+                break
 
     # time diff
     dt_before = (t-before[0]).total_seconds()

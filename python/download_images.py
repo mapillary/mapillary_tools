@@ -1,12 +1,11 @@
-import sys
+#!/usr/bin/env python
 import urllib2, urllib
 import json
 import os
 import shutil
+import argparse
 
-
-MAPILLARY_API_IM_SEARCH_URL = 'http://api.mapillary.com/v1/im/search?'
-MAX_RESULTS = 400
+MAPILLARY_API_IM_SEARCH_URL = 'https://a.mapillary.com/v1/im/search?'
 BASE_DIR = 'downloaded/'
 
 
@@ -66,29 +65,23 @@ if __name__ == '__main__':
     from your own scripts.
     '''
 
-    # handle command line parameters
-    if len(sys.argv) < 5:
-        print("Usage: python download_images.py min_lat max_lat min_lon max_lon max_results(optional)")
-
-    try:
-        min_lat, max_lat, min_lon, max_lon = sys.argv[1:5]
-    except:
-        print("Usage: python download_images.py min_lat max_lat min_lon max_lon max_results(optional)")
-        raise IOError("Bad input parameters.")
-
-    if len(sys.argv)==6:
-        max_results = sys.argv[5]
-    else:
-        max_results = MAX_RESULTS
+    parser = argparse.ArgumentParser()
+    parser.add_argument('min_lat', type=float)
+    parser.add_argument('max_lat', type=float)
+    parser.add_argument('min_lon', type=float)
+    parser.add_argument('max_lon', type=float)
+    parser.add_argument('--max_results', type=int, default=400)
+    parser.add_argument('--image_size', type=int, default=1024, choices=[320,640,1024,2048])
+    args = parser.parse_args()
 
     # query api
-    query = query_search_api(min_lat, max_lat, min_lon, max_lon, max_results)
+    query = query_search_api(args.min_lat, args.max_lat, args.min_lon, args.max_lon, args.max_results)
 
     # create directories for saving
     create_dirs(BASE_DIR)
 
     # download
-    downloaded_list = download_images(query, path=BASE_DIR)
+    downloaded_list = download_images(query, path=BASE_DIR, size=args.image_size)
 
     # save filename with lat, lon
     with open(BASE_DIR+"downloaded.txt", "w") as f:

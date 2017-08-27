@@ -1,19 +1,11 @@
-from lib.exif import EXIF, exif_gps_fields, exif_datetime_fields, verify_exif
-from lib.geo import dms_to_decimal, normalize_bearing
-from lib.exifedit import ExifEdit
+from lib.exif import EXIF
 import lib.io
-
-import pyexiv2
 import json
 import os
-import datetime
-import hashlib
-import base64
-import uuid
 import string
 import threading
 import sys
-import urllib2, urllib
+import urllib2, urllib, httplib
 import socket
 import mimetypes
 import random
@@ -25,6 +17,7 @@ import time
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
@@ -55,46 +48,6 @@ class UploadThread(threading.Thread):
 def create_dirs(root_path=''):
     lib.io.mkdir_p(os.path.join(root_path, "success"))
     lib.io.mkdir_p(os.path.join(root_path, "failed"))
-
-
-def create_mapillary_description(filename, username, email, upload_hash, sequence_uuid, interpolated_heading=0.0, verbose=False):
-    '''
-    Check that image file has the required EXIF fields.
-
-    Incompatible files will be ignored server side.
-    '''
-    # read exif
-    exif = EXIF(filename)
-
-    if not verify_exif(filename):
-        return False
-
-    # write the mapillary tag
-    mapillary_description = {}
-    mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
-    #required date format: 2015_01_14_09_37_01_000
-    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(exif.extract_capture_time(), "%Y_%m_%d_%H_%M_%S_%f")[:-3]
-    mapillary_description["MAPOrientation"] = exif.extract_orientation()
-    heading = exif.extract_direction()
-    heading = normalize_bearing(interpolated_heading) if heading is None else normalize_bearing(heading)
-    mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
-    mapillary_description["MAPSettingsUploadHash"] = upload_hash
-    mapillary_description["MAPSettingsEmail"] = email
-    mapillary_description["MAPSettingsUsername"] = username
-    settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
-    mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
-    mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
-    mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
-    mapillary_description['MAPDeviceModel'] = exif.extract_model()
-    mapillary_description['MAPDeviceMake'] = exif.extract_make()
-
-    # write to file
-    json_desc = json.dumps(mapillary_description)
-    if verbose:
-        print "tag: {0}".format(json_desc)
-    metadata = ExifEdit(filename)
-    metadata.add_image_description(json_desc)
-    metadata.write()
 
 
 def encode_multipart(fields, files, boundary=None):
@@ -150,13 +103,16 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3):
+def finalize_upload(params, retry=3, auto_done=False):
     '''
     Finalize and confirm upload
     '''
     # retry if input is unclear
     for i in range(retry):
-        proceed = raw_input("Finalize upload? [y/n]: ")
+        if not auto_done:
+            proceed = raw_input("Finalize upload? [y/n]: ")
+        else:
+            proceed = "y"
         if proceed in ["y", "Y", "yes", "Yes"]:
             # upload an empty DONE file
             upload_done_file(params)
@@ -176,7 +132,7 @@ def get_upload_token(mail, pwd):
     Get upload token
     '''
     params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
     resp = json.loads(response.read())
     return resp['upload_token']
 
@@ -192,6 +148,59 @@ def get_authentication_info():
     except KeyError:
         return None
     return MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
+
+
+def get_full_authentication_info(user=None, email=None):
+    # Fetch full authetication info
+    try:
+        MAPILLARY_EMAIL = email if email is not None else os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
+        MAPILLARY_UPLOAD_TOKEN = None
+
+        if MAPILLARY_SECRET_HASH is None:
+            MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
+            MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
+            MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
+            MAPILLARY_UPLOAD_TOKEN = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
+            UPLOAD_URL = MAPILLARY_UPLOAD_URL
+        else:
+            secret_hash = MAPILLARY_SECRET_HASH
+            MAPILLARY_PERMISSION_HASH = PERMISSION_HASH
+            MAPILLARY_SIGNATURE_HASH = SIGNATURE_HASH
+            UPLOAD_URL = MAPILLARY_DIRECT_UPLOAD_URL
+        return MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, MAPILLARY_SECRET_HASH, UPLOAD_URL
+    except KeyError:
+        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
+        sys.exit()
+
+
+def get_project_key(project_name, project_key=None):
+    '''
+    Get project key given project name
+    '''
+    if project_name is not None or project_key is not None:
+        MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = get_authentication_info()
+        params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
+        response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
+        response_read = response.read()
+        resp = json.loads(response_read)
+        projects = resp['projects']
+
+        # check projects
+        found = False
+        print "Your projects: "
+        for project in projects:
+            print(project["name"])
+            project_name_matched = project['name'].encode('utf-8').decode('utf-8') == project_name
+            project_key_matched = project["key"] == project_key
+            if project_name_matched or project_key_matched:
+                found = True
+                return project['key']
+
+        if not found:
+            print "Project {} not found.".format(project_name)
+
+    return ""
 
 
 def upload_done_file(params):
@@ -242,6 +251,10 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
     lib.io.mkdir_p(failed_path)
 
     for attempt in range(MAX_ATTEMPTS):
+
+        # Initialize response before each attempt
+        response = None
+
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
@@ -252,7 +265,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
                 # print("Success: {0}".format(filename))
             else:
                 if move_files:
-                    os.rename(filepath, os.path.join(failed_path,filename))
+                    os.rename(filepath, os.path.join(failed_path, filename))
                 print("Failed: {0}".format(filename))
             break # attempts
 
@@ -262,12 +275,18 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
         except urllib2.URLError as e:
             print("URL error: {0} on {1}".format(e, filename))
             time.sleep(5)
+        except httplib.HTTPException as e:
+            print("HTTP exception: {0} on {1}".format(e, filename))
+            time.sleep(5)
         except OSError as e:
             print("OS error: {0} on {1}".format(e, filename))
             time.sleep(5)
         except socket.timeout as e:
             # Specific timeout handling for Python 2.7
             print("Timeout error: {0} (retrying)".format(filename))
+        finally:
+            if response is not None:
+                response.close()
 
 
 def upload_file_list(file_list, params=UPLOAD_PARAMS):
@@ -318,5 +337,3 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
     return lines
-
-

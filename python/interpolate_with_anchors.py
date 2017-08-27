@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import datetime
 from lib.geo import interpolate_lat_lon, compute_bearing, offset_bearing
 from lib.sequence import Sequence
@@ -52,8 +54,8 @@ def test_run(image_path):
     '''
     Test run for images
     '''
-    s = Sequence(image_path)
-    file_list = s.get_file_list(image_path, check_exif=False)
+    s = Sequence(image_path, check_exif=False)
+    file_list = s.get_file_list(image_path)
     num_image = len(file_list)
 
     t1 = datetime.datetime.strptime('2000_09_03_12_00_00', '%Y_%m_%d_%H_%M_%S')

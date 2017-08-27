@@ -1,11 +1,24 @@
-import pyexiv2
+#!/usr/bin/env python
 import sys
 import os
 import json
 import urllib
+import argparse
+
+from lib import io
+from lib.exifedit import ExifEdit
+from lib.exif import EXIF
 
 reload(sys)
 sys.setdefaultencoding("utf-8")
+
+def get_args():
+    parser = argparse.ArgumentParser(description='Add project id to Mapillary EXIF')
+    parser.add_argument('path', help='path to your photos')
+    parser.add_argument('project_name', help='name of the project')
+    parser.add_argument('--overwrite', help='overwrite existing project id', action='store_true')
+    args = parser.parse_args()
+    return args
 
 if __name__ == '__main__':
     '''
@@ -19,30 +32,23 @@ if __name__ == '__main__':
         MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
 
     except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
-        sys.exit()
+        sys.exit("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL or MAPILLARY_PASSWORD. These are required.")
 
-
-    if len(sys.argv) != 3:
-        print("Usage: python add_project.py path 'project name'")
-        raise IOError("Bad input parameters.")
-
-    path = sys.argv[1]
-    project_name = sys.argv[2]
+    args = get_args()
+    path = args.path
+    project_name = args.project_name
+    overwrite = args.overwrite
     print "Adding images in %s to project '%s'" % (path, project_name)
 
     # log in, get the projects
     params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
-    response =urllib.urlopen("https://api.mapillary.com/v1/u/login", params)
+    response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
     response_read = response.read()
-    print response_read
     resp = json.loads(response_read)
-    print json.dumps(resp)
-    # print resp
     projects = resp['projects']
     upload_token = resp['upload_token']
 
-    #check projects
+    # check projects
     found = False
     print "Your projects:"
     for project in projects:
@@ -50,13 +56,11 @@ if __name__ == '__main__':
             found = True
             project_key = project['key']
 
-    if not found :
-       for project in projects:
-           print project['name']
-       print "Could not find project name '%s' in your projects, exiting." % project_name
-       sys.exit()
-
-
+    if not found:
+        for project in projects:
+            print project['name']
+        print "Could not find project name '%s' in your projects, exiting." % project_name
+        sys.exit()
 
     if path.lower().endswith(".jpg"):
         # single file
@@ -67,18 +71,20 @@ if __name__ == '__main__':
         for root, sub_folders, files in os.walk(path):
             file_list += [os.path.join(root, filename) for filename in files if filename.lower().endswith(".jpg")]
 
-    for filepath in file_list:
-        base, filename = os.path.split(filepath)
-        print "Processing %s" % filename
-        exif = pyexiv2.ImageMetadata(filepath)
-        exif.read()
-        description_ = exif['Exif.Image.ImageDescription'].value
-        imgDesc = json.loads(description_)
-        imgDesc['MAPSettingsProject'] = project_key
-        exif['Exif.Image.ImageDescription'].value = json.dumps(imgDesc)
-        exif.write()
+    num_file = len(file_list)
+    for i, filepath in enumerate(file_list):
+        exif = EXIF(filepath)
+        description_ = exif.extract_image_description()
+        exif_edit = ExifEdit(filepath)
+        try:
+            description_ = json.loads(description_)
+        except:
+            description_ = {}
 
+        if 'MAPSettingsProject' not in description_ or overwrite:
+            description_['MAPSettingsProject'] = project_key
+            description_ = {}
+            exif_edit.add_image_description(description_)
+            exif_edit.write()
 
-    print "Done, processed %s files" % len(file_list)
-
-
+    print("Done, processed %s files" % len(file_list))

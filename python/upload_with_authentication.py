@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import sys
 import urllib2, urllib
@@ -55,11 +55,14 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Upload images with authentication')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--skip_subfolders', help='option to skip subfolders', action='store_true')
+    parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
+    parser.add_argument('--auto_done', help='option to send DONE file without user confirmation', action='store_true')
+
     args = parser.parse_args()
 
-    path = sys.argv[1]
-    skip_subfolders = args.skip_subfolders
+    path = args.path
+    skip_subfolders = not args.upload_subfolders
+    auto_done = args.auto_done
 
     # if no success/failed folders, create them
     create_dirs()
@@ -96,6 +99,7 @@ if __name__ == '__main__':
     print("Uploading sequence {0}.".format(sequence_id))
 
     # check mapillary tag and required exif
+    num_image_file = len(s.file_list)
     file_list = []
     for filepath in s.file_list:
         mapillary_tag_exists = EXIF(filepath).mapillary_tag_exists()
@@ -110,8 +114,9 @@ if __name__ == '__main__':
             file_list.append(filepath)
 
     #upload valid files
+    print ("Uploading {} images with valid exif tags (Skipping {}) ...".format(len(file_list), num_image_file-len(file_list)))
     upload_file_list(file_list, params)
 
     # ask user if finalize upload to check that everything went fine
     print("===\nFinalizing upload will submit all successful uploads and ignore all failed.\nIf all files were marked as successful, everything is fine, just press 'y'.")
-    finalize_upload(params)
+    finalize_upload(params, auto_done=auto_done)

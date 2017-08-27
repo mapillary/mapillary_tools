@@ -3,14 +3,14 @@ Python Tools for Mapillary
 
 ## Dependencies
 
-* [exifread] []
-* [gpxpy] []
-* [PIL] []
-* [pyexiv2] []
+* [exifread]
+* [gpxpy]
+* [PIL]
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
-    brew install pyexiv2
+
+If you don't have pip on your system, you can install it by `sudo easy_install pip`.
 
 ## Preprocessing
 Use these scripts to process your photos before uploading to improve the upload quality.
@@ -46,7 +46,7 @@ Writes the project tokens to the EXIF of images in the given path. This way, you
 
 A lightweight script for geotagging images with GPS data from a gpx file. Writes lat, lon, and bearing to the right EXIF tags. Use it like:
 
-    python geotag_from_gpx.py path-to-images/ gpx_file [time_offset]
+    python geotag_from_gpx.py path-to-images/ gpx_file --time-offset [time_offset]
 
 The time_offset is optional and is used if your camera clock is offset from your GPS clock. (Requires gpxpy, e.g. 'pip install gpxpy').
 
@@ -56,7 +56,7 @@ The time_offset is optional and is used if your camera clock is offset from your
 Interpolates the direction of an image based on the coordinates stored in
 the EXIF tag of the next image in a set of consecutive images.
 
-    python interpolate_direction.py path-to-images/ [offset_angle]
+    python interpolate_direction.py path-to-images/ --offset_angle [offset_angle]
 
 
 **remove_duplicates.py**
@@ -87,6 +87,9 @@ This script uploads images taken with any of the Mapillary apps to the Mapillary
 
     python upload.py path-to-images/
 
+To upload multiple sequences at once use the following syntax with the additional arguement:
+
+    python upload.py path-to-images/ --upload_subfolders
 
 On Android Systems you can find the images under `/storage/emulated/0/Android/data/app.mapillary/files/pictures/`.
 
@@ -101,9 +104,9 @@ Script for uploading images taken with other cameras than the Mapillary apps. Yo
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
-If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](http://www.mapillary.com/map/upload) and pressing "push to Mapillary".
+If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](https://legacy.mapillary.com/map/upload/im) and pressing "push to Mapillary".
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/settings/developers))
 
 **upload_with_preprocessing.py**
 
@@ -113,15 +116,14 @@ the Mapillary iOS or Android apps.
     python upload_with_preprocessing.py path-to-images/
 
 It runs in the following steps:
-    
+
 - Skip images that are potential duplicates (optional with --remove_duplicates)
-- Group images into sequences based on gps and time 
-- Interpolate compass angles for each sequence 
+- Group images into sequences based on gps and time
+- Interpolate compass angles for each sequence
 - Add Mapillary tags to the images
 - Upload the images
 
-(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload hashes](http://api.mapillary.com/v1/u/uploadhashes))
-
+(Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/settings/developers))
 
 ## Download
 
@@ -131,7 +133,7 @@ Download images from Mapillary.
 
 Script to download images using the Mapillary image search API. Downloads images inside a rect (min_lat, max_lat, min_lon, max_lon).
 
-    download_images.py min_lat max_lat min_lon max_lon [max_results]
+    download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 
 
 **download_gpx_from_sequences.py**
@@ -150,4 +152,3 @@ a fast way to join a lot of GPX files downloaded from mapillary if you use downl
 [exifread]: https://pypi.python.org/pypi/ExifRead
 [gpxpy]: https://pypi.python.org/pypi/gpxpy
 [PIL]: https://pypi.python.org/pypi/Pillow/2.2.1
-[pyexiv2]: http://tilloy.net/dev/pyexiv2/

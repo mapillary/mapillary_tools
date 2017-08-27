@@ -1,23 +1,24 @@
 #!/usr/bin/env python
-import os.path, sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import os
+import sys
 import exifread
 import datetime
-import json
 from lib.geo import normalize_bearing
 
-#TODO: replace exifread with pyexiv2
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def eval_frac(value):
     return float(value.num) / float(value.den)
-
 
 def exif_gps_fields():
     '''
     GPS fields in EXIF
     '''
-    return [  ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
-              ["GPS GPSLatitude", "EXIF GPS GPSLatitude"] ]
+    return [
+        ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
+        ["GPS GPSLatitude", "EXIF GPS GPSLatitude"]
+    ]
 
 
 def exif_datetime_fields():
@@ -34,6 +35,18 @@ def exif_datetime_fields():
              "EXIF GPS GPSDate",
              "EXIF DateTimeModified"]]
 
+def format_time(time_string):
+    '''
+    Format time string with invalid time elements in hours/minutes/seconds
+    Format for the timestring needs to be "%Y_%m_%d_%H_%M_%S"
+
+    e.g. 2014_03_31_24_10_11 => 2014_04_01_00_10_11
+    '''
+    data = time_string.split("_")
+    hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
+    date = datetime.datetime.strptime("_".join(data[:3]), "%Y_%m_%d")
+    date_time = date + datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
+    return date_time
 
 def gps_to_decimal(values, reference):
     sign = 1 if reference in 'NE' else -1
@@ -82,8 +95,17 @@ def verify_exif(filename):
     required_exif_exist = exif.fields_exist(required_exif)
     return required_exif_exist
 
+
+def verify_mapillary_tag(filename):
+    '''
+    Check that image file has the required Mapillary tag
+    '''
+    return EXIF(filename).mapillary_tag_exists()
+
+
 def is_image(filename):
     return filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
+
 
 class EXIF:
     '''
@@ -94,7 +116,7 @@ class EXIF:
         Initialize EXIF object with FILE as filename or fileobj
         '''
         self.filename = filename
-        if type(filename)==str:
+        if type(filename) == str:
             with open(filename, 'rb') as fileobj:
                 self.tags = exifread.process_file(fileobj, details=details)
         else:
@@ -124,7 +146,8 @@ class EXIF:
         '''
         lon, lat = self.extract_lon_lat()
         ca = self.extract_direction()
-        if ca is None: ca = 0
+        if ca is None:
+            ca = 0
         ca = int(ca)
         date_time = self.extract_capture_time()
         date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
@@ -138,7 +161,7 @@ class EXIF:
         Extract altitude
         '''
         fields = ['GPS GPSAltitude', 'EXIF GPS GPSAltitude']
-        altitude, _ = self._extract_alternative_fields(fields)
+        altitude, _ = self._extract_alternative_fields(fields, 0, float)
         return altitude
 
 
@@ -150,17 +173,24 @@ class EXIF:
         '''
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
-        capture_time = capture_time.replace(" ","_")
-        capture_time = capture_time.replace(":","_")
-        capture_time = datetime.datetime.strptime(capture_time, '%Y_%m_%d_%H_%M_%S')
-        sub_sec = self.extract_subsec()
-        capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/1e6)
+
+        # if "GPSDate" in time_field:
+        #     return self.extract_gps_time()
+
         if capture_time is 0:
             # try interpret the filename
             try:
                 capture_time = datetime.datetime.strptime(os.path.basename(self.filename)[:-4]+'000', '%Y_%m_%d_%H_%M_%S_%f')
             except:
                 pass
+        else:
+            capture_time = capture_time.replace(" ", "_")
+            capture_time = capture_time.replace(":", "_")
+            capture_time = "_".join(["{0:02d}".format(int(ts)) for ts in capture_time.split("_") if ts.isdigit()])
+            capture_time = format_time(capture_time)
+            sub_sec = self.extract_subsec()
+            capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
+
         return capture_time
 
 
@@ -173,7 +203,9 @@ class EXIF:
                   'GPS GPSTrack',
                   'EXIF GPS GPSTrack']
         direction, _ = self._extract_alternative_fields(fields)
-        if direction is not None: direction = normalize_bearing(direction)
+
+        if direction is not None:
+            direction = normalize_bearing(direction, check_hex=True)
         return direction
 
 
@@ -203,6 +235,27 @@ class EXIF:
             d['dop'] = dop
         return d
 
+    def extract_gps_time(self):
+        '''
+        Extract timestamp from GPS field.
+        '''
+        gps_date_field = "GPS GPSDate"
+        gps_time_field = "GPS GPSTimeStamp"
+        gps_time = 0
+        if gps_date_field in self.tags and gps_time_field in self.tags:
+            date = str(self.tags[gps_date_field].values).split(":")
+            t = self.tags[gps_time_field]
+            gps_time = datetime.datetime(
+                    year=int(date[0]),
+                    month=int(date[1]),
+                    day=int(date[2]),
+                    hour=int(eval_frac(t.values[0])),
+                    minute=int(eval_frac(t.values[1])),
+                    second=int(eval_frac(t.values[2])),
+                )
+            microseconds = datetime.timedelta(microseconds=int( (eval_frac(t.values[2])%1) *1e6))
+            gps_time += microseconds
+        return gps_time
 
     def extract_exif(self):
         '''
@@ -215,14 +268,14 @@ class EXIF:
         capture = self.extract_capture_time()
         direction = self.extract_direction()
         d = {
-                'width': width,
-                'height': height,
-                'orientation': orientation,
-                'direction': direction,
-                'make': make,
-                'model': model,
-                'capture_time': capture
-            }
+            'width': width,
+            'height': height,
+            'orientation': orientation,
+            'direction': direction,
+            'make': make,
+            'model': model,
+            'capture_time': capture
+        }
         d['gps'] = geo
         return d
 
@@ -234,6 +287,14 @@ class EXIF:
         width, _ = self._extract_alternative_fields(['Image ImageWidth', 'EXIF ExifImageWidth'], -1, int)
         height, _ = self._extract_alternative_fields(['Image ImageLength', 'EXIF ExifImageLength'], -1, int)
         return width, height
+
+
+    def extract_image_description(self):
+        '''
+        Extract image description
+        '''
+        description, _ = self._extract_alternative_fields(['Image ImageDescription'], "{}", str)
+        return description
 
 
     def extract_lon_lat(self):
@@ -276,6 +337,8 @@ class EXIF:
         '''
         fields = ['Image Orientation']
         orientation, _ = self._extract_alternative_fields(fields, default=1, field_type=int)
+        if orientation not in [1, 3, 6, 8]:
+            return 1
         return orientation
 
 
@@ -283,13 +346,14 @@ class EXIF:
         '''
         Extract microseconds
         '''
-        fields = ['Image SubSecTimeOriginal',
-                  'EXIF SubSecTimeOriginal',
-                  'Image SubSecTimeDigitized',
-                  'EXIF SubSecTimeDigitized',
-                  'Image SubSecTime',
-                  'EXIF SubSecTime'
-                 ]
+        fields = [
+            'Image SubSecTimeOriginal',
+            'EXIF SubSecTimeOriginal',
+            'Image SubSecTimeDigitized',
+            'EXIF SubSecTimeDigitized',
+            'Image SubSecTime',
+            'EXIF SubSecTime'
+        ]
         sub_sec, _ = self._extract_alternative_fields(fields, default=0, field_type=str)
         sub_sec = int(sub_sec)
         return sub_sec
@@ -305,7 +369,7 @@ class EXIF:
                 if subrexif in self.tags:
                     vflag = True
             if not vflag:
-                print("Missing required EXIF tag: {0}".format(rexif[0]))
+                print("Missing required EXIF tag: {0} for image {1}".format(rexif[0], self.filename))
                 return False
         return True
 

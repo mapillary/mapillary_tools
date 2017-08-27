@@ -1,20 +1,12 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 from __future__ import division
 import sys
-import urllib2, urllib
 import os
-from Queue import Queue
-import hashlib
 import uuid
-import time
-import json
-import pyexiv2
-import datetime, time
-import base64
 
-from lib.uploader import get_upload_token, create_mapillary_description, get_authentication_info
-from lib.geo import dms_to_decimal
+from lib.uploader import get_upload_token, get_authentication_info
+from lib.exifedit import create_mapillary_description
 
 '''
 Script for reading the EXIF data from images and create the
@@ -40,7 +32,6 @@ The following EXIF tags are required:
 -GPSLongitude
 -GPSLatitude
 -(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
--Orientation
 
 (assumes Python 2.x, for Python 3.x you need to change some module names)
 '''
@@ -50,7 +41,7 @@ if __name__ == '__main__':
     Use from command line as: python add_mapillary_tag_from_exif.py root_path [sequence_uuid]
     '''
 
-    # Fetch authetication info from env
+    # Fetch authentication info from env
     info = get_authentication_info()
     if info is not None:
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = info
@@ -62,16 +53,17 @@ if __name__ == '__main__':
 
     args = sys.argv
 
-    if len(args) != 2:
-        print("Usage: python add_mapillary_tag_from_exif.py root_path")
-        raise IOError("Bad input parameters.")
+    if len(args) < 2 or len(args) > 3:
+        sys.exit("Usage: python %s root_path [sequence_id]" % args[0])
+
     path = args[1]
 
     for root, sub_folders, files in os.walk(path):
-        sequence_uuid = uuid.uuid4()
+        sequence_uuid = args[2] if len(args) == 3 else uuid.uuid4()
         print("Processing folder {0}, {1} files, sequence_id {2}.".format(root, len(files), sequence_uuid))
         for file in files:
             if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
-                create_mapillary_description(os.path.join(root,file), MAPILLARY_USERNAME, MAPILLARY_EMAIL, upload_token, sequence_uuid)
+                create_mapillary_description(os.path.join(root, file),
+                    MAPILLARY_USERNAME, MAPILLARY_EMAIL, None, upload_token, sequence_uuid)
             else:
-                print "Ignoring {0}".format(os.path.join(root,file))
+                print "Ignoring {0}".format(os.path.join(root, file))
