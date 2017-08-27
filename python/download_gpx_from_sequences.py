@@ -16,6 +16,8 @@ and you could do what you want with yours GPS traces. :)
 
 Script to download images using the Mapillary image search API.
 
+you must create a Mapillary web client ID and define in MAPILLARY_CLIENT_ID 
+
 by danilo@lacosox.org based on download_images.py
 14/10/2015 
 
@@ -49,12 +51,6 @@ USER_FILTER=''
 DEFAULT_START_TIME = '20000101' #2000-01-01 
 DEFAULT_END_TIME =  '21001231' #2100-12-31
 
-#I create a new aplication for get this client_id.
-#CLIENT_ID = 'dTBiWGgweEdleXJhVVBmOFNfVVRxZzpkYThkNzBkYTI3ZGNhMGI1'
-
-#default Mapillary web client ID, only for test, may you need create a new application and get a new id to replace it
-# i'm not sure if a good idea use this ID
-CLIENT_ID = 'MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh'
 
 START_TIME = time.time()
 LOG_FILE = "downloaded_"+time.strftime("%Y%m%d",time.localtime(START_TIME))+".txt"
@@ -146,6 +142,10 @@ def error_exit(extra_txt=''):
 
 if __name__ == '__main__':
     '''
+    You need to set the environment variables
+        MAPILLARY_CLIENT_ID
+    to your unique values.
+
     Use from command line as below
     '''
 
@@ -156,6 +156,7 @@ if __name__ == '__main__':
     parser.add_argument('-u','--username'   , default='', help='Get traces only from user.')
     parser.add_argument('-d1','--startdate' , type=int, default=DEFAULT_START_TIME, help='Get traces only from this date. YYYYMMDD')
     parser.add_argument('-d2','--enddate'   , type=int, default=DEFAULT_END_TIME,   help='Get traces until this date only. YYYYMMDD')
+    parser.add_argument('-c','--client_id'   , help='define the mapillary client id API')
 
     args = parser.parse_args()
     
@@ -200,9 +201,15 @@ if __name__ == '__main__':
 	  error_exit("end_time bad defined")
 
 
+    try:
+        MAPILLARY_CLIENT_ID = args.client_id if args.client_id is not None else os.environ['MAPILLARY_CLIENT_ID']
+    except KeyError:
+        print("You are missing one of the environment variables MAPILLARY_CLIENT_ID. These are required.")
+        sys.exit()
+
     # query api
     print("Getting the files list...")
-    query = query_search_api(CLIENT_ID, min_lat, max_lat, min_lon, max_lon, max_results, user_filter, limit_start_time, limit_end_time)
+    query = query_search_api(MAPILLARY_CLIENT_ID, min_lat, max_lat, min_lon, max_lon, max_results, user_filter, limit_start_time, limit_end_time)
 
     # create directories for saving
     create_dirs(BASE_DIR)
