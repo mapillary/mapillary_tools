@@ -60,6 +60,14 @@ def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
         lines = f.readlines()
         lines = [l.rstrip("\n\r") for l in lines]
 
+    # Get initial date
+    for l in lines:
+        if "GPRMC" in l:
+            data = pynmea2.parse(l)
+            date = data.datetime.date()
+            break
+
+    # Parse GPS trace
     points = []
     for l in lines:
         if "GPRMC" in l:
