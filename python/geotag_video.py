@@ -14,6 +14,7 @@ from lib.ffprobe import FFProbe
 
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 def sample_video(video_file, image_path, sample_interval):
     """Sample video frame with the specified time interval
@@ -34,10 +35,13 @@ def get_video_duration(video_file):
 
 
 def get_video_start_time(video_file):
-    """Get video duration in seconds"""
+    """Get video start time in seconds"""
     try:
         time_string = FFProbe(video_file).video[0].creation_time
-        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+        try:
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+        except:
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
     except:
         return None
     return creation_time
@@ -71,7 +75,7 @@ def get_args():
     p.add_argument('--image_path', help='Path to save sampled images.', default="video_samples")
     p.add_argument('--sample_interval', help='Time interval for sampled frames in seconds', default=2, type=float)
     p.add_argument('--gps_trace', help='GPS track file')
-    p.add_argument('--time_offset', help='Time offset between video and gpx file in seconds', default=0, type=float)
+    p.add_argument('--time_offset', help='Time offset between video and gpx file in seconds (e.g. "3" means that video is ahead of GPX time by 3 seconds; negative offset is also possible)', default=0, type=float)
     p.add_argument("--skip_sampling", help="Skip video sampling step", action="store_true")
     return p.parse_args()
 
@@ -92,9 +96,10 @@ if __name__ == "__main__":
     points = parse_gps_trace(gps_trace_file, local_time)
 
     # Get sync between video and gps trace
-    start_time = points[0][0]
+    start_time = get_video_start_time(video_file) or points[0][0]
     start_time += datetime.timedelta(seconds=time_offset)
-    print "Video starts at : {}".format(start_time)
+
+    print "Video starts at: {}".format(start_time)
     print "GPS trace starts at: {}".format(points[0][0])
 
     # Get duration of the video
