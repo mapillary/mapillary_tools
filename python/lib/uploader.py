@@ -24,6 +24,8 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
+CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
+LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
 
 class UploadThread(threading.Thread):
     def __init__(self, queue, params=UPLOAD_PARAMS):
@@ -132,9 +134,9 @@ def get_upload_token(mail, pwd):
     Get upload token
     '''
     params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
+    response = urllib.urlopen(LOGIN_URL, params)
     resp = json.loads(response.read())
-    return resp['upload_token']
+    return resp['token']
 
 
 def get_authentication_info():
@@ -181,7 +183,7 @@ def get_project_key(project_name, project_key=None):
     if project_name is not None or project_key is not None:
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = get_authentication_info()
         params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
-        response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
+        response = urllib.urlopen(LOGIN_URL, params)
         response_read = response.read()
         resp = json.loads(response_read)
         projects = resp['projects']

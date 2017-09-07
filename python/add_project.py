@@ -8,6 +8,7 @@ import argparse
 from lib import io
 from lib.exifedit import ExifEdit
 from lib.exif import EXIF
+from lib.uploader import LOGIN_URL
 
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -41,8 +42,8 @@ if __name__ == '__main__':
     print "Adding images in %s to project '%s'" % (path, project_name)
 
     # log in, get the projects
-    params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
-    response = urllib.urlopen("https://a.mapillary.com/v1/u/login", params)
+    params = urllib.urlencode({"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
+    response = urllib.urlopen(LOGIN_URL, params)
     response_read = response.read()
     resp = json.loads(response_read)
     projects = resp['projects']
