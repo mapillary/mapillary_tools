@@ -853,10 +853,16 @@ class ExifSegment(DefaultSegment):
             if (count == 1):
                 ifd = IfdTIFF(self.e, offset, self, self.mode, tiff_data)
             elif (count == 2):
-                ifd = IfdThumbnail(self.e, offset, self, self.mode, tiff_data)
+                try:
+                    ifd = IfdThumbnail(self.e, offset, self, self.mode, tiff_data)
+                except:
+                    ifd = None
+                #     print("thumbnail passing")
             else:
                 raise JpegFile.InvalidFile()
-            self.ifds.append(ifd)
+
+            if ifd:
+                self.ifds.append(ifd)
 
             # Get next offset
             offset = unpack(self.e + "I", tiff_data[start:start+4])[0]
