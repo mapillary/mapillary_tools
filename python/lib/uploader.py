@@ -302,6 +302,7 @@ def upload_file_list(file_list, params=UPLOAD_PARAMS):
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
+        print("Uploading with {} threads".format(NUMBER_THREADS))
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
