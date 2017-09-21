@@ -76,6 +76,7 @@ def get_args():
     p.add_argument('--sample_interval', help='Time interval for sampled frames in seconds', default=2, type=float)
     p.add_argument('--gps_trace', help='GPS track file')
     p.add_argument('--time_offset', help='Time offset between video and gpx file in seconds (e.g. "3" means that video is ahead of GPX time by 3 seconds; negative offset is also possible)', default=0, type=float)
+    p.add_argument('--offset_angle', default=0., type=float, help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)')
     p.add_argument("--skip_sampling", help="Skip video sampling step", action="store_true")
     return p.parse_args()
 
@@ -130,7 +131,7 @@ if __name__ == "__main__":
                 "lon": lon,
                 "altitude": altitude,
                 "capture_time": timestamp,
-                "bearing": bearing,
+                "bearing": (bearing + args.offset_angle) % 360,
                 "make": make,
                 "model": model
             }
