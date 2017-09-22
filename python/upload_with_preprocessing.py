@@ -115,7 +115,6 @@ if __name__ == '__main__':
     offset_angle = args.offset_angle
     interpolate_directions = args.interpolate_directions
     orientation = args.orientation
-    project_key = get_project_key(args.project, args.project_key)
     verbose = args.verbose
     auto_done = args.auto_done
     add_file_name = args.add_file_name
