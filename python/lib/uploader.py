@@ -17,7 +17,7 @@ import time
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
-MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
+MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.experimental.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
@@ -26,6 +26,8 @@ MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
+PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
+ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
 
 class UploadThread(threading.Thread):
     def __init__(self, queue, params=UPLOAD_PARAMS):
@@ -181,12 +183,24 @@ def get_project_key(project_name, project_key=None):
     Get project key given project name
     '''
     if project_name is not None or project_key is not None:
+
+        # Get the JWT token
         MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD = get_authentication_info()
         params = urllib.urlencode( {"email": MAPILLARY_EMAIL, "password": MAPILLARY_PASSWORD })
-        response = urllib.urlopen(LOGIN_URL, params)
-        response_read = response.read()
-        resp = json.loads(response_read)
-        projects = resp['projects']
+        resp = json.loads(urllib.urlopen(LOGIN_URL, params).read())
+        token = resp['token']
+
+        # Get the user key
+        req = urllib2.Request(ME_URL)
+        req.add_header('Authorization', 'Bearer {}'.format(token))
+        resp = json.loads(urllib2.urlopen(req).read())
+        userkey = resp['key']
+
+        # Get the user key
+        req = urllib2.Request(PROJECTS_URL.format(userkey, CLIENT_ID))
+        req.add_header('Authorization', 'Bearer {}'.format(token))
+        resp = json.loads(urllib2.urlopen(req).read())
+        projects = resp
 
         # check projects
         found = False
