@@ -124,14 +124,13 @@ def add_mapillary_description(filename, username, email,
 
     assert("MAPSequenceUUID" in image_description)
 
-    if output_file is not None:
+    if output_file is not None and output_file != filename:
         shutil.copy(filename, output_file)
         filename = output_file
 
     # write to file
-    json_desc = json.dumps(image_description)
     metadata = ExifEdit(filename)
-    metadata.add_image_description(json_desc)
+    metadata.add_image_description(image_description)
     metadata.add_orientation(image_description.get("MAPOrientation", 1))
     metadata.add_direction(image_description["MAPCompassHeading"]["TrueHeading"])
     metadata.add_lat_lon(image_description["MAPLatitude"], image_description["MAPLongitude"])
