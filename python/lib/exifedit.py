@@ -8,6 +8,7 @@ from lib.geo import normalize_bearing
 from lib.exif import EXIF, verify_exif
 from lib.pexif import JpegFile, Rational
 import shutil
+from PIL import Image
 
 def create_mapillary_description(filename, username, email, userkey,
                                  upload_hash, sequence_uuid,
@@ -127,6 +128,21 @@ def add_mapillary_description(filename, username, email,
     if output_file is not None and output_file != filename:
         shutil.copy(filename, output_file)
         filename = output_file
+
+    # modify image description when necessary
+    if "MAPSettingsUserKey" in image_description:
+        if "MAPSettingsEmail" in image_description:
+            del image_description["MAPSettingsEmail"]
+
+    if "MAPExternalProperties" in image_description:
+        if "user_id" not in image_description:
+            image_description["MAPExternalProperties"]["user_id"] = \
+                username or "none"
+
+    if "MAPImageWidth" not in image_description:
+        width, height = Image.open(filename).size
+        image_description["MAPImageWidth"] = width
+        image_description["MAPImageHeight"] = height
 
     # write to file
     metadata = ExifEdit(filename)
