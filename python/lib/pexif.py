@@ -857,7 +857,6 @@ class ExifSegment(DefaultSegment):
                     ifd = IfdThumbnail(self.e, offset, self, self.mode, tiff_data)
                 except:
                     ifd = None
-                #     print("thumbnail passing")
             else:
                 raise JpegFile.InvalidFile()
 
@@ -865,7 +864,10 @@ class ExifSegment(DefaultSegment):
                 self.ifds.append(ifd)
 
             # Get next offset
-            offset = unpack(self.e + "I", tiff_data[start:start+4])[0]
+            try:
+                offset = unpack(self.e + "I", tiff_data[start:start+4])[0]
+            except:
+                offset = None
 
     def dump(self, fd):
         print >> fd, " Section: [ EXIF] Size: %6d" % \
