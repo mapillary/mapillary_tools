@@ -65,6 +65,7 @@ if __name__ == '__main__':
     mkdir_p(output_path)
 
     images = os.listdir(image_path)
+    num_added = 0
     for i, f in enumerate(images):
         if f.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')):
             output_file = os.path.join(output_path, os.path.basename(f))
@@ -77,6 +78,7 @@ if __name__ == '__main__':
                     upload_token,
                     metadata[f],
                     output_file)
+                num_added += 1
             else:
                 print "Missing metadata for {}, skipping...".format(f)
             progress(i, len(images))
@@ -84,4 +86,4 @@ if __name__ == '__main__':
             print "Ignoring {0}".format(os.path.join(image_path, f))
 
     with open(os.path.join(output_path, "EXIF_DONE"), "wb") as f:
-        f.write("")
+        f.write(str(num_added))
