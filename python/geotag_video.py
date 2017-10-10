@@ -81,6 +81,7 @@ def get_args():
     p.add_argument("--use_gps_start_time", help="Use GPS trace starting time as reference", action="store_true")
     p.add_argument("--make", help="Specify device manufacturer", default="none")
     p.add_argument("--model", help="Specify device model", default="none")
+    p.add_argument("--timelapse_fps", help="If using timelapse video, set nominal fps", default=-99, type=float)
     return p.parse_args()
 
 
@@ -94,6 +95,7 @@ if __name__ == "__main__":
     time_offset = args.time_offset
     make = args.make
     model = args.model
+    timelapse_fps = args.timelapse_fps
 
     # Parse gps trace
     local_time = False
@@ -115,7 +117,10 @@ if __name__ == "__main__":
 
     # Sample video
     if not args.skip_sampling:
-        sample_video(video_file, image_path, sample_interval)
+        if timelapse_fps==-99:
+            sample_video(video_file, image_path, sample_interval)
+        else:
+            sample_video(video_file, image_path, 1/timelapse_fps)
 
     # Add EXIF data to sample images
     image_list = list_images(image_path)
@@ -124,12 +129,18 @@ if __name__ == "__main__":
     missing_gps = 0
     for i, im in enumerate(image_list):
         io.progress(i, len(image_list))
-        timestamp = timestamp_from_filename(os.path.basename(im),
+        if timelapse_fps==-99:
+            timestamp = timestamp_from_filename(os.path.basename(im),
                                             sample_interval,
                                             start_time,
                                             video_duration,
                                             time_offset)
-
+        else:
+            timestamp = timestamp_from_filename(os.path.basename(im),
+                                            sample_interval,
+                                            start_time,
+                                            video_duration*sample_interval*timelapse_fps,
+                                            time_offset)
         try:
             lat, lon, bearing, altitude = geo.interpolate_lat_lon(points, timestamp)
             data = {
