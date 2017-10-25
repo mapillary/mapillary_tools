@@ -2,22 +2,34 @@ import os
 import sys
 import unittest
 from PIL import Image
-import piexif
+from PIL import ExifTags
 from os import path
 sys.path.append("python")
 from lib.exifedit import ExifEdit
-from lib.pexif import JpegFile, Rational #CHANGE remove
 import json
 import datetime
+import shutil
+import math
 
-print("piexif version: {0}".format(piexif.VERSION))
+def decimal_to_deg_min_sec(value, precision):
+    '''
+    Convert the degrees in float to degrees, minutes and seconds as tuple of tuples with precision identifier.
+    >>> latitude = 23.122886
+    >>> deg_to_deg_min_sec(latitude)
+    ((23.0, 1), (7.0, 1), (223896.0, 10000))#CHECK the precision on the seconds
+    '''
+    deg = math.floor(value)
+    min = math.floor((value-deg)*60)
+    sec = math.floor((value-deg-min/60) * 36000000)
 
-NOEXIF_FILE = os.path.join("tests", "images", "noexif.jpg")
-CANON_EXIF_FILE = os.path.join("tests", "images", "r_canon.jpg")
-NOT_VALID_FILE = os.path.join("tests", "images", "not_valid_file")
-NOT_VALID_IMAGE_FILE = os.path.join("tests", "images", "not_valid_image_file.png")
-MAPILLARY_IMAGE_FILE = os.path.join("tests", "images", "map_exif_image.jpg")
-MAPILLARY_JSON_METADATA = os.path.join("tests", "images", "map_metadata.json")
+    return ((deg, 1), (min, 1), (sec, precision))
+
+
+EMPTY_EXIF_FILE = os.path.join("tests", "data", "empty_exif.jpg")
+EMPTY_EXIF_FILE_TEST = os.path.join("tests", "data", "tmp", "empty_exif.jpg")
+NOT_VALID_FILE = os.path.join("tests", "data", "not_valid_file")
+NOT_VALID_IMAGE_FILE = os.path.join("tests", "data", "not_valid_image_file.png")
+MAPILLARY_JSON_METADATA = os.path.join("tests", "data", "map_metadata.json")
 
 """Initialize all the neccessary data"""
 NONE_DICT = {"0th":{},
@@ -30,96 +42,122 @@ NONE_DICT = {"0th":{},
 with open(MAPILLARY_JSON_METADATA) as json_file:
     JSON_DICT = json.load(json_file)
     
-EXIFEDIT_CANON = ExifEdit(CANON_EXIF_FILE)   
-    
-EXIF_MAPILLARY = piexif.load(MAPILLARY_IMAGE_FILE)
-    
+EXIFEDIT_EMPTY = ExifEdit(EMPTY_EXIF_FILE)   
+        
 class ExifEditTests(unittest.TestCase):
     """tests for main functions."""
+    
+    def setUp(self):
+        if not os.path.exists(os.path.join("tests", "data", "tmp")):
+            os.makedirs(os.path.join("tests", "data", "tmp"))  
+        self._cleanup_test_file()      
+        
+    def tearDown(self):
+        shutil.rmtree(os.path.join("tests", "data", "tmp"))
             
     def test_class_instance_unexisting_file(self):
         self.assertRaises(IOError, ExifEdit, "un_existing_file")
         
-    #CHANGE remove this and uncomment below functions  
-    def test_class_instance_unvalid_file(self):
-        self.assertRaises(JpegFile.InvalidFile, ExifEdit, NOT_VALID_FILE)
-
-    ''' #CHANGE
-    def test_class_instance_unvalid_file(self):
-        self.assertRaises(ValueError, ExifEdit, NOT_VALID_FILE)
-   
-    def test_class_instance_unvalid_image_file(self):
-        self.assertRaises(piexif.InvalidImageDataError, ExifEdit, NOT_VALID_IMAGE_FILE)
-        
-    '''
         
     def test_add_image_description(self):
         
-        EXIFEDIT_CANON.add_image_description(JSON_DICT)
-
-        #CHANGE delete below line and uncomment next line
-        self.assertEqual(EXIF_MAPILLARY['0th'][piexif.ImageIFD.ImageDescription], EXIFEDIT_CANON.ef.exif.primary.ImageDescription)
-        #self.assertEqual(EXIF_MAPILLARY['0th'][piexif.ImageIFD.ImageDescription], EXIFEDIT_CANON.ef['0th'][piexif.ImageIFD.ImageDescription])
+        EXIFEDIT_EMPTY.add_image_description(JSON_DICT)
         
+        TEST_exif_data = self._write_and_load_exif()
+        
+        self.assertEqual(json.dumps(JSON_DICT), TEST_exif_data[270])
+         
     def test_add_orientation(self):
         
-        EXIFEDIT_CANON.add_orientation(2)
+        test_orientation = 2
         
-        #CHANGE delete below line and uncomment next line
-        self.assertEqual([EXIF_MAPILLARY['0th'][piexif.ImageIFD.Orientation]], EXIFEDIT_CANON.ef.exif.primary.Orientation)
-        #self.assertEqual([EXIF_MAPILLARY['0th'][piexif.ImageIFD.Orientation]], EXIFEDIT_CANON.ef['0th'][piexif.ImageIFD.Orientation])
-    
-    def test_add_date_time_original(self):
-        date_time = datetime.datetime.strptime(JSON_DICT["MAPCaptureTime"]+"000", "%Y_%m_%d_%H_%M_%S_%f")
-        EXIFEDIT_CANON.add_date_time_original(date_time)
+        EXIFEDIT_EMPTY.add_orientation(test_orientation)
+        
+        TEST_exif_data = self._write_and_load_exif()
 
-        #CHANGE delete below line and uncomment next line
-        self.assertEqual(EXIF_MAPILLARY['Exif'][piexif.ExifIFD.DateTimeOriginal], EXIFEDIT_CANON.ef.exif.primary.ExtendedEXIF.DateTimeOriginal)
-        #self.assertEqual([EXIF_MAPILLARY['0th'][piexif.ImageIFD.Orientation]], EXIFEDIT_CANON.ef['0th'][piexif.ImageIFD.Orientation])
+        self.assertEqual(test_orientation, TEST_exif_data[274])
+            
+    def test_add_date_time_original(self):
+        
+        test_datetime = datetime.datetime.strptime(JSON_DICT["MAPCaptureTime"]+"000", "%Y_%m_%d_%H_%M_%S_%f")
+        
+        EXIFEDIT_EMPTY.add_date_time_original(test_datetime)
+
+        TEST_exif_data = self._write_and_load_exif()
+
+        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), TEST_exif_data[36867])
         
     def test_add_lat_lon(self):
         
-        EXIFEDIT_CANON.add_lat_lon(JSON_DICT["MAPLatitude"],JSON_DICT["MAPLongitude"])
+        test_latitude = 50.5
+        test_longitude = 15.5
         
-        #CHANGE delete below line and uncomment next line
-        canon_lat_latref_lon_lon_ref = (EXIFEDIT_CANON.ef.exif.primary.GPS.GPSLatitude, EXIFEDIT_CANON.ef.exif.primary.GPS.GPSLatitudeRef,
-                                        EXIFEDIT_CANON.ef.exif.primary.GPS.GPSLongitude, EXIFEDIT_CANON.ef.exif.primary.GPS.GPSLongitudeRef)
+        EXIFEDIT_EMPTY.add_lat_lon(test_latitude, test_longitude)
+
+        TEST_exif_data = self._write_and_load_exif()
+                
+        self.assertEqual((decimal_to_deg_min_sec(test_latitude, 50000000), decimal_to_deg_min_sec(test_longitude, 50000000)), (TEST_exif_data[34853][2], TEST_exif_data[34853][4]))
         
-        #canon_lat_latref_lon_lon_ref = (EXIFEDIT_CANON["GPS"][piexif.GPSIFD.GPSLatitude], EXIFEDIT_CANON["GPS"][piexif.GPSIFD.GPSLatitudeRef],
-        #                                EXIFEDIT_CANON["GPS"][piexif.GPSIFD.GPSLongitude], EXIFEDIT_CANON["GPS"][piexif.GPSIFD.GPSLongitudeRef])
+    def test_add_camera_make_model(self):
         
+        test_make = "test_make"
+        test_model = "test_model"
         
-        map_lat_latref_lon_lon_ref = (EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLatitude], EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLatitudeRef],
-                                      EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLongitude], EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLongitudeRef])
-                                                                                                              
-        #CHANGE delete below line and uncomment next line
-        #self.assertEqual(map_lat_latref_lon_lon_ref, canon_lat_latref_lon_lon_ref) #will not be ok since Rational has a different format, when pexif will be replaced, the below will be ok
-        #self.assertEqual[(EXIF_MAPILLARY['0th'][piexif.ImageIFD.Orientation]], EXIFEDIT_CANON.ef['0th'][piexif.ImageIFD.Orientation])
-        
-    '''
+        EXIFEDIT_EMPTY.add_camera_make_model(test_make, test_model)
+
+        TEST_exif_data = self._write_and_load_exif()
+
+        self.assertEqual((test_make, test_model), (TEST_exif_data[271], TEST_exif_data[272]))
     
-    def add_camera_make_model(self, make, model):
-        """ Add camera make and model."""
-        self.ef.exif.primary.Make = make
-        self.ef.exif.primary.Model = model
+    def test_add_dop(self):
+        
+        test_dop = 10.5
+        test_dop_precision = 100
+        
+        EXIFEDIT_EMPTY.add_dop(test_dop, test_dop_precision)
 
-    def add_dop(self, dop, perc=100):
-        """Add GPSDOP (float)."""
-        self.ef.exif.primary.GPS.GPSDOP = [Rational(abs(dop * perc), perc)]
+        TEST_exif_data = self._write_and_load_exif()
 
-    def add_altitude(self, altitude, precision=100):
-        """Add altitude (pre is the precision)."""
-        ref = '\x00' if altitude > 0 else '\x01'
-        self.ef.exif.primary.GPS.GPSAltitude = [Rational(abs(altitude * precision), precision)]
-        self.ef.exif.primary.GPS.GPSAltitudeRef = [ref]
+        self.assertEqual((test_dop*test_dop_precision, test_dop_precision), TEST_exif_data[34853][11])
+        
+    def test_add_altitude(self):
+        
+        test_altitude = 15.5
+        test_altitude_precision = 100
+        
+        EXIFEDIT_EMPTY.add_altitude(test_altitude, test_altitude_precision)
 
-    def add_direction(self, direction, ref="T", precision=100):
-        """Add image direction."""
-        self.ef.exif.primary.GPS.GPSImgDirection = [Rational(abs(direction * precision), precision)]
-        self.ef.exif.primary.GPS.GPSImgDirectionRef = ref
+        TEST_exif_data = self._write_and_load_exif()
 
-    '''
+        self.assertEqual((test_altitude*test_altitude_precision, test_altitude_precision), TEST_exif_data[34853][6])
     
-            
+    def test_add_direction(self):
+        
+        test_direction = 1
+        test_direction_ref = "D"
+        test_direction_precision = 100
+        
+        EXIFEDIT_EMPTY.add_direction(test_direction, test_direction_ref, test_direction_precision)
+
+        TEST_exif_data = self._write_and_load_exif()
+
+        self.assertEqual((test_direction*test_direction_precision, test_direction_precision), TEST_exif_data[34853][17])
+
+    def _cleanup_test_file(self):        
+        #copy the original empty file to the tmp, to have it empty again
+        shutil.copy2(EMPTY_EXIF_FILE, EMPTY_EXIF_FILE_TEST)
+    
+    def _write_and_load_exif(self):   
+        
+        EXIFEDIT_EMPTY.write(EMPTY_EXIF_FILE_TEST)   
+    
+        TEST_IMAGE = Image.open(EMPTY_EXIF_FILE_TEST)
+
+        TEST_IMAGE_exif_data = TEST_IMAGE._getexif()
+        
+        self._cleanup_test_file()  #this might be too much to do in every step since unique exif tags are changed in each function
+        
+        return   TEST_IMAGE_exif_data
+        
 if __name__ == '__main__':
     unittest.main()
