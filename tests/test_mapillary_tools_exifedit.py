@@ -93,7 +93,7 @@ class ExifEditTests(unittest.TestCase):
                                       EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLongitude], EXIF_MAPILLARY["GPS"][piexif.GPSIFD.GPSLongitudeRef])
                                                                                                               
         #CHANGE delete below line and uncomment next line
-        #self.assertEqual(map_lat_latref_lon_lon_ref, canon_lat_latref_lon_lon_ref)
+        #self.assertEqual(map_lat_latref_lon_lon_ref, canon_lat_latref_lon_lon_ref) #will not be ok since Rational has a different format, when pexif will be replaced, the below will be ok
         #self.assertEqual[(EXIF_MAPILLARY['0th'][piexif.ImageIFD.Orientation]], EXIFEDIT_CANON.ef['0th'][piexif.ImageIFD.Orientation])
         
     '''
