@@ -6,23 +6,9 @@ from PIL import ExifTags
 from os import path
 sys.path.append("python")
 from lib.exifedit import ExifEdit
+from lib.geo import decimal_to_dms
 import datetime
 import shutil
-import math
-
-def decimal_to_deg_min_sec(value, precision):
-    '''
-    Convert the degrees in float to degrees, minutes and seconds as tuple of tuples with precision identifier.
-    >>> latitude = 23.122886
-    >>> deg_to_deg_min_sec(latitude)
-    ((23.0, 1), (7.0, 1), (223896.0, 10000))#CHECK the precision on the seconds
-    '''
-    deg = math.floor(value)
-    min = math.floor((value-deg)*60)
-    sec = math.floor((value-deg-min/60) * 36000000)
-
-    return ((deg, 1), (min, 1), (sec, precision))
-
 
 """Initialize all the neccessary data"""
 
@@ -95,7 +81,7 @@ class ExifEditTests(unittest.TestCase):
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
         
         exif_data = self._load_exif()
-        self.assertEqual((decimal_to_deg_min_sec(test_latitude, 50000000), decimal_to_deg_min_sec(test_longitude, 50000000)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+        self.assertEqual((decimal_to_dms(test_latitude, 50000000), decimal_to_dms(test_longitude, 50000000)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
         
     def test_add_camera_make_model(self):
         

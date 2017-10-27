@@ -54,22 +54,15 @@ def dms_to_decimal(degrees, minutes, seconds, hemisphere):
 
     return dms
 
-def decimal_to_dms(value, loc):
+def decimal_to_dms(value, precision):
     '''
-    Convert decimal position to degrees, minutes, seconds
+    Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
     '''
-    if value < 0:
-        loc_value = loc[0]
-    elif value > 0:
-        loc_value = loc[1]
-    else:
-        loc_value = ""
-    abs_value = abs(value)
-    deg =  int(abs_value)
-    t1 = (abs_value-deg)*60
-    mint = int(t1)
-    sec = round((t1 - mint)* 60, 6)
-    return (deg, mint, sec, loc_value)
+    deg = math.floor(value)
+    min = math.floor((value-deg)*60)
+    sec = math.floor((value-deg-min/60) * 36000000)
+
+    return ((deg, 1), (min, 1), (sec, precision))
 
 def gpgga_to_dms(gpgga):
     '''

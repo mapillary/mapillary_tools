@@ -4,9 +4,9 @@ import datetime
 import hashlib
 import base64
 import uuid
-from lib.geo import normalize_bearing
+from lib.geo import normalize_bearing, decimal_to_dms #TODO the output is not ok, it needs to be a tuple of tuples, so each of the values has to have a precision identifier
 from lib.exif import EXIF, verify_exif
-from lib.pexif import JpegFile, Rational
+import piexif
 import shutil
 from PIL import Image
 
@@ -174,72 +174,89 @@ class ExifEdit(object):
         """Initialize the object"""
         self.filename = filename
         self.ef = None
-
-        if (type(filename) is str) or (type(filename) is unicode):
-            self.ef = JpegFile.fromFile(filename)
-        else:
-            filename.seek(0)
-            self.ef = JpegFile.fromString(filename.getvalue())
         try:
-            if (type(filename) is str) or (type(filename) is unicode):
-                self.ef = JpegFile.fromFile(filename)
+            if isinstance(filename, (str, unicode)):
+                self.ef = piexif.load(filename)
             else:
-                filename.seek(0)
-                self.ef = JpegFile.fromString(filename.getvalue())
-        except IOError:
+                print("Some error")
+                # TODO, this is redundant, only string file name can be excepted, fileobject will throw error and should be handeled with the catches, i think ValueError is enough already
+        except IOError: 
             etype, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error opening file:", value
-        except JpegFile.InvalidFile:
+        except ValueError:
             etype, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error opening file:", value
-
+        except InvalidImageDataError:
+            etype, value, traceback = sys.exc_info()
+            print >> sys.stderr, "Error opening file:", value   
+            
+        #make safe image open
+        self.img = Image.open(filename)         
+            
     def add_image_description(self, dict):
         """Add a dict to image description."""
         if self.ef is not None:
-            self.ef.exif.primary.ImageDescription = json.dumps(dict)
+            self.ef['0th'][piexif.ImageIFD.ImageDescription] = json.dumps(dict)
 
     def add_orientation(self, orientation):
         """Add image orientation to image."""
-        self.ef.exif.primary.Orientation = [orientation]
+        self.ef['0th'][piexif.ImageIFD.Orientation] = [orientation]
 
     def add_date_time_original(self, date_time):
         """Add date time original."""
-        self.ef.exif.primary.ExtendedEXIF.DateTimeOriginal = date_time.strftime('%Y:%m:%d %H:%M:%S')
+        self.ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = date_time.strftime('%Y:%m:%d %H:%M:%S')
 
     def add_lat_lon(self, lat, lon):
         """Add lat, lon to gps (lat, lon in float)."""
-        self.ef.set_geo(float(lat), float(lon))
-
+        self.ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
+        self.ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"                   
+        self.ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(lon, 50000000)
+        self.ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(lat, 50000000)  
+            
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
-        self.ef.exif.primary.Make = make
-        self.ef.exif.primary.Model = model
+        self.ef['0th'][piexif.ImageIFD.Make] = make
+        self.ef['0th'][piexif.ImageIFD.Model] = model
 
-    def add_dop(self, dop, perc=100):
+    def add_dop(self, dop, precision=100):
         """Add GPSDOP (float)."""
-        self.ef.exif.primary.GPS.GPSDOP = [Rational(abs(dop * perc), perc)]
+        self.ef["GPS"][piexif.GPSIFD.GPSDOP] = (int(abs(dop) * precision), precision)
 
     def add_altitude(self, altitude, precision=100):
         """Add altitude (pre is the precision)."""
-        ref = '\x00' if altitude > 0 else '\x01'
-        self.ef.exif.primary.GPS.GPSAltitude = [Rational(abs(altitude * precision), precision)]
-        self.ef.exif.primary.GPS.GPSAltitudeRef = [ref]
+        ref = 1 if altitude > 0 else 0
+        self.ef["GPS"][piexif.GPSIFD.GPSAltitude] = (int(abs(altitude) * precision), precision)
+        self.ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = [ref]
 
     def add_direction(self, direction, ref="T", precision=100):
         """Add image direction."""
-        self.ef.exif.primary.GPS.GPSImgDirection = [Rational(abs(direction * precision), precision)]
-        self.ef.exif.primary.GPS.GPSImgDirectionRef = ref
+        self.ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (int(abs(direction) * precision), precision)
+        self.ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
     def write(self, filename=None):
         """Save exif data to file."""
+        exif_bytes = piexif.dump(self.ef) #shoud this be class owned?
         try:
             if filename is None:
                 filename = self.filename
-            self.ef.writeFile(filename)
+            self.img.save(filename, "jpeg", exif=exif_bytes)
         except IOError:
             type, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error saving file:", value
 
+
+    '''
+    TODO seems like these are not used, up for deletion:
+    
+    jerneja@jerneja-ThinkPad-T570:~/git/mapillary_tools$ grep -r "write_to_string" *
+    python/lib/exifedit.py:    def write_to_string(self):
+    python/lib/exifedit_with_pexif.py:    def write_to_string(self):
+    jerneja@jerneja-ThinkPad-T570:~/git/mapillary_tools$ grep -r "write_to_file_object" *
+    python/lib/exifedit.py:    def write_to_file_object(self):
+    python/lib/exifedit_with_pexif.py:    def write_to_file_object(self):
+
+    
+    
     def write_to_string(self):
         """Save exif data to StringIO object."""
         return self.ef.writeString()
@@ -247,4 +264,4 @@ class ExifEdit(object):
     def write_to_file_object(self):
         """Save exif data to file object."""
         return self.ef.writeFd()
-
+    '''
