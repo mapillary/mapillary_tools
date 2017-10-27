@@ -60,7 +60,7 @@ class ExifEditTests(unittest.TestCase):
             
     def test_add_date_time_original(self):
         
-        test_datetime = datetime.datetime.strptime("2016_08_31_08_29_26_249"+"000", "%Y_%m_%d_%H_%M_%S_%f")
+        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
         
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)        
        
