@@ -43,9 +43,6 @@ class ExifEditTests(unittest.TestCase):
         
     def tearDown(self):
         shutil.rmtree(os.path.join("tests", "data", "tmp"))
-            
-    def test_class_instance_unexisting_file(self):
-        self.assertRaises(IOError, ExifEdit, "un_existing_file")
         
     def test_add_image_description(self):
         
