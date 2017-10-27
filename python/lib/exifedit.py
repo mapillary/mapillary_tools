@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import sys
 import json
 import datetime
@@ -9,6 +10,7 @@ from lib.exif import EXIF, verify_exif
 import piexif
 import shutil
 from PIL import Image
+import io
 
 def create_mapillary_description(filename, username, email, userkey,
                                  upload_hash, sequence_uuid,
@@ -184,11 +186,8 @@ class ExifEdit(object):
             print >> sys.stderr, "Error opening file:", value
         except InvalidImageDataError:
             etype, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error opening file:", value   
-            
-        #make safe image open
-        self.img = Image.open(filename)         
-            
+            print >> sys.stderr, "Error opening file:", value          
+           
     def add_image_description(self, dict):
         """Add a dict to image description."""
         if self._ef is not None:
@@ -231,11 +230,21 @@ class ExifEdit(object):
 
     def write(self, filename=None):
         """Save exif data to file."""
-        exif_bytes = piexif.dump(self._ef) #shoud this be class owned?
+        if filename is None:
+            filename = self._filename
+
+        exif_bytes = piexif.dump(self._ef)
+        
+        with open(filename, "rb") as fin:
+            img = fin.read()
+
+        output_bytes=io.BytesIO()
+        
         try:
-            if filename is None:
-                filename = self._filename
-            self.img.save(filename, "jpeg", exif=exif_bytes)
+            piexif.insert(exif_bytes, img, output_bytes)
+            with open(filename, "w") as fout:
+                fout.write(output_bytes.read()) 
+
         except IOError:
             type, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error saving file:", value

@@ -2,4 +2,4 @@ gpxpy==0.9.8
 exifread==1.4.1
 Pillow==2.9.0
 python-dateutil==2.2
-piexif==1.0.12
+piexif==1.0.13
