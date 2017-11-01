@@ -1,0 +1,5 @@
+# Ignore generated files
+*/*.pyc
+*/*/*.pyc
+*/__pycache__
+*/*/__pycache__
