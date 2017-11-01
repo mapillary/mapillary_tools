@@ -195,7 +195,11 @@ class ExifEdit(object):
 
     def add_orientation(self, orientation):
         """Add image orientation to image."""
-        self._ef['0th'][piexif.ImageIFD.Orientation] = [orientation]
+        if not orientation in range(1,9): 
+            print("Error value for orientation, value must be in range(1,9), setting to default 1")
+            self._ef['0th'][piexif.ImageIFD.Orientation] = 1
+        else:
+            self._ef['0th'][piexif.ImageIFD.Orientation] = orientation
 
     def add_date_time_original(self, date_time):
         """Add date time original."""
@@ -205,8 +209,8 @@ class ExifEdit(object):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"                   
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(lon, 50000000)
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(lat, 50000000)  
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), 1000)
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), 1000)  
             
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
@@ -221,7 +225,7 @@ class ExifEdit(object):
         """Add altitude (pre is the precision)."""
         ref = 1 if altitude > 0 else 0
         self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (int(abs(altitude) * precision), precision)
-        self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = [ref]
+        self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
 
     def add_direction(self, direction, ref="T", precision=100):
         """Add image direction."""
@@ -235,7 +239,7 @@ class ExifEdit(object):
 
         exif_bytes = piexif.dump(self._ef)
         
-        with open(filename, "rb") as fin:
+        with open(self._filename, "rb") as fin:
             img = fin.read()
 
         output_bytes=io.BytesIO()
