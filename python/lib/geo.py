@@ -60,7 +60,7 @@ def decimal_to_dms(value, precision):
     '''
     deg = math.floor(value)
     min = math.floor((value-deg)*60)
-    sec = math.floor((value-deg-min/60) * 3600)
+    sec = math.floor((value-deg-min/60) * 3600*precision)
 
     return ((deg, 1), (min, 1), (sec, precision))
 
