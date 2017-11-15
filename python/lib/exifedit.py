@@ -205,13 +205,12 @@ class ExifEdit(object):
         """Add date time original."""
         self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = date_time.strftime('%Y:%m:%d %H:%M:%S')
 
-    def add_lat_lon(self, lat, lon):
+    def add_lat_lon(self, lat, lon, precision=1e7):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"  
-        print(decimal_to_dms(abs(lon), 1000000000))                 
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), 10000000)
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), 10000000)  
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), precision)
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), precision)  
             
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''

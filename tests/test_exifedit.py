@@ -73,16 +73,17 @@ class ExifEditTests(unittest.TestCase):
         
     def test_add_lat_lon(self):
         
-        test_latitude = 50.5
-        test_longitude = 15.5
+        test_latitude = 50.5475894785
+        test_longitude = 15.595866685
+        precision = 1e7
         
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)        
         
-        empty_exifedit.add_lat_lon(test_latitude, test_longitude)
+        empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
         
         exif_data = self._load_exif()
-        self.assertEqual((decimal_to_dms(test_latitude, 1000), decimal_to_dms(test_longitude, 1000)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+        self.assertEqual((decimal_to_dms(test_latitude, precision), decimal_to_dms(test_longitude, precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
         
     def test_add_camera_make_model(self):
         
