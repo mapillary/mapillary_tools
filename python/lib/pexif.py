@@ -650,9 +650,9 @@ class IfdExtendedEXIF(IfdData):
         # F. Tags relating to date and time
         0x9003: ("Date of original data generation", "DateTimeOriginal", ASCII),
         0x9004: ("Date of digital data generation", "DateTimeDigitized", ASCII),
-        0x9290: ("DateTime subseconds", "SubSecTime"),
-        0x9291: ("DateTime original subseconds", "SubSecTimeOriginal"),
-        0x9292: ("DateTime digitized subseconds", "SubSecTimeDigitized"),
+        0x9290: ("DateTime subseconds", "SubSecTime", ASCII),
+        0x9291: ("DateTime original subseconds", "SubSecTimeOriginal", ASCII),
+        0x9292: ("DateTime digitized subseconds", "SubSecTimeDigitized", ASCII),
         # G. Tags relating to Picture taking conditions
         0x829a: ("Exposure Time", "ExposureTime"),
         0x829d: ("F Number", "FNumber"),
