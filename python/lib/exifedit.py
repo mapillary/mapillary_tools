@@ -205,6 +205,14 @@ class ExifEdit(object):
     def add_date_time_original(self, date_time):
         """Add date time original."""
         self.ef.exif.primary.ExtendedEXIF.DateTimeOriginal = date_time.strftime('%Y:%m:%d %H:%M:%S')
+        """Add subsecond if the value exists"""
+        if date_time.microsecond:
+            subsec = str(date_time.microsecond).zfill(6)
+            self.add_subsec_time_original(subsec)
+
+    def add_subsec_time_original(self, subsec):
+        """Add subsecond."""
+        self.ef.exif.primary.ExtendedEXIF.SubSecTimeOriginal = subsec
 
     def add_lat_lon(self, lat, lon):
         """Add lat, lon to gps (lat, lon in float)."""
