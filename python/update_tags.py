@@ -6,7 +6,7 @@ import json
 from lib.geo import offset_bearing
 from lib.sequence import Sequence
 from lib.exifedit import ExifEdit
-from lib.exif import EXIF
+from lib.exif import EXIF, format_orientation
 
 '''
 Interpolates the direction of an image based on the coordinates stored in
@@ -45,7 +45,8 @@ if __name__ == '__main__':
     parser.add_argument('--orientation',
                         type=int,
                         dest='orientation',
-                        help='override camera orientation sensor value if shake resulted false values (in clockwise degrees: 0, 90, 180 or 270)')
+                        choices=[0, 90, 180, 270],
+                        help='rotate image clockwise in degrees: 0, 90, 180 or 270')
 
     parser.add_argument('--keep-timestamp', action='store_true',
                         dest='timestamp',
@@ -55,19 +56,10 @@ if __name__ == '__main__':
                         dest='backup',
                         help='store backup of overwritten values in Mapillary JSON')
 
-
     args = parser.parse_args()
 
-    # see http://sylvana.net/jpegcrop/exif_orientation.html
-    orientations = {
-        0: 1,
-        90: 6,
-        180: 3,
-        270: 8
-    }
-
     if args.orientation is not None:
-        exifOrientation = orientations[args.orientation]
+        exifOrientation = format_orientation(args.orientation)
 
     s = Sequence(args.path)
     if args.interpolate:

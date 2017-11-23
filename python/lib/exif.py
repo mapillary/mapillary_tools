@@ -48,6 +48,23 @@ def format_time(time_string):
     date_time = date + datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
     return date_time
 
+def format_orientation(orientation):
+    '''
+    Convert orientation from clockwise degrees to exif tag
+
+    # see http://sylvana.net/jpegcrop/exif_orientation.html
+    '''
+    mapping = {
+        0: 1,
+        90: 6,
+        180: 3,
+        270: 8,
+    }
+    if orientation not in mapping:
+        raise ValueError("Orientation value has to be 0, 90, 180, or 270")
+
+    return mapping[orientation]
+
 def gps_to_decimal(values, reference):
     sign = 1 if reference in 'NE' else -1
     degrees = eval_frac(values[0])

@@ -9,7 +9,7 @@ import json
 from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
 import lib.uploader as uploader
 from lib.sequence import Sequence
-from lib.exif import is_image, verify_exif
+from lib.exif import is_image, verify_exif, format_orientation
 from lib.exifedit import create_mapillary_description
 import lib.io
 
@@ -70,7 +70,7 @@ def get_args():
     parser.add_argument('path', help='path to your photos')
     parser.add_argument('--cutoff_distance', default=600., type=float, help='maximum gps distance in meters within a sequence')
     parser.add_argument('--cutoff_time', default=60., type=float, help='maximum time interval in seconds within a sequence')
-    parser.add_argument('--orientation', help='specify orientation of the images', type=int)
+    parser.add_argument('--orientation', help='rotate images in degrees', choices=[0, 90, 180, 270], type=int)
     parser.add_argument('--remove_duplicates', help='perform duplicate removal', action='store_true')
     parser.add_argument('--rerun', help='rerun the preprocessing and uploading', action='store_true')
     parser.add_argument('--interpolate_directions', help='perform interploation of directions', action='store_true')
@@ -125,6 +125,10 @@ if __name__ == '__main__':
     else:
         project_key = args.project_key or ''
 
+    # Map orientation from degress to tags
+    if orientation is not None:
+        orientation = format_orientation(orientation)
+
     # Distance/Angle threshold for duplicate removal
     # NOTE: This might lead to removal of panorama sequences
     min_duplicate_distance = float(args.duplicate_distance)
@@ -138,7 +142,7 @@ if __name__ == '__main__':
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
-
+        print MAPILLARY_SECRET_HASH
         if MAPILLARY_SECRET_HASH is None:
             MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
             MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
