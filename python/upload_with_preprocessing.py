@@ -142,7 +142,7 @@ if __name__ == '__main__':
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
-        print MAPILLARY_SECRET_HASH
+
         if MAPILLARY_SECRET_HASH is None:
             MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
             MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
