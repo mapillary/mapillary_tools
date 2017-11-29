@@ -46,7 +46,7 @@ def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_beari
         if elevation is not None:
             metadata.add_altitude(elevation)
         metadata.write()
-        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, time, lat, lon, elevation, corrected_bearing))
+        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, t, lat, lon, elevation, corrected_bearing))
     except ValueError, e:
         print("Skipping {0}: {1}".format(filename, e))
 
@@ -104,6 +104,9 @@ def get_args():
     p.add_argument('--bearing-offset',
         help='Direction of the camera in degrees, relative to the direction of travel',
         type=float, default=0.0)
+    p.add_argument('--local-time',
+        help='Use local time for the GPX trace',
+        action='store_true')
     return p.parse_args()
 
 
@@ -132,7 +135,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # read gpx file to get track locations
-    gpx = get_lat_lon_time_from_gpx(args.gpx_file)
+    gpx = get_lat_lon_time_from_gpx(args.gpx_file, args.local_time)
 
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
