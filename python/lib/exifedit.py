@@ -5,7 +5,7 @@ import datetime
 import hashlib
 import base64
 import uuid
-from lib.geo import normalize_bearing, decimal_to_dms 
+from lib.geo import normalize_bearing, decimal_to_dms
 from lib.exif import EXIF, verify_exif
 import piexif
 import shutil
@@ -14,14 +14,14 @@ import io
 
 def create_mapillary_description(filename, username, email, userkey,
                                  upload_hash, sequence_uuid,
-                                 interpolated_heading=None,
-                                 offset_angle=0.0,
-                                 timestamp=None,
-                                 orientation=None,
-                                 project="",
-                                 secret_hash=None,
-                                 external_properties=None,
-                                 verbose=False):
+                                 interpolated_heading = None,
+                                 offset_angle = 0.0,
+                                 timestamp = None,
+                                 orientation = None,
+                                 project = "",
+                                 secret_hash = None,
+                                 external_properties = None,
+                                 verbose = False):
     '''
     Check that image file has the required EXIF fields.
 
@@ -110,7 +110,7 @@ def create_mapillary_description(filename, username, email, userkey,
 
 def add_mapillary_description(filename, username, email,
                               project, upload_hash, image_description,
-                              output_file=None):
+                              output_file = None):
     """Add Mapillary description tags directly with user info."""
 
     if username is not None:
@@ -152,12 +152,12 @@ def add_mapillary_description(filename, username, email,
     metadata.add_orientation(image_description.get("MAPOrientation", 1))
     metadata.add_direction(image_description["MAPCompassHeading"]["TrueHeading"])
     metadata.add_lat_lon(image_description["MAPLatitude"], image_description["MAPLongitude"])
-    date_time = datetime.datetime.strptime(image_description["MAPCaptureTime"]+"000", "%Y_%m_%d_%H_%M_%S_%f")
+    date_time = datetime.datetime.strptime(image_description["MAPCaptureTime"] + "000", "%Y_%m_%d_%H_%M_%S_%f")
     metadata.add_date_time_original(date_time)
     metadata.write()
 
 
-def add_exif_data(filename, data, output_file=None):
+def add_exif_data(filename, data, output_file = None):
     """Add minimal exif data to an image"""
     if output_file is not None:
         shutil.copy(filename, output_file)
@@ -178,7 +178,7 @@ class ExifEdit(object):
         self._ef = None
         try:
             self._ef = piexif.load(filename)
-        except IOError: 
+        except IOError:
             etype, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error opening file:", value
         except ValueError:
@@ -186,8 +186,8 @@ class ExifEdit(object):
             print >> sys.stderr, "Error opening file:", value
         except InvalidImageDataError:
             etype, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error opening file:", value          
-           
+            print >> sys.stderr, "Error opening file:", value
+
     def add_image_description(self, dict):
         """Add a dict to image description."""
         if self._ef is not None:
@@ -195,7 +195,7 @@ class ExifEdit(object):
 
     def add_orientation(self, orientation):
         """Add image orientation to image."""
-        if not orientation in range(1,9): 
+        if not orientation in range(1, 9):
             print("Error value for orientation, value must be in range(1,9), setting to default 1")
             self._ef['0th'][piexif.ImageIFD.Orientation] = 1
         else:
@@ -205,49 +205,49 @@ class ExifEdit(object):
         """Add date time original."""
         self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = date_time.strftime('%Y:%m:%d %H:%M:%S')
 
-    def add_lat_lon(self, lat, lon, precision=1e7):
+    def add_lat_lon(self, lat, lon, precision = 1e7):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"  
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), precision)
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), precision)  
-            
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), precision)
+
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
         self._ef['0th'][piexif.ImageIFD.Make] = make
         self._ef['0th'][piexif.ImageIFD.Model] = model
 
-    def add_dop(self, dop, precision=100):
+    def add_dop(self, dop, precision = 100):
         """Add GPSDOP (float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSDOP] = (int(abs(dop) * precision), precision)
 
-    def add_altitude(self, altitude, precision=100):
+    def add_altitude(self, altitude, precision = 100):
         """Add altitude (pre is the precision)."""
         ref = 1 if altitude > 0 else 0
         self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (int(abs(altitude) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
 
-    def add_direction(self, direction, ref="T", precision=100):
+    def add_direction(self, direction, ref = "T", precision = 100):
         """Add image direction."""
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (int(abs(direction) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
-    def write(self, filename=None):
+    def write(self, filename = None):
         """Save exif data to file."""
         if filename is None:
             filename = self._filename
 
         exif_bytes = piexif.dump(self._ef)
-        
+
         with open(self._filename, "rb") as fin:
             img = fin.read()
 
-        output_bytes=io.BytesIO()
-        
+        output_bytes = io.BytesIO()
+
         try:
             piexif.insert(exif_bytes, img, output_bytes)
             with open(filename, "w") as fout:
-                fout.write(output_bytes.read()) 
+                fout.write(output_bytes.read())
 
         except IOError:
             type, value, traceback = sys.exc_info()
