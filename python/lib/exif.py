@@ -45,7 +45,10 @@ def format_time(time_string):
     data = time_string.split("_")
     hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
     date = datetime.datetime.strptime("_".join(data[:3]), "%Y_%m_%d")
-    date_time = date + datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds)
+    subsec = 0
+    if len(data) == 7:
+        subsec = float(data[6]) / 10**len(data[6])
+    date_time = date + datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds + subsec)
     return date_time
 
 def format_orientation(orientation):
@@ -191,9 +194,6 @@ class EXIF:
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
 
-        # if "GPSDate" in time_field:
-        #     return self.extract_gps_time()
-
         if capture_time is 0:
             # try interpret the filename
             try:
@@ -203,6 +203,7 @@ class EXIF:
         else:
             capture_time = capture_time.replace(" ", "_")
             capture_time = capture_time.replace(":", "_")
+            capture_time = capture_time.replace(".", "_")
             capture_time = "_".join(["{0:02d}".format(int(ts)) for ts in capture_time.split("_") if ts.isdigit()])
             capture_time = format_time(capture_time)
             sub_sec = self.extract_subsec()
