@@ -237,6 +237,7 @@ class ExifEdit(object):
         if filename is None:
             filename = self._filename
 
+        # exif_bytes = piexif.dump(self._ef, ignore_wrong_type = True)
         exif_bytes = piexif.dump(self._ef)
 
         with open(self._filename, "rb") as fin:
