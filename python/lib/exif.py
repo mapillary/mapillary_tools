@@ -9,6 +9,8 @@ from lib.geo import normalize_bearing
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 def eval_frac(value):
+    if value.den == 0:
+        return -1.0
     return float(value.num) / float(value.den)
 
 def exif_gps_fields():
