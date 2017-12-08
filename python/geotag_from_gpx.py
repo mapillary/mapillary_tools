@@ -6,7 +6,7 @@ import datetime
 import time
 from dateutil.tz import tzlocal
 from lib.geo import interpolate_lat_lon, decimal_to_dms
-from lib.gps_parser import get_lat_lon_time_from_gpx
+from lib.gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from lib.exif import EXIF
 from lib.exifedit import ExifEdit
 
@@ -132,7 +132,13 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # read gpx file to get track locations
-    gpx = get_lat_lon_time_from_gpx(args.gpx_file)
+    if args.gpx_file.lower().endswith(".gpx"):
+        gpx = get_lat_lon_time_from_gpx(args.gpx_file)
+    elif args.gpx_file.lower().endswith(".nmea"):
+        gpx = get_lat_lon_time_from_nmea(args.gpx_file)
+    else:
+        print("\nWrong gnss file! It should be a .gpx or .nmea file.")
+        sys.exit()
 
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
