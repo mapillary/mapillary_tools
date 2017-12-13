@@ -18,7 +18,7 @@ needed to be able to upload without authentication.
 '''
 
 def get_args():
-    p = argparse.ArgumentParser(description='Geotag one or more photos with location and orientation from GPX file.')
+    p = argparse.ArgumentParser(description='Insert Mapillary EXIF info form an externally generated JSON file.')
     p.add_argument('file_path', help='File path to the images')
     p.add_argument('--json_path', help='Path to json file that contains metadata.')
     p.add_argument('--output_path', help='Output path for image files', default="")
