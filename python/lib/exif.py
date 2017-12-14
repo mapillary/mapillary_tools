@@ -113,7 +113,10 @@ def verify_exif(filename):
     '''
     # required tags in IFD name convention
     required_exif = required_fields()
-    exif = EXIF(filename)
+    try:
+        exif = EXIF(filename)
+    except UnicodeError:
+        print 'Error: exifread failed to read exif tags in ' + filename
     required_exif_exist = exif.fields_exist(required_exif)
     return required_exif_exist
 
