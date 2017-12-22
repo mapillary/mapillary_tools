@@ -87,6 +87,8 @@ def get_args():
     parser.add_argument("--user", help="user name")
     parser.add_argument("--email", help="user email")
     parser.add_argument("--userkey", help="user key")
+    parser.add_argument("--make", help="Specify device manufacturer", default="")
+    parser.add_argument("--model", help="Specify device model", default="")
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -118,7 +120,9 @@ if __name__ == '__main__':
     verbose = args.verbose
     auto_done = args.auto_done
     add_file_name = args.add_file_name
-
+    make = args.make
+    model = args.model
+    
     # Retrieve/validate project key
     if not args.skip_validate_project:
         project_key = get_project_key(args.project, args.project_key)
@@ -261,7 +265,9 @@ if __name__ == '__main__':
                                                              orientation,
                                                              project_key,
                                                              secret_hash,
-                                                             external_properties)
+                                                             external_properties,
+                                                             make=make,
+                                                             model=model)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)

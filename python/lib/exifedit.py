@@ -21,7 +21,9 @@ def create_mapillary_description(filename, username, email, userkey,
                                  project = "",
                                  secret_hash = None,
                                  external_properties = None,
-                                 verbose = False):
+                                 verbose = False,
+                                 make = "",
+                                 model = ""):
     '''
     Check that image file has the required EXIF fields.
 
@@ -99,6 +101,11 @@ def create_mapillary_description(filename, username, email, userkey,
         # externl proerties can be saved and searched in Mapillary later on
         mapillary_description['MAPExternalProperties'] = external_properties
 
+    if make:
+        mapillary_description['MAPDeviceMake'] = make
+
+    if model:
+        mapillary_description['MAPDeviceModel'] = model
     # write to file
     if verbose:
         print("tag: {0}".format(mapillary_description))
