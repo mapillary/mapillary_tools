@@ -24,6 +24,142 @@ FIXED_EXIF_FILE_2 = os.path.join("tests", "data", "fixed_exif_2.jpg")
 EXIF_PRIMARY_TAGS_DICT = {y:x for x, y in ExifTags.TAGS.iteritems()}
 EXIF_GPS_TAGS_DICT = {y:x for x, y in ExifTags.GPSTAGS.iteritems()}
 
+def load_exif(filename = EMPTY_EXIF_FILE_TEST):
+
+    test_image = Image.open(filename)
+
+    exif_data = test_image._getexif()
+
+    return   exif_data
+
+
+def test_add_image_description_general(filename):
+
+    test_dictionary = {"key_numeric": 1,
+                       "key_string": "one",
+                       "key_list": [1, 2],
+                       "key_dict":{"key_dict1": 1, "key_dict2": 2}
+                       }
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_image_description(test_dictionary)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual(str(test_dictionary), str(exif_data[EXIF_PRIMARY_TAGS_DICT['ImageDescription']]).replace('"', '\''))
+
+def test_add_orientation_general(filename):
+
+    test_orientation = 2
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_orientation(test_orientation)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual(test_orientation, exif_data[EXIF_PRIMARY_TAGS_DICT['Orientation']])
+
+def test_add_date_time_original_general(filename):
+
+    test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_date_time_original(test_datetime)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+
+def test_add_lat_lon_general(filename):
+
+    test_latitude = 50.5475894785
+    test_longitude = 15.595866685
+    precision = 1e7
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual((decimal_to_dms(test_latitude, precision), decimal_to_dms(test_longitude, precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+
+def test_add_camera_make_model_general(filename):
+
+    test_make = "test_make"
+    test_model = "test_model"
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_camera_make_model(test_make, test_model)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual((test_make, test_model), (exif_data[EXIF_PRIMARY_TAGS_DICT['Make']], exif_data[EXIF_PRIMARY_TAGS_DICT['Model']]))
+
+def test_add_dop_general(filename):
+
+    test_dop = 10.5
+    test_dop_precision = 100
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_dop(test_dop, test_dop_precision)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual((test_dop * test_dop_precision, test_dop_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSDOP']])
+
+def test_add_altitude_general(filename):
+
+    test_altitude = 15.5
+    test_altitude_precision = 100
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual((test_altitude * test_altitude_precision, test_altitude_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSAltitude']])
+
+def test_add_repeatedly_time_original_general(filename):
+
+    test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_date_time_original(test_datetime)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+
+    test_datetime = datetime.datetime(2016, 9, 30, 8, 29, 26, 249000)
+
+    not_empty_exifedit = ExifEdit(filename)
+
+    not_empty_exifedit.add_date_time_original(test_datetime)
+    not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+
+def test_add_direction_general(filename):
+
+    test_direction = 1
+    test_direction_ref = "D"
+    test_direction_precision = 100
+
+    empty_exifedit = ExifEdit(filename)
+
+    empty_exifedit.add_direction(test_direction, test_direction_ref, test_direction_precision)
+    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+    exif_data = load_exif()
+    self.assertEqual((test_direction * test_direction_precision, test_direction_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSImgDirection']])
+
 class ExifEditTests(unittest.TestCase):
     """tests for main functions."""
 
@@ -37,110 +173,35 @@ class ExifEditTests(unittest.TestCase):
 
     def test_add_image_description(self):
 
-        test_dictionary = {"key_numeric": 1,
-                           "key_string": "one",
-                           "key_list": [1, 2],
-                           "key_dict":{"key_dict1": 1, "key_dict2": 2}
-                           }
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_image_description(test_dictionary)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(str(test_dictionary), str(exif_data[EXIF_PRIMARY_TAGS_DICT['ImageDescription']]).replace('"', '\''))
+        test_add_image_description_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_orientation(self):
 
-        test_orientation = 2
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_orientation(test_orientation)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_orientation, exif_data[EXIF_PRIMARY_TAGS_DICT['Orientation']])
+        test_add_orientation_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_date_time_original(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+        test_add_date_time_original_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_lat_lon(self):
 
-        test_latitude = 50.5475894785
-        test_longitude = 15.595866685
-        precision = 1e7
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((decimal_to_dms(test_latitude, precision), decimal_to_dms(test_longitude, precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+        test_add_lat_lon_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_camera_make_model(self):
 
-        test_make = "test_make"
-        test_model = "test_model"
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_camera_make_model(test_make, test_model)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_make, test_model), (exif_data[EXIF_PRIMARY_TAGS_DICT['Make']], exif_data[EXIF_PRIMARY_TAGS_DICT['Model']]))
+        test_add_camera_make_model_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_dop(self):
 
-        test_dop = 10.5
-        test_dop_precision = 100
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_dop(test_dop, test_dop_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_dop * test_dop_precision, test_dop_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSDOP']])
+        test_add_dop_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_altitude(self):
 
-        test_altitude = 15.5
-        test_altitude_precision = 100
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_altitude * test_altitude_precision, test_altitude_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSAltitude']])
+        test_add_altitude_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_direction(self):
 
-        test_direction = 1
-        test_direction_ref = "D"
-        test_direction_precision = 100
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_direction(test_direction, test_direction_ref, test_direction_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_direction * test_direction_precision, test_direction_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSImgDirection']])
+        test_add_direction_general(EMPTY_EXIF_FILE_TEST)
 
     def test_write_to_non_existing_file(self):
 
@@ -151,28 +212,12 @@ class ExifEditTests(unittest.TestCase):
         empty_exifedit.add_date_time_original(test_datetime)
         empty_exifedit.write(NON_EXISTING_FILE)
 
-        exif_data = self._load_exif(NON_EXISTING_FILE)
+        exif_data = load_exif(NON_EXISTING_FILE)
         self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
 
     def test_add_repeatedly_time_original(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-
-        test_datetime = datetime.datetime(2016, 9, 30, 8, 29, 26, 249000)
-
-        not_empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        not_empty_exifedit.add_date_time_original(test_datetime)
-        not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+        test_add_repeatedly_time_original_general(EMPTY_EXIF_FILE_TEST)
 
     def test_add_time_original_to_existing_exif(self):
 
@@ -191,7 +236,7 @@ class ExifEditTests(unittest.TestCase):
         not_empty_exifedit.add_date_time_original(test_datetime)
         not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
-        exif_data = self._load_exif()
+        exif_data = load_exif()
         self.assertEqual((test_altitude * test_altitude_precision, test_altitude_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSAltitude']])
 
     def test_add_negative_lat_lon(self):
@@ -205,10 +250,10 @@ class ExifEditTests(unittest.TestCase):
         empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
-        exif_data = self._load_exif()
+        exif_data = load_exif()
         self.assertEqual((decimal_to_dms(abs(test_latitude), precision), decimal_to_dms(abs(test_longitude), precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
 
-    # FOCUS ON THE CORRPUT EXIF
+    # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
 
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
@@ -233,263 +278,75 @@ class ExifEditTests(unittest.TestCase):
 
     def test_add_image_description_corrupt_exif(self):
 
-        test_dictionary = {"key_numeric": 1,
-                           "key_string": "one",
-                           "key_list": [1, 2],
-                           "key_dict":{"key_dict1": 1, "key_dict2": 2}
-                           }
-
-        corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        corrupt_exifedit.add_image_description(test_dictionary)
-        corrupt_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(str(test_dictionary), str(exif_data[EXIF_PRIMARY_TAGS_DICT['ImageDescription']]).replace('"', '\''))
+        test_add_image_description_general(CORRUPT_EXIF_FILE)
 
     def test_add_image_description_corrupt_exif_2(self):
 
-        test_dictionary = {"key_numeric": 1,
-                           "key_string": "one",
-                           "key_list": [1, 2],
-                           "key_dict":{"key_dict1": 1, "key_dict2": 2}
-                           }
-
-        corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        corrupt_exifedit.add_image_description(test_dictionary)
-        corrupt_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(str(test_dictionary), str(exif_data[EXIF_PRIMARY_TAGS_DICT['ImageDescription']]).replace('"', '\''))
+        test_add_image_description_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_orientation_corrupt_exif(self):
 
-        test_orientation = 2
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_orientation(test_orientation)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_orientation, exif_data[EXIF_PRIMARY_TAGS_DICT['Orientation']])
+        test_add_orientation_general(CORRUPT_EXIF_FILE)
 
     def test_add_orientation_corrupt_exif_2(self):
 
-        test_orientation = 2
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_orientation(test_orientation)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_orientation, exif_data[EXIF_PRIMARY_TAGS_DICT['Orientation']])
+        test_add_orientation_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_date_time_original_corrupt_exif(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+        test_add_date_time_original_general(CORRUPT_EXIF_FILE)
 
     def test_add_date_time_original_corrupt_exif_2(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+        test_add_date_time_original_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_lat_lon_corrupt_exif(self):
 
-        test_latitude = 50.5475894785
-        test_longitude = 15.595866685
-        precision = 1e7
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((decimal_to_dms(test_latitude, precision), decimal_to_dms(test_longitude, precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+        test_add_lat_lon_general(CORRUPT_EXIF_FILE)
 
     def test_add_lat_lon_corrupt_exif_2(self):
 
-        test_latitude = 50.5475894785
-        test_longitude = 15.595866685
-        precision = 1e7
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((decimal_to_dms(test_latitude, precision), decimal_to_dms(test_longitude, precision)), (exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLatitude']], exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSLongitude']]))
+        test_add_lat_lon_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_camera_make_model_corrupt_exif(self):
 
-        test_make = "test_make"
-        test_model = "test_model"
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_camera_make_model(test_make, test_model)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_make, test_model), (exif_data[EXIF_PRIMARY_TAGS_DICT['Make']], exif_data[EXIF_PRIMARY_TAGS_DICT['Model']]))
+        test_add_camera_make_model_general(CORRUPT_EXIF_FILE)
 
     def test_add_camera_make_model_corrupt_exif_2(self):
 
-        test_make = "test_make"
-        test_model = "test_model"
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_camera_make_model(test_make, test_model)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_make, test_model), (exif_data[EXIF_PRIMARY_TAGS_DICT['Make']], exif_data[EXIF_PRIMARY_TAGS_DICT['Model']]))
+        test_add_camera_make_model_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_dop_corrupt_exif(self):
 
-        test_dop = 10.5
-        test_dop_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_dop(test_dop, test_dop_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_dop * test_dop_precision, test_dop_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSDOP']])
+        test_add_dop_general(CORRUPT_EXIF_FILE)
 
     def test_add_dop_corrupt_exif_2(self):
 
-        test_dop = 10.5
-        test_dop_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_dop(test_dop, test_dop_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_dop * test_dop_precision, test_dop_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSDOP']])
+        test_add_dop_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_altitude_corrupt_exif(self):
 
-        test_altitude = 15.5
-        test_altitude_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_altitude * test_altitude_precision, test_altitude_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSAltitude']])
+        test_add_altitude_general(CORRUPT_EXIF_FILE)
 
     def test_add_altitude_corrupt_exif_2(self):
 
-        test_altitude = 15.5
-        test_altitude_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_altitude * test_altitude_precision, test_altitude_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSAltitude']])
+        test_add_altitude_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_direction_corrupt_exif(self):
 
-        test_direction = 1
-        test_direction_ref = "D"
-        test_direction_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_direction(test_direction, test_direction_ref, test_direction_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_direction * test_direction_precision, test_direction_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSImgDirection']])
+        test_add_direction_general(CORRUPT_EXIF_FILE)
 
     def test_add_direction_corrupt_exif_2(self):
 
-        test_direction = 1
-        test_direction_ref = "D"
-        test_direction_precision = 100
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_direction(test_direction, test_direction_ref, test_direction_precision)
-        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual((test_direction * test_direction_precision, test_direction_precision), exif_data[EXIF_PRIMARY_TAGS_DICT['GPSInfo']][EXIF_GPS_TAGS_DICT['GPSImgDirection']])
+        test_add_direction_general(CORRUPT_EXIF_FILE_2)
 
     def test_add_repeatedly_time_original_corrupt_exif(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(CORRUPT_EXIF_FILE)
-
-        test_datetime = datetime.datetime(2016, 9, 30, 8, 29, 26, 249000)
-
-        not_empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        not_empty_exifedit.add_date_time_original(test_datetime)
-        not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
+        test_add_repeatedly_time_original_general(CORRUPT_EXIF_FILE)
 
     def test_add_repeatedly_time_original_corrupt_exif_2(self):
 
-        test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
-
-        empty_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        empty_exifedit.add_date_time_original(test_datetime)
-        empty_exifedit.write(CORRUPT_EXIF_FILE_2)
-
-        test_datetime = datetime.datetime(2016, 9, 30, 8, 29, 26, 249000)
-
-        not_empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-
-        not_empty_exifedit.add_date_time_original(test_datetime)
-        not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-        exif_data = self._load_exif()
-        self.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S'), exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
-
-    def _load_exif(self, filename = EMPTY_EXIF_FILE_TEST):
-
-        test_image = Image.open(filename)
-
-        exif_data = test_image._getexif()
-
-        return   exif_data
+        test_add_repeatedly_time_original_general(CORRUPT_EXIF_FILE_2)
 
 if __name__ == '__main__':
     unittest.main()
