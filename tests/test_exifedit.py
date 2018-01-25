@@ -153,7 +153,7 @@ def test_add_repeatedly_time_original_general(test_obj, filename):
 def test_add_direction_general(test_obj, filename):
 
     test_direction = 1
-    test_direction_ref = "D"
+    test_direction_ref = "T"
     test_direction_precision = 100
 
     empty_exifedit = ExifEdit(filename)
