@@ -112,8 +112,12 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
 
-    now = datetime.datetime.now(tzlocal())
-    print("Your local timezone is {0}, if this is not correct, your geotags will be wrong.".format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+    if args.local_time:
+        now = datetime.datetime.now(tzlocal())
+        print("Your local timezone is {0}. If not, the geotags will be wrong."
+              .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+    else:
+        print("It is assumed that the timestamps are in UTC. If not, try using the option --local-time.")
 
     if args.path.lower().endswith(".jpg"):
         # single file

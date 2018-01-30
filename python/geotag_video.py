@@ -82,6 +82,7 @@ def get_args():
     p.add_argument("--use_gps_start_time", help="Use GPS trace starting time as reference", action="store_true")
     p.add_argument("--duration_ratio", help="handle oversampling and undersampling of videos", type=float, default=1.0)
     p.add_argument("--start_time", help="Video start time in epochs (milliseconds)", type=int)
+    p.add_argument("--local_time", help="Use local time for GPS trace", action="store_true")
     p.add_argument("--make", help="Specify device manufacturer", default="none")
     p.add_argument("--model", help="Specify device model", default="none")
     return p.parse_args()
@@ -102,8 +103,7 @@ if __name__ == "__main__":
     model = args.model
 
     # Parse gps trace
-    local_time = False
-    points = parse_gps_trace(gps_trace_file, local_time)
+    points = parse_gps_trace(gps_trace_file, args.local_time)
 
     # Get sync between video and gps trace
     if args.use_gps_start_time:
