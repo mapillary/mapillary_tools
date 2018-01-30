@@ -86,11 +86,18 @@ def create_mapillary_description(filename, username, email, userkey,
     # a sequene ID to make the images go together (order by MAPCaptureTime)
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
 
-    # The device model
-    mapillary_description['MAPDeviceModel'] = exif.extract_model()
-
     # The device manufacturer
-    mapillary_description['MAPDeviceMake'] = exif.extract_make()
+    if make:
+        mapillary_description['MAPDeviceMake'] = make
+    else:
+        mapillary_description['MAPDeviceMake'] = exif.extract_make()
+
+    # The device model
+    if model:
+        mapillary_description['MAPDeviceModel'] = model
+    else:
+        mapillary_description['MAPDeviceModel'] = exif.extract_model()
+
     if upload_hash is None and secret_hash is not None:
         mapillary_description['MAPVideoSecure'] = secret_hash
 
