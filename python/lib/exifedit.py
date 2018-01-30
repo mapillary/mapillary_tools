@@ -191,9 +191,6 @@ class ExifEdit(object):
         except ValueError:
             etype, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error opening file:", value
-        except InvalidImageDataError:
-            etype, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error opening file:", value
 
     def add_image_description(self, dict):
         """Add a dict to image description."""
@@ -216,7 +213,7 @@ class ExifEdit(object):
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
 
-    def add_lat_lon(self, lat, lon, precision = 1e7):
+    def add_lat_lon(self, lat, lon, precision = 1e8):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
