@@ -6,6 +6,9 @@ Python Tools for Mapillary
 * [exifread]
 * [gpxpy]
 * [PIL]
+* [Piexif]
+
+Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.  
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
@@ -156,3 +159,4 @@ Script to download images using the Mapillary image search API. Downloads images
 [exifread]: https://pypi.python.org/pypi/ExifRead
 [gpxpy]: https://pypi.python.org/pypi/gpxpy
 [PIL]: https://pypi.python.org/pypi/Pillow/2.2.1
+[Piexif]: https://github.com/mapillary/Piexif
