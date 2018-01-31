@@ -220,7 +220,7 @@ class ExifEdit(object):
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
 
-    def add_lat_lon(self, lat, lon, precision = 1e8):
+    def add_lat_lon(self, lat, lon, precision = 1e7):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
