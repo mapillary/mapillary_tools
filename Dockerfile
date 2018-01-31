@@ -4,6 +4,7 @@ FROM ubuntu:16.04
 RUN \
     apt-get -qq update && \
     apt-get -yqq install \
+        git \
         python-pip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
