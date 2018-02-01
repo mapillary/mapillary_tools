@@ -224,8 +224,8 @@ class ExifEdit(object):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), precision)
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), precision)
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), int(precision))
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), int(precision))
 
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
