@@ -12,18 +12,19 @@ import shutil
 from PIL import Image
 import io
 
+
 def create_mapillary_description(filename, username, email, userkey,
                                  upload_hash, sequence_uuid,
-                                 interpolated_heading = None,
-                                 offset_angle = 0.0,
-                                 timestamp = None,
-                                 orientation = None,
-                                 project = "",
-                                 secret_hash = None,
-                                 external_properties = None,
-                                 verbose = False,
-                                 make = "",
-                                 model = ""):
+                                 interpolated_heading=None,
+                                 offset_angle=0.0,
+                                 timestamp=None,
+                                 orientation=None,
+                                 project="",
+                                 secret_hash=None,
+                                 external_properties=None,
+                                 verbose=False,
+                                 make="",
+                                 model=""):
     '''
     Check that image file has the required EXIF fields.
 
@@ -44,15 +45,19 @@ def create_mapillary_description(filename, username, email, userkey,
     # lat, lon of the image, takes precedence over EXIF GPS values
     mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat()
 
-    # altitude of the image, takes precedence over EXIF GPS values, assumed 0 if missing
+    # altitude of the image, takes precedence over EXIF GPS values, assumed 0
+    # if missing
     mapillary_description["MAPAltitude"] = exif.extract_altitude()
 
-    # capture time: required date format: 2015_01_14_09_37_01_000, TZ MUST be UTC
+    # capture time: required date format: 2015_01_14_09_37_01_000, TZ MUST be
+    # UTC
     if timestamp is None:
         timestamp = exif.extract_capture_time()
 
-    #  The capture time of the image in UTC. Will take precedence over any other time tags in the EXIF
-    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+    # The capture time of the image in UTC. Will take precedence over any
+    # other time tags in the EXIF
+    mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(
+        timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
 
     # EXIF orientation of the image
     mapillary_description["MAPOrientation"] = orientation
@@ -60,10 +65,12 @@ def create_mapillary_description(filename, username, email, userkey,
 
     if heading is None:
         heading = 0.0
-    heading = normalize_bearing(interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
+    heading = normalize_bearing(
+        interpolated_heading + offset_angle) if interpolated_heading is not None else normalize_bearing(heading + offset_angle)
 
     # bearing of the image
-    mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading, "MagneticHeading": heading}
+    mapillary_description["MAPCompassHeading"] = {
+        "TrueHeading": heading, "MagneticHeading": heading}
 
     # authentication
     assert(email is not None or userkey is not None)
@@ -72,16 +79,19 @@ def create_mapillary_description(filename, username, email, userkey,
     if username is not None:
         mapillary_description["MAPSettingsUsername"] = username
 
-    # use this if available, and omit MAPSettingsUsername and MAPSettingsEmail for privacy reasons
+    # use this if available, and omit MAPSettingsUsername and MAPSettingsEmail
+    # for privacy reasons
     if userkey is not None:
         mapillary_description["MAPSettingsUserKey"] = userkey
     if upload_hash is not None:
-        settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+        settings_upload_hash = hashlib.sha256("%s%s%s" % (
+            upload_hash, email, base64.b64encode(filename))).hexdigest()
         # this is not checked in the backend right now, will likely be changed to have user_key instead of email as part
         # of the hash
         mapillary_description['MAPSettingsUploadHash'] = settings_upload_hash
 
-    # a unique photo ID to check for duplicates in the backend in case the image gets uploaded more than once
+    # a unique photo ID to check for duplicates in the backend in case the
+    # image gets uploaded more than once
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
     # a sequene ID to make the images go together (order by MAPCaptureTime)
     mapillary_description['MAPSequenceUUID'] = str(sequence_uuid)
@@ -122,9 +132,10 @@ def create_mapillary_description(filename, username, email, userkey,
     metadata.add_direction(heading)
     metadata.write()
 
+
 def add_mapillary_description(filename, username, email,
                               project, upload_hash, image_description,
-                              output_file = None):
+                              output_file=None):
     """Add Mapillary description tags directly with user info."""
 
     if username is not None:
@@ -132,7 +143,8 @@ def add_mapillary_description(filename, username, email,
         image_description["MAPSettingsUploadHash"] = upload_hash
         image_description["MAPSettingsEmail"] = email
         image_description["MAPSettingsUsername"] = username
-        settings_upload_hash = hashlib.sha256("%s%s%s" % (upload_hash, email, base64.b64encode(filename))).hexdigest()
+        settings_upload_hash = hashlib.sha256("%s%s%s" % (
+            upload_hash, email, base64.b64encode(filename))).hexdigest()
 
         image_description['MAPSettingsUploadHash'] = settings_upload_hash
 
@@ -164,14 +176,17 @@ def add_mapillary_description(filename, username, email,
     metadata = ExifEdit(filename)
     metadata.add_image_description(image_description)
     metadata.add_orientation(image_description.get("MAPOrientation", 1))
-    metadata.add_direction(image_description["MAPCompassHeading"]["TrueHeading"])
-    metadata.add_lat_lon(image_description["MAPLatitude"], image_description["MAPLongitude"])
-    date_time = datetime.datetime.strptime(image_description["MAPCaptureTime"] + "000", "%Y_%m_%d_%H_%M_%S_%f")
+    metadata.add_direction(
+        image_description["MAPCompassHeading"]["TrueHeading"])
+    metadata.add_lat_lon(
+        image_description["MAPLatitude"], image_description["MAPLongitude"])
+    date_time = datetime.datetime.strptime(
+        image_description["MAPCaptureTime"] + "000", "%Y_%m_%d_%H_%M_%S_%f")
     metadata.add_date_time_original(date_time)
     metadata.write()
 
 
-def add_exif_data(filename, data, output_file = None):
+def add_exif_data(filename, data, output_file=None):
     """Add minimal exif data to an image"""
     if output_file is not None:
         shutil.copy(filename, output_file)
@@ -183,6 +198,7 @@ def add_exif_data(filename, data, output_file = None):
     metadata.add_date_time_original(data["capture_time"])
     metadata.add_camera_make_model(data["make"], data["model"])
     metadata.write()
+
 
 class ExifEdit(object):
 
@@ -202,12 +218,14 @@ class ExifEdit(object):
     def add_image_description(self, dict):
         """Add a dict to image description."""
         if self._ef is not None:
-            self._ef['0th'][piexif.ImageIFD.ImageDescription] = json.dumps(dict)
+            self._ef['0th'][piexif.ImageIFD.ImageDescription] = json.dumps(
+                dict)
 
     def add_orientation(self, orientation):
         """Add image orientation to image."""
         if not orientation in range(1, 9):
-            print("Error value for orientation, value must be in range(1,9), setting to default 1")
+            print(
+                "Error value for orientation, value must be in range(1,9), setting to default 1")
             self._ef['0th'][piexif.ImageIFD.Orientation] = 1
         else:
             self._ef['0th'][piexif.ImageIFD.Orientation] = orientation
@@ -220,34 +238,39 @@ class ExifEdit(object):
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
 
-    def add_lat_lon(self, lat, lon, precision = 1e7):
+    def add_lat_lon(self, lat, lon, precision=1e7):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(abs(lon), int(precision))
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(abs(lat), int(precision))
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(
+            abs(lon), int(precision))
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(
+            abs(lat), int(precision))
 
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
         self._ef['0th'][piexif.ImageIFD.Make] = make
         self._ef['0th'][piexif.ImageIFD.Model] = model
 
-    def add_dop(self, dop, precision = 100):
+    def add_dop(self, dop, precision=100):
         """Add GPSDOP (float)."""
-        self._ef["GPS"][piexif.GPSIFD.GPSDOP] = (int(abs(dop) * precision), precision)
+        self._ef["GPS"][piexif.GPSIFD.GPSDOP] = (
+            int(abs(dop) * precision), precision)
 
-    def add_altitude(self, altitude, precision = 100):
+    def add_altitude(self, altitude, precision=100):
         """Add altitude (pre is the precision)."""
         ref = 1 if altitude > 0 else 0
-        self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (int(abs(altitude) * precision), precision)
+        self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (
+            int(abs(altitude) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
 
-    def add_direction(self, direction, ref = "T", precision = 100):
+    def add_direction(self, direction, ref="T", precision=100):
         """Add image direction."""
-        self._ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (int(abs(direction) * precision), precision)
+        self._ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (
+            int(abs(direction) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
-    def write(self, filename = None):
+    def write(self, filename=None):
         """Save exif data to file."""
         if filename is None:
             filename = self._filename
