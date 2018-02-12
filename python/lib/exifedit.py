@@ -5,12 +5,15 @@ import datetime
 import hashlib
 import base64
 import uuid
+import os
+import shutil
+
+import piexif
+from PIL import Image
+
 from lib.geo import normalize_bearing, decimal_to_dms
 from lib.exif import EXIF, verify_exif
-import piexif
-import shutil
-from PIL import Image
-import io
+from lib.io import mkdir_p
 
 
 def create_mapillary_description(filename, username, email, userkey,
@@ -275,18 +278,16 @@ class ExifEdit(object):
         if filename is None:
             filename = self._filename
 
+        # copy file first if needed
+        if self._filename != filename:
+            file_path = os.path.dirname(filename)
+            mkdir_p(file_path)
+            shutil.copy(self._filename, filename)
+
         exif_bytes = piexif.dump(self._ef)
 
-        with open(self._filename, "rb") as fin:
-            img = fin.read()
-
-        output_bytes = io.BytesIO()
-
         try:
-            piexif.insert(exif_bytes, img, output_bytes)
-            with open(filename, "w") as fout:
-                fout.write(output_bytes.read())
-
+            piexif.insert(exif_bytes, filename)
         except IOError:
             type, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error saving file:", value
