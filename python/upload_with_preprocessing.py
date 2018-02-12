@@ -79,7 +79,7 @@ def get_args():
     parser.add_argument('--duplicate_distance', help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument('--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5)
     parser.add_argument('--auto_done', help='do not ask for confirmation after every sequence but submit all', action='store_true')
-    parser.add_argument('--project', help="add project to EXIF (project name)", default=None)
+    parser.add_argument('--project', help="add project name in case validation is required", default=None)
     parser.add_argument('--project_key', help="add project to EXIF (project key)", default=None)
     parser.add_argument('--skip_validate_project', help="do not validate project key or projectd name", action='store_true')
     parser.add_argument('--add_file_name', help="add original file name to EXIF", action='store_true')
