@@ -31,7 +31,7 @@ def exif_datetime_fields():
              "Image DateTimeOriginal",
              "EXIF DateTimeDigitized",
              "Image DateTimeDigitized",
-             "EXIF DateTime"
+             "EXIF DateTime",
              "Image DateTime",
              "GPS GPSDate",
              "EXIF GPS GPSDate",
