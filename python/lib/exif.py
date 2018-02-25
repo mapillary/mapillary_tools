@@ -31,7 +31,7 @@ def exif_datetime_fields():
              "Image DateTimeOriginal",
              "EXIF DateTimeDigitized",
              "Image DateTimeDigitized",
-             "EXIF DateTime"
+             "EXIF DateTime",
              "Image DateTime",
              "GPS GPSDate",
              "EXIF GPS GPSDate",
@@ -195,6 +195,7 @@ class EXIF:
         '''
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
+
         if capture_time is 0:
             # try interpret the filename
             try:
@@ -206,7 +207,7 @@ class EXIF:
             capture_time = capture_time.replace(":", "_")
             capture_time = capture_time.replace(".", "_")
             capture_time = capture_time.replace("-", "_")
-            capture_time = "_".join(["{0:02d}".format(int(ts)) for ts in capture_time.split("_") if ts.isdigit()])
+            capture_time = "_".join([ts for ts in capture_time.split("_") if ts.isdigit()])
             capture_time = format_time(capture_time)
             sub_sec = self.extract_subsec()
             capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
