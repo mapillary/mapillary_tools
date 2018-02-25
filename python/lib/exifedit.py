@@ -278,16 +278,13 @@ class ExifEdit(object):
         if filename is None:
             filename = self._filename
 
-        # copy file first if needed
-        if self._filename != filename:
-            file_path = os.path.dirname(filename)
-            mkdir_p(file_path)
-            shutil.copy(self._filename, filename)
-
         exif_bytes = piexif.dump(self._ef)
 
+        with open(self._filename, "rb") as fin:
+            img = fin.read()
         try:
-            piexif.insert(exif_bytes, filename)
+            piexif.insert(exif_bytes, img, filename)
+
         except IOError:
             type, value, traceback = sys.exc_info()
             print >> sys.stderr, "Error saving file:", value
