@@ -13,7 +13,6 @@ from PIL import Image
 
 from lib.geo import normalize_bearing, decimal_to_dms
 from lib.exif import EXIF, verify_exif
-from lib.io import mkdir_p
 
 
 def create_mapillary_description(filename, username, email, userkey,
