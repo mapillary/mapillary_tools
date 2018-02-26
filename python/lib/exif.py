@@ -5,13 +5,17 @@ import sys
 import exifread
 import datetime
 from lib.geo import normalize_bearing
+import uuid
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
+
 
 def eval_frac(value):
     if value.den == 0:
         return -1.0
     return float(value.num) / float(value.den)
+
 
 def exif_gps_fields():
     '''
@@ -37,6 +41,7 @@ def exif_datetime_fields():
              "EXIF GPS GPSDate",
              "EXIF DateTimeModified"]]
 
+
 def format_time(time_string):
     '''
     Format time string with invalid time elements in hours/minutes/seconds
@@ -50,8 +55,11 @@ def format_time(time_string):
     subsec = 0
     if len(data) == 7:
         subsec = float(data[6]) / 10**len(data[6])
-    date_time = date + datetime.timedelta(hours=hours, minutes=minutes, seconds=seconds + subsec)
+    date_time = date + \
+        datetime.timedelta(hours=hours, minutes=minutes,
+                           seconds=seconds + subsec)
     return date_time
+
 
 def format_orientation(orientation):
     '''
@@ -69,6 +77,7 @@ def format_orientation(orientation):
         raise ValueError("Orientation value has to be 0, 90, 180, or 270")
 
     return mapping[orientation]
+
 
 def gps_to_decimal(values, reference):
     sign = 1 if reference in 'NE' else -1
@@ -102,6 +111,7 @@ def extract_exif_from_file(fileobj):
     d = exif_data.extract_exif()
     return d
 
+
 def required_fields():
     return exif_gps_fields() + exif_datetime_fields()
 
@@ -133,6 +143,7 @@ class EXIF:
     '''
     EXIF class for reading exif from an image
     '''
+
     def __init__(self, filename, details=False):
         '''
         Initialize EXIF object with FILE as filename or fileobj
@@ -143,7 +154,6 @@ class EXIF:
                 self.tags = exifread.process_file(fileobj, details=details)
         else:
             self.tags = exifread.process_file(filename, details=details)
-
 
     def _extract_alternative_fields(self, fields, default=None, field_type=float):
         '''
@@ -161,10 +171,9 @@ class EXIF:
                 return value, field
         return default, None
 
-
     def exif_name(self):
         '''
-        Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}
+        Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}_{hash}
         '''
         lon, lat = self.extract_lon_lat()
         ca = self.extract_direction()
@@ -174,9 +183,9 @@ class EXIF:
         date_time = self.extract_capture_time()
         date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
         date_time = date_time[:-3]
-        filename = '{}_{}_{}_{}_{}'.format(lat, lon, ca, date_time, os.path.basename(self.filename))
+        filename = '{}_{}_{}_{}_{}_{}'.format(
+            uuid.uuid4(), lat, lon, ca, date_time, os.path.basename(self.filename))
         return filename
-
 
     def extract_altitude(self):
         '''
@@ -186,7 +195,6 @@ class EXIF:
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
         return altitude
 
-
     def extract_capture_time(self):
         '''
         Extract capture time from EXIF
@@ -194,12 +202,14 @@ class EXIF:
         TODO: handle GPS DateTime
         '''
         time_string = exif_datetime_fields()[0]
-        capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
+        capture_time, time_field = self._extract_alternative_fields(
+            time_string, 0, str)
 
         if capture_time is 0:
             # try interpret the filename
             try:
-                capture_time = datetime.datetime.strptime(os.path.basename(self.filename)[:-4]+'000', '%Y_%m_%d_%H_%M_%S_%f')
+                capture_time = datetime.datetime.strptime(os.path.basename(
+                    self.filename)[:-4] + '000', '%Y_%m_%d_%H_%M_%S_%f')
             except:
                 pass
         else:
@@ -207,13 +217,15 @@ class EXIF:
             capture_time = capture_time.replace(":", "_")
             capture_time = capture_time.replace(".", "_")
             capture_time = capture_time.replace("-", "_")
-            capture_time = "_".join([ts for ts in capture_time.split("_") if ts.isdigit()])
+            capture_time = "_".join(
+                [ts for ts in capture_time.split("_") if ts.isdigit()])
             capture_time = format_time(capture_time)
             sub_sec = self.extract_subsec()
-            capture_time = capture_time + datetime.timedelta(seconds=float(sub_sec)/10**len(str(sub_sec)))
+            capture_time = capture_time + \
+                datetime.timedelta(seconds=float(
+                    sub_sec) / 10**len(str(sub_sec)))
 
         return capture_time
-
 
     def extract_direction(self):
         '''
@@ -229,7 +241,6 @@ class EXIF:
             direction = normalize_bearing(direction, check_hex=True)
         return direction
 
-
     def extract_dop(self):
         '''
         Extract dilution of precision
@@ -237,7 +248,6 @@ class EXIF:
         fields = ['GPS GPSDOP', 'EXIF GPS GPSDOP']
         dop, _ = self._extract_alternative_fields(fields)
         return dop
-
 
     def extract_geo(self):
         '''
@@ -267,14 +277,15 @@ class EXIF:
             date = str(self.tags[gps_date_field].values).split(":")
             t = self.tags[gps_time_field]
             gps_time = datetime.datetime(
-                    year=int(date[0]),
-                    month=int(date[1]),
-                    day=int(date[2]),
-                    hour=int(eval_frac(t.values[0])),
-                    minute=int(eval_frac(t.values[1])),
-                    second=int(eval_frac(t.values[2])),
-                )
-            microseconds = datetime.timedelta(microseconds=int( (eval_frac(t.values[2])%1) *1e6))
+                year=int(date[0]),
+                month=int(date[1]),
+                day=int(date[2]),
+                hour=int(eval_frac(t.values[0])),
+                minute=int(eval_frac(t.values[1])),
+                second=int(eval_frac(t.values[2])),
+            )
+            microseconds = datetime.timedelta(
+                microseconds=int((eval_frac(t.values[2]) % 1) * 1e6))
             gps_time += microseconds
         return gps_time
 
@@ -300,23 +311,23 @@ class EXIF:
         d['gps'] = geo
         return d
 
-
     def extract_image_size(self):
         '''
         Extract image height and width
         '''
-        width, _ = self._extract_alternative_fields(['Image ImageWidth', 'EXIF ExifImageWidth'], -1, int)
-        height, _ = self._extract_alternative_fields(['Image ImageLength', 'EXIF ExifImageLength'], -1, int)
+        width, _ = self._extract_alternative_fields(
+            ['Image ImageWidth', 'EXIF ExifImageWidth'], -1, int)
+        height, _ = self._extract_alternative_fields(
+            ['Image ImageLength', 'EXIF ExifImageLength'], -1, int)
         return width, height
-
 
     def extract_image_description(self):
         '''
         Extract image description
         '''
-        description, _ = self._extract_alternative_fields(['Image ImageDescription'], "{}", str)
+        description, _ = self._extract_alternative_fields(
+            ['Image ImageDescription'], "{}", str)
         return description
-
 
     def extract_lon_lat(self):
         if 'GPS GPSLatitude' in self.tags and 'GPS GPSLatitude' in self.tags:
@@ -333,35 +344,34 @@ class EXIF:
             lon, lat = None, None
         return lon, lat
 
-
     def extract_make(self):
         '''
         Extract camera make
         '''
         fields = ['EXIF LensMake', 'Image Make']
-        make, _ = self._extract_alternative_fields(fields, default='none', field_type=str)
+        make, _ = self._extract_alternative_fields(
+            fields, default='none', field_type=str)
         return make
-
 
     def extract_model(self):
         '''
         Extract camera model
         '''
         fields = ['EXIF LensModel', 'Image Model']
-        model, _ = self._extract_alternative_fields(fields, default='none', field_type=str)
+        model, _ = self._extract_alternative_fields(
+            fields, default='none', field_type=str)
         return model
-
 
     def extract_orientation(self):
         '''
         Extract image orientation
         '''
         fields = ['Image Orientation']
-        orientation, _ = self._extract_alternative_fields(fields, default=1, field_type=int)
+        orientation, _ = self._extract_alternative_fields(
+            fields, default=1, field_type=int)
         if orientation not in [1, 3, 6, 8]:
             return 1
         return orientation
-
 
     def extract_subsec(self):
         '''
@@ -375,10 +385,10 @@ class EXIF:
             'Image SubSecTime',
             'EXIF SubSecTime'
         ]
-        sub_sec, _ = self._extract_alternative_fields(fields, default=0, field_type=str)
+        sub_sec, _ = self._extract_alternative_fields(
+            fields, default=0, field_type=str)
         sub_sec = int(sub_sec)
         return sub_sec
-
 
     def fields_exist(self, fields):
         '''
@@ -390,10 +400,10 @@ class EXIF:
                 if subrexif in self.tags:
                     vflag = True
             if not vflag:
-                print("Missing required EXIF tag: {0} for image {1}".format(rexif[0], self.filename))
+                print("Missing required EXIF tag: {0} for image {1}".format(
+                    rexif[0], self.filename))
                 return False
         return True
-
 
     def mapillary_tag_exists(self):
         '''
@@ -404,4 +414,3 @@ class EXIF:
             if "MAPSequenceUUID" in self.tags[description_tag].values:
                 return True
         return False
-
