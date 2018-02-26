@@ -14,9 +14,9 @@
 -->
 
 ### Basic information
-* Platform: `iOS` | `Android` | `Web` | `...`
 * Version: `...` 
-* System/Browser: `Windows` | `Linux` | `...`
+* System: `Windows` | `Linux` | `...`
+* Capture Device: `iOS` | `Android` | `Action Camera` | `...`
 
 ### Steps to reproduce behavior
 
