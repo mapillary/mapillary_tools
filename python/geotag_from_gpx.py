@@ -28,28 +28,37 @@ Requires gpxpy, e.g. 'pip install gpxpy'
 '''
 
 
-def add_exif_using_timestamp(filename, time, points, offset_time=0, offset_bearing=0):
+def add_exif_using_timestamp(filename, time, points, overwrite, offset_time=0, offset_bearing=0):
     '''
     Find lat, lon and bearing of filename and write to EXIF.
     '''
 
-    metadata = ExifEdit(filename)
+    exifRead = EXIF(filename)
+    required_fields = [
+        ["GPS GPSLongitude", "EXIF GPS GPSLongitude"],
+        ["GPS GPSLatitude", "EXIF GPS GPSLatitude"]
+    ]
 
-    # subtract offset in s beween gpx time and exif time
-    t = time - datetime.timedelta(seconds=offset_time)
+    if (overwrite is False and exifRead.fields_exist(required_fields)):
+        print("Skipping {0}: {1}".format(filename, 'GPS already exist'))
+        return
+    else:
+        metadata = ExifEdit(filename)
 
-    try:
-        lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
-        corrected_bearing = (bearing + offset_bearing) % 360
-        metadata.add_lat_lon(lat, lon)
-        metadata.add_direction(corrected_bearing)
-        if elevation is not None:
-            metadata.add_altitude(elevation)
-        metadata.write()
-        print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, t, lat, lon, elevation, corrected_bearing))
-    except ValueError, e:
-        print("Skipping {0}: {1}".format(filename, e))
+        # subtract offset in s beween gpx time and exif time
+        t = time - datetime.timedelta(seconds=offset_time)
 
+        try:
+            lat, lon, bearing, elevation = interpolate_lat_lon(points, t)
+            corrected_bearing = (bearing + offset_bearing) % 360
+            metadata.add_lat_lon(lat, lon)
+            metadata.add_direction(corrected_bearing)
+            if elevation is not None:
+                metadata.add_altitude(elevation)
+            metadata.write()
+            print("Added geodata to: {}  time {}  lat {}  lon {}  alt {}  bearing {}".format(filename, t, lat, lon, elevation, corrected_bearing))
+        except ValueError, e:
+            print("Skipping {0}: {1}".format(filename, e))
 
 def exif_time(filename):
     '''
@@ -106,6 +115,11 @@ def get_args():
     p.add_argument('--local-time',
         help='Use local time for the GPX trace',
         action='store_true')
+    p.add_argument('--no-overwrite',
+        dest='overwrite',
+        help='Overwrite images with GPS in EXIF',
+        action='store_false',
+        default=True)
     return p.parse_args()
 
 
@@ -143,6 +157,6 @@ if __name__ == '__main__':
     print("===\nStarting geotagging of {0} images using {1}.\n===".format(len(file_list), args.gpx_file))
 
     for filepath, filetime in zip(file_list, sub_second_times):
-        add_exif_using_timestamp(filepath, filetime, gpx, args.time_offset, args.bearing_offset)
+        add_exif_using_timestamp(filepath, filetime, gpx, args.overwrite, args.time_offset, args.bearing_offset)
 
     print("Done geotagging {0} images in {1:.1f} seconds.".format(len(file_list), time.time()-start_time))
