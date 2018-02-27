@@ -7,6 +7,9 @@ from PIL.ExifTags import TAGS, GPSTAGS
 # License:   MIT
 # Credits:   https://gist.github.com/erans
 
+'''
+only remove_duplicates.py is using this and sequence.remove_duplicates seems to have replaced that script
+'''
 
 class ExifException(Exception):
     def __init__(self, message):
