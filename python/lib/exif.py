@@ -183,8 +183,8 @@ class EXIF:
         date_time = self.extract_capture_time()
         date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
         date_time = date_time[:-3]
-        filename = '{}_{}_{}_{}_{}_{}'.format(
-            uuid.uuid4(), lat, lon, ca, date_time, os.path.basename(self.filename))
+        filename = '{}_{}_{}_{}_{}'.format(
+            lat, lon, ca, date_time, uuid.uuid4())
         return filename
 
     def extract_altitude(self):
