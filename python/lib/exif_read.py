@@ -1,9 +1,64 @@
-from lib.geo import normalize_bearing
+#!/usr/bin/env python
+
+import os
+import sys
 import exifread
+import datetime
+from lib.geo import normalize_bearing
 import uuid
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
 
 
-class EXIF:
+def eval_frac(value):
+    if value.den == 0:
+        return -1.0
+    return float(value.num) / float(value.den)
+
+
+def format_time(time_string):
+    '''
+    Format time string with invalid time elements in hours/minutes/seconds
+    Format for the timestring needs to be "%Y_%m_%d_%H_%M_%S"
+
+    e.g. 2014_03_31_24_10_11 => 2014_04_01_00_10_11
+    '''
+    data = time_string.split("_")
+    hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
+    date = datetime.datetime.strptime("_".join(data[:3]), "%Y_%m_%d")
+    subsec = 0
+    if len(data) == 7:
+        subsec = float(data[6]) / 10**len(data[6])
+    date_time = date + \
+        datetime.timedelta(hours=hours, minutes=minutes,
+                           seconds=seconds + subsec)
+    return date_time
+
+
+def gps_to_decimal(values, reference):
+    sign = 1 if reference in 'NE' else -1
+    degrees = eval_frac(values[0])
+    minutes = eval_frac(values[1])
+    seconds = eval_frac(values[2])
+    return sign * (degrees + minutes / 60 + seconds / 3600)
+
+
+def exif_datetime_fields():
+    '''
+    Date time fields in EXIF
+    '''
+    return [["EXIF DateTimeOriginal",
+             "Image DateTimeOriginal",
+             "EXIF DateTimeDigitized",
+             "Image DateTimeDigitized",
+             "EXIF DateTime",
+             "Image DateTime",
+             "GPS GPSDate",
+             "EXIF GPS GPSDate",
+             "EXIF DateTimeModified"]]
+
+
+class ExifRead:
     '''
     EXIF class for reading exif from an image
     '''
@@ -47,8 +102,8 @@ class EXIF:
         date_time = self.extract_capture_time()
         date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
         date_time = date_time[:-3]
-        filename = '{}_{}_{}_{}_{}_{}'.format(
-            uuid.uuid4(), lat, lon, ca, date_time, os.path.basename(self.filename))
+        filename = '{}_{}_{}_{}_{}'.format(
+            lat, lon, ca, date_time, uuid.uuid4())
         return filename
 
     def extract_altitude(self):

@@ -1,12 +1,39 @@
-#------------from exifedit.py------------------------
+import datetime
+import uuid
+import shutil
 import hashlib
 import base64
-import uuid
-from lib.geo import normalize_bearing, decimal_to_dms
-from lib.exif import EXIF, verify_exif
-from PIL import Image
-import shutil
 
+from lib.exif_read import ExifRead
+from lib.exif_write import ExifEdit
+from lib.exif_aux import verify_exif
+from lib.geo import normalize_bearing
+
+'''
+auxillary processing functions
+'''
+
+
+def format_orientation(orientation):
+    '''
+    Convert orientation from clockwise degrees to exif tag
+
+    # see http://sylvana.net/jpegcrop/exif_orientation.html
+    '''
+    mapping = {
+        0: 1,
+        90: 6,
+        180: 3,
+        270: 8,
+    }
+    if orientation not in mapping:
+        raise ValueError("Orientation value has to be 0, 90, 180, or 270")
+
+    return mapping[orientation]
+
+
+def is_image(filename):
+    return filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
 
 
 def create_mapillary_description(filename, username, email, userkey,
@@ -27,7 +54,7 @@ def create_mapillary_description(filename, username, email, userkey,
     Incompatible files will be ignored server side.
     '''
     # read exif
-    exif = EXIF(filename)
+    exif = ExifRead(filename)
 
     if not verify_exif(filename):
         return False
@@ -129,59 +156,6 @@ def create_mapillary_description(filename, username, email, userkey,
     metadata.write()
 
 
-def add_mapillary_description(filename, username, email,
-                              project, upload_hash, image_description,
-                              output_file=None):
-    """Add Mapillary description tags directly with user info."""
-
-    if username is not None:
-        # write the mapillary tag
-        image_description["MAPSettingsUploadHash"] = upload_hash
-        image_description["MAPSettingsEmail"] = email
-        image_description["MAPSettingsUsername"] = username
-        settings_upload_hash = hashlib.sha256("%s%s%s" % (
-            upload_hash, email, base64.b64encode(filename))).hexdigest()
-
-        image_description['MAPSettingsUploadHash'] = settings_upload_hash
-
-        # if this image is part of a projet, the project UUID
-        image_description["MAPSettingsProject"] = project
-
-    assert("MAPSequenceUUID" in image_description)
-
-    if output_file is not None and output_file != filename:
-        shutil.copy(filename, output_file)
-        filename = output_file
-
-    # modify image description when necessary
-    if "MAPSettingsUserKey" in image_description:
-        if "MAPSettingsEmail" in image_description:
-            del image_description["MAPSettingsEmail"]
-
-    if "MAPExternalProperties" in image_description:
-        if "user_id" not in image_description:
-            image_description["MAPExternalProperties"]["user_id"] = \
-                username or "none"
-
-    if "MAPImageWidth" not in image_description:
-        width, height = Image.open(filename).size
-        image_description["MAPImageWidth"] = width
-        image_description["MAPImageHeight"] = height
-
-    # write to file
-    metadata = ExifEdit(filename)
-    metadata.add_image_description(image_description)
-    metadata.add_orientation(image_description.get("MAPOrientation", 1))
-    metadata.add_direction(
-        image_description["MAPCompassHeading"]["TrueHeading"])
-    metadata.add_lat_lon(
-        image_description["MAPLatitude"], image_description["MAPLongitude"])
-    date_time = datetime.datetime.strptime(
-        image_description["MAPCaptureTime"] + "000", "%Y_%m_%d_%H_%M_%S_%f")
-    metadata.add_date_time_original(date_time)
-    metadata.write()
-
-
 def add_exif_data(filename, data, output_file=None):
     """Add minimal exif data to an image"""
     if output_file is not None:
@@ -194,8 +168,3 @@ def add_exif_data(filename, data, output_file=None):
     metadata.add_date_time_original(data["capture_time"])
     metadata.add_camera_make_model(data["make"], data["model"])
     metadata.write()
-
-#---------from exif.py class and functions-------------
-
-
-#----------------------------------------------------

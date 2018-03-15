@@ -7,7 +7,7 @@ import datetime
 import argparse
 import json
 import lib.io as io
-import lib.exifedit as exifedit
+from lib.processing_aux import add_exif_data
 import lib.geo as geo
 from lib.gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from lib.ffprobe import FFProbe
@@ -150,7 +150,7 @@ if __name__ == "__main__":
                 "make": make,
                 "model": model
             }
-            exifedit.add_exif_data(os.path.join(image_path, im), data)
+            add_exif_data(os.path.join(image_path, im), data)
         except Exception as e:
             print "Image {} timestamp out of range. Skipping".format(im)
             missing_gps += 1

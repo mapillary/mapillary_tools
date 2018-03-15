@@ -6,11 +6,13 @@ import uuid
 import argparse
 import json
 
+#double import
 from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
 import lib.uploader as uploader
+#double import
 from lib.sequence import Sequence
-from lib.exif import is_image, verify_exif, format_orientation
-from lib.exifedit import create_mapillary_description
+from lib.processing_aux import format_orientation, is_image, create_mapillary_description
+from lib.exif_aux import verify_exif
 import lib.io
 
 '''

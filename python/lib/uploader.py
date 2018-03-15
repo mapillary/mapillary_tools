@@ -1,4 +1,4 @@
-from lib.exif import EXIF
+from lib.exif_read import ExifRead
 import lib.io
 import json
 import os
@@ -242,7 +242,7 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
         s3_filename = filename
     else:
         try:
-            s3_filename = EXIF(filepath).exif_name()
+            s3_filename = ExifRead(filepath).exif_name()
         except:
             s3_filename = filename
 
