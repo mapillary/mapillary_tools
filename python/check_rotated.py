@@ -16,11 +16,9 @@ import exifread
 BASE_DIR = 'downloaded/'
 # See https://www.mapillary.com/developer/api-documentation/
 MAPILLARY_API_SEQ_URL = 'https://a.mapillary.com/v3/sequences/'
-## MAPILLARY_API_IM_RETRIEVE_URL = 'https://d1cuyjsrcm0gby.cloudfront.net/'
 CLIENT_ID = 'TG1sUUxGQlBiYWx2V05NM0pQNUVMQTo2NTU3NTBiNTk1NzM1Y2U2'
 CLIENT_ID_IMAGE = 'MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh'
 MAPILLARY_API_IM_RETRIEVE_URL = 'https://d1cuyjsrcm0gby.cloudfront.net/'
-# MAPILLARY_API_IM_RETRIEVE_ORIG_URL = 'https://a.mapillary.com/v2/ua/login'
 MAPILLARY_LOGIN_URL = 'https://a.mapillary.com/v2/ua/login'
 MAPILLARY_GET_ORIG_IMAGE_URL = 'https://a.mapillary.com/v3/model.json'
 
@@ -50,7 +48,7 @@ def query_seq_api(seq_id):
     return image_keys
 
 
-def get_original_image(session, headers_image, image_key):
+def get_original_image_orientation(session, headers_image, image_key):
     '''
     Returns request containing original image
 '''
@@ -59,10 +57,21 @@ def get_original_image(session, headers_image, image_key):
     req = session.get(MAPILLARY_GET_ORIG_IMAGE_URL, params=payload_image, headers=headers_image)
     if req.status_code != 200:
         print("Failed to get image info for ", image_key, "; status code: ", req.status_code)
-        sys.exit(1)
+        return None
     orig_url = req.json()['jsonGraph']['imageByKey'][image_key]['original_url']['value']
-    req_orig = session.get(orig_url)
-    return req_orig
+    req_orig = session.get(orig_url, stream=True)
+    if req_orig.status_code != 200:
+        return None
+
+    chunk = req_orig.iter_content(chunk_size=64 * 1024) # exif is limited to 64K
+    tags = next(chunk)
+    tags = exifread.process_file(BytesIO(tags),
+                                 details=False, stop_tag='Image Orientation')
+    if not 'Image Orientation' in tags:
+        print('Image ', image_key, ' does not have "Image Orientation"')
+        return None
+    orientation = tags['Image Orientation']
+    return orientation
 
 
 def check_orientation(images, email, password):
@@ -90,32 +99,19 @@ def check_orientation(images, email, password):
     headers_image = {'Authorization': 'Bearer ' + req_login.json()['token'],
                      'Referer': 'https://www.mapillary.com/app/&username'}
     key = images[0]
-    req_first_image = get_original_image(session, headers_image, key)
-    if req_first_image.status_code != 200:
-        print("Failed to retrieve original image for ", key,
-              "; status code: ", req_first_image.status_code)
-        sys.exit(1)
-    tags = exifread.process_file(BytesIO(req_first_image.content),
-                                 details=False, stop_tag='Image Orientation')
-    if not 'Image Orientation' in tags:
+    orientation = get_original_image_orientation(session, headers_image, key)
+    if orientation is None:
         print('First image ', key, ' does not have "Image Orientation"')
         return 0
-    orientation = tags['Image Orientation']
     print('First image orientation: ', orientation)
     im_number = 0
     im_mismatch = 0
     for key in images[1:]:
-        req_image = get_original_image(session, headers_image, key)
-        if req_image.status_code != 200:
-            print("Failed to retrieve original image for ", key,
-                  "; status code: ", req_image.status_code)
-            continue
-        tags = exifread.process_file(BytesIO(req_image.content),
-                                     details=False, stop_tag='Image Orientation')
-        current_orientation = tags['Image Orientation']
+        current_orientation = get_original_image_orientation(session, headers_image, key)
         im_number += 1
-        # print("image number: ", im_number, ": ", key)
-        if orientation.values[0] != current_orientation.values[0]:
+        if current_orientation is None:
+            print(key, ' no orientation found')
+        elif orientation.values[0] != current_orientation.values[0]:
             im_mismatch += 1
             print(key, ' mismatch: current: ', current_orientation,
                   ' does not match first: ', orientation)
