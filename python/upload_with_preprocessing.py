@@ -91,6 +91,7 @@ def get_args():
     parser.add_argument("--userkey", help="user key")
     parser.add_argument("--make", help="Specify device manufacturer", default="")
     parser.add_argument("--model", help="Specify device model", default="")
+    parser.add_argument("--GPS_accuracy", help="GPS accuracy in meters",default="")
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -124,7 +125,7 @@ if __name__ == '__main__':
     add_file_name = args.add_file_name
     make = args.make
     model = args.model
-
+    GPS_accuracy=args.GPS_accuracy
 
     # Retrieve/validate project key
     if not args.skip_validate_project:
@@ -274,7 +275,8 @@ if __name__ == '__main__':
                                                              secret_hash,
                                                              external_properties,
                                                              make = make,
-                                                             model = model)
+                                                             model = model,
+                                                             GPS_accuracy=GPS_accuracy)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)
