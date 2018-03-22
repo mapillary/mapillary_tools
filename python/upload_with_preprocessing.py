@@ -142,7 +142,11 @@ if __name__ == '__main__':
     # Fetch authentication info
     try:
         MAPILLARY_USERNAME = args.user if args.user is not None else os.environ['MAPILLARY_USERNAME']
-        MAPILLARY_EMAIL = args.email if args.email is not None else os.environ['MAPILLARY_EMAIL']
+        MAPILLARY_EMAIL=None
+        if args.email:
+            MAPILLARY_EMAIL = args.email
+        elif 'MAPILLARY_EMAIL' in os.environ:
+            MAPILLARY_EMAIL=os.environ['MAPILLARY_EMAIL']
         MAPILLARY_USERKEY = args.userkey
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
