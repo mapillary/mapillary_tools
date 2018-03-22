@@ -135,7 +135,8 @@ def create_mapillary_description(filename, username, email, userkey,
     if upload_hash is None and secret_hash is not None:
         mapillary_description['MAPVideoSecure'] = secret_hash
 
-    mapillary_description["MAPSettingsProject"] = project
+    if project:
+        mapillary_description["MAPSettingsProject"] = project
 
     # external properties (optional)
     if external_properties is not None:
