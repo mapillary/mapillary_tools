@@ -246,8 +246,8 @@ def upload_file(filepath, url, permission, signature, key=None, root):#TODO , th
         response = None
 
         try:
-            "request = urllib2.Request(url, data=data, headers=headers)
-            "response = urllib2.urlopen(request)
+            #request = urllib2.Request(url, data=data, headers=headers)
+            #response = urllib2.urlopen(request)
 
             #if response.getcode()==204:
             if 1:
