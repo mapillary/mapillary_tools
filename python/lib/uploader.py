@@ -218,13 +218,10 @@ def upload_file(filepath, root, url, permission, signature, key=None):#TODO , th
     
     filename = os.path.basename(filepath)
 
-    if keep_file_names:
+    try:
+        s3_filename = ExifRead(filepath).exif_name()
+    except:
         s3_filename = filename
-    else:
-        try:
-            s3_filename = ExifRead(filepath).exif_name()
-        except:
-            s3_filename = filename
 
     # add S3 'path' if given #TODO if given in process.log if it exists
     if key is None:
@@ -306,13 +303,13 @@ def upload_file_list(file_list, root, file_params=None):
         sys.exit()
 
 def update_upload_log(log_filepath, filepath, status):
-    with open (log_filepath, "r") as jf:
+    with open (log_filepath, "rb") as jf:
         upload_log = json.load(jf)
     if filepath not in upload_log:
         upload_log[filepath]={}
     upload_log[filepath]["uploading_log"]={
         "upload":status}
-    if satus=="success":
+    if status=="success":
         upload_log[filepath]["uploading_log"]["uploaded_at"]=time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())
     with open (log_filepath, "w") as jf:
         json.dump(upload_log, jf)    

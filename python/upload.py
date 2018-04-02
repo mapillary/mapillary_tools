@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     image_list = []
     for root, dir, files in os.walk(import_path):
-        image_list = [os.path.join(root, file) for file in files if (
-            file.lower().endswith(".jpg"))]
+        image_list.extend(os.path.join(root, file) for file in files if
+                          file.lower().endswith(".jpg"))
 
     # check if any images in the list
     if not len(image_list):
