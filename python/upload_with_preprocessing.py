@@ -150,7 +150,7 @@ if __name__ == '__main__':
             MAPILLARY_EMAIL = args.email
         elif 'MAPILLARY_EMAIL' in os.environ:
             MAPILLARY_EMAIL=os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_USERKEY = args.userkey
+        MAPILLARY_USERKEY = args.userkey # we do require that this is given although it is not needed if user uploads with email and username
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
