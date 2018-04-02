@@ -3,7 +3,7 @@
 import sys
 import os
 import argparse
-import uploader
+from lib import uploader
 import json
 from lib.sequence import Sequence
 from lib.exif_aux import verify_mapillary_tag
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     print("Uploading {} images with valid mapillary tags (Skipping {})".format(
         len(file_list), len(image_list) - len(file_list)))
 
-    uploader.upload_file_list(file_list, params)
+    uploader.upload_file_list(file_list, import_path, params)
 
     print("Done uploading {} images.".format(
         len(file_list)))  # improve upload summary

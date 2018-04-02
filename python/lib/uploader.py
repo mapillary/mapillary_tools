@@ -44,7 +44,7 @@ class UploadThread(threading.Thread):
                 break
             else:
                 lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, **params, root)
+                upload_file(filepath, self.root, **params)
                 self.q.task_done()
 
 
@@ -137,7 +137,7 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
-def get_authentication_info('username'): #TODO this is to be changed, this is now used in : here, the uploader.py in get_project_key, in upload_with_authentication only imports it, but doesnt call it, then imported and used in add_mapillary_tag_from_json and add_mapillary_tag_from_exif to set the MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
+def get_authentication_info(username):
     '''
     Get authentication information from config
     '''
@@ -204,9 +204,7 @@ def upload_done_file(params):#TODO note that this will stay the same
     if os.path.exists("DONE"):
         os.remove("DONE")
 
-def 
-
-def upload_file(filepath, url, permission, signature, key=None, root):#TODO , this needs changing, move_files should not exist anymore
+def upload_file(filepath, root, url, permission, signature, key=None):#TODO , this needs changing, move_files should not exist anymore
     '''
     Upload file at filepath.
 
@@ -215,7 +213,7 @@ def upload_file(filepath, url, permission, signature, key=None, root):#TODO , th
     if not os.path.isdir(os.path.join(root,".mapillary")):
         os.makedirs(os.path.join(root,".mapillary"))
     if not os.path.isfile(upload_log_filepath):
-        with (upload_log_filepath, "w") as jf:
+        with open (upload_log_filepath, "w") as jf:
             json.dump({},jf)
     
     filename = os.path.basename(filepath)
@@ -242,20 +240,22 @@ def upload_file(filepath, url, permission, signature, key=None, root):#TODO , th
 
     data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
 
+    for attempt in range(MAX_ATTEMPTS):
+    
         # Initialize response before each attempt
         response = None
-
+    
         try:
             #request = urllib2.Request(url, data=data, headers=headers)
             #response = urllib2.urlopen(request)
-
+    
             #if response.getcode()==204:
             if 1:
                 update_upload_log(upload_log_filepath, filepath, "success")
             else:
                 update_upload_log(upload_log_filepath, filepath, "failed")
             break # attempts
-
+    
         except urllib2.HTTPError as e:
             print("HTTP error: {0} on {1}".format(e, filename))
             time.sleep(5)
@@ -276,7 +276,7 @@ def upload_file(filepath, url, permission, signature, key=None, root):#TODO , th
                 response.close()
 
 
-def upload_file_list(file_list, file_params=None, root):
+def upload_file_list(file_list, root, file_params=None):
     # create upload queue with all files
     q = Queue()
     if file_params==None:
