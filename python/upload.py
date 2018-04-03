@@ -59,6 +59,13 @@ if __name__ == '__main__':
                 with open(upload_params_path, "rb") as jf:
                     params[image] = json.load(jf)
 
+    # check if any failed uploads
+    if len(failed_image_upload_list):
+        upload_failed = raw_input(
+            "Retry uploading previously failed image uploads? [y/n]: ")
+        if upload_failed in ["y", "Y", "yes", "Yes"]:
+            image_upload_list.extend(failed_image_upload_list)
+
     # check if any images to be uploaded
     if not len(image_upload_list):
         print("All images have already been uploaded")

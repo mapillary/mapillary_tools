@@ -13,6 +13,7 @@ import string
 from Queue import Queue
 import threading
 import time
+import config
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -28,8 +29,11 @@ LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
 PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
 UPLOAD_STATUS_PAIRS={"upload_success":"upload_failed",
-                     "upload_failed":"upload_success"
-    }
+                     "upload_failed":"upload_success"}
+LOCAL_CONFIG_FILEPATH = os.path.join(
+    os.path.expanduser('~'), '{}.mapillary/config')
+GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
+
 class UploadThread(threading.Thread):
     def __init__(self, queue, root): # TODO params are joint in the queue
         threading.Thread.__init__(self)
@@ -138,6 +142,56 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
+def prompt_user_for_user_items():
+    user_items = None
+    user_items["user_email"] = raw_input("Enter email : ")
+    user_items["user_password"] = raw_input("Enter password : ")
+    user_items["user_key"] = raw_input("Enter user key : ")
+    user_items["user_permission_hash"] = raw_input(
+        "Enter user permission hash : ")
+    user_items["user_signature_hash"] = raw_input(
+        "Enter user signature hash : ")
+    user_items["upload_token"] = get_upload_token(
+        user_items["user_email"], user_items["user_password"])
+    return user_items
+
+
+def authenticate_user(user_name, import_path):
+    local_config_filepath = LOCAL_CONFIG_FILEPATH.format(import_path)
+    user_items = None
+    if os.path.isfile(local_config_filepath):
+        local_config_object = config.load_config(local_config_filepath)
+        if user_name in local_config_object.sections:
+            user_items = config.load_user(local_config_object, user_name)
+            return user_items
+    elif os.path.isfile(GLOBAL_CONFIG_FILEPATH):
+        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+        if user_name in global_config_object.sections:
+            user_items = config.load_user(global_config_object, user_name)
+            config.create_config(local_config_filepath)
+            config.initialize_config(
+                local_config_filepath, user_name, user_items)
+            return user_items
+        else:
+            print("enter user credentials for user " + user_name)
+            user_items = prompt_user_for_user_items()
+            config.initialize_config(
+                GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+            config.create_config(local_config_filepath)
+            config.initialize_config(
+                local_config_filepath, user_name, user_items)
+            return user_items
+    else:
+        print("enter user credentials for user " + user_name)
+        user_items = prompt_user_for_user_items()
+        config.create_config(GLOBAL_CONFIG_FILEPATH)
+        config.initialize_config(
+            GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+        config.create_config(local_config_filepath)
+        config.initialize_config(
+            local_config_filepath, user_name, user_items)
+        return user_items
+
 def get_authentication_info(username):
     '''
     Get authentication information from config
@@ -241,7 +295,7 @@ def upload_file(filepath, root, url, permission, signature, key=None):#TODO , th
         try:
             #request = urllib2.Request(url, data=data, headers=headers)
             #response = urllib2.urlopen(request)
-    
+    ¸
             #if response.getcode()==204:
             if 1:
                 create_upload_log(root, filepath, "upload_success")
@@ -307,9 +361,11 @@ def create_upload_log(root, filepath, status):
     if not os.path.isdir(upload_log_root):
         os.makedirs(upload_log_root)
         open(upload_log_filepath, "w").close()
+        open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())),"w").close()
     else:
         if not os.path.isfile(upload_log_filepath):
             open(upload_log_filepath, "w").close()
+            open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())),"w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
 
