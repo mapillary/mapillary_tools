@@ -26,7 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('path', help='path to your photos')
     args = parser.parse_args()
 
-    import_path = args.path
+    import_path = os.path.abspath(args.path)
     # check if import path exists
     if not os.path.isdir(import_path):
         print("Import directory doesnt not exist")
@@ -43,27 +43,22 @@ if __name__ == '__main__':
         sys.exit()
 
     # prepare upload lists
-    image_upload_list = image_list[:]
-    # check for upload log
-    log_filepath = os.path.join(import_path, LOG_FILEPATH)
-    log = {}
-    if os.path.isfile(log_filepath):
-        with open(log_filepath) as jf:
-            log = json.loads(jf.read())
+    image_upload_list = []
+    failed_image_upload_list = []
+    # check logs
+    params = {}
+    for image in image_list:
+        log_root = uploader.upload_log_rootpath(import_path, image)
+        if not os.path.isfile(os.path.join(log_root, "process_failed")) and not os.path.isfile(os.path.join(log_root, "duplicate")) and not os.path.isfile(os.path.join(log_root, "upload_success")):
+            if os.path.isfile(os.path.join(log_root, "upload_failed")):
+                failed_image_upload_list.append(image)
+            else:
+                image_upload_list.append(image)
+            upload_params_path = os.path.join(log_root, "upload_params")
+            if os.path.isfile(upload_params_path):
+                with open(upload_params_path, "rb") as jf:
+                    params[image] = json.load(jf)
 
-    params = None
-    # check the logged images if any
-    for image in log.keys():
-        image_log = log[image]
-        if "uploading_log" in image_log:
-            if "upload" in image_log["uploading_log"]:
-                if (image_log["uploading_log"]["upload"] == "success") and (image in image_upload_list):
-                    del image_upload_list[image_upload_list.index(image)]
-        if "processing_log" in image_log:
-            if ("process_completed" not in image_log["processing_log"]) or (("process_completed" in image_log["processing_log"]) and ("duplicate" in image_log["processing_log"])):
-                del image_upload_list[image_upload_list.index(image)]
-        if "upload_params" in image_log:
-            params[image] = image_log["upload_params"]
     # check if any images to be uploaded
     if not len(image_upload_list):
         print("All images have already been uploaded")

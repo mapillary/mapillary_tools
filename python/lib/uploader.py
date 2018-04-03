@@ -27,7 +27,9 @@ CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
 PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
-
+UPLOAD_STATUS_PAIRS={"upload_success":"upload_failed",
+                     "upload_failed":"upload_success"
+    }
 class UploadThread(threading.Thread):
     def __init__(self, queue, root): # TODO params are joint in the queue
         threading.Thread.__init__(self)
@@ -46,7 +48,6 @@ class UploadThread(threading.Thread):
                 lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
                 upload_file(filepath, self.root, **params)
                 self.q.task_done()
-
 
 def encode_multipart(fields, files, boundary=None): #TODO note that this is not looked into, but left as out of improvement scope
     """
@@ -208,22 +209,17 @@ def upload_file(filepath, root, url, permission, signature, key=None):#TODO , th
     '''
     Upload file at filepath.
 
-    '''
-    upload_log_filepath=os.path.join(root,".mapillary/log")
-    if not os.path.isdir(os.path.join(root,".mapillary")):
-        os.makedirs(os.path.join(root,".mapillary"))
-    if not os.path.isfile(upload_log_filepath):
-        with open (upload_log_filepath, "w") as jf:
-            json.dump({},jf)
-    
+    '''    
     filename = os.path.basename(filepath)
 
-    try:
-        s3_filename = ExifRead(filepath).exif_name()
-    except:
-        s3_filename = filename
+    s3_filename = filename
+    if root!=None:
+        try:
+            s3_filename = ExifRead(filepath).exif_name()
+        except:
+            pass
 
-    # add S3 'path' if given #TODO if given in process.log if it exists
+    # add S3 'path' if given
     if key is None:
         s3_key = s3_filename
     else:
@@ -248,9 +244,9 @@ def upload_file(filepath, root, url, permission, signature, key=None):#TODO , th
     
             #if response.getcode()==204:
             if 1:
-                update_upload_log(upload_log_filepath, filepath, "success")
+                create_upload_log(root, filepath, "upload_success")
             else:
-                update_upload_log(upload_log_filepath, filepath, "failed")
+                create_upload_log(root, filepath, "upload_failed")
             break # attempts
     
         except urllib2.HTTPError as e:
@@ -273,15 +269,14 @@ def upload_file(filepath, root, url, permission, signature, key=None):#TODO , th
                 response.close()
 
 
-def upload_file_list(file_list, root, file_params=None):
+def upload_file_list(file_list, root, file_params={}):
     # create upload queue with all files
     q = Queue()
-    if file_params==None:
-        for filepath in file_list:
-            if file_params==None:
-                q.put((filepath, UPLOAD_PARAMS))
-            else:
-                q.put((filepath, file_params[filepath]))
+    for filepath in file_list:
+        if filepath not in file_params:
+            q.put((filepath, UPLOAD_PARAMS))
+        else:
+            q.put((filepath, file_params[filepath]))
     # create uploader threads
     uploaders = [UploadThread(q, root) for i in range(NUMBER_THREADS)]
 
@@ -302,17 +297,21 @@ def upload_file_list(file_list, root, file_params=None):
         print("\nBREAK: Stopping upload.")
         sys.exit()
 
-def update_upload_log(log_filepath, filepath, status):
-    with open (log_filepath, "rb") as jf:
-        upload_log = json.load(jf)
-    if filepath not in upload_log:
-        upload_log[filepath]={}
-    upload_log[filepath]["uploading_log"]={
-        "upload":status}
-    if status=="success":
-        upload_log[filepath]["uploading_log"]["uploaded_at"]=time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())
-    with open (log_filepath, "w") as jf:
-        json.dump(upload_log, jf)    
+def upload_log_rootpath(root,filepath):
+    return os.path.join(root,".mapillary/logs",filepath.split(root)[1][1:-4])
+
+def create_upload_log(root, filepath, status):
+    upload_log_root=upload_log_rootpath(root,filepath)
+    upload_log_filepath=os.path.join(upload_log_root,status)
+    upload_opposite_log_filepath=os.path.join(upload_log_root,UPLOAD_STATUS_PAIRS[status])
+    if not os.path.isdir(upload_log_root):
+        os.makedirs(upload_log_root)
+        open(upload_log_filepath, "w").close()
+    else:
+        if not os.path.isfile(upload_log_filepath):
+            open(upload_log_filepath, "w").close()
+        if os.path.isfile(upload_opposite_log_filepath):
+            os.remove(upload_opposite_log_filepath)
 
 def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups): #TODO change this, to summarize the upload.log and the processing.log maybe, now only used in upload_wth_preprocessing
     total_success = len([f for f in file_list if 'success' in f])
