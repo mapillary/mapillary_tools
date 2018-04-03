@@ -144,15 +144,20 @@ def get_upload_token(mail, pwd):
 
 def prompt_user_for_user_items():
     user_items = None
-    user_items["user_email"] = raw_input("Enter email : ")
-    user_items["user_password"] = raw_input("Enter password : ")
-    user_items["user_key"] = raw_input("Enter user key : ")
-    user_items["user_permission_hash"] = raw_input(
-        "Enter user permission hash : ")
-    user_items["user_signature_hash"] = raw_input(
-        "Enter user signature hash : ")
-    user_items["upload_token"] = get_upload_token(
-        user_items["user_email"], user_items["user_password"])
+    master_key_upload = raw_input(
+        "Use master key for this user uploads [y/n]: ")
+    if master_key_upload in ["y", "Y", "yes", "Yes"]:
+        user_items["master_key"] = raw_input("Insert master key: ")
+    else:
+        user_items["user_email"] = raw_input("Enter email : ")
+        user_items["user_password"] = raw_input("Enter password : ")
+        user_items["user_key"] = raw_input("Enter user key : ")
+        user_items["user_permission_hash"] = raw_input(
+            "Enter user permission hash : ")
+        user_items["user_signature_hash"] = raw_input(
+            "Enter user signature hash : ")
+        user_items["upload_token"] = get_upload_token(
+            user_items["user_email"], user_items["user_password"])
     return user_items
 
 
@@ -360,11 +365,11 @@ def create_upload_log(root, filepath, status):
     if not os.path.isdir(upload_log_root):
         os.makedirs(upload_log_root)
         open(upload_log_filepath, "w").close()
-        open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())),"w").close()
+        open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())),"w").close()
     else:
         if not os.path.isfile(upload_log_filepath):
             open(upload_log_filepath, "w").close()
-            open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d %H:%M:%S", time.gmtime())),"w").close()
+            open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())),"w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
 

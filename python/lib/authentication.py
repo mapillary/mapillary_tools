@@ -10,15 +10,20 @@ GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
 
 def prompt_user_for_user_items():
     user_items = None
-    user_items["user_email"] = raw_input("Enter email : ")
-    user_items["user_password"] = raw_input("Enter password : ")
-    user_items["user_key"] = raw_input("Enter user key : ")
-    user_items["user_permission_hash"] = raw_input(
-        "Enter user permission hash : ")
-    user_items["user_signature_hash"] = raw_input(
-        "Enter user signature hash : ")
-    user_items["upload_token"] = get_upload_token(
-        user_items["user_email"], user_items["user_password"])
+    master_key_upload = raw_input(
+        "Use master key for this user uploads [y/n]: ")
+    if master_key_upload in ["y", "Y", "yes", "Yes"]:
+        user_items["master_key"] = raw_input("Insert master key: ")
+    else:
+        user_items["user_email"] = raw_input("Enter email : ")
+        user_items["user_password"] = raw_input("Enter password : ")
+        user_items["user_key"] = raw_input("Enter user key : ")
+        user_items["user_permission_hash"] = raw_input(
+            "Enter user permission hash : ")
+        user_items["user_signature_hash"] = raw_input(
+            "Enter user signature hash : ")
+        user_items["upload_token"] = get_upload_token(
+            user_items["user_email"], user_items["user_password"])
     return user_items
 
 
