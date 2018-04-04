@@ -14,7 +14,7 @@ from Queue import Queue
 import threading
 import time
 import config
-
+import getpass
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
@@ -30,8 +30,7 @@ PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
 UPLOAD_STATUS_PAIRS={"upload_success":"upload_failed",
                      "upload_failed":"upload_success"}
-LOCAL_CONFIG_FILEPATH = os.path.join(
-    os.path.expanduser('~'), '{}.mapillary/config')
+LOCAL_CONFIG_FILEPATH = os.path.join('{}','.mapillary/config')
 GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
 
 class UploadThread(threading.Thread):
@@ -143,16 +142,21 @@ def get_upload_token(mail, pwd):
 
 
 def prompt_user_for_user_items():
-    user_items = None
-    user_items["user_email"] = raw_input("Enter email : ")
-    user_items["user_password"]=raw_input("Enter user password : ")
-    user_items["user_key"] = raw_input("Enter user key : ")#TODO get userkey form api
+    user_items = {}
+    #user_items["user_email"] = raw_input("Enter email : ")
+    #user_items["user_password"]=raw_input("Enter user password : ")
+    user_email=raw_input("Enter email : ")
+    user_password=getpass.getpass("Enter user password : ")
+    
+    user_items["MAPSettingsEmail"]=user_email
+    user_items["MAPSettingsUploadHash"] = get_upload_token(
+        user_email, user_password)
+    user_items["MAPSettingsUserKey"] = raw_input("Enter user key : ")#TODO get userkey form api
+    
     user_items["user_permission_hash"] = raw_input(
         "Enter user permission hash : ")#TODO get permission hash form api
     user_items["user_signature_hash"] = raw_input(
         "Enter user signature hash : ")#TODO get signature hash form api
-    user_items["upload_token"] = get_upload_token(
-        user_items["user_email"], user_items["user_password"])
     
     return user_items
 
@@ -162,52 +166,38 @@ def authenticate_user(user_name, import_path):
     user_items = None
     if os.path.isfile(local_config_filepath):
         local_config_object = config.load_config(local_config_filepath)
-        if user_name in local_config_object.sections:
+        if user_name in local_config_object.sections():
             user_items = config.load_user(local_config_object, user_name)
             return user_items
     elif os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
-        if user_name in global_config_object.sections:
+        if user_name in global_config_object.sections():
             user_items = config.load_user(global_config_object, user_name)
             config.create_config(local_config_filepath)
-            config.initialize_config(
+            config.update_config(
                 local_config_filepath, user_name, user_items)
             return user_items
         else:
             print("enter user credentials for user " + user_name)
             user_items = prompt_user_for_user_items()
-            config.initialize_config(
+            user_items["MAPSettingsUsername"]=user_name
+            config.update_config(
                 GLOBAL_CONFIG_FILEPATH, user_name, user_items)
             config.create_config(local_config_filepath)
-            config.initialize_config(
+            config.update_config(
                 local_config_filepath, user_name, user_items)
             return user_items
     else:
         print("enter user credentials for user " + user_name)
         user_items = prompt_user_for_user_items()
+        user_items["MAPSettingsUsername"]=user_name
         config.create_config(GLOBAL_CONFIG_FILEPATH)
-        config.initialize_config(
+        config.update_config(
             GLOBAL_CONFIG_FILEPATH, user_name, user_items)
         config.create_config(local_config_filepath)
-        config.initialize_config(
+        config.update_config(
             local_config_filepath, user_name, user_items)
         return user_items
-
-def get_authentication_info(username):
-    '''
-    Get authentication information from config
-    '''
-    
-    #TODO check if global config exists, if not create it for the username and prompt for the required info
-    #TODO if config exists, check for the username, if username not in the config, prompt for required info
-    #TODO set local config file
-    try:
-        MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
-        MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
-    except KeyError:
-        return None
-    return MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
 
 def get_project_key(project_name, project_key=None): #TODO, consider if this will be changed(does this even work now?), this is called in upload_with_preprocessing and add_mapillary_tag_from_json, just to validate project, and in add_project, to obtain the key and write it in the image description
     '''
@@ -351,11 +341,11 @@ def upload_file_list(file_list, root, file_params={}):
         print("\nBREAK: Stopping upload.")
         sys.exit()
 
-def upload_log_rootpath(root,filepath):
+def log_rootpath(root,filepath):
     return os.path.join(root,".mapillary/logs",filepath.split(root)[1][1:-4])
 
 def create_upload_log(root, filepath, status):
-    upload_log_root=upload_log_rootpath(root,filepath)
+    upload_log_root=log_rootpath(root,filepath)
     upload_log_filepath=os.path.join(upload_log_root,status)
     upload_opposite_log_filepath=os.path.join(upload_log_root,UPLOAD_STATUS_PAIRS[status])
     if not os.path.isdir(upload_log_root):

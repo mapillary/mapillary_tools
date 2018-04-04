@@ -48,7 +48,7 @@ if __name__ == '__main__':
     # check logs
     params = {}
     for image in image_list:
-        log_root = uploader.upload_log_rootpath(import_path, image)
+        log_root = uploader.log_rootpath(import_path, image)
         if not os.path.isfile(os.path.join(log_root, "process_failed")) and not os.path.isfile(os.path.join(log_root, "duplicate")) and not os.path.isfile(os.path.join(log_root, "upload_success")):
             if os.path.isfile(os.path.join(log_root, "upload_failed")):
                 failed_image_upload_list.append(image)

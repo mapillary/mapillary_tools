@@ -8,6 +8,7 @@ def load_config(config_path):
         config = ConfigParser.ConfigParser()
         try:
             config.readfp(open(config_path))
+            config.optionxform = str
         except:
             print("Error reading config file")
     else:
@@ -32,7 +33,7 @@ def load_user(config, user_name):
     return user_items
 
 
-def add_user(config, user_name):
+def add_user(config, user_name, config_path):
     if user_name not in config.sections():
         try:
             config.add_section(user_name)
@@ -40,7 +41,7 @@ def add_user(config, user_name):
             print("Error adding new user section, for user_name " + user_name)
     else:
         print("Error, user " + user_name + " already exists")
-    save_config(config)
+    save_config(config, config_path)
 
 
 def set_user_items(config, user_name, user_items):
@@ -50,16 +51,18 @@ def set_user_items(config, user_name, user_items):
         except:
             print("Error setting config key " + key + " with value " +
                   str(user_items[key]) + " for user_name " + user_name)
-    save_config(config)
+    return config
 
 
-def initialize_config(config_path, user_name, user_items):
+def update_config(config_path, user_name, user_items):
     config = load_config(config_path)
-    add_user(config, user_name)
-    set_user_items(config, user_items)
+    if user_name not in config.sections():
+        add_user(config, user_name, config_path)
+    config = set_user_items(config, user_name, user_items)
     save_config(config, config_path)
 
 
 def create_config(config_path):
-    os.makedirs(os.path.dirname(config_path))
+    if not os.path.isdir(os.path.dirname(config_path)):
+        os.makedirs(os.path.dirname(config_path))
     open(config_path, 'a').close()
