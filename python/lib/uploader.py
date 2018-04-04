@@ -145,22 +145,12 @@ def get_upload_token(mail, pwd):
 def prompt_user_for_user_items():
     user_items = None
     user_items["user_email"] = raw_input("Enter email : ")
-    password = raw_input("Enter user password : ")
-    if password=="":
-        master_key_upload = raw_input(
-        "You have not entered the user password. Do you want to use a master key for this user uploads [y/n]: ")
-        if master_key_upload in ["y", "Y", "yes", "Yes"]:
-            user_items["master_key"] = raw_input("Enter master key: ")
-            user_items["user_key"] = raw_input("Enter user key : ")
-            return user_items
-        else:
-            password = raw_input("Enter user password : ")
-    user_items["user_password"]=password
-    user_items["user_key"] = raw_input("Enter user key : ")
+    user_items["user_password"]=raw_input("Enter user password : ")
+    user_items["user_key"] = raw_input("Enter user key : ")#TODO get userkey form api
     user_items["user_permission_hash"] = raw_input(
-        "Enter user permission hash : ")
+        "Enter user permission hash : ")#TODO get permission hash form api
     user_items["user_signature_hash"] = raw_input(
-        "Enter user signature hash : ")
+        "Enter user signature hash : ")#TODO get signature hash form api
     user_items["upload_token"] = get_upload_token(
         user_items["user_email"], user_items["user_password"])
     
