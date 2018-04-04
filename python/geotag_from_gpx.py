@@ -7,8 +7,8 @@ import time
 from dateutil.tz import tzlocal
 from lib.geo import interpolate_lat_lon
 from lib.gps_parser import get_lat_lon_time_from_gpx
-from lib.exif import EXIF
-from lib.exifedit import ExifEdit
+from lib.exif_read import ExifRead
+from lib.exif_write import ExifEdit
 
 '''
 Script for geotagging images using a gpx file from an external GPS.
@@ -55,7 +55,7 @@ def exif_time(filename):
     '''
     Get image capture time from exif
     '''
-    metadata = EXIF(filename)
+    metadata = ExifRead(filename)
     return metadata.extract_capture_time()
 
 

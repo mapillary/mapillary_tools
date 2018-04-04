@@ -6,11 +6,13 @@ import uuid
 import argparse
 import json
 
+#double import
 from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
 import lib.uploader as uploader
+#double import
 from lib.sequence import Sequence
-from lib.exif import is_image, verify_exif, format_orientation
-from lib.exifedit import create_mapillary_description
+from lib.processing_aux import format_orientation, is_image, create_mapillary_description
+from lib.exif_aux import verify_exif
 import lib.io
 
 '''
@@ -89,6 +91,7 @@ def get_args():
     parser.add_argument("--userkey", help="user key")
     parser.add_argument("--make", help="Specify device manufacturer", default="")
     parser.add_argument("--model", help="Specify device model", default="")
+    parser.add_argument("--GPS_accuracy", help="GPS accuracy in meters",default="")
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -122,7 +125,7 @@ if __name__ == '__main__':
     add_file_name = args.add_file_name
     make = args.make
     model = args.model
-
+    GPS_accuracy=args.GPS_accuracy
 
     # Retrieve/validate project key
     if not args.skip_validate_project:
@@ -147,7 +150,7 @@ if __name__ == '__main__':
             MAPILLARY_EMAIL = args.email
         elif 'MAPILLARY_EMAIL' in os.environ:
             MAPILLARY_EMAIL=os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_USERKEY = args.userkey
+        MAPILLARY_USERKEY = args.userkey # we do require that this is given although it is not needed if user uploads with email and username
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
@@ -276,7 +279,8 @@ if __name__ == '__main__':
                                                              secret_hash,
                                                              external_properties,
                                                              make = make,
-                                                             model = model)
+                                                             model = model,
+                                                             GPS_accuracy=GPS_accuracy)
                             file_list.append(filepath)
                         else:
                             missing_groups.append(filepath)

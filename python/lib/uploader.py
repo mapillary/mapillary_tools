@@ -1,4 +1,4 @@
-from lib.exif import EXIF
+from lib.exif_read import ExifRead
 import lib.io
 import json
 import os
@@ -12,8 +12,8 @@ import random
 import string
 from Queue import Queue
 import threading
-import exifread
 import time
+import config
 
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -23,38 +23,37 @@ SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
-UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH, "move_files":True,  "keep_file_names": True}
+UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, "signature": SIGNATURE_HASH} # TODO move_files should not exist anymore
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
 PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
+UPLOAD_STATUS_PAIRS={"upload_success":"upload_failed",
+                     "upload_failed":"upload_success"}
+LOCAL_CONFIG_FILEPATH = os.path.join(
+    os.path.expanduser('~'), '{}.mapillary/config')
+GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, params=UPLOAD_PARAMS):
+    def __init__(self, queue, root): # TODO params are joint in the queue
         threading.Thread.__init__(self)
         self.q = queue
-        self.params = params
+        self.root = root
         self.total_task = self.q.qsize()
 
     def run(self):
         while True:
             # fetch file from the queue and upload
-            filepath = self.q.get()
+            filepath, params = self.q.get() # TODO return filepath and params per filepath ....filepath, params
             if filepath is None:
                 self.q.task_done()
                 break
             else:
                 lib.io.progress(self.total_task-self.q.qsize(), self.total_task, '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, **self.params)
+                upload_file(filepath, self.root, **params)
                 self.q.task_done()
 
-
-def create_dirs(root_path=''):
-    lib.io.mkdir_p(os.path.join(root_path, "success"))
-    lib.io.mkdir_p(os.path.join(root_path, "failed"))
-
-
-def encode_multipart(fields, files, boundary=None):
+def encode_multipart(fields, files, boundary=None): #TODO note that this is not looked into, but left as out of improvement scope
     """
     Encode dict of form fields and dict of files as multipart/form-data.
     Return tuple of (body_string, headers_dict). Each value in files is a dict
@@ -107,7 +106,7 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3, auto_done=False):
+def finalize_upload(params, retry=3, auto_done=False): #TODO check where this is called with auto_done=True and where it is left with defualt auto_done=False and why
     '''
     Finalize and confirm upload
     '''
@@ -119,7 +118,7 @@ def finalize_upload(params, retry=3, auto_done=False):
             proceed = "y"
         if proceed in ["y", "Y", "yes", "Yes"]:
             # upload an empty DONE file
-            upload_done_file(params)
+            upload_done_file(params) #TODO check if this is in all uploads or only for the manual.upload ones
             print("Done uploading.")
             break
         elif proceed in ["n", "N", "no", "No"]:
@@ -131,7 +130,9 @@ def finalize_upload(params, retry=3, auto_done=False):
             else:
                 print('Please answer y or n. Try again.')
 
-def get_upload_token(mail, pwd):
+def get_upload_token(mail, pwd): 
+    #TODO this is to get the upload hash, it is called here in the  get_full_authentication_info(user, email), a function which is called only in the obsolete? export_panoramio.py, with the user email only
+    #and in upload_with_preprocessing.py in the middle of everything, where email and username and userkey are read from os environment or args and password is also stored in os environment(f real)
     '''
     Get upload token
     '''
@@ -141,10 +142,65 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
-def get_authentication_info():
+def prompt_user_for_user_items():
+    user_items = None
+    user_items["user_email"] = raw_input("Enter email : ")
+    user_items["user_password"]=raw_input("Enter user password : ")
+    user_items["user_key"] = raw_input("Enter user key : ")#TODO get userkey form api
+    user_items["user_permission_hash"] = raw_input(
+        "Enter user permission hash : ")#TODO get permission hash form api
+    user_items["user_signature_hash"] = raw_input(
+        "Enter user signature hash : ")#TODO get signature hash form api
+    user_items["upload_token"] = get_upload_token(
+        user_items["user_email"], user_items["user_password"])
+    
+    return user_items
+
+
+def authenticate_user(user_name, import_path):
+    local_config_filepath = LOCAL_CONFIG_FILEPATH.format(import_path)
+    user_items = None
+    if os.path.isfile(local_config_filepath):
+        local_config_object = config.load_config(local_config_filepath)
+        if user_name in local_config_object.sections:
+            user_items = config.load_user(local_config_object, user_name)
+            return user_items
+    elif os.path.isfile(GLOBAL_CONFIG_FILEPATH):
+        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+        if user_name in global_config_object.sections:
+            user_items = config.load_user(global_config_object, user_name)
+            config.create_config(local_config_filepath)
+            config.initialize_config(
+                local_config_filepath, user_name, user_items)
+            return user_items
+        else:
+            print("enter user credentials for user " + user_name)
+            user_items = prompt_user_for_user_items()
+            config.initialize_config(
+                GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+            config.create_config(local_config_filepath)
+            config.initialize_config(
+                local_config_filepath, user_name, user_items)
+            return user_items
+    else:
+        print("enter user credentials for user " + user_name)
+        user_items = prompt_user_for_user_items()
+        config.create_config(GLOBAL_CONFIG_FILEPATH)
+        config.initialize_config(
+            GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+        config.create_config(local_config_filepath)
+        config.initialize_config(
+            local_config_filepath, user_name, user_items)
+        return user_items
+
+def get_authentication_info(username):
     '''
-    Get authentication information from env
+    Get authentication information from config
     '''
+    
+    #TODO check if global config exists, if not create it for the username and prompt for the required info
+    #TODO if config exists, check for the username, if username not in the config, prompt for required info
+    #TODO set local config file
     try:
         MAPILLARY_USERNAME = os.environ['MAPILLARY_USERNAME']
         MAPILLARY_EMAIL = os.environ['MAPILLARY_EMAIL']
@@ -153,32 +209,7 @@ def get_authentication_info():
         return None
     return MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD
 
-
-def get_full_authentication_info(user=None, email=None):
-    # Fetch full authetication info
-    try:
-        MAPILLARY_EMAIL = email if email is not None else os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
-        MAPILLARY_UPLOAD_TOKEN = None
-
-        if MAPILLARY_SECRET_HASH is None:
-            MAPILLARY_PASSWORD = os.environ['MAPILLARY_PASSWORD']
-            MAPILLARY_PERMISSION_HASH = os.environ['MAPILLARY_PERMISSION_HASH']
-            MAPILLARY_SIGNATURE_HASH = os.environ['MAPILLARY_SIGNATURE_HASH']
-            MAPILLARY_UPLOAD_TOKEN = get_upload_token(MAPILLARY_EMAIL, MAPILLARY_PASSWORD)
-            UPLOAD_URL = MAPILLARY_UPLOAD_URL
-        else:
-            secret_hash = MAPILLARY_SECRET_HASH
-            MAPILLARY_PERMISSION_HASH = PERMISSION_HASH
-            MAPILLARY_SIGNATURE_HASH = SIGNATURE_HASH
-            UPLOAD_URL = MAPILLARY_DIRECT_UPLOAD_URL
-        return MAPILLARY_EMAIL, MAPILLARY_UPLOAD_TOKEN, MAPILLARY_SECRET_HASH, UPLOAD_URL
-    except KeyError:
-        print("You are missing one of the environment variables MAPILLARY_USERNAME, MAPILLARY_EMAIL, MAPILLARY_PASSWORD, MAPILLARY_PERMISSION_HASH or MAPILLARY_SIGNATURE_HASH. These are required.")
-        sys.exit()
-
-
-def get_project_key(project_name, project_key=None):
+def get_project_key(project_name, project_key=None): #TODO, consider if this will be changed(does this even work now?), this is called in upload_with_preprocessing and add_mapillary_tag_from_json, just to validate project, and in add_project, to obtain the key and write it in the image description
     '''
     Get project key given project name
     '''
@@ -219,32 +250,29 @@ def get_project_key(project_name, project_key=None):
     return ""
 
 
-def upload_done_file(params):
+def upload_done_file(params):#TODO note that this will stay the same
     print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(params['key']))
     if not os.path.exists("DONE"):
         open("DONE", 'a').close()
     #upload
-    upload_file("DONE", **params)
+    upload_file("DONE",None, **params)
     #remove
     if os.path.exists("DONE"):
         os.remove("DONE")
 
-
-def upload_file(filepath, url, permission, signature, key=None, move_files=True, keep_file_names=True):
+def upload_file(filepath, root, url, permission, signature, key=None):#TODO , this needs changing, move_files should not exist anymore
     '''
     Upload file at filepath.
 
-    Move to subfolders 'success'/'failed' on completion if move_files is True.
-    '''
+    '''    
     filename = os.path.basename(filepath)
 
-    if keep_file_names:
-        s3_filename = filename
-    else:
+    s3_filename = filename
+    if root!=None:
         try:
-            s3_filename = EXIF(filepath).exif_name()
+            s3_filename = ExifRead(filepath).exif_name()
         except:
-            s3_filename = filename
+            pass
 
     # add S3 'path' if given
     if key is None:
@@ -260,31 +288,21 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
 
     data, headers = encode_multipart(parameters, {'file': {'filename': filename, 'content': encoded_string}})
 
-    root_path = os.path.dirname(filepath)
-    success_path = os.path.join(root_path, 'success')
-    failed_path = os.path.join(root_path, 'failed')
-    lib.io.mkdir_p(success_path)
-    lib.io.mkdir_p(failed_path)
-
     for attempt in range(MAX_ATTEMPTS):
-
+    
         # Initialize response before each attempt
         response = None
-
+    
         try:
-            request = urllib2.Request(url, data=data, headers=headers)
-            response = urllib2.urlopen(request)
-
-            if response.getcode()==204:
-                if move_files:
-                    os.rename(filepath, os.path.join(success_path, filename))
-                # print("Success: {0}".format(filename))
+            #request = urllib2.Request(url, data=data, headers=headers)
+            #response = urllib2.urlopen(request)
+            #if response.getcode()==204:
+            if 1:
+                create_upload_log(root, filepath, "upload_success")
             else:
-                if move_files:
-                    os.rename(filepath, os.path.join(failed_path, filename))
-                print("Failed: {0}".format(filename))
+                create_upload_log(root, filepath, "upload_failed")
             break # attempts
-
+    
         except urllib2.HTTPError as e:
             print("HTTP error: {0} on {1}".format(e, filename))
             time.sleep(5)
@@ -305,14 +323,16 @@ def upload_file(filepath, url, permission, signature, key=None, move_files=True,
                 response.close()
 
 
-def upload_file_list(file_list, params=UPLOAD_PARAMS):
+def upload_file_list(file_list, root, file_params={}):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
-        q.put(filepath)
-
+        if filepath not in file_params:
+            q.put((filepath, UPLOAD_PARAMS))
+        else:
+            q.put((filepath, file_params[filepath]))
     # create uploader threads
-    uploaders = [UploadThread(q, params) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q, root) for i in range(NUMBER_THREADS)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
@@ -331,8 +351,25 @@ def upload_file_list(file_list, params=UPLOAD_PARAMS):
         print("\nBREAK: Stopping upload.")
         sys.exit()
 
+def upload_log_rootpath(root,filepath):
+    return os.path.join(root,".mapillary/logs",filepath.split(root)[1][1:-4])
 
-def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups):
+def create_upload_log(root, filepath, status):
+    upload_log_root=upload_log_rootpath(root,filepath)
+    upload_log_filepath=os.path.join(upload_log_root,status)
+    upload_opposite_log_filepath=os.path.join(upload_log_root,UPLOAD_STATUS_PAIRS[status])
+    if not os.path.isdir(upload_log_root):
+        os.makedirs(upload_log_root)
+        open(upload_log_filepath, "w").close()
+        open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())),"w").close()
+    else:
+        if not os.path.isfile(upload_log_filepath):
+            open(upload_log_filepath, "w").close()
+            open(upload_log_filepath+"_"+str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())),"w").close()
+        if os.path.isfile(upload_opposite_log_filepath):
+            os.remove(upload_opposite_log_filepath)
+
+def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups): #TODO change this, to summarize the upload.log and the processing.log maybe, now only used in upload_wth_preprocessing
     total_success = len([f for f in file_list if 'success' in f])
     total_failed = len([f for f in file_list if 'failed' in f])
     lines = []

@@ -2,7 +2,8 @@ import os
 import sys
 import lib.io
 import lib.geo
-from lib.exif import EXIF, verify_exif
+from lib.exif_read import ExifRead
+from lib.exif_aux import verify_exif
 from collections import OrderedDict
 import datetime
 
@@ -43,14 +44,14 @@ class Sequence(object):
         '''
         Use EXIF class to parse capture time from EXIF.
         '''
-        exif = EXIF(filename)
+        exif = ExifRead(filename)
         return exif.extract_capture_time()
 
     def _read_lat_lon(self, filename):
         '''
         Use EXIF class to parse latitude and longitude from EXIF.
         '''
-        exif = EXIF(filename)
+        exif = ExifRead(filename)
         lon, lat = exif.extract_lon_lat()
         return lat, lon
 
@@ -58,7 +59,7 @@ class Sequence(object):
         '''
         Use EXIF class to parse compass direction from EXIF.
         '''
-        exif = EXIF(filename)
+        exif = ExifRead(filename)
         direction = exif.extract_direction()
         return direction
 
