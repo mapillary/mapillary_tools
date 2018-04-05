@@ -6,12 +6,8 @@ import uuid
 import argparse
 import json
 
-import lib.config as config
-import lib.uploader as uploader
-import lib.basic_processing as basic_processing
+import lib.processing_aux as process
 from lib.sequence import Sequence
-from lib.processing_aux import format_orientation, is_image, create_mapillary_description
-from lib.exif_aux import verify_exif
 import lib.io
 
 '''
@@ -31,7 +27,6 @@ The following EXIF tags are required:
 
 MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
-LOCAL_CONFIG_FILEPATH = uploader.LOCAL_CONFIG_FILEPATH
 
 
 def log_file(path):
@@ -133,6 +128,12 @@ def get_args():
                         help='skip only the insertion of MAPJsons into image EXIF tag Image Description', action='store_true', default=False)
     parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
                         action='store_true', default=False)
+    parser.add_argument(
+        '--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
+        choices=['exif', 'gpx', 'csv', 'json'], default="exif")
+    parser.add_argument(
+        '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
+        default=None)
     return parser.parse_args()
 
 
@@ -254,58 +255,25 @@ if __name__ == '__main__':
     min_duplicate_angle = float(args.duplicate_angle)
     
     '''
-
-    mapillary_description = {}
-
-    # get rest of user properties
-    if not master_upload:
-        mapillary_description = uploader.authenticate_user(
-            user_name, import_path)
-    else:
-        try:
-            master_key = uploader.get_master_key()  # TODO
-            mapillary_description["MAPVideoSecure"] = master_key
-            try:
-                user_key = uploader.get_user_key(user_name, master_key)  # TODO
-                mapillary_description["MAPSettingsUserKey"] = user_key
-            except:
-                print("Error, no user key obtained for the user name " + user_name +
-                      ", check if the user name is spelled correctly and if the master key is correct")
-                sys.exit()
-        except:
-            print("Error, no master key found.")
-            print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
-            sys.exit()
-
-    # add import properties if in user args
-    if orientation:
-        mapillary_description["MAPOrientation"] = orientation
-    if device_make:
-        mapillary_description['MAPDeviceMake'] = device_make
-    if device_model:
-        mapillary_description['MAPDeviceModel'] = device_model
-    if GPS_accuracy:
-        mapillary_description['MAPGPSAccuracyMeters'] = GPS_accuracy
-
-    # update local config with import properties
-    if not master_upload:
-        config.update_config(LOCAL_CONFIG_FILEPATH.format(
-            import_path), user_name, mapillary_description)
-
-    # create basic MAPJson
+    basic_mapillary_description = {}
     if not skip_basic_processing:
-        basic_processing.create_basic_json(
-            full_image_list, import_path, mapillary_description, add_file_name)
+        basic_mapillary_description = process.basic_processing(
+            full_image_list, import_path, user_name, master_upload, orientation, device_make, device_model, GPS_accuracy, add_file_name)
 
-    # create partial upload_params
-    if not skip_upload_params_processing and not master_upload:
-        pass
-        # upload_params_processing.create_upload_params(
-        #    full_image_list, mapillary_description)  # TODO
+    # geotag properties
+    geotag_source = args.geotag_source
+    geotag_source_path = args.geotag_source_path
+    offset_angle = args.offset_angle
+    geotagged_mapillary_descriptions = {}
+
+    if geotag_source_path == None and geotag_source != "exif":
+        print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+        sys.exit()
 
     if not skip_geotagging:
-        # geotag images
-        pass
+        geotagged_mapillary_descriptions = process.geotagging(
+            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle)
+
     if not skip_sequence_processing:
         # do sequence processing
         pass

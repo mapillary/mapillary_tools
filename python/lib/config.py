@@ -7,8 +7,8 @@ def load_config(config_path):
     if os.path.isfile(config_path):
         config = ConfigParser.ConfigParser()
         try:
-            config.readfp(open(config_path))
             config.optionxform = str
+            config.read(config_path)
         except:
             print("Error reading config file")
     else:
