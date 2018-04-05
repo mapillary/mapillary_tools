@@ -200,14 +200,6 @@ if __name__ == '__main__':
         print("Import directory doesnt not exist")
         sys.exit()
 
-    # user properties
-    user_name = args.user_name
-    master_upload = args.master_upload
-
-    if not user_name:
-        print("Error, must provide user_name")
-        sys.exit()
-
     # get the full image list
     full_image_list = []
     for root, dir, files in os.walk(import_path):
@@ -219,43 +211,14 @@ if __name__ == '__main__':
         print("No images in the import directory or images dont have the extension .jpg")
         sys.exit()
 
-    #import properties
+    # basic user and import properties
     device_make = args.device_make
     device_model = args.device_model
     GPS_accuracy = args.GPS_accuracy
     add_file_name = args.add_file_name
     orientation = args.orientation
-
-    '''
-    path = args.path
-    cutoff_distance = args.cutoff_distance
-    cutoff_time = args.cutoff_time
-    offset_angle = args.offset_angle
-    interpolate_directions = args.interpolate_directions
-    orientation = args.orientation
-    verbose = args.verbose
-    add_file_name = args.add_file_name
-    make = args.make
-    model = args.model
-    GPS_accuracy=args.GPS_accuracy
-    
-    # Retrieve/validate project key TODO changes here
-    if not args.skip_validate_project:
-        project_key = get_project_key(args.project, args.project_key)
-    else:
-        project_key = args.project_key or ''
-    
-    # Map orientation from degrees to tags
-    if orientation is not None:
-        orientation = format_orientation(orientation)
-    
-    # Distance/Angle threshold for duplicate removal
-    # NOTE: This might lead to removal of panorama sequences
-    min_duplicate_distance = float(args.duplicate_distance)
-    min_duplicate_angle = float(args.duplicate_angle)
-    
-    '''
     basic_mapillary_description = {}
+    master_upload = args.master_upload
     if not skip_basic_processing:
         basic_mapillary_description = process.basic_processing(
             full_image_list, import_path, user_name, master_upload, orientation, device_make, device_model, GPS_accuracy, add_file_name)
@@ -265,21 +228,24 @@ if __name__ == '__main__':
     geotag_source_path = args.geotag_source_path
     offset_angle = args.offset_angle
     geotagged_mapillary_descriptions = {}
-
     if geotag_source_path == None and geotag_source != "exif":
         print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
         sys.exit()
-
     if not skip_geotagging:
         geotagged_mapillary_descriptions = process.geotagging(
             full_image_list, import_path, geotag_source, geotag_source_path, offset_angle)
 
+    # sequence properties
     if not skip_sequence_processing:
         # do sequence processing
         pass
+
+    # QC
     if not skip_QC:
         # do QC
         pass
+
+    # upload params properties
     if not skip_upload_params_processing:
         # create the upload params
         pass
