@@ -158,7 +158,6 @@ if __name__ == "__main__":
             }
             exifedit.add_exif_data(os.path.join(image_path, im), data)
         except Exception as e:
-            print e
             print "Image {} timestamp out of range. Skipping".format(im)
             missing_gps += 1
 

@@ -28,14 +28,14 @@ if __name__ == "__main__":
 
     image_path = os.path.basename(args.video_file).split(".")[0]
 
-    if os.path.exists(os.path.join(image_path, "PROCESSING_LOG.json")) is False:
-        cmd = ["python", "geotag_video.py",
+    if os.path.exists(os.path.join(image_path, 'PROCESSING_LOG.json')) is False:
+        cmd = ['python', 'geotag_video.py',
                args.video_file,
-               "--image_path", image_path,
-               "--sample_interval", str(args.sample_interval)]
+               '--image_path', image_path,
+               '--sample_interval', str(args.sample_interval)]
 
         if args.gps_trace:
-            cmd.append("--gps_trace", args.gps_trace)
+            cmd.append('--gps_trace', args.gps_trace)
 
         if args.skip_sampling:
             cmd.append('--skip_sampling')
@@ -43,6 +43,7 @@ if __name__ == "__main__":
         if args.process_gpmf:
             cmd.append('--process_gpmf')
             cmd.append('--use_gps_start_time')
+            cmd.append('--make', 'GoPro')
 
         run(cmd)
 
