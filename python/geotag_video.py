@@ -106,7 +106,9 @@ if __name__ == "__main__":
 
     # Parse gps trace
     points = None
-    if args.process_gpmf:
+    if gps_trace_file.lower().endswith('.mp4'):  # as with fusion, implies process_gpmf - BRITTLE
+        points = get_points_from_gpmf(gps_trace_file)
+    elif args.process_gpmf:
         points = get_points_from_gpmf(video_file)
     else:
         points = parse_gps_trace(gps_trace_file, args.local_time)
