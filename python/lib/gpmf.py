@@ -12,7 +12,7 @@ does the heavy lifting of parsing the GPMF format from a binary file
 
 
 def parse_gps(toparse, data, scale):
-    gps = struct.unpack('>IIIII', toparse)
+    gps = struct.unpack('>llIII', toparse)
 
     data['gps'].append({
         'lat': float(gps[0]) / scale[0],
