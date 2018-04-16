@@ -27,21 +27,26 @@ if __name__ == '__main__':
     '''
 
     if sys.version_info >= (3, 0):
-        raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
+        raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(
+            sys.version_info[:2]))
 
-    parser = argparse.ArgumentParser(description='Upload photos taken with Mapillary apps')
+    parser = argparse.ArgumentParser(
+        description='Upload photos taken with Mapillary apps')
     parser.add_argument('path', help='path to your photos')
-    parser.add_argument('--upload_subfolders', help='option to upload subfolders', action='store_true')
+    parser.add_argument('--upload_subfolders',
+                        help='option to upload subfolders', action='store_true')
     args = parser.parse_args()
 
     path = args.path
     skip_subfolders = not args.upload_subfolders
-    s = Sequence(path, skip_folders=['success'], skip_subfolders=skip_subfolders, check_exif=False)
+    s = Sequence(path, skip_folders=[
+                 'success', 'duplicates'], skip_subfolders=skip_subfolders, check_exif=False)
     num_image_file = len(s.file_list)
 
     file_list = [f for f in s.file_list if verify_mapillary_tag(f)]
 
-    print ("Uploading {} images with valid mapillary tags (Skipping {})".format(len(file_list), num_image_file-len(file_list)))
+    print("Uploading {} images with valid mapillary tags (Skipping {})".format(
+        len(file_list), num_image_file - len(file_list)))
     upload_file_list(file_list)
 
     print("Done uploading {} images.".format(len(file_list)))

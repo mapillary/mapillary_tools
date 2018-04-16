@@ -42,6 +42,14 @@ def exif_datetime_fields():
              "EXIF DateTimeModified"]]
 
 
+def exif_gps_date_fields():
+    '''
+    Date fields in EXIF GPS
+    '''
+    return [["GPS GPSDate",
+             "EXIF GPS GPSDate"]]
+
+
 def format_time(time_string):
     '''
     Format time string with invalid time elements in hours/minutes/seconds
@@ -204,6 +212,9 @@ class EXIF:
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(
             time_string, 0, str)
+        if time_field in exif_gps_date_fields()[0]:
+            capture_time = self.extract_gps_time()
+            return capture_time
 
         if capture_time is 0:
             # try interpret the filename
@@ -274,19 +285,22 @@ class EXIF:
         gps_time_field = "GPS GPSTimeStamp"
         gps_time = 0
         if gps_date_field in self.tags and gps_time_field in self.tags:
-            date = str(self.tags[gps_date_field].values).split(":")
-            t = self.tags[gps_time_field]
-            gps_time = datetime.datetime(
-                year=int(date[0]),
-                month=int(date[1]),
-                day=int(date[2]),
-                hour=int(eval_frac(t.values[0])),
-                minute=int(eval_frac(t.values[1])),
-                second=int(eval_frac(t.values[2])),
-            )
-            microseconds = datetime.timedelta(
-                microseconds=int((eval_frac(t.values[2]) % 1) * 1e6))
-            gps_time += microseconds
+            try:
+                date = str(self.tags[gps_date_field].values).split(":")
+                t = self.tags[gps_time_field]
+                gps_time = datetime.datetime(
+                    year=int(date[0]),
+                    month=int(date[1]),
+                    day=int(date[2]),
+                    hour=int(eval_frac(t.values[0])),
+                    minute=int(eval_frac(t.values[1])),
+                    second=int(eval_frac(t.values[2])),
+                )
+                microseconds = datetime.timedelta(
+                    microseconds=int((eval_frac(t.values[2]) % 1) * 1e6))
+                gps_time += microseconds
+            except:
+                pass
         return gps_time
 
     def extract_exif(self):

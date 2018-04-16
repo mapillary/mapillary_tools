@@ -85,7 +85,7 @@ class Sequence(object):
         '''
         if len(file_list) == 0:
             return [], []
-        capture_times = [self._read_capture_time(filepath) for filepath in file_list]
+        capture_times = [self._read_capture_time(filepath) for filepath in file_list if self._read_capture_time(filepath)!=0]
         sorted_times_files = zip(capture_times, file_list)
         sorted_times_files.sort()
         return zip(*sorted_times_files)
