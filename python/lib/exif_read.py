@@ -58,6 +58,14 @@ def exif_datetime_fields():
              "EXIF DateTimeModified"]]
 
 
+def exif_gps_date_fields():
+    '''
+    Date fields in EXIF GPS
+    '''
+    return [["GPS GPSDate",
+             "EXIF GPS GPSDate"]]
+
+
 class ExifRead:
     '''
     EXIF class for reading exif from an image
@@ -123,6 +131,9 @@ class ExifRead:
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(
             time_string, 0, str)
+        if time_field in exif_gps_date_fields()[0]:
+            capture_time = self.extract_gps_time()
+            return capture_time
 
         if capture_time is 0:
             # try interpret the filename
