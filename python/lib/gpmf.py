@@ -3,7 +3,6 @@
 import datetime
 import struct
 import binascii
-import os
 
 
 '''
@@ -12,7 +11,7 @@ does the heavy lifting of parsing the GPMF format from a binary file
 
 
 def parse_gps(toparse, data, scale):
-    gps = struct.unpack('>llIII', toparse)
+    gps = struct.unpack('>lllll', toparse)
 
     data['gps'].append({
         'lat': float(gps[0]) / scale[0],
@@ -28,8 +27,24 @@ def parse_time(toparse, data, scale):
     data['time'] = datetime_object
 
 
+def parse_accl(toparse, data, scale):
+    # todo: fusion
+    if 6 == len(toparse):
+        data['accl'] = struct.unpack('>hhh', toparse)
+
+
+def parse_gyro(toparse, data, scale):
+    # todo: fusion
+    if 6 == len(toparse):
+        data['gyro'] = struct.unpack('>hhh', toparse)
+
+
 def parse_fix(toparse, data, scale):
     data['gps_fix'] = struct.unpack('>I', toparse)[0]
+
+
+def parse_precision(toparse, data, scale):
+    data['gps_precision'] = struct.unpack('>H', toparse)[0]
 
 
 '''
@@ -61,6 +76,9 @@ def parse_bin(path):
         'GPS5': parse_gps,
         'GPSU': parse_time,
         'GPSF': parse_fix,
+        'GPSP': parse_precision,
+        'ACCL': parse_accl,
+        'GYRO': parse_gyro,
     }
 
     d = {'gps': []}  # up to date dictionary, iterate and fill then flush
@@ -80,7 +98,7 @@ def parse_bin(path):
         num_values = struct.unpack('>h', desc[2:4])[0]
         length = val_size * num_values
 
-        # print "{} {} of size {}".format(num_values, label, val_size)
+        # print "{} {} of size {} and type {}".format(num_values, label, val_size, desc[0])
 
         if label == 'DVID':
             if len(d['gps']):  # first one is empty
