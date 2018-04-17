@@ -1,3 +1,5 @@
+import os
+
 from lib.exif_read import ExifRead
 from lib.geo import compute_bearing, gps_distance, diff_bearing
 import lib.processor as processor
@@ -52,12 +54,19 @@ def process_sequence_properties(full_image_list, import_path, cutoff_distance, i
         lats.append(geotag_data["MAPLatitude"])
         lons.append(geotag_data["MAPLongitude"])
         directions.append(geotag_data["MAPCompassHeading"]["TrueHeading"])
+
+        # remove previously created duplicate flags
+        duplicate_flag_path = os.path.join(log_root, "duplicate")
+        if os.path.isfile(duplicate_flag_path):
+            os.remove(duplicate_flag_path)
+
     # ---------------------------------------
 
     # ORDER TIME AND GPS POINTS --------------------------------------
     sort_by_time = zip(capture_times, file_list, lats, lons, directions)
     sort_by_time.sort()
-    capture_times, file_list, lats, lons, directions = zip(*sort_by_time)
+    capture_times, file_list, lats, lons, directions = [
+        list(x) for x in zip(*sort_by_time)]
     latlons = zip(lats, lons)
     # ---------------------------------------
 
@@ -65,6 +74,7 @@ def process_sequence_properties(full_image_list, import_path, cutoff_distance, i
     interpolated_directions = [compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
                                for ll1, ll2 in zip(latlons, latlons[1:])]
     interpolated_directions.append(directions[-1])
+
     # use interpolated directions if direction not available in EXIF or flag
     # for direction compuation
     for i, d in enumerate(directions):
@@ -74,17 +84,16 @@ def process_sequence_properties(full_image_list, import_path, cutoff_distance, i
 
     # REMOVE DUPLICATES --------------------------------------
     # delete existing duplicate flag
-    duplicate_flag_path = os.path.join(log_root, "duplicate")
-    if os.path.isfile(duplicate_flag_path):
-        os.remove(duplicate_flag_path)
     if remove_duplicates:
         if not duplicate_distance:
-            duplicate_distance = 1e-5
+            duplicate_distance = 0.1
         if not duplicate_angle:
             duplicate_angle = 5
         prev_latlon = latlons[0]
         prev_direction = directions[0]
         for i, filename in enumerate(file_list[1:]):
+            log_root = uploader.log_rootpath(import_path, filename)
+            duplicate_flag_path = os.path.join(log_root, "duplicate")
             k = i + 1
             distance = gps_distance(latlons[k], prev_latlon)
             if directions[k] is not None and prev_direction is not None:

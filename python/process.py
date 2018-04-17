@@ -108,7 +108,7 @@ def get_args():
                         help='skip the insertion of MAPJsons into image EXIF tag Image Description', action='store_true', default=False)
     # verbose, print out warnings and info
     parser.add_argument(
-        '--verbose', help='print debug info', action='store_true')
+        '--verbose', help='print debug info', action='store_true', default=False)
 
     return parser.parse_args()
 
@@ -123,13 +123,15 @@ if __name__ == '__main__':
             sys.version_info[:2]))
 
     args = get_args()
+    verbose = args.verbose
 
     # INITIAL SANITY CHECKS ---------------------------------------
     # set import path to images
     import_path = os.path.abspath(args.path)
     # check if it exist and exit if it doesnt
     if not os.path.isdir(import_path):
-        print("Import directory doesnt not exist")
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
         sys.exit()
     # get the full image list
     full_image_list = []
@@ -138,7 +140,13 @@ if __name__ == '__main__':
                                file.lower().endswith(".jpg"))
     # check if any images in the list and exit if none
     if not len(full_image_list):
-        print("No images in the import directory or images dont have the extension .jpg")
+        print("Error, no images in the import directory " +
+              import_path + " or images dont have the extension .jpg, exiting...")
+        sys.exit()
+    # set user_name
+    user_name = args.user_name
+    if not user_name:
+        print("Error, must provide a valid user name, exiting...")
         sys.exit()
     # ---------------------------------------
 
@@ -148,7 +156,7 @@ if __name__ == '__main__':
     # function call
     if not args.skip_user_processing:
         process_user_properties(full_image_list, import_path,
-                                user_name, master_upload)
+                                user_name, master_upload, verbose)
     # ---------------------------------------
 
     # PROCESS IMPORT PROPERTIES --------------------------------------
@@ -169,8 +177,8 @@ if __name__ == '__main__':
         sys.exit()
     # function call
     if not args.skip_import_meta_processing:
-        process_import_properties(full_image_list, import_path, device_make, device_model,
-                                  GPS_accuracy, add_file_name, orientation, import_meta_source, import_meta_source_path)
+        process_import_meta_properties(full_image_list, import_path, orientation, device_make,
+                                       device_model, GPS_accuracy, add_file_name, import_meta_source, import_meta_source_path, verbose)
     # ---------------------------------------
 
     # PROCESS GEO/TIME PROPERTIES --------------------------------------
@@ -191,7 +199,7 @@ if __name__ == '__main__':
     # function call
     if not args.skip_geotagging:
         process_geotag_properties(
-            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle)
+            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle, verbose)
     # ---------------------------------------
 
     # PROCESS SEQUENCE PROPERTIES --------------------------------------
@@ -207,6 +215,7 @@ if __name__ == '__main__':
         # function call
         process_sequence_properties(full_image_list, import_path, cutoff_distance,
                                     interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle)
+        pass
     # ---------------------------------------
 
     # QC--------------------------------------
@@ -218,14 +227,14 @@ if __name__ == '__main__':
 
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
     # parameters
-    if not skip_upload_params_processing:
+    if not args.skip_upload_params_processing:
         # function call
         pass
     # ---------------------------------------
 
     # INSERT INTO EXIF IMAGE DESCRIPTION --------------------------------
     # parameters
-    if not skip_insert_MAPJson:
+    if not args.skip_insert_MAPJson:
         # function call
         pass
     # ---------------------------------------

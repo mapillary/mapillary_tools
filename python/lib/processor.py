@@ -61,7 +61,7 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
-def create_and_log_process(image, import_path, mapillary_description, process):
+def create_and_log_process(image, import_path, mapillary_description, process, verbose):
     # set log path
     log_root = uploader.log_rootpath(import_path, image)
     # make all the dirs if not there
@@ -74,13 +74,25 @@ def create_and_log_process(image, import_path, mapillary_description, process):
     log_process_failed = log_process + "_failed"
     # if the image description is empty, the process has failed
     if not mapillary_description:
-        print("Error, " + process + " failed for image " + image)
-        open(log_process_failed, "w").close()
-        open(log_process_failed + "_" +
-             str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
-        # if there is a success log from before, remove it
-        if os.path.isfile(log_process_succes):
-            os.remove(log_process_succes)
+        if process != "import_meta_data_process":
+            print("Error, " + process + " failed for image " + image)
+            open(log_process_failed, "w").close()
+            open(log_process_failed + "_" +
+                 str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+            # if there is a success log from before, remove it
+            if os.path.isfile(log_process_succes):
+                os.remove(log_process_succes)
+        else:
+            if verbose:
+                print("Warning, no import meta data read for image " +
+                      image + ", previously read import properties will be removed.")
+            # if there is a success log from before, remove it
+            if os.path.isfile(log_process_succes):
+                os.remove(log_process_succes)
+            # if previously read import meta properties, remove them
+            log_MAPJson = os.path.join(log_root, process + ".json")
+            if os.path.isfile(log_MAPJson):
+                os.remove(log_MAPJson)
     # if the image description is not empty, write it in the filesystem and
     # log success
     else:

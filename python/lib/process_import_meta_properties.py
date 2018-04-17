@@ -3,7 +3,7 @@ import lib.uploader as uploader
 from lib.exif_read import ExifRead
 
 
-def finalize_import_properties_process(image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, mapillary_description={}):
+def finalize_import_properties_process(image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose, mapillary_description={}):
     # always check if there are any command line arguments passed, they will
     # take precedence over the JSON of EXIF read ones
     if orientation:
@@ -33,11 +33,12 @@ def finalize_import_properties_process(image, import_path, orientation, device_m
                  "value": image}
             ]}
 
+    # print(verbose)
     processor.create_and_log_process(
-        image, import_path, mapillary_description, "import_meta_data_process")
+        image, import_path, mapillary_description, "import_meta_data_process", verbose)
 
 
-def process_import_properties(full_image_list, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, import_meta_source, import_meta_source_path):
+def process_import_meta_properties(full_image_list, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, import_meta_source, import_meta_source_path, verbose):
 
     # map orientation from degrees to tags
     if orientation:
@@ -48,7 +49,7 @@ def process_import_properties(full_image_list, import_path, orientation, device_
     if not import_meta_source:
         for image in full_image_list:
             finalize_import_properties_process(
-                image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name)
+                image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose)
     else:
         if import_meta_source == "exif":
             # read import meta from image EXIF and finalize the import
@@ -61,23 +62,27 @@ def process_import_properties(full_image_list, import_path, orientation, device_
                         mapillary_description["MAPOrientation"] = exif.extract_orientation(
                         )
                     except:
-                        print("Warning, image orientation tag not in EXIF.")
+                        if verbose:
+                            print("Warning, image orientation tag not in EXIF.")
                     try:
                         mapillary_description["MAPDeviceMake"] = exif.extract_make(
                         )
                     except:
-                        print("Warning, camera make tag not in EXIF.")
+                        if verbose:
+                            print("Warning, camera make tag not in EXIF.")
                     try:
                         mapillary_description["MAPDeviceModel"] = exif.extract_model(
                         )
                     except:
-                        print("Warning, camera model tag not in EXIF.")
+                        if verbose:
+                            print("Warning, camera model tag not in EXIF.")
                 except:
-                    print("Warning, EXIF could not be read for image " +
-                          image + ", import properties not read.")
+                    if verbose:
+                        print("Warning, EXIF could not be read for image " +
+                              image + ", import properties not read.")
 
                 finalize_import_properties_process(
-                    image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, mapillary_description)
+                    image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose, mapillary_description)
         else:
             # read import meta from json and finalize the import properties
             # process

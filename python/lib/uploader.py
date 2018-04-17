@@ -199,6 +199,41 @@ def authenticate_user(user_name, import_path):
             local_config_filepath, user_name, user_items)
         return user_items
 
+def get_master_key():
+    master_key=""
+    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
+        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+        if "MAPAdmin" in global_config_object.sections():
+            admin_items=config.load_user(global_config_object, "MAPAdmin")
+            if "MAPILLARY_SECRET_HASH" in admin_items:
+                master_key = admin_items["MAPILLARY_SECRET_HASH"]
+            else:
+                create_config = raw_input("Master upload key does not exist in your global Mapillary config file, set it now?")
+                if create_config in ["y", "Y", "yes", "Yes"]:
+                    master_key = set_master_key()
+        else:
+            create_config = raw_input("MAPAdmin section not in your global Mapillary config file, set it now?")
+            if create_config in ["y", "Y", "yes", "Yes"]:
+                master_key = set_master_key()
+    else:
+        create_config = raw_input("Master upload key needs to be saved in the global Mapillary config file, which does not exist, create one now?")
+        if create_config in ["y", "Y", "yes", "Yes"]:
+            config.create_config(GLOBAL_CONFIG_FILEPATH)
+            master_key = set_master_key()
+
+    return master_key
+
+def set_master_key():
+    config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+    section = "MAPAdmin"
+    if section not in config_object.sections():
+        config_object.add_section(section)
+    master_key = raw_input("Enter the master key : ")
+    if master_key != "":
+        config_object = config.set_user_items(config_object, section, {"MAPILLARY_SECRET_HASH":master_key})
+        config.save_config(config_object, GLOBAL_CONFIG_FILEPATH)
+    return master_key
+
 def get_project_key(project_name, project_key=None): #TODO, consider if this will be changed(does this even work now?), this is called in upload_with_preprocessing and add_mapillary_tag_from_json, just to validate project, and in add_project, to obtain the key and write it in the image description
     '''
     Get project key given project name
