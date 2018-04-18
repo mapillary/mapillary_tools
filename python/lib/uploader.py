@@ -174,9 +174,9 @@ def prompt_user_for_user_items(user_name):
 
     user_items["MAPSettingsUsername"] = user_name
     user_items["MAPSettingsEmail"] = user_email
-    user_items["MAPSettingsUploadHash"] = upload_token
     user_items["MAPSettingsUserKey"] = user_key
 
+    user_items["user_upload_token"] = upload_token
     user_items["user_permission_hash"] = user_permission_hash
     user_items["user_signature_hash"] = user_signature_hash
 
