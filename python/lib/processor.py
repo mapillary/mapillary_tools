@@ -74,7 +74,7 @@ def create_and_log_process(image, import_path, mapillary_description, process, v
     log_process_failed = log_process + "_failed"
     # if the image description is empty, the process has failed
     if not mapillary_description:
-        if process != "import_meta_data_process":
+        if (process != "import_meta_data_process") and (process != "user_process"):
             print("Error, " + process + " failed for image " + image)
             open(log_process_failed, "w").close()
             open(log_process_failed + "_" +
@@ -82,7 +82,7 @@ def create_and_log_process(image, import_path, mapillary_description, process, v
             # if there is a success log from before, remove it
             if os.path.isfile(log_process_succes):
                 os.remove(log_process_succes)
-        else:
+        elif(process == "import_meta_data_process"):
             if verbose:
                 print("Warning, no import meta data read for image " +
                       image + ", previously read import properties will be removed.")

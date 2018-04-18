@@ -31,7 +31,9 @@ CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(
     CLIENT_ID)
 PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
+USER_URL = "https://a.mapillary.com/v3/users?usernames={}&client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
+USER_UPLOAD_URL = "https://a.mapillary.com/v3/users/{}/upload_tokens?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
 LOCAL_CONFIG_FILEPATH = os.path.join('{}', '.mapillary/config')
@@ -159,19 +161,24 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
-def prompt_user_for_user_items():
+def prompt_user_for_user_items(user_name):
     user_items = {}
+
     user_email = raw_input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
-
-    user_items["MAPSettingsEmail"] = user_email
-    user_items["MAPSettingsUploadHash"] = get_upload_token(
+    user_key = get_user_key(user_name)
+    upload_token = get_upload_token(
         user_email, user_password)
-    user_items["MAPSettingsUserKey"] = get_user_key(user_email, user_password)
-    user_items["user_permission_hash"] = raw_input(
-        "Enter user permission hash : ")  # TODO get permission hash form api
-    user_items["user_signature_hash"] = raw_input(
-        "Enter user signature hash : ")  # TODO get signature hash form api
+    user_permission_hash, user_signature_hash = get_user_hashes(
+        user_key, upload_token)
+
+    user_items["MAPSettingsUsername"] = user_name
+    user_items["MAPSettingsEmail"] = user_email
+    user_items["MAPSettingsUploadHash"] = upload_token
+    user_items["MAPSettingsUserKey"] = user_key
+
+    user_items["user_permission_hash"] = user_permission_hash
+    user_items["user_signature_hash"] = user_signature_hash
 
     return user_items
 
@@ -194,8 +201,7 @@ def authenticate_user(user_name, import_path):
             return user_items
         else:
             print("enter user credentials for user " + user_name)
-            user_items = prompt_user_for_user_items()
-            user_items["MAPSettingsUsername"] = user_name
+            user_items = prompt_user_for_user_items(user_name)
             config.update_config(
                 GLOBAL_CONFIG_FILEPATH, user_name, user_items)
             config.create_config(local_config_filepath)
@@ -204,8 +210,7 @@ def authenticate_user(user_name, import_path):
             return user_items
     else:
         print("enter user credentials for user " + user_name)
-        user_items = prompt_user_for_user_items()
-        user_items["MAPSettingsUsername"] = user_name
+        user_items = prompt_user_for_user_items(user_name)
         config.create_config(GLOBAL_CONFIG_FILEPATH)
         config.update_config(
             GLOBAL_CONFIG_FILEPATH, user_name, user_items)
@@ -256,19 +261,28 @@ def set_master_key():
     return master_key
 
 
-def get_user_key(user_email, password):
+def get_user_key(user_name):
     user_key = ""
-
-    params = urllib.urlencode({"email": user_email, "password": password})
-    resp = json.loads(urllib.urlopen(LOGIN_URL, params).read())
-    token = resp['token']
-
-    req = urllib2.Request(ME_URL)
-    req.add_header('Authorization', 'Bearer {}'.format(token))
+    req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
     resp = json.loads(urllib2.urlopen(req).read())
-    user_key = resp['key']
+    if 'key' in resp[0]:
+        user_key = resp[0]['key']
 
     return user_key
+
+
+def get_user_hashes(user_key, upload_token):
+    user_permission_hash = ""
+    user_signature_hash = ""
+    req = urllib2.Request(USER_UPLOAD_URL.format(user_key, CLIENT_ID))
+    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
+    resp = json.loads(urllib2.urlopen(req).read())
+    if 'images_hash' in resp:
+        user_signature_hash = resp['images_hash']
+    if 'images_policy' in resp:
+        user_permission_hash = resp['images_policy']
+
+    return (user_permission_hash, user_signature_hash)
 
 
 def upload_done_file(params):  # TODO note that this will stay the same

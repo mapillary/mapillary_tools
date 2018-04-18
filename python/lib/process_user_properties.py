@@ -29,8 +29,7 @@ def process_user_properties(full_image_list, import_path, user_name, master_uplo
                 mapillary_description["MAPVideoSecure"] = master_key
                 mapillary_description["MAPSettingsUsername"] = user_name
                 try:
-                    #user_key = uploader.get_user_key(user_name, master_key)
-                    user_key = "test_key"
+                    user_key = uploader.get_user_key(user_name)
                     if user_key:
                         mapillary_description["MAPSettingsUserKey"] = user_key
                     else:

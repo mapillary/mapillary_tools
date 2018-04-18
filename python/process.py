@@ -213,8 +213,8 @@ if __name__ == '__main__':
 
     if not args.skip_sequence_processing:
         # function call
-        process_sequence_properties(full_image_list, import_path, cutoff_distance,
-                                    interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle)
+        process_sequence_properties(import_path, cutoff_distance,
+                                    interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle, verbose)
         pass
     # ---------------------------------------
 
