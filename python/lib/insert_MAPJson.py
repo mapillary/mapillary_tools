@@ -43,6 +43,12 @@ def insert_MAPJson(full_image_list, import_path, master_upload, verbose, skip_in
         # check the processing logs
         log_root = uploader.log_rootpath(import_path, image)
 
+        duplicate_path = os.path.join(
+            log_root, "duplicate")
+
+        if os.path.isfile(duplicate_path):
+            continue
+
         user_properties_process_success_path = os.path.join(
             log_root, "user_process_success")
         geotag_properties_process_success_path = os.path.join(
@@ -185,6 +191,13 @@ def insert_MAPJson(full_image_list, import_path, master_upload, verbose, skip_in
                     final_mapillary_image_description)
             except:
                 print("Error, image EXIF tag Image Description could not be edited for image " + image +
+                      " , Mapillary meta data needs to be written in the EXIF Image Description tag in order to be uploaded.")
+                process_complete(log_root, False)
+                continue
+            try:
+                image_exif.write()
+            except:
+                print("Error, image EXIF could not be written back for image " + image +
                       " , Mapillary meta data needs to be written in the EXIF Image Description tag in order to be uploaded.")
                 process_complete(log_root, False)
                 continue

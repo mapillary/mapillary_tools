@@ -332,10 +332,10 @@ def upload_file(filepath, root, url, permission, signature, key=None):
         response = None
 
         try:
-            #request = urllib2.Request(url, data=data, headers=headers)
-            #response = urllib2.urlopen(request)
-            # if response.getcode()==204:
-            if 1:
+            request = urllib2.Request(url, data=data, headers=headers)
+            response = urllib2.urlopen(request)
+            if response.getcode() == 204:
+                # if 1:
                 create_upload_log(root, filepath, "upload_success")
             else:
                 create_upload_log(root, filepath, "upload_failed")
