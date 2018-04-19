@@ -17,6 +17,13 @@ def process_user_properties(full_image_list, import_path, user_name, master_uplo
         try:
             mapillary_description = uploader.authenticate_user(
                 user_name, import_path)
+            # remove uneeded credentials
+            if "user_upload_token" in mapillary_description:
+                del mapillary_description["user_upload_token"]
+            if "user_permission_hash" in mapillary_description:
+                del mapillary_description["user_permission_hash"]
+            if "user_signature_hash" in mapillary_description:
+                del mapillary_description["user_signature_hash"]
         except:
             print("Error, user authentication failed for user " + user_name)
             finalize_user_properties_process(

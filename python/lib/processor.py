@@ -61,7 +61,7 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
-def create_and_log_process(image, import_path, mapillary_description, process, verbose):
+def create_and_log_process(image, import_path, mapillary_description, process, verbose=False):
     # set log path
     log_root = uploader.log_rootpath(import_path, image)
     # make all the dirs if not there

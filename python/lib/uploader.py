@@ -297,7 +297,6 @@ def upload_done_file(params):  # TODO note that this will stay the same
         os.remove("DONE")
 
 
-# TODO , this needs changing, move_files should not exist anymore
 def upload_file(filepath, root, url, permission, signature, key=None):
     '''
     Upload file at filepath.

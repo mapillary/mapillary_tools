@@ -12,6 +12,8 @@ from lib.process_user_properties import process_user_properties
 from lib.process_import_meta_properties import process_import_meta_properties
 from lib.process_geotag_properties import process_geotag_properties
 from lib.process_sequence_properties import process_sequence_properties
+from lib.process_upload_params import process_upload_params
+
 '''
 Script for uploading images taken with other cameras than
 the Mapillary iOS or Android apps.
@@ -215,7 +217,6 @@ if __name__ == '__main__':
         # function call
         process_sequence_properties(import_path, cutoff_distance, cutoff_time,
                                     interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle, verbose)
-        pass
     # ---------------------------------------
 
     # QC--------------------------------------
@@ -227,9 +228,10 @@ if __name__ == '__main__':
 
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
     # parameters
-    if not args.skip_upload_params_processing:
+    if not args.skip_upload_params_processing and not master_upload:
         # function call
-        pass
+        process_upload_params(full_image_list, import_path,
+                              user_name, verbose)
     # ---------------------------------------
 
     # INSERT INTO EXIF IMAGE DESCRIPTION --------------------------------

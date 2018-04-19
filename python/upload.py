@@ -61,7 +61,8 @@ if __name__ == '__main__':
             else:
                 image_upload_list.append(image)
             # set the path for the potential upload params
-            upload_params_path = os.path.join(log_root, "upload_params")
+            upload_params_path = os.path.join(
+                log_root, "upload_params_process.json")
             # if they exist, load them to the dictionary of params, with image
             # paths as keys
             if os.path.isfile(upload_params_path):

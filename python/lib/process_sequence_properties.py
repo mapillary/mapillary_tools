@@ -1,6 +1,7 @@
 import os
 import uuid
 import datetime
+import time
 
 from lib.exif_read import ExifRead
 from lib.geo import compute_bearing, gps_distance, diff_bearing
@@ -189,6 +190,8 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                 log_root = uploader.log_rootpath(import_path, filename)
                 duplicate_flag_path = os.path.join(
                     log_root, "duplicate")
+                sequence_process_success_path = os.path.join(
+                    log_root, "sequence_process_success")
                 k = i + 1
                 distance = gps_distance(latlons[k], prev_latlon)
                 if directions[k] is not None and prev_direction is not None:
@@ -200,6 +203,9 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                     direction_diff = 360
                 if distance < duplicate_distance and direction_diff < duplicate_angle:
                     open(duplicate_flag_path, "w").close()
+                    open(sequence_process_success_path, "w").close()
+                    open(sequence_process_success_path + "_" +
+                         str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
                 else:
                     prev_latlon = latlons[k]
                     prev_direction = directions[k]
