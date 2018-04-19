@@ -13,6 +13,7 @@ from lib.process_import_meta_properties import process_import_meta_properties
 from lib.process_geotag_properties import process_geotag_properties
 from lib.process_sequence_properties import process_sequence_properties
 from lib.process_upload_params import process_upload_params
+from lib.insert_MAPJson import insert_MAPJson
 
 '''
 Script for uploading images taken with other cameras than
@@ -234,9 +235,8 @@ if __name__ == '__main__':
                               user_name, verbose)
     # ---------------------------------------
 
-    # INSERT INTO EXIF IMAGE DESCRIPTION --------------------------------
-    # parameters
-    if not args.skip_insert_MAPJson:
-        # function call
-        pass
+    # COMBINE META DATA AND INSERT INTO EXIF IMAGE DESCRIPTION ---------------
+    # function call
+    insert_MAPJson(full_image_list, import_path, master_upload,
+                   verbose, args.skip_insert_MAPJson)
     # ---------------------------------------

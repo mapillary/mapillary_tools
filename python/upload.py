@@ -53,7 +53,7 @@ if __name__ == '__main__':
         log_root = uploader.log_rootpath(import_path, image)
         # if there is no process_failed flag and no duplicate flag and no
         # upload_success flag, the image can be considered for upload
-        if not os.path.isfile(os.path.join(log_root, "process_failed")) and not os.path.isfile(os.path.join(log_root, "duplicate")) and not os.path.isfile(os.path.join(log_root, "upload_success")):
+        if not os.path.isfile(os.path.join(log_root, "process_incomplete")) and not os.path.isfile(os.path.join(log_root, "duplicate")) and not os.path.isfile(os.path.join(log_root, "upload_success")):
             # if there is a upload_failed flag, the image was attempted to be
             # uploaded already, so it is a different use case
             if os.path.isfile(os.path.join(log_root, "upload_failed")):
