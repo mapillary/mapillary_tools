@@ -36,7 +36,7 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
     for root, dirs, files in os.walk(import_path):
         if len(files):
             image_files = [os.path.join(root, file)
-                           for file in files if ".jpg" in file]
+                           for file in files if processor.is_image(file)]
             if len(image_files):
 
                 file_list = []

@@ -67,7 +67,8 @@ if __name__ == '__main__':
             # paths as keys
             if os.path.isfile(upload_params_path):
                 with open(upload_params_path, "rb") as jf:
-                    params[image] = json.load(jf)
+                    params[image] = json.load(
+                        jf, object_hook=uploader.ascii_encode_dict)
 
     # check if any failed uploads and prompt user if the upload should be
     # attempted again

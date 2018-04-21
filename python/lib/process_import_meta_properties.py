@@ -21,17 +21,34 @@ def finalize_import_properties_process(image, import_path, orientation, device_m
             if "strings" in mapillary_description['MAPMetaTags']:
                 mapillary_description['MAPMetaTags']["strings"].append(
                     {"key": "original_file_name",
-                     "value": image})
+                     "value": image}
+                )
             else:
                 mapillary_description['MAPMetaTags']["strings"] = [
                     {"key": "original_file_name",
                      "value": image}
                 ]
+            if "dates" in mapillary_description['MAPMetaTags']:
+                mapillary_description['MAPMetaTags']["dates"].append(
+                    {"key": "random_date",
+                     "value": "2011:11:11 11:11:11"}
+                )
+            else:
+                mapillary_description['MAPMetaTags']["dates"] = [
+                    {"key": "random_date",
+                     "value": "2011:11:11 11:11:11"}
+                ]
         else:
-            mapillary_description['MAPMetaTags'] = {"strings": [
-                {"key": "original_file_name",
-                 "value": image}
-            ]}
+            mapillary_description['MAPMetaTags'] = {
+                "strings": [
+                    {"key": "original_file_name",
+                     "value": image}
+                ],
+                "dates:": [
+                    {"key": "random_date",
+                     "value": "2011:11:11 11:11:11"}
+                ]
+            }
 
     # print(verbose)
     processor.create_and_log_process(

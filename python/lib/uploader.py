@@ -361,6 +361,11 @@ def upload_file(filepath, root, url, permission, signature, key=None):
                 response.close()
 
 
+def ascii_encode_dict(data):
+    def ascii_encode(x): return x.encode('ascii')
+    return dict(map(ascii_encode, pair) for pair in data.items())
+
+
 def upload_file_list(file_list, root, file_params={}):
     # create upload queue with all files
     q = Queue()

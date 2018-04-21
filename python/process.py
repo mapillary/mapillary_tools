@@ -140,7 +140,7 @@ if __name__ == '__main__':
     full_image_list = []
     for root, dir, files in os.walk(import_path):
         full_image_list.extend(os.path.join(root, file) for file in files if
-                               file.lower().endswith(".jpg"))
+                               processor.is_image(file))
     # check if any images in the list and exit if none
     if not len(full_image_list):
         print("Error, no images in the import directory " +
@@ -229,10 +229,11 @@ if __name__ == '__main__':
 
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
     # parameters
-    if not args.skip_upload_params_processing and not master_upload:
+    if not args.skip_upload_params_processing:
         # function call
         process_upload_params(full_image_list, import_path,
-                              user_name, verbose)
+                              user_name, master_upload, verbose)
+
     # ---------------------------------------
 
     # COMBINE META DATA AND INSERT INTO EXIF IMAGE DESCRIPTION ---------------

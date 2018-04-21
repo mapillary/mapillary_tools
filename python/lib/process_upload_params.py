@@ -7,26 +7,31 @@ import lib.processor as processor
 import lib.uploader as uploader
 
 
-def process_upload_params(full_image_list, import_path, user_name, verbose):
+def process_upload_params(full_image_list, import_path, user_name, master_upload, verbose):
 
-    try:
-        credentials = uploader.authenticate_user(
-            user_name, import_path)
-    except:
-        print("Error, user authentication failed for user " + user_name)
-        return
-    if "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
-        print("Error, user authentication failed for user " + user_name)
-        return
+    if not master_upload:
+        try:
+            credentials = uploader.authenticate_user(
+                user_name, import_path)
+        except:
+            print("Error, user authentication failed for user " + user_name)
+            return
+        if "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
+            print("Error, user authentication failed for user " + user_name)
+            return
 
-    user_upload_token = credentials["user_upload_token"]
-    user_permission_hash = credentials["user_permission_hash"]
-    user_signature_hash = credentials["user_signature_hash"]
-    user_email = credentials["MAPSettingsEmail"]
+        user_upload_token = credentials["user_upload_token"]
+        user_permission_hash = credentials["user_permission_hash"]
+        user_signature_hash = credentials["user_signature_hash"]
+        user_email = credentials["MAPSettingsEmail"]
 
     for image in full_image_list:
         # check the status of the sequence processing
         log_root = uploader.log_rootpath(import_path, image)
+        if master_upload:
+            if os.path.isfile(os.path.join(log_root, "upload_params_process.json")):
+                os.remove(os.path.join(log_root, "upload_params_process.json"))
+            continue
         if not os.path.isdir(log_root):
             if verbose:
                 print("Warning, sequence process has not been done for image " + image +
@@ -75,9 +80,9 @@ def process_upload_params(full_image_list, import_path, user_name, verbose):
             sequence_uuid = sequence_data["MAPSequenceUUID"]
             upload_params = {
                 "url": "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images",
-                "key": user_name + "/" + sequence_uuid + "/",
                 "permission": user_permission_hash,
-                "signature": user_signature_hash
+                "signature": user_signature_hash,
+                "key": user_name + "/" + sequence_uuid + "/"
             }
 
             try:

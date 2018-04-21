@@ -83,15 +83,15 @@ def create_and_log_process(image, import_path, mapillary_description, process, v
             if os.path.isfile(log_process_succes):
                 os.remove(log_process_succes)
         elif(process == "import_meta_data_process"):
-            if verbose:
-                print("Warning, no import meta data read for image " +
-                      image + ", previously read import properties will be removed.")
             # if there is a success log from before, remove it
             if os.path.isfile(log_process_succes):
                 os.remove(log_process_succes)
             # if previously read import meta properties, remove them
             log_MAPJson = os.path.join(log_root, process + ".json")
             if os.path.isfile(log_MAPJson):
+                if verbose:
+                    print("Warning, no import meta data set for image " + image +
+                          "in this import, previously generated import meta data will not be used")
                 os.remove(log_MAPJson)
     # if the image description is not empty, write it in the filesystem and
     # log success
