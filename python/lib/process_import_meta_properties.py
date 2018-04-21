@@ -1,9 +1,32 @@
+import time
+
 import lib.processor as processor
 import lib.uploader as uploader
 from lib.exif_read import ExifRead
 
 
-def finalize_import_properties_process(image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose, mapillary_description={}):
+def add_meta_tag(mapillary_description, type, key, value):
+    if 'MAPMetaTags' in mapillary_description:
+        if type in mapillary_description['MAPMetaTags']:
+            mapillary_description['MAPMetaTags'][type].append(
+                {"key": key,
+                 "value": value}
+            )
+        else:
+            mapillary_description['MAPMetaTags'][type] = [
+                {"key": key,
+                 "value": value}
+            ]
+    else:
+        mapillary_description['MAPMetaTags'] = {
+            type: [
+                {"key": key,
+                 "value": value}
+            ]
+        }
+
+
+def finalize_import_properties_process(image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, add_import_date, verbose, mapillary_description={}):
     # always check if there are any command line arguments passed, they will
     # take precedence over the JSON of EXIF read ones
     if orientation:
@@ -17,45 +40,18 @@ def finalize_import_properties_process(image, import_path, orientation, device_m
         mapillary_description['MAPGPSAccuracyMeters'] = GPS_accuracy
 
     if add_file_name:
-        if 'MAPMetaTags' in mapillary_description:
-            if "strings" in mapillary_description['MAPMetaTags']:
-                mapillary_description['MAPMetaTags']["strings"].append(
-                    {"key": "original_file_name",
-                     "value": image}
-                )
-            else:
-                mapillary_description['MAPMetaTags']["strings"] = [
-                    {"key": "original_file_name",
-                     "value": image}
-                ]
-            if "dates" in mapillary_description['MAPMetaTags']:
-                mapillary_description['MAPMetaTags']["dates"].append(
-                    {"key": "random_date",
-                     "value": "2011:11:11 11:11:11"}
-                )
-            else:
-                mapillary_description['MAPMetaTags']["dates"] = [
-                    {"key": "random_date",
-                     "value": "2011:11:11 11:11:11"}
-                ]
-        else:
-            mapillary_description['MAPMetaTags'] = {
-                "strings": [
-                    {"key": "original_file_name",
-                     "value": image}
-                ],
-                "dates:": [
-                    {"key": "random_date",
-                     "value": "2011:11:11 11:11:11"}
-                ]
-            }
+        add_meta_tag(mapillary_description, "strings",
+                     "original_file_name", image)
+    if add_import_date:
+        add_meta_tag(mapillary_description, "dates", "import_date", str(
+            time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())))
 
     # print(verbose)
     processor.create_and_log_process(
         image, import_path, mapillary_description, "import_meta_data_process", verbose)
 
 
-def process_import_meta_properties(full_image_list, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, import_meta_source, import_meta_source_path, verbose):
+def process_import_meta_properties(full_image_list, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, add_import_date, import_meta_source, import_meta_source_path, verbose):
 
     # map orientation from degrees to tags
     if orientation:
@@ -66,7 +62,7 @@ def process_import_meta_properties(full_image_list, import_path, orientation, de
     if not import_meta_source:
         for image in full_image_list:
             finalize_import_properties_process(
-                image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose)
+                image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, add_import_date, verbose)
     else:
         if import_meta_source == "exif":
             # read import meta from image EXIF and finalize the import
@@ -99,7 +95,7 @@ def process_import_meta_properties(full_image_list, import_path, orientation, de
                               image + ", import properties not read.")
 
                 finalize_import_properties_process(
-                    image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, verbose, mapillary_description)
+                    image, import_path, orientation, device_make, device_model, GPS_accuracy, add_file_name, add_import_date, verbose, mapillary_description)
         else:
             # read import meta from json and finalize the import properties
             # process

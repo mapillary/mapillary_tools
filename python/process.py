@@ -81,6 +81,8 @@ def get_args():
         "--device_model", help="Specify device model. Note this input has precedence over the input read from the import source file.", default=None)
     parser.add_argument(
         '--add_file_name', help="Add original file name to EXIF. Note this input has precedence over the input read from the import source file.", action='store_true')
+    parser.add_argument(
+        '--add_import_date', help="Add import date.", action='store_true')
     parser.add_argument('--orientation', help='Specify the image orientation in degrees. Note this might result in image rotation. Note this input has precedence over the input read from the import source file.',
                         choices=[0, 90, 180, 270], type=int, default=None)
     parser.add_argument(
@@ -168,6 +170,7 @@ if __name__ == '__main__':
     device_model = args.device_model
     GPS_accuracy = args.GPS_accuracy
     add_file_name = args.add_file_name
+    add_import_date = args.add_import_date
     orientation = args.orientation
     import_meta_source = args.import_meta_source
     import_meta_source_path = args.import_meta_source_path
@@ -181,7 +184,7 @@ if __name__ == '__main__':
     # function call
     if not args.skip_import_meta_processing:
         process_import_meta_properties(full_image_list, import_path, orientation, device_make,
-                                       device_model, GPS_accuracy, add_file_name, import_meta_source, import_meta_source_path, verbose)
+                                       device_model, GPS_accuracy, add_file_name, add_import_date, import_meta_source, import_meta_source_path, verbose)
     # ---------------------------------------
 
     # PROCESS GEO/TIME PROPERTIES --------------------------------------
