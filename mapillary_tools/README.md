@@ -77,8 +77,9 @@ Each tool takes specific arguments.
   
 Processing 
 =============  
-Required meta data needs to be processed and inserted in the image EXIF for an image to be uploaded to Mapillary.
-In case the image were taken with the Mapillary app, the required meta data is already inserted in the image EXIF and no processing is needed.  
+Required meta data needs to be processed and inserted in the image EXIF for an image to be uploaded to Mapillary.  
+In case the image were taken with the Mapillary app, the required meta data is already inserted in the image EXIF and no processing is needed and you can skip to [Upload](#upload). 
+
   
 Required meta data is:  
 - user specific meta data  
