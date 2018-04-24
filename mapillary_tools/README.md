@@ -59,6 +59,7 @@ Required meta data is:
 -  capture time
 -  latitude and longitude
 -  sequence meta data
+
 Optional meta data:
 -  import meta data
 
