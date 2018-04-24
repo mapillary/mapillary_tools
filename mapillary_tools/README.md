@@ -98,15 +98,15 @@ List of all arguments used to skip a specific unit tool:
 - `--skip_user_processing`   
     set True to skip processing user properties  
 - `--skip_import_meta_processing`  
-    set True to skip processing import meta data properties 
-- `--skip_geotagging` 
-    set True to skip processing geotagging properties 
-- `--skip_sequence_processing` 
-    set True to skip processing sequence properties 
-- `--skip_upload_params_processing` 
-    set True to skip processing upload parameters  
+    set True to skip processing import meta data properties   
+- `--skip_geotagging`   
+    set True to skip processing geotagging properties   
+- `--skip_sequence_processing`   
+    set True to skip processing sequence properties   
+- `--skip_upload_params_processing`   
+    set True to skip processing upload parameters   
 - `--skip_insert_EXIF`   
-    set True to skip inserting the properties into image EXIF  
+    set True to skip inserting the properties into image EXIF   
 
 In case of first image import for the specified user name, authentication is required.  
 Authentication requires the user to provide user email and password, used to create an account at Mapillary.  
@@ -216,12 +216,12 @@ Additional arguments available besides the import path, user name and verbose:
 		specify the maximum time interval in seconds within a sequence  
 		value type float  
 		default value 60.0	  	
-- `--interpolate_directions`  
-		set True to perform interploation of directions  
-		note that the values of the derived directions will take precedence of those read from the geotag source  
-- `--offset_angle	"offset angle value"`	  
-		specify the offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)  
-		value type float
+- `--interpolate_directions`   
+		set True to perform interploation of directions   
+		note that the values of the derived directions will take precedence of those read from the geotag source   
+- `--offset_angle	"offset angle value"`	   
+		specify the offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)   
+		value type float   
 		note in case of direction interpolation, this value will be added to the interpolated directions and not the ones read from the geotag source   
 - `--flag_duplicates`   
 		set True to flag duplicates   
@@ -234,7 +234,7 @@ Additional arguments available besides the import path, user name and verbose:
 - `--duplicate_angle "duplicate angle value"`  
 		specify the max angle for two images to be considered duplicates in degrees  
 		value type float  
-		default value 5  
+		default value 5   
 		
 Only the import path is required to run this process tool.		
 Usage examples:
