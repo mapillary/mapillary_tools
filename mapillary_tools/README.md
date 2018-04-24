@@ -92,6 +92,12 @@ Optional meta data:
 
 **process**  
 By using the process tool, all of the below listed processing unit tools will be executed with the corresponding arguments.  
+- [user_process](#user_process)  
+- [import_metadata_process](#import_metadata_process)  
+- [user_process](#user_process)  
+- [geotag_process](#geotag_process)  
+- [sequence_process](#sequence_process)  
+- [insert_EXIF_ImageDescription](#insert_exif_imagedescription)   
   
 Required arguments are:   
 - `path "path value"`   
@@ -137,7 +143,9 @@ List of all arguments used to skip a specific unit tool:
 In case of first image import for the specified user name, authentication is required.  
 Authentication requires the user to provide user email and password, used to create an account at Mapillary.  
    
-**user_process**   
+user_process  
+============  
+     
 The user process tool will process user specific properties and initialize authentication in case of first import.   
 No additional arguments available besides the import path, user name and verbose.   
 Both import path and user name are required to run this process tool.   
@@ -160,7 +168,9 @@ Usage example:
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
 
-**import_metadata_process**    
+import_metadata_process
+============  
+    
 The import_metadata_process tool will process import specific meta data which is not required, but can be very useful.   
 Additional arguments available besides the import path, user name and verbose:    
 - `--orientation "orientation value"`  
@@ -205,7 +215,9 @@ Usage examples:
 
 This unit process is not required for an image to be uploaded to Mapillary, although is very much encouraged.  
 
-**geotag_process**  
+geotag_process
+============  
+  
 The geotag_process tool will process the capture date/time and GPS data which are required to upload an image to Mapillary.   
 Additional arguments available besides the import path, user name and verbose:  
 - `--geotag_source "geotag source value"`  
@@ -230,7 +242,9 @@ Usage examples:
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
 
-**sequence_process**  
+sequence_process
+============  
+    
 The sequence_process tool will process the entire set of images located in the import path and flag duplicates, interpolate directions and perform sequence split.   
 This unit process requires that geotag_process has been run successfully.  
 Additional arguments available besides the import path, user name and verbose:  
@@ -272,7 +286,9 @@ Usage examples:
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
 
-**insert_EXIF_ImageDescription**   
+insert_EXIF_ImageDescription  
+============    
+   
 The insert_EXIF_ImageDescription tool will take all the meta data read and processed in the other processing units and insert it in the image EXIF.  
 No additional arguments available besides the import path, user name and verbose.  
 Only the import path is required to run this process tool.		    
