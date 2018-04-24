@@ -1,4 +1,4 @@
-from lib.exif_read import ExifRead
+from exif_read import ExifRead
 
 
 def exif_gps_fields():

@@ -1,9 +1,9 @@
 import os
 import time
 
-import lib.processor as processor
-import lib.uploader as uploader
-from lib.exif_write import ExifEdit
+import processing
+import uploader
+from exif_write import ExifEdit
 
 
 def process_complete(log_root, completed):
@@ -24,7 +24,7 @@ def process_complete(log_root, completed):
 
 def update_mapillary_description(final_mapillary_image_description, json_file, verbose):
     try:
-        properties = processor.load_json(json_file)
+        properties = processing.load_json(json_file)
         if not properties:
             if verbose:
                 print("Warning, no properties read from json file " + json_file)
@@ -170,7 +170,7 @@ def insert_MAPJson(full_image_list, import_path, master_upload, verbose, skip_in
             continue
         else:
             try:
-                processor.save_json(final_mapillary_image_description, os.path.join(
+                processing.save_json(final_mapillary_image_description, os.path.join(
                     log_root, "mapillary_image_description.json"))
             except:
                 if verbose:

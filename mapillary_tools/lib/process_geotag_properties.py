@@ -1,9 +1,9 @@
 import datetime
 
-import lib.processor as processor
-import lib.uploader as uploader
-from lib.exif_read import ExifRead
-from lib.geo import normalize_bearing
+import processing
+import uploader
+from exif_read import ExifRead
+from geo import normalize_bearing
 
 
 def process_geotag_properties(full_image_list, import_path, geotag_source, geotag_source_path=None, offset_angle=0, verbose=False):
@@ -27,12 +27,20 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
             exif = ExifRead(image)
             # required tags
             try:
-                mapillary_description["MAPLongitude"], mapillary_description["MAPLatitude"] = exif.extract_lon_lat(
-                )
+                lat, lon = exif.extract_lon_lat()
+                if lat != None and lon != None:
+                    mapillary_description["MAPLatitude"] = lat
+                    mapillary_description["MAPLongitude"] = lon
+                else:
+                    print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+                    processing.create_and_log_process(
+                        image, import_path, {}, "geotag_process")
+                    continue
+
             except:
                 print("Error, " + image +
                       " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processor.create_and_log_process(
+                processing.create_and_log_process(
                     image, import_path, {}, "geotag_process")
                 continue
             try:
@@ -42,7 +50,7 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
             except:
                 print("Error, " + image +
                       " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processor.create_and_log_process(
+                processing.create_and_log_process(
                     image, import_path, {}, "geotag_process")
                 continue
             # optional fields
@@ -66,7 +74,7 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
             print("Error, EXIF could not be read for image " +
                   image + ", geotagging process failed for this image since gps/time properties not read.")
 
-        processor.create_and_log_process(
+        processing.create_and_log_process(
             image, import_path, mapillary_description, "geotag_process", verbose)
 
 

@@ -4,12 +4,12 @@ import os
 import json
 import time
 
-from lib.exif_read import ExifRead
-from lib.exif_write import ExifEdit
-from lib.exif_aux import verify_exif
-from lib.geo import normalize_bearing
-import lib.config as config
-import lib.uploader as uploader
+from exif_read import ExifRead
+from exif_write import ExifEdit
+from exif_aux import verify_exif
+from geo import normalize_bearing
+import config
+import uploader
 LOCAL_CONFIG_FILEPATH = uploader.LOCAL_CONFIG_FILEPATH
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
@@ -35,10 +35,6 @@ def format_orientation(orientation):
         raise ValueError("Orientation value has to be 0, 90, 180, or 270")
 
     return mapping[orientation]
-
-
-def is_image(filename):
-    return filename.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))
 
 
 def load_json(file_path):

@@ -3,10 +3,10 @@ import uuid
 import datetime
 import time
 
-from lib.exif_read import ExifRead
-from lib.geo import compute_bearing, gps_distance, diff_bearing
-import lib.processor as processor
-import lib.uploader as uploader
+from exif_read import ExifRead
+from geo import compute_bearing, gps_distance, diff_bearing
+import processing
+import uploader
 
 MAX_SEQUENCE_LENGTH = 500
 
@@ -21,7 +21,7 @@ def finalize_sequence_processing(sequence, final_file_list, final_directions, im
             }
         }
 
-        processor.create_and_log_process(
+        processing.create_and_log_process(
             image, import_path, mapillary_description, "sequence_process", verbose)
 
 
@@ -36,7 +36,7 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
     for root, dirs, files in os.walk(import_path):
         if len(files):
             image_files = [os.path.join(root, file)
-                           for file in files if processor.is_image(file)]
+                           for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))]
             if len(image_files):
 
                 file_list = []
@@ -53,8 +53,8 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                         if verbose:
                             print("Warning, geotag process has not been done for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processor.create_and_log_process(
-                            image, import_path, mapillary_description, "sequence_process")
+                        processing.create_and_log_process(
+                            image, import_path, {}, "sequence_process")
                         continue
                     # check if geotag process was a success
                     log_geotag_process_success = os.path.join(
@@ -63,21 +63,21 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                         if verbose:
                             print("Warning, geotag process failed for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processor.create_and_log_process(
-                            image, import_path, mapillary_description, "sequence_process")
+                        processing.create_and_log_process(
+                            image, import_path, {}, "sequence_process")
                         continue
                     # load the geotag json
                     geotag_process_json_path = os.path.join(
                         log_root, "geotag_process.json")
                     try:
-                        geotag_data = processor.load_json(
+                        geotag_data = processing.load_json(
                             geotag_process_json_path)
                     except:
                         if verbose:
                             print("Warning, geotag data not read for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processor.create_and_log_process(
-                            image, import_path, mapillary_description, "sequence_process")
+                        processing.create_and_log_process(
+                            image, import_path, {}, "sequence_process")
                         continue
 
                     # assume all data needed available from this point on
@@ -97,67 +97,68 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                 # ---------------------------------------
 
                 # SPLIT SEQUENCES --------------------------------------
+                if len(capture_times) and len(lats) and len(lons):
+                    # sort based on time
+                    sort_by_time = zip(
+                        capture_times, file_list, lats, lons, directions)
+                    sort_by_time.sort()
+                    capture_times, file_list, lats, lons, directions = [
+                        list(x) for x in zip(*sort_by_time)]
+                    latlons = zip(lats, lons)
 
-                # sort based on time
-                sort_by_time = zip(
-                    capture_times, file_list, lats, lons, directions)
-                sort_by_time.sort()
-                capture_times, file_list, lats, lons, directions = [
-                    list(x) for x in zip(*sort_by_time)]
-                latlons = zip(lats, lons)
+                    # initialize first sequence
+                    sequence_index += 1
+                    sequences.append({"file_list": [
+                        file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]]})
 
-                # initialize first sequence
-                sequence_index += 1
-                sequences.append({"file_list": [
-                    file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]]})
+                    if len(file_list) >= 1:
+                        # diff in capture time
+                        capture_deltas = [
+                            t2 - t1 for t1, t2 in zip(capture_times, capture_times[1:])]
 
-                if len(file_list) >= 1:
-                    # diff in capture time
-                    capture_deltas = [
-                        t2 - t1 for t1, t2 in zip(capture_times, capture_times[1:])]
+                        # distance between consecutive images
+                        distances = [gps_distance(ll1, ll2)
+                                     for ll1, ll2 in zip(latlons, latlons[1:])]
 
-                    # distance between consecutive images
-                    distances = [gps_distance(ll1, ll2)
-                                 for ll1, ll2 in zip(latlons, latlons[1:])]
-
-                    # if cutoff time is given use that, else assume cutoff is
-                    # 1.5x median time delta
-                    if cutoff_time is None:
-                        if verbose:
-                            print(
-                                "Warning, sequence cut-off time is None and will therefore be derived based on the median time delta between the consecutive images.")
-                        median = sorted(capture_deltas)[
-                            len(capture_deltas) // 2]
-                        if type(median) is not int:
-                            median = median.total_seconds()
-                        cutoff_time = 1.5 * median
-
-                    cut = 0
-                    for i, filepath in enumerate(file_list[1:]):
-                        cut_time = capture_deltas[i].total_seconds(
-                        ) > cutoff_time
-                        cut_distance = distances[i] > cutoff_distance
-                        if cut_time or cut_distance:
-                            cut += 1
-                            # delta too big, start new sequence
-                            sequence_index += 1
-                            sequences.append({"file_list": [
-                                filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
+                        # if cutoff time is given use that, else assume cutoff is
+                        # 1.5x median time delta
+                        if cutoff_time is None:
                             if verbose:
-                                if cut_distance:
-                                    print('Cut {}: Delta in distance {} meters is too bigger than cutoff_distance {} meters at {}'.format(
-                                        cut, distances[i], cutoff_distance, file_list[i + 1]))
-                                elif cut_time:
-                                    print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
-                                        cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
-                        else:
-                            # delta not too big, continue with current group
-                            sequences[sequence_index]["file_list"].append(
-                                filepath)
-                            sequences[sequence_index]["directions"].append(
-                                directions[1:][i])
-                            sequences[sequence_index]["latlons"].append(
-                                latlons[1:][i])
+                                print(
+                                    "Warning, sequence cut-off time is None and will therefore be derived based on the median time delta between the consecutive images.")
+                            median = sorted(capture_deltas)[
+                                len(capture_deltas) // 2]
+                            if type(median) is not int:
+                                median = median.total_seconds()
+                            cutoff_time = 1.5 * median
+
+                        cut = 0
+                        for i, filepath in enumerate(file_list[1:]):
+                            cut_time = capture_deltas[i].total_seconds(
+                            ) > cutoff_time
+                            cut_distance = distances[i] > cutoff_distance
+                            if cut_time or cut_distance:
+                                cut += 1
+                                # delta too big, start new sequence
+                                sequence_index += 1
+                                sequences.append({"file_list": [
+                                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
+                                if verbose:
+                                    if cut_distance:
+                                        print('Cut {}: Delta in distance {} meters is too bigger than cutoff_distance {} meters at {}'.format(
+                                            cut, distances[i], cutoff_distance, file_list[i + 1]))
+                                    elif cut_time:
+                                        print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
+                                            cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
+                            else:
+                                # delta not too big, continue with current
+                                # group
+                                sequences[sequence_index]["file_list"].append(
+                                    filepath)
+                                sequences[sequence_index]["directions"].append(
+                                    directions[1:][i])
+                                sequences[sequence_index]["latlons"].append(
+                                    latlons[1:][i])
                 # ---------------------------------------
 
     # process for each sequence

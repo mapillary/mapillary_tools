@@ -1,50 +1,28 @@
-#!/usr/bin/env python
-
+import argparse
 import sys
 import os
-import uuid
-import argparse
-import json
-
-import lib.processor as processor
-
-from lib.process_user_properties import process_user_properties
-from lib.process_import_meta_properties import process_import_meta_properties
-from lib.process_geotag_properties import process_geotag_properties
-from lib.process_sequence_properties import process_sequence_properties
-from lib.process_upload_params import process_upload_params
-from lib.insert_MAPJson import insert_MAPJson
-
-'''
-Script for uploading images taken with other cameras than
-the Mapillary iOS or Android apps.
-It runs in the following steps:
-    - Mark images that are potential duplicates and will not be uploaded
-    - Group images into sequences based on gps and time
-    - Interpolate compass angles for each sequence
-    - Add Mapillary tags to the images
-The following EXIF tags are required:
--GPSLongitude
--GPSLatitude
--(GPSDateStamp and GPSTimeStamp) or DateTimeOriginal or DateTimeDigitized or DateTime
-(assumes Python 2.x, for Python 3.x you need to change some module names)
-'''
-
-MAPILLARY_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
-MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
-NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '2'))
+from mapillary_tools.lib.upload import upload
+from mapillary_tools.lib.process_user_properties import process_user_properties
+from mapillary_tools.lib.process_import_meta_properties import process_import_meta_properties
+from mapillary_tools.lib.process_geotag_properties import process_geotag_properties
+from mapillary_tools.lib.process_sequence_properties import process_sequence_properties
+from mapillary_tools.lib.process_upload_params import process_upload_params
+from mapillary_tools.lib.insert_MAPJson import insert_MAPJson
 
 
 def get_args():
     parser = argparse.ArgumentParser(
         description='Process photos to have them uploaded to Mapillary')
     # path to the import photos
+    parser.add_argument('tool', help='Mapillary tool you want to use [upload, process, process_and_upload, user_process, import_metadata_process,' +
+                        'geotag_process, sequence_process, upload_params_process, insert_EXIF_ImageDescription]')
+    # force rerun process, will rewrite the json and update the processing logs
     parser.add_argument('path', help='path to your photos')
     # force rerun process, will rewrite the json and update the processing logs
     parser.add_argument(
         '--rerun', help='rerun the processing', action='store_true')
     # user name for the import
-    parser.add_argument("--user_name", help="user name", required=True)
+    parser.add_argument("--user_name", help="user name")
     # sequence level parameters
     parser.add_argument('--cutoff_distance', default=600., type=float,
                         help='maximum gps distance in meters within a sequence')
@@ -120,7 +98,6 @@ def get_args():
 
 if __name__ == '__main__':
     '''
-    Use from command line as: python processing.py path --user_name
     '''
 
     if sys.version_info >= (3, 0):
@@ -128,7 +105,6 @@ if __name__ == '__main__':
             sys.version_info[:2]))
 
     args = get_args()
-    verbose = args.verbose
 
     # INITIAL SANITY CHECKS ---------------------------------------
     # set import path to images
@@ -141,31 +117,28 @@ if __name__ == '__main__':
     # get the full image list
     full_image_list = []
     for root, dir, files in os.walk(import_path):
-        full_image_list.extend(os.path.join(root, file) for file in files if
-                               processor.is_image(file))
+        full_image_list.extend(os.path.join(root, file)
+                               for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     # check if any images in the list and exit if none
     if not len(full_image_list):
         print("Error, no images in the import directory " +
               import_path + " or images dont have the extension .jpg, exiting...")
         sys.exit()
-    # set user_name
-    user_name = args.user_name
-    if not user_name:
-        print("Error, must provide a valid user name, exiting...")
+    # ---------------------------------------
+
+    # read the tool and execute it
+    tool = args.tool
+    if tool not in ("upload", "process", "process_and_upload", "user_process", "import_metadata_process",
+                    'geotag_process', 'sequence_process', 'upload_params_process', 'insert_EXIF_ImageDescription'):
+        print("Error, tool " + tool + " does not exist, available tools are [upload, process, process_and_upload, user_process, import_metadata_process," +
+              'geotag_process, sequence_process, upload_params_process, insert_EXIF_ImageDescription]')
         sys.exit()
-    # ---------------------------------------
 
-    # PROCESS USER PROPERTIES --------------------------------------
+    verbose = args.verbose
+
     # parameters
+    user_name = args.user_name
     master_upload = args.master_upload
-    # function call
-    if not args.skip_user_processing:
-        process_user_properties(full_image_list, import_path,
-                                user_name, master_upload, verbose)
-    # ---------------------------------------
-
-    # PROCESS IMPORT PROPERTIES --------------------------------------
-    # parameters
     device_make = args.device_make
     device_model = args.device_model
     GPS_accuracy = args.GPS_accuracy
@@ -174,42 +147,9 @@ if __name__ == '__main__':
     orientation = args.orientation
     import_meta_source = args.import_meta_source
     import_meta_source_path = args.import_meta_source_path
-    # sanity checks
-    if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":
-        print("Error, if reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-        sys.exit()
-    elif import_meta_source != None and import_meta_source != "exif" and not os.path.isfile(import_meta_source_path):
-        print("Error, " + import_meta_source_path + " file source of import properties does not exist. If reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-        sys.exit()
-    # function call
-    if not args.skip_import_meta_processing:
-        process_import_meta_properties(full_image_list, import_path, orientation, device_make,
-                                       device_model, GPS_accuracy, add_file_name, add_import_date, import_meta_source, import_meta_source_path, verbose)
-    # ---------------------------------------
-
-    # PROCESS GEO/TIME PROPERTIES --------------------------------------
-    # parameters
     geotag_source = args.geotag_source
     geotag_source_path = args.geotag_source_path
     offset_angle = args.offset_angle
-    # sanity checks
-    if geotag_source_path == None and geotag_source != "exif":
-        # if geotagging from external log file, path to the external log file
-        # needs to be provided, if not, exit
-        print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-        sys.exit()
-    elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
-        print("Error, " + geotag_source_path +
-              " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-        sys.exit()
-    # function call
-    if not args.skip_geotagging:
-        process_geotag_properties(
-            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle, verbose)
-    # ---------------------------------------
-
-    # PROCESS SEQUENCE PROPERTIES --------------------------------------
-    # parameters
     cutoff_distance = args.cutoff_distance
     cutoff_time = args.cutoff_time
     interpolate_directions = args.interpolate_directions
@@ -217,30 +157,62 @@ if __name__ == '__main__':
     duplicate_distance = args.duplicate_distance
     duplicate_angle = args.duplicate_angle
 
-    if not args.skip_sequence_processing:
+    # PROCESS USER PROPERTIES --------------------------------------
+    if tool == "user_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_user_processing):
+        # sanity checks
+        if not user_name:
+            print("Error, must provide a valid user name, exiting...")
+            sys.exit()
         # function call
+        process_user_properties(full_image_list, import_path,
+                                user_name, master_upload, verbose)
+    # PROCESS IMPORT PROPERTIES --------------------------------------
+    if tool == "import_metadata_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_import_meta_processing):
+        # sanity checks
+        if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":
+            print("Error, if reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
+            sys.exit()
+        elif import_meta_source != None and import_meta_source != "exif" and not os.path.isfile(import_meta_source_path):
+            print("Error, " + import_meta_source_path + " file source of import properties does not exist. If reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
+            sys.exit()
+        # function call
+        process_import_meta_properties(full_image_list, import_path, orientation, device_make,
+                                       device_model, GPS_accuracy, add_file_name, add_import_date, import_meta_source, import_meta_source_path, verbose)
+    # PROCESS GEO/TIME PROPERTIES --------------------------------------
+    if tool == "geotag_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_geotagging):
+        # sanity checks
+        if geotag_source_path == None and geotag_source != "exif":
+            # if geotagging from external log file, path to the external log file
+            # needs to be provided, if not, exit
+            print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+            sys.exit()
+        elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
+            print("Error, " + geotag_source_path +
+                  " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+            sys.exit()
+        # function call
+        process_geotag_properties(
+            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle, verbose)
+    # PROCESS SEQUENCE PROPERTIES --------------------------------------
+    if tool == "sequence_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_sequence_processing):
         process_sequence_properties(import_path, cutoff_distance, cutoff_time,
                                     interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle, verbose)
-    # ---------------------------------------
-
-    # QC--------------------------------------
-    # parameters
-    if not args.skip_QC:
-        # function call
-        pass
-    # ---------------------------------------
-
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
-    # parameters
-    if not args.skip_upload_params_processing:
+    if tool == "upload_params_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_upload_params_processing):
+        # sanity checks
+        if not user_name:
+            print("Error, must provide a valid user name, exiting...")
+            sys.exit()
         # function call
         process_upload_params(full_image_list, import_path,
                               user_name, master_upload, verbose)
-
-    # ---------------------------------------
-
     # COMBINE META DATA AND INSERT INTO EXIF IMAGE DESCRIPTION ---------------
-    # function call
-    insert_MAPJson(full_image_list, import_path, master_upload,
-                   verbose, args.skip_insert_MAPJson)
+    if tool == "insert_EXIF_ImageDescription" or tool == "process" or tool == "process_and_upload":
+        # function call
+        insert_MAPJson(full_image_list, import_path, master_upload,
+                       verbose, args.skip_insert_MAPJson)
+    # UPLOAD
+    if tool == "upload" or tool == "process_and_upload":
+        upload(import_path)
+
     # ---------------------------------------

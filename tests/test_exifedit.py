@@ -4,9 +4,8 @@ import unittest
 from PIL import Image, ExifTags
 from PIL import ExifTags
 from os import path
-sys.path.append("python")
-from lib.exif_write import ExifEdit
-from lib.geo import decimal_to_dms
+from mil.exif_write import ExifEdit
+from mil.geo import decimal_to_dms
 import datetime
 import shutil
 

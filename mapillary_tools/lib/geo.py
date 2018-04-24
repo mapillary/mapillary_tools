@@ -43,6 +43,7 @@ def gps_distance(latlon_1, latlon_2):
 
     return dis
 
+
 def dms_to_decimal(degrees, minutes, seconds, hemisphere):
     '''
     Convert from degrees, minutes, seconds to decimal degrees.
@@ -54,6 +55,7 @@ def dms_to_decimal(degrees, minutes, seconds, hemisphere):
 
     return dms
 
+
 def decimal_to_dms(value, precision):
     '''
     Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
@@ -63,6 +65,7 @@ def decimal_to_dms(value, precision):
     sec = math.floor((value - deg - min / 60) * 3600 * precision)
 
     return ((deg, 1), (min, 1), (sec, precision))
+
 
 def gpgga_to_dms(gpgga):
     '''
@@ -75,6 +78,7 @@ def gpgga_to_dms(gpgga):
     minutes = float('%s.%s' % (deg_min[-2:], dmin))
     decimal = degrees + (minutes / 60)
     return decimal
+
 
 def utc_to_localtime(utc_time):
     utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
@@ -96,7 +100,8 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon):
 
     dLong = end_lon - start_lon
 
-    dPhi = math.log(math.tan(end_lat / 2.0 + math.pi / 4.0) / math.tan(start_lat / 2.0 + math.pi / 4.0))
+    dPhi = math.log(math.tan(end_lat / 2.0 + math.pi / 4.0) /
+                    math.tan(start_lat / 2.0 + math.pi / 4.0))
     if abs(dLong) > math.pi:
         if dLong > 0.0:
             dLong = -(2.0 * math.pi - dLong)
@@ -104,10 +109,12 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon):
             dLong = (2.0 * math.pi + dLong)
 
     y = math.sin(dLong) * math.cos(end_lat)
-    x = math.cos(start_lat) * math.sin(end_lat) - math.sin(start_lat) * math.cos(end_lat) * math.cos(dLong)
+    x = math.cos(start_lat) * math.sin(end_lat) - \
+        math.sin(start_lat) * math.cos(end_lat) * math.cos(dLong)
     bearing = (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
 
     return bearing
+
 
 def diff_bearing(b1, b2):
     '''
@@ -125,7 +132,8 @@ def offset_bearing(bearing, offset):
     bearing = (bearing + offset) % 360
     return bearing
 
-def normalize_bearing(bearing, check_hex = False):
+
+def normalize_bearing(bearing, check_hex=False):
     '''
     Normalize bearing and convert from hex if
     '''
@@ -138,7 +146,8 @@ def normalize_bearing(bearing, check_hex = False):
     bearing %= 360
     return bearing
 
-def interpolate_lat_lon(points, t, max_dt = 1):
+
+def interpolate_lat_lon(points, t, max_dt=1):
     '''
     Return interpolated lat, lon and compass bearing for time t.
 
@@ -153,7 +162,8 @@ def interpolate_lat_lon(points, t, max_dt = 1):
         if dt > max_dt:
             raise ValueError("Time t not in scope of gpx file.")
         else:
-            print ("Warning: Time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
+            print(
+                "Warning: Time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
 
         if t < points[0][0]:
             before = points[0]
@@ -185,13 +195,16 @@ def interpolate_lat_lon(points, t, max_dt = 1):
     dt_after = (after[0] - t).total_seconds()
 
     # simple linear interpolation
-    lat = (before[1] * dt_after + after[1] * dt_before) / (dt_before + dt_after)
-    lon = (before[2] * dt_after + after[2] * dt_before) / (dt_before + dt_after)
+    lat = (before[1] * dt_after + after[1] *
+           dt_before) / (dt_before + dt_after)
+    lon = (before[2] * dt_after + after[2] *
+           dt_before) / (dt_before + dt_after)
 
     bearing = compute_bearing(before[1], before[2], after[1], after[2])
 
     if before[3] is not None:
-        ele = (before[3] * dt_after + after[3] * dt_before) / (dt_before + dt_after)
+        ele = (before[3] * dt_after + after[3] *
+               dt_before) / (dt_before + dt_after)
     else:
         ele = None
 

@@ -1,5 +1,4 @@
-from lib.exif_read import ExifRead
-import lib.io
+from exif_read import ExifRead
 import json
 import os
 import string
@@ -56,8 +55,8 @@ class UploadThread(threading.Thread):
                 self.q.task_done()
                 break
             else:
-                lib.io.progress(self.total_task - self.q.qsize(), self.total_task,
-                                '... {} images left.'.format(self.q.qsize()))
+                progress(self.total_task - self.q.qsize(), self.total_task,
+                         '... {} images left.'.format(self.q.qsize()))
                 upload_file(filepath, self.root, **params)
                 self.q.task_done()
 
@@ -161,6 +160,19 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
+def progress(count, total, suffix=''):
+    '''
+    Display progress bar
+    sources: https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
+    '''
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+    sys.stdout.write('[%s] %s%s %s\r' % (bar, percents, '%', suffix))
+    sys.stdout.flush()
+
+
 def prompt_user_for_user_items(user_name):
     user_items = {}
 
@@ -191,7 +203,7 @@ def authenticate_user(user_name, import_path):
         if user_name in local_config_object.sections():
             user_items = config.load_user(local_config_object, user_name)
             return user_items
-    elif os.path.isfile(GLOBAL_CONFIG_FILEPATH):
+    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
             user_items = config.load_user(global_config_object, user_name)
@@ -199,25 +211,15 @@ def authenticate_user(user_name, import_path):
             config.update_config(
                 local_config_filepath, user_name, user_items)
             return user_items
-        else:
-            print("enter user credentials for user " + user_name)
-            user_items = prompt_user_for_user_items(user_name)
-            config.update_config(
-                GLOBAL_CONFIG_FILEPATH, user_name, user_items)
-            config.create_config(local_config_filepath)
-            config.update_config(
-                local_config_filepath, user_name, user_items)
-            return user_items
-    else:
-        print("enter user credentials for user " + user_name)
-        user_items = prompt_user_for_user_items(user_name)
-        config.create_config(GLOBAL_CONFIG_FILEPATH)
-        config.update_config(
-            GLOBAL_CONFIG_FILEPATH, user_name, user_items)
-        config.create_config(local_config_filepath)
-        config.update_config(
-            local_config_filepath, user_name, user_items)
-        return user_items
+    print("enter user credentials for user " + user_name)
+    user_items = prompt_user_for_user_items(user_name)
+    config.create_config(GLOBAL_CONFIG_FILEPATH)
+    config.update_config(
+        GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+    config.create_config(local_config_filepath)
+    config.update_config(
+        local_config_filepath, user_name, user_items)
+    return user_items
 
 
 def get_master_key():

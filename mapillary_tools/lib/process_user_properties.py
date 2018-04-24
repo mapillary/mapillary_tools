@@ -1,12 +1,12 @@
 import uuid
 
-import lib.processor as processor
-import lib.uploader as uploader
+import processing
+import uploader
 
 
 def finalize_user_properties_process(full_image_list, import_path, mapillary_description, verbose):
     for image in full_image_list:
-        processor.create_and_log_process(
+        processing.create_and_log_process(
             image, import_path, mapillary_description, "user_process", verbose)
 
 

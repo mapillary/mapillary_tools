@@ -1,9 +1,8 @@
-from __future__ import absolute_import
 import sys
 import json
 import piexif
 
-from lib.geo import decimal_to_dms
+from geo import decimal_to_dms
 
 
 class ExifEdit(object):

@@ -2,35 +2,20 @@
 
 import sys
 import os
-import argparse
-from lib import uploader
+import uploader
 import json
-from lib.sequence import Sequence
-from lib.exif_aux import verify_mapillary_tag
+from exif_aux import verify_mapillary_tag
 
 '''
 '''
 LOG_FILEPATH = '.mapillary/log'
 
-if __name__ == '__main__':
-    '''
-    Use from command line as: python upload.py import_path
-    '''
 
-    if sys.version_info >= (3, 0):
-        raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(
-            sys.version_info[:2]))
+def upload(import_path):
 
-    parser = argparse.ArgumentParser(
-        description='Upload photos with the required Mapillary meta data embedded')
-    parser.add_argument('path', help='path to your photos')
-    args = parser.parse_args()
-
-    # set import path
-    import_path = os.path.abspath(args.path)
     # check if import path exists and exit if it doesnt
     if not os.path.isdir(import_path):
-        print("Import directory doesnt not exist")
+        print("Import directory does not exist")
         sys.exit()
 
     # read in all the images in the import path
@@ -81,7 +66,8 @@ if __name__ == '__main__':
 
     # check if any images to be uploaded, if not exit
     if not len(image_upload_list):
-        print("All images have already been uploaded")
+        print("No images in the upload list.")
+        print("All images have already been uploaded or were invalid due to missing meta information.")
         sys.exit()
 
     # verify the images in the upload list, they need to have the image

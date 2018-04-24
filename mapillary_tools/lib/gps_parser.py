@@ -4,7 +4,7 @@ import sys
 import os
 import datetime
 import time
-from lib.geo import gpgga_to_dms, utc_to_localtime
+from geo import gpgga_to_dms, utc_to_localtime
 
 try:
     import gpxpy

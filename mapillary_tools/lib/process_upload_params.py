@@ -3,8 +3,8 @@ import hashlib
 import base64
 import time
 
-import lib.processor as processor
-import lib.uploader as uploader
+import processing
+import uploader
 
 
 def process_upload_params(full_image_list, import_path, user_name, master_upload, verbose):
@@ -16,7 +16,7 @@ def process_upload_params(full_image_list, import_path, user_name, master_upload
         except:
             print("Error, user authentication failed for user " + user_name)
             return
-        if "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
+        if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
             print("Error, user authentication failed for user " + user_name)
             return
 
@@ -36,7 +36,7 @@ def process_upload_params(full_image_list, import_path, user_name, master_upload
             if verbose:
                 print("Warning, sequence process has not been done for image " + image +
                       ", therefore it will not be included in the upload params processing.")
-            processor.create_and_log_process(
+            processing.create_and_log_process(
                 image, import_path, {}, "upload_params_process")
             continue
         # check if geotag process was a success
@@ -46,7 +46,7 @@ def process_upload_params(full_image_list, import_path, user_name, master_upload
             if verbose:
                 print("Warning, sequence process failed for image " + image +
                       ", therefore it will not be included in the upload params processing.")
-            processor.create_and_log_process(
+            processing.create_and_log_process(
                 image, import_path, {}, "upload_params_process")
             continue
         duplicate_flag_path = os.path.join(
@@ -67,13 +67,13 @@ def process_upload_params(full_image_list, import_path, user_name, master_upload
             log_root, "sequence_process.json")
         sequence_data = ""
         try:
-            sequence_data = processor.load_json(
+            sequence_data = processing.load_json(
                 sequence_process_json_path)
         except:
             if verbose:
                 print("Warning, sequence data not read for image " + image +
                       ", therefore it will not be included in the upload params processing.")
-            processor.create_and_log_process(
+            processing.create_and_log_process(
                 image, import_path, {}, "upload_params_process")
             continue
         if "MAPSequenceUUID" in sequence_data:
@@ -88,22 +88,22 @@ def process_upload_params(full_image_list, import_path, user_name, master_upload
             try:
                 settings_upload_hash = hashlib.sha256("%s%s%s" % (
                     user_upload_token, user_email, base64.b64encode(image))).hexdigest()
-                processor.save_json(
+                processing.save_json(
                     {"MAPSettingsUploadHash": settings_upload_hash}, os.path.join(log_root, "settings_upload_hash.json"))
             except:
                 if verbose:
                     print("Warning, settings upload hash not set for image " + image +
                           ", therefore it will not be uploaded.")
-                processor.create_and_log_process(
+                processing.create_and_log_process(
                     image, import_path, {}, "upload_params_process")
                 continue
 
-            processor.create_and_log_process(
+            processing.create_and_log_process(
                 image, import_path, upload_params, "upload_params_process")
         else:
             if verbose:
                 print("Warning, sequence uuid not in sequence data for image " + image +
                       ", therefore it will not be included in the upload params processing.")
-            processor.create_and_log_process(
+            processing.create_and_log_process(
                 image, import_path, {}, "upload_params_process")
             continue

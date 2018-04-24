@@ -1,8 +1,8 @@
 import time
 
-import lib.processor as processor
-import lib.uploader as uploader
-from lib.exif_read import ExifRead
+import processing
+import uploader
+from exif_read import ExifRead
 
 
 def add_meta_tag(mapillary_description, type, key, value):
@@ -43,11 +43,11 @@ def finalize_import_properties_process(image, import_path, orientation, device_m
         add_meta_tag(mapillary_description, "strings",
                      "original_file_name", image)
     if add_import_date:
-        add_meta_tag(mapillary_description, "dates", "import_date", str(
-            time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())))
+        add_meta_tag(mapillary_description, "dates",
+                     "import_date", int(round(time.time() * 1000)))
 
     # print(verbose)
-    processor.create_and_log_process(
+    processing.create_and_log_process(
         image, import_path, mapillary_description, "import_meta_data_process", verbose)
 
 
@@ -55,7 +55,7 @@ def process_import_meta_properties(full_image_list, import_path, orientation, de
 
     # map orientation from degrees to tags
     if orientation:
-        orientation = processor.format_orientation(orientation)
+        orientation = processing.format_orientation(orientation)
 
     # if not external meta source and not image EXIF meta source, finalize the
     # import properties process
