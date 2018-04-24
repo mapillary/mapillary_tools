@@ -239,9 +239,9 @@ Additional arguments available besides the import path, user name and verbose:
 Only the import path is required to run this process tool.	  	
 Usage examples:
 
-    python mapillary_import.py sequence_process path --user_name username_at_mapilary
+    python mapillary_import.py sequence_process path  
 
-    python mapillary_import.py sequence_process path --user_name username_at_mapilary --cutoff_distance 1000 --cutoff_time 30 --flag_duplicates 
+    python mapillary_import.py sequence_process path --cutoff_distance 1000 --cutoff_time 30 --flag_duplicates 
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
@@ -267,7 +267,7 @@ By default, 4 threads upload in parallel and the script retries 10 times upon en
     NUMBER_THREADS=2 MAX_ATTEMPTS=100
 
 On Android Systems you can find the images under `/storage/emulated/0/Android/data/app.mapillary/files/pictures/`  
-On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there  
+On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.  
 
 
 **upload**   
