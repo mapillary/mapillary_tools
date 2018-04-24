@@ -3,4 +3,5 @@
 mapillary_tools
 ===============
 
-Useful tools and scripts related to Mapillary
+Useful tools and scripts related to Mapillary.
+More info and instructions in mapillary_tools.

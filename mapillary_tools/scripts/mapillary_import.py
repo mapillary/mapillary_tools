@@ -32,8 +32,8 @@ def get_args():
                         help='perform interploation of directions', action='store_true')
     parser.add_argument('--offset_angle', default=0., type=float,
                         help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)')
-    parser.add_argument('--remove_duplicates',
-                        help='perform duplicate removal', action='store_true')
+    parser.add_argument('--flag_duplicates',
+                        help='flag duplicates', action='store_true')
     parser.add_argument('--duplicate_distance',
                         help='max distance for two images to be considered duplicates in meters', default=0.1)
     parser.add_argument(
@@ -87,7 +87,7 @@ def get_args():
                         action='store_true', default=False)
     parser.add_argument('--skip_upload_params_processing',
                         help='skip the upload params processing', action='store_true', default=False)
-    parser.add_argument('--skip_insert_MAPJson',
+    parser.add_argument('--skip_insert_EXIF',
                         help='skip the insertion of MAPJsons into image EXIF tag Image Description', action='store_true', default=False)
     # verbose, print out warnings and info
     parser.add_argument(
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     cutoff_distance = args.cutoff_distance
     cutoff_time = args.cutoff_time
     interpolate_directions = args.interpolate_directions
-    remove_duplicates = args.remove_duplicates
+    remove_duplicates = args.flag_duplicates
     duplicate_distance = args.duplicate_distance
     duplicate_angle = args.duplicate_angle
 
@@ -210,7 +210,7 @@ if __name__ == '__main__':
     if tool == "insert_EXIF_ImageDescription" or tool == "process" or tool == "process_and_upload":
         # function call
         insert_MAPJson(full_image_list, import_path, master_upload,
-                       verbose, args.skip_insert_MAPJson)
+                       verbose, args.skip_insert_EXIF)
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":
         upload(import_path)
