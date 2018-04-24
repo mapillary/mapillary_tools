@@ -298,7 +298,7 @@ Download images from Mapillary
 Script to download images using the Mapillary image search API. Downloads images inside a rect (min_lat, max_lat, min_lon, max_lon)
 
 
-    python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)
+    python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 
 
 ## Config
@@ -316,7 +316,7 @@ The defualt config file is your global Mapillary config file and will be used if
 
 
 
-[exifread]: https://pypi.python.org/pypi/ExifRea
+[exifread]: https://pypi.python.org/pypi/ExifRead
 
 [gpxpy]: https://pypi.python.org/pypi/gpxp
 
