@@ -65,24 +65,22 @@ Optional meta data:
 
 **process**
 By using the process tool, all of the below listed processing unit tools will be executed with the corresponding arguments.
-
-
-
-Required arguments are:
-- `path "path value"`
-    path to images
-    value type string
-- `--user_name "user name"`
-    specify the user name used to create an account at Mapillary
-    value type string
-
-Optional arguements are:
-- `--verbose`
-    set True to print out additional information and warnings
-
-Other optional arguments are listed and described under each corresponding tool unit.
-
-Simple usage example:
+  
+Required arguments are:   
+- `path "path value"`   
+    path to images  
+    value type string  
+- `--user_name "user name"`   
+    specify the user name used to create an account at Mapillary  
+    value type string   
+  
+Optional arguements are:  
+- `--verbose`  
+    set True to print out additional information and warnings  
+  
+Other optional arguments are listed and described under each corresponding tool unit. 
+    
+Simple usage example: 
 
     python mapillary_import.py process path --user_name username_at_mapilary --verbose
 
