@@ -1,7 +1,23 @@
 Python Tools for Mapillary
 =============
 
-## Dependencies
+Table of contents
+=================
+
+<!--ts-->
+   * [Dependencies](#Dependencies)
+   * [Installing on MacOSX](#Installing-on-MacOSX)
+   * [Importing](#Importing)
+   * [Processing](#Processing)
+   * [Upload](#Upload)
+   * [Download](#Download)
+   * [Config](#Config)
+<!--te-->
+
+
+
+Dependencies
+=============
 
 * [exifread]
 * [gpxpy]
@@ -10,12 +26,13 @@ Python Tools for Mapillary
 
 Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.  
 
-## Installing on MacOSX
+Installing on MacOSX
+=============
     sudo pip install -r requirements.txt
 
 If you don't have pip on your system, you can install it by `sudo easy_install pip`.
 
-## Installing on Ubuntu
+Installing on Ubuntu
 
     sudo apt install git python python-virtualenv python-dev
     git clone https://github.com/mapillary/mapillary_tools.git
@@ -26,7 +43,8 @@ If you don't have pip on your system, you can install it by `sudo easy_install p
     
 Run `deactivate` to exit the virtualenv.
 
-## Importing
+Importing
+=============
 
 Use the mapillary_import.py script to process and upload images to Mapillary.
 General usage:
@@ -51,7 +69,8 @@ The main tools are used to complete the entire pipeline of image import.
 The unit tools are tools called by the process tool, but can be run individually.
 Each tool takes specific arguments.
 
-## Processing
+Processing
+=============
 Required meta data needs to be processed and inserted in the image EXIF for an image to be uploaded to Mapillary.
 In case the image were taken with the Mapillary app, the required meta data is already inserted in the image EXIF and no processing is needed.  
   
@@ -258,7 +277,8 @@ This unit process is required for an image to be uploaded to Mapillary.
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
 Note that in case other processing units have been run without this processing unit, the updated meta data will not be inserted into image EXIF if skipping or not repeating this process unit.   
   
-## Upload  
+Upload  
+=============
   
 Images that have been successfully processed or were taken with the Mapillary app can be uploaded with the upload tool.   
 Either upload alone can be used or process_and_upload.  
@@ -288,7 +308,8 @@ Usage example:
     python mapillary_import.py process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 
 
 
-## Download  
+Download  
+=============
   
 
 Download images from Mapillary  
@@ -303,7 +324,8 @@ Script to download images using the Mapillary image search API. Downloads images
     python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 
   
-## Config  
+Config  
+=============
   
 
 Edit a config file.  
