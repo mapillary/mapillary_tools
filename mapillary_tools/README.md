@@ -5,20 +5,20 @@ Table of contents
 =================
 
 <!--ts-->
-   * [Dependencies](#Dependencies)
-   * [Installing on MacOSX](#Installing-on-MacOSX)
-   * [Importing](#Importing)
-   * [Processing](#Processing)
-   * [Upload](#Upload)
-   * [Download](#Download)
-   * [Config](#Config)
+   * [Dependencies](#dependencies)
+   * [Installing](#installing)
+   * [Importing](#importing)
+   * [Processing](#processing)
+   * [Upload](#upload)
+   * [Download](#download)
+   * [Config](#config)
 <!--te-->
 
 
-
-Dependencies
-=============
-
+   
+Dependencies  
+=============  
+   
 * [exifread]
 * [gpxpy]
 * [PIL]
@@ -26,13 +26,19 @@ Dependencies
 
 Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.  
 
-Installing on MacOSX
-=============
+  
+Installing   
+=============  
+   
+   
+**on MacOSX**
+
     sudo pip install -r requirements.txt
+  
+If you don't have pip on your system, you can install it by `sudo easy_install pip`.  
+  
 
-If you don't have pip on your system, you can install it by `sudo easy_install pip`.
-
-Installing on Ubuntu
+**on Ubuntu**
 
     sudo apt install git python python-virtualenv python-dev
     git clone https://github.com/mapillary/mapillary_tools.git
@@ -42,10 +48,10 @@ Installing on Ubuntu
     pip install -r requirements.txt
     
 Run `deactivate` to exit the virtualenv.
-
-Importing
-=============
-
+  
+Importing  
+=============   
+   
 Use the mapillary_import.py script to process and upload images to Mapillary.
 General usage:
 
@@ -68,9 +74,9 @@ Available tools are:
 The main tools are used to complete the entire pipeline of image import.
 The unit tools are tools called by the process tool, but can be run individually.
 Each tool takes specific arguments.
-
-Processing
-=============
+  
+Processing 
+=============  
 Required meta data needs to be processed and inserted in the image EXIF for an image to be uploaded to Mapillary.
 In case the image were taken with the Mapillary app, the required meta data is already inserted in the image EXIF and no processing is needed.  
   
