@@ -37,12 +37,18 @@ def finalize_import_properties_process(image, import_path, orientation, device_m
         mapillary_description['MAPDeviceModel'] = device_model
     if GPS_accuracy:
         mapillary_description['MAPGPSAccuracyMeters'] = GPS_accuracy
+
     if add_file_name:
         add_meta_tag(mapillary_description, "strings",
                      "original_file_name", image)
+
     if add_import_date:
         add_meta_tag(mapillary_description, "dates",
                      "import_date", int(round(time.time() * 1000)))
+
+    add_meta_tag(mapillary_description, "strings",
+                 "mapillary_tools_version", "0.0")
+
     processing.create_and_log_process(
         image, import_path, mapillary_description, "import_meta_data_process", verbose)
 

@@ -11,7 +11,7 @@ from exif_aux import verify_mapillary_tag
 LOG_FILEPATH = '.mapillary/log'
 
 
-def upload(import_path):
+def upload(import_path, auto_done):
 
     # check if import path exists and exit if it doesnt
     if not os.path.isdir(import_path):
@@ -31,8 +31,10 @@ def upload(import_path):
     # prepare upload lists
     image_upload_list = []
     failed_image_upload_list = []
+    not_finalized_image_upload_list = []
     # check logs
     params = {}
+    finalize_all = 0
     for image in image_list:
         # get the root of the image log path
         log_root = uploader.log_rootpath(import_path, image)
@@ -83,6 +85,23 @@ def upload(import_path):
     # import and the upload params
     uploader.upload_file_list(file_list, import_path, params)
 
-    # inform upload has finished and print out the summary
-    print("Done uploading {} images.".format(
-        len(file_list)))  # improve upload summary
+    if len(params):
+        finalize_all = 0
+        if not auto_done:
+            finalize_all = uploader.prompt_to_finalize()
+        if finalize_all or auto_done:
+            finalize_params = uploader.filter_finalize_params(
+                file_list, params, import_path)
+            uploader.finalize_upload(finalize_params)
+            print("Finalizing uploads...")
+        else:
+            print("Uploads will not be finalized.")
+            print("If you wish to finalize your uploads, run the import tool again and confirm upload finalization.")
+            for file in file_list:
+                log_root = uploader.log_rootpath(import_path, file)
+                upload_success_path = os.path.join(log_root, "upload_success")
+                if os.path.isfile(upload_success_path):
+                    os.remove(upload_success_path)
+            sys.exit()
+
+    uploader.print_summary(file_list)

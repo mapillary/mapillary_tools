@@ -146,6 +146,40 @@ def finalize_upload(params, retry=3, auto_done=False):
                 print('Please answer y or n. Try again.')
 
 
+def prompt_to_finalize():
+    for i in range(3):
+        finalize = raw_input("Finalize all uploads in this import ? [y/n]: ")
+        if finalize in ["y", "Y", "yes", "Yes"]:
+            return 1
+        elif finalize in ["n", "N", "no", "No"]:
+            return 0
+        else:
+            print('Please answer y or n. Try again.')
+    return 0
+
+
+def filter_finalize_params(file_list, params, import_path):
+    list_params = []
+    keys = []
+    for file in file_list:
+        if file in params:
+            if params[file]["key"] not in keys:
+                keys.append(params[file]["key"])
+                list_params.append(params[file])
+    return list_params
+
+
+def finalize_upload(finalize_params):
+    for params in finalize_params:
+        upload_done_file(params)
+
+
+def print_summary(file_list):
+    # inform upload has finished and print out the summary
+    print("Done uploading {} images.".format(
+        len(file_list)))  # improve upload summary
+
+
 def get_upload_token(mail, pwd):
     # TODO this is to get the upload hash, it is called here in the  get_full_authentication_info(user, email), a function which is called only in the obsolete? export_panoramio.py, with the user email only
     # and in upload_with_preprocessing.py in the middle of everything, where
@@ -288,8 +322,8 @@ def get_user_hashes(user_key, upload_token):
 
 
 def upload_done_file(params):  # TODO note that this will stay the same
-    print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(
-        params['key']))
+    # print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(
+    #    params['key']))
     if not os.path.exists("DONE"):
         open("DONE", 'a').close()
     # upload
@@ -336,11 +370,11 @@ def upload_file(filepath, root, url, permission, signature, key=None):
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
-            if response.getcode() == 204:
-                # if 1:
-                create_upload_log(root, filepath, "upload_success")
-            else:
-                create_upload_log(root, filepath, "upload_failed")
+            if filename != "DONE":
+                if response.getcode() == 204:
+                    create_upload_log(root, filepath, "upload_success")
+                else:
+                    create_upload_log(root, filepath, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:

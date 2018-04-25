@@ -89,6 +89,9 @@ def get_args():
                         help='skip the upload params processing', action='store_true', default=False)
     parser.add_argument('--skip_insert_EXIF',
                         help='skip the insertion of MAPJsons into image EXIF tag Image Description', action='store_true', default=False)
+    # upload
+    parser.add_argument(
+        '--auto_done', help='automatically finalize the upload', action='store_true', default=False)
     # verbose, print out warnings and info
     parser.add_argument(
         '--verbose', help='print debug info', action='store_true', default=False)
@@ -156,6 +159,7 @@ if __name__ == '__main__':
     remove_duplicates = args.flag_duplicates
     duplicate_distance = args.duplicate_distance
     duplicate_angle = args.duplicate_angle
+    auto_done = args.auto_done
 
     # PROCESS USER PROPERTIES --------------------------------------
     if tool == "user_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_user_processing):
@@ -213,6 +217,6 @@ if __name__ == '__main__':
                        verbose, args.skip_insert_EXIF)
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":
-        upload(import_path)
+        upload(import_path, auto_done)
 
     # ---------------------------------------
