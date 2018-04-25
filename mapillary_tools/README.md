@@ -111,8 +111,6 @@ Required arguments are:
 Optional arguments are:  
 - `--verbose`  
     set True to print out additional information and warnings  
-- `--auto_done`  
-    set True to automatically finalize the upload  
   
 Other optional arguments are listed and described under each corresponding tool unit.   
     
