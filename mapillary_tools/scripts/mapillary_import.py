@@ -117,8 +117,8 @@ if __name__ == '__main__':
     # get the full image list
     full_image_list = []
     for root, dir, files in os.walk(import_path):
-        full_image_list.extend(os.path.join(root, file)
-                               for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+        full_image_list.extend(os.path.join(root, file) for file in files if file.lower(
+        ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     # check if any images in the list and exit if none
     if not len(full_image_list):
         print("Error, no images in the import directory " +
