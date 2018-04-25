@@ -10,6 +10,7 @@ Table of contents
    * [Importing](#importing)
    * [Processing](#processing)
    * [Upload](#upload)
+   * [Process and upload](#process-and-upload)
    * [Download](#download)
    * [Config](#config)
 <!--te-->
@@ -107,9 +108,11 @@ Required arguments are:
     specify the user name used to create an account at Mapillary  
     value type string   
   
-Optional arguements are:  
+Optional arguments are:  
 - `--verbose`  
     set True to print out additional information and warnings  
+- `--auto_done`  
+    set True to automatically finalize the upload  
   
 Other optional arguments are listed and described under each corresponding tool unit.   
     
@@ -316,19 +319,34 @@ On iOS, open iTunes, select your device, and scroll down to Mapillary under apps
 **upload**   
 The upload tool will collect all the images in the import path, while checking for duplicate flags, processing and uploading logs.  
 If image is flagged as duplicate, was logged with failed process or logged as successfully uploaded, it will not be added to the upload list.   
+In case images were not captured with the Mapillary app and processing was required, you will be prompted to finalize the upload.   
+If you feel confident about the import, run it with the argument `--auto_done` , to automatically finalize the upload.
 
+Required arguments are:   
+- `path "path value"`   
+    path to images  
+    value type string  
+  
+Optional arguments are:  
+- `--auto_done`  
+    set True to automatically finalize the upload  
   
 Usage example:
 
     python mapillary_import.py upload path
 
 
+
+Process and upload
+=============
+
 **process_and_upload**  
-The process_and_upload tool will perform both, the process and upload, described above.   
+In case you wish to perform both, processing and upload, run this tool.   
+This tool calls both, processing and upload, as they are described above.
   
 Usage example:  
 
-    python mapillary_import.py process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 
+    python mapillary_import.py process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 --auto_done
 
 
 Download  
