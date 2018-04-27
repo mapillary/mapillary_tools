@@ -96,6 +96,7 @@ By using the process tool, all of the below listed processing unit tools will be
 - [user_process](#user_process)  
 - [import_metadata_process](#import_metadata_process)  
 - [user_process](#user_process)  
+- [upload_params_process](#upload_params_process)  
 - [geotag_process](#geotag_process)  
 - [sequence_process](#sequence_process)  
 - [insert_EXIF_ImageDescription](#insert_exif_imagedescription)   
@@ -157,7 +158,9 @@ Usage example:
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
 
-**upload_params_process**    
+upload_params_process
+============   
+   
 The upload_params_process tool will process user specific upload parameters, required to safely upload images to Mapillary.  
 This unit process requires that geotag_process and sequence_process have been run successfully.  
 No additional arguments available besides the import path, user name and verbose.  
@@ -236,9 +239,9 @@ Additional arguments available besides the import path, user name and verbose:
 Only the import path is required to run this process tool.	  	  
 Usage examples:   
  
-    python mapillary_import.py geotag_process path --user_name username_at_mapilary
+    python mapillary_import.py geotag_process path
 
-    python mapillary_import.py geotag_process path --user_name username_at_mapilary --offset_angle 90 --geotag_source csv --geotag_source_path "path/to/file.csv"
+    python mapillary_import.py geotag_process path --offset_angle 90 --geotag_source csv --geotag_source_path "path/to/file.csv"
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
