@@ -45,6 +45,13 @@ def get_args():
     parser.add_argument(
         '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
         default=None)
+    parser.add_argument(
+        '--local_time', help='Assume image timestamps are in your local time', action='store_true', default=False)
+    parser.add_argument('--sub_second_interval',
+                        help='Sub second time between shots. Used to set image times with sub-second precision',
+                        type=float, default=0.0)
+    parser.add_argument('--offset_time', default=0., type=float,
+                        help='time offset between the camera and the gps device, in seconds.')
     # project level parameters
     parser.add_argument(
         '--project', help="add project name in case validation is required", default=None)
@@ -160,6 +167,9 @@ if __name__ == '__main__':
     duplicate_distance = args.duplicate_distance
     duplicate_angle = args.duplicate_angle
     auto_done = args.auto_done
+    local_time = args.local_time
+    sub_second_interval = args.sub_second_interval
+    offset_time = args.offset_time
 
     # PROCESS USER PROPERTIES --------------------------------------
     if tool == "user_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_user_processing):
@@ -196,7 +206,7 @@ if __name__ == '__main__':
             sys.exit()
         # function call
         process_geotag_properties(
-            full_image_list, import_path, geotag_source, geotag_source_path, offset_angle, verbose)
+            full_image_list, import_path, geotag_source, offset_time, local_time, sub_second_interval, geotag_source_path, offset_angle, verbose)
     # PROCESS SEQUENCE PROPERTIES --------------------------------------
     if tool == "sequence_process" or (((tool == "process") or (tool == "process_and_upload")) and not args.skip_sequence_processing):
         process_sequence_properties(import_path, cutoff_distance, cutoff_time,

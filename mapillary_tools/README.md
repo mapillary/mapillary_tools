@@ -234,7 +234,10 @@ Additional arguments available besides the import path, user name and verbose:
 		value type string   
 - `--offset_angle	"offset angle value"`	   
 		specify the offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)   
-		value type float   
+		value type float
+- `--local_time`	   
+		set True to assume image timestamps are in your local time
+   
 
 Only the import path is required to run this process tool.	  	  
 Usage examples:   
