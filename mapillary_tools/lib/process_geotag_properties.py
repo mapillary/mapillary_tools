@@ -79,6 +79,7 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
 
 
 def geotag_from_gpx(full_image_list, import_path, geotag_source_path, verbose):
+
     pass
 
 

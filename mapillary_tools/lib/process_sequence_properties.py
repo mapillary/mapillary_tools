@@ -201,7 +201,7 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                                     filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
                                 if verbose:
                                     if cut_distance:
-                                        print('Cut {}: Delta in distance {} meters is too bigger than cutoff_distance {} meters at {}'.format(
+                                        print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
                                             cut, distances[i], cutoff_distance, file_list[i + 1]))
                                     elif cut_time:
                                         print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
