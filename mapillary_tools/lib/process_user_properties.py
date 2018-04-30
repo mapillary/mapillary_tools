@@ -4,13 +4,23 @@ import processing
 import uploader
 
 
-def finalize_user_properties_process(full_image_list, import_path, mapillary_description, verbose):
+def finalize_user_properties_process(full_image_list,
+                                     import_path,
+                                     mapillary_description,
+                                     verbose):
     for image in full_image_list:
-        processing.create_and_log_process(
-            image, import_path, mapillary_description, "user_process", verbose)
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          mapillary_description,
+                                          "user_process",
+                                          verbose)
 
 
-def process_user_properties(full_image_list, import_path, user_name, master_upload, verbose):
+def process_user_properties(full_image_list,
+                            import_path,
+                            user_name,
+                            master_upload,
+                            verbose):
     mapillary_description = {}
     # if not master upload, user information has to be read from config file
     if not master_upload:
@@ -26,8 +36,10 @@ def process_user_properties(full_image_list, import_path, user_name, master_uplo
                 del mapillary_description["user_signature_hash"]
         except:
             print("Error, user authentication failed for user " + user_name)
-            finalize_user_properties_process(
-                full_image_list, import_path, {}, verbose)
+            finalize_user_properties_process(full_image_list,
+                                             import_path,
+                                             {},
+                                             verbose)
             return
     else:
         try:
@@ -42,26 +54,34 @@ def process_user_properties(full_image_list, import_path, user_name, master_uplo
                     else:
                         print("Error, no user key obtained for the user name " + user_name +
                               ", check if the user name is spelled correctly and if the master key is correct")
-                        finalize_user_properties_process(
-                            full_image_list, import_path, {}, verbose)
+                        finalize_user_properties_process(full_image_list,
+                                                         import_path,
+                                                         {},
+                                                         verbose)
                         return
                 except:
                     print("Error, no user key obtained for the user name " + user_name +
                           ", check if the user name is spelled correctly and if the master key is correct")
-                    finalize_user_properties_process(
-                        full_image_list, import_path, {}, verbose)
+                    finalize_user_properties_process(full_image_list,
+                                                     import_path,
+                                                     {},
+                                                     verbose)
                     return
             else:
                 print("Error, no master key found.")
                 print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
-                finalize_user_properties_process(
-                    full_image_list, import_path, {}, verbose)
+                finalize_user_properties_process(full_image_list,
+                                                 import_path,
+                                                 {},
+                                                 verbose)
                 return
         except:
             print("Error, no master key found.")
             print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
-            finalize_user_properties_process(
-                full_image_list, import_path, {}, verbose)
+            finalize_user_properties_process(full_image_list,
+                                             import_path,
+                                             {},
+                                             verbose)
             return
 
     # a unique photo ID to check for duplicates in the backend in case the
@@ -70,5 +90,7 @@ def process_user_properties(full_image_list, import_path, user_name, master_uplo
 
     # create the json with the initial image description and log the user
     # properties process
-    finalize_user_properties_process(
-        full_image_list, import_path, mapillary_description, verbose)
+    finalize_user_properties_process(full_image_list,
+                                     import_path,
+                                     mapillary_description,
+                                     verbose)

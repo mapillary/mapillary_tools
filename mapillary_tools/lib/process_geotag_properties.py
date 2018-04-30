@@ -1,3 +1,4 @@
+import os
 import datetime
 from dateutil.tz import tzlocal
 import time
@@ -6,6 +7,7 @@ import uploader
 from exif_read import ExifRead
 from geo import normalize_bearing, interpolate_lat_lon
 from gps_parser import get_lat_lon_time_from_gpx
+from process_video import timestamps_from_filename
 
 
 def exif_time(filename):
@@ -46,21 +48,61 @@ def estimate_sub_second_time(files, interval):
         return [s + T * i for i in range(len(files))]
 
 
-def process_geotag_properties(full_image_list, import_path, geotag_source, offset_time=0.0, local_time=False, interval=0.0, geotag_source_path=None, offset_angle=0, verbose=False):
+def process_geotag_properties(full_image_list,
+                              import_path,
+                              geotag_source,
+                              video_duration,
+                              sample_interval,
+                              video_start_time,
+                              use_gps_start_time,
+                              duration_ratio,
+                              offset_time=0.0,
+                              local_time=False,
+                              interval=0.0,
+                              geotag_source_path=None,
+                              offset_angle=0,
+                              timestamp_from_filename=False,
+                              verbose=False):
     if geotag_source == "exif":
-        geotag_from_exif(full_image_list, import_path, offset_angle, verbose)
+        geotag_from_exif(full_image_list,
+                         import_path,
+                         offset_angle,
+                         verbose)
     elif geotag_source == "gpx":
-        geotag_from_gpx(full_image_list, import_path,
-                        geotag_source_path, offset_time, offset_angle, local_time, interval, verbose)
+        geotag_from_gpx(full_image_list,
+                        import_path,
+                        geotag_source_path,
+                        offset_time,
+                        offset_angle,
+                        local_time,
+                        interval,
+                        timestamp_from_filename,
+                        video_duration,
+                        sample_interval,
+                        video_start_time,
+                        use_gps_start_time,
+                        duration_ratio,
+                        verbose)
     elif geotag_source == "csv":
-        geotag_from_csv(full_image_list, import_path,
-                        geotag_source_path, offset_time, offset_angle, verbose)
+        geotag_from_csv(full_image_list,
+                        import_path,
+                        geotag_source_path,
+                        offset_time,
+                        offset_angle,
+                        verbose)
     else:
-        geotag_from_json(full_image_list, import_path,
-                         geotag_source_path, offset_time, offset_angle, verbose)
+        geotag_from_json(full_image_list,
+                         import_path,
+                         geotag_source_path,
+                         offset_time,
+                         offset_angle,
+                         verbose)
 
 
-def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
+def geotag_from_exif(full_image_list,
+                     import_path,
+                     offset_angle,
+                     verbose):
     for image in full_image_list:
         mapillary_description = {}
         try:
@@ -73,25 +115,31 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
                     mapillary_description["MAPLongitude"] = lon
                 else:
                     print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                    processing.create_and_log_process(
-                        image, import_path, {}, "geotag_process")
+                    processing.create_and_log_process(image,
+                                                      import_path,
+                                                      {},
+                                                      "geotag_process")
                     continue
 
             except:
                 print("Error, " + image +
                       " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processing.create_and_log_process(
-                    image, import_path, {}, "geotag_process")
+                processing.create_and_log_process(image,
+                                                  import_path,
+                                                  {},
+                                                  "geotag_process")
                 continue
             try:
                 timestamp = exif.extract_capture_time()
-                mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(
-                    timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+                mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(timestamp,
+                                                                                     "%Y_%m_%d_%H_%M_%S_%f")[:-3]
             except:
                 print("Error, " + image +
                       " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processing.create_and_log_process(
-                    image, import_path, {}, "geotag_process")
+                processing.create_and_log_process(image,
+                                                  import_path,
+                                                  {},
+                                                  "geotag_process")
                 continue
             # optional fields
             try:
@@ -105,8 +153,8 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
                     heading = 0.0
                 heading = normalize_bearing(heading + offset_angle)
                 # bearing of the image
-                mapillary_description["MAPCompassHeading"] = {
-                    "TrueHeading": heading, "MagneticHeading": heading}
+                mapillary_description["MAPCompassHeading"] = {"TrueHeading": heading,
+                                                              "MagneticHeading": heading}
             except:
                 if verbose:
                     print("Warning, image direction tag not in EXIF.")
@@ -114,12 +162,31 @@ def geotag_from_exif(full_image_list, import_path, offset_angle, verbose):
             print("Error, EXIF could not be read for image " +
                   image + ", geotagging process failed for this image since gps/time properties not read.")
 
-        processing.create_and_log_process(
-            image, import_path, mapillary_description, "geotag_process", verbose)
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          mapillary_description,
+                                          "geotag_process",
+                                          verbose)
 
 
-def geotag_from_gpx(full_image_list, import_path, geotag_source_path, offset_time, offset_angle, local_time, interval, verbose):
+def geotag_from_gpx(full_image_list,
+                    import_path,
+                    geotag_source_path,
+                    offset_time,
+                    offset_angle,
+                    local_time,
+                    interval,
+                    timestamp_from_filename,
+                    video_duration,
+                    sample_interval,
+                    video_start_time,
+                    use_gps_start_time,
+                    duration_ratio,
+                    verbose):
+    # set flag for geotagging error
     error_geotaging = 0
+
+    # print time now to warn in case local_time
     if local_time:
         now = datetime.datetime.now(tzlocal())
         if verbose:
@@ -131,31 +198,48 @@ def geotag_from_gpx(full_image_list, import_path, geotag_source_path, offset_tim
             print(
                 "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
 
-    # start time now
-    start_time = time.time()
+    # read gpx file to get track locations
+    gpx = get_lat_lon_time_from_gpx(geotag_source_path,
+                                    local_time)
 
-    # Estimate capture time with sub-second precision
-    sub_second_times = estimate_sub_second_time(full_image_list, interval)
+    # Estimate capture time with sub-second precision, reading from image EXIF
+    # or estimating from filename
+    if timestamp_from_filename:
+        if use_gps_start_time or not video_start_time:
+            video_start_time = gpx[0][0]
+
+        sub_second_times = timestamps_from_filename(full_image_list,
+                                                    video_duration,
+                                                    sample_interval,
+                                                    video_start_time,
+                                                    duration_ratio)
+    else:
+        sub_second_times = estimate_sub_second_time(full_image_list,
+                                                    interval)
     if not sub_second_times:
         print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         error_geotaging = 1
 
-    # read gpx file to get track locations
-    gpx = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
-
     if not gpx:
         error_geotaging = 1
 
-    for image, capture_time in zip(full_image_list, sub_second_times):
+    for image, capture_time in zip(full_image_list,
+                                   sub_second_times):
         mapillary_description = {}
         if error_geotaging:
-            processing.create_and_log_process(
-                image, import_path, {}, "geotag_process")
+            processing.create_and_log_process(image,
+                                              import_path,
+                                              {},
+                                              "geotag_process")
         else:
             capture_time = capture_time - \
                 datetime.timedelta(seconds=offset_time)
-            lat, lon, bearing, elevation = interpolate_lat_lon(
-                gpx, capture_time)
+            try:
+                lat, lon, bearing, elevation = interpolate_lat_lon(gpx,
+                                                                   capture_time)
+            except:
+                print("Video capture time not in scope of the gpx file.")
+                continue
             corrected_bearing = (bearing + offset_angle) % 360
 
             if lat != None and lon != None:
@@ -163,18 +247,22 @@ def geotag_from_gpx(full_image_list, import_path, geotag_source_path, offset_tim
                 mapillary_description["MAPLongitude"] = lon
             else:
                 print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processing.create_and_log_process(
-                    image, import_path, {}, "geotag_process")
+                processing.create_and_log_process(image,
+                                                  import_path,
+                                                  {},
+                                                  "geotag_process")
                 continue
 
             if capture_time:
-                mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(
-                    capture_time, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+                mapillary_description["MAPCaptureTime"] = datetime.datetime.strftime(capture_time,
+                                                                                     "%Y_%m_%d_%H_%M_%S_%f")[:-3]
             else:
                 print("Error, " + image +
                       " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
-                processing.create_and_log_process(
-                    image, import_path, {}, "geotag_process")
+                processing.create_and_log_process(image,
+                                                  import_path,
+                                                  {},
+                                                  "geotag_process")
                 continue
 
             if elevation:
@@ -189,13 +277,24 @@ def geotag_from_gpx(full_image_list, import_path, geotag_source_path, offset_tim
                 if verbose:
                     print("Warning, image direction tag not set.")
 
-        processing.create_and_log_process(
-            image, import_path, mapillary_description, "geotag_process", verbose)
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          mapillary_description,
+                                          "geotag_process",
+                                          verbose)
 
 
-def geotag_from_csv(full_image_list, import_path, offset_angle, geotag_source_path, verbose):
+def geotag_from_csv(full_image_list,
+                    import_path,
+                    offset_angle,
+                    geotag_source_path,
+                    verbose):
     pass
 
 
-def geotag_from_json(full_image_list, import_path, offset_angle, geotag_source_path, verbose):
+def geotag_from_json(full_image_list,
+                     import_path,
+                     offset_angle,
+                     geotag_source_path,
+                     verbose):
     pass

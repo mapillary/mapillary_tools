@@ -14,3 +14,4 @@ import lib.process_sequence_properties
 import lib.process_upload_params
 import lib.process_import_meta_properties
 import lib.insert_MAPJson
+import lib.process_video

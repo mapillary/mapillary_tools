@@ -12,8 +12,13 @@ import uploader
 MAX_SEQUENCE_LENGTH = 500
 
 
-def finalize_sequence_processing(sequence, final_file_list, final_directions, import_path, verbose):
-    for image, direction in zip(final_file_list, final_directions):
+def finalize_sequence_processing(sequence,
+                                 final_file_list,
+                                 final_directions,
+                                 import_path,
+                                 verbose):
+    for image, direction in zip(final_file_list,
+                                final_directions):
         mapillary_description = {
             'MAPSequenceUUID': sequence,
             'MAPCompassHeading': {
@@ -22,11 +27,15 @@ def finalize_sequence_processing(sequence, final_file_list, final_directions, im
             }
         }
 
-        processing.create_and_log_process(
-            image, import_path, mapillary_description, "sequence_process", verbose)
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          mapillary_description,
+                                          "sequence_process",
+                                          verbose)
 
 
-def interpolate_timestamp(capture_times, file_list):
+def interpolate_timestamp(capture_times,
+                          file_list):
     '''
     Interpolate time stamps in case of identical timestamps
     '''
@@ -64,7 +73,8 @@ def interpolate_timestamp(capture_times, file_list):
             0]]["count"] * 1.
 
     # interpolate timestampes
-    for f, t in zip(file_list, capture_times):
+    for f, t in zip(file_list,
+                    capture_times):
         d = time_dict[t]
         s = datetime.timedelta(
             seconds=d["pointer"] * d["interval"] / float(d["count"]))
@@ -75,7 +85,14 @@ def interpolate_timestamp(capture_times, file_list):
     return timestamps, file_list
 
 
-def process_sequence_properties(import_path, cutoff_distance, cutoff_time, interpolate_directions, remove_duplicates, duplicate_distance, duplicate_angle, verbose):
+def process_sequence_properties(import_path,
+                                cutoff_distance,
+                                cutoff_time,
+                                interpolate_directions,
+                                remove_duplicates,
+                                duplicate_distance,
+                                duplicate_angle,
+                                verbose):
     # load the capture time and lat,lon info, requires that the geotag process
     # has been done
 
@@ -98,27 +115,32 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                 # LOAD TIME AND GPS POINTS ------------------------------------
                 for image in image_files:
                     # check the status of the geotagging
-                    log_root = uploader.log_rootpath(import_path, image)
+                    log_root = uploader.log_rootpath(import_path,
+                                                     image)
                     if not os.path.isdir(log_root):
                         if verbose:
                             print("Warning, geotag process has not been done for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(
-                            image, import_path, {}, "sequence_process")
+                        processing.create_and_log_process(image,
+                                                          import_path,
+                                                          {},
+                                                          "sequence_process")
                         continue
                     # check if geotag process was a success
-                    log_geotag_process_success = os.path.join(
-                        log_root, "geotag_process_success")
+                    log_geotag_process_success = os.path.join(log_root,
+                                                              "geotag_process_success")
                     if not os.path.isfile(log_geotag_process_success):
                         if verbose:
                             print("Warning, geotag process failed for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(
-                            image, import_path, {}, "sequence_process")
+                        processing.create_and_log_process(image,
+                                                          import_path,
+                                                          {},
+                                                          "sequence_process")
                         continue
                     # load the geotag json
-                    geotag_process_json_path = os.path.join(
-                        log_root, "geotag_process.json")
+                    geotag_process_json_path = os.path.join(log_root,
+                                                            "geotag_process.json")
                     try:
                         geotag_data = processing.load_json(
                             geotag_process_json_path)
@@ -126,21 +148,24 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                         if verbose:
                             print("Warning, geotag data not read for image " + image +
                                   ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(
-                            image, import_path, {}, "sequence_process")
+                        processing.create_and_log_process(image,
+                                                          import_path,
+                                                          {},
+                                                          "sequence_process")
                         continue
 
                     # assume all data needed available from this point on
                     file_list.append(image)
-                    capture_times.append(datetime.datetime.strptime(
-                        geotag_data["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+                    capture_times.append(datetime.datetime.strptime(geotag_data["MAPCaptureTime"],
+                                                                    '%Y_%m_%d_%H_%M_%S_%f'))
                     lats.append(geotag_data["MAPLatitude"])
                     lons.append(geotag_data["MAPLongitude"])
                     directions.append(
                         geotag_data["MAPCompassHeading"]["TrueHeading"])
 
                     # remove previously created duplicate flags
-                    duplicate_flag_path = os.path.join(log_root, "duplicate")
+                    duplicate_flag_path = os.path.join(log_root,
+                                                       "duplicate")
                     if os.path.isfile(duplicate_flag_path):
                         os.remove(duplicate_flag_path)
 
@@ -150,16 +175,20 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
                 if len(capture_times) and len(lats) and len(lons):
 
                     # sort based on time
-                    sort_by_time = zip(
-                        capture_times, file_list, lats, lons, directions)
+                    sort_by_time = zip(capture_times,
+                                       file_list,
+                                       lats,
+                                       lons,
+                                       directions)
                     sort_by_time.sort()
                     capture_times, file_list, lats, lons, directions = [
                         list(x) for x in zip(*sort_by_time)]
-                    latlons = zip(lats, lons)
+                    latlons = zip(lats,
+                                  lons)
 
                     # interpolate time, in case identical timestamps
-                    capture_times, file_list = interpolate_timestamp(
-                        capture_times, file_list)
+                    capture_times, file_list = interpolate_timestamp(capture_times,
+                                                                     file_list)
 
                     # initialize first sequence
                     sequence_index += 1
@@ -244,16 +273,18 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
             prev_latlon = latlons[0]
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
-                log_root = uploader.log_rootpath(import_path, filename)
-                duplicate_flag_path = os.path.join(
-                    log_root, "duplicate")
-                sequence_process_success_path = os.path.join(
-                    log_root, "sequence_process_success")
+                log_root = uploader.log_rootpath(import_path,
+                                                 filename)
+                duplicate_flag_path = os.path.join(log_root,
+                                                   "duplicate")
+                sequence_process_success_path = os.path.join(log_root,
+                                                             "sequence_process_success")
                 k = i + 1
-                distance = gps_distance(latlons[k], prev_latlon)
+                distance = gps_distance(latlons[k],
+                                        prev_latlon)
                 if directions[k] is not None and prev_direction is not None:
-                    direction_diff = diff_bearing(
-                        directions[k], prev_direction)
+                    direction_diff = diff_bearing(directions[k],
+                                                  prev_direction)
                 else:
                     # dont use bearing difference if no bearings are
                     # available
@@ -272,5 +303,10 @@ def process_sequence_properties(import_path, cutoff_distance, cutoff_time, inter
 
         # FINALIZE ------------------------------------
         for i in range(0, len(final_file_list), MAX_SEQUENCE_LENGTH):
-            finalize_sequence_processing(
-                str(uuid.uuid4()), final_file_list[i:i + MAX_SEQUENCE_LENGTH], final_directions[i:i + MAX_SEQUENCE_LENGTH], import_path, verbose)
+            finalize_sequence_processing(str(uuid.uuid4()),
+                                         final_file_list[i:i +
+                                                         MAX_SEQUENCE_LENGTH],
+                                         final_directions[i:i +
+                                                          MAX_SEQUENCE_LENGTH],
+                                         import_path,
+                                         verbose)
