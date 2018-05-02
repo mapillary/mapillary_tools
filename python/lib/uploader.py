@@ -135,9 +135,20 @@ def get_upload_token(mail, pwd):
     '''
     Get upload token
     '''
-    params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen(LOGIN_URL, params)
-    resp = json.loads(response.read())
+    response = None
+    attempt = 0
+    for attempt in xrange(MAX_ATTEMPTS):
+        try:
+            params = urllib.urlencode({"email": mail, "password": pwd})
+            response = urllib.urlopen(LOGIN_URL, params)
+            resp = json.loads(response.read())
+            break
+        except Exception as e:
+            print(str(e))
+            time.sleep(0.5)
+        finally:
+            if response is not None:
+                response.close()
     return resp['token']
 
 
