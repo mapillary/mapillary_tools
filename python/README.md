@@ -101,7 +101,7 @@ This script uploads images taken with any of the Mapillary apps to the Mapillary
 
     python upload.py path-to-images/
 
-To upload multiple folders at once use the following syntax with the additional arguement:
+To upload multiple folders at once as one sequence use the following syntax with the additional arguement:
 
     python upload.py path-to-images/ --upload_subfolders
     
