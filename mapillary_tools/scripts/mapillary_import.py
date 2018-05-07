@@ -2,6 +2,7 @@ import argparse
 import sys
 import os
 import datetime
+import json
 from mapillary_tools.lib.upload import upload
 from mapillary_tools.lib import process_video
 from mapillary_tools.lib.process_user_properties import process_user_properties
@@ -10,6 +11,8 @@ from mapillary_tools.lib.process_geotag_properties import process_geotag_propert
 from mapillary_tools.lib.process_sequence_properties import process_sequence_properties
 from mapillary_tools.lib.process_upload_params import process_upload_params
 from mapillary_tools.lib.insert_MAPJson import insert_MAPJson
+from mapillary_tools.lib.exif_read import ExifRead
+from mapillary_tools.lib.exif_write import ExifEdit
 
 
 def get_args():
@@ -165,6 +168,9 @@ if __name__ == '__main__':
     # set verbose level(only one for now, should have more)
     verbose = args.verbose
 
+    # set rerun flag
+    rerun = args.rerun
+
     # user args
     user_name = args.user_name
     master_upload = args.master_upload
@@ -234,8 +240,9 @@ if __name__ == '__main__':
 
         # sample video
         if not skip_sampling:
+
             process_video.sample_video(video_file,
-                                       import_path,
+                                       import_path,  # should all the existing image here be removed prior sampling?
                                        sample_interval)
 
         # set video args
@@ -251,43 +258,18 @@ if __name__ == '__main__':
         tool = tool[:-6]
         timestamp_from_filename = True
 
-    # ADDITIONAL SANITY CHECKS ---------------------------------------
-    # get the full image list
-    full_image_list = []
-    for root, dir, files in os.walk(import_path):
-        full_image_list.extend(os.path.join(root, file) for file in files if file.lower(
-        ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
-    # check if any images in the list and exit if none
-    if not len(full_image_list) and tool not in ["process_video", "process_and_upload_video"]:
-        print("Error, no images in the import directory " +
-              import_path + " or images dont have the extension .jpg, exiting...")
-        sys.exit()
-    # ---------------------------------------
-
     # PROCESS USER PROPERTIES --------------------------------------
     if tool == "user_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_user_processing):
-        # sanity checks
-        if not user_name:
-            print("Error, must provide a valid user name, exiting...")
-            sys.exit()
         # function call
-        process_user_properties(full_image_list,
-                                import_path,
+        process_user_properties(import_path,
                                 user_name,
                                 master_upload,
-                                verbose)
+                                verbose,
+                                rerun)
     # PROCESS IMPORT PROPERTIES --------------------------------------
     if tool == "import_metadata_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_import_meta_processing):
-        # sanity checks
-        if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":
-            print("Error, if reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-            sys.exit()
-        elif import_meta_source != None and import_meta_source != "exif" and not os.path.isfile(import_meta_source_path):
-            print("Error, " + import_meta_source_path + " file source of import properties does not exist. If reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-            sys.exit()
         # function call
-        process_import_meta_properties(full_image_list,
-                                       import_path,
+        process_import_meta_properties(import_path,
                                        orientation,
                                        device_make,
                                        device_model,
@@ -296,28 +278,19 @@ if __name__ == '__main__':
                                        add_import_date,
                                        import_meta_source,
                                        import_meta_source_path,
-                                       verbose)
+                                       verbose,
+                                       rerun)
     # PROCESS GEO/TIME PROPERTIES --------------------------------------
     if tool == "geotag_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_geotagging):
-        # sanity checks
-        if geotag_source_path == None and geotag_source != "exif":
-            # if geotagging from external log file, path to the external log file
-            # needs to be provided, if not, exit
-            print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-            sys.exit()
-        elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
-            print("Error, " + geotag_source_path +
-                  " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-            sys.exit()
         # function call
-        process_geotag_properties(full_image_list,
-                                  import_path,
+        process_geotag_properties(import_path,
                                   geotag_source,
                                   video_duration,
                                   sample_interval,
                                   video_start_time,
                                   use_gps_start_time,
                                   video_duration_ratio,
+                                  rerun,
                                   offset_time,
                                   local_time,
                                   sub_second_interval,
@@ -334,27 +307,24 @@ if __name__ == '__main__':
                                     remove_duplicates,
                                     duplicate_distance,
                                     duplicate_angle,
-                                    verbose)
+                                    verbose,
+                                    rerun)
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
     if tool == "upload_params_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_upload_params_processing):
-        # sanity checks
-        if not user_name:
-            print("Error, must provide a valid user name, exiting...")
-            sys.exit()
         # function call
-        process_upload_params(full_image_list,
-                              import_path,
+        process_upload_params(import_path,
                               user_name,
                               master_upload,
-                              verbose)
+                              verbose,
+                              rerun)
     # COMBINE META DATA AND INSERT INTO EXIF IMAGE DESCRIPTION ---------------
     if tool == "insert_EXIF_ImageDescription" or tool == "process" or tool == "process_and_upload":
         # function call
-        insert_MAPJson(full_image_list,
-                       import_path,
+        insert_MAPJson(import_path,
                        master_upload,
                        verbose,
-                       skip_insert_EXIF)
+                       skip_insert_EXIF,
+                       rerun)
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":
         upload(import_path,

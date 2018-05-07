@@ -92,7 +92,8 @@ def process_sequence_properties(import_path,
                                 remove_duplicates,
                                 duplicate_distance,
                                 duplicate_angle,
-                                verbose):
+                                verbose,
+                                rerun):
     # load the capture time and lat,lon info, requires that the geotag process
     # has been done
 
@@ -102,9 +103,10 @@ def process_sequence_properties(import_path,
     # sequence limited to the root of the files
     for root, dirs, files in os.walk(import_path):
         if len(files):
-            image_files = [os.path.join(root, file)
-                           for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif'))]
-            if len(image_files):
+            process_file_list = processing.get_process_file_list(root,
+                                                                 "sequence_process",
+                                                                 rerun)
+            if len(process_file_list):
 
                 file_list = []
                 capture_times = []
@@ -113,7 +115,7 @@ def process_sequence_properties(import_path,
                 directions = []
 
                 # LOAD TIME AND GPS POINTS ------------------------------------
-                for image in image_files:
+                for image in process_file_list:
                     # check the status of the geotagging
                     log_root = uploader.log_rootpath(import_path,
                                                      image)

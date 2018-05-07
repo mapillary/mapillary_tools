@@ -74,8 +74,7 @@ def finalize_import_properties_process(image,
                                       verbose)
 
 
-def process_import_meta_properties(full_image_list,
-                                   import_path,
+def process_import_meta_properties(import_path,
                                    orientation,
                                    device_make,
                                    device_model,
@@ -84,14 +83,29 @@ def process_import_meta_properties(full_image_list,
                                    add_import_date,
                                    import_meta_source,
                                    import_meta_source_path,
-                                   verbose):
+                                   verbose,
+                                   rerun):
+
+    # sanity checks
+    if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":
+        print("Error, if reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
+        sys.exit()
+    elif import_meta_source != None and import_meta_source != "exif" and not os.path.isfile(import_meta_source_path):
+        print("Error, " + import_meta_source_path + " file source of import properties does not exist. If reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
+        sys.exit()
+
     # map orientation from degrees to tags
     if orientation:
         orientation = processing.format_orientation(orientation)
+
+     # get list of file to process
+    process_file_list = processing.get_process_file_list(import_path,
+                                                         "import_meta_data_process",
+                                                         rerun)
     # if not external meta source and not image EXIF meta source, finalize the
     # import properties process
     if not import_meta_source:
-        for image in full_image_list:
+        for image in process_file_list:
             finalize_import_properties_process(image,
                                                import_path,
                                                orientation,
@@ -106,7 +120,7 @@ def process_import_meta_properties(full_image_list,
         if import_meta_source == "exif":
             # read import meta from image EXIF and finalize the import
             # properties process
-            for image in full_image_list:
+            for image in process_file_list:
                 mapillary_description = {}
                 try:
                     exif = ExifRead(image)

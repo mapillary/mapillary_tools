@@ -48,14 +48,14 @@ def estimate_sub_second_time(files, interval):
         return [s + T * i for i in range(len(files))]
 
 
-def process_geotag_properties(full_image_list,
-                              import_path,
+def process_geotag_properties(import_path,
                               geotag_source,
                               video_duration,
                               sample_interval,
                               video_start_time,
                               use_gps_start_time,
                               duration_ratio,
+                              rerun,
                               offset_time=0.0,
                               local_time=False,
                               interval=0.0,
@@ -63,13 +63,29 @@ def process_geotag_properties(full_image_list,
                               offset_angle=0,
                               timestamp_from_filename=False,
                               verbose=False):
+    # sanity checks
+    if geotag_source_path == None and geotag_source != "exif":
+        # if geotagging from external log file, path to the external log file
+        # needs to be provided, if not, exit
+        print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+        sys.exit()
+    elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
+        print("Error, " + geotag_source_path +
+              " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+        sys.exit()
+
+    # get list of file to process
+    process_file_list = processing.get_process_file_list(import_path,
+                                                         "geotag_process",
+                                                         rerun)
+
     if geotag_source == "exif":
-        geotag_from_exif(full_image_list,
+        geotag_from_exif(process_file_list,
                          import_path,
                          offset_angle,
                          verbose)
     elif geotag_source == "gpx":
-        geotag_from_gpx(full_image_list,
+        geotag_from_gpx(process_file_list,
                         import_path,
                         geotag_source_path,
                         offset_time,
@@ -84,14 +100,14 @@ def process_geotag_properties(full_image_list,
                         duration_ratio,
                         verbose)
     elif geotag_source == "csv":
-        geotag_from_csv(full_image_list,
+        geotag_from_csv(process_file_list,
                         import_path,
                         geotag_source_path,
                         offset_time,
                         offset_angle,
                         verbose)
     else:
-        geotag_from_json(full_image_list,
+        geotag_from_json(process_file_list,
                          import_path,
                          geotag_source_path,
                          offset_time,
@@ -99,11 +115,11 @@ def process_geotag_properties(full_image_list,
                          verbose)
 
 
-def geotag_from_exif(full_image_list,
+def geotag_from_exif(process_file_list,
                      import_path,
                      offset_angle,
                      verbose):
-    for image in full_image_list:
+    for image in process_file_list:
         mapillary_description = {}
         try:
             exif = ExifRead(image)
@@ -169,7 +185,7 @@ def geotag_from_exif(full_image_list,
                                           verbose)
 
 
-def geotag_from_gpx(full_image_list,
+def geotag_from_gpx(process_file_list,
                     import_path,
                     geotag_source_path,
                     offset_time,
@@ -208,13 +224,13 @@ def geotag_from_gpx(full_image_list,
         if use_gps_start_time or not video_start_time:
             video_start_time = gpx[0][0]
 
-        sub_second_times = timestamps_from_filename(full_image_list,
+        sub_second_times = timestamps_from_filename(process_file_list,
                                                     video_duration,
                                                     sample_interval,
                                                     video_start_time,
                                                     duration_ratio)
     else:
-        sub_second_times = estimate_sub_second_time(full_image_list,
+        sub_second_times = estimate_sub_second_time(process_file_list,
                                                     interval)
     if not sub_second_times:
         print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
@@ -223,7 +239,7 @@ def geotag_from_gpx(full_image_list,
     if not gpx:
         error_geotaging = 1
 
-    for image, capture_time in zip(full_image_list,
+    for image, capture_time in zip(process_file_list,
                                    sub_second_times):
         mapillary_description = {}
         if error_geotaging:
@@ -284,7 +300,7 @@ def geotag_from_gpx(full_image_list,
                                           verbose)
 
 
-def geotag_from_csv(full_image_list,
+def geotag_from_csv(process_file_list,
                     import_path,
                     offset_angle,
                     geotag_source_path,
@@ -292,7 +308,7 @@ def geotag_from_csv(full_image_list,
     pass
 
 
-def geotag_from_json(full_image_list,
+def geotag_from_json(process_file_list,
                      import_path,
                      offset_angle,
                      geotag_source_path,

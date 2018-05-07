@@ -11,17 +11,17 @@ def process_complete(log_root,
     process_complete_path = os.path.join(log_root,
                                          "process_")
     if completed:
-        open(process_complete_path + "complete", "w").close()
-        open(process_complete_path + "complete" + "_" +
+        open(process_complete_path + "success", "w").close()
+        open(process_complete_path + "success" + "_" +
              str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
-        if os.path.isfile(process_complete_path + "incomplete"):
-            os.remove(process_complete_path + "incomplete")
+        if os.path.isfile(process_complete_path + "failed"):
+            os.remove(process_complete_path + "failed")
     else:
-        open(process_complete_path + "incomplete", "w").close()
-        open(process_complete_path + "incomplete" + "_" +
+        open(process_complete_path + "failed", "w").close()
+        open(process_complete_path + "failed" + "_" +
              str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
-        if os.path.isfile(process_complete_path + "complete"):
-            os.remove(process_complete_path + "complete")
+        if os.path.isfile(process_complete_path + "success"):
+            os.remove(process_complete_path + "success")
 
 
 def update_mapillary_description(final_mapillary_image_description,
@@ -41,13 +41,18 @@ def update_mapillary_description(final_mapillary_image_description,
     return final_mapillary_image_description
 
 
-def insert_MAPJson(full_image_list,
-                   import_path,
+def insert_MAPJson(import_path,
                    master_upload,
                    verbose,
-                   skip_insert_MAPJson):
+                   skip_insert_MAPJson,
+                   rerun):
 
-    for image in full_image_list:
+    # get list of file to process
+    process_file_list = processing.get_process_file_list(import_path,
+                                                         "process",
+                                                         rerun)
+
+    for image in process_file_list:
         # check the processing logs
         log_root = uploader.log_rootpath(import_path,
                                          image)

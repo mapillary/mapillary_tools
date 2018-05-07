@@ -57,6 +57,24 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
+def get_process_file_list(import_path, process, rerun):
+    process_file_list = []
+    for root, dir, files in os.walk(import_path):
+        process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
+            import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return process_file_list
+
+
+def preform_process(import_path, root, file, process, rerun):
+    file_path = os.path.join(root, file)
+    log_root = uploader.log_rootpath(import_path, file_path)
+    process_succes = os.path.join(log_root, process + "_success")
+    upload_succes = os.path.join(log_root, "upload_success")
+    preform = not os.path.isfile(upload_succes) and (
+        not os.path.isfile(process_succes) or rerun)
+    return preform
+
+
 def create_and_log_process(image, import_path, mapillary_description, process, verbose=False):
     # set log path
     log_root = uploader.log_rootpath(import_path, image)

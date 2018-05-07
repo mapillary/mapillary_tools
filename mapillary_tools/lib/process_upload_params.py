@@ -7,11 +7,16 @@ import processing
 import uploader
 
 
-def process_upload_params(full_image_list,
-                          import_path,
+def process_upload_params(import_path,
                           user_name,
                           master_upload,
-                          verbose):
+                          verbose,
+                          rerun):
+
+    # sanity checks
+    if not user_name:
+        print("Error, must provide a valid user name, exiting...")
+        sys.exit()
 
     if not master_upload:
         try:
@@ -29,7 +34,12 @@ def process_upload_params(full_image_list,
         user_signature_hash = credentials["user_signature_hash"]
         user_email = credentials["MAPSettingsEmail"]
 
-    for image in full_image_list:
+    # get list of file to process
+    process_file_list = processing.get_process_file_list(import_path,
+                                                         "upload_params_process",
+                                                         rerun)
+
+    for image in process_file_list:
         # check the status of the sequence processing
         log_root = uploader.log_rootpath(import_path,
                                          image)
