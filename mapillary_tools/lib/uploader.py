@@ -158,7 +158,7 @@ def prompt_to_finalize():
     return 0
 
 
-def filter_finalize_params(file_list, params, import_path):
+def process_upload_finalization(file_list, params):
     list_params = []
     keys = []
     for file in file_list:
@@ -172,6 +172,80 @@ def filter_finalize_params(file_list, params, import_path):
 def finalize_upload(finalize_params):
     for params in finalize_params:
         upload_done_file(params)
+
+
+def flag_finalization(import_path, finalize_file_list):
+    for file in finalize_file_list:
+        finalize_flag = os.path.join(log_rootpath(
+            import_path, file), "upload_finalized")
+        open(finalize_flag, 'a').close()
+
+
+def get_upload_file_list(import_path):
+    upload_file_list = []
+    for root, dir, files in os.walk(import_path):
+        upload_file_list.extend(os.path.join(root, file) for file in files if preform_upload(
+            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return upload_file_list
+
+
+def get_total_file_list(import_path):
+    total_file_list = []
+    for root, dir, files in os.walk(import_path):
+        total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+        ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return total_file_list
+
+
+def get_failed_upload_file_list(import_path):
+    failed_upload_file_list = []
+    for root, dir, files in os.walk(import_path):
+        failed_upload_file_list.extend(os.path.join(root, file) for file in files if failed_upload(
+            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return failed_upload_file_list
+
+
+def preform_upload(import_path, root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(import_path, file_path)
+    process_succes = os.path.join(log_root, "process_success")
+    duplicate = os.path.join(log_root, "duplicate")
+    upload_succes = os.path.join(log_root, "upload_success")
+    upload = not os.path.isfile(
+        upload_succes) and os.path.isfile(process_succes) and not os.path.isfile(
+        duplicate)
+    return upload
+
+
+def failed_upload(import_path, root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(import_path, file_path)
+    process_succes = os.path.join(log_root, "process_success")
+    duplicate = os.path.join(log_root, "duplicate")
+    upload_failed = os.path.join(log_root, "upload_failed")
+    failed = os.path.isfile(
+        upload_failed) and os.path.isfile(process_succes) and not os.path.isfile(
+        duplicate)
+    return failed
+
+
+def get_finalize_file_list(import_path):
+    finalize_file_list = []
+    for root, dir, files in os.walk(import_path):
+        finalize_file_list.extend(os.path.join(root, file) for file in files if preform_finalize(
+            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return finalize_file_list
+
+
+def preform_finalize(import_path, root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(import_path, file_path)
+    upload_succes = os.path.join(log_root, "upload_success")
+    upload_finalized = os.path.join(log_root, "upload_finalized")
+    manual_upload = os.path.join(log_root, "manual_upload")
+    finalize = os.path.isfile(
+        upload_succes) and not os.path.isfile(upload_finalized) and os.path.isfile(manual_upload)
+    return finalize
 
 
 def print_summary(file_list):

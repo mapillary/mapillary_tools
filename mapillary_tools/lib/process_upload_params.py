@@ -126,6 +126,10 @@ def process_upload_params(import_path,
                                               import_path,
                                               upload_params,
                                               "upload_params_process")
+            # flag manual upload
+            log_manual_upload = os.path.join(
+                log_root, "manual_upload")
+            open(log_manual_upload, 'a').close()
         else:
             if verbose:
                 print("Warning, sequence uuid not in sequence data for image " + image +

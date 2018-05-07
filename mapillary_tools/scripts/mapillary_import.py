@@ -129,7 +129,7 @@ def get_args():
 
     # upload
     parser.add_argument(
-        '--auto_done', help='automatically finalize the upload', action='store_true', default=False)
+        '--manual_done', help='Manually finalize the upload', action='store_true', default=False)
 
     # verbose, print out warnings and info
     parser.add_argument(
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     duplicate_angle = args.duplicate_angle
 
     # upload args
-    auto_done = args.auto_done
+    manual_done = args.manual_done
 
     # skip args
     skip_user_processing = args.skip_user_processing
@@ -328,6 +328,6 @@ if __name__ == '__main__':
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":
         upload(import_path,
-               auto_done)
+               manual_done)
 
     # ---------------------------------------
