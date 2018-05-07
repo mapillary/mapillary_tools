@@ -8,6 +8,7 @@ from geo import normalize_bearing
 import uuid
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..")))
+import json
 
 
 def eval_frac(value):
@@ -102,14 +103,24 @@ class ExifRead:
         '''
         Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}_{hash}
         '''
-        lon, lat = self.extract_lon_lat()
-        ca = self.extract_direction()
-        if ca is None:
-            ca = 0
-        ca = int(ca)
-        date_time = self.extract_capture_time()
-        date_time = date_time.strftime("%Y-%m-%d-%H-%M-%S-%f")
-        date_time = date_time[:-3]
+        mapillary_description = json.loads(self.extract_image_description())
+
+        lat = None
+        lon = None
+        ca = None
+        date_time = None
+
+        if "MAPLatitude" in mapillary_description:
+            lat = mapillary_description["MAPLatitude"]
+        if "MAPLongitude" in mapillary_description:
+            lon = mapillary_description["MAPLongitude"]
+        if "MAPCompassHeading" in mapillary_description:
+            if 'TrueHeading' in mapillary_description["MAPCompassHeading"]:
+                ca = mapillary_description["MAPCompassHeading"]['TrueHeading']
+        if "MAPCaptureTime" in mapillary_description:
+            date_time = datetime.datetime.strptime(
+                mapillary_description["MAPCaptureTime"], "%Y_%m_%d_%H_%M_%S_%f").strftime("%Y-%m-%d-%H-%M-%S-%f")[:-3]
+
         filename = '{}_{}_{}_{}_{}'.format(
             lat, lon, ca, date_time, uuid.uuid4())
         return filename
