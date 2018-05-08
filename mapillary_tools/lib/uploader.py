@@ -16,6 +16,7 @@ import threading
 import time
 import config
 import getpass
+import sys
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
@@ -29,13 +30,12 @@ UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(
     CLIENT_ID)
-PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
+ORGANIZATIONS_URL = "https://a.mapillary.com/v3/users/{}/organizations?client_id={}"
 USER_URL = "https://a.mapillary.com/v3/users?usernames={}&client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
 USER_UPLOAD_URL = "https://a.mapillary.com/v3/users/{}/upload_tokens?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
-LOCAL_CONFIG_FILEPATH = os.path.join('{}', '.mapillary/config')
 GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
 
 
@@ -268,6 +268,84 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
+def get_organization_key(user_key, organization_name, upload_token):
+
+    organization_key = None
+    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
+    req = urllib2.Request(call)
+    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
+    resp = json.loads(urllib2.urlopen(req).read())
+
+    organization_names = []
+    for org in resp:
+        organization_names.append(org['name'])
+        if org['name'] == organization_name:
+            organization_key = org['key']
+
+    if not organization_key:
+        print("No valid organization key found for organization name " +
+              organization_name)
+        print("Available organization names for current user are : ")
+        print(organization_names)
+        sys.exit()
+    return organization_key
+
+
+def get_organization_name(user_key, organization_key, upload_token):
+
+    organization_name = None
+    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
+    req = urllib2.Request(call)
+    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
+    resp = json.loads(urllib2.urlopen(req).read())
+
+    organization_keys = []
+    for org in resp:
+        organization_keys.append(org['key'])
+        if org['key'] == organization_key:
+            organization_name = org['name']
+
+    if not organization_name:
+        print("No valid organization name found for organization key " + organization_key)
+        print("Available organization keys for current user are : ")
+        print(organization_keys)
+        sys.exit()
+    return organization_name
+
+
+def validate_organization_key(user_key, organization_key, upload_token):
+
+    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
+    req = urllib2.Request(call)
+    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
+    resp = json.loads(urllib2.urlopen(req).read())
+    for org in resp:
+        if org['key'] == organization_key:
+            return
+    print("Organization key does not exist.")
+    sys.exit()
+
+
+def validate_organization_privacy(user_key, organization_key, private, upload_token):
+
+    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
+    req = urllib2.Request(call)
+    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
+    resp = json.loads(urllib2.urlopen(req).read())
+
+    for org in resp:
+        if org['key'] == organization_key:
+            if ('private_repository' in org and org['private_repository'] != private) or ('private_repository' not in org and private):
+                print(
+                    "Organization privacy does not match provided privacy settings.")
+                privacy = "private" if 'private_repository' in org and org[
+                    'private_repository'] else "public"
+                privacy_provided = "private" if private else "public"
+                print("Organization " +
+                      org['name'] + " with key " + org['key'] + " is " + privacy + " while your import privacy settings state " + privacy_provided)
+                sys.exit()
+
+
 def progress(count, total, suffix=''):
     '''
     Display progress bar
@@ -303,30 +381,18 @@ def prompt_user_for_user_items(user_name):
     return user_items
 
 
-def authenticate_user(user_name, import_path):
-    local_config_filepath = LOCAL_CONFIG_FILEPATH.format(import_path)
+def authenticate_user(user_name):
     user_items = None
-    if os.path.isfile(local_config_filepath):
-        local_config_object = config.load_config(local_config_filepath)
-        if user_name in local_config_object.sections():
-            user_items = config.load_user(local_config_object, user_name)
-            return user_items
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
             user_items = config.load_user(global_config_object, user_name)
-            config.create_config(local_config_filepath)
-            config.update_config(
-                local_config_filepath, user_name, user_items)
             return user_items
     print("enter user credentials for user " + user_name)
     user_items = prompt_user_for_user_items(user_name)
     config.create_config(GLOBAL_CONFIG_FILEPATH)
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
-    config.create_config(local_config_filepath)
-    config.update_config(
-        local_config_filepath, user_name, user_items)
     return user_items
 
 

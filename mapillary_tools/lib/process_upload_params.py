@@ -20,8 +20,7 @@ def process_upload_params(import_path,
 
     if not master_upload:
         try:
-            credentials = uploader.authenticate_user(user_name,
-                                                     import_path)
+            credentials = uploader.authenticate_user(user_name)
         except:
             print("Error, user authentication failed for user " + user_name)
             return

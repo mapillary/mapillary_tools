@@ -64,3 +64,23 @@ def timestamps_from_filename(full_image_list,
                                                      video_duration,
                                                      duration_ratio))
     return capture_times
+
+
+def process_video():
+    # sanity checks for video
+    # currently only gpx trace if supported as video gps data
+    if geotag_source != "gpx":
+        if verbose:
+            print(
+                "Warning, geotag source not specified to gpx. Currently only gpx trace is supported as the source of video gps data.")
+        geotag_source = "gpx"
+    if not geotag_source_path or not os.path.isfile(geotag_source_path) or geotag_source_path[-3:] != "gpx":
+        print("Error, gpx trace file path not valid or specified. To geotag a video, a valid gpx trace file is required.")
+        sys.exit()
+
+    # sample video
+    if not skip_sampling:
+
+        process_video.sample_video(video_file,
+                                   import_path,  # should all the existing image here be removed prior sampling?
+                                   sample_interval)

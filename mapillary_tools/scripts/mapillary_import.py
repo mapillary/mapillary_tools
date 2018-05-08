@@ -65,13 +65,13 @@ def get_args():
     parser.add_argument('--offset_time', default=0., type=float,
                         help='time offset between the camera and the gps device, in seconds.')
 
-    # project level parameters
+    # organization level parameters
     parser.add_argument(
-        '--project', help="add project name in case validation is required", default=None)
+        '--organization_name', help="Specify organization name", default=None)
     parser.add_argument(
-        '--project_key', help="add project to EXIF (project key)", default=None)
-    parser.add_argument('--skip_validate_project',
-                        help="do not validate project key or projectd name", action='store_true')
+        '--organization_key', help="Specify organization key", default=None)
+    parser.add_argument('--private',
+                        help="Specify whether the import is private", action='store_true', default=False)
 
     # import level parameters
     parser.add_argument(
@@ -175,6 +175,11 @@ if __name__ == '__main__':
     user_name = args.user_name
     master_upload = args.master_upload
 
+    # organization args
+    organization_name = args.organization_name
+    organization_key = args.organization_key
+    private = args.private
+
     # import meta data args
     device_make = args.device_make
     device_model = args.device_model
@@ -263,6 +268,9 @@ if __name__ == '__main__':
         # function call
         process_user_properties(import_path,
                                 user_name,
+                                organization_name,
+                                organization_key,
+                                private,
                                 master_upload,
                                 verbose,
                                 rerun)

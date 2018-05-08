@@ -63,21 +63,36 @@ def process_geotag_properties(import_path,
                               offset_angle=0,
                               timestamp_from_filename=False,
                               verbose=False):
-    # sanity checks
-    if geotag_source_path == None and geotag_source != "exif":
-        # if geotagging from external log file, path to the external log file
-        # needs to be provided, if not, exit
-        print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-        sys.exit()
-    elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
-        print("Error, " + geotag_source_path +
-              " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
-        sys.exit()
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "geotag_process",
                                                          rerun)
+    processing.inform_processing_start(import_path,
+                                       len(process_file_list),
+                                       "geotag_process")
+
+    # sanity checks
+    if geotag_source_path == None and geotag_source != "exif":
+        # if geotagging from external log file, path to the external log file
+        # needs to be provided, if not, exit
+        print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "geotag_process"
+                                                  "failed",
+                                                  verbose)
+        return
+
+    elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
+        print("Error, " + geotag_source_path +
+              " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "geotag_process"
+                                                  "failed",
+                                                  verbose)
+        return
 
     if geotag_source == "exif":
         geotag_from_exif(process_file_list,
