@@ -29,9 +29,10 @@ def finalize_sequence_processing(sequence,
 
         processing.create_and_log_process(image,
                                           import_path,
-                                          mapillary_description,
                                           "sequence_process",
-                                          verbose)
+                                          "success",
+                                          mapillary_description,
+                                          verbose=verbose)
 
 
 def interpolate_timestamp(capture_times,
@@ -102,150 +103,160 @@ def process_sequence_properties(import_path,
 
     # sequence limited to the root of the files
     for root, dirs, files in os.walk(import_path):
+        if ".mapillary" in root:
+            continue
         if len(files):
             process_file_list = processing.get_process_file_list(root,
                                                                  "sequence_process",
                                                                  rerun)
-            if len(process_file_list):
+            if not len(process_file_list):
+                if verbose:
+                    print("No images to run sequence process in root " + root)
+                    print(
+                        "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
+                continue
 
-                file_list = []
-                capture_times = []
-                lats = []
-                lons = []
-                directions = []
+            file_list = []
+            capture_times = []
+            lats = []
+            lons = []
+            directions = []
 
-                # LOAD TIME AND GPS POINTS ------------------------------------
-                for image in process_file_list:
-                    # check the status of the geotagging
-                    log_root = uploader.log_rootpath(import_path,
-                                                     image)
-                    if not os.path.isdir(log_root):
+            # LOAD TIME AND GPS POINTS ------------------------------------
+            for image in process_file_list:
+                # check the status of the geotagging
+                log_root = uploader.log_rootpath(import_path,
+                                                 image)
+                if not os.path.isdir(log_root):
+                    if verbose:
+                        print("Warning, geotag process has not been done for image " + image +
+                              ", therefore it will not be included in the sequence processing.")
+                    processing.create_and_log_process(image,
+                                                      import_path,
+                                                      "sequence_process",
+                                                      "failed",
+                                                      verbose=verbose)
+                    continue
+                # check if geotag process was a success
+                log_geotag_process_success = os.path.join(log_root,
+                                                          "geotag_process_success")
+                if not os.path.isfile(log_geotag_process_success):
+                    if verbose:
+                        print("Warning, geotag process failed for image " + image +
+                              ", therefore it will not be included in the sequence processing.")
+                    processing.create_and_log_process(image,
+                                                      import_path,
+                                                      "sequence_process",
+                                                      "failed",
+                                                      verbose=verbose)
+                    continue
+                # load the geotag json
+                geotag_process_json_path = os.path.join(log_root,
+                                                        "geotag_process.json")
+                try:
+                    geotag_data = processing.load_json(
+                        geotag_process_json_path)
+                except:
+                    if verbose:
+                        print("Warning, geotag data not read for image " + image +
+                              ", therefore it will not be included in the sequence processing.")
+                    processing.create_and_log_process(image,
+                                                      import_path,
+                                                      "sequence_process",
+                                                      "failed",
+                                                      verbose=verbose)
+                    continue
+
+                # assume all data needed available from this point on
+                file_list.append(image)
+                capture_times.append(datetime.datetime.strptime(geotag_data["MAPCaptureTime"],
+                                                                '%Y_%m_%d_%H_%M_%S_%f'))
+                lats.append(geotag_data["MAPLatitude"])
+                lons.append(geotag_data["MAPLongitude"])
+                directions.append(
+                    geotag_data["MAPCompassHeading"]["TrueHeading"])
+
+                # remove previously created duplicate flags
+                duplicate_flag_path = os.path.join(log_root,
+                                                   "duplicate")
+                if os.path.isfile(duplicate_flag_path):
+                    os.remove(duplicate_flag_path)
+
+            # ---------------------------------------
+
+            # SPLIT SEQUENCES --------------------------------------
+            if len(capture_times) and len(lats) and len(lons):
+
+                # sort based on time
+                sort_by_time = zip(capture_times,
+                                   file_list,
+                                   lats,
+                                   lons,
+                                   directions)
+                sort_by_time.sort()
+                capture_times, file_list, lats, lons, directions = [
+                    list(x) for x in zip(*sort_by_time)]
+                latlons = zip(lats,
+                              lons)
+
+                # interpolate time, in case identical timestamps
+                capture_times, file_list = interpolate_timestamp(capture_times,
+                                                                 file_list)
+
+                # initialize first sequence
+                sequence_index += 1
+                sequences.append({"file_list": [
+                    file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]]})
+
+                if len(file_list) >= 1:
+                    # diff in capture time
+                    capture_deltas = [
+                        t2 - t1 for t1, t2 in zip(capture_times, capture_times[1:])]
+
+                    # distance between consecutive images
+                    distances = [gps_distance(ll1, ll2)
+                                 for ll1, ll2 in zip(latlons, latlons[1:])]
+
+                    # if cutoff time is given use that, else assume cutoff is
+                    # 1.5x median time delta
+                    if cutoff_time is None:
                         if verbose:
-                            print("Warning, geotag process has not been done for image " + image +
-                                  ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(image,
-                                                          import_path,
-                                                          {},
-                                                          "sequence_process")
-                        continue
-                    # check if geotag process was a success
-                    log_geotag_process_success = os.path.join(log_root,
-                                                              "geotag_process_success")
-                    if not os.path.isfile(log_geotag_process_success):
-                        if verbose:
-                            print("Warning, geotag process failed for image " + image +
-                                  ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(image,
-                                                          import_path,
-                                                          {},
-                                                          "sequence_process")
-                        continue
-                    # load the geotag json
-                    geotag_process_json_path = os.path.join(log_root,
-                                                            "geotag_process.json")
-                    try:
-                        geotag_data = processing.load_json(
-                            geotag_process_json_path)
-                    except:
-                        if verbose:
-                            print("Warning, geotag data not read for image " + image +
-                                  ", therefore it will not be included in the sequence processing.")
-                        processing.create_and_log_process(image,
-                                                          import_path,
-                                                          {},
-                                                          "sequence_process")
-                        continue
-
-                    # assume all data needed available from this point on
-                    file_list.append(image)
-                    capture_times.append(datetime.datetime.strptime(geotag_data["MAPCaptureTime"],
-                                                                    '%Y_%m_%d_%H_%M_%S_%f'))
-                    lats.append(geotag_data["MAPLatitude"])
-                    lons.append(geotag_data["MAPLongitude"])
-                    directions.append(
-                        geotag_data["MAPCompassHeading"]["TrueHeading"])
-
-                    # remove previously created duplicate flags
-                    duplicate_flag_path = os.path.join(log_root,
-                                                       "duplicate")
-                    if os.path.isfile(duplicate_flag_path):
-                        os.remove(duplicate_flag_path)
-
-                # ---------------------------------------
-
-                # SPLIT SEQUENCES --------------------------------------
-                if len(capture_times) and len(lats) and len(lons):
-
-                    # sort based on time
-                    sort_by_time = zip(capture_times,
-                                       file_list,
-                                       lats,
-                                       lons,
-                                       directions)
-                    sort_by_time.sort()
-                    capture_times, file_list, lats, lons, directions = [
-                        list(x) for x in zip(*sort_by_time)]
-                    latlons = zip(lats,
-                                  lons)
-
-                    # interpolate time, in case identical timestamps
-                    capture_times, file_list = interpolate_timestamp(capture_times,
-                                                                     file_list)
-
-                    # initialize first sequence
-                    sequence_index += 1
-                    sequences.append({"file_list": [
-                        file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]]})
-
-                    if len(file_list) >= 1:
-                        # diff in capture time
-                        capture_deltas = [
-                            t2 - t1 for t1, t2 in zip(capture_times, capture_times[1:])]
-
-                        # distance between consecutive images
-                        distances = [gps_distance(ll1, ll2)
-                                     for ll1, ll2 in zip(latlons, latlons[1:])]
-
-                        # if cutoff time is given use that, else assume cutoff is
-                        # 1.5x median time delta
-                        if cutoff_time is None:
+                            print(
+                                "Warning, sequence cut-off time is None and will therefore be derived based on the median time delta between the consecutive images.")
+                        median = sorted(capture_deltas)[
+                            len(capture_deltas) // 2]
+                        if type(median) is not int:
+                            median = median.total_seconds()
+                        cutoff_time = 1.5 * median
+                    else:
+                        cutoff_time = float(cutoff_time)
+                    cut = 0
+                    for i, filepath in enumerate(file_list[1:]):
+                        cut_time = capture_deltas[i].total_seconds(
+                        ) > cutoff_time
+                        cut_distance = distances[i] > cutoff_distance
+                        if cut_time or cut_distance:
+                            cut += 1
+                            # delta too big, start new sequence
+                            sequence_index += 1
+                            sequences.append({"file_list": [
+                                filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
                             if verbose:
-                                print(
-                                    "Warning, sequence cut-off time is None and will therefore be derived based on the median time delta between the consecutive images.")
-                            median = sorted(capture_deltas)[
-                                len(capture_deltas) // 2]
-                            if type(median) is not int:
-                                median = median.total_seconds()
-                            cutoff_time = 1.5 * median
+                                if cut_distance:
+                                    print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
+                                        cut, distances[i], cutoff_distance, file_list[i + 1]))
+                                elif cut_time:
+                                    print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
+                                        cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
                         else:
-                            cutoff_time = float(cutoff_time)
-                        cut = 0
-                        for i, filepath in enumerate(file_list[1:]):
-                            cut_time = capture_deltas[i].total_seconds(
-                            ) > cutoff_time
-                            cut_distance = distances[i] > cutoff_distance
-                            if cut_time or cut_distance:
-                                cut += 1
-                                # delta too big, start new sequence
-                                sequence_index += 1
-                                sequences.append({"file_list": [
-                                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
-                                if verbose:
-                                    if cut_distance:
-                                        print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
-                                            cut, distances[i], cutoff_distance, file_list[i + 1]))
-                                    elif cut_time:
-                                        print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
-                                            cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
-                            else:
-                                # delta not too big, continue with current
-                                # group
-                                sequences[sequence_index]["file_list"].append(
-                                    filepath)
-                                sequences[sequence_index]["directions"].append(
-                                    directions[1:][i])
-                                sequences[sequence_index]["latlons"].append(
-                                    latlons[1:][i])
+                            # delta not too big, continue with current
+                            # group
+                            sequences[sequence_index]["file_list"].append(
+                                filepath)
+                            sequences[sequence_index]["directions"].append(
+                                directions[1:][i])
+                            sequences[sequence_index]["latlons"].append(
+                                latlons[1:][i])
                 # ---------------------------------------
 
     # process for each sequence

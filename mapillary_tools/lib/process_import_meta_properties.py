@@ -91,9 +91,15 @@ def process_import_meta_properties(import_path,
     process_file_list = processing.get_process_file_list(import_path,
                                                          "import_meta_data_process",
                                                          rerun)
-    processing.inform_processing_start(import_path,
-                                       len(process_file_list),
-                                       "import_meta_data_process")
+    if verbose:
+        processing.inform_processing_start(import_path,
+                                           len(process_file_list),
+                                           "import_meta_data_process")
+    if not len(process_file_list):
+        if verbose:
+            print("No images to run import meta data process")
+            print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
+        return
 
     # sanity checks
     if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":

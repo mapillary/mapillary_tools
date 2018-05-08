@@ -62,7 +62,7 @@ def upload(import_path, manual_done):
     if len(finalize_file_list):
         finalize_all = 1
         if manual_done:
-            finalize_all = uploader.prompt_to_finalize()
+            finalize_all = uploader.prompt_to_finalize("uploads")
         if finalize_all:
             # get the s3 locations of the sequences
             finalize_params = uploader.process_upload_finalization(

@@ -13,30 +13,54 @@ def process_upload_params(import_path,
                           verbose,
                           rerun):
 
+    # get list of file to process
+    process_file_list = processing.get_process_file_list(import_path,
+                                                         "upload_params_process",
+                                                         rerun)
+    if verbose and not master_upload:
+        processing.inform_processing_start(import_path,
+                                           len(process_file_list),
+                                           "upload_params_process")
+    if not len(process_file_list):
+        if verbose:
+            print("No images to run upload params process")
+            print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
+        return
+
     # sanity checks
     if not user_name:
         print("Error, must provide a valid user name, exiting...")
-        sys.exit()
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "upload_params_process"
+                                                  "failed",
+                                                  verbose)
+        return
 
     if not master_upload:
         try:
             credentials = uploader.authenticate_user(user_name)
         except:
             print("Error, user authentication failed for user " + user_name)
+            processing.create_and_log_process_in_list(process_file_list,
+                                                      import_path,
+                                                      "upload_params_process"
+                                                      "failed",
+                                                      verbose)
             return
         if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
             print("Error, user authentication failed for user " + user_name)
+            processing.create_and_log_process_in_list(process_file_list,
+                                                      import_path,
+                                                      "upload_params_process"
+                                                      "failed",
+                                                      verbose)
             return
 
         user_upload_token = credentials["user_upload_token"]
         user_permission_hash = credentials["user_permission_hash"]
         user_signature_hash = credentials["user_signature_hash"]
         user_email = credentials["MAPSettingsEmail"]
-
-    # get list of file to process
-    process_file_list = processing.get_process_file_list(import_path,
-                                                         "upload_params_process",
-                                                         rerun)
 
     for image in process_file_list:
         # check the status of the sequence processing
@@ -50,11 +74,13 @@ def process_upload_params(import_path,
             if verbose:
                 print("Warning, sequence process has not been done for image " + image +
                       ", therefore it will not be included in the upload params processing.")
-            processing.create_and_log_process(image,
-                                              import_path,
-                                              {},
-                                              "upload_params_process")
-            continue
+                processing.create_and_log_process(image,
+                                                  import_path,
+                                                  "upload_params_process",
+                                                  "failed",
+                                                  verbose=verbose)
+                continue
+
         # check if geotag process was a success
         log_sequence_process_success = os.path.join(
             log_root, "sequence_process_success")
@@ -64,8 +90,9 @@ def process_upload_params(import_path,
                       ", therefore it will not be included in the upload params processing.")
             processing.create_and_log_process(image,
                                               import_path,
-                                              {},
-                                              "upload_params_process")
+                                              "upload_params_process",
+                                              "failed",
+                                              verbose=verbose)
             continue
         duplicate_flag_path = os.path.join(log_root,
                                            "duplicate")
@@ -75,9 +102,9 @@ def process_upload_params(import_path,
             if verbose:
                 print("Warning, duplicate flag for " + image +
                       ", therefore it will not be included in the upload params processing.")
-                open(upload_params_process_success_path, "w").close()
-                open(upload_params_process_success_path + "_" +
-                     str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+            open(upload_params_process_success_path, "w").close()
+            open(upload_params_process_success_path + "_" +
+                 str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
             continue
 
         # load the sequence json
@@ -93,8 +120,9 @@ def process_upload_params(import_path,
                       ", therefore it will not be included in the upload params processing.")
             processing.create_and_log_process(image,
                                               import_path,
-                                              {},
-                                              "upload_params_process")
+                                              "upload_params_process",
+                                              "failed",
+                                              verbose=verbose)
             continue
         if "MAPSequenceUUID" in sequence_data:
             sequence_uuid = sequence_data["MAPSequenceUUID"]
@@ -117,14 +145,17 @@ def process_upload_params(import_path,
                           ", therefore it will not be uploaded.")
                 processing.create_and_log_process(image,
                                                   import_path,
-                                                  {},
-                                                  "upload_params_process")
+                                                  "upload_params_process",
+                                                  "failed",
+                                                  verbose=verbose)
                 continue
 
             processing.create_and_log_process(image,
                                               import_path,
+                                              "upload_params_process",
+                                              "success",
                                               upload_params,
-                                              "upload_params_process")
+                                              verbose=verbose)
             # flag manual upload
             log_manual_upload = os.path.join(
                 log_root, "manual_upload")
@@ -135,6 +166,7 @@ def process_upload_params(import_path,
                       ", therefore it will not be included in the upload params processing.")
             processing.create_and_log_process(image,
                                               import_path,
-                                              {},
-                                              "upload_params_process")
+                                              "upload_params_process",
+                                              "failed",
+                                              verbose=verbose)
             continue

@@ -16,16 +16,23 @@ def process_user_properties(import_path,
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",
                                                          rerun)
-    processing.inform_processing_start(import_path,
-                                       len(process_file_list),
-                                       "user process")
+    if verbose:
+        processing.inform_processing_start(import_path,
+                                           len(process_file_list),
+                                           "user process")
+
+    if not len(process_file_list):
+        if verbose:
+            print("No images to run user process")
+            print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
+        return
 
     # sanity checks
     if not user_name:
         print("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   import_path,
-                                                  "user_process"
+                                                  "user_process",
                                                   "failed",
                                                   verbose)
         return
@@ -34,7 +41,7 @@ def process_user_properties(import_path,
         print("Error, if the import belongs to a private repository, you need to provide a valid organization name or key to which the private repository belongs to, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   import_path,
-                                                  "user_process"
+                                                  "user_process",
                                                   "failed",
                                                   verbose)
         return
@@ -51,7 +58,7 @@ def process_user_properties(import_path,
             print("Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
                                                       import_path,
-                                                      "user_process"
+                                                      "user_process",
                                                       "failed",
                                                       verbose)
             return
@@ -64,7 +71,7 @@ def process_user_properties(import_path,
         except:
             processing.create_and_log_process_in_list(process_file_list,
                                                       import_path,
-                                                      "user_process"
+                                                      "user_process",
                                                       "failed",
                                                       verbose)
             return
@@ -90,7 +97,7 @@ def process_user_properties(import_path,
                               ", check if the user name is spelled correctly and if the master key is correct")
                         processing.create_and_log_process_in_list(process_file_list,
                                                                   import_path,
-                                                                  "user_process"
+                                                                  "user_process",
                                                                   "failed",
                                                                   verbose)
                         return
@@ -99,7 +106,7 @@ def process_user_properties(import_path,
                           ", check if the user name is spelled correctly and if the master key is correct")
                     processing.create_and_log_process_in_list(process_file_list,
                                                               import_path,
-                                                              "user_process"
+                                                              "user_process",
                                                               "failed",
                                                               verbose)
                     return
@@ -108,7 +115,7 @@ def process_user_properties(import_path,
                 print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
                 processing.create_and_log_process_in_list(process_file_list,
                                                           import_path,
-                                                          "user_process"
+                                                          "user_process",
                                                           "failed",
                                                           verbose)
                 return
@@ -117,7 +124,7 @@ def process_user_properties(import_path,
             print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
             processing.create_and_log_process_in_list(process_file_list,
                                                       import_path,
-                                                      "user_process"
+                                                      "user_process",
                                                       "failed",
                                                       verbose)
             return
@@ -137,7 +144,7 @@ def process_user_properties(import_path,
     # properties process
     processing.create_and_log_process_in_list(process_file_list,
                                               import_path,
-                                              "user_process"
+                                              "user_process",
                                               "success",
                                               verbose,
                                               mapillary_description)

@@ -146,9 +146,13 @@ def finalize_upload(params, retry=3, auto_done=False):
                 print('Please answer y or n. Try again.')
 
 
-def prompt_to_finalize():
+def prompt_to_finalize(subcommand):
+    note = ""
+    if subcommand == "process":
+        note = "(resulting in image EXIF editing)"
     for i in range(3):
-        finalize = raw_input("Finalize all uploads in this import ? [y/n]: ")
+        finalize = raw_input(
+            "Finalize all {} in this import {}? [y/n]: ".format(subcommand, note))
         if finalize in ["y", "Y", "yes", "Yes"]:
             return 1
         elif finalize in ["n", "N", "no", "No"]:
@@ -208,11 +212,12 @@ def get_failed_upload_file_list(import_path):
 def preform_upload(import_path, root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(import_path, file_path)
-    process_succes = os.path.join(log_root, "process_success")
+    process_failed = os.path.join(
+        log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
     upload_succes = os.path.join(log_root, "upload_success")
     upload = not os.path.isfile(
-        upload_succes) and os.path.isfile(process_succes) and not os.path.isfile(
+        upload_succes) and not os.path.isfile(process_failed) and not os.path.isfile(
         duplicate)
     return upload
 
@@ -220,11 +225,12 @@ def preform_upload(import_path, root, file):
 def failed_upload(import_path, root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(import_path, file_path)
-    process_succes = os.path.join(log_root, "process_success")
+    process_failed = os.path.join(
+        log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
     upload_failed = os.path.join(log_root, "upload_failed")
     failed = os.path.isfile(
-        upload_failed) and os.path.isfile(process_succes) and not os.path.isfile(
+        upload_failed) and not os.path.isfile(process_failed) and not os.path.isfile(
         duplicate)
     return failed
 

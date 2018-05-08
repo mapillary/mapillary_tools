@@ -97,21 +97,9 @@ def get_args():
     parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
                         action='store_true', default=False)
 
-    # skip certain steps of processing
-    parser.add_argument('--skip_user_processing',
-                        help='skip the processing of user properties', action='store_true', default=False)
-    parser.add_argument('--skip_import_meta_processing',
-                        help='skip the processing of import meta data properties', action='store_true', default=False)
-    parser.add_argument('--skip_geotagging', help='skip the geotagging',
-                        action='store_true', default=False)
-    parser.add_argument('--skip_sequence_processing',
-                        help='skip the sequence processing', action='store_true', default=False)
-    parser.add_argument('--skip_QC', help='skip the quality check',
-                        action='store_true', default=False)
-    parser.add_argument('--skip_upload_params_processing',
-                        help='skip the upload params processing', action='store_true', default=False)
-    parser.add_argument('--skip_insert_EXIF',
-                        help='skip the insertion of MAPJsons into image EXIF tag Image Description', action='store_true', default=False)
+    # manually process finalize
+    parser.add_argument('--manual_process_finalize',
+                        help='Manually finalize the process, resulting in editing image EXIF.', action='store_true', default=False)
 
     # video
     parser.add_argument(
@@ -210,13 +198,7 @@ if __name__ == '__main__':
     manual_done = args.manual_done
 
     # skip args
-    skip_user_processing = args.skip_user_processing
-    skip_import_meta_processing = args.skip_import_meta_processing
-    skip_geotagging = args.skip_geotagging
-    skip_sequence_processing = args.skip_sequence_processing
-    skip_QC = args.skip_QC
-    skip_upload_params_processing = args.skip_upload_params_processing
-    skip_insert_EXIF = args.skip_insert_EXIF
+    manual_process_finalize = args.manual_process_finalize
 
     # internal args
     timestamp_from_filename = False
@@ -264,7 +246,7 @@ if __name__ == '__main__':
         timestamp_from_filename = True
 
     # PROCESS USER PROPERTIES --------------------------------------
-    if tool == "user_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_user_processing):
+    if tool == "user_process" or tool == "process" or tool == "process_and_upload":
         # function call
         process_user_properties(import_path,
                                 user_name,
@@ -275,7 +257,7 @@ if __name__ == '__main__':
                                 verbose,
                                 rerun)
     # PROCESS IMPORT PROPERTIES --------------------------------------
-    if tool == "import_metadata_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_import_meta_processing):
+    if tool == "import_metadata_process" or tool == "process" or tool == "process_and_upload":
         # function call
         process_import_meta_properties(import_path,
                                        orientation,
@@ -289,7 +271,7 @@ if __name__ == '__main__':
                                        verbose,
                                        rerun)
     # PROCESS GEO/TIME PROPERTIES --------------------------------------
-    if tool == "geotag_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_geotagging):
+    if tool == "geotag_process" or tool == "process" or tool == "process_and_upload":
         # function call
         process_geotag_properties(import_path,
                                   geotag_source,
@@ -307,7 +289,7 @@ if __name__ == '__main__':
                                   timestamp_from_filename,
                                   verbose)
     # PROCESS SEQUENCE PROPERTIES --------------------------------------
-    if tool == "sequence_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_sequence_processing):
+    if tool == "sequence_process" or tool == "process" or tool == "process_and_upload":
         process_sequence_properties(import_path,
                                     cutoff_distance,
                                     cutoff_time,
@@ -318,7 +300,7 @@ if __name__ == '__main__':
                                     verbose,
                                     rerun)
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
-    if tool == "upload_params_process" or (((tool == "process") or (tool == "process_and_upload")) and not skip_upload_params_processing):
+    if tool == "upload_params_process" or tool == "process" or tool == "process_and_upload":
         # function call
         process_upload_params(import_path,
                               user_name,
@@ -331,7 +313,7 @@ if __name__ == '__main__':
         insert_MAPJson(import_path,
                        master_upload,
                        verbose,
-                       skip_insert_EXIF,
+                       manual_process_finalize,
                        rerun)
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":

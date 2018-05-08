@@ -173,13 +173,8 @@ def process_organization(mapillary_description, organization_name, organization_
 
 
 def inform_processing_start(import_path, len_process_file_list, process):
-    if not len_process_file_list:
-        print("No images to run {}.".format(process))
-        print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
-        sys.exit()
 
     total_file_list = uploader.get_total_file_list(import_path)
-
     print("Running {} for {} images, skipping {} images.".format(process,
                                                                  len_process_file_list,
                                                                  len(total_file_list) - len_process_file_list))
