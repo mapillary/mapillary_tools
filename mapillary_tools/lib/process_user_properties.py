@@ -68,6 +68,7 @@ def process_user_properties(import_path,
                                                                organization_name,
                                                                organization_key,
                                                                private)
+            print(organization_key)
         except:
             processing.create_and_log_process_in_list(process_file_list,
                                                       import_path,
@@ -132,6 +133,17 @@ def process_user_properties(import_path,
     # a unique photo ID to check for duplicates in the backend in case the
     # image gets uploaded more than once
     mapillary_description['MAPPhotoUUID'] = str(uuid.uuid4())
+
+    if (private or organization_name) and not organization_key:
+        if verbose:
+            print(
+                "Error, organization name or privacy set, but organization key not obtained.")
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "user_process",
+                                                  "failed",
+                                                  verbose)
+        return
 
     # organization entries
     if organization_key:

@@ -41,7 +41,6 @@ def finalize_import_properties_process(image,
                                        mapillary_description={}):
     # always check if there are any command line arguments passed, they will
     if orientation:
-        orientation = format_orientation(orientation)
         mapillary_description["MAPOrientation"] = orientation
     if device_make:
         mapillary_description['MAPDeviceMake'] = device_make
