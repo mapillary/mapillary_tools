@@ -60,9 +60,9 @@ Writes the project tokens to the EXIF of images in the given path. This way, you
 
 A lightweight script for geotagging images with GPS data from a gpx file. Writes lat, lon, and bearing to the right EXIF tags. Use it like:
 
-    python geotag_from_gpx.py path-to-images/ gpx_file --time-offset [time_offset]
+    python geotag_from_gpx.py path-to-images/ gpx_file --time-offset [time_offset] [--no-overwrite]
 
-The time_offset is optional and is used if your camera clock is offset from your GPS clock. (Requires gpxpy, e.g. 'pip install gpxpy').
+The time_offset is optional and is used if your camera clock is offset from your GPS clock. (Requires gpxpy, e.g. 'pip install gpxpy'). By default the script will overwrite EXIF even if they already have geotags. Use `--no-overwrite` if you want to preserve them.
 
 
 **interpolate_direction.py**
