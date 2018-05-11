@@ -74,6 +74,37 @@ def finalize_import_properties_process(image,
                                       verbose)
 
 
+def get_import_meta_properties_exif(image, verbose):
+    import_meta_data_properties = {}
+    try:
+        exif = ExifRead(image)
+    except:
+        if verbose:
+            print("Warning, EXIF could not be read for image " +
+                  image + ", import properties not read.")
+        return None
+    try:
+        import_meta_data_properties["MAPOrientation"] = exif.extract_orientation(
+        )
+    except:
+        if verbose:
+            print("Warning, image orientation tag not in EXIF.")
+    try:
+        import_meta_data_properties["MAPDeviceMake"] = exif.extract_make(
+        )
+    except:
+        if verbose:
+            print("Warning, camera make tag not in EXIF.")
+    try:
+        import_meta_data_properties["MAPDeviceModel"] = exif.extract_model(
+        )
+    except:
+        if verbose:
+            print("Warning, camera model tag not in EXIF.")
+
+    return import_meta_data_properties
+
+
 def process_import_meta_properties(import_path,
                                    orientation,
                                    device_make,
@@ -89,11 +120,8 @@ def process_import_meta_properties(import_path,
      # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "import_meta_data_process",
-                                                         rerun)
-    if verbose:
-        processing.inform_processing_start(import_path,
-                                           len(process_file_list),
-                                           "import_meta_data_process")
+                                                         rerun,
+                                                         verbose)
     if not len(process_file_list):
         if verbose:
             print("No images to run import meta data process")
@@ -141,31 +169,8 @@ def process_import_meta_properties(import_path,
             # read import meta from image EXIF and finalize the import
             # properties process
             for image in process_file_list:
-                mapillary_description = {}
-                try:
-                    exif = ExifRead(image)
-                    try:
-                        mapillary_description["MAPOrientation"] = exif.extract_orientation(
-                        )
-                    except:
-                        if verbose:
-                            print("Warning, image orientation tag not in EXIF.")
-                    try:
-                        mapillary_description["MAPDeviceMake"] = exif.extract_make(
-                        )
-                    except:
-                        if verbose:
-                            print("Warning, camera make tag not in EXIF.")
-                    try:
-                        mapillary_description["MAPDeviceModel"] = exif.extract_model(
-                        )
-                    except:
-                        if verbose:
-                            print("Warning, camera model tag not in EXIF.")
-                except:
-                    if verbose:
-                        print("Warning, EXIF could not be read for image " +
-                              image + ", import properties not read.")
+                import_meta_data_properties = get_import_meta_properties_exif(
+                    image, verbose)
                 finalize_import_properties_process(image,
                                                    import_path,
                                                    orientation,

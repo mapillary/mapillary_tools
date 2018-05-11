@@ -7,15 +7,255 @@ import sys
 from exif_read import ExifRead
 from exif_write import ExifEdit
 from exif_aux import verify_exif
-from geo import normalize_bearing
+from geo import normalize_bearing, interpolate_lat_lon
 import config
 import uploader
+from dateutil.tz import tzlocal
+from gps_parser import get_lat_lon_time_from_gpx
+from process_video import timestamps_from_filename
+
+
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
                 }
 '''
 auxillary processing functions
 '''
+
+
+def exif_time(filename):
+    '''
+    Get image capture time from exif
+    '''
+    metadata = ExifRead(filename)
+    return metadata.extract_capture_time()
+
+
+def estimate_sub_second_time(files, interval):
+    '''
+    Estimate the capture time of a sequence with sub-second precision
+    EXIF times are only given up to a second of precission. This function
+    uses the given interval between shots to Estimate the time inside that
+    second that each picture was taken.
+    '''
+    if interval <= 0.0:
+        return [exif_time(f) for f in files]
+
+    onesecond = datetime.timedelta(seconds=1.0)
+    T = datetime.timedelta(seconds=interval)
+    for i, f in enumerate(files):
+        m = exif_time(f)
+        if i == 0:
+            smin = m
+            smax = m + onesecond
+        else:
+            m0 = m - T * i
+            smin = max(smin, m0)
+            smax = min(smax, m0 + onesecond)
+
+    if smin > smax:
+        print('Interval not compatible with EXIF times')
+        return None
+    else:
+        s = smin + (smax - smin) / 2
+        return [s + T * i for i in range(len(files))]
+
+
+def geotag_from_exif(process_file_list,
+                     import_path,
+                     offset_angle,
+                     verbose):
+
+    for image in process_file_list:
+        geotag_properties = get_geotag_properties_from_exif(
+            image, offset_angle)
+
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          "geotag_process",
+                                          "success",
+                                          geotag_properties,
+                                          verbose)
+
+
+def get_geotag_properties_from_exif(image, offset_angle):
+    try:
+        exif = ExifRead(image)
+    except:
+        print("Error, EXIF could not be read for image " +
+              image + ", geotagging process failed for this image since gps/time properties not read.")
+        return None
+    # required tags
+    try:
+        lon, lat = exif.extract_lon_lat()
+    except:
+        print("Error, " + image +
+              " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        return None
+    if lat != None and lon != None:
+        geotag_properties = {"MAPLatitude": lat}
+        geotag_properties["MAPLongitude"] = lon
+    else:
+        print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        return None
+    try:
+        timestamp = exif.extract_capture_time()
+    except:
+        print("Error, " + image +
+              " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        return None
+    geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
+        timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+
+    # optional fields
+    try:
+        geotag_properties["MAPAltitude"] = exif.extract_altitude()
+    except:
+        if verbose:
+            print("Warning, image altitude tag not in EXIF.")
+    try:
+        heading = exif.extract_direction()
+        if heading is None:
+            heading = 0.0
+        heading = normalize_bearing(heading + offset_angle)
+        # bearing of the image
+        geotag_properties["MAPCompassHeading"] = {"TrueHeading": heading,
+                                                  "MagneticHeading": heading}
+    except:
+        if verbose:
+            print("Warning, image direction tag not in EXIF.")
+
+    return geotag_properties
+
+
+def geotag_from_gpx(process_file_list,
+                    import_path,
+                    geotag_source_path,
+                    offset_time,
+                    offset_angle,
+                    local_time,
+                    interval,
+                    timestamp_from_filename,
+                    video_duration,
+                    sample_interval,
+                    video_start_time,
+                    use_gps_start_time,
+                    duration_ratio,
+                    verbose):
+    # set flag for geotagging error
+    error_geotaging = 0
+
+    # print time now to warn in case local_time
+    if local_time:
+        now = datetime.datetime.now(tzlocal())
+        if verbose:
+            print("Your local timezone is {0}. If not, the geotags will be wrong."
+                  .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+    else:
+        # if not local time to be used, warn UTC will be used
+        if verbose:
+            print(
+                "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
+
+    # read gpx file to get track locations
+    gpx = get_lat_lon_time_from_gpx(geotag_source_path,
+                                    local_time)
+
+    # Estimate capture time with sub-second precision, reading from image EXIF
+    # or estimating from filename
+    if timestamp_from_filename:
+        if use_gps_start_time or not video_start_time:
+            video_start_time = gpx[0][0]
+
+        sub_second_times = timestamps_from_filename(process_file_list,
+                                                    video_duration,
+                                                    sample_interval,
+                                                    video_start_time,
+                                                    duration_ratio)
+    else:
+        sub_second_times = estimate_sub_second_time(process_file_list,
+                                                    interval)
+    if not sub_second_times:
+        print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "geotag_process"
+                                                  "failed",
+                                                  verbose)
+        return
+
+    if not gpx:
+        print("Error, gpx file was not read, images can not be geotagged.")
+        processing.create_and_log_process_in_list(process_file_list,
+                                                  import_path,
+                                                  "geotag_process"
+                                                  "failed",
+                                                  verbose)
+        return
+
+    for image, capture_time in zip(process_file_list,
+                                   sub_second_times):
+
+        geotag_properties = get_geotag_properties_from_gpx(
+            image, offset_angle, offset_time, capture_time, gpx)
+
+        processing.create_and_log_process(image,
+                                          import_path,
+                                          "geotag_process",
+                                          "success",
+                                          geotag_properties,
+                                          verbose)
+
+
+def get_geotag_properties_from_gpx(image, offset_angle, offset_time, capture_time, gpx):
+
+    capture_time = capture_time - \
+        datetime.timedelta(seconds=offset_time)
+    try:
+        lat, lon, bearing, elevation = interpolate_lat_lon(gpx,
+                                                           capture_time)
+    except:
+        return None
+
+    corrected_bearing = (bearing + offset_angle) % 360
+
+    if lat != None and lon != None:
+        geotag_properties = {"MAPLatitude": lat}
+        geotag_properties["MAPLongitude"] = lon
+    else:
+        return None
+
+    geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(capture_time,
+                                                                     "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+    if elevation:
+        geotag_properties["MAPAltitude"] = elevation
+    else:
+        if verbose:
+            print("Warning, image altitude tag not set.")
+    if corrected_bearing:
+        geotag_properties["MAPCompassHeading"] = {
+            "TrueHeading": corrected_bearing, "MagneticHeading": corrected_bearing}
+    else:
+        if verbose:
+            print("Warning, image direction tag not set.")
+
+    return geotag_properties
+
+
+def geotag_from_csv(process_file_list,
+                    import_path,
+                    offset_angle,
+                    geotag_source_path,
+                    verbose):
+    pass
+
+
+def geotag_from_json(process_file_list,
+                     import_path,
+                     offset_angle,
+                     geotag_source_path,
+                     verbose):
+    pass
 
 
 def format_orientation(orientation):
@@ -56,11 +296,17 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
-def get_process_file_list(import_path, process, rerun):
+def get_process_file_list(import_path, process, rerun, verbose):
     process_file_list = []
     for root, dir, files in os.walk(import_path):
         process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
             import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    if verbose and process != "sequence_process":
+        inform_processing_start(import_path,
+                                len(process_file_list),
+                                process)
+
     return process_file_list
 
 
@@ -78,7 +324,7 @@ def create_and_log_process_in_list(process_file_list,
                                    import_path,
                                    process,
                                    status,
-                                   verbose,
+                                   verbose=False,
                                    mapillary_description={}):
     for image in process_file_list:
         create_and_log_process(image,
@@ -134,41 +380,105 @@ def create_and_log_process(image, import_path, process, status, mapillary_descri
             os.remove(log_MAPJson)
 
 
-def process_organization(mapillary_description, organization_name, organization_key, private):
+def user_properties(user_name,
+                    import_path,
+                    process_file_list,
+                    organization_name=None,
+                    organization_key=None,
+                    private=False,
+                    verbose=False):
+    # basic
+    try:
+        user_properties = uploader.authenticate_user(user_name)
+    except:
+        print("Error, user authentication failed for user " + user_name)
+        return None
+    # organization validation
     if organization_name or organization_key:
-        if not "user_upload_token" in mapillary_description or not "MAPSettingsUserKey" in mapillary_description:
-            print(
-                "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
-            sys.exit()
+        organization_key = processing.process_organization(user_properties,
+                                                           organization_name,
+                                                           organization_key,
+                                                           private)
+        user_properties.update(
+            {'MAPOrganizationKey': organization_key, 'MAPPrivate': private})
 
-    if organization_name and not organization_key:
+    # remove uneeded credentials
+    if "user_upload_token" in user_properties:
+        del user_properties["user_upload_token"]
+    if "user_permission_hash" in user_properties:
+        del user_properties["user_permission_hash"]
+    if "user_signature_hash" in user_properties:
+        del user_properties["user_signature_hash"]
+
+    return user_properties
+
+
+def user_properties_master(user_name,
+                           import_path,
+                           process_file_list,
+                           organization_key=None,
+                           private=False,
+                           verbose=False):
+
+    try:
+        master_key = uploader.get_master_key()
+    except:
+        print("Error, no master key found.")
+        print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
+        return None
+
+    user_properties = {"MAPVideoSecure": master_key}
+    user_properties["MAPSettingsUsername"] = user_name
+    try:
+        user_key = uploader.get_user_key(user_name)
+    except:
+        print("Error, no user key obtained for the user name " + user_name +
+              ", check if the user name is spelled correctly and if the master key is correct")
+        return None
+    user_properties['MAPSettingsUserKey'] = user_key
+
+    if organization_key and private:
+        user_properties.update(
+            {'MAPOrganizationKey': organization_key, 'MAPPrivate': private})
+
+    return user_properties
+
+
+def process_organization(user_properties, organization_name, organization_key, private):
+    if not "user_upload_token" in user_properties or not "MAPSettingsUserKey" in user_properties:
+        print(
+            "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
+        sys.exit()
+    user_key = user_properties["MAPSettingsUserKey"]
+    user_upload_token = user_properties["user_upload_token"]
+    if not organization_key:
         try:
-            organization_key = uploader.get_organization_key(mapillary_description["MAPSettingsUserKey"],
+            organization_key = uploader.get_organization_key(user_key,
                                                              organization_name,
-                                                             mapillary_description["user_upload_token"])
+                                                             user_upload_token)
         except:
             print("Error, could not obtain organization key, exiting...")
             sys.exit()
 
-    if organization_key:
-        # validate key
-        try:
-            uploader.validate_organization_key(mapillary_description["MAPSettingsUserKey"],
-                                               organization_key,
-                                               mapillary_description["user_upload_token"])
-        except:
-            print("Error, organization key validation failed, exiting...")
-            sys.exit()
+    # validate key
+    try:
+        uploader.validate_organization_key(user_key,
+                                           organization_key,
+                                           user_upload_token)
+    except:
+        print("Error, organization key validation failed, exiting...")
+        sys.exit()
 
-        # validate privacy
-        try:
-            uploader.validate_organization_privacy(mapillary_description["MAPSettingsUserKey"],
-                                                   organization_key,
-                                                   private,
-                                                   mapillary_description["user_upload_token"])
-        except:
-            print("Error, organization privacy validation failed, exiting...")
-            sys.exit()
+    # validate privacy
+    try:
+        uploader.validate_organization_privacy(user_key,
+                                               organization_key,
+                                               private,
+                                               user_upload_token)
+    except:
+        print("Error, organization privacy validation failed, exiting...")
+        sys.exit()
+
     return organization_key
 
 

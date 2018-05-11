@@ -108,7 +108,8 @@ def process_sequence_properties(import_path,
         if len(files):
             process_file_list = processing.get_process_file_list(root,
                                                                  "sequence_process",
-                                                                 rerun)
+                                                                 rerun,
+                                                                 verbose)
             if not len(process_file_list):
                 if verbose:
                     print("No images to run sequence process in root " + root)

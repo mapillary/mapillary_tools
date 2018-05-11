@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 
 import processing
 import uploader
@@ -15,11 +16,8 @@ def insert_MAPJson(import_path,
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "mapillary_image_description",
-                                                         rerun)
-    if verbose:
-        processing.inform_processing_start(import_path,
-                                           len(process_file_list),
-                                           "process finalization")
+                                                         rerun,
+                                                         verbose)
     if not len(process_file_list):
         if verbose:
             print("No images to run process finalization")
@@ -98,6 +96,12 @@ def insert_MAPJson(import_path,
                                               verbose=verbose)
 
             continue
+        else:
+             # a unique photo ID to check for duplicates in the backend in case the
+             # image gets uploaded more than once
+            final_mapillary_image_description['MAPPhotoUUID'] = str(
+                uuid.uuid4())
+
         processing.create_and_log_process(image,
                                           import_path,
                                           "mapillary_image_description",

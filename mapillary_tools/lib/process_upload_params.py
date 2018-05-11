@@ -16,11 +16,8 @@ def process_upload_params(import_path,
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "upload_params_process",
-                                                         rerun)
-    if verbose and not master_upload:
-        processing.inform_processing_start(import_path,
-                                           len(process_file_list),
-                                           "upload_params_process")
+                                                         rerun,
+                                                         verbose)
     if not len(process_file_list):
         if verbose:
             print("No images to run upload params process")
