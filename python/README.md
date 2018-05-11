@@ -126,6 +126,10 @@ Script for uploading images taken with other cameras than the Mapillary apps. Yo
 
 See this [blog post](http://blog.mapillary.com/technology/2014/07/21/upload-scripts.html) for more details.
 
+Override the prompt at the end of the upload and have the script automatically finalize the sequence when there are no more images left.
+
+    python upload_with_authentication.py path-to-images/ --auto_done 
+
 If upload fails mid-sequence due to connection failure or similar, you should manually push the images to the server by opening [Manual Uploads](https://legacy.mapillary.com/map/upload/im) and pressing "push to Mapillary".
 
 (Requires environment variables set:  MAPILLARY_USERNAME, MAPILLARY_PERMISSION_HASH, MAPILLARY_SIGNATURE_HASH from [upload from script information](https://www.mapillary.com/app/settings/developers))
