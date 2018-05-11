@@ -11,6 +11,7 @@ import lib.exifedit as exifedit
 import lib.geo as geo
 from lib.gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from lib.ffprobe import FFProbe
+from extract_gopro import get_points_from_gpmf
 
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -85,6 +86,7 @@ def get_args():
     p.add_argument("--local_time", help="Use local time for GPS trace", action="store_true")
     p.add_argument("--make", help="Specify device manufacturer", default="none")
     p.add_argument("--model", help="Specify device model", default="none")
+    p.add_argument("--process_gpmf", help="Extract data from certain GoPro cameras", action="store_true")
     return p.parse_args()
 
 
@@ -103,7 +105,13 @@ if __name__ == "__main__":
     model = args.model
 
     # Parse gps trace
-    points = parse_gps_trace(gps_trace_file, args.local_time)
+    points = None
+    if gps_trace_file.lower().endswith('.mp4'):  # as with fusion, implies process_gpmf - BRITTLE
+        points = get_points_from_gpmf(gps_trace_file)
+    elif args.process_gpmf:
+        points = get_points_from_gpmf(video_file)
+    else:
+        points = parse_gps_trace(gps_trace_file, args.local_time)
 
     # Get sync between video and gps trace
     if args.use_gps_start_time:
