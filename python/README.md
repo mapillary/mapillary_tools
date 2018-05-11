@@ -8,7 +8,7 @@ Python Tools for Mapillary
 * [PIL]
 * [Piexif]
 
-Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.  
+Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.
 
 ## Installing on MacOSX
     sudo pip install -r requirements.txt
@@ -23,7 +23,7 @@ If you don't have pip on your system, you can install it by `sudo easy_install p
     python -m virtualenv --python=python2 --system-site-packages .env
     source .env/bin/activate
     pip install -r requirements.txt
-    
+
 Run `deactivate` to exit the virtualenv.
 
 ## Preprocessing
@@ -54,7 +54,7 @@ Writes the project tokens to the EXIF of images in the given path. This way, you
 
     python add_project.py path-to-images/ project_name
 
-(Requires enviroment variables set: MAPILLARY_USERNAME, MAPILLARY_PASSWORD)
+(Requires environment variables set: MAPILLARY_USERNAME, MAPILLARY_PASSWORD)
 
 **geotag_from_gpx.py**
 
@@ -101,7 +101,7 @@ This script uploads images taken with any of the Mapillary apps to the Mapillary
 
     python upload.py path-to-images/
 
-To upload multiple sequences at once use the following syntax with the additional arguement:
+To upload multiple sequences at once use the following syntax with the additional argument:
 
     python upload.py path-to-images/ --upload_subfolders
 
