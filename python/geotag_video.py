@@ -106,13 +106,17 @@ if __name__ == "__main__":
 
     # Parse gps trace
     points = None
-    if gps_trace_file.lower().endswith('.mp4'):  # as with fusion, implies process_gpmf - BRITTLE
-        points = get_points_from_gpmf(gps_trace_file)
+    if not gps_trace_file and not args.process_gpmf:
+        print("Error, must provide a valid gps trace file or in case of go pro video, specify --process_gpmf, exiting ...")
+        sys.exit()
     elif args.process_gpmf:
         points = get_points_from_gpmf(video_file)
     else:
         points = parse_gps_trace(gps_trace_file, args.local_time)
 
+    if not points:
+        print("Error, no gps points read, exiting...")
+        sys.exit()
     # Get sync between video and gps trace
     if args.use_gps_start_time:
         start_time = points[0][0]

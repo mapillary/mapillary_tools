@@ -12,22 +12,26 @@ def get_ffprobe(path):
     '''
     try:
         with open(os.devnull, 'w') as tempf:
-            subprocess.check_call(['ffprobe', '-h'], stdout=tempf, stderr=tempf)
+            subprocess.check_call(
+                ['ffprobe', '-h'], stdout=tempf, stderr=tempf)
     except Exception as e:
         raise IOError('ffprobe not found.')
 
     if not os.path.isfile(path):
         raise IOError('No such file: ' + path)
 
-    j_str = subprocess.check_output([
-        'ffprobe',
-        '-v', 'quiet',
-        '-print_format', 'json',
-        '-show_format',
-        '-show_streams',
-        path
-    ])
-
+    j_str = ""
+    try:
+        j_str = subprocess.check_output([
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_format',
+            '-show_streams',
+            path
+        ])
+    except subprocess.CalledProcessError:
+        pass
     j_obj = json.loads(j_str)
 
     return j_obj
@@ -44,7 +48,7 @@ def extract_stream(source, dest, stream_id):
     subprocess.check_output([
         'ffmpeg',
         '-i', source,
-        '-y', # overwrite - potentially dangerous
+        '-y',  # overwrite - potentially dangerous
         '-nostats',
         '-loglevel', '0',
         '-codec', 'copy',

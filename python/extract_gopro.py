@@ -46,7 +46,8 @@ def write_gpx(path, data):
     gpx_track.segments.append(gpx_segment)
 
     for point in data:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(point[1], point[2], elevation=point[3]))
+        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+            point[1], point[2], elevation=point[3], time=point[0]))
 
     with open(path, "w") as f:
         f.write(gpx.to_xml())
@@ -55,19 +56,20 @@ def write_gpx(path, data):
 '''
 used over in geotag_video.py
 '''
+
+
 def get_points_from_gpmf(path):
     bin_path = extract_bin(path)
 
     gpmf_data = parse_bin(bin_path)
     rows = len(gpmf_data)
-
     points = []
 
     for i, frame in enumerate(gpmf_data):
         t = frame['time']
 
-        if i < rows-1:
-            next_ts = gpmf_data[i+1]['time']
+        if i < rows - 1:
+            next_ts = gpmf_data[i + 1]['time']
         else:
             next_ts = t + datetime.timedelta(seconds=1)
 
@@ -86,7 +88,8 @@ def get_points_from_gpmf(path):
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Extract geospatial information from a GoPro mp4 file')
+    parser = argparse.ArgumentParser(
+        description='Extract geospatial information from a GoPro mp4 file')
     parser.add_argument('path', help='path to .mp4 file')
     args = parser.parse_args()
     return args
