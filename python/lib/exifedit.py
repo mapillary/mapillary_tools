@@ -152,7 +152,8 @@ def add_mapillary_description(filename, username, email,
         image_description['MAPSettingsUploadHash'] = settings_upload_hash
 
         # if this image is part of a projet, the project UUID
-        image_description["MAPSettingsProject"] = project
+        if project:
+            image_description["MAPSettingsProject"] = project
 
     assert("MAPSequenceUUID" in image_description)
 

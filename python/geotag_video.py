@@ -100,17 +100,19 @@ if __name__ == "__main__":
     gps_trace_file = args.gps_trace
     time_offset = args.time_offset
     duration_ratio = args.duration_ratio
-
+    use_gps_start_time = args.use_gps_start_time
+    
     make = args.make
     model = args.model
 
     # Parse gps trace
     points = None
-    if not gps_trace_file and not args.process_gpmf:
-        print("Error, must provide a valid gps trace file or in case of go pro video, specify --process_gpmf, exiting ...")
+    if not gps_trace_file:
+        print("Error, must provide a valid source of gps trace, exiting ...")
         sys.exit()
-    elif args.process_gpmf:
-        points = get_points_from_gpmf(video_file)
+    elif args.process_gpmf or gps_trace_file.endswith(".mp4"):
+        points = get_points_from_gpmf(gps_trace_file)
+        use_gps_start_time = True
     else:
         points = parse_gps_trace(gps_trace_file, args.local_time)
 
@@ -118,7 +120,7 @@ if __name__ == "__main__":
         print("Error, no gps points read, exiting...")
         sys.exit()
     # Get sync between video and gps trace
-    if args.use_gps_start_time:
+    if use_gps_start_time:
         start_time = points[0][0]
     elif args.start_time:
         start_time = datetime.datetime.utcfromtimestamp(args.start_time / 1000.)

@@ -4,6 +4,7 @@ import datetime
 import struct
 import binascii
 
+# author https://github.com/stilldavid
 
 '''
 does the heavy lifting of parsing the GPMF format from a binary file
@@ -23,7 +24,8 @@ def parse_gps(toparse, data, scale):
 
 
 def parse_time(toparse, data, scale):
-    datetime_object = datetime.datetime.strptime(str(toparse), '%y%m%d%H%M%S.%f')
+    datetime_object = datetime.datetime.strptime(
+        str(toparse), '%y%m%d%H%M%S.%f')
     data['time'] = datetime_object
 
 
@@ -55,6 +57,8 @@ Sometimes it's 18Hz, sometimes 19Hz, so peek at the next row and grab their
 timestamp. On the last one, just add 1 second as a best guess, worst case it's
 off by ~50 milliseconds
 '''
+
+
 def interpolate_times(frame, until):
     tot = len(frame['gps'])
     diff = until - frame['time']
@@ -98,7 +102,8 @@ def parse_bin(path):
         num_values = struct.unpack('>h', desc[2:4])[0]
         length = val_size * num_values
 
-        # print "{} {} of size {} and type {}".format(num_values, label, val_size, desc[0])
+        # print "{} {} of size {} and type {}".format(num_values, label,
+        # val_size, desc[0])
 
         if label == 'DVID':
             if len(d['gps']):  # first one is empty

@@ -4,6 +4,8 @@ import subprocess
 import json
 import os
 
+# author https://github.com/stilldavid
+
 
 def get_ffprobe(path):
     '''

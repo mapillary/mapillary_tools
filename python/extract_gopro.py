@@ -8,6 +8,8 @@ import os
 from lib.ffmpeg import extract_stream, get_ffprobe
 from lib.gpmf import parse_bin, interpolate_times
 
+# author https://github.com/stilldavid
+
 '''
 Pulls data out of a GoPro 5+ recording while GPS was enabled.
 '''
