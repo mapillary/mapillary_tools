@@ -138,11 +138,11 @@ def normalize_bearing(bearing, check_hex = False):
     bearing %= 360
     return bearing
 
-def interpolate_lat_lon(points, t, max_dt = 1):
+def interpolate_lat_lon(points, t, max_dt=1):
     '''
     Return interpolated lat, lon and compass bearing for time t.
 
-    Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
+    Points is a list of tuples (time, lat, lon, elevation, fix), t a datetime object.
     '''
     # find the enclosing points in sorted list
     if (t <= points[0][0]) or (t >= points[-1][0]):

@@ -125,10 +125,10 @@ if __name__ == '__main__':
 
 
     # Retrieve/validate project key
-    if not args.skip_validate_project:
+    if (args.project or args.project_key) and not args.skip_validate_project:
         project_key = get_project_key(args.project, args.project_key)
     else:
-        project_key = args.project_key or ''
+        project_key = args.project_key
 
     # Map orientation from degress to tags
     if orientation is not None:
