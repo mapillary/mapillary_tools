@@ -1,4 +1,5 @@
 import processing
+import os
 
 
 def process_geotag_properties(import_path,

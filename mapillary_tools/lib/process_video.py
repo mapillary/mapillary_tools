@@ -1,22 +1,31 @@
 import os
 import datetime
 from ffprobe import FFProbe
-
+import uploader
+import processing
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 
 def sample_video(video_file,
-                 image_path,
-                 sample_interval):
+                 import_path,
+                 sample_interval,
+                 verbose):
+    # check video logs
+    video_upload = processing.video_upload(
+        video_file, import_path, verbose)
 
-    if not os.path.isdir(image_path):
-        os.makedirs(image_path)
+    if video_upload:
+        return
+
     video_file = video_file.replace(" ", "\ ")
     s = "ffmpeg -i {} -loglevel quiet -vf fps=1/{} -qscale 1 {}/%0{}d.jpg".format(
-        video_file, sample_interval, image_path, ZERO_PADDING)
+        video_file, sample_interval, import_path, ZERO_PADDING)
     os.system(s)
+
+    processing.create_and_log_video_process(
+        video_file, import_path)
 
 
 def get_video_duration(video_file):

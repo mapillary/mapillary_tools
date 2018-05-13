@@ -13,6 +13,7 @@ from mapillary_tools.lib.process_upload_params import process_upload_params
 from mapillary_tools.lib.insert_MAPJson import insert_MAPJson
 from mapillary_tools.lib.exif_read import ExifRead
 from mapillary_tools.lib.exif_write import ExifEdit
+from mapillary_tools.lib.gpx_from_gopro import gpx_from_gopro
 
 
 def get_args():
@@ -53,7 +54,7 @@ def get_args():
     # geotagging parameters
     parser.add_argument(
         '--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-        choices=['exif', 'gpx', 'csv', 'json'], default="exif")
+        choices=['exif', 'gpx', 'csv', 'json', 'gopro_video'], default="exif")
     parser.add_argument(
         '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
         default=None)
@@ -136,15 +137,6 @@ if __name__ == '__main__':
 
     args = get_args()
 
-    # INITIAL SANITY CHECKS ---------------------------------------
-    # set import path to images
-    import_path = os.path.abspath(args.path)
-    # check if it exist and exit if it doesnt
-    if not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
-        sys.exit()
-
     # read the tool and execute it
     tool = args.tool
     if tool not in ("upload", "process", "process_and_upload", "process_video", "process_and_upload_video", "user_process", "import_metadata_process",
@@ -212,25 +204,52 @@ if __name__ == '__main__':
     video_duration_ratio = args.video_duration_ratio
     video_start_time = args.video_start_time
 
+    # INITIAL SANITY CHECKS ---------------------------------------
+    # set import path to images
+    import_path = os.path.abspath(args.path)
+    # check if it exist and exit if it doesnt
+    if not os.path.isdir(import_path):
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
+        sys.exit()
+
     # VIDEO PROCESS
     if tool == "process_video" or tool == "process_and_upload_video":
-        # sanity checks for video
-        # currently only gpx trace if supported as video gps data
-        if geotag_source != "gpx":
+
+        # sanity checks
+        if not video_file or not os.path.isfile(video_file):
+            print("Error, video_file " + video_file +
+                  " doesnt not exist, exiting...")
+            sys.exit()
+        else:
+            video_file = os.path.abspath(video_file)
+
+        if geotag_source != "gpx" and geotag_source != "gopro_video":
             if verbose:
                 print(
-                    "Warning, geotag source not specified to gpx. Currently only gpx trace is supported as the source of video gps data.")
-            geotag_source = "gpx"
-        if not geotag_source_path or not os.path.isfile(geotag_source_path) or geotag_source_path[-3:] != "gpx":
-            print("Error, gpx trace file path not valid or specified. To geotag a video, a valid gpx trace file is required.")
+                    "Warning, geotag source not specified correclty, currently only gpx trace or gopro video embedded data is supported as the source of video gps data, exiting...")
             sys.exit()
+        if not geotag_source_path or not os.path.isfile(geotag_source_path):
+            print("Error, geotag source file path not valid or specified, exiting...")
+            sys.exit()
+        if (geotag_source == "gpx" and not geotag_source_path.lower().endswith('gpx')) or (geotag_source == "gopro_video" and not geotag_source_path.lower().endswith('mp4')):
+            print("Error, geotag source file format not valid, exiting...")
+            sys.exit()
+
+        # create gpx file if geotag source is gopro video
+        if geotag_source == "gopro_video":
+            geotag_source_path = gpx_from_gopro(geotag_source_path)
+            geotag_source = "gpx"
+
+        # create path for sampled frames
+        import_path = os.path.join(import_path, video_file[:-4])
 
         # sample video
         if not skip_sampling:
-
             process_video.sample_video(video_file,
-                                       import_path,  # should all the existing image here be removed prior sampling?
-                                       sample_interval)
+                                       import_path,
+                                       sample_interval,
+                                       verbose)
 
         # set video args
         video_duration = process_video.get_video_duration(video_file)

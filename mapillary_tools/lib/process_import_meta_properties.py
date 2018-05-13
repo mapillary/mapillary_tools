@@ -180,7 +180,7 @@ def process_import_meta_properties(import_path,
                                                    add_file_name,
                                                    add_import_date,
                                                    verbose,
-                                                   mapillary_description)
+                                                   import_meta_data_properties)
         else:
             # read import meta from json and finalize the import properties
             # process

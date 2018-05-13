@@ -160,10 +160,10 @@ def interpolate_lat_lon(points, t, max_dt=1):
         else:
             dt = (t - points[-1][0]).total_seconds()
         if dt > max_dt:
-            raise ValueError("Time t not in scope of gpx file.")
+            raise ValueError("time t not in scope of gpx file")
         else:
             print(
-                "Warning: Time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
+                "time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
 
         if t < points[0][0]:
             before = points[0]

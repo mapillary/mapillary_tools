@@ -209,6 +209,25 @@ def get_failed_upload_file_list(import_path):
     return failed_upload_file_list
 
 
+def get_success_upload_file_list(import_path):
+    success_upload_file_list = []
+    for root, dir, files in os.walk(import_path):
+        success_upload_file_list.extend(os.path.join(root, file) for file in files if success_upload(
+            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return success_upload_file_list
+
+
+def success_upload(import_path, root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(import_path, file_path)
+    upload_success = os.path.join(log_root, "upload_success")
+    upload_finalization = os.path.join(log_root, "upload_finalized")
+    manual_upload = os.path.join(log_root, "manual_upload")
+    success = (os.path.isfile(
+        upload_success) and not os.path.isfile(manual_upload)) or (os.path.isfile(upload_success) and os.path.isfile(manual_upload) and os.path.isfile(upload_finalization))
+    return success
+
+
 def preform_upload(import_path, root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(import_path, file_path)

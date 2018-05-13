@@ -4,6 +4,7 @@ import os
 import json
 import time
 import sys
+import shutil
 from exif_read import ExifRead
 from exif_write import ExifEdit
 from exif_aux import verify_exif
@@ -70,12 +71,12 @@ def geotag_from_exif(process_file_list,
         geotag_properties = get_geotag_properties_from_exif(
             image, offset_angle)
 
-        processing.create_and_log_process(image,
-                                          import_path,
-                                          "geotag_process",
-                                          "success",
-                                          geotag_properties,
-                                          verbose)
+        create_and_log_process(image,
+                               import_path,
+                               "geotag_process",
+                               "success",
+                               geotag_properties,
+                               verbose)
 
 
 def get_geotag_properties_from_exif(image, offset_angle):
@@ -142,8 +143,6 @@ def geotag_from_gpx(process_file_list,
                     use_gps_start_time,
                     duration_ratio,
                     verbose):
-    # set flag for geotagging error
-    error_geotaging = 0
 
     # print time now to warn in case local_time
     if local_time:
@@ -177,44 +176,47 @@ def geotag_from_gpx(process_file_list,
                                                     interval)
     if not sub_second_times:
         print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
-        processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
-                                                  "geotag_process"
-                                                  "failed",
-                                                  verbose)
+        create_and_log_process_in_list(process_file_list,
+                                       import_path,
+                                       "geotag_process"
+                                       "failed",
+                                       verbose)
         return
 
     if not gpx:
         print("Error, gpx file was not read, images can not be geotagged.")
-        processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
-                                                  "geotag_process"
-                                                  "failed",
-                                                  verbose)
+        create_and_log_process_in_list(process_file_list,
+                                       import_path,
+                                       "geotag_process"
+                                       "failed",
+                                       verbose)
         return
 
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
 
         geotag_properties = get_geotag_properties_from_gpx(
-            image, offset_angle, offset_time, capture_time, gpx)
+            image, offset_angle, offset_time, capture_time, gpx, verbose)
 
-        processing.create_and_log_process(image,
-                                          import_path,
-                                          "geotag_process",
-                                          "success",
-                                          geotag_properties,
-                                          verbose)
+        create_and_log_process(image,
+                               import_path,
+                               "geotag_process",
+                               "success",
+                               geotag_properties,
+                               verbose)
 
 
-def get_geotag_properties_from_gpx(image, offset_angle, offset_time, capture_time, gpx):
+def get_geotag_properties_from_gpx(image, offset_angle, offset_time, capture_time, gpx, verbose=False):
 
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
         lat, lon, bearing, elevation = interpolate_lat_lon(gpx,
                                                            capture_time)
-    except:
+    except Exception as e:
+        if verbose:
+            print(
+                "Warning, {}, interpolation of latitude and longitude failed for image {}".format(e, image))
         return None
 
     corrected_bearing = (bearing + offset_angle) % 360
@@ -223,6 +225,9 @@ def get_geotag_properties_from_gpx(image, offset_angle, offset_time, capture_tim
         geotag_properties = {"MAPLatitude": lat}
         geotag_properties["MAPLongitude"] = lon
     else:
+        if verbose:
+            print(
+                "Warning, invalid latitude and longitude for image {}".format(image))
         return None
 
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(capture_time,
@@ -238,7 +243,6 @@ def get_geotag_properties_from_gpx(image, offset_angle, offset_time, capture_tim
     else:
         if verbose:
             print("Warning, image direction tag not set.")
-
     return geotag_properties
 
 
@@ -302,11 +306,14 @@ def get_process_file_list(import_path, process, rerun, verbose):
         process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
             import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
-    if verbose and process != "sequence_process":
-        inform_processing_start(import_path,
-                                len(process_file_list),
-                                process)
-
+    if verbose:
+        if process != "sequence_process":
+            inform_processing_start(import_path,
+                                    len(process_file_list),
+                                    process)
+        else:
+            print("Running sequence_process for {} images".format(
+                len(process_file_list)))
     return process_file_list
 
 
@@ -318,6 +325,60 @@ def preform_process(import_path, root, file, process, rerun):
     preform = not os.path.isfile(upload_succes) and (
         not os.path.isfile(process_succes) or rerun)
     return preform
+
+
+def video_upload(video_file, import_path, verbose=False):
+    root_path = os.path.dirname(os.path.abspath(video_file))
+    log_root = uploader.log_rootpath(root_path, video_file)
+    import_paths = video_import_paths(video_file)
+    if os.path.isdir(import_path):
+        if verbose:
+            print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
+                video_file, import_path))
+        shutil.rmtree(import_path)
+    if not os.path.isdir(import_path):
+        os.makedirs(import_path)
+    if import_path not in import_paths:
+        import_paths.append(import_path)
+    for video_import_path in import_paths:
+        if os.path.isdir(video_import_path):
+            if len(uploader.get_success_upload_file_list(video_import_path)):
+                if verbose:
+                    print("no")
+                return 1
+    return 0
+
+
+def create_and_log_video_process(video_file, import_path):
+    root_path = os.path.dirname(os.path.abspath(video_file))
+    log_root = uploader.log_rootpath(root_path, video_file)
+    if not os.path.isdir(log_root):
+        os.makedirs(log_root)
+    # set the log flags for process
+    log_process = os.path.join(
+        log_root, "video_process.json")
+    import_paths = video_import_paths(video_file)
+    if import_path in import_paths:
+        return
+    import_paths.append(import_path)
+    video_process = load_json(log_process)
+    video_process.update({"sample_paths": import_paths})
+    save_json(video_process, log_process)
+
+
+def video_import_paths(video_file):
+    root_path = os.path.dirname(os.path.abspath(video_file))
+    log_root = uploader.log_rootpath(root_path, video_file)
+    if not os.path.isdir(log_root):
+        return []
+    log_process = os.path.join(
+        log_root, "video_process.json")
+    if not os.path.isfile(log_process):
+        return []
+    video_process = load_json(log_process)
+    if "sample_paths" in video_process:
+        return video_process["sample_paths"]
+    return []
 
 
 def create_and_log_process_in_list(process_file_list,
@@ -395,10 +456,10 @@ def user_properties(user_name,
         return None
     # organization validation
     if organization_name or organization_key:
-        organization_key = processing.process_organization(user_properties,
-                                                           organization_name,
-                                                           organization_key,
-                                                           private)
+        organization_key = process_organization(user_properties,
+                                                organization_name,
+                                                organization_key,
+                                                private)
         user_properties.update(
             {'MAPOrganizationKey': organization_key, 'MAPPrivate': private})
 
