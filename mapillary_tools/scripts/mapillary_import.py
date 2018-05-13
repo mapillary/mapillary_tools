@@ -238,7 +238,15 @@ if __name__ == '__main__':
 
         # create gpx file if geotag source is gopro video
         if geotag_source == "gopro_video":
-            geotag_source_path = gpx_from_gopro(geotag_source_path)
+
+            try:
+                geotag_source_path = gpx_from_gopro(geotag_source_path)
+                if not geotag_source_path or not os.path.isfile(geotag_source_path):
+                    raise Exception
+            except:
+                print("Error, failed extracting data from gopro video , exiting...")
+                sys.exit()
+
             geotag_source = "gpx"
 
         # create path for sampled frames
