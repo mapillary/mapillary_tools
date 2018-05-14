@@ -28,6 +28,7 @@ CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(CLIENT_ID)
 PROJECTS_URL = "https://a.mapillary.com/v3/users/{}/projects?client_id={}"
 ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
+USER_URL = "https://a.mapillary.com/v3/users?usernames={}&client_id={}"
 
 class UploadThread(threading.Thread):
     def __init__(self, queue, params=UPLOAD_PARAMS):
@@ -106,6 +107,14 @@ def encode_multipart(fields, files, boundary=None):
     }
     return (body, headers)
 
+def get_user_key(user_name):
+    user_key = None
+    req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
+    resp = json.loads(urllib2.urlopen(req).read())
+    if 'key' in resp[0]:
+        user_key = resp[0]['key']
+
+    return user_key
 
 def finalize_upload(params, retry=3, auto_done=False):
     '''

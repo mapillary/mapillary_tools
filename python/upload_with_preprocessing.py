@@ -6,7 +6,7 @@ import uuid
 import argparse
 import json
 
-from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key
+from lib.uploader import get_upload_token, upload_file_list, upload_done_file, upload_summary, get_project_key, get_user_key
 import lib.uploader as uploader
 from lib.sequence import Sequence
 from lib.exif import is_image, verify_exif, format_orientation
@@ -109,7 +109,6 @@ if __name__ == '__main__':
         raise IOError("Incompatible Python version. This script requires Python 2.x, you are using {0}.".format(sys.version_info[:2]))
 
     args = get_args()
-
     path = args.path
     cutoff_distance = args.cutoff_distance
     cutoff_time = args.cutoff_time
@@ -123,6 +122,15 @@ if __name__ == '__main__':
     make = args.make
     model = args.model
 
+    user_name = args.user if args.user else os.environ.get('MAPILLARY_USERNAME',None)
+    if not user_name:
+        print("Error, must provide user name, exiting...")
+        sys.exit()    
+    user_key = args.userkey if args.userkey else get_user_key(user_name)
+
+    if not user_key:
+        print("Error, user name {} does not exist, exiting...".format(user_name))
+        sys.exit()
 
     # Retrieve/validate project key
     if (args.project or args.project_key) and not args.skip_validate_project:
@@ -141,13 +149,10 @@ if __name__ == '__main__':
 
     # Fetch authentication info
     try:
-        MAPILLARY_USERNAME = args.user if args.user is not None else os.environ['MAPILLARY_USERNAME']
+        MAPILLARY_USERNAME = user_name
         MAPILLARY_EMAIL=None
-        if args.email:
-            MAPILLARY_EMAIL = args.email
-        elif 'MAPILLARY_EMAIL' in os.environ:
-            MAPILLARY_EMAIL=os.environ['MAPILLARY_EMAIL']
-        MAPILLARY_USERKEY = args.userkey
+        MAPILLARY_EMAIL = args.email if args.email else os.environ.get('MAPILLARY_EMAIL', None)
+        MAPILLARY_USERKEY = user_key
         MAPILLARY_SECRET_HASH = os.environ.get('MAPILLARY_SECRET_HASH', None)
         secret_hash = None
         upload_token = None
