@@ -125,9 +125,9 @@ if __name__ == '__main__':
     user_name = args.user if args.user else os.environ.get('MAPILLARY_USERNAME',None)
     if not user_name:
         print("Error, must provide user name, exiting...")
-        sys.exit()    
+        sys.exit() 
+           
     user_key = args.userkey if args.userkey else get_user_key(user_name)
-
     if not user_key:
         print("Error, user name {} does not exist, exiting...".format(user_name))
         sys.exit()
