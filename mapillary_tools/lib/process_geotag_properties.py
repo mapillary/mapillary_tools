@@ -4,25 +4,27 @@ import os
 
 def process_geotag_properties(import_path,
                               geotag_source,
+                              geotag_source_path,
                               video_duration,
                               sample_interval,
-                              video_start_time,
-                              use_gps_start_time,
-                              duration_ratio,
-                              rerun,
+                              video_start_time=None,
+                              use_gps_start_time=False,
+                              duration_ratio=1.0,
+                              rerun=False,
                               offset_time=0.0,
                               local_time=False,
                               interval=0.0,
-                              geotag_source_path=None,
                               offset_angle=0,
                               timestamp_from_filename=False,
-                              verbose=False):
+                              verbose=False,
+                              skip_subfolders=False):
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "geotag_process",
                                                          rerun,
-                                                         verbose)
+                                                         verbose,
+                                                         skip_subfolders)
     if not len(process_file_list):
         if verbose:
             print("No images to run geotag process")
@@ -57,17 +59,18 @@ def process_geotag_properties(import_path,
                                                         import_path,
                                                         offset_angle,
                                                         verbose)
+
     elif geotag_source == "gpx":
         geotag_properties = processing.geotag_from_gpx(process_file_list,
                                                        import_path,
                                                        geotag_source_path,
+                                                       video_duration,
+                                                       sample_interval,
                                                        offset_time,
                                                        offset_angle,
                                                        local_time,
                                                        interval,
                                                        timestamp_from_filename,
-                                                       video_duration,
-                                                       sample_interval,
                                                        video_start_time,
                                                        use_gps_start_time,
                                                        duration_ratio,

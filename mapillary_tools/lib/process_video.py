@@ -48,33 +48,6 @@ def get_video_start_time(video_file):
     return creation_time
 
 
-def timestamp_from_filename(filename,
-                            sample_interval,
-                            start_time,
-                            video_duration,
-                            ratio=1.0):
-    seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
-        sample_interval * ratio
-    if seconds > video_duration:
-        seconds = video_duration
-    return start_time + datetime.timedelta(seconds=seconds)
-
-
-def timestamps_from_filename(full_image_list,
-                             video_duration,
-                             sample_interval,
-                             start_time,
-                             duration_ratio):
-    capture_times = []
-    for image in full_image_list:
-        capture_times.append(timestamp_from_filename(os.path.basename(image),
-                                                     sample_interval,
-                                                     start_time,
-                                                     video_duration,
-                                                     duration_ratio))
-    return capture_times
-
-
 def process_video():
     # sanity checks for video
     # currently only gpx trace if supported as video gps data

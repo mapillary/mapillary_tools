@@ -11,7 +11,7 @@ from exif_aux import verify_mapillary_tag
 LOG_FILEPATH = '.mapillary/log'
 
 
-def upload(import_path, manual_done):
+def upload(import_path, manual_done=False, skip_subfolders=False):
 
     # check if import path exists and exit if it doesnt
     if not os.path.isdir(import_path):
@@ -19,9 +19,12 @@ def upload(import_path, manual_done):
         sys.exit()
 
     # get list of file to process
-    total_file_list = uploader.get_total_file_list(import_path)
-    upload_file_list = uploader.get_upload_file_list(import_path)
-    failed_file_list = uploader.get_failed_upload_file_list(import_path)
+    total_file_list = uploader.get_total_file_list(
+        import_path, skip_subfolders)
+    upload_file_list = uploader.get_upload_file_list(
+        import_path, skip_subfolders)
+    failed_file_list = uploader.get_failed_upload_file_list(
+        import_path, skip_subfolders)
 
     if len(failed_file_list):
         upload_failed = raw_input(
@@ -33,6 +36,11 @@ def upload(import_path, manual_done):
     # verify the images in the upload list, they need to have the image
     # description and certain MAP properties
     upload_file_list = [f for f in upload_file_list if verify_mapillary_tag(f)]
+
+    if not len(upload_file_list):
+        print("No images to upload.")
+        print("Check if images have already been uploaded or do not contain required embedded Mapillary meta data.")
+        sys.exit()
 
     # get upload params
     params = {}
@@ -55,7 +63,8 @@ def upload(import_path, manual_done):
     uploader.upload_file_list(upload_file_list, import_path, params)
 
     # finalize manual uploads if necessary
-    finalize_file_list = uploader.get_finalize_file_list(import_path)
+    finalize_file_list = uploader.get_finalize_file_list(
+        import_path, skip_subfolders)
 
     # if manual uploads a DONE file needs to be uploaded to let the harvester
     # know the sequence is done uploading

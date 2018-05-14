@@ -3,18 +3,20 @@ import processing
 
 def process_user_properties(import_path,
                             user_name,
-                            organization_name,
-                            organization_key,
-                            private,
-                            master_upload,
-                            verbose,
-                            rerun):
+                            organization_name=None,
+                            organization_key=None,
+                            private=False,
+                            master_upload=False,
+                            verbose=False,
+                            rerun=False,
+                            skip_subfolders=False):
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",
                                                          rerun,
-                                                         verbose)
+                                                         verbose,
+                                                         skip_subfolders)
     if not len(process_file_list):
         if verbose:
             print("No images to run user process")

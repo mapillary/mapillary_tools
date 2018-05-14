@@ -31,13 +31,13 @@ def add_meta_tag(mapillary_description,
 
 def finalize_import_properties_process(image,
                                        import_path,
-                                       orientation,
-                                       device_make,
-                                       device_model,
-                                       GPS_accuracy,
-                                       add_file_name,
-                                       add_import_date,
-                                       verbose,
+                                       orientation=None,
+                                       device_make=None,
+                                       device_model=None,
+                                       GPS_accuracy=None,
+                                       add_file_name=False,
+                                       add_import_date=False,
+                                       verbose=False,
                                        mapillary_description={}):
     # always check if there are any command line arguments passed, they will
     if orientation:
@@ -74,7 +74,7 @@ def finalize_import_properties_process(image,
                                       verbose)
 
 
-def get_import_meta_properties_exif(image, verbose):
+def get_import_meta_properties_exif(image, verbose=False):
     import_meta_data_properties = {}
     try:
         exif = ExifRead(image)
@@ -106,22 +106,24 @@ def get_import_meta_properties_exif(image, verbose):
 
 
 def process_import_meta_properties(import_path,
-                                   orientation,
-                                   device_make,
-                                   device_model,
-                                   GPS_accuracy,
-                                   add_file_name,
-                                   add_import_date,
-                                   import_meta_source,
-                                   import_meta_source_path,
-                                   verbose,
-                                   rerun):
+                                   orientation=None,
+                                   device_make=None,
+                                   device_model=None,
+                                   GPS_accuracy=None,
+                                   add_file_name=False,
+                                   add_import_date=False,
+                                   import_meta_source=None,
+                                   import_meta_source_path=None,
+                                   verbose=False,
+                                   rerun=False,
+                                   skip_subfolders=False):
 
      # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "import_meta_data_process",
                                                          rerun,
-                                                         verbose)
+                                                         verbose,
+                                                         skip_subfolders)
     if not len(process_file_list):
         if verbose:
             print("No images to run import meta data process")

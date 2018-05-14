@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 import sys
 import os
@@ -20,14 +21,15 @@ def get_args():
     parser = argparse.ArgumentParser(
         description='Process photos to have them uploaded to Mapillary')
 
-    # path to the import photos
+    # tool to run
     parser.add_argument('tool', help='Mapillary tool you want to use [upload, process, process_and_upload, process_video, process_and_upload_video, user_process, import_metadata_process,' +
                         'geotag_process, sequence_process, upload_params_process, insert_EXIF_ImageDescription]')
 
-    # force rerun process, will rewrite the json and update the processing logs
+    # path to the import photos
     parser.add_argument(
         'path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved')
-
+    parser.add_argument(
+        '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False)
     # force rerun process, will rewrite the json and update the processing logs
     parser.add_argument(
         '--rerun', help='rerun the processing', action='store_true')
@@ -97,10 +99,6 @@ def get_args():
     # master upload
     parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
                         action='store_true', default=False)
-
-    # manually process finalize
-    parser.add_argument('--manual_process_finalize',
-                        help='Manually finalize the process, resulting in editing image EXIF.', action='store_true', default=False)
 
     # video
     parser.add_argument(
@@ -188,10 +186,7 @@ if __name__ == '__main__':
 
     # upload args
     manual_done = args.manual_done
-
-    # skip args
-    manual_process_finalize = args.manual_process_finalize
-
+    skip_subfolders = args.skip_subfolders
     # internal args
     timestamp_from_filename = False
     video_duration = None
@@ -219,7 +214,7 @@ if __name__ == '__main__':
         # sanity checks
         if not video_file or not os.path.isfile(video_file):
             print("Error, video_file " + video_file +
-                  " doesnt not exist, exiting...")
+                  " does not exist, exiting...")
             sys.exit()
         else:
             video_file = os.path.abspath(video_file)
@@ -227,7 +222,7 @@ if __name__ == '__main__':
         if geotag_source != "gpx" and geotag_source != "gopro_video":
             if verbose:
                 print(
-                    "Warning, geotag source not specified correclty, currently only gpx trace or gopro video embedded data is supported as the source of video gps data, exiting...")
+                    "Warning, geotag source not specified correctly, currently only gpx trace or gopro video embedded data is supported as the source of video gps data, exiting...")
             sys.exit()
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             print("Error, geotag source file path not valid or specified, exiting...")
@@ -282,7 +277,8 @@ if __name__ == '__main__':
                                 private,
                                 master_upload,
                                 verbose,
-                                rerun)
+                                rerun,
+                                skip_subfolders)
     # PROCESS IMPORT PROPERTIES --------------------------------------
     if tool == "import_metadata_process" or tool == "process" or tool == "process_and_upload":
         # function call
@@ -296,12 +292,14 @@ if __name__ == '__main__':
                                        import_meta_source,
                                        import_meta_source_path,
                                        verbose,
-                                       rerun)
+                                       rerun,
+                                       skip_subfolders)
     # PROCESS GEO/TIME PROPERTIES --------------------------------------
     if tool == "geotag_process" or tool == "process" or tool == "process_and_upload":
         # function call
         process_geotag_properties(import_path,
                                   geotag_source,
+                                  geotag_source_path,
                                   video_duration,
                                   sample_interval,
                                   video_start_time,
@@ -311,10 +309,10 @@ if __name__ == '__main__':
                                   offset_time,
                                   local_time,
                                   sub_second_interval,
-                                  geotag_source_path,
                                   offset_angle,
                                   timestamp_from_filename,
-                                  verbose)
+                                  verbose,
+                                  skip_subfolders)
     # PROCESS SEQUENCE PROPERTIES --------------------------------------
     if tool == "sequence_process" or tool == "process" or tool == "process_and_upload":
         process_sequence_properties(import_path,
@@ -325,7 +323,8 @@ if __name__ == '__main__':
                                     duplicate_distance,
                                     duplicate_angle,
                                     verbose,
-                                    rerun)
+                                    rerun,
+                                    skip_subfolders)
     # PROCESS UPLOAD PARAMS PROPERTIES --------------------------------------
     if tool == "upload_params_process" or tool == "process" or tool == "process_and_upload":
         # function call
@@ -333,18 +332,20 @@ if __name__ == '__main__':
                               user_name,
                               master_upload,
                               verbose,
-                              rerun)
+                              rerun,
+                              skip_subfolders)
     # COMBINE META DATA AND INSERT INTO EXIF IMAGE DESCRIPTION ---------------
     if tool == "insert_EXIF_ImageDescription" or tool == "process" or tool == "process_and_upload":
         # function call
         insert_MAPJson(import_path,
                        master_upload,
                        verbose,
-                       manual_process_finalize,
-                       rerun)
+                       rerun,
+                       skip_subfolders)
     # UPLOAD
     if tool == "upload" or tool == "process_and_upload":
         upload(import_path,
-               manual_done)
+               manual_done,
+               skip_subfolders)
 
     # ---------------------------------------

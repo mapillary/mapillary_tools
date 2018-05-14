@@ -15,3 +15,6 @@ import process_upload_params
 import process_import_meta_properties
 import insert_MAPJson
 import process_video
+import gpx_from_gopro
+import gpmf
+import ffmpeg

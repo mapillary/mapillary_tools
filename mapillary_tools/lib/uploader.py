@@ -147,12 +147,9 @@ def finalize_upload(params, retry=3, auto_done=False):
 
 
 def prompt_to_finalize(subcommand):
-    note = ""
-    if subcommand == "process":
-        note = "(resulting in image EXIF editing)"
     for i in range(3):
         finalize = raw_input(
-            "Finalize all {} in this import {}? [y/n]: ".format(subcommand, note))
+            "Finalize all {} in this import? [y/n]: ".format(subcommand))
         if finalize in ["y", "Y", "yes", "Yes"]:
             return 1
         elif finalize in ["n", "N", "no", "No"]:
@@ -185,35 +182,53 @@ def flag_finalization(import_path, finalize_file_list):
         open(finalize_flag, 'a').close()
 
 
-def get_upload_file_list(import_path):
+def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
-    for root, dir, files in os.walk(import_path):
-        upload_file_list.extend(os.path.join(root, file) for file in files if preform_upload(
-            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    if skip_subfolders:
+        upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(
+                import_path, root, file))
     return upload_file_list
 
 
-def get_total_file_list(import_path):
+def get_total_file_list(import_path, skip_subfolders=False):
     total_file_list = []
-    for root, dir, files in os.walk(import_path):
-        total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
-        ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    if skip_subfolders:
+        total_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    else:
+        for root, dir, files in os.walk(import_path):
+            total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     return total_file_list
 
 
-def get_failed_upload_file_list(import_path):
+def get_failed_upload_file_list(import_path, skip_subfolders=False):
     failed_upload_file_list = []
-    for root, dir, files in os.walk(import_path):
-        failed_upload_file_list.extend(os.path.join(root, file) for file in files if failed_upload(
-            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    if skip_subfolders:
+        failed_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(
+                import_path, root, file))
+
     return failed_upload_file_list
 
 
-def get_success_upload_file_list(import_path):
+def get_success_upload_file_list(import_path, skip_subfolders=False):
     success_upload_file_list = []
-    for root, dir, files in os.walk(import_path):
-        success_upload_file_list.extend(os.path.join(root, file) for file in files if success_upload(
-            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    if skip_subfolders:
+        success_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(
+                import_path, root, file))
+
     return success_upload_file_list
 
 
@@ -254,11 +269,16 @@ def failed_upload(import_path, root, file):
     return failed
 
 
-def get_finalize_file_list(import_path):
+def get_finalize_file_list(import_path, skip_subfolders=False):
     finalize_file_list = []
-    for root, dir, files in os.walk(import_path):
-        finalize_file_list.extend(os.path.join(root, file) for file in files if preform_finalize(
-            import_path, root, file) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    if skip_subfolders:
+        finalize_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(
+                import_path, root, file))
+
     return finalize_file_list
 
 
@@ -314,28 +334,6 @@ def get_organization_key(user_key, organization_name, upload_token):
         print(organization_names)
         sys.exit()
     return organization_key
-
-
-def get_organization_name(user_key, organization_key, upload_token):
-
-    organization_name = None
-    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
-    req = urllib2.Request(call)
-    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
-    resp = json.loads(urllib2.urlopen(req).read())
-
-    organization_keys = []
-    for org in resp:
-        organization_keys.append(org['key'])
-        if org['key'] == organization_key:
-            organization_name = org['name']
-
-    if not organization_name:
-        print("No valid organization name found for organization key " + organization_key)
-        print("Available organization keys for current user are : ")
-        print(organization_keys)
-        sys.exit()
-    return organization_name
 
 
 def validate_organization_key(user_key, organization_key, upload_token):

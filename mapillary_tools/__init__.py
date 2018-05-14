@@ -15,3 +15,6 @@ import lib.process_upload_params
 import lib.process_import_meta_properties
 import lib.insert_MAPJson
 import lib.process_video
+import lib.gpx_from_gopro
+import lib.gpmf
+import lib.ffmpeg
