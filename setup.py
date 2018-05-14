@@ -7,6 +7,5 @@ setup(name='mapillary_tools',
       url='https://github.com/mapillary/mapillary_tools',
       author='Mapillary',
       license='BSD',
-      packages=['mapillary_tools',
-                'mapillary_tools.lib'],
+      packages=['mapillary_tools'],
       scripts=['bin/mapillary_import'])

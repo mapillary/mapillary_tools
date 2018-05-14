@@ -4,17 +4,17 @@ import sys
 import os
 import datetime
 import json
-from mapillary_tools.lib.upload import upload
-from mapillary_tools.lib import process_video
-from mapillary_tools.lib.process_user_properties import process_user_properties
-from mapillary_tools.lib.process_import_meta_properties import process_import_meta_properties
-from mapillary_tools.lib.process_geotag_properties import process_geotag_properties
-from mapillary_tools.lib.process_sequence_properties import process_sequence_properties
-from mapillary_tools.lib.process_upload_params import process_upload_params
-from mapillary_tools.lib.insert_MAPJson import insert_MAPJson
-from mapillary_tools.lib.exif_read import ExifRead
-from mapillary_tools.lib.exif_write import ExifEdit
-from mapillary_tools.lib.gpx_from_gopro import gpx_from_gopro
+from mapillary_tools.upload import upload
+from mapillary_tools import process_video
+from mapillary_tools.process_user_properties import process_user_properties
+from mapillary_tools.process_import_meta_properties import process_import_meta_properties
+from mapillary_tools.process_geotag_properties import process_geotag_properties
+from mapillary_tools.process_sequence_properties import process_sequence_properties
+from mapillary_tools.process_upload_params import process_upload_params
+from mapillary_tools.insert_MAPJson import insert_MAPJson
+from mapillary_tools.exif_read import ExifRead
+from mapillary_tools.exif_write import ExifEdit
+from mapillary_tools.gpx_from_gopro import gpx_from_gopro
 
 
 def get_args():

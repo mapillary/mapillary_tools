@@ -4,8 +4,8 @@ import datetime
 import gpxpy
 import gpxpy.gpx
 import os
-from lib.ffmpeg import extract_stream, get_ffprobe
-from lib.gpmf import parse_bin, interpolate_times
+from ffmpeg import extract_stream, get_ffprobe
+from gpmf import parse_bin, interpolate_times
 
 
 # author https://github.com/stilldavid
