@@ -3,8 +3,8 @@ import os
 
 
 def process_geotag_properties(import_path,
-                              geotag_source,
-                              geotag_source_path,
+                              geotag_source="exif",
+                              geotag_source_path=None,
                               offset_time=0.0,
                               offset_angle=0.0,
                               local_time=False,

@@ -6,7 +6,7 @@ from mapillary_tools.process_geotag_properties import process_geotag_properties
 
 
 class Command:
-    name = 'geotag'
+    name = 'extract_geotag_data'
     help = "Extract time and location information."
 
     def add_arguments(self, parser):
@@ -14,45 +14,45 @@ class Command:
         parser.add_argument(
             'path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved')
         parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False)
+            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
         # force rerun process, will rewrite the json and update the processing
         parser.add_argument(
-            '--verbose', help='print debug info', action='store_true', default=False)
+            '--verbose', help='print debug info', action='store_true', default=False, required=False)
         parser.add_argument(
-            '--rerun', help='rerun the processing', action='store_true')
+            '--rerun', help='rerun the processing', action='store_true', required=False)
 
         # command specific args
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'csv', 'json', 'gopro_video'], default="exif")
+                            choices=['exif', 'gpx', 'csv', 'json', 'gopro_video'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
-            default=None)
+            default=None, required=False)
         parser.add_argument(
-            '--local_time', help='Assume image timestamps are in your local time', action='store_true', default=False)
+            '--local_time', help='Assume image timestamps are in your local time', action='store_true', default=False, required=False)
         parser.add_argument('--sub_second_interval',
                             help='Sub second time between shots. Used to set image times with sub-second precision',
-                            type=float, default=0.0)
+                            type=float, default=0.0, required=False)
         parser.add_argument('--offset_time', default=0., type=float,
-                            help='time offset between the camera and the gps device, in seconds.')
+                            help='time offset between the camera and the gps device, in seconds.', required=False)
         parser.add_argument('--offset_angle', default=0., type=float,
-                            help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)')
+                            help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
         parser.add_argument("--use_gps_start_time",
-                            help="Use GPS trace starting time.", action="store_true", default=False)
+                            help="Use GPS trace starting time.", action="store_true", default=False, required=False)
 
         # video specific args
         parser.add_argument(
-            '--video_file', help='Provide the path to the video file.', action='store', default=None)
+            '--video_file', help='Provide the path to the video file.', action='store', default=None, required=False)
         parser.add_argument(
-            '--video_sample_interval', help='Time interval for sampled video frames in seconds', default=2, type=float)
+            '--video_sample_interval', help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
         parser.add_argument("--video_duration_ratio",
-                            help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0)
+                            help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
         parser.add_argument(
-            "--video_start_time", help="Video start time in epochs (milliseconds)", type=int, default=None)
+            "--video_start_time", help="Video start time in epochs (milliseconds)", type=int, default=None, required=False)
 
     def run(self, args):
 
+        # basic check for all
         import_path = os.path.abspath(args.path)
-        # check if it exist and exit if it doesnt
         if not os.path.isdir(import_path):
             print("Error, import directory " + import_path +
                   " doesnt not exist, exiting...")
