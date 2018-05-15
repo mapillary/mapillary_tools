@@ -6,7 +6,7 @@ from mapillary_tools.process_user_properties import process_user_properties
 
 class Command:
     name = 'extract_user_data'
-    help = "Extract user information."
+    help = "Extract user data."
 
     def add_arguments(self, parser):
         # general arguments

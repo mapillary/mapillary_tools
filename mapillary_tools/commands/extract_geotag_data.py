@@ -7,7 +7,7 @@ from mapillary_tools.process_geotag_properties import process_geotag_properties
 
 class Command:
     name = 'extract_geotag_data'
-    help = "Extract time and location information."
+    help = "Extract time and location data."
 
     def add_arguments(self, parser):
         # general arguments
