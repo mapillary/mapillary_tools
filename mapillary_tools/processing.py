@@ -35,29 +35,30 @@ def exif_time(filename):
 
 
 def timestamp_from_filename(filename,
-                            sample_interval,
                             start_time,
-                            video_duration,
-                            ratio=1.0):
+                            video_sample_interval=1,
+                            video_duration=None,
+                            video_duration_ratio=1.0):
     seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
-        sample_interval * ratio
-    if seconds > video_duration:
-        seconds = video_duration
+        video_sample_interval * video_duration_ratio
+    if video_duration:
+        if seconds > video_duration:
+            seconds = video_duration
     return start_time + datetime.timedelta(seconds=seconds)
 
 
 def timestamps_from_filename(full_image_list,
-                             video_duration,
-                             sample_interval,
-                             start_time,
-                             duration_ratio=1.0):
+                             video_start_time,
+                             video_sample_interval=1,
+                             video_duration=None,
+                             video_duration_ratio=1.0):
     capture_times = []
     for image in full_image_list:
         capture_times.append(timestamp_from_filename(os.path.basename(image),
-                                                     sample_interval,
-                                                     start_time,
+                                                     video_start_time,
+                                                     video_sample_interval,
                                                      video_duration,
-                                                     duration_ratio))
+                                                     video_duration_ratio))
     return capture_times
 
 
@@ -161,17 +162,17 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0):
 def geotag_from_gpx(process_file_list,
                     import_path,
                     geotag_source_path,
-                    video_duration,
-                    sample_interval,
                     offset_time=0.0,
                     offset_angle=0.0,
                     local_time=False,
-                    interval=1.0,
+                    sub_second_interval=1.0,
                     timestamp_from_filename=False,
-                    video_start_time=None,
                     use_gps_start_time=False,
-                    duration_ratio=1.0,
-                    verbose=False):
+                    verbose=False,
+                    video_start_time=None,
+                    video_duration=None,
+                    video_duration_ratio=1.0,
+                    video_sample_interval=1.0):
 
     # print time now to warn in case local_time
     if local_time:
@@ -196,13 +197,13 @@ def geotag_from_gpx(process_file_list,
             video_start_time = gpx[0][0]
 
         sub_second_times = timestamps_from_filename(process_file_list,
-                                                    video_duration,
-                                                    sample_interval,
                                                     video_start_time,
-                                                    duration_ratio)
+                                                    video_sample_interval,
+                                                    video_duration,
+                                                    video_duration_ratio)
     else:
         sub_second_times = estimate_sub_second_time(process_file_list,
-                                                    interval)
+                                                    sub_second_interval)
     if not sub_second_times:
         print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,

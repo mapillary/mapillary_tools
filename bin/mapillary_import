@@ -300,19 +300,20 @@ if __name__ == '__main__':
         process_geotag_properties(import_path,
                                   geotag_source,
                                   geotag_source_path,
-                                  video_duration,
-                                  sample_interval,
-                                  video_start_time,
-                                  use_gps_start_time,
-                                  video_duration_ratio,
-                                  rerun,
                                   offset_time,
+                                  offset_angle,
                                   local_time,
                                   sub_second_interval,
-                                  offset_angle,
                                   timestamp_from_filename,
+                                  use_gps_start_time,
                                   verbose,
-                                  skip_subfolders)
+                                  rerun,
+                                  skip_subfolders,
+                                  video_start_time,
+                                  video_duration,
+                                  video_duration_ratio,
+                                  video_sample_interval)
+
     # PROCESS SEQUENCE PROPERTIES --------------------------------------
     if tool == "sequence_process" or tool == "process" or tool == "process_and_upload":
         process_sequence_properties(import_path,
