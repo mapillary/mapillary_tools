@@ -9,14 +9,8 @@ class Command:
     help = "Upload images to Mapillary."
 
     def add_arguments(self, parser):
-        # general arguments
-        parser.add_argument(
-            'path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved')
-        parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
         # command specific args
-        # master upload
         parser.add_argument(
             '--manual_done', help='Manually finalize the upload', action='store_true', default=False, required=False)
 

@@ -5,22 +5,53 @@ import argparse
 from mapillary_tools import commands
 
 # Create the top-level parser
-parser = argparse.ArgumentParser('Import images to Mapillary')
+parser = argparse.ArgumentParser('Import images to Mapillary', add_help=False, conflict_handler='resolve')
 subparsers = parser.add_subparsers(
     help='Command to run', dest='command', metavar='command')
 
+# Load the subcommands
+process_subcommands = [module.Command() for module in commands.mapillary_tools_process_unit_commands]
+upload_subcommands = [module.Command() for module in commands.mapillary_tools_upload_unit_commands]
+#video_subcommands = [module.Command() for module in commands.mapillary_tools_video_unit_commands]
+
 # Create one subparser for each subcommand
-subcommands = [module.Command() for module in commands.mapillary_tools_commands]
+subcommands = process_subcommands + upload_subcommands
 
 for command in subcommands:
-    subparser = subparsers.add_parser(
-        command.name, help=command.help)
-    command.add_arguments(subparser)
+	subparser = subparsers.add_parser(command.name, help=command.help)
+	commands.add_basic_arguments(subparser)
+	command.add_arguments(subparser)
 
+# Create one subparser for each batchcommand
+batchcommands = commands.mapillary_tools_batch_commands
+
+for command in batchcommands:
+	batchparser = subparsers.add_parser(command)
+	commands.add_basic_arguments(batchparser)
+	for command in subcommands:
+		command.add_arguments(batchparser)
+		
 # Parse arguments
 args = parser.parse_args()
 
-# Run the selected subcommand
-for command in subcommands:
-    if args.command == command.name:
-        command.run(args)
+
+# Run the selected subcommand if unit command, or in case of batch command, run several unit commands
+if args.command not in batchcommands:
+	for command in subcommands:
+	    if args.command == command.name:
+	        command.run(args)
+else:
+	if args.command == "process":
+		for command in process_subcommands:
+			command.run(args)
+	elif args.command == "process_and_upload":
+		for command in process_subcommands+upload_subcommands:
+			command.run(args)
+	'''
+	elif args.command == "video_process":
+		for command in video_subcommands+process_subcommands:
+	        command.run(args)
+	elif args.command == "video_process_and_upload":
+		for command in video_subcommands+process_subcommands+upload_subcommands:
+	        command.run(args)
+	'''
