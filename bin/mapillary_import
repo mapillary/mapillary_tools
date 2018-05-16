@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import pdb
 
 from mapillary_tools import commands
 

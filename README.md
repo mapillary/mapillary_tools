@@ -1,11 +1,5 @@
 [![Build Status](https://travis-ci.org/mapillary/mapillary_tools.svg?branch=master)](https://travis-ci.org/mapillary/mapillary_tools)
 
-mapillary_tools
-===============
-
-Useful tools and scripts related to Mapillary.
-More info and instructions in mapillary_tools.
-
 Python Tools for Mapillary
 =============
 
@@ -15,10 +9,7 @@ Table of contents
 <!--ts-->
    * [Dependencies](#dependencies)
    * [Installing](#installing)
-   * [Importing](#importing)
-   * [Processing](#processing)
-   * [Upload](#upload)
-   * [Process and upload](#process-and-upload)
+   * [Running](#running)
    * [Download](#download)
    * [Config](#config)
 <!--te-->
@@ -51,20 +42,20 @@ If you don't have pip on your system, you can install it by `sudo easy_install p
 
     sudo apt install git python python-virtualenv python-dev
     git clone https://github.com/mapillary/mapillary_tools.git
-    cd mapillary_tools/python
+    cd mapillary_tools
     python -m virtualenv --python=python2 --system-site-packages .env
     source .env/bin/activate
     pip install -r requirements.txt
     
 Run `deactivate` to exit the virtualenv.
   
-Importing  
+Running  
 =============   
-   
-Use the mapillary_import.py script to process and upload images to Mapillary.
+
+Any import tool can be used with the executable `mapillary_import` .
 General usage:
 
-    python mapillary_import.py tool path-to-images [arguments]
+    mapillary_import "tool" "path/to/images" [arguments]
 
 Available tools are:
 
@@ -83,6 +74,16 @@ Available tools are:
 The main tools are used to complete the entire pipeline of image import.
 The unit tools are tools called by the process tool, but can be run individually.
 Each tool takes specific arguments.
+
+Usage examples:
+
+    mapillary_import upload "/home/user/Pictures"
+    mapillary_import "tool" "path/to/images" [arguments]
+    mapillary_import "tool" "path/to/images" [arguments]
+    mapillary_import "tool" "path/to/images" [arguments]
+    mapillary_import "tool" "path/to/images" [arguments]
+    mapillary_import "tool" "path/to/images" [arguments]
+
   
 Processing 
 =============  
@@ -125,16 +126,16 @@ Other optional arguments are listed and described under each corresponding tool 
     
 Simple usage example:   
 
-    python mapillary_import.py process path --user_name username_at_mapilary --verbose
+    mapillary_import process path --user_name username_at_mapilary --verbose
 
 More advanced usage example:   
 
-    python mapillary_import.py process path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 
+    mapillary_import process path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 
 
 If a unit tool is to be skipped, argument specifying the skip for the specific unit tool has to be specified.   
 Usage example with skipping sequence processing:   
  
-    python mapillary_import.py process path --user_name username_at_mapilary --skip_sequence_processing
+    mapillary_import process path --user_name username_at_mapilary --skip_sequence_processing
 
 List of all arguments used to skip a specific unit tool:  
 - `--skip_user_processing`   
@@ -161,7 +162,7 @@ No additional arguments available besides the import path, user name and verbose
 Both import path and user name are required to run this process tool.   
 Usage example:   
 
-    python mapillary_import.py user_process path --user_name username_at_mapilary
+    mapillary_import user_process path --user_name username_at_mapilary
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
@@ -175,7 +176,7 @@ No additional arguments available besides the import path, user name and verbose
 Both import path and user name are required to run this process tool.  
 Usage example:  
 
-    python mapillary_import.py upload_params_process path --user_name username_at_mapilary
+    mapillary_import upload_params_process path --user_name username_at_mapilary
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
@@ -219,11 +220,11 @@ Additional arguments available besides the import path, user name and verbose:
 Only the import path is required to run this process tool.		    
 Usage examples:    
 
-    python mapillary_import.py import_metadata_process path  
+    mapillary_import import_metadata_process path  
 
-    python mapillary_import.py import_metadata_process path --add_file_name --add_import_date --import_meta_source exif  
+    mapillary_import import_metadata_process path --add_file_name --add_import_date --import_meta_source exif  
 
-    python mapillary_import.py import_metadata_process path --import_meta_source json import_meta_source_path "path/to/file.json"  
+    mapillary_import import_metadata_process path --import_meta_source json import_meta_source_path "path/to/file.json"  
 
 This unit process is not required for an image to be uploaded to Mapillary, although is very much encouraged.  
 
@@ -250,9 +251,9 @@ Additional arguments available besides the import path, user name and verbose:
 Only the import path is required to run this process tool.	  	  
 Usage examples:   
  
-    python mapillary_import.py geotag_process path
+    mapillary_import geotag_process path
 
-    python mapillary_import.py geotag_process path --offset_angle 90 --geotag_source csv --geotag_source_path "path/to/file.csv"
+    mapillary_import geotag_process path --offset_angle 90 --geotag_source csv --geotag_source_path "path/to/file.csv"
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
@@ -294,9 +295,9 @@ Additional arguments available besides the import path, user name and verbose:
 Only the import path is required to run this process tool.	  	
 Usage examples:
 
-    python mapillary_import.py sequence_process path  
+    mapillary_import sequence_process path  
 
-    python mapillary_import.py sequence_process path --cutoff_distance 1000 --cutoff_time 30 --flag_duplicates 
+    mapillary_import sequence_process path --cutoff_distance 1000 --cutoff_time 30 --flag_duplicates 
 
 This unit process is required for an image to be uploaded to Mapillary.   
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
@@ -309,7 +310,7 @@ No additional arguments available besides the import path, user name and verbose
 Only the import path is required to run this process tool.		    
 Usage examples:   
 
-    python mapillary_import.py insert_EXIF_ImageDescription path
+    mapillary_import insert_EXIF_ImageDescription path
 
 This unit process is required for an image to be uploaded to Mapillary.  
 Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
@@ -345,7 +346,7 @@ Optional arguments are:
   
 Usage example:
 
-    python mapillary_import.py upload path
+    mapillary_import upload path
 
 
 
@@ -358,7 +359,7 @@ This tool calls both, processing and upload, as they are described above.
   
 Usage example:  
 
-    python mapillary_import.py process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 --auto_done
+    mapillary_import process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 --auto_done
 
 
 Download  
