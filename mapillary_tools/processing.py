@@ -16,6 +16,7 @@ import config
 import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx
+from gpx_from_gopro import gpx_from_gopro
 
 
 STATUS_PAIRS = {"success": "failed",
@@ -159,10 +160,31 @@ def geotag_from_gopro_video(process_file_list,
                             offset_time,
                             offset_angle,
                             local_time,
+                            sub_second_interval,
                             timestamp_from_filename,
                             use_gps_start_time,
+                            start_time,
+                            adjustment,
                             verbose):
-    pass
+    try:
+        geotag_source_path = gpx_from_gopro(geotag_source_path)
+        if not geotag_source_path or not os.path.isfile(geotag_source_path):
+            raise Exception
+    except:
+        print("Error, failed extracting data from gopro video , exiting...")
+        sys.exit()
+    geotag_from_gpx(process_file_list,
+                    import_path,
+                    geotag_source_path,
+                    offset_time,
+                    offset_angle,
+                    local_time,
+                    sub_second_interval,
+                    timestamp_from_filename,
+                    use_gps_start_time,
+                    start_time,
+                    adjustment,
+                    verbose)
 
 
 def geotag_from_gpx(process_file_list,
