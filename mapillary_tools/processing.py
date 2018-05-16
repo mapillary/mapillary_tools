@@ -36,29 +36,23 @@ def exif_time(filename):
 
 def timestamp_from_filename(filename,
                             start_time,
-                            video_sample_interval=1,
-                            video_duration=None,
-                            video_duration_ratio=1.0):
+                            interval=1,
+                            adjustment=1.0):
     seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
-        video_sample_interval * video_duration_ratio
-    if video_duration:
-        if seconds > video_duration:
-            seconds = video_duration
+        interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
 
 
 def timestamps_from_filename(full_image_list,
-                             video_start_time,
-                             video_sample_interval=1,
-                             video_duration=None,
-                             video_duration_ratio=1.0):
+                             start_time,
+                             interval=1,
+                             adjustment=1.0):
     capture_times = []
     for image in full_image_list:
         capture_times.append(timestamp_from_filename(os.path.basename(image),
-                                                     video_start_time,
-                                                     video_sample_interval,
-                                                     video_duration,
-                                                     video_duration_ratio))
+                                                     start_time,
+                                                     interval,
+                                                     adjustment))
     return capture_times
 
 
@@ -159,6 +153,18 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0):
     return geotag_properties
 
 
+def geotag_from_gopro_video(process_file_list,
+                            import_path,
+                            geotag_source_path,
+                            offset_time,
+                            offset_angle,
+                            local_time,
+                            timestamp_from_filename,
+                            use_gps_start_time,
+                            verbose):
+    pass
+
+
 def geotag_from_gpx(process_file_list,
                     import_path,
                     geotag_source_path,
@@ -168,11 +174,9 @@ def geotag_from_gpx(process_file_list,
                     sub_second_interval=1.0,
                     timestamp_from_filename=False,
                     use_gps_start_time=False,
-                    verbose=False,
-                    video_start_time=None,
-                    video_duration=None,
-                    video_duration_ratio=1.0,
-                    video_sample_interval=1.0):
+                    start_time=None,
+                    adjustment=1.0,
+                    verbose=False):
 
     # print time now to warn in case local_time
     if local_time:
@@ -193,14 +197,12 @@ def geotag_from_gpx(process_file_list,
     # Estimate capture time with sub-second precision, reading from image EXIF
     # or estimating from filename
     if timestamp_from_filename:
-        if use_gps_start_time or not video_start_time:
-            video_start_time = gpx[0][0]
-
+        if use_gps_start_time or not start_time:
+            start_time = gpx[0][0]
         sub_second_times = timestamps_from_filename(process_file_list,
-                                                    video_start_time,
-                                                    video_sample_interval,
-                                                    video_duration,
-                                                    video_duration_ratio)
+                                                    start_time,
+                                                    sub_second_interval,
+                                                    adjustment)
     else:
         sub_second_times = estimate_sub_second_time(process_file_list,
                                                     sub_second_interval)
@@ -789,8 +791,8 @@ def load_geotag_points(process_file_list, import_path, verbose=False):
                                                         '%Y_%m_%d_%H_%M_%S_%f'))
         lats.append(geotag_data["MAPLatitude"])
         lons.append(geotag_data["MAPLongitude"])
-        directions.append(
-            geotag_data["MAPCompassHeading"]["TrueHeading"])
+        directions.append(geotag_data["MAPCompassHeading"]["TrueHeading"]
+                          ) if "MAPCompassHeading" in geotag_data else directions.append(0.0)
 
         # remove previously created duplicate flags
         duplicate_flag_path = os.path.join(log_root,

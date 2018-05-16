@@ -24,18 +24,14 @@ class Command:
                             type=float, default=0.0, required=False)
         parser.add_argument('--offset_time', default=0., type=float,
                             help='time offset between the camera and the gps device, in seconds.', required=False)
+        parser.add_argument("--timestamp_from_filename",
+                            help="Extract timestamps from filename.", action="store_true", default=False, required=False)
+        parser.add_argument("--start_time",
+                            help="Provide external starting time in case of derivating timestamp from filename.", action="store_true", default=None, required=False)
+        parser.add_argument("--adjustment",
+                            help="Adjustment factor in case of misalignement.", action="store_true", default=1.0, required=False)
         parser.add_argument("--use_gps_start_time",
-                            help="Use GPS trace starting time.", action="store_true", default=False, required=False)
-
-        # video specific args
-        parser.add_argument(
-            '--video_file', help='Provide the path to the video file.', action='store', default=None, required=False)
-        parser.add_argument(
-            '--video_sample_interval', help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
-        parser.add_argument("--video_duration_ratio",
-                            help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
-        parser.add_argument(
-            "--video_start_time", help="Video start time in epochs (milliseconds)", type=int, default=None, required=False)
+                            help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
 
     def run(self, args):
 
@@ -46,13 +42,6 @@ class Command:
                   " doesnt not exist, exiting...")
             sys.exit()
 
-        timestamp_from_filename = False
-        # set video args
-        video_duration = None
-        if args.video_file:
-            video_duration = process_video.get_video_duration(args.video_file)
-            timestamp_from_filename = True
-
         process_geotag_properties(import_path,
                                   args.geotag_source,
                                   args.geotag_source_path,
@@ -60,12 +49,10 @@ class Command:
                                   args.offset_angle,
                                   args.local_time,
                                   args.sub_second_interval,
-                                  timestamp_from_filename,
+                                  args.timestamp_from_filename,
                                   args.use_gps_start_time,
+                                  args.start_time,
+                                  args.adjustment,
                                   args.verbose,
                                   args.rerun,
-                                  args.skip_subfolders,
-                                  args.video_start_time,
-                                  video_duration,
-                                  args.video_duration_ratio,
-                                  args.video_sample_interval)
+                                  args.skip_subfolders)

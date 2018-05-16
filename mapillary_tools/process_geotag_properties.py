@@ -11,13 +11,11 @@ def process_geotag_properties(import_path,
                               sub_second_interval=0.0,
                               timestamp_from_filename=False,
                               use_gps_start_time=False,
+                              start_time=None,
+                              adjustment=1.0,
                               verbose=False,
                               rerun=False,
-                              skip_subfolders=False,
-                              video_start_time=None,
-                              video_duration=None,
-                              video_duration_ratio=1.0,
-                              video_sample_interval=1):
+                              skip_subfolders=False):
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
@@ -70,12 +68,9 @@ def process_geotag_properties(import_path,
                                                        sub_second_interval,
                                                        timestamp_from_filename,
                                                        use_gps_start_time,
-                                                       verbose,
-                                                       video_start_time,
-                                                       video_duration,
-                                                       video_duration_ratio,
-                                                       video_sample_interval)
-
+                                                       start_time,
+                                                       adjustment,
+                                                       verbose)
     elif geotag_source == "csv":
         geotag_properties = processing.geotag_from_csv(process_file_list,
                                                        import_path,
@@ -83,6 +78,19 @@ def process_geotag_properties(import_path,
                                                        offset_time,
                                                        offset_angle,
                                                        verbose)
+    elif geotag_source == "gopro_video":
+        geotag_properties = processing.geotag_from_gopro_video(process_file_list,
+                                                               import_path,
+                                                               geotag_source_path,
+                                                               offset_time,
+                                                               offset_angle,
+                                                               local_time,
+                                                               sub_second_interval,
+                                                               timestamp_from_filename,
+                                                               use_gps_start_time,
+                                                               start_time,
+                                                               adjustment,
+                                                               verbose)
     else:
         geotag_properties = processing.geotag_from_json(process_file_list,
                                                         import_path,
