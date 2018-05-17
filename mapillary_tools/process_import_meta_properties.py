@@ -101,6 +101,11 @@ def get_import_meta_properties_exif(image, verbose=False):
     except:
         if verbose:
             print("Warning, camera model tag not in EXIF.")
+    try:
+        import_meta_data_properties["MAPMetaTags"] = eval(exif.extract_image_history(
+        ))
+    except:
+        pass
 
     return import_meta_data_properties
 

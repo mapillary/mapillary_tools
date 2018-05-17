@@ -125,6 +125,11 @@ class ExifRead:
             lat, lon, ca, date_time, uuid.uuid4())
         return filename
 
+    def extract_image_history(self):
+        field = ['EXIF ImageHistory']
+        user_comment, _ = self._extract_alternative_fields(field, '{}', str)
+        return user_comment
+
     def extract_altitude(self):
         '''
         Extract altitude

@@ -52,9 +52,9 @@ class ExifEdit(object):
         self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(
             abs(lat), int(precision))
 
-    def add_user_comment(self, data):
-        """Add arbitrary string to UserComment tag."""
-        self._ef['Exif'][piexif.ExifIFD.UserComment] = data
+    def add_image_history(self, data):
+        """Add arbitrary string to ImageHistory tag."""
+        self._ef['Exif'][piexif.ExifIFD.ImageHistory] = data
 
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
