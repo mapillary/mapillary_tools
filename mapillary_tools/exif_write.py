@@ -35,10 +35,10 @@ class ExifEdit(object):
         else:
             self._ef['0th'][piexif.ImageIFD.Orientation] = orientation
 
-    def add_date_time_original(self, date_time):
+    def add_date_time_original(self, date_time, time_format='%Y:%m:%d %H:%M:%S.%f'):
         """Add date time original."""
         try:
-            DateTimeOriginal = date_time.strftime('%Y:%m:%d %H:%M:%S.%f')[:-3]
+            DateTimeOriginal = date_time.strftime(time_format)[:-3]
             self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
@@ -51,6 +51,10 @@ class ExifEdit(object):
             abs(lon), int(precision))
         self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(
             abs(lat), int(precision))
+
+    def add_user_comment(self, data):
+        """Add arbitrary string to UserComment tag."""
+        self._ef['Exif'][piexif.ExifIFD.UserComment] = data
 
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
