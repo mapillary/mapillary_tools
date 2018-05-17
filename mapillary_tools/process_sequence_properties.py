@@ -69,7 +69,7 @@ def process_sequence_properties(import_path,
             # SPLIT SEQUENCES --------------------------------------
             if len(capture_times) and len(lats) and len(lons):
                 sequences.extend(processing.split_sequences(
-                    capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, vebose))
+                    capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose))
         # ---------------------------------------
     else:
         # sequence limited to the root of the files
@@ -96,7 +96,7 @@ def process_sequence_properties(import_path,
                 # SPLIT SEQUENCES --------------------------------------
                 if len(capture_times) and len(lats) and len(lons):
                     sequences.extend(processing.split_sequences(
-                        capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, vebose))
+                        capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose))
                 # ---------------------------------------
 
     # process for each sequence
