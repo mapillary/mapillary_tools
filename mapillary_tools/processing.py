@@ -94,7 +94,7 @@ def geotag_from_exif(process_file_list,
 
     for image in process_file_list:
         geotag_properties = get_geotag_properties_from_exif(
-            image, offset_angle)
+            image, offset_angle, verbose)
 
         create_and_log_process(image,
                                import_path,
@@ -104,31 +104,35 @@ def geotag_from_exif(process_file_list,
                                verbose)
 
 
-def get_geotag_properties_from_exif(image, offset_angle=0.0):
+def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
     try:
         exif = ExifRead(image)
     except:
-        print("Error, EXIF could not be read for image " +
-              image + ", geotagging process failed for this image since gps/time properties not read.")
+        if verbose:
+            print("Error, EXIF could not be read for image " +
+                  image + ", geotagging process failed for this image since gps/time properties not read.")
         return None
     # required tags
     try:
         lon, lat = exif.extract_lon_lat()
     except:
-        print("Error, " + image +
-              " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        if verbose:
+            print("Error, " + image +
+                  " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
     if lat != None and lon != None:
         geotag_properties = {"MAPLatitude": lat}
         geotag_properties["MAPLongitude"] = lon
     else:
-        print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        if verbose:
+            print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
     try:
         timestamp = exif.extract_capture_time()
     except:
-        print("Error, " + image +
-              " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        if verbose:
+            print("Error, " + image +
+                  " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
         timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
@@ -165,13 +169,14 @@ def geotag_from_gopro_video(process_file_list,
                             use_gps_start_time,
                             start_time,
                             adjustment,
-                            verbose):
+                            verbose=False):
     try:
         geotag_source_path = gpx_from_gopro(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
     except:
-        print("Error, failed extracting data from gopro video , exiting...")
+        if verbose:
+            print("Error, failed extracting data from gopro video , exiting...")
         sys.exit()
     geotag_from_gpx(process_file_list,
                     import_path,
@@ -229,7 +234,8 @@ def geotag_from_gpx(process_file_list,
         sub_second_times = estimate_sub_second_time(process_file_list,
                                                     sub_second_interval)
     if not sub_second_times:
-        print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+        if verbose:
+            print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        import_path,
                                        "geotag_process"
@@ -238,7 +244,8 @@ def geotag_from_gpx(process_file_list,
         return
 
     if not gpx:
-        print("Error, gpx file was not read, images can not be geotagged.")
+        if verbose:
+            print("Error, gpx file was not read, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        import_path,
                                        "geotag_process"
@@ -825,7 +832,7 @@ def load_geotag_points(process_file_list, import_path, verbose=False):
     return file_list, capture_times, lats, lons, directions
 
 
-def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance):
+def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose=False):
 
     split_sequences = []
     # sort based on time
