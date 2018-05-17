@@ -126,7 +126,7 @@ class ExifRead:
         return filename
 
     def extract_image_history(self):
-        field = ['Image ImageHistory']
+        field = ['Image Tag 0x9213']
         user_comment, _ = self._extract_alternative_fields(field, '{}', str)
         return user_comment
 
