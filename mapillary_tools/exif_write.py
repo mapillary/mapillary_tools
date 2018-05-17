@@ -54,7 +54,7 @@ class ExifEdit(object):
 
     def add_image_history(self, data):
         """Add arbitrary string to ImageHistory tag."""
-        self._ef['Exif'][piexif.ExifIFD.ImageHistory] = data
+        self._ef['Exif'][piexif.ImageIFD.ImageHistory] = data
 
     def add_camera_make_model(self, make, model):
         ''' Add camera make and model.'''
