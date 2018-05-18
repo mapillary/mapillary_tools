@@ -75,6 +75,8 @@ class ExifEdit(object):
 
     def add_direction(self, direction, ref="T", precision=100):
         """Add image direction."""
+        # normalize direction
+        direction = direction % 360.0
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (
             int(abs(direction) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref

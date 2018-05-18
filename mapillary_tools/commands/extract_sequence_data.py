@@ -40,6 +40,7 @@ class Command:
                                     args.flag_duplicates,
                                     args.duplicate_distance,
                                     args.duplicate_angle,
+                                    args.offset_angle,
                                     args.verbose,
                                     args.rerun,
                                     args.skip_subfolders)

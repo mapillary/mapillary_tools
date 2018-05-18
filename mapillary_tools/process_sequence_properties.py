@@ -41,6 +41,7 @@ def process_sequence_properties(import_path,
                                 remove_duplicates=False,
                                 duplicate_distance=0.1,
                                 duplicate_angle=5,
+                                offset_angle=0.0,
                                 verbose=False,
                                 rerun=False,
                                 skip_subfolders=False):
@@ -113,7 +114,7 @@ def process_sequence_properties(import_path,
         # interpolate_directions
         for i, d in enumerate(directions):
             directions[i] = d if (
-                d is not None and not interpolate_directions) else interpolated_directions[i]
+                d is not None and not interpolate_directions) else (interpolated_directions[i] + offset_angle) % 360.0
         # ---------------------------------------
 
         final_file_list = file_list[:]
