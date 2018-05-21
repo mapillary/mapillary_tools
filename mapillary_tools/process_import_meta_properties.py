@@ -117,8 +117,6 @@ def process_import_meta_properties(import_path,
                                    GPS_accuracy=None,
                                    add_file_name=False,
                                    add_import_date=False,
-                                   import_meta_source=None,
-                                   import_meta_source_path=None,
                                    verbose=False,
                                    rerun=False,
                                    skip_subfolders=False):
@@ -135,60 +133,22 @@ def process_import_meta_properties(import_path,
             print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
         return
 
-    # sanity checks
-    if import_meta_source_path == None and import_meta_source != None and import_meta_source != "exif":
-        print("Error, if reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-        processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
-                                                  "import_meta_data_process"
-                                                  "failed",
-                                                  verbose)
-        return
-    elif import_meta_source != None and import_meta_source != "exif" and not os.path.isfile(import_meta_source_path):
-        print("Error, " + import_meta_source_path + " file source of import properties does not exist. If reading import properties from external file, rather than image EXIF or command line arguments, you need to provide full path to the log file.")
-        processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
-                                                  "import_meta_data_process"
-                                                  "failed",
-                                                  verbose)
-        return
-
     # map orientation from degrees to tags
     if orientation:
         orientation = processing.format_orientation(orientation)
 
-    # if not external meta source and not image EXIF meta source, finalize the
-    # import properties process
-    if not import_meta_source:
-        for image in process_file_list:
-            finalize_import_properties_process(image,
-                                               import_path,
-                                               orientation,
-                                               device_make,
-                                               device_model,
-                                               GPS_accuracy,
-                                               add_file_name,
-                                               add_import_date,
-                                               verbose,
-                                               {})
-    else:
-        if import_meta_source == "exif":
-            # read import meta from image EXIF and finalize the import
-            # properties process
-            for image in process_file_list:
-                import_meta_data_properties = get_import_meta_properties_exif(
-                    image, verbose)
-                finalize_import_properties_process(image,
-                                                   import_path,
-                                                   orientation,
-                                                   device_make,
-                                                   device_model,
-                                                   GPS_accuracy,
-                                                   add_file_name,
-                                                   add_import_date,
-                                                   verbose,
-                                                   import_meta_data_properties)
-        else:
-            # read import meta from json and finalize the import properties
-            # process
-            pass
+    # read import meta from image EXIF and finalize the import
+    # properties process
+    for image in process_file_list:
+        import_meta_data_properties = get_import_meta_properties_exif(
+            image, verbose)
+        finalize_import_properties_process(image,
+                                           import_path,
+                                           orientation,
+                                           device_make,
+                                           device_model,
+                                           GPS_accuracy,
+                                           add_file_name,
+                                           add_import_date,
+                                           verbose,
+                                           import_meta_data_properties)

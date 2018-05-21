@@ -23,12 +23,6 @@ class Command:
                             choices=[0, 90, 180, 270], type=int, default=None, required=False)
         parser.add_argument(
             "--GPS_accuracy", help="GPS accuracy in meters. Note this input has precedence over the input read from the import source file.", default=None, required=False)
-        parser.add_argument(
-            '--import_meta_source', help='Provide the source of import properties.', action='store',
-            choices=['exif', 'json'], default=None, required=False)
-        parser.add_argument(
-            '--import_meta_source_path', help='Provide the path to the file source of import specific information. Note, only JSON format is supported.', action='store',
-            default=None, required=False)
 
     def run(self, args):
 
@@ -46,8 +40,6 @@ class Command:
                                        args.GPS_accuracy,
                                        args.add_file_name,
                                        args.add_import_date,
-                                       args.import_meta_source,
-                                       args.import_meta_source_path,
                                        args.verbose,
                                        args.rerun,
                                        args.skip_subfolders)
