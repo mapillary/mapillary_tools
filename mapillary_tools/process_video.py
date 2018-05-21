@@ -3,15 +3,41 @@ import datetime
 from ffprobe import FFProbe
 import uploader
 import processing
+from exif_write import ExifEdit
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 
+def timestamp_from_filename(filename,
+                            start_time,
+                            interval=1,
+                            adjustment=1.0):
+    seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
+        interval * adjustment
+    return start_time + datetime.timedelta(seconds=seconds)
+
+
+def timestamps_from_filename(full_image_list,
+                             start_time,
+                             interval=1,
+                             adjustment=1.0):
+    capture_times = []
+    for image in full_image_list:
+        capture_times.append(timestamp_from_filename(os.path.basename(image),
+                                                     start_time,
+                                                     interval,
+                                                     adjustment))
+    return capture_times
+
+
 def sample_video(video_file,
                  import_path,
                  sample_interval,
-                 verbose):
+                 start_time=None,
+                 duration_ratio=1.0,
+                 verbose=False):
+
     # check video logs
     video_upload = processing.video_upload(
         video_file, import_path, verbose)
@@ -24,6 +50,21 @@ def sample_video(video_file,
         video_file, sample_interval, import_path, ZERO_PADDING)
     os.system(s)
 
+    if start_time:
+        start_time = datetime.datetime.utcfromtimestamp(
+            start_time / 1000.)
+    else:
+        start_time = get_video_start_time(video_file)
+    if not start_time:
+        print("Warning, video start time not provided and could not be extracted from the video file. Current date and time used instead.")
+        start_time = datetime.datetime.now()
+
+    insert_video_frame_timestamp(import_path,
+                                 start_time,
+                                 sample_interval,
+                                 duration_ratio,
+                                 verbose)
+
     processing.create_and_log_video_process(
         video_file, import_path)
 
@@ -31,6 +72,33 @@ def sample_video(video_file,
 def get_video_duration(video_file):
     """Get video duration in seconds"""
     return float(FFProbe(video_file).video[0].duration)
+
+
+def insert_video_frame_timestamp(import_path, start_time, sample_interval, duration_ratio=1.0, verbose=False):
+
+    # get list of file to process
+    frame_list = uploader.get_total_file_list(import_path)
+
+    if not len(frame_list):
+        if verbose:
+            print("No video frames were sampled.")
+        return
+
+    video_frame_timestamps = timestamps_from_filename(frame_list,
+                                                      start_time,
+                                                      sample_interval,
+                                                      duration_ratio)
+    for image, timestamp in zip(frame_list,
+                                video_frame_timestamps):
+        try:
+            exif_edit = ExifEdit(image)
+            exif_edit.add_date_time_original(timestamp)
+            exif_edit.write()
+        except:
+            if verbose:
+                print("Could not insert timestamp into video frame " +
+                      os.path.basename(image)[:-4])
+            continue
 
 
 def get_video_start_time(video_file):

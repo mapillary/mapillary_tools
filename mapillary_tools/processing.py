@@ -35,28 +35,6 @@ def exif_time(filename):
     return metadata.extract_capture_time()
 
 
-def timestamp_from_filename(filename,
-                            start_time,
-                            interval=1,
-                            adjustment=1.0):
-    seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
-        interval * adjustment
-    return start_time + datetime.timedelta(seconds=seconds)
-
-
-def timestamps_from_filename(full_image_list,
-                             start_time,
-                             interval=1,
-                             adjustment=1.0):
-    capture_times = []
-    for image in full_image_list:
-        capture_times.append(timestamp_from_filename(os.path.basename(image),
-                                                     start_time,
-                                                     interval,
-                                                     adjustment))
-    return capture_times
-
-
 def estimate_sub_second_time(files, interval=0.0):
     '''
     Estimate the capture time of a sequence with sub-second precision
@@ -165,10 +143,7 @@ def geotag_from_gopro_video(process_file_list,
                             offset_angle,
                             local_time,
                             sub_second_interval,
-                            timestamp_from_filename,
-                            use_gps_start_time,
-                            start_time,
-                            adjustment,
+                            use_gps_start_time=False,
                             verbose=False):
     try:
         geotag_source_path = gpx_from_gopro(geotag_source_path)
@@ -185,10 +160,7 @@ def geotag_from_gopro_video(process_file_list,
                     offset_angle,
                     local_time,
                     sub_second_interval,
-                    timestamp_from_filename,
                     use_gps_start_time,
-                    start_time,
-                    adjustment,
                     verbose)
 
 
@@ -199,10 +171,7 @@ def geotag_from_gpx(process_file_list,
                     offset_angle=0.0,
                     local_time=False,
                     sub_second_interval=1.0,
-                    timestamp_from_filename=False,
                     use_gps_start_time=False,
-                    start_time=None,
-                    adjustment=1.0,
                     verbose=False):
 
     # print time now to warn in case local_time
@@ -220,19 +189,9 @@ def geotag_from_gpx(process_file_list,
     # read gpx file to get track locations
     gpx = get_lat_lon_time_from_gpx(geotag_source_path,
                                     local_time)
-
     # Estimate capture time with sub-second precision, reading from image EXIF
-    # or estimating from filename
-    if timestamp_from_filename:
-        if use_gps_start_time or not start_time:
-            start_time = gpx[0][0]
-        sub_second_times = timestamps_from_filename(process_file_list,
-                                                    start_time,
-                                                    sub_second_interval,
-                                                    adjustment)
-    else:
-        sub_second_times = estimate_sub_second_time(process_file_list,
-                                                    sub_second_interval)
+    sub_second_times = estimate_sub_second_time(process_file_list,
+                                                sub_second_interval)
     if not sub_second_times:
         if verbose:
             print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
@@ -252,6 +211,10 @@ def geotag_from_gpx(process_file_list,
                                        "failed",
                                        verbose)
         return
+
+    if use_gps_start_time:
+        # update offset time with the gps start time
+        offset_time += (sub_second_times[0] - gpx[0][0]).total_seconds()
 
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):

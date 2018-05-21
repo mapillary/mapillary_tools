@@ -13,7 +13,7 @@ class Command:
 
         # command specific args
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'csv', 'json', 'gopro_video'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -24,12 +24,6 @@ class Command:
                             type=float, default=0.0, required=False)
         parser.add_argument('--offset_time', default=0., type=float,
                             help='time offset between the camera and the gps device, in seconds.', required=False)
-        parser.add_argument("--timestamp_from_filename",
-                            help="Extract timestamps from filename.", action="store_true", default=False, required=False)
-        parser.add_argument("--start_time",
-                            help="Provide external starting time in case of derivating timestamp from filename.", action="store_true", default=None, required=False)
-        parser.add_argument("--adjustment",
-                            help="Adjustment factor in case of misalignement.", action="store_true", default=1.0, required=False)
         parser.add_argument("--use_gps_start_time",
                             help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
 
@@ -49,10 +43,7 @@ class Command:
                                   args.offset_angle,
                                   args.local_time,
                                   args.sub_second_interval,
-                                  args.timestamp_from_filename,
                                   args.use_gps_start_time,
-                                  args.start_time,
-                                  args.adjustment,
                                   args.verbose,
                                   args.rerun,
                                   args.skip_subfolders)

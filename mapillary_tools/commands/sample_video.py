@@ -18,8 +18,6 @@ class Command:
                             help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
         parser.add_argument("--video_start_time", help="Video start time in epochs (milliseconds)",
                             type=int, default=None, required=False)
-        parser.add_argument("--skip_sampling",
-                            help="Skip video sampling step", action="store_true", default=False, required=False)
 
     def run(self, args):
 
@@ -39,26 +37,9 @@ class Command:
             sys.exit()
 
         # sample video
-        if not args.skip_sampling:
-            process_video.sample_video(video_file,
-                                       import_path,
-                                       args.video_sample_interval,
-                                       args.verbose)
-
-        # edit args in the parser if there
-        # set args for geotag
-        if args.video_start_time:
-            start_time = datetime.datetime.utcfromtimestamp(
-                args.video_start_time / 1000.)
-        else:
-            start_time = process_video.get_video_start_time(
-                args.video_file)
-
-        timestamp_from_filename = True
-        sub_second_interval = args.video_sample_interval
-        adjustment = args.video_duration_ratio if args.video_duration_ratio else 1.0
-
-        vars(args)['start_time'] = start_time
-        vars(args)['timestamp_from_filename'] = timestamp_from_filename
-        vars(args)['sub_second_interval'] = sub_second_interval
-        vars(args)['adjustment'] = adjustment
+        process_video.sample_video(video_file,
+                                   import_path,
+                                   args.video_sample_interval,
+                                   args.video_start_time,
+                                   args.video_duration_ratio,
+                                   args.verbose)
