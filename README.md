@@ -344,5 +344,4 @@ The defualt config file is your global Mapillary config file and will be used if
 
 [PIL]: https://pypi.python.org/pypi/Pillow/2.2.
 
-[Piexif]: https://github.com/mapillary/Piexi
-s
+[Piexif]: https://github.com/mapillary/Piexif
