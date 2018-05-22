@@ -25,7 +25,7 @@ Dependencies
 * [PIL]
 * [Piexif]
 
-Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif). Please follow the instructions below to install.  
+Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif) installed along with the tools.
 
   
 Installing   
