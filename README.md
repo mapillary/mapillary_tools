@@ -256,6 +256,7 @@ This tool has no additional advanced arguments.
 **Batch tools**
 
 **process_and_upload**
+
 `process_and_upload` tool will run `process` and `upload` tools consecutively with combined required and optional arguments.
 
 Usage examples:   
@@ -264,6 +265,7 @@ Usage examples:
     mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
 
 **video_process**
+
 `video_process` tool will run `video_sample` and `process` tools consecutively with combined required and optional arguments.
 
 Usage examples:   
@@ -271,6 +273,7 @@ Usage examples:
     mapillary_import video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
     
 **video_process_and_upload**
+
 `video_process_and_upload` tool will run `video_sample`, `process` and `upload` tools consecutively with combined required and optional arguments.
 
 Usage examples: 
