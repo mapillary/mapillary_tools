@@ -71,7 +71,7 @@ Videos require sampling into images, before processing and uploading.
 Usage  
 =============   
 
-Import tools can be used with the executable `mapillary_import` :
+Import tools can be used with the executable `mapillary_import`, available in the PATH after installment.
 
 	usage: Mapillary import tool [-h] [--advanced] tool ...
 	
