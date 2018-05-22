@@ -133,7 +133,7 @@ or
 	
 	mapillary_import process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
 	
-Will run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contains capture time embedded in the image EXIF.
+Will run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
 
 Tool specifications 
 =============  
