@@ -25,6 +25,9 @@ class Command:
             '--organization_key', help="Specify organization key", default=None, required=False)
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
+
         # video specific args
         parser.add_argument('--video_file', help='Provide the path to the video file.',
                             action='store', default=None, required=False)

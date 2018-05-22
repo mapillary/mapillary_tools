@@ -63,22 +63,22 @@ def sample_video(video_file,
 
     video_file = video_file.replace(" ", "\ ")
     s = "ffmpeg -i {} -loglevel quiet -vf fps=1/{} -qscale 1 {}/%0{}d.jpg".format(
-        video_file, sample_interval, import_path, ZERO_PADDING)
+        video_file, video_sample_interval, import_path, ZERO_PADDING)
     os.system(s)
 
-    if start_time:
-        start_time = datetime.datetime.utcfromtimestamp(
-            start_time / 1000.)
+    if video_start_time:
+        video_start_time = datetime.datetime.utcfromtimestamp(
+            video_start_time / 1000.)
     else:
-        start_time = get_video_start_time(video_file)
-    if not start_time:
+        video_start_time = get_video_start_time(video_file)
+    if not video_start_time:
         print("Warning, video start time not provided and could not be extracted from the video file. Current date and time used instead.")
-        start_time = datetime.datetime.now()
+        video_start_time = datetime.datetime.now()
 
     insert_video_frame_timestamp(import_path,
-                                 start_time,
-                                 sample_interval,
-                                 duration_ratio,
+                                 video_start_time,
+                                 video_sample_interval,
+                                 video_duration_ratio,
                                  verbose)
 
     processing.create_and_log_video_process(

@@ -38,9 +38,6 @@ def add_general_arguments(parser, command):
     #import path
     parser.add_argument(
         '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=True)
-    # skip all subfolders in the import path
-    parser.add_argument(
-        '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
     # print out warnings
     parser.add_argument(
         '--verbose', help='print debug info', action='store_true', default=False, required=False)

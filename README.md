@@ -71,10 +71,12 @@ Videos require sampling into images, before processing and uploading.
 Usage  
 =============   
 
-Import tools can be used with the executable `mapillary_import`, available in the PATH after installment.
+Import tools can be used with the executable `mapillary_import`, available in the PATH after installment. To see the available tools, type the following in the command line:
 
-	usage: Mapillary import tool [-h] [--advanced] tool ...
-	
+```bash 
+mapillary_import --help
+```
+Arguments:
 `-h, --help` show help and exit
 
 `--advanced` use the tools under an advanced level, with additional arguments and tools available
@@ -135,12 +137,12 @@ or
 	
 Will run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
 
-Tool specifications 
+	Tool specifications 
 =============  
 
-**Main tools**
+## Main tools
 
-**upload**
+### upload
 
 Images that have been successfully processed or were taken with the Mapillary app will contain the required Mapillary image description embedded in the image EXIF and can be uploaded with the `upload` tool.  
 

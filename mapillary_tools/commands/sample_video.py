@@ -1,5 +1,5 @@
 
-from mapillary_tools import process_video
+from mapillary_tools.process_video import sample_video
 
 
 class Command:
@@ -23,4 +23,4 @@ class Command:
     def run(self, args):
 
         # sample video
-        process_video.sample_video(**vars(args))
+        sample_video(**vars(args))
