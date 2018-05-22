@@ -1,14 +1,16 @@
-import os
-import sys
 
 from mapillary_tools.process_import_meta_properties import process_import_meta_properties
 
 
 class Command:
     name = 'extract_import_meta_data'
-    help = "Extract import meta data."
+    help = "Process unit tool : Extract and process import meta properties."
 
-    def add_arguments(self, parser):
+    def add_basic_arguments(self, parser):
+        parser.add_argument(
+            '--rerun', help='rerun the processing', action='store_true', required=False)
+
+    def add_basic_arguments(self, parser):
 
         # command specific args
         parser.add_argument(
@@ -24,22 +26,9 @@ class Command:
         parser.add_argument(
             "--GPS_accuracy", help="GPS accuracy in meters. Note this input has precedence over the input read from the import source file.", default=None, required=False)
 
+    def add_advanced_arguments(self, parser):
+        pass
+
     def run(self, args):
 
-        # basic check for all
-        import_path = os.path.abspath(args.path)
-        if not os.path.isdir(import_path):
-            print("Error, import directory " + import_path +
-                  " doesnt not exist, exiting...")
-            sys.exit()
-
-        process_import_meta_properties(import_path,
-                                       args.orientation,
-                                       args.device_make,
-                                       args.device_model,
-                                       args.GPS_accuracy,
-                                       args.add_file_name,
-                                       args.add_import_date,
-                                       args.verbose,
-                                       args.rerun,
-                                       args.skip_subfolders)
+        process_import_meta_properties(**vars(args))

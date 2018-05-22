@@ -1,4 +1,6 @@
 import processing
+import os
+import sys
 
 
 def process_user_properties(import_path,
@@ -10,6 +12,12 @@ def process_user_properties(import_path,
                             verbose=False,
                             rerun=False,
                             skip_subfolders=False):
+    # basic check for all
+    import_path = os.path.abspath(import_path)
+    if not os.path.isdir(import_path):
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
+        sys.exit()
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,

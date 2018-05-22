@@ -11,11 +11,13 @@ from exif_aux import verify_mapillary_tag
 LOG_FILEPATH = '.mapillary/log'
 
 
-def upload(import_path, manual_done=False, skip_subfolders=False):
+def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False):
 
-    # check if import path exists and exit if it doesnt
+    # basic check for all
+    import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
-        print("Import directory does not exist")
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
         sys.exit()
 
     # get list of file to process
@@ -39,7 +41,8 @@ def upload(import_path, manual_done=False, skip_subfolders=False):
 
     if not len(upload_file_list):
         print("No images to upload.")
-        print("Check if images have already been uploaded or do not contain required embedded Mapillary meta data.")
+        if verbose:
+            print("Check if images have already been uploaded or do not contain required embedded Mapillary meta data.")
         sys.exit()
 
     # get upload params

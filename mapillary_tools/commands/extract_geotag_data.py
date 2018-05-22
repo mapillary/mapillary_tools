@@ -1,5 +1,3 @@
-import os
-import sys
 
 from mapillary_tools import process_video
 from mapillary_tools.process_geotag_properties import process_geotag_properties
@@ -7,11 +5,13 @@ from mapillary_tools.process_geotag_properties import process_geotag_properties
 
 class Command:
     name = 'extract_geotag_data'
-    help = "Extract time and location data."
+    help = "Process unit tool : Extract and process time and location properties."
 
-    def add_arguments(self, parser):
+    def add_basic_arguments(self, parser):
+        parser.add_argument(
+            '--rerun', help='rerun the processing', action='store_true', required=False)
 
-        # command specific args
+    def add_advanced_arguments(self, parser):
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
                             choices=['exif', 'gpx', 'gopro_video'], default="exif", required=False)
         parser.add_argument(
@@ -24,26 +24,10 @@ class Command:
                             type=float, default=0.0, required=False)
         parser.add_argument('--offset_time', default=0., type=float,
                             help='time offset between the camera and the gps device, in seconds.', required=False)
+        parser.add_argument('--offset_angle', default=0., type=float,
+                            help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
         parser.add_argument("--use_gps_start_time",
                             help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
 
     def run(self, args):
-
-        # basic check for all
-        import_path = os.path.abspath(args.path)
-        if not os.path.isdir(import_path):
-            print("Error, import directory " + import_path +
-                  " doesnt not exist, exiting...")
-            sys.exit()
-
-        process_geotag_properties(import_path,
-                                  args.geotag_source,
-                                  args.geotag_source_path,
-                                  args.offset_time,
-                                  args.offset_angle,
-                                  args.local_time,
-                                  args.sub_second_interval,
-                                  args.use_gps_start_time,
-                                  args.verbose,
-                                  args.rerun,
-                                  args.skip_subfolders)
+        process_geotag_properties(**vars(args))

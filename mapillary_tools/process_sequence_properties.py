@@ -2,7 +2,7 @@ import os
 import uuid
 import datetime
 import time
-
+import sys
 from exif_read import ExifRead
 from geo import compute_bearing, gps_distance, diff_bearing
 import processing
@@ -35,18 +35,22 @@ def finalize_sequence_processing(sequence,
 
 
 def process_sequence_properties(import_path,
-                                cutoff_distance,
-                                cutoff_time,
+                                cutoff_distance=600.0,
+                                cutoff_time=60.0,
                                 interpolate_directions=False,
-                                remove_duplicates=False,
+                                flag_duplicates=False,
                                 duplicate_distance=0.1,
                                 duplicate_angle=5,
                                 offset_angle=0.0,
                                 verbose=False,
                                 rerun=False,
                                 skip_subfolders=False):
-    # load the capture time and lat,lon info, requires that the geotag process
-    # has been done
+    # basic check for all
+    import_path = os.path.abspath(import_path)
+    if not os.path.isdir(import_path):
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
+        sys.exit()
 
     sequences = []
 
@@ -121,7 +125,7 @@ def process_sequence_properties(import_path,
         final_directions = directions[:]
 
         # FLAG DUPLICATES --------------------------------------
-        if remove_duplicates:
+        if flag_duplicates:
             final_file_list = [file_list[0]]
             final_directions = [directions[0]]
             prev_latlon = latlons[0]

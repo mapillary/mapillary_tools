@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/mapillary/mapillary_tools.svg?branch=master)](https://travis-ci.org/mapillary/mapillary_tools)
 
-Python Tools for Mapillary
+Python Mapillary Import Tools
 =============
 
 Table of contents
@@ -9,16 +9,17 @@ Table of contents
 <!--ts-->
    * [Dependencies](#dependencies)
    * [Installing](#installing)
-   * [Running](#running)
-   * [Download](#download)
-   * [Config](#config)
+   * [Requirements](#requirements)   
+   * [Usage](#usage)
+   * [Tool specifications](#tool_specification)
+   * [Other](#other)
 <!--te-->
 
 
    
 Dependencies  
 =============  
-   
+
 * [exifread]
 * [gpxpy]
 * [PIL]
@@ -33,357 +34,299 @@ Installing
    
 **on MacOSX**
 
-    sudo pip install -r requirements.txt
-  
-If you don't have pip on your system, you can install it by `sudo easy_install pip`.  
-  
+
+	pip install git+https://github.com/mapillary/mapillary_tools 
+
 
 **on Ubuntu**
 
-    sudo apt install git python python-virtualenv python-dev
-    git clone https://github.com/mapillary/mapillary_tools.git
-    cd mapillary_tools
-    python -m virtualenv --python=python2 --system-site-packages .env
-    source .env/bin/activate
-    pip install -r requirements.txt
-    
-Run `deactivate` to exit the virtualenv.
+
+	pip install git+https://github.com/mapillary/mapillary_tools 
+
+
+
+**on Windows**
+
+	pip install git+https://github.com/mapillary/mapillary_tools 
+	
+**video specific installment**
+
+In case of video sampling, `ffmpeg` has to be installed. 
   
-Running  
+Requirements
+=============  
+
+To import images to Mapillary, an account is required and can be created [here](https://www.mapillary.com). 
+
+When using the import tools for the first time, user authentication is required. You will be prompted to enter your account email and password.
+
+Images are required to contain embedded Mapillary image description in the image EXIF. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
+
+In case images were captured with the Mapillary app, this requirement is met and images can be uploaded. 
+
+In other cases, Mapillary image description needs to be inserted in the image EXIF using the process tool.
+
+Videos require sampling into images, before processing and uploading.
+
+Usage  
 =============   
 
-Any import tool can be used with the executable `mapillary_import` .
-General usage:
+Import tools can be used with the executable `mapillary_import` :
 
-    mapillary_import "tool" "path/to/images" [arguments]
+	usage: Mapillary import tool [-h] [--advanced] tool ...
+	
+`-h, --help` show help and exit
 
-Available tools are:
+`--advanced` use the tools under an advanced level, with additional arguments and tools available
 
+`tool` one of the available Mapillary import tools
+
+Available tools:
 - main tools:
-   - process
    - upload
+   - process
+   - sample_video
+- batch tools:
    - process_and_upload
-- unit tools:
-   - user_process
-   - import_metadata_process
-   - geotag_process
-   - sequence_process
-   - upload_params_process
-   - insert_EXIF_ImageDescription
-	 	
-The main tools are used to complete the entire pipeline of image import.
-The unit tools are tools called by the process tool, but can be run individually.
-Each tool takes specific arguments.
+   - video_process
+   - video_process_and_upload
+   
+Available under advanced:
+- process unit tools:
+   - extract_user_data
+   - extract_import_meta_data
+   - extract_geotag_data
+   - extract_sequence_data
+   - extract_upload_params
+   - exif_insert
 
+The main tools are used to complete the entire pipeline of image and video import.
+To go through the entire pipeline main tools need to be run consecutively in the right order, batch tools can be used to do this easier. 
+Process unit tools are available for users experienced with Mapillary import tools.
+Each tool takes specific required and optional arguments. The list of available optional arguments is longer under advanced.
+
+
+**Simple usage examples:**
+
+    mapillary_import upload --import_path "path/to/images"
+
+Will upload all images in the directory `path/to/images` and its sub directories. Mapillary image description required in the image EXIF.
+
+    mapillary_import process --import_path "path/to/images" --user_name "mapillary_user"
+    
+Will process all images in the directory `path/to/images` and its sub directories, resulting in Mapillary image description embedded in the image EXIF for user with user name `mapillary_user`. Requires that the image EXIF contains image capture date and time, latitude, longitude and camera direction, ie heading.
+
+    mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5
+
+Will sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds.
+
+    mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
+
+Will run process and upload consecutively.
+
+**Advanced usage example:**
+
+    	mapillary_import process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+    	mapillary_import upload --import_path "path/to/images"
+
+or
+	
+	mapillary_import process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+	
+Will run process and upload consecutively, while process is reading geotag data from a gpx track.
+
+Tool specifications 
+=============  
+
+**Main tools**
+
+**upload**
+
+Images that have been successfully processed or were taken with the Mapillary app will contain the required Mapillary image description embedded in the image EXIF and can be uploaded with the `upload` tool.  
+
+The `upload` tool will collect all the images in the import path, while checking for duplicate flags, processing and uploading logs.  
+If image is flagged as duplicate, was logged with failed process or logged as successfully uploaded, it will not be added to the upload list.   
+
+By default, 4 threads upload in parallel and the script retries 10 times upon encountering a failure. These can be customized with environment variables in the command line:  
+
+    NUMBER_THREADS=2 
+    MAX_ATTEMPTS=100
+
+In case you wish to monitor and double check the progress you can manually finalize the upload by passing the `--manual_done` argument.
+In case you do not wish to import images in the subfolders, you can skip them by passing the `--skip_subfolders` argument.
+
+Required arguments are:   
+- `--import_path --import_path "path/to/images"`   
+    path to your images  
+    value type string  
+  
+Optional arguments are:  
+- `--manual_done`  
+    set True to automatically finalize the upload
+    default value False  
+- `--skip_subfolders`  
+    set True to skip all the images in subfolders
+    default value False  
+  
 Usage examples:
 
-    mapillary_import upload "/home/user/Pictures"
-    mapillary_import "tool" "path/to/images" [arguments]
-    mapillary_import "tool" "path/to/images" [arguments]
-    mapillary_import "tool" "path/to/images" [arguments]
-    mapillary_import "tool" "path/to/images" [arguments]
-    mapillary_import "tool" "path/to/images" [arguments]
+    mapillary_import upload --import_path "path/to/images" 
 
-  
-Processing 
-=============  
-Required meta data needs to be processed and inserted in the image EXIF for an image to be uploaded to Mapillary.  
-In case the image were taken with the Mapillary app, the required meta data is already inserted in the image EXIF and no processing is needed and you can skip to [Upload](#upload). 
+Will upload all images in the directory `path/to/images` and its sub directories.
+ 
+    mapillary_import upload --import_path "path/to/images" --skip_subfolders --manual_done
 
-  
-Required meta data is:  
-- user specific meta data  
--  capture time  
--  latitude and longitude  
--  sequence meta data  
+Will upload all images in the directory `path/to/images`, while skipping its sub directories and prompting the user to finalize the upload.
 
-Optional meta data:  
--  import meta data  
+This tool has no additional advanced arguments.
 
-**process**  
-By using the process tool, all of the below listed processing unit tools will be executed with the corresponding arguments.  
-- [user_process](#user_process)  
-- [import_metadata_process](#import_metadata_process)  
-- [user_process](#user_process)  
-- [upload_params_process](#upload_params_process)  
-- [geotag_process](#geotag_process)  
-- [sequence_process](#sequence_process)  
-- [insert_EXIF_ImageDescription](#insert_exif_imagedescription)   
+**process**
+
+`process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. 
   
 Required arguments are:   
-- `path "path value"`   
+- `--import_path "path/to/images"`   
     path to images  
     value type string  
-- `--user_name "user name"`   
+- `--user_name "mapillary_user"`   
     specify the user name used to create an account at Mapillary  
     value type string   
   
 Optional arguments are:  
 - `--verbose`  
     set True to print out additional information and warnings  
-  
-Other optional arguments are listed and described under each corresponding tool unit.   
-    
-Simple usage example:   
-
-    mapillary_import process path --user_name username_at_mapilary --verbose
-
-More advanced usage example:   
-
-    mapillary_import process path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 
-
-If a unit tool is to be skipped, argument specifying the skip for the specific unit tool has to be specified.   
-Usage example with skipping sequence processing:   
- 
-    mapillary_import process path --user_name username_at_mapilary --skip_sequence_processing
-
-List of all arguments used to skip a specific unit tool:  
-- `--skip_user_processing`   
-    set True to skip processing user properties  
-- `--skip_import_meta_processing`  
-    set True to skip processing import meta data properties   
-- `--skip_geotagging`   
-    set True to skip processing geotagging properties   
-- `--skip_sequence_processing`   
-    set True to skip processing sequence properties   
-- `--skip_upload_params_processing`   
-    set True to skip processing upload parameters   
-- `--skip_insert_EXIF`   
-    set True to skip inserting the properties into image EXIF   
-
-In case of first image import for the specified user name, authentication is required.  
-Authentication requires the user to provide user email and password, used to create an account at Mapillary.  
-   
-user_process  
-============  
-     
-The user process tool will process user specific properties and initialize authentication in case of first import.   
-No additional arguments available besides the import path, user name and verbose.   
-Both import path and user name are required to run this process tool.   
-Usage example:   
-
-    mapillary_import user_process path --user_name username_at_mapilary
-
-This unit process is required for an image to be uploaded to Mapillary.   
-Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
-
-upload_params_process
-============   
-   
-The upload_params_process tool will process user specific upload parameters, required to safely upload images to Mapillary.  
-This unit process requires that geotag_process and sequence_process have been run successfully.  
-No additional arguments available besides the import path, user name and verbose.  
-Both import path and user name are required to run this process tool.  
-Usage example:  
-
-    mapillary_import upload_params_process path --user_name username_at_mapilary
-
-This unit process is required for an image to be uploaded to Mapillary.   
-Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
-
-import_metadata_process
-============  
-    
-The import_metadata_process tool will process import specific meta data which is not required, but can be very useful.   
-Additional arguments available besides the import path, user name and verbose:    
-- `--orientation "orientation value"`  
-    specify image orientation in degrees   
-    note this might result in image rotation   
-    note this input has precedence over the input read from the import source   
-    possible values are [0, 90, 180, 270]   
-- `--device_make "device make"`  
-    specify device manufacturer   
-    note this input has precedence over the input read from the import source   
-    value type string  
-- `--device_model "device model"`  
-		specify device model  
-		note this input has precedence over the input read from the import source   
-		value type string  
-- `--GPS_accuracy "GPS accuracy value"`   
-		specify GPS accuracy in meters   
-		note this input has precedence over the input read from the import source   
-		value type float   
-- `--add_file_name`   
-		set True to add local file name to the meta data    
-- `--add_import_date`   
-		set True to add import date to the meta data   
-- `--import_meta_source "import meta source value"`   
-		specify the source of meta   
-		note values of arguments passed through the command line while calling the script take precedence over the values read from the source  
-		possible values are ['exif', 'json']   
-		default value is exif, which results in import meta data read directly from the image EXIF if available   
-- `--import_meta_source_path "path to file"`  
-		specify the path to the file with import meta   
-		in case import_meta_source is not set or is set to exif, this argument is not required   
-		value type string   
-
-Only the import path is required to run this process tool.		    
-Usage examples:    
-
-    mapillary_import import_metadata_process path  
-
-    mapillary_import import_metadata_process path --add_file_name --add_import_date --import_meta_source exif  
-
-    mapillary_import import_metadata_process path --import_meta_source json import_meta_source_path "path/to/file.json"  
-
-This unit process is not required for an image to be uploaded to Mapillary, although is very much encouraged.  
-
-geotag_process
-============  
-  
-The geotag_process tool will process the capture date/time and GPS data which are required to upload an image to Mapillary.   
-Additional arguments available besides the import path, user name and verbose:  
-- `--geotag_source "geotag source value"`  
-		specify the source of geotag data   
-		possible values are ['exif', 'gpx', 'csv', 'json']   
-		default value is exif, which results in capture date/time and GPS data read directly from the image EXIF if available   
-- `--geotag_source_path "path to file"`   
-		specify the path to the file with the capture date/time and GPS data   
-		in case geotag source is set to exif, this argument is not required   
-		value type string   
-- `--offset_angle	"offset angle value"`	   
-		specify the offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)   
-		value type float
-- `--local_time`	   
-		set True to assume image timestamps are in your local time
-   
-
-Only the import path is required to run this process tool.	  	  
-Usage examples:   
- 
-    mapillary_import geotag_process path
-
-    mapillary_import geotag_process path --offset_angle 90 --geotag_source csv --geotag_source_path "path/to/file.csv"
-
-This unit process is required for an image to be uploaded to Mapillary.   
-Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
-
-sequence_process
-============  
-    
-The sequence_process tool will process the entire set of images located in the import path and flag duplicates, interpolate directions and perform sequence split.   
-This unit process requires that geotag_process has been run successfully.  
-Additional arguments available besides the import path, user name and verbose:  
-- `--cutoff_distance "cutoff distance value"`  
-		specify the maximum gps distance in meters within a sequence  
-		value type float  
-		default value 600.0  
-- `--cutoff_time "cutoff time value"`   
-		specify the maximum time interval in seconds within a sequence   
-		value type float  
-		default value 60.0	  	
-- `--interpolate_directions`   
-		set True to perform interploation of directions   
-		note that the values of the derived directions will take precedence of those read from the geotag source   
-- `--offset_angle	"offset angle value"`	   
-		specify the offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)   
-		value type float   
-		note in case of direction interpolation, this value will be added to the interpolated directions and not the ones read from the geotag source   
-- `--flag_duplicates`   
-		set True to flag duplicates   
-		note that duplicates are flagged based on the time elapsed between the images and based on the gps distance between the images  
-		note that images flagged as duplicated will not be uploaded to Mapillary  
-- `--duplicate_distance	"duplicate distance value"`	   
-		specify the max distance for two images to be considered duplicates in meters  
-		value type float   
-		default value 0.1   
-- `--duplicate_angle "duplicate angle value"`  
-		specify the max angle for two images to be considered duplicates in degrees  
-		value type float  
-		default value 5   
-		
-Only the import path is required to run this process tool.	  	
-Usage examples:
-
-    mapillary_import sequence_process path  
-
-    mapillary_import sequence_process path --cutoff_distance 1000 --cutoff_time 30 --flag_duplicates 
-
-This unit process is required for an image to be uploaded to Mapillary.   
-Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.   
-
-insert_EXIF_ImageDescription  
-============    
-   
-The insert_EXIF_ImageDescription tool will take all the meta data read and processed in the other processing units and insert it in the image EXIF.  
-No additional arguments available besides the import path, user name and verbose.  
-Only the import path is required to run this process tool.		    
+- `--skip_subfolders`  
+    set True to skip all the images in subfolders
+    default value False
+- `--rerun`  
+    set True to rerun the process
+    default value False
+    will only affect images which were not already uploaded
+- `--organization_name "mapillary_organization_name"`
+	specify the organization name for the import
+	default value None  
+- `--organization_key "mapillary_organization_key"`
+	specify the organization key for the import
+	default value None 
+- `--private`
+	set True for image privacy, ie import in a private repository
+	default value False
+	
 Usage examples:   
 
-    mapillary_import insert_EXIF_ImageDescription path
+    mapillary_import process --import_path "path/to/images" --user_name "mapillary_user"
+    mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
 
-This unit process is required for an image to be uploaded to Mapillary.  
-Only skip this process if you have run it already or you do not intent to upload the images to Mapillary.  
-Note that in case other processing units have been run without this processing unit, the updated meta data will not be inserted into image EXIF if skipping or not repeating this process unit.   
+This tool runs several process units, each with specific required and optional arguments.
+This tool has additional advanced arguments, listed under each process unit tool below.
+
+**sample_video**
+
+`sample_video` tool will sample a video into images and insert capture time in the image EXIF. 
   
-Upload  
-=============
-  
-Images that have been successfully processed or were taken with the Mapillary app can be uploaded with the upload tool.   
-Either upload alone can be used or process_and_upload.  
-By default, 4 threads upload in parallel and the script retries 10 times upon encountering a failure. These can be customized with environment variables in the command line:  
-
-    NUMBER_THREADS=2 MAX_ATTEMPTS=100
-
-On Android Systems you can find the images under `/storage/emulated/0/Android/data/app.mapillary/files/pictures/`  
-On iOS, open iTunes, select your device, and scroll down to Mapillary under apps. You can see the files and copy them over from there.  
-
-
-**upload**   
-The upload tool will collect all the images in the import path, while checking for duplicate flags, processing and uploading logs.  
-If image is flagged as duplicate, was logged with failed process or logged as successfully uploaded, it will not be added to the upload list.   
-In case images were not captured with the Mapillary app and processing was required, you will be prompted to finalize the upload.   
-If you feel confident about the import, run it with the argument `--auto_done` , to automatically finalize the upload.
-
 Required arguments are:   
-- `path "path value"`   
+- `--import_path "path/to/images"`   
     path to images  
     value type string  
+- `--video_file "path/to/video"`   
+    path to video file  
+    value type string   
   
 Optional arguments are:  
-- `--auto_done`  
-    set True to automatically finalize the upload  
+- `--video_sample_interval "video sample interval"` 
+    specify the sampling rate of the video in seconds
+    value type float
+    default value 2 seconds  
+- `--video_duration_ratio "video duration ratio"`  
+    specify the adjustment factor for video over/under sampling
+    value type float
+    default value 1.0  
+- `--video_start_time "video start time"`  
+    specify video start time in epochs (milliseconds)
+    value type integer
+    default value None  
+	
+Usage examples:   
+
+    mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video"
+    mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910
+
+This tool has no additional advanced arguments.
+
+**Batch tools**
+
+**process_and_upload**
+`process_and_upload` tool will run `process` and `upload` tools consecutively with combined required and optional arguments.
+
+Usage examples:   
+
+    mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
+    mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
+
+**video_process**
+`video_process` tool will run `video_sample` and `process` tools consecutively with combined required and optional arguments.
+
+Usage examples:   
+
+    mapillary_import video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
+    
+**video_process_and_upload**
+`video_process_and_upload` tool will run `video_sample`, `process` and `upload` tools consecutively with combined required and optional arguments.
+
+Usage examples: 
   
-Usage example:
+    mapillary_import video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
 
-    mapillary_import upload path
+**Process unit tools**
+
+**extract_user_data**
+
+	TBD
+	
+**extract_import_meta_data**
+
+	TBD
+	
+**extract_geotag_data**
+
+	TBD
+
+**extract_sequence_data**
+
+	TBD
+
+**extract_upload_params**
+
+	TBD
+
+**exif_insert**
+
+	TBD
+
+**sample_video**
 
 
+Other
+=============  
 
-Process and upload
-=============
+**Download**
 
-**process_and_upload**  
-In case you wish to perform both, processing and upload, run this tool.   
-This tool calls both, processing and upload, as they are described above.
-  
-Usage example:  
+Download images from Mapillary.
 
-    mapillary_import process_and_upload path --user_name username_at_mapilary --add_file_name --add_import_date --device_make Apple --device_model "iPhone SE" --GPS_accuracy 1.5 --cutoff_distance 50 --cutoff_time 120 --interpolate_directions --offset_angle 10 --flag_duplicates --duplicate_distance 2 --duplicate_angle 45 --auto_done
-
-
-Download  
-=============
-  
-
-Download images from Mapillary  
+Below script downloads images using the Mapillary image search API. Images can be downloaded inside a rectangle/bounding box, specifying the minimum and maximum latitude and longitude.
 
   
 **download_images.py**  
 
-  
-Script to download images using the Mapillary image search API. Downloads images inside a rect (min_lat, max_lat, min_lon, max_lon)  
-
-
     python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 
-  
-Config  
-=============
-  
+**Config**
 
 Edit a config file.  
-If you wish to edit the user specific properties in you config file, below script can be used.  
+
+User authentication is required to import images to Mapillary. When importing for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
+
+If you wish to manually edit a config file, the below script can be used.  
 The defualt config file is your global Mapillary config file and will be used if no other file path provided.  
 
   
@@ -392,8 +335,6 @@ The defualt config file is your global Mapillary config file and will be used if
 	python edit_config.py
 	python edit_config.py path
 
-
-
 [exifread]: https://pypi.python.org/pypi/ExifRead
 
 [gpxpy]: https://pypi.python.org/pypi/gpxp
@@ -401,4 +342,4 @@ The defualt config file is your global Mapillary config file and will be used if
 [PIL]: https://pypi.python.org/pypi/Pillow/2.2.
 
 [Piexif]: https://github.com/mapillary/Piexi
-
+s

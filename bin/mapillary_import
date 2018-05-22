@@ -1,52 +1,47 @@
 #!/usr/bin/env python
 
 import argparse
+import sys
 
 from mapillary_tools import commands
 
+advanced = '--advanced' in sys.argv
+
 # Create the top-level parser
-parser = argparse.ArgumentParser('Import images to Mapillary', add_help=False)
+parser = argparse.ArgumentParser('Mapillary import tool')
+parser.add_argument(
+    '--advanced', help='Use the tools under an advanced level with additional arguments and tools available.', action='store_true', required=False, default = False)
+
 subparsers = parser.add_subparsers(
-    help='Command to run', dest='command', metavar='command')
+    help="Please choose one of the available tools", dest='tool', metavar='tool')
 
 # Load the subcommands
 process_subcommands = [module.Command() for module in commands.mapillary_tools_process_unit_commands]
 upload_subcommands = [module.Command() for module in commands.mapillary_tools_upload_unit_commands]
 video_subcommands = [module.Command() for module in commands.mapillary_tools_video_unit_commands]
+batchcommands = [module.Command() for module in commands.mapillary_tools_batch_commands]
 
 # Create one subparser for each subcommand
-subcommands = process_subcommands + upload_subcommands + video_subcommands
-
+subcommands =  upload_subcommands + video_subcommands + batchcommands
+if advanced : 
+	subcommands+=process_subcommands
+	
 for command in subcommands:
 	subparser = subparsers.add_parser(command.name, help=command.help)
-	commands.add_general_arguments(subparser, command.name)
-	command.add_arguments(subparser)
+	commands.add_general_arguments(subparser, command)
+	command.add_basic_arguments(subparser)
+	if advanced:
+		command.add_advanced_arguments(subparser)
+		subparser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.', action='store_true', required=False, default = False)
 
-# Create one subparser for each batchcommand
-batchcommands = commands.mapillary_tools_batch_commands
-
-for command in batchcommands:
-	batchparser = subparsers.add_parser(command)
-	commands.add_general_arguments(batchparser, command)
-	for command in subcommands:
-		command.add_arguments(batchparser)
-		
-# Parse arguments
 args = parser.parse_args()
 
+args_command = vars(args)['tool']
+del vars(args)['tool']
+if 'advanced' in vars(args):
+	del vars(args)['advanced']
 
 # Run the selected subcommand if unit command, or in case of batch command, run several unit commands
-if args.command not in batchcommands:
-	for command in subcommands:
-		if args.command == command.name:
-			command.run(args)
-else:
-	if "video" in args.command:
-		for command in video_subcommands:
-			command.run(args)
-	if "process" in args.command:		
-		for command in process_subcommands:
-			command.run(args)
-	if "upload" in args.command:
-		for command in upload_subcommands:
-			command.run(args)
+for command in subcommands:
+	if args_command == command.name:
+		command.run(args)

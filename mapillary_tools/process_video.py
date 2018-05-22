@@ -3,6 +3,8 @@ import datetime
 from ffprobe import FFProbe
 import uploader
 import processing
+import sys
+
 from exif_write import ExifEdit
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -33,10 +35,24 @@ def timestamps_from_filename(full_image_list,
 
 def sample_video(video_file,
                  import_path,
-                 sample_interval,
-                 start_time=None,
-                 duration_ratio=1.0,
+                 video_sample_interval,
+                 video_start_time=None,
+                 video_duration_ratio=1.0,
                  verbose=False):
+
+    # basic check for all
+    import_path = os.path.abspath(import_path)
+    if not os.path.isdir(import_path):
+        print("Error, import directory " + import_path +
+              " doesnt not exist, exiting...")
+        sys.exit()
+
+    # command specific checks
+    video_file = os.path.abspath(video_file) if video_file else None
+    if video_file and not os.path.isfile(video_file):
+        print("Error, video file " + video_file +
+              " does not exist, exiting...")
+        sys.exit()
 
     # check video logs
     video_upload = processing.video_upload(

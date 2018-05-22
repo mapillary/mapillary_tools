@@ -1,27 +1,20 @@
-import os
-import sys
 
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 
 
 class Command:
     name = 'exif_insert'
-    help = "Insert the Mapillary image description into the EXIF ImageDescription tag."
+    help = "Process unit tool : Format and insert Mapillary image description into image EXIF ImageDescription."
 
-    def add_arguments(self, parser):
-        pass
+    def add_basic_arguments(self, parser):
+        parser.add_argument(
+            '--rerun', help='rerun the processing', action='store_true', required=False)
+
+    def add_advanced_arguments(self, parser):
+        # master upload
+        parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 
-        # basic check for all
-        import_path = os.path.abspath(args.path)
-        if not os.path.isdir(import_path):
-            print("Error, import directory " + import_path +
-                  " doesnt not exist, exiting...")
-            sys.exit()
-
-        insert_MAPJson(import_path,
-                       args.master_upload,
-                       args.verbose,
-                       args.rerun,
-                       args.skip_subfolders)
+        insert_MAPJson(**vars(args))
