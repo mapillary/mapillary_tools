@@ -12,6 +12,17 @@ LOG_FILEPATH = '.mapillary/log'
 
 
 def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False):
+    '''
+    Upload local images to Mapillary
+    Args:
+        import_path: Directory path to where the images are stored.
+        verbose: Print extra warnings and errors.
+        skip_subfolders: Skip images stored in subdirectories.
+        manual_done: Prompt user to confirm upload finalization.
+
+    Returns:
+        Images are uploaded to Mapillary and flagged locally as uploaded.
+    '''
 
     # basic check for all
     import_path = os.path.abspath(import_path)

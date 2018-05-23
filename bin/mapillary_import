@@ -33,8 +33,6 @@ for command in all_commands:
     command.add_basic_arguments(subparser)
     if advanced:
         command.add_advanced_arguments(subparser)
-        subparser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
-                               action='store_true', required=False, default=False)
 
 args = parser.parse_args()
 

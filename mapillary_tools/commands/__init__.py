@@ -36,3 +36,5 @@ def add_general_arguments(parser, command):
     # print out warnings
     parser.add_argument(
         '--verbose', help='print debug info', action='store_true', default=False, required=False)
+    parser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
+                        action='store_true', required=False, default=False)
