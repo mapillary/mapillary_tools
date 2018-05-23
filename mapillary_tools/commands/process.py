@@ -9,7 +9,7 @@ from mapillary_tools.insert_MAPJson import insert_MAPJson
 
 class Command:
     name = 'process'
-    help = 'Main tool : Process image meta data and insert it in image EXIF ImageDescription.'
+    help = 'Main tool : Process image meta data and insert it in image EXIF.'
 
     def add_basic_arguments(self, parser):
         parser.add_argument(

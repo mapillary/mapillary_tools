@@ -5,7 +5,7 @@ from mapillary_tools.process_geotag_properties import process_geotag_properties
 from mapillary_tools.process_sequence_properties import process_sequence_properties
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
-from mapillary_tools import process_video
+from mapillary_tools.process_video import sample_video
 
 
 class Command:

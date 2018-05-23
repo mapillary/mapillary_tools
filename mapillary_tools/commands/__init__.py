@@ -11,7 +11,10 @@ from . import process_and_upload
 from . import video_process
 from . import video_process_and_upload
 
-mapillary_tools_process_unit_commands = [
+mapillary_tools_advanced_commands = [
+    sample_video,
+    video_process,
+    video_process_and_upload,
     extract_user_data,
     extract_geotag_data,
     extract_import_meta_data,
@@ -19,18 +22,10 @@ mapillary_tools_process_unit_commands = [
     extract_upload_params,
     exif_insert
 ]
-mapillary_tools_upload_unit_commands = [
-    upload
-]
-mapillary_tools_video_unit_commands = [
-    sample_video
-]
-
-mapillary_tools_batch_commands = [
+mapillary_tools_commands = [
     process,
-    process_and_upload,
-    video_process,
-    video_process_and_upload
+    upload,
+    process_and_upload
 ]
 
 

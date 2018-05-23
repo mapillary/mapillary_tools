@@ -425,6 +425,23 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         print(
             "Error, image EXIF tag Image Description could not be edited for image " + image)
         return None
+    # also try to set time and gps so image can be placed on the map for testing and
+    # qc purposes
+    try:
+        image_exif.add_date_time_original(datetime.datetime.strptime(
+            final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+    except:
+        pass
+    try:
+        image_exif.add_lat_lon(
+            final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
+    except:
+        pass
+    try:
+        image_exif.add_direction(
+            final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
+    except:
+        pass
     try:
         image_exif.write()
     except:
