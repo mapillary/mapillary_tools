@@ -172,7 +172,7 @@ or
  ```bash 	
 	mapillary_import video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
 ```
-*Capture time inserted in the image EXIF while sampling, based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires that `--use_gps_start_time` is passed to the process` tool, which will add an offset to the images so that gpx track and video capture start time are the same. To make sure the gpx track and the images are aligned ok, an offset in seconds can be specified as `--offset_time 2`.
+*Capture time inserted in the image EXIF while sampling, based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires that `--use_gps_start_time` is passed to the `process` tool, which will add an offset to the images so that gpx track and video capture start time are the same. To make sure the gpx track and the images are aligned ok, an offset in seconds can be specified as `--offset_time 2`.
 
 
 Tool specifications 
