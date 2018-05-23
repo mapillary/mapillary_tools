@@ -68,10 +68,17 @@ def process_upload_params(import_path,
         # check the status of the sequence processing
         log_root = uploader.log_rootpath(import_path,
                                          image)
-        if master_upload:
-            if os.path.isfile(os.path.join(log_root, "upload_params_process.json")):
-                os.remove(os.path.join(log_root, "upload_params_process.json"))
+        duplicate_flag_path = os.path.join(log_root,
+                                           "duplicate")
+        upload_params_path = os.path.join(
+            log_root, "upload_params_process.json")
+
+        if os.path.isfile(upload_params_path):
+            os.remove(upload_params_path)
+
+        if os.path.isfile(duplicate_flag_path) or master_upload:
             continue
+
         upload_params_properties = processing.get_upload_param_properties(log_root,
                                                                           image,
                                                                           user_name,

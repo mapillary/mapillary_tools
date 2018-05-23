@@ -305,15 +305,8 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
                   ", therefore it will not be included in the upload params processing.")
         return None
 
-    duplicate_flag_path = os.path.join(log_root,
-                                       "duplicate")
     upload_params_process_success_path = os.path.join(log_root,
                                                       "upload_params_process_success")
-    if os.path.isfile(duplicate_flag_path):
-        if verbose:
-            print("Warning, duplicate flag for " + image +
-                  ", therefore it will not be included in the upload params processing.")
-        return {"duplicate": True}  # hacky
 
     # load the sequence json
     sequence_process_json_path = os.path.join(log_root,
