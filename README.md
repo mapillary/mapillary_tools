@@ -186,16 +186,42 @@ Tool specifications
 
 See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments. Examples:
 
+ - show help for `process` tool:
+ 
+  ```bash 	
 	mapillary_import process -h
+```
+ - show advanced help for `process` tool:
+
+  ```bash 	
 	mapillary_import process -h --advanced
+```
 		
 #### Usage examples:   
 
+ - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories:
+ 
+```bash 	   
     mapillary_import process --import_path "path/to/images" --user_name "mapillary_user"
+```
+ - process all images for user `mapillary_user`, in the directory `path/to/images`, skipping the images in its sub-directories, rerunning process for all images that were not already uploaded and printing out extra warnings or errors.
+
+```bash 	   
     mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
+```
 
 #### Advanced usage examples:   
 
+ - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
+ 
+```bash 	   
+    mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --offset_time --flag_duplicates 
+```
+ - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
+
+```bash 	   
+    mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
+```
 
 ### upload
 
