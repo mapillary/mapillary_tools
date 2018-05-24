@@ -508,13 +508,15 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
-def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False):
+def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=import_path):
     process_file_list = []
     if skip_subfolders:
-        process_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(import_path, import_path, file, process, rerun))
+        process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(import_path, root_dir, file, process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
+            if ".mapillary" in root:
+                continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
                 import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 

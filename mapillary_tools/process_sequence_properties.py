@@ -59,7 +59,8 @@ def process_sequence_properties(import_path,
                                                              "sequence_process",
                                                              rerun,
                                                              verbose,
-                                                             skip_subfolders)
+                                                             True,
+                                                             import_path)
         if not len(process_file_list):
             if verbose:
                 print("No images to run sequence process in root " + import_path)
@@ -82,10 +83,12 @@ def process_sequence_properties(import_path,
             if ".mapillary" in root:
                 continue
             if len(files):
-                process_file_list = processing.get_process_file_list(root,
+                process_file_list = processing.get_process_file_list(import_path,
                                                                      "sequence_process",
                                                                      rerun,
-                                                                     verbose)
+                                                                     verbose,
+                                                                     True,
+                                                                     root)
                 if not len(process_file_list):
                     if verbose:
                         print("No images to run sequence process in root " + root)
