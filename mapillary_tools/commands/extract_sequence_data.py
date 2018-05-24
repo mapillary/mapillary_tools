@@ -22,9 +22,9 @@ class Command:
         parser.add_argument('--flag_duplicates',
                             help='flag duplicates', action='store_true', required=False)
         parser.add_argument('--duplicate_distance',
-                            help='max distance for two images to be considered duplicates in meters', default=0.1, required=False)
+                            help='max distance for two images to be considered duplicates in meters', default=0.1, required=False, type=float)
         parser.add_argument(
-            '--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5, required=False)
+            '--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', default=5, required=False, type=float)
         parser.add_argument('--offset_angle', default=0., type=float,
                             help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
 

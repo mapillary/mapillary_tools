@@ -508,7 +508,11 @@ def update_json(data, file_path, process):
     save_json(original_data, file_path)
 
 
-def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=import_path):
+def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = import_path
+
     process_file_list = []
     if skip_subfolders:
         process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
