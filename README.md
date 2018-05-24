@@ -38,10 +38,31 @@ Installing
 	pip install git+https://github.com/mapillary/mapillary_tools 
 
 	
-**video specific installment**
+#### video specific installment:
 
 In case of video sampling, `ffmpeg` has to be installed. 
-  
+
+##### on MacOSX:
+
+To install `ffmpeg` on Mac OS X, use [Homebrew](https://brew.sh).
+Once you have Homebrew installed, you can install `ffmpeg` by typing the following in the command line:
+
+```bash
+brew install ffmpeg
+```
+
+##### Ubuntu:
+
+To install `ffmpeg` on Ubuntu, please type the following in the command line: 
+
+```bash
+sudo apt-get install ffmpeg
+```
+
+##### Windows :
+
+To install `ffmpeg` on Windows, please follow these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
+
 Requirements
 =============  
 
