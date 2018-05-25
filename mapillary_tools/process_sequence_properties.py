@@ -54,6 +54,9 @@ def process_sequence_properties(import_path,
 
     sequences = []
 
+    duplicate_distance = float(duplicate_distance)
+    duplicate_angle = float(duplicate_angle)
+
     if skip_subfolders:
         process_file_list = processing.get_process_file_list(import_path,
                                                              "sequence_process",
