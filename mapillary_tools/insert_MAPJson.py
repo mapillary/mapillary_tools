@@ -10,7 +10,8 @@ def insert_MAPJson(import_path,
                    master_upload=False,
                    verbose=False,
                    rerun=False,
-                   skip_subfolders=False):
+                   skip_subfolders=False,
+                   skip_EXIF_insert=False):
 
     # basic check for all
     import_path = os.path.abspath(import_path)
@@ -45,7 +46,8 @@ def insert_MAPJson(import_path,
         final_mapillary_image_description = processing.get_final_mapillary_image_description(log_root,
                                                                                              image,
                                                                                              master_upload,
-                                                                                             verbose)
+                                                                                             verbose,
+                                                                                             skip_EXIF_insert)
 
         processing.create_and_log_process(image,
                                           import_path,

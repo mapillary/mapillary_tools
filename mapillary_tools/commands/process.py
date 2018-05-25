@@ -77,6 +77,10 @@ class Command:
         parser.add_argument(
             '--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', type=float, default=5, required=False)
 
+        # EXIF insert
+        parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
+                            action='store_true', default=False, required=False)
+
     def run(self, args):
 
         vars_args = vars(args)

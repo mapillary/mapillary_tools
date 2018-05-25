@@ -349,7 +349,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
@@ -404,6 +404,9 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
     # image gets uploaded more than once
     final_mapillary_image_description['MAPPhotoUUID'] = str(
         uuid.uuid4())
+
+    if skip_EXIF_insert:
+        return final_mapillary_image_description
 
     # insert in the EXIF image description
     try:
