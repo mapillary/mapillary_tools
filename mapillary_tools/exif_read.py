@@ -157,7 +157,7 @@ class ExifRead:
                 capture_time = datetime.datetime.strptime(os.path.basename(
                     self.filename)[:-4] + '000', '%Y_%m_%d_%H_%M_%S_%f')
             except:
-                pass
+                return None
         else:
             capture_time = capture_time.replace(" ", "_")
             capture_time = capture_time.replace(":", "_")

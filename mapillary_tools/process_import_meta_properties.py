@@ -65,7 +65,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.0")
+                 "0.0.0")
 
     processing.create_and_log_process(image,
                                       import_path,

@@ -49,6 +49,8 @@ def estimate_sub_second_time(files, interval=0.0):
     T = datetime.timedelta(seconds=interval)
     for i, f in enumerate(files):
         m = exif_time(f)
+        if not m:
+            pass
         if i == 0:
             smin = m
             smax = m + onesecond
@@ -56,7 +58,8 @@ def estimate_sub_second_time(files, interval=0.0):
             m0 = m - T * i
             smin = max(smin, m0)
             smax = min(smax, m0 + onesecond)
-
+    if not smin or not smax:
+        return None
     if smin > smax:
         print('Interval not compatible with EXIF times')
         return None
@@ -218,6 +221,15 @@ def geotag_from_gpx(process_file_list,
 
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
+
+        if not capture_time:
+            if verbose:
+                print("Error, capture time could not be extracted for image " + image)
+            create_and_log_process(image,
+                                   import_path,
+                                   "geotag_process",
+                                   "failed",
+                                   verbose=verbose)
 
         geotag_properties = get_geotag_properties_from_gpx(
             image, capture_time, gpx, offset_angle, offset_time, verbose)
