@@ -34,6 +34,7 @@ Installing
    
 ### MacOSX, Ubuntu, Windows
 
+You will require to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed prior installing mapillary_tools.
 
 	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
 
@@ -44,7 +45,7 @@ In case of video sampling, `ffmpeg` has to be installed.
 
 ##### MacOSX
 
-To install `ffmpeg` on Mac OS X, use [Homebrew](https://brew.sh).
+To install `ffmpeg` on Mac OS X use [Homebrew](https://brew.sh).
 Once you have Homebrew installed, you can install `ffmpeg` by typing the following in the command line:
 
 ```bash
@@ -53,7 +54,7 @@ brew install ffmpeg
 
 ##### Ubuntu
 
-To install `ffmpeg` on Ubuntu, please type the following in the command line: 
+To install `ffmpeg` on Ubuntu type the following in the command line: 
 
 ```bash
 sudo apt-get install ffmpeg
