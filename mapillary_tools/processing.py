@@ -649,7 +649,7 @@ def create_and_log_process(image, import_path, process, status, mapillary_descri
             save_json(mapillary_description, log_MAPJson)
             open(log_process_succes, "w").close()
             open(log_process_succes + "_" +
-                 str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+                 str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
             # if there is a failed log from before, remove it
             if os.path.isfile(log_process_failed):
                 os.remove(log_process_failed)
@@ -662,7 +662,7 @@ def create_and_log_process(image, import_path, process, status, mapillary_descri
     if status == "failed":
         open(log_process_failed, "w").close()
         open(log_process_failed + "_" +
-             str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+             str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
         # if there is a success log from before, remove it
         if os.path.isfile(log_process_succes):
             os.remove(log_process_succes)

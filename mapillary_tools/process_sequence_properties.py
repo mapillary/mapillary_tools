@@ -153,7 +153,7 @@ def process_sequence_properties(import_path,
                     open(duplicate_flag_path, "w").close()
                     open(sequence_process_success_path, "w").close()
                     open(sequence_process_success_path + "_" +
-                         str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+                         str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
                 else:
                     prev_latlon = latlons[k]
                     prev_direction = directions[k]

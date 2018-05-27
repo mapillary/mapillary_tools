@@ -608,12 +608,12 @@ def create_upload_log(root, filepath, status):
         os.makedirs(upload_log_root)
         open(upload_log_filepath, "w").close()
         open(upload_log_filepath + "_" +
-             str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+             str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
     else:
         if not os.path.isfile(upload_log_filepath):
             open(upload_log_filepath, "w").close()
             open(upload_log_filepath + "_" +
-                 str(time.strftime("%Y:%m:%d_%H:%M:%S", time.gmtime())), "w").close()
+                 str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
 
