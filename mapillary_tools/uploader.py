@@ -36,7 +36,8 @@ ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
 USER_UPLOAD_URL = "https://a.mapillary.com/v3/users/{}/upload_tokens?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
-GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
+GLOBAL_CONFIG_FILEPATH = os.path.join(
+    os.path.expanduser('~'), ".config", "mapillary", 'config')
 
 
 class UploadThread(threading.Thread):
@@ -595,7 +596,7 @@ def upload_file_list(file_list, root, file_params={}):
 
 
 def log_rootpath(root, filepath):
-    return os.path.join(root, ".mapillary/logs", filepath.split(root)[1][1:-4])
+    return os.path.join(root, ".mapillary", "logs", filepath.split(root)[1][1:-4])
 
 
 def create_upload_log(root, filepath, status):

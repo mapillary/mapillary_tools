@@ -12,7 +12,8 @@ parser.add_argument(
     '--config_file', help='Full path to the config file to be edited. Default is ~/.config/mapillary/config', default=None)
 args = parser.parse_args()
 
-GLOBAL_CONFIG_FILEPATH = os.path.expanduser('~/.config/mapillary/config')
+GLOBAL_CONFIG_FILEPATH = os.path.join(
+    os.path.expanduser('~'), ".config", "mapillary", 'config')
 
 config_file_path = args.config_file if args.config_file else GLOBAL_CONFIG_FILEPATH
 

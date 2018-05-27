@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-import urllib2, urllib
+import urllib2
+import urllib
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ Script to download images using the Mapillary image search API.
 Downloads images inside a rect (min_lat, max_lat, min_lon, max_lon).
 '''
 
+
 def create_dirs(base_path):
     try:
         shutil.rmtree(base_path)
@@ -33,8 +35,9 @@ def query_search_api(min_lat, max_lat, min_lon, max_lon, max_results):
 
     # Create URL
     params = urllib.urlencode(zip(
-        ['client_id','bbox','per_page'],
-        [CLIENT_ID, ','.join([str(min_lon), str(min_lat), str(max_lon), str(max_lat)]), str(max_results)]
+        ['client_id', 'bbox', 'per_page'],
+        [CLIENT_ID, ','.join([str(min_lon), str(min_lat), str(
+            max_lon), str(max_lat)]), str(max_results)]
     ))
     print(MAPILLARY_API_IM_SEARCH_URL + params)
 
@@ -76,7 +79,7 @@ def download_images(query, path, size=1024):
             break
         except:
             print("Failed to download: {0}".format(filename))
-    
+
     return im_list
 
 
@@ -92,19 +95,22 @@ if __name__ == '__main__':
     parser.add_argument('min_lon', type=float)
     parser.add_argument('max_lon', type=float)
     parser.add_argument('--max_results', type=int, default=400)
-    parser.add_argument('--image_size', type=int, default=1024, choices=[320,640,1024,2048])
+    parser.add_argument('--image_size', type=int,
+                        default=1024, choices=[320, 640, 1024, 2048])
     args = parser.parse_args()
 
     # query api
-    query = query_search_api(args.min_lat, args.max_lat, args.min_lon, args.max_lon, args.max_results)
+    query = query_search_api(args.min_lat, args.max_lat,
+                             args.min_lon, args.max_lon, args.max_results)
 
     # create directories for saving
     create_dirs(BASE_DIR)
 
     # download
-    downloaded_list = download_images(query, path=BASE_DIR, size=args.image_size)
+    downloaded_list = download_images(
+        query, path=BASE_DIR, size=args.image_size)
 
     # save filename with lat, lon
-    with open(BASE_DIR+"downloaded.txt", "w") as f:
+    with open(BASE_DIR + "downloaded.txt", "w") as f:
         for data in downloaded_list:
             f.write(",".join(data) + "\n")
