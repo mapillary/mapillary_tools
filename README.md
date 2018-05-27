@@ -35,7 +35,7 @@ Installing
 ### MacOSX, Ubuntu, Windows
 
 
-	pip install git+https://github.com/mapillary/mapillary_tools 
+	pip install git+https://github.com/mapillary/mapillary_tools@feature-restructure_tools_v2
 
 	
 #### Video specific installment
@@ -80,12 +80,12 @@ Videos require sampling into images with the help of the `sample_video` advanced
 Usage  
 =============   
 
-Import tools can be used with the executable `mapillary_import`, available in the PATH after installment. To see the available tools, type the following in the command line:
+Import tools can be used with the executable `mapillary_tools`, available in the PATH after installment. To see the available tools, type the following in the command line:
 
 ```bash 
-mapillary_import -h
+mapillary_tools -h
 ```
-Executable `mapillary_import` takes the following arguments:
+Executable `mapillary_tools` takes the following arguments:
 
 `-h, --help` show help and exit
 
@@ -105,12 +105,12 @@ See the tool specific help for required and optional arguments:
  - show help for `process` tool:
  
   ```bash 	
-mapillary_import process -h
+mapillary_tools process -h
 ```
  - show advanced help for `process` tool:
 
   ```bash 	
-mapillary_import process -h --advanced
+mapillary_tools process -h --advanced
 ```
 
 ### Usage examples
@@ -118,19 +118,19 @@ mapillary_import process -h --advanced
  - process all images in the directory `path/to/images` and its sub directories, resulting in Mapillary image description embedded in the image EXIF for user with user name `mapillary_user`. Requires that the image EXIF contains image capture date and time, latitude, longitude and camera direction, ie heading.
  
  ```bash 
-mapillary_import process --import_path "path/to/images" --user_name "mapillary_user"
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
 ```
  
  - upload all images in the directory `path/to/images` and its sub directories. Mapillary image description required in the image EXIF, resulting either from capturing the image with the app or from processing it with the `process` tool.
 
  ```bash 
-mapillary_import upload --import_path "path/to/images"
+mapillary_tools upload --import_path "path/to/images"
 ```
 
  - run process and upload consecutively.
  
 ```bash  
-mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
+mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
 ```
 
    
@@ -157,14 +157,14 @@ Available tools under advanced usage:
  - run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
  
  ```bash 
-mapillary_import process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
-mapillary_import upload --import_path "path/to/images"
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools upload --import_path "path/to/images"
 ```
 
 or
 
  ```bash 	
-mapillary_import process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
 ```
 
 
@@ -173,21 +173,21 @@ mapillary_import process_and_upload --advanced --import_path "path/to/images" --
  - sample* the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds.
  
  ```bash 
-mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
 ```
 
  - sample* the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 2 seconds(default value) and run process and upload consecutively, while process is reading geotag data from a gpx track.
  
 ```bash  
-mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
-mapillary_import process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
-mapillary_import upload --import_path "path/to/images"
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools upload --import_path "path/to/images"
 ```
 
 or
 
  ```bash 	
-mapillary_import video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
+mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
 ```
 *Capture time inserted in the image EXIF while sampling, based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires that `--use_gps_start_time` is passed to the `process` tool, which will add an offset to the images so that gpx track and video capture start time are the same. To make sure the gpx track and the images are aligned ok, an offset in seconds can be specified as `--offset_time 2`.
 
@@ -206,12 +206,12 @@ See the tool specific help for required and optional arguments, add `--advanced`
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories:
  
 ```bash 	   
-mapillary_import process --import_path "path/to/images" --user_name "mapillary_user"
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
 ```
  - process all images for user `mapillary_user`, in the directory `path/to/images`, skipping the images in its sub-directories, rerunning process for all images that were not already uploaded and printing out extra warnings or errors.
 
 ```bash 	   
-mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
 ```
 
 ### Advanced usage examples   
@@ -219,12 +219,12 @@ mapillary_import process --import_path "path/to/images" --user_name "mapillary_u
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
  
 ```bash 	   
-mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --offset_time --flag_duplicates 
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --offset_time --flag_duplicates 
 ```
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
 
 ```bash 	   
-mapillary_import process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
 ```
 
 ## `upload`
@@ -244,13 +244,13 @@ By default, 4 threads upload in parallel and the script retries 10 times upon en
  - upload all images in the directory `path/to/images` and its sub directories:
 
 ```bash 	   
-mapillary_import upload --import_path "path/to/images" 
+mapillary_tools upload --import_path "path/to/images" 
 ```
 
  - upload all images in the directory `path/to/images`, while skipping its sub directories and prompting the user to finalize the upload:
 
 ```bash 	   
-mapillary_import upload --import_path "path/to/images" --skip_subfolders --manual_done
+mapillary_tools upload --import_path "path/to/images" --skip_subfolders --manual_done
 ```
 
 This tool has no additional advanced arguments.
@@ -264,7 +264,7 @@ This tool has no additional advanced arguments.
 - process and upload all the images in directory `path/to/images` and its sub directories for user `mapillary_user`.
 
 ```bash 	   
-mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
+mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
 ```
 
 ### Advanced usage examples   
@@ -272,7 +272,7 @@ mapillary_import process_and_upload --import_path "path/to/images" --user_name "
 - process and upload all the images in directory `path/to/images` and its sub directories for user `mapillary_user`, but skip duplicate images, specifying duplicates as images apart up to 0.5 m or with a camera angle difference up to 1°.
 
 ```bash
-mapillary_import process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
+mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
 ```
 
 ## `sample_video`
@@ -285,13 +285,13 @@ This tool is an advanced tool and might require some experience with the import 
  - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 one video frame every 2 seconds.
  
 ```bash
-mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video" --advanced
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --advanced
 ```
 
 - sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (epoch)milliseconds.
 
 ```bash
-mapillary_import sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910
 ```
 
 ## `video_process`
@@ -303,7 +303,7 @@ mapillary_import sample_video --import_path "path/to/images" --video_file "path/
  - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie one video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
 
 ```bash 	   
-mapillary_import video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gopro_video" --gps_source_path "path/to/gopro_video.mp4" --use_gps_start_time
+mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gopro_video" --gps_source_path "path/to/gopro_video.mp4" --use_gps_start_time
 ```
 
 ## `video_process_and_upload`
@@ -315,7 +315,7 @@ mapillary_import video_process --import_path "path/to/images" --video_file "path
  - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file.
   
 ```bash 	   
-mapillary_import video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --video_sample_interval 1
+mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --video_sample_interval 1
 ```
 
 ## Process unit tools
