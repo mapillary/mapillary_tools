@@ -75,8 +75,8 @@ To import images to Mapillary, an account is required and can be created [here](
 
 Images are required to contain embedded Mapillary image description in the image EXIF. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
 
-In case images were captured with the Mapillary app, this requirement is met and images can be uploaded, otherwise Mapillary image description needs to be inserted in the image EXIF with the help of the `process` tool. For images to be processed successfully, image capture time is always required in the image EXIF. Latitude, longitude and camera direction are also required in the image EXIF, but can, under advanced usage, be read from external sources, or derived in case of camera direction.
-Videos require sampling into images with the help of the `sample_video` advanced tool, prior processing and uploading.
+In case images were captured with the Mapillary app, this requirement is met and images can be uploaded with the `upload` tool, otherwise Mapillary image description needs to be inserted in the image EXIF with the `process` tool. For images to be processed successfully, image capture time is always required in the image EXIF. Latitude, longitude and camera direction are also required in the image EXIF, but can, under advanced usage, be read from external sources, or derived in case of camera direction.
+Videos require sampling into images with the `sample_video` advanced tool, prior processing and uploading.
 
 Usage  
 =============   
@@ -92,14 +92,14 @@ Executable `mapillary_tools` takes the following arguments:
 
 `--advanced` use the tools under an advanced level, with additional arguments and tools available
 
-`tool` one of the available Mapillary import tools
+`tool` one of the available tools
 
-Available tools:
-- process
-- upload
-- process_and_upload
+Available tools are:
+- `process`
+- `upload`
+- `process_and_upload`
    
-`process` and `upload` tools are used to complete the entire pipeline of image import. To go through the entire pipeline `process` and `upload` need to be run consecutively in the right order, which is done with the`process_and_upload` tool. Each tool takes specific required and optional arguments. The list of available optional arguments is longer under advanced.
+`process` and `upload` tools or `upload` tool alone are used to complete the entire pipeline of image import. To go through the entire pipeline when processing is required,`process` and `upload` need to be run consecutively in the right order, which is done with the`process_and_upload` tool. Each tool takes specific required and optional arguments. The list of available optional arguments is longer under advanced.
 
 See the tool specific help for required and optional arguments:
 
@@ -283,7 +283,7 @@ This tool is an advanced tool and might require some experience with the import 
 	
 ### Usage examples   
 
- - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 one video frame every 2 seconds.
+ - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds.
  
 ```bash
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --advanced
@@ -301,7 +301,7 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
 
 ### Usage examples   
 
- - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie one video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
+ - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
 
 ```bash 	   
 mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gopro_video" --gps_source_path "path/to/gopro_video.mp4" --use_gps_start_time
