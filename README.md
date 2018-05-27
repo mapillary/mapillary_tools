@@ -35,7 +35,7 @@ Installing
 ### MacOSX, Ubuntu, Windows
 
 
-	pip install git+https://github.com/mapillary/mapillary_tools@feature-restructure_tools_v2
+	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
 
 	
 #### Video specific installment
