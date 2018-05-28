@@ -182,13 +182,13 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 
 ##### Using additional advanced tools
 
- - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds and tag the resulting images with `capture time`*.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds and tag the resulting images with `capture time`.
  
  ```bash 
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
 ```
 
- - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 2 seconds(default value) and tag the resulting images with `capture time`*. Process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 2 seconds(default value) and tag the resulting images with `capture time`. Process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data.
  
 ```bash  
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
@@ -201,8 +201,6 @@ or
  ```bash 	
 mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
-*Capture time inserted in the image EXIF while sampling, based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires that `--use_gps_start_time` is passed to the `process` tool, which will add an offset to the images so that gpx track and video capture start time are the same. To make sure the gpx track and the images are aligned ok, an offset in seconds can be specified as `--offset_time 2`.
-
 
 ## Tool Specifications   
 
@@ -285,7 +283,7 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 #### Advanced Examples   
 
-- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, but skip duplicate images, specifying duplicates as images apart up to 0.5 m or with a camera angle difference up to 1°.
+- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, while skipping duplicate images, specifying duplicates as images apart up to 0.5 m according to image `GPS` and with up to 1° camera angle difference according to image direction, ie heading.
 
 ```bash
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
@@ -293,8 +291,8 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 ### `sample_video`
 
-`sample_video` tool will sample a video into images and insert capture time to the image EXIF. Capture time of sampled images is derived based on the video capture start time and sampling rate. If start time of video capture can not be obtained, current time is taken. 
-This tool is an advanced tool and might require some experience with the import tools.
+`sample_video` tool will sample a video into images and insert capture time to the image EXIF. 
+Capture time is inserted based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires advanced usage of the `process` tool in order to be geotagged.
 	
 #### Examples   
 
@@ -316,10 +314,16 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
 
 #### Examples   
 
- - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
+ - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to derive camera direction based on `GPS`.
 
 ```bash 	   
-mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gopro_video" --geotag_source_path "path/to/gopro_video.mp4" --use_gps_start_time
+mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gopro_video" --geotag_source_path "path/to/gopro_video.mp4" --interpolate_directions
+```
+
+- In case video start capture time could not be extracted or specified, images should be tagged with `capture time` from the external geotag source, by passing the argument `--use_gps_start_time`. To make sure the external source and images are aligned ok, an offset in seconds can be specified.
+
+```bash 	   
+mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx" --use_gps_start_time --offset_time 2
 ```
 
 ### `video_process_and_upload`
@@ -328,10 +332,10 @@ mapillary_tools video_process --import_path "path/to/images" --video_file "path/
 
 #### Examples 
 
- - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file.
+ - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file and deriving camera direction based on `GPS`.
   
 ```bash 	   
-mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --video_sample_interval 1
+mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --video_sample_interval 1 --interpolate_directions
 ```
 
 ### Process Unit Tools
