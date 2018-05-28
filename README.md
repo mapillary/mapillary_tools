@@ -1,10 +1,8 @@
 [![Build Status](https://travis-ci.org/mapillary/mapillary_tools.svg?branch=master)](https://travis-ci.org/mapillary/mapillary_tools)
 
-Python Mapillary Import Tools
+## Mapillary Tools
 =============
-
-Table of contents
-=================
+Mapillary tools is a library for processing and uploading geotagged images to Mapillary. 
 
 <!--ts-->
    * [Dependencies](#dependencies)
@@ -17,7 +15,7 @@ Table of contents
 
 
    
-Dependencies  
+## Dependencies  
 =============  
 
 * [exifread]
@@ -25,28 +23,30 @@ Dependencies
 * [PIL]
 * [Piexif]
 
-Note that we're using a fork of [Piexif](https://github.com/hMatoba/Piexif) installed along with the tools as the rest of the dependencies.
+Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif) installed along with the tools as the rest of the dependencies.
 
   
-Installing   
+## Installing   
 =============  
    
    
-### MacOSX, Ubuntu, Windows
+### Basic Setup
 
-You will require to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed prior installing mapillary_tools.
+You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
 
 	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
+	 
+which will enable processing and uploading of images. 
 
 	
-#### Video specific installment
+### Video Support
 
-In case of video sampling, `ffmpeg` has to be installed. 
+To sample images from videos, you will also need to install `ffmpeg`.
 
 ##### MacOSX
 
 To install `ffmpeg` on Mac OS X use [Homebrew](https://brew.sh).
-Once you have Homebrew installed, you can install `ffmpeg` by typing the following in the command line:
+Once you have Homebrew installed, you can install `ffmpeg` by running:
 
 ```bash
 brew install ffmpeg
@@ -54,7 +54,7 @@ brew install ffmpeg
 
 ##### Ubuntu
 
-To install `ffmpeg` on Ubuntu type the following in the command line: 
+To install `ffmpeg` on Ubuntu: 
 
 ```bash
 sudo apt-get install ffmpeg
@@ -64,71 +64,73 @@ sudo apt-get install ffmpeg
 
 To install `ffmpeg` on Windows, follow these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
 
-Requirements
+
+## Requirements
 =============  
 
-### User requirements
+### User Authentication
 
-To import images to Mapillary, an account is required and can be created [here](https://www.mapillary.com). When using the import tools for the first time, user authentication is required. You will be prompted to enter your account email and password.
+To upload images to Mapillary, an account is required and can be created [here]( https://www.mapillary.com/signup). When using the upload tools for the first time, user authentication is required. You will be prompted to enter your account credentials.
 
-### Image and video requirements
+### Metadata
 
-Images are required to contain embedded Mapillary image description in the image EXIF. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
+To upload images to Mapillary, a minimum requirement of `GPS` and `capture time` of the images are needed. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
 
-In case images were captured with the Mapillary app, this requirement is met and images can be uploaded with the `upload` tool, otherwise Mapillary image description needs to be inserted in the image EXIF with the `process` tool. For images to be processed successfully, image capture time is always required in the image EXIF. Latitude, longitude and camera direction are also required in the image EXIF, but can, under advanced usage, be read from external sources, or derived in case of camera direction.
-Videos require sampling into images with the `sample_video` advanced tool, prior processing and uploading.
+### Videos
+One will need to first sample the videos into images (using `sample_video` advanced tool) before uploading to Mapillary.  
 
-Usage  
+
+## Usage  
 =============   
 
-Import tools can be used with the executable `mapillary_tools`, available in the PATH after installment. To see the available tools, type the following in the command line:
+Upload tools can be used with the executable `mapillary_tools`, available in the PATH after installation. To see the available tools, use the following in the command line:
 
-```bash 
+```
 mapillary_tools -h
 ```
 Executable `mapillary_tools` takes the following arguments:
 
-`-h, --help` show help and exit
+`-h, --help`: Show help and exit
 
-`--advanced` use the tools under an advanced level, with additional arguments and tools available
+`--advanced`: Use the tools under an advanced level, with additional arguments and tools available
 
-`tool` one of the available tools
+`tool`: Use one of the available tools:
 
-Available tools are:
-- `process`
-- `upload`
-- `process_and_upload`
+- `process`: Process the images including for instance, geotagging and sequence arrangement
+- `upload`: Upload images to Mapillary
+- `process_and_upload`: A bundled tool for `process` and `upload`
    
-`process` and `upload` tools or `upload` tool alone are used to complete the entire pipeline of image import. To go through the entire pipeline when processing is required,`process` and `upload` need to be run consecutively in the right order, which is done with the`process_and_upload` tool. Each tool takes specific required and optional arguments. The list of available optional arguments is longer under advanced.
-
 See the tool specific help for required and optional arguments:
 
- - show help for `process` tool:
+ - Show help for `process` tool:
  
   ```bash 	
 mapillary_tools process -h
 ```
- - show advanced help for `process` tool:
+ - Show advanced help for `process` tool:
 
   ```bash 	
 mapillary_tools process -h --advanced
 ```
 
-### Usage examples
+### Examples
 
- - process all images in the directory `path/to/images` and its sub directories, resulting in Mapillary image description embedded in the image EXIF for user with user name `mapillary_user`. Requires that the image EXIF contains image capture date and time, latitude, longitude and camera direction, ie heading.
+#### Process Images 
+The command below pocess all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`. 
  
  ```bash 
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
 ```
- 
- - upload all images in the directory `path/to/images` and its sub directories. Mapillary image description required in the image EXIF, resulting either from capturing the image with the app or from processing it with the `process` tool.
+
+#### Upload Images 
+The command below uploads all images in a directory and its sub-directories. It requires Mapillary-specific metadata in the image EXIF. It works for images that are captured with Mapillary iOS or Android apps or processed with the `process` tool.
 
  ```bash 
 mapillary_tools upload --import_path "path/to/images"
 ```
 
- - run process and upload consecutively.
+#### Process and Upload Images 
+The command belows run `process` and `upload` consecutively for a directory. 
  
 ```bash  
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
@@ -136,9 +138,9 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
    
    
-### Advanced usage
+## Advanced usage
 
-Available tools under advanced usage:
+Available tools for advanced usage:
 - video specific tools:
 	- sample_video
 	- video_process
@@ -151,11 +153,11 @@ Available tools under advanced usage:
    - extract_upload_params
    - exif_insert
 
-#### Advanced usage examples
+### Advanced usage examples
 
-##### Using additional advanced arguments
+##### Additional advanced arguments
 
- - run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
+ - Run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
  
  ```bash 
 mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
@@ -171,7 +173,7 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 
 ##### Using additional advanced tools
 
- - sample* the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds.
  
  ```bash 
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
@@ -202,7 +204,7 @@ Tool specifications
 
 See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
 		
-### Usage examples  
+### Examples  
 
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories:
  
@@ -215,7 +217,7 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --skip_subfolders
 ```
 
-### Advanced usage examples   
+### Advanced Examples   
 
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
  
@@ -240,7 +242,7 @@ By default, 4 threads upload in parallel and the script retries 10 times upon en
     NUMBER_THREADS=2 
     MAX_ATTEMPTS=100
   
-### Usage examples
+### Examples
 
  - upload all images in the directory `path/to/images` and its sub directories:
 
@@ -260,17 +262,17 @@ This tool has no additional advanced arguments.
 
 `process_and_upload` tool will run `process` and `upload` tools consecutively with combined required and optional arguments.
 
-### Usage examples   
+### UExamples   
 
-- process and upload all the images in directory `path/to/images` and its sub directories for user `mapillary_user`.
+- process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`.
 
 ```bash 	   
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
 ```
 
-### Advanced usage examples   
+### Advanced Examples   
 
-- process and upload all the images in directory `path/to/images` and its sub directories for user `mapillary_user`, but skip duplicate images, specifying duplicates as images apart up to 0.5 m or with a camera angle difference up to 1°.
+- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, but skip duplicate images, specifying duplicates as images apart up to 0.5 m or with a camera angle difference up to 1°.
 
 ```bash
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
@@ -278,18 +280,18 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 ## `sample_video`
 
-`sample_video` tool will sample a video into images and insert capture time in the image EXIF. Capture time of sampled images is derived based on the video capture start time and sampling rate. In case video capture start time can not be obtained, current time is taken. 
+`sample_video` tool will sample a video into images and insert capture time to the image EXIF. Capture time of sampled images is derived based on the video capture start time and sampling rate. If start time of video capture can not be obtained, current time is taken. 
 This tool is an advanced tool and might require some experience with the import tools.
 	
-### Usage examples   
+### Examples   
 
- - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds.
+ - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds.
  
 ```bash
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --advanced
 ```
 
-- sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (epoch)milliseconds.
+- Sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (epoch)milliseconds.
 
 ```bash
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910
@@ -299,9 +301,9 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
 
 `video_process` tool will run `video_sample` and `process` tools consecutively with combined required and optional arguments.
 
-### Usage examples   
+### Examples   
 
- - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
+ - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
 
 ```bash 	   
 mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gopro_video" --gps_source_path "path/to/gopro_video.mp4" --use_gps_start_time
@@ -311,15 +313,15 @@ mapillary_tools video_process --import_path "path/to/images" --video_file "path/
 
 `video_process_and_upload` tool will run `video_sample`, `process` and `upload` tools consecutively with combined required and optional arguments.
 
-### Usage examples 
+### Examples 
 
- - sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file.
+ - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file.
   
 ```bash 	   
 mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --video_sample_interval 1
 ```
 
-## Process unit tools
+## Process Unit Tools
 
 Process unit tools are tools executed by the `process` tool. Usage of process unit tools might require some experience with the import tools and requires the flag `--advanced` to be passed.
 
@@ -348,30 +350,26 @@ Process unit tools are tools executed by the `process` tool. Usage of process un
 `exif_insert` process unit tool will take all the meta data read and processed in the other processing unit tools and insert it in the image EXIF.  
 
 
-Other
+## Misc
 =============  
 
-## Download
+### Download
 
-Download images from Mapillary.
-
-Below script downloads images using the Mapillary image search API. Images can be downloaded inside a rectangle/bounding box, specifying the minimum and maximum latitude and longitude.
+The script below downloads images using the Mapillary image search API. Images can be downloaded inside a rectangle/bounding box, specifying the minimum and maximum latitude and longitude.
 
   
-### `download_images.py`
+#### `download_images.py`
 
 ```bash  
 python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 ```
 
-## Config
+### Config
 
-Edit a config file.  
+User authentication is required to uploade images to Mapillary. When uploading for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
 
-User authentication is required to import images to Mapillary. When importing for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
-
-If you wish to manually edit a config file, the below script can be used.  
-The defualt config file is your global Mapillary config file and will be used if no other file path provided.  
+If you wish to manually edit a config file, the script below can be used.  
+The default config file is your global Mapillary config file and will be used if no other file path is provided.  
 
   
 ### `edit_config.py`
