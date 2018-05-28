@@ -539,14 +539,9 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
                 import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
-    if verbose:
-        if process != "sequence_process":
-            inform_processing_start(import_path,
-                                    len(process_file_list),
-                                    process)
-        else:
-            print("Running sequence_process for {} images".format(
-                len(process_file_list)))
+    inform_processing_start(root_dir,
+                            len(process_file_list),
+                            process)
     return process_file_list
 
 

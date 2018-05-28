@@ -24,10 +24,8 @@ def process_upload_params(import_path,
                                                          verbose,
                                                          skip_subfolders)
     if not len(process_file_list):
-        if verbose:
-            print("No images to run upload params process")
-            print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
-        return
+        print("No images to run upload params process")
+        print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
 
     # sanity checks
     if not user_name:

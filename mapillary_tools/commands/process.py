@@ -101,3 +101,5 @@ class Command:
 
         insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
                            if k in inspect.getargspec(insert_MAPJson).args}))
+
+        print("Process done.")

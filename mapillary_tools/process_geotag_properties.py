@@ -28,10 +28,8 @@ def process_geotag_properties(import_path,
                                                          verbose,
                                                          skip_subfolders)
     if not len(process_file_list):
-        if verbose:
-            print("No images to run geotag process")
-            print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
-        return
+        print("No images to run geotag process")
+        print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
 
     # sanity checks
     if geotag_source_path == None and geotag_source != "exif":
