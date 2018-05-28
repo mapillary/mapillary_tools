@@ -15,6 +15,6 @@ setup(name='mapillary_tools',
           'Pillow==2.9.0',
           'python-dateutil==2.7.3',
           'pynmea2==1.12.0',
-          'Piexif',
-          'pytest==3.2.3'],
+          'pytest==3.2.3'
+      ],
       dependency_links=["git+https://github.com/mapillary/Piexif"])
