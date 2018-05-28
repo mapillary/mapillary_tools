@@ -22,7 +22,7 @@ Mapillary tools is a library for processing and uploading geotagged images to Ma
 * [PIL]
 * [Piexif]
 
-Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif). While all other dependencies are installed along with the tools, Piexif needs to be installed separately.
+Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif), which needs to be installed separately. The rest of dependencies are installed along with the tools.
 
   
 ## Installing   
