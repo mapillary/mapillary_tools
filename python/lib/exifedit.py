@@ -76,13 +76,17 @@ def create_mapillary_description(filename, username, email, userkey,
 
     # authentication
     assert(email is not None or userkey is not None)
+
     if username is not None:
         mapillary_description["MAPSettingsUsername"] = username
 
-    # use this if available, and omit MAPSettingsUsername and MAPSettingsEmail
-    # for privacy reasons
+    # use this if available, and omit MAPSettingsEmail
     if userkey is not None:
         mapillary_description["MAPSettingsUserKey"] = userkey
+    else:
+        assert(email is not None)
+        mapillary_description["MAPSettingsEmail"] = email
+
     if upload_hash is not None:
         settings_upload_hash = hashlib.sha256("%s%s%s" % (
             upload_hash, email, base64.b64encode(filename))).hexdigest()
