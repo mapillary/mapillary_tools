@@ -182,17 +182,17 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 
 ##### Using additional advanced tools
 
- - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 0.5 seconds and tag the resulting images with `capture time`*.
  
  ```bash 
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
 ```
 
- - sample* the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 2 seconds(default value) and run process and upload consecutively, while process is reading geotag data from a gpx track.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval 2 seconds(default value) and tag the resulting images with `capture time`*. Process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data.
  
 ```bash  
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
-mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" 
+mapillary_tools process --advanced --import_path "path/to/images" --user_name "username_at_mapilary" --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" 
 mapillary_tools upload --import_path "path/to/images"
 ```
 
