@@ -22,7 +22,7 @@ Mapillary tools is a library for processing and uploading geotagged images to Ma
 * [PIL]
 * [Piexif]
 
-Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif) installed along with the tools as the rest of the dependencies.
+Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif). While all other dependencies are installed along with the tools, Piexif needs to be installed separately.
 
   
 ## Installing   
@@ -35,8 +35,12 @@ You will need to have [python>2.7](https://www.python.org/downloads/release/pyth
 	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
 	 
 which will enable processing and uploading of images. 
+Since `mapillary_tools` use a fork of the original Piexif, the fork needs to be installed additionally by running:
 
+	pip install git+https://github.com/mapillary/Piexif
 	
+Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
+
 ### Video Support
 
 To sample images from videos, you will also need to install `ffmpeg`.
@@ -71,15 +75,24 @@ To upload images to Mapillary, an account is required and can be created [here](
 
 ### Metadata
 
-To upload images to Mapillary, a minimum requirement of `GPS` and `capture time` of the images are needed. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
+To upload images to Mapillary, image `GPS` and `capture time` are minimally required. More information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images). 
 
 ### Videos
-One will need to first sample the videos into images (using `sample_video` advanced tool) before uploading to Mapillary.  
+To upload videos to Mapillary, videos are required to be sampled into images and tagged with image `GPS` and `capture time`. More information [here](https://help.mapillary.com/hc/en-us/articles/115001485045-Video-uploads).  
 
 
 ## Usage     
 
-Upload tools can be used with the executable `mapillary_tools`, available in the PATH after installation. To see the available tools, use the following in the command line:
+Upload tools can be used with the executable `mapillary_tools`. On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is. On Windows, the interpreter program, in this case Python, needs to be specified, eg.
+
+	python mapillary_tools
+	
+or in case python and its scripts are not in system environmental variables:
+
+	C:\python27-x64\python.exe C:\python27-x64\Scripts\mapillary_tools
+	
+
+To see the available tools, use the following in the command line:
 
 ```
 mapillary_tools -h
@@ -112,7 +125,7 @@ mapillary_tools process -h --advanced
 ### Examples
 
 #### Process Images 
-The command below pocess all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`. 
+The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`. 
  
  ```bash 
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
@@ -126,7 +139,7 @@ mapillary_tools upload --import_path "path/to/images"
 ```
 
 #### Process and Upload Images 
-The command belows run `process` and `upload` consecutively for a directory. 
+The command below runs `process` and `upload` consecutively for a directory. 
  
 ```bash  
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user"
@@ -156,14 +169,14 @@ Available tools for advanced usage:
  - Run process and upload consecutively, while process is reading geotag data from a gpx track. Requires that images contain capture time embedded in the image EXIF.
  
  ```bash 
-mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" 
 mapillary_tools upload --import_path "path/to/images"
 ```
 
 or
 
  ```bash 	
-mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" 
 ```
 
 
@@ -179,14 +192,14 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
  
 ```bash  
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
-mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --gps_source "gpx" --gps_source_path "path/to/gpx_file" 
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" 
 mapillary_tools upload --import_path "path/to/images"
 ```
 
 or
 
  ```bash 	
-mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file"
+mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
 *Capture time inserted in the image EXIF while sampling, based on the video start capture time and sampling rate. If video start capture time can not be extracted, it can be passed as an argument `--video_start_time "start time in epoch(milliseconds)"`, otherwise video start capture time is set to current timestamp, which requires that `--use_gps_start_time` is passed to the `process` tool, which will add an offset to the images so that gpx track and video capture start time are the same. To make sure the gpx track and the images are aligned ok, an offset in seconds can be specified as `--offset_time 2`.
 
@@ -217,12 +230,17 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
  
 ```bash 	   
-mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --offset_time --flag_duplicates 
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time --flag_duplicates 
 ```
  - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
 
 ```bash 	   
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
+```
+ - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying an angle offset of 90° for the camera direction and splitting images into sequences of images apart by less than 100 meters according to image `GPS` and less than 120 seconds according to image `capture time`.
+
+```bash 	   
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --offset_angle 90 --cutoff_distance 100 --cutoff_time 120
 ```
 
 ### `upload`
@@ -289,7 +307,7 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
 - Sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (epoch)milliseconds.
 
 ```bash
-mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910 --advanced
 ```
 
 ### `video_process`
@@ -301,7 +319,7 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
  - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/gopro_video.mp4` and specifying to align video frames and gpx track capture times, by using gps device start capture time.
 
 ```bash 	   
-mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gopro_video" --gps_source_path "path/to/gopro_video.mp4" --use_gps_start_time
+mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gopro_video" --geotag_source_path "path/to/gopro_video.mp4" --use_gps_start_time
 ```
 
 ### `video_process_and_upload`
@@ -313,7 +331,7 @@ mapillary_tools video_process --import_path "path/to/images" --video_file "path/
  - Sample the video `path/to/images` to directory `path/to/video` at the default sampling rate 1 second, ie one video frame every second. Process and upload resulting video frames for user `mapillary_user`, reading geotag data from a gpx track stored in `path/to/gpx_file` video, assuming video start time can be extracted from the video file.
   
 ```bash 	   
-mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --gps_source "gpx" --gps_source_path "path/to/gpx_file" --video_sample_interval 1
+mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --video_sample_interval 1
 ```
 
 ### Process Unit Tools
@@ -360,7 +378,7 @@ python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_re
 
 ### Config
 
-User authentication is required to uploade images to Mapillary. When uploading for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
+User authentication is required to upload images to Mapillary. When uploading for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
 
 If you wish to manually edit a config file, the script below can be used.  
 The default config file is your global Mapillary config file and will be used if no other file path is provided.  
