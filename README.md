@@ -291,8 +291,8 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 ### `sample_video`
 
-`sample_video` tool will sample a video into images and insert `capture time` to the image EXIF when possible.
-Capture time is calculated based on the `video start time` and sampling interval. Video start time can be either be extracted from the video metadata or passed as an argument `--video_start_time` (start time in epoch (milliseconds)).
+`sample_video` tool will sample a video into images and insert `capture time` to the image EXIF.
+Capture time is calculated based on the `video start time` and sampling interval. Video start time can be either be extracted from the video metadata or passed as an argument `--video_start_time` (milliseconds since UNIX epoch).
 
 
 #### Examples
@@ -303,7 +303,7 @@ Capture time is calculated based on the `video start time` and sampling interval
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --advanced
 ```
 
-- Sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (epoch)milliseconds.
+- Sample the video `path/to/images` to directory `path/to/video` at a sampling rate 0.5 seconds, ie two video frames every second and specifying the video start time to be `156893940910` (milliseconds since UNIX epoch).
 
 ```bash
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video" --video_sample_interval 0.5 --video_start_time 156893940910 --advanced
