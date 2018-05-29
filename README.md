@@ -283,7 +283,7 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 #### Advanced Examples
 
-- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, while skipping duplicate images. Here duplicate images are specified as consecutive images that are les than 0.5 meter apart according to image `GPS` and have less than 1° camera angle difference according to image direction.
+- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, while skipping duplicate images. Here duplicate images are specified as consecutive images that are less than 0.5 meter apart according to image `GPS` and have less than 1° camera angle difference according to image direction.
 
 ```bash
 mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
