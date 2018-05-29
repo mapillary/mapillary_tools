@@ -71,9 +71,9 @@ def sample_video(video_file,
             video_start_time / 1000.)
     else:
         video_start_time = get_video_start_time(video_file)
-    if not video_start_time:
-        print("Warning, video start time not provided and could not be extracted from the video file. Current date and time used instead.")
-        video_start_time = datetime.datetime.now()
+        if not video_start_time:
+            print("Warning, video start time not provided and could not be extracted from the video file, default video start time set to 0 milliseconds since UNIX epoch.")
+            video_start_time = datetime.datetime.utcfromtimestamp(0)
 
     insert_video_frame_timestamp(import_path,
                                  video_start_time,

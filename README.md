@@ -292,7 +292,7 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 ### `sample_video`
 
 `sample_video` tool will sample a video into images and insert `capture time` to the image EXIF.
-Capture time is calculated based on the `video start time` and sampling interval. Video start time can be either be extracted from the video metadata or passed as an argument `--video_start_time` (milliseconds since UNIX epoch).
+Capture time is calculated based on the `video start time` and sampling interval. Video start time can either be extracted from the video metadata or passed as an argument `--video_start_time` (milliseconds since UNIX epoch).
 
 
 #### Examples
