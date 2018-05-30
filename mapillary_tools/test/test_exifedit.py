@@ -4,21 +4,21 @@ import unittest
 from PIL import Image, ExifTags
 from PIL import ExifTags
 from os import path
-from mil.exif_write import ExifEdit
-from mil.geo import decimal_to_dms
+from mapillary_tools.exif_write import ExifEdit
+from mapillary_tools.geo import decimal_to_dms
 import datetime
 import shutil
 
 """Initialize all the neccessary data"""
 
-EMPTY_EXIF_FILE = os.path.join("tests", "data", "empty_exif.jpg")
-EMPTY_EXIF_FILE_TEST = os.path.join("tests", "data", "tmp", "empty_exif.jpg")
+EMPTY_EXIF_FILE = os.path.join("test", "data", "empty_exif.jpg")
+EMPTY_EXIF_FILE_TEST = os.path.join("test", "data", "tmp", "empty_exif.jpg")
 NON_EXISTING_FILE = os.path.join(
-    "tests", "data", "tmp", "non_existing_file.jpg")
-CORRUPT_EXIF_FILE = os.path.join("tests", "data", "corrupt_exif.jpg")
-CORRUPT_EXIF_FILE_2 = os.path.join("tests", "data", "corrupt_exif_2.jpg")
-FIXED_EXIF_FILE = os.path.join("tests", "data", "fixed_exif.jpg")
-FIXED_EXIF_FILE_2 = os.path.join("tests", "data", "fixed_exif_2.jpg")
+    "test", "data", "tmp", "non_existing_file.jpg")
+CORRUPT_EXIF_FILE = os.path.join("test", "data", "corrupt_exif.jpg")
+CORRUPT_EXIF_FILE_2 = os.path.join("test", "data", "corrupt_exif_2.jpg")
+FIXED_EXIF_FILE = os.path.join("test", "data", "fixed_exif.jpg")
+FIXED_EXIF_FILE_2 = os.path.join("test", "data", "fixed_exif_2.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
@@ -189,12 +189,12 @@ class ExifEditTests(unittest.TestCase):
     """tests for main functions."""
 
     def setUp(self):
-        if not os.path.exists(os.path.join("tests", "data", "tmp")):
-            os.makedirs(os.path.join("tests", "data", "tmp"))
+        if not os.path.exists(os.path.join("test", "data", "tmp")):
+            os.makedirs(os.path.join("test", "data", "tmp"))
         shutil.copy2(EMPTY_EXIF_FILE, EMPTY_EXIF_FILE_TEST)
 
     def tearDown(self):
-        shutil.rmtree(os.path.join("tests", "data", "tmp"))
+        shutil.rmtree(os.path.join("test", "data", "tmp"))
 
     def test_add_image_description(self):
 
