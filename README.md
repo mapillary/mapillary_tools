@@ -9,8 +9,9 @@ Mapillary tools is a library for processing and uploading geotagged images to Ma
    * [Installing](#installing)
    * [Requirements](#requirements)
    * [Usage](#usage)
-   * [Tool Specifications](#tool_specification)
-   * [Misc](#Misc)
+   * [Advanced Usage](#advanced-usage)
+   * [Tool Specifications](#tool-specifications)
+   * [Misc](#misc)
 <!--te-->
 
 
@@ -25,21 +26,24 @@ Mapillary tools is a library for processing and uploading geotagged images to Ma
 Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif), which needs to be installed separately. The rest of dependencies are installed along with the tools.
 
 
-## Installing
-
+## Installation 
 
 ### Basic Setup
 
-You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
+You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
 
-	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
-
-which will enable processing and uploading of images.
-Since `mapillary_tools` use a fork of the original Piexif, the fork needs to be installed additionally by running:
+#### Install Piexif
+`mapillary_tools` uses a fork of the original Piexif which needs to be installed by running:
 
 	pip install git+https://github.com/mapillary/Piexif
 
-Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
+#### Install Mapillary Tools
+
+To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
+
+	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
+
+which will enables processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
 ### Video Support
 
@@ -124,21 +128,21 @@ mapillary_tools process -h --advanced
 
 ### Examples
 
-#### Process Images
+### Process Images
 The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`.
 
  ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
 ```
 
-#### Upload Images
+### Upload Images
 The command below uploads all images in a directory and its sub-directories. It requires Mapillary-specific metadata in the image EXIF. It works for images that are captured with Mapillary iOS or Android apps or processed with the `process` tool.
 
  ```bash
 mapillary_tools upload --import_path "path/to/images"
 ```
 
-#### Process and Upload Images
+### Process and Upload Images
 The command below runs `process` and `upload` consecutively for a directory.
 
 ```bash
@@ -146,8 +150,8 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 ```
 
 
+## Advanced Usage
 
-## Advanced usage
 
 Available tools for advanced usage:
 - video specific tools:
@@ -162,11 +166,9 @@ Available tools for advanced usage:
    - extract_upload_params
    - exif_insert
 
-### Advanced usage examples
+### Geotag and Upload
 
-#### Advanced arguments
-
- - Run process and upload consecutively, while process is reading geotag data from a gpx track. It requires that `capture time` information is embedded in the image EXIF.
+ - Run process and upload consecutively, while process is reading geotag data from a gpx track. It requires that `capture time` information is embedded in the image EXIF. You can use 
 
  ```bash
 mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
@@ -178,9 +180,7 @@ or
  ```bash
 mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
-
-
-#### Advanced tools
+### Video Sampling and Upload
 
  - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 0.5 seconds and tag the sampled images with `capture time`.
 
@@ -188,7 +188,7 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
 ```
 
- - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 2 seconds (default value) and tag the resulting images with `capture time`. And then process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data.
+ - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 2 seconds (default value) and tag the resulting images with `capture time`. And then process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data. 
 
 ```bash
 mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4"
@@ -198,11 +198,13 @@ mapillary_tools upload --import_path "path/to/images"
 
 or
 
- ```bash
+```bash
 mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
 
+
 ## Tool Specifications
+
 
 ### `process`
 
