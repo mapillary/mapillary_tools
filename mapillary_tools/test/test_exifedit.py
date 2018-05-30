@@ -1,9 +1,6 @@
 import os
-import sys
 import unittest
 from PIL import Image, ExifTags
-from PIL import ExifTags
-from os import path
 from mapillary_tools.exif_write import ExifEdit
 from mapillary_tools.geo import decimal_to_dms
 import datetime
@@ -11,14 +8,17 @@ import shutil
 
 """Initialize all the neccessary data"""
 
-EMPTY_EXIF_FILE = os.path.join("test", "data", "empty_exif.jpg")
-EMPTY_EXIF_FILE_TEST = os.path.join("test", "data", "tmp", "empty_exif.jpg")
-NON_EXISTING_FILE = os.path.join(
-    "test", "data", "tmp", "non_existing_file.jpg")
-CORRUPT_EXIF_FILE = os.path.join("test", "data", "corrupt_exif.jpg")
-CORRUPT_EXIF_FILE_2 = os.path.join("test", "data", "corrupt_exif_2.jpg")
-FIXED_EXIF_FILE = os.path.join("test", "data", "fixed_exif.jpg")
-FIXED_EXIF_FILE_2 = os.path.join("test", "data", "fixed_exif_2.jpg")
+this_file = os.path.abspath(__file__)
+this_file_dir = os.path.dirname(this_file)
+data_dir = os.path.join(this_file_dir, "data")
+
+EMPTY_EXIF_FILE = os.path.join(data_dir, "empty_exif.jpg")
+EMPTY_EXIF_FILE_TEST = os.path.join(data_dir, "tmp", "empty_exif.jpg")
+NON_EXISTING_FILE = os.path.join(data_dir, "tmp", "non_existing_file.jpg")
+CORRUPT_EXIF_FILE = os.path.join(data_dir, "corrupt_exif.jpg")
+CORRUPT_EXIF_FILE_2 = os.path.join(data_dir, "corrupt_exif_2.jpg")
+FIXED_EXIF_FILE = os.path.join(data_dir, "fixed_exif.jpg")
+FIXED_EXIF_FILE_2 = os.path.join(data_dir, "fixed_exif_2.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
@@ -189,12 +189,12 @@ class ExifEditTests(unittest.TestCase):
     """tests for main functions."""
 
     def setUp(self):
-        if not os.path.exists(os.path.join("test", "data", "tmp")):
-            os.makedirs(os.path.join("test", "data", "tmp"))
+        if not os.path.exists(os.path.join(data_dir, "tmp")):
+            os.makedirs(os.path.join(data_dir, "tmp"))
         shutil.copy2(EMPTY_EXIF_FILE, EMPTY_EXIF_FILE_TEST)
 
     def tearDown(self):
-        shutil.rmtree(os.path.join("test", "data", "tmp"))
+        shutil.rmtree(os.path.join(data_dir, "tmp"))
 
     def test_add_image_description(self):
 
