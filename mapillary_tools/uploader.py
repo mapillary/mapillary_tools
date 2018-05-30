@@ -301,10 +301,6 @@ def print_summary(file_list):
 
 
 def get_upload_token(mail, pwd):
-    # TODO this is to get the upload hash, it is called here in the  get_full_authentication_info(user, email), a function which is called only in the obsolete? export_panoramio.py, with the user email only
-    # and in upload_with_preprocessing.py in the middle of everything, where
-    # email and username and userkey are read from os environment or args and
-    # password is also stored in os environment(f real)
     '''
     Get upload token
     '''
@@ -395,7 +391,6 @@ def prompt_user_for_user_items(user_name):
         user_key, upload_token)
 
     user_items["MAPSettingsUsername"] = user_name
-    user_items["MAPSettingsEmail"] = user_email
     user_items["MAPSettingsUserKey"] = user_key
 
     user_items["user_upload_token"] = upload_token

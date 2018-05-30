@@ -60,7 +60,7 @@ def process_upload_params(import_path,
         user_upload_token = credentials["user_upload_token"]
         user_permission_hash = credentials["user_permission_hash"]
         user_signature_hash = credentials["user_signature_hash"]
-        user_email = credentials["MAPSettingsEmail"]
+        user_key = credentials["MAPSettingsUserKey"]
 
     for image in process_file_list:
         # check the status of the sequence processing
@@ -83,7 +83,7 @@ def process_upload_params(import_path,
                                                                           user_upload_token,
                                                                           user_permission_hash,
                                                                           user_signature_hash,
-                                                                          user_email,
+                                                                          user_key,
                                                                           verbose)
         processing.create_and_log_process(image,
                                           import_path,

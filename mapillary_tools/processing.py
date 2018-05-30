@@ -300,7 +300,7 @@ def geotag_from_json(process_file_list,
     pass
 
 
-def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_email, verbose=False):
+def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, verbose=False):
 
     if not os.path.isdir(log_root):
         if verbose:
@@ -349,7 +349,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
 
     try:
         settings_upload_hash = hashlib.sha256("%s%s%s" % (user_upload_token,
-                                                          user_email,
+                                                          user_key,
                                                           base64.b64encode(image))).hexdigest()
         save_json({"MAPSettingsUploadHash": settings_upload_hash},
                   os.path.join(log_root, "settings_upload_hash.json"))
@@ -395,9 +395,6 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
                     print(
                         "Warning, no data read from json file " + json_file)
                 return None
-
-            if "MAPSettingsEmail" in sub_command_data:
-                del sub_command_data["MAPSettingsEmail"]
 
             final_mapillary_image_description.update(sub_command_data)
         except:
