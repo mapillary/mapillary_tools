@@ -6,7 +6,7 @@ Mapillary tools is a library for processing and uploading geotagged images to Ma
 
 <!--ts-->
    * [Dependencies](#dependencies)
-   * [Installing](#installing)
+   * [Installation](#installation)
    * [Requirements](#requirements)
    * [Usage](#usage)
    * [Advanced Usage](#advanced-usage)
@@ -87,14 +87,7 @@ To upload videos to Mapillary, videos are required to be sampled into images and
 
 ## Usage
 
-Upload tools can be used with the executable `mapillary_tools`. On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is. On Windows, the interpreter program, in this case Python, needs to be specified, e.g.
-
-	python mapillary_tools
-
-or in case python and its scripts are not in system environmental variables:
-
-	C:\python27-x64\python.exe C:\python27-x64\Scripts\mapillary_tools
-
+Upload tools can be used with the executable `mapillary_tools`. On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is. See instructions below for Windows-specific usage. 
 
 To see the available tools, use the following in the command line:
 
@@ -126,23 +119,32 @@ mapillary_tools process -h
 mapillary_tools process -h --advanced
 ```
 
+### Windows 
+On Windows, instead of `mapillary_tools`, the interpreter program `python` also needs to be specified, i.e.
+
+	python mapillary_tools
+
+or in case python path (e.g. `C:\python27\`) and its script path (e.g. `C:\python27\Scripts\`) are not in system environmental variables:
+
+	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
+
 ### Examples
 
-### Process Images
+#### Process Images
 The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`.
 
  ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
 ```
 
-### Upload Images
+#### Upload Images
 The command below uploads all images in a directory and its sub-directories. It requires Mapillary-specific metadata in the image EXIF. It works for images that are captured with Mapillary iOS or Android apps or processed with the `process` tool.
 
  ```bash
 mapillary_tools upload --import_path "path/to/images"
 ```
 
-### Process and Upload Images
+#### Process and Upload Images
 The command below runs `process` and `upload` consecutively for a directory.
 
 ```bash
@@ -154,17 +156,17 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 
 Available tools for advanced usage:
-- video specific tools:
-	- sample_video
-	- video_process
-	- video_process_and_upload
-- process unit tools:
-   - extract_user_data
-   - extract_import_meta_data
-   - extract_geotag_data
-   - extract_sequence_data
-   - extract_upload_params
-   - exif_insert
+- Video Specific Tools:
+  - sample_video
+  - video_process
+  - video_process_and_upload
+- Process Unit Tools:
+  - extract_user_data
+  - extract_import_meta_data
+  - extract_geotag_data
+  - extract_sequence_data
+  - extract_upload_params
+  - exif_insert
 
 ### Geotag and Upload
 
@@ -208,7 +210,7 @@ mapillary_tools video_process_and_upload --import_path "path/to/images" --video_
 
 ### `process`
 
-`process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, latitude and longitude can be read from a gpx track file or a GoPro video, while camera direction can be derived based on latitude and longitude.
+The `process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, latitude and longitude can be read from a gpx track file or a GoPro video, while camera direction can be derived based on latitude and longitude.
 
 See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
 
@@ -227,17 +229,17 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 
 #### Advanced Examples
 
- - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --flag_duplicates
 ```
- - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
 ```
- - process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying an angle offset of 90° for the camera direction and splitting images into sequences of images apart by less than 100 meters according to image `GPS` and less than 120 seconds according to image `capture time`.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying an angle offset of 90° for the camera direction and splitting images into sequences of images apart by less than 100 meters according to image `GPS` and less than 120 seconds according to image `capture time`.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --offset_angle 90 --cutoff_distance 100 --cutoff_time 120
