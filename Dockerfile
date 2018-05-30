@@ -15,5 +15,3 @@ RUN \
 COPY . /source/mapillary_tools
 
 WORKDIR /source/mapillary_tools
-
-RUN pip install -r python/requirements.txt
