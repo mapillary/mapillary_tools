@@ -12,8 +12,8 @@ setup(name='mapillary_tools',
       install_requires=[
           'exifread==1.4.1',
           'gpxpy==0.9.8',
-          'Pillow==2.9.0',
           'python-dateutil==2.7.3',
           'pynmea2==1.12.0',
           'pytest==3.2.3'
-      ])
+      ],
+      tests_require=['Pillow==2.9.0'])
