@@ -38,6 +38,12 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
         import_path, skip_subfolders)
     failed_file_list = uploader.get_failed_upload_file_list(
         import_path, skip_subfolders)
+    success_file_list = uploader.get_success_upload_file_list(
+        import_path, skip_subfolders)
+
+    if len(success_file_list) == len(total_file_list):
+        print("All images have already been uploaded")
+        sys.exit()
 
     if len(failed_file_list):
         upload_failed = raw_input(
@@ -52,8 +58,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
 
     if not len(upload_file_list):
         print("No images to upload.")
-        if verbose:
-            print("Check if images have already been uploaded or do not contain required embedded Mapillary meta data.")
+        print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
         sys.exit()
 
     # get upload params
