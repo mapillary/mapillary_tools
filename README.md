@@ -32,7 +32,7 @@ Note that we're using a fork of the original [Piexif](https://github.com/hMatoba
 
 You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
 
-	pip install git+https://github.com/mapillary/mapillary_tools@mapillary_tools_v2
+	pip install git+https://github.com/mapillary/mapillary_tools
 
 which will enable processing and uploading of images.
 Since `mapillary_tools` use a fork of the original Piexif, the fork needs to be installed additionally by running:
