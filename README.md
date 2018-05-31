@@ -28,7 +28,7 @@ Note that we're using a fork of the original [Piexif](https://github.com/hMatoba
 
 ### Basic Setup
 
-You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
+You will need to have [python=2.7.x](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
 
 #### Install Piexif
 `mapillary_tools` uses a fork of the original Piexif which needs to be installed by running:
