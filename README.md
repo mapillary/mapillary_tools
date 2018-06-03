@@ -28,7 +28,7 @@ Note that we're using a fork of the original [Piexif](https://github.com/hMatoba
 
 ### Basic Setup
 
-You will need to have [python>2.7](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
+You will need to have [python=2.7.x](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
 
 #### Install Piexif
 `mapillary_tools` uses a fork of the original Piexif which needs to be installed by running:
@@ -232,7 +232,7 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --flag_duplicates
 ```
- - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization with user name `mapillary_organization`. You can find the organization user name in your dashboard.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to be private imagery belonging to an organization with user name `mapillary_organization`. You can find the organization user name in your dashboard.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_username "mapillary_organization"
