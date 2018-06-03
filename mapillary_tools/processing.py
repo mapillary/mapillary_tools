@@ -669,7 +669,7 @@ def create_and_log_process(image, import_path, process, status, mapillary_descri
 def user_properties(user_name,
                     import_path,
                     process_file_list,
-                    organization_name=None,
+                    organization_username=None,
                     organization_key=None,
                     private=False,
                     verbose=False):
@@ -680,9 +680,9 @@ def user_properties(user_name,
         print("Error, user authentication failed for user " + user_name)
         return None
     # organization validation
-    if organization_name or organization_key:
+    if organization_username or organization_key:
         organization_key = process_organization(user_properties,
-                                                organization_name,
+                                                organization_username,
                                                 organization_key,
                                                 private)
         user_properties.update(
@@ -730,17 +730,17 @@ def user_properties_master(user_name,
     return user_properties
 
 
-def process_organization(user_properties, organization_name=None, organization_key=None, private=False):
+def process_organization(user_properties, organization_username=None, organization_key=None, private=False):
     if not "user_upload_token" in user_properties or not "MAPSettingsUserKey" in user_properties:
         print(
             "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
         sys.exit()
     user_key = user_properties["MAPSettingsUserKey"]
     user_upload_token = user_properties["user_upload_token"]
-    if not organization_key and organization_name:
+    if not organization_key and organization_username:
         try:
             organization_key = uploader.get_organization_key(user_key,
-                                                             organization_name,
+                                                             organization_username,
                                                              user_upload_token)
         except:
             print("Error, could not obtain organization key, exiting...")

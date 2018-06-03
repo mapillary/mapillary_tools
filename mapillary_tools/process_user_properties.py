@@ -5,7 +5,7 @@ import sys
 
 def process_user_properties(import_path,
                             user_name,
-                            organization_name=None,
+                            organization_username=None,
                             organization_key=None,
                             private=False,
                             master_upload=False,
@@ -39,8 +39,8 @@ def process_user_properties(import_path,
                                                   verbose)
         return
 
-    if private and not organization_name and not organization_key:
-        print("Error, if the import belongs to a private repository, you need to provide a valid organization name or key to which the private repository belongs to, exiting...")
+    if private and not organization_username and not organization_key:
+        print("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   import_path,
                                                   "user_process",
@@ -53,7 +53,7 @@ def process_user_properties(import_path,
         user_properties = processing.user_properties(user_name,
                                                      import_path,
                                                      process_file_list,
-                                                     organization_name,
+                                                     organization_username,
                                                      organization_key,
                                                      private,
                                                      verbose)

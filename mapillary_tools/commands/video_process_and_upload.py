@@ -21,7 +21,7 @@ class Command:
         parser.add_argument("--user_name", help="user name", required=True)
         # organization level parameters
         parser.add_argument(
-            '--organization_name', help="Specify organization name", default=None, required=False)
+            '--organization_username', help="Specify organization user name", default=None, required=False)
         parser.add_argument(
             '--organization_key', help="Specify organization key", default=None, required=False)
         parser.add_argument('--private',

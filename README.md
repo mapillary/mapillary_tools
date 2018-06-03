@@ -232,10 +232,10 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --flag_duplicates
 ```
- - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization called `mapillary_organization`.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to belong to a private organization with user name `mapillary_organization`. You can find the organization user name in your dashboard.
 
 ```bash
-mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_name "mapillary_organization"
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_username "mapillary_organization"
 ```
  - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying an angle offset of 90° for the camera direction and splitting images into sequences of images apart by less than 100 meters according to image `GPS` and less than 120 seconds according to image `capture time`.
 

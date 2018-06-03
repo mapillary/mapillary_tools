@@ -310,7 +310,7 @@ def get_upload_token(mail, pwd):
     return resp['token']
 
 
-def get_organization_key(user_key, organization_name, upload_token):
+def get_organization_key(user_key, organization_username, upload_token):
 
     organization_key = None
     call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
@@ -318,17 +318,17 @@ def get_organization_key(user_key, organization_name, upload_token):
     req.add_header('Authorization', 'Bearer {}'.format(upload_token))
     resp = json.loads(urllib2.urlopen(req).read())
 
-    organization_names = []
+    organization_usernames = []
     for org in resp:
-        organization_names.append(org['name'])
-        if org['name'] == organization_name:
+        organization_usernames.append(org['name'])
+        if org['name'] == organization_username:
             organization_key = org['key']
 
     if not organization_key:
-        print("No valid organization key found for organization name " +
-              organization_name)
-        print("Available organization names for current user are : ")
-        print(organization_names)
+        print("No valid organization key found for organization user name " +
+              organization_username)
+        print("Available organization user names for current user are : ")
+        print(organization_usernames)
         sys.exit()
     return organization_key
 
