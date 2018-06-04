@@ -232,7 +232,7 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --flag_duplicates
 ```
- - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to be private imagery belonging to an organization with user name `mapillary_organization`. You can find the organization user name in your dashboard.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to be private imagery belonging to an organization with organization username `mapillary_organization`. You can find the organization username in your dashboard.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --private --organization_username "mapillary_organization"
