@@ -16,3 +16,9 @@
 * Inadequate README [#219](https://github.com/mapillary/mapillary_tools/issues/219), [#180](https://github.com/mapillary/mapillary_tools/issues/180), [#159](https://github.com/mapillary/mapillary_tools/issues/159), [#229](https://github.com/mapillary/mapillary_tools/issues/229), [#226](https://github.com/mapillary/mapillary_tools/issues/226), [#157](https://github.com/mapillary/mapillary_tools/issues/157)
 * Removal of obsolete scripts [#162](https://github.com/mapillary/mapillary_tools/issues/162)
 * Inadequate logging [#63](https://github.com/mapillary/mapillary_tools/issues/63)
+
+
+## 0.0.1 (2018-06-04)
+
+### Bug fixes
+* Store the subsecond estimations done in sequence processing in case of identical timestamps
