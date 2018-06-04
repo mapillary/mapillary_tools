@@ -115,6 +115,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
             print("Error, " + image +
                   " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
+
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
         timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
 
@@ -820,7 +821,7 @@ def load_geotag_points(process_file_list, import_path, verbose=False):
 
 def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose=False):
 
-    split_sequences = []
+    sequences = []
     # sort based on time
     sort_by_time = zip(capture_times,
                        file_list,
@@ -833,14 +834,10 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
     latlons = zip(lats,
                   lons)
 
-    # interpolate time, in case identical timestamps
-    capture_times, file_list = interpolate_timestamp(capture_times,
-                                                     file_list)
-
     # initialize first sequence
     sequence_index = 0
-    split_sequences.append({"file_list": [
-        file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]]})
+    sequences.append({"file_list": [
+        file_list[0]], "directions": [directions[0]], "latlons": [latlons[0]], "capture_times": [capture_times[0]]})
 
     if len(file_list) >= 1:
         # diff in capture time
@@ -873,8 +870,8 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
                 cut += 1
                 # delta too big, start new sequence
                 sequence_index += 1
-                split_sequences.append({"file_list": [
-                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]]})
+                sequences.append({"file_list": [
+                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]], "capture_times": [capture_times[1:][i]]})
                 if verbose:
                     if cut_distance:
                         print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
@@ -885,13 +882,15 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
             else:
                 # delta not too big, continue with current
                 # group
-                split_sequences[sequence_index]["file_list"].append(
+                sequences[sequence_index]["file_list"].append(
                     filepath)
-                split_sequences[sequence_index]["directions"].append(
+                sequences[sequence_index]["directions"].append(
                     directions[1:][i])
-                split_sequences[sequence_index]["latlons"].append(
+                sequences[sequence_index]["latlons"].append(
                     latlons[1:][i])
-    return split_sequences
+                sequences[sequence_index]["capture_times"].append(
+                    capture_times[1:][i])
+    return sequences
 
 
 def interpolate_timestamp(capture_times,
