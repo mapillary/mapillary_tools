@@ -14,7 +14,7 @@
 -->
 
 ### Basic information
-* Version: `...` 
+* Release version: `0.0.0` | `0.0.1` | `...`
 * System: `Windows` | `Linux` | `...`
 * Capture Device: `iOS` | `Android` | `Action Camera` | `...`
 
