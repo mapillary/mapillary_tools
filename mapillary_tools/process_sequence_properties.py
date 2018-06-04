@@ -14,18 +14,20 @@ MAX_SEQUENCE_LENGTH = 500
 def finalize_sequence_processing(sequence,
                                  final_file_list,
                                  final_directions,
+                                 final_capture_times,
                                  import_path,
                                  verbose=False):
-    for image, direction in zip(final_file_list,
-                                final_directions):
+    for image, direction, capture_time in zip(final_file_list,
+                                              final_directions, final_capture_times):
         mapillary_description = {
             'MAPSequenceUUID': sequence,
             'MAPCompassHeading': {
                 "TrueHeading": direction,
                 "MagneticHeading": direction
-            }
+            },
+            "MAPCaptureTime": datetime.datetime.strftime(
+                capture_time, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
         }
-
         processing.create_and_log_process(image,
                                           import_path,
                                           "sequence_process",
@@ -111,6 +113,7 @@ def process_sequence_properties(import_path,
         file_list = sequence["file_list"]
         directions = sequence["directions"]
         latlons = sequence["latlons"]
+        capture_times = sequence["capture_times"]
 
         # COMPUTE DIRECTIONS --------------------------------------
         interpolated_directions = [compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
@@ -123,8 +126,13 @@ def process_sequence_properties(import_path,
                 d is not None and not interpolate_directions) else (interpolated_directions[i] + offset_angle) % 360.0
         # ---------------------------------------
 
+        # INTERPOLATE TIMESTAMPS, incase of identical timestamps
+        capture_times, file_list = processing.interpolate_timestamp(capture_times,
+                                                                    file_list)
+
         final_file_list = file_list[:]
         final_directions = directions[:]
+        final_capture_times = capture_times[:]
 
         # FLAG DUPLICATES --------------------------------------
         if flag_duplicates:
@@ -168,5 +176,7 @@ def process_sequence_properties(import_path,
                                                          MAX_SEQUENCE_LENGTH],
                                          final_directions[i:i +
                                                           MAX_SEQUENCE_LENGTH],
+                                         final_capture_times[i:i +
+                                                             MAX_SEQUENCE_LENGTH],
                                          import_path,
                                          verbose)
