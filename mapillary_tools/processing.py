@@ -216,7 +216,7 @@ def geotag_from_gps_trace(process_file_list,
             print("Error, gps trace file was not read, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        import_path,
-                                       "geotag_process"
+                                       "geotag_process",
                                        "failed",
                                        verbose)
         return
