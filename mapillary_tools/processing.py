@@ -15,7 +15,7 @@ from geo import normalize_bearing, interpolate_lat_lon, gps_distance
 import config
 import uploader
 from dateutil.tz import tzlocal
-from gps_parser import get_lat_lon_time_from_gpx
+from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 
 
@@ -157,26 +157,28 @@ def geotag_from_gopro_video(process_file_list,
         if verbose:
             print("Error, failed extracting data from gopro video , exiting...")
         sys.exit()
-    geotag_from_gpx(process_file_list,
-                    import_path,
-                    geotag_source_path,
-                    offset_time,
-                    offset_angle,
-                    local_time,
-                    sub_second_interval,
-                    use_gps_start_time,
-                    verbose)
+    geotag_from_gps_trace(process_file_list,
+                          import_path,
+                          "gpx",
+                          geotag_source_path,
+                          offset_time,
+                          offset_angle,
+                          local_time,
+                          sub_second_interval,
+                          use_gps_start_time,
+                          verbose)
 
 
-def geotag_from_gpx(process_file_list,
-                    import_path,
-                    geotag_source_path,
-                    offset_time=0.0,
-                    offset_angle=0.0,
-                    local_time=False,
-                    sub_second_interval=1.0,
-                    use_gps_start_time=False,
-                    verbose=False):
+def geotag_from_gps_trace(process_file_list,
+                          import_path,
+                          geotag_source,
+                          geotag_source_path,
+                          offset_time=0.0,
+                          offset_angle=0.0,
+                          local_time=False,
+                          sub_second_interval=1.0,
+                          use_gps_start_time=False,
+                          verbose=False):
 
     # print time now to warn in case local_time
     if local_time:
@@ -190,9 +192,12 @@ def geotag_from_gpx(process_file_list,
             print(
                 "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
 
-    # read gpx file to get track locations
-    gpx = get_lat_lon_time_from_gpx(geotag_source_path,
-                                    local_time)
+    # read gps file to get track locations
+    if geotag_source == "gpx":
+        gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
+    elif geotag_source == "nmea":
+        gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
+
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
                                                 sub_second_interval)
@@ -206,9 +211,9 @@ def geotag_from_gpx(process_file_list,
                                        verbose)
         return
 
-    if not gpx:
+    if not gps_trace:
         if verbose:
-            print("Error, gpx file was not read, images can not be geotagged.")
+            print("Error, gps trace file was not read, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        import_path,
                                        "geotag_process"
@@ -218,7 +223,7 @@ def geotag_from_gpx(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sub_second_times[0] - gpx[0][0]).total_seconds()
+        offset_time += (sub_second_times[0] - gps_trace[0][0]).total_seconds()
 
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
@@ -232,8 +237,8 @@ def geotag_from_gpx(process_file_list,
                                    "failed",
                                    verbose=verbose)
 
-        geotag_properties = get_geotag_properties_from_gpx(
-            image, capture_time, gpx, offset_angle, offset_time, verbose)
+        geotag_properties = get_geotag_properties_from_gps_trace(
+            image, capture_time, gps_trace, offset_angle, offset_time, verbose)
 
         create_and_log_process(image,
                                import_path,
@@ -243,12 +248,12 @@ def geotag_from_gpx(process_file_list,
                                verbose)
 
 
-def get_geotag_properties_from_gpx(image, capture_time, gpx, offset_angle=0.0, offset_time=0.0, verbose=False):
+def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
 
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
-        lat, lon, bearing, elevation = interpolate_lat_lon(gpx,
+        lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace,
                                                            capture_time)
     except Exception as e:
         if verbose:
