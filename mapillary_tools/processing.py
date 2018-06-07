@@ -176,7 +176,7 @@ def geotag_from_gps_trace(process_file_list,
                           offset_time=0.0,
                           offset_angle=0.0,
                           local_time=False,
-                          sub_second_interval=1.0,
+                          sub_second_interval=0.0,
                           use_gps_start_time=False,
                           verbose=False):
 

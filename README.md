@@ -400,8 +400,8 @@ python edit_config.py "path/to/config_file"
 
 [exifread]: https://pypi.python.org/pypi/ExifRead
 
-[gpxpy]: https://pypi.python.org/pypi/gpxp
+[gpxpy]: https://pypi.python.org/pypi/gpxpy
 
-[PIL]: https://pypi.python.org/pypi/Pillow/2.2.
+[PIL]: https://pypi.python.org/pypi/Pillow/2.9.0
 
 [Piexif]: https://github.com/mapillary/Piexif
