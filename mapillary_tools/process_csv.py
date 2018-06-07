@@ -74,7 +74,7 @@ def convert_gps_time(gps_time):
 
 def get_image_index(image, file_names):
 
-    image_path = image.replace("\\", "/")
+    image_path = os.path.splitext(image.replace("\\", "/"))[0]
     image_index = None
 
     try:
@@ -202,8 +202,8 @@ def process_csv(import_path,
 
     filename_column = int(data_fields[0])
 
-    file_names = [entry.replace("\\", "/")
-                  for entry in csv_data[int(data_fields[0])]]
+    file_names = [os.path.splitext(entry.replace("\\", "/"))[0]
+                  for entry in csv_data[filename_column]]
 
     # process each image
     for image in process_file_list:
