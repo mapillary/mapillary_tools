@@ -10,6 +10,7 @@ from . import process
 from . import process_and_upload
 from . import video_process
 from . import video_process_and_upload
+from . import process_csv
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -20,7 +21,8 @@ mapillary_tools_advanced_commands = [
     extract_import_meta_data,
     extract_sequence_data,
     extract_upload_params,
-    exif_insert
+    exif_insert,
+    process_csv
 ]
 mapillary_tools_commands = [
     process,
