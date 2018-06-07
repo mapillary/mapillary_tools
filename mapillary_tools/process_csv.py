@@ -48,7 +48,7 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
     return meta_columns, meta_names, meta_types
 
 
-def convert_gps_time(gps_time):
+def convert_from_gps_time(gps_time):
     """ Convert gps time in ticks to standard time. """
     # TAI scale with 1970-01-01 00:00:10 (TAI) epoch
     os.environ['TZ'] = 'right/UTC'
@@ -122,7 +122,7 @@ def parse_csv_geotag_data(csv_data, image_index, data_fields, convert_gps_time=F
         print(
             "Error required time, lat and lon could not be extracted.")
     try:
-        timestamp = convert_gps_time(
+        timestamp = convert_from_gps_time(
             timestamp) if convert_gps_time else datetime.datetime.strptime(timestamp, time_format)
     except:
         print("Error, date/time {} could not be parsed with format {}".format(
