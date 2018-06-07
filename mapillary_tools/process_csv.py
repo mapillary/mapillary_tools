@@ -128,11 +128,11 @@ def parse_csv_geotag_data(csv_data, image_index, data_fields, convert_gps_time=F
         print("Error, date/time {} could not be parsed with format {}".format(
             timestamp, time_format))
     try:
-        heading = csv_data[heading_column][image_index]
+        heading = float(csv_data[heading_column][image_index])
     except:
         pass
     try:
-        altitude = csv_data[altitude_column][image_index]
+        altitude = float(csv_data[altitude_column][image_index])
     except:
         pass
     return timestamp, lat, lon, heading, altitude
