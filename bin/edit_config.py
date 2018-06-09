@@ -1,5 +1,5 @@
 import argparse
-import mapillary_tools.lib.config as config
+import mapillary_tools.config as config
 import os
 import sys
 '''
