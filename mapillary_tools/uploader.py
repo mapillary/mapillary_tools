@@ -512,7 +512,7 @@ def upload_file(filepath, root, url, permission, signature, key=None):
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAI2X3BJAT2W75HILA", "acl": "private",
+    parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAILU27ZWSOZX2FZ7Q", "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     with open(filepath, "rb") as f:
