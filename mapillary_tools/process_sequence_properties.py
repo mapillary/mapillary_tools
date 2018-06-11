@@ -126,7 +126,7 @@ def process_sequence_properties(import_path,
                 d is not None and not interpolate_directions) else (interpolated_directions[i] + offset_angle) % 360.0
         # ---------------------------------------
 
-        # INTERPOLATE TIMESTAMPS, incase of identical timestamps
+        # INTERPOLATE TIMESTAMPS, in case of identical timestamps
         capture_times, file_list = processing.interpolate_timestamp(capture_times,
                                                                     file_list)
 

@@ -41,7 +41,7 @@ To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
 
 	pip install git+https://github.com/mapillary/mapillary_tools
 
-which will enables processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
+which will enable processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
 ### Video Support
 
