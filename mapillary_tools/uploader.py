@@ -26,7 +26,7 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
-                 "signature": SIGNATURE_HASH}
+                 "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(
     CLIENT_ID)
@@ -485,7 +485,7 @@ def upload_done_file(params):
         os.remove("DONE")
 
 
-def upload_file(filepath, root, url, permission, signature, key=None):
+def upload_file(filepath, root, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
@@ -505,7 +505,7 @@ def upload_file(filepath, root, url, permission, signature, key=None):
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAILU27ZWSOZX2FZ7Q", "acl": "private",
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     with open(filepath, "rb") as f:

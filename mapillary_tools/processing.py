@@ -345,7 +345,8 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         "url": "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images",
         "permission": user_permission_hash,
         "signature": user_signature_hash,
-        "key": user_name + "/" + sequence_uuid + "/"
+        "key": user_name + "/" + sequence_uuid + "/",
+        "aws_key": "AKIAILU27ZWSOZX2FZ7Q"
     }
 
     try:

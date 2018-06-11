@@ -80,7 +80,7 @@ class Command:
         parser.add_argument('--cutoff_time', default=60., type=float,
                             help='maximum time interval in seconds within a sequence', required=False)
         parser.add_argument('--interpolate_directions',
-                            help='perform interploation of directions', action='store_true', required=False)
+                            help='perform interpolation of directions', action='store_true', required=False)
         parser.add_argument('--flag_duplicates',
                             help='flag duplicates', action='store_true', required=False)
         parser.add_argument('--duplicate_distance',
