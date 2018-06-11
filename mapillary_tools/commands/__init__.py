@@ -10,6 +10,7 @@ from . import process
 from . import process_and_upload
 from . import video_process
 from . import video_process_and_upload
+from . import edit_config
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -20,7 +21,8 @@ mapillary_tools_advanced_commands = [
     extract_import_meta_data,
     extract_sequence_data,
     extract_upload_params,
-    exif_insert
+    exif_insert,
+    edit_config
 ]
 mapillary_tools_commands = [
     process,
@@ -30,6 +32,8 @@ mapillary_tools_commands = [
 
 
 def add_general_arguments(parser, command):
+    if command == "edit_config":
+        pass
     #import path
     parser.add_argument(
         '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=True)
