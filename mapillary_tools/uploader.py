@@ -26,7 +26,7 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
-                 "signature": SIGNATURE_HASH}  # TODO move_files should not exist anymore
+                 "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(
     CLIENT_ID)
@@ -41,7 +41,7 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, root):  # TODO params are joint in the queue
+    def __init__(self, queue, root):
         threading.Thread.__init__(self)
         self.q = queue
         self.root = root
@@ -50,7 +50,6 @@ class UploadThread(threading.Thread):
     def run(self):
         while True:
             # fetch file from the queue and upload
-            # TODO return filepath and params per filepath ....filepath, params
             filepath, params = self.q.get()
             if filepath is None:
                 self.q.task_done()
@@ -118,8 +117,6 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-# TODO check where this is called with auto_done=True and where it is left
-# with defualt auto_done=False and why
 def finalize_upload(params, retry=3, auto_done=False):
     '''
     Finalize and confirm upload
@@ -132,8 +129,6 @@ def finalize_upload(params, retry=3, auto_done=False):
             proceed = "y"
         if proceed in ["y", "Y", "yes", "Yes"]:
             # upload an empty DONE file
-            # TODO check if this is in all uploads or only for the
-            # manual.upload ones
             upload_done_file(params)
             print("Done uploading.")
             break
@@ -480,9 +475,7 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(params):  # TODO note that this will stay the same
-    # print("Upload a DONE file {} to indicate the sequence is all uploaded and ready to submit.".format(
-    #    params['key']))
+def upload_done_file(params):
     if not os.path.exists("DONE"):
         open("DONE", 'a').close()
     # upload
@@ -492,7 +485,7 @@ def upload_done_file(params):  # TODO note that this will stay the same
         os.remove("DONE")
 
 
-def upload_file(filepath, root, url, permission, signature, key=None):
+def upload_file(filepath, root, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
@@ -512,7 +505,7 @@ def upload_file(filepath, root, url, permission, signature, key=None):
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": "AKIAILU27ZWSOZX2FZ7Q", "acl": "private",
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     with open(filepath, "rb") as f:
