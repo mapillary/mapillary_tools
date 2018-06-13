@@ -145,11 +145,11 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
             try:
                 tag_type = meta_types[field] + "s"
                 tag_value = csv_data[meta_field][image_index]
-                meta = process_import_meta_properties.validate_type(
-                    tag_type, tag_value, meta, meta_names[field])
+                tag_key = meta_names[field]
+                process_import_meta_properties.add_meta_tag(
+                    meta, tag_type, tag_key, tag_value)
             except:
-                print("Error, meta data {} could not be extracted.".format(
-                    meta_names[field]))
+                print("Error, meta data {} could not be extracted.".format(tag_key))
     return meta
 
 

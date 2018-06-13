@@ -12,44 +12,35 @@ META_DATA_TYPES = {"strings": str,
                    "booleans": bool}
 
 
-def validate_type(tag_type, tag_value, meta_dict, tag_name):
-    try:
-        tag_value = META_DATA_TYPES[tag_type](tag_value)
-    except:
-        pass
+def validate_type(tag_type, tag_value):
     if not isinstance(tag_value, META_DATA_TYPES[tag_type]):
-        print("Error, meta value for {} can not be casted to the specified type and will therefore not be added.".format(tag_name))
         try:
-            meta_dict[tag_type].remove({"key": tag_name, "value": tag_value})
+            tag_value = META_DATA_TYPES[tag_type](tag_value)
         except:
-            pass
-    meta_dict = add_meta_tag(meta_dict, tag_type, tag_name, tag_value)
-    return meta_dict
+            print(
+                "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(tag_type, tag_value))
+            return None
+    return tag_value
 
 
 def add_meta_tag(mapillary_description,
                  tag_type,
                  key,
                  value):
-
+    value = validate_type(tag_type, value)
+    if not value:
+        return
     meta_tag = {"key": key,
                 "value": value}
     if 'MAPMetaTags' in mapillary_description:
         if tag_type in mapillary_description['MAPMetaTags']:
-            try:
-                meta_tag_index = [idx for idx, entry in enumerate(
-                    mapillary_description['MAPMetaTags'][tag_type]) if entry["key"] == key]
-                for idx in meta_tag_index:
-                    mapillary_description['MAPMetaTags'][tag_type][idx] = meta_tag
-            except:
-                mapillary_description['MAPMetaTags'][tag_type].append(meta_tag)
+            mapillary_description['MAPMetaTags'][tag_type].append(meta_tag)
         else:
             mapillary_description['MAPMetaTags'][tag_type] = [meta_tag]
     else:
         mapillary_description['MAPMetaTags'] = {
             tag_type: [meta_tag]
         }
-    return mapillary_description
 
 
 def finalize_import_properties_process(image,
@@ -73,21 +64,21 @@ def finalize_import_properties_process(image,
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
 
     if add_file_name:
-        mapillary_description = add_meta_tag(mapillary_description,
-                                             "strings",
-                                             "original_file_name",
-                                             image)
+        add_meta_tag(mapillary_description,
+                     "strings",
+                     "original_file_name",
+                     image)
 
     if add_import_date:
-        mapillary_description = add_meta_tag(mapillary_description,
-                                             "dates",
-                                             "import_date",
-                                             int(round(time.time() * 1000)))
+        add_meta_tag(mapillary_description,
+                     "dates",
+                     "import_date",
+                     int(round(time.time() * 1000)))
 
-    mapillary_description = add_meta_tag(mapillary_description,
-                                         "strings",
-                                         "mapillary_tools_version",
-                                         "0.0.1")
+    add_meta_tag(mapillary_description,
+                 "strings",
+                 "mapillary_tools_version",
+                 "0.0.1")
 
     processing.create_and_log_process(image,
                                       import_path,
@@ -130,12 +121,6 @@ def get_import_meta_properties_exif(image, verbose=False):
     except:
         pass
 
-    # validate meta_tags if any
-    if "MAPMetaTags" in import_meta_data_properties:
-        for tag_type in import_meta_data_properties["MAPMetaTags"].keys():
-            for tag in import_meta_data_properties["MAPMetaTags"][tag_type]:
-                import_meta_data_properties = validate_type(tag_type, tag["value"],
-                                                            import_meta_data_properties, tag["key"])
     return import_meta_data_properties
 
 
