@@ -29,7 +29,7 @@ if advanced:
 
 for command in all_commands:
     subparser = subparsers.add_parser(command.name, help=command.help)
-    commands.add_general_arguments(subparser, command)
+    commands.add_general_arguments(subparser, command.name)
     command.add_basic_arguments(subparser)
     if advanced:
         command.add_advanced_arguments(subparser)

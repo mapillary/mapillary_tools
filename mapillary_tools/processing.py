@@ -686,6 +686,9 @@ def user_properties(user_name,
     except:
         print("Error, user authentication failed for user " + user_name)
         return None
+    if not user_properties:
+        print("Error, user authentication failed for user " + user_name)
+        return None
     # organization validation
     if organization_username or organization_key:
         organization_key = process_organization(user_properties,

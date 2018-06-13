@@ -299,9 +299,14 @@ def get_upload_token(mail, pwd):
     '''
     Get upload token
     '''
-    params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen(LOGIN_URL, params)
+    try:
+        params = urllib.urlencode({"email": mail, "password": pwd})
+        response = urllib.urlopen(LOGIN_URL, params)
+    except:
+        return None
     resp = json.loads(response.read())
+    if not resp or 'token' not in resp:
+        return None
     return resp['token']
 
 
@@ -376,12 +381,16 @@ def progress(count, total, suffix=''):
 
 def prompt_user_for_user_items(user_name):
     user_items = {}
-
+    print("Enter user credentials for user " + user_name + " :")
     user_email = raw_input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
     user_key = get_user_key(user_name)
+    if not user_key:
+        return None
     upload_token = get_upload_token(
         user_email, user_password)
+    if not upload_token:
+        return None
     user_permission_hash, user_signature_hash = get_user_hashes(
         user_key, upload_token)
 
@@ -402,8 +411,9 @@ def authenticate_user(user_name):
         if user_name in global_config_object.sections():
             user_items = config.load_user(global_config_object, user_name)
             return user_items
-    print("enter user credentials for user " + user_name)
     user_items = prompt_user_for_user_items(user_name)
+    if not user_items:
+        return None
     config.create_config(GLOBAL_CONFIG_FILEPATH)
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
@@ -452,13 +462,15 @@ def set_master_key():
 
 
 def get_user_key(user_name):
-    user_key = ""
-    req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
-    resp = json.loads(urllib2.urlopen(req).read())
-    if 'key' in resp[0]:
-        user_key = resp[0]['key']
-
-    return user_key
+    try:
+        req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
+        resp = json.loads(urllib2.urlopen(req).read())
+    except:
+        return ""
+    if not resp or 'key' not in resp[0]:
+        print("Error, user name {} does not exist...".format(user_name))
+        return ""
+    return resp[0]['key']
 
 
 def get_user_hashes(user_key, upload_token):
