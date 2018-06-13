@@ -44,7 +44,7 @@ def sample_video(video_file,
     import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+              " does not exist, exiting...")
         sys.exit()
 
     # command specific checks

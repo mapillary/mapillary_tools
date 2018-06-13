@@ -5,28 +5,48 @@ import processing
 import uploader
 from exif_read import ExifRead
 
+META_DATA_TYPES = {"strings": str,
+                   "doubles": float,
+                   "longs": long,
+                   "dates": int,
+                   "booleans": bool}
+
+
+def validate_type(tag_type, tag_value, meta_dict, tag_name):
+    try:
+        tag_value = META_DATA_TYPES[type](tag_value)
+    except:
+        pass
+    if not isinstance(tag_value, META_DATA_TYPES[tag_type]):
+        print("Error, meta value for {} can not be casted to the specified type and will therefore not be added.".format(tag_name))
+        try:
+            meta_dict[tag_type].remove({"key": tag_name, "value": tag_value})
+        except:
+            pass
+    add_meta_tag(meta_dict, tag_type, tag_name, tag_value)
+
 
 def add_meta_tag(mapillary_description,
-                 type,
+                 tag_type,
                  key,
                  value):
+
+    meta_tag = {"key": key,
+                "value": value}
     if 'MAPMetaTags' in mapillary_description:
-        if type in mapillary_description['MAPMetaTags']:
-            mapillary_description['MAPMetaTags'][type].append(
-                {"key": key,
-                 "value": value}
-            )
+        if tag_type in mapillary_description['MAPMetaTags']:
+            try:
+                meta_tag_index = [idx for idx, entry in enumerate(
+                    mapillary_description['MAPMetaTags'][tag_type]) if entry["key"] == key]
+                for idx in meta_tag_index:
+                    mapillary_description['MAPMetaTags'][tag_type][idx] = meta_tag
+            except:
+                mapillary_description['MAPMetaTags'][tag_type].append(meta_tag)
         else:
-            mapillary_description['MAPMetaTags'][type] = [
-                {"key": key,
-                 "value": value}
-            ]
+            mapillary_description['MAPMetaTags'][tag_type] = [meta_tag]
     else:
         mapillary_description['MAPMetaTags'] = {
-            type: [
-                {"key": key,
-                 "value": value}
-            ]
+            tag_type: [meta_tag]
         }
 
 
@@ -108,6 +128,12 @@ def get_import_meta_properties_exif(image, verbose=False):
     except:
         pass
 
+    # validate meta_tags if any
+    if "MAPMetaTags" in import_meta_data_properties:
+        for tag_type in import_meta_data_properties["MAPMetaTags"].keys():
+            for tag in import_meta_data_properties["MAPMetaTags"][tag_type]:
+                validate_type(tag_type, tag["value"],
+                              import_meta_data_properties, tag["key"])
     return import_meta_data_properties
 
 
