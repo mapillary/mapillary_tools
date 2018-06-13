@@ -23,7 +23,8 @@ def validate_type(tag_type, tag_value, meta_dict, tag_name):
             meta_dict[tag_type].remove({"key": tag_name, "value": tag_value})
         except:
             pass
-    add_meta_tag(meta_dict, tag_type, tag_name, tag_value)
+    meta_dict = add_meta_tag(meta_dict, tag_type, tag_name, tag_value)
+    return meta_dict
 
 
 def add_meta_tag(mapillary_description,
@@ -48,6 +49,7 @@ def add_meta_tag(mapillary_description,
         mapillary_description['MAPMetaTags'] = {
             tag_type: [meta_tag]
         }
+    return mapillary_description
 
 
 def finalize_import_properties_process(image,
@@ -71,21 +73,21 @@ def finalize_import_properties_process(image,
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
 
     if add_file_name:
-        add_meta_tag(mapillary_description,
-                     "strings",
-                     "original_file_name",
-                     image)
+        mapillary_description = add_meta_tag(mapillary_description,
+                                             "strings",
+                                             "original_file_name",
+                                             image)
 
     if add_import_date:
-        add_meta_tag(mapillary_description,
-                     "dates",
-                     "import_date",
-                     int(round(time.time() * 1000)))
+        mapillary_description = add_meta_tag(mapillary_description,
+                                             "dates",
+                                             "import_date",
+                                             int(round(time.time() * 1000)))
 
-    add_meta_tag(mapillary_description,
-                 "strings",
-                 "mapillary_tools_version",
-                 "0.0.1")
+    mapillary_description = add_meta_tag(mapillary_description,
+                                         "strings",
+                                         "mapillary_tools_version",
+                                         "0.0.1")
 
     processing.create_and_log_process(image,
                                       import_path,
@@ -132,8 +134,8 @@ def get_import_meta_properties_exif(image, verbose=False):
     if "MAPMetaTags" in import_meta_data_properties:
         for tag_type in import_meta_data_properties["MAPMetaTags"].keys():
             for tag in import_meta_data_properties["MAPMetaTags"][tag_type]:
-                validate_type(tag_type, tag["value"],
-                              import_meta_data_properties, tag["key"])
+                import_meta_data_properties = validate_type(tag_type, tag["value"],
+                                                            import_meta_data_properties, tag["key"])
     return import_meta_data_properties
 
 
