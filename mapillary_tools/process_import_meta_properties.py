@@ -14,7 +14,7 @@ META_DATA_TYPES = {"strings": str,
 
 def validate_type(tag_type, tag_value, meta_dict, tag_name):
     try:
-        tag_value = META_DATA_TYPES[type](tag_value)
+        tag_value = META_DATA_TYPES[tag_type](tag_value)
     except:
         pass
     if not isinstance(tag_value, META_DATA_TYPES[tag_type]):
