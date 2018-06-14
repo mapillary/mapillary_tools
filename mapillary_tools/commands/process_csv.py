@@ -23,6 +23,8 @@ class Command:
                             help='Specify the meta data types, separate types with commas, example "string,string,long". Available types are [string, double, long, date, boolean]', action="store", default=None, required=False)
         parser.add_argument("--time_format",
                             help='Specify the format of the date/time.', action="store", default="%Y:%m:%d %H:%M:%S.%f", required=False)
+        parser.add_argument('--header', help="The csv file includes a header.",
+                            default=False, required=False, action='store_true')
 
     def add_advanced_arguments(self, parser):
         pass

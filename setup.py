@@ -15,6 +15,5 @@ setup(name='mapillary_tools',
           'Pillow==2.9.0',
           'python-dateutil==2.7.3',
           'pynmea2==1.12.0',
-          'pytest==3.2.3',
-          'pandas==0.22.0'
+          'pytest==3.2.3'
       ])

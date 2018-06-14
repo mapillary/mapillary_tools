@@ -2,7 +2,6 @@ import processing
 import uploader
 import os
 import sys
-import pandas
 import datetime
 import process_import_meta_properties
 from exif_write import ExifEdit
@@ -153,12 +152,28 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
     return meta
 
 
+def read_csv(csv_path, delimiter=",", header=False):
+    csv_data = []
+
+    with open(csv_path, 'r') as csvfile:
+        csvreader = csv.reader(csvfile, delimiter=delimiter)
+        if header:
+            next(csvreader, None)
+
+        for row in csvreader:
+            for idx, field in enumerate(row):
+                csv_data[idx].append(field)
+
+    return csv_data
+
+
 def process_csv(import_path,
                 csv_path,
                 data_columns,
                 time_format="%Y:%m:%d %H:%M:%S.%f",
                 convert_gps_time=False,
                 delimiter=",",
+                header=False,
                 meta_columns=None,
                 meta_names=None,
                 meta_types=None,
@@ -189,7 +204,7 @@ def process_csv(import_path,
     data_fields = data_columns.split(",")
     if len(data_fields) < 4:
         print(
-            'Error, you must specify the numbers of data columns in the folowing order, where first four are required and last two are optional: "filename,time,lat,lon,[heading,altitude]. To specify one optional column, but skip the other, leave the field blank, example "0,1,2,3,,4".')
+            'Error, you must specify the numbers of data columns in the following order, where first four are required and last two are optional: "filename,time,lat,lon,[heading,altitude]. To specify one optional column, but skip the other, leave the field blank, example "0,1,2,3,,4".')
         sys.exit()
 
     # checks for meta arguments if any
@@ -197,10 +212,9 @@ def process_csv(import_path,
         meta_columns, meta_names, meta_types)
 
     # open and process csv
-    csv_data = pandas.read_csv(csv_path,
-                               low_memory=False,
-                               delimiter=delimiter,
-                               header=None)
+    csv_data = read_csv(csv_path,
+                        delimiter=delimiter,
+                        header=header)
 
     filename_column = int(data_fields[0])
 
