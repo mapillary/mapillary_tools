@@ -48,8 +48,12 @@ def write_gpx(path, data):
     gpx_track.segments.append(gpx_segment)
 
     for point in data:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-            latitude=point[1], longitude=point[2], elevation=point[3], time=point[0]))
+        if len(point) > 3:
+            gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+                latitude=point[1], longitude=point[2], elevation=point[3], time=point[0]))
+        else:
+            gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+                latitude=point[1], longitude=point[2], time=point[0]))
 
     with open(path, "w") as f:
         f.write(gpx.to_xml())
