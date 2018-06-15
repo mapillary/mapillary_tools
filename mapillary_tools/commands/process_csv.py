@@ -13,6 +13,8 @@ class Command:
                             required=False, action="store", default=",")
         parser.add_argument("--convert_gps_time",
                             help="Convert gps time in ticks to standard time.", action="store_true", default=False, required=False)
+        parser.add_argument("--convert_utc_time",
+                            help="Convert utc epoch time in seconds or milliseconds.", action="store_true", default=False, required=False)
         parser.add_argument("--data_columns",
                             help='Specify the data column numbers in the following order, where first four are required and last two are optional : "filename,time,lat,lon,[heading,altitude]". To specify one optional column, but skip the other, leave the field blank, example "0,1,2,3,,4".', action="store", required=True)
         parser.add_argument("--meta_columns",

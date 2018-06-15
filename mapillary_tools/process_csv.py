@@ -9,6 +9,19 @@ import csv
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
 
+MILLISECONDS_PRECISION_CUT_OFF = 10000000000
+
+
+def format_time(timestamp, time_utc=False, time_format='%Y-%m-%dT%H:%M:%SZ'):
+    if time_utc:
+        division = 1.0 if int(
+            timestamp) < MILLISECONDS_PRECISION_CUT_OFF else 1000.0
+        t_datetime = datetime.datetime.utcfromtimestamp(
+            int(timestamp) / division)
+    else:
+        t_datetime = datetime.datetime.strptime(timestamp, time_format)
+    return t_datetime
+
 
 def validate_meta_data(meta_columns, meta_names, meta_types):
 
@@ -87,7 +100,7 @@ def get_image_index(image, file_names):
     return image_index
 
 
-def parse_csv_geotag_data(csv_data, image_index, data_fields, convert_gps_time=False, time_format="%Y:%m:%d %H:%M:%S.%f"):
+def parse_csv_geotag_data(csv_data, image_index, data_fields, convert_gps_time=False, convert_utc_time=False, time_format="%Y:%m:%d %H:%M:%S.%f"):
 
     timestamp = None
     lat = None
@@ -122,7 +135,7 @@ def parse_csv_geotag_data(csv_data, image_index, data_fields, convert_gps_time=F
             "Error required time, lat and lon could not be extracted.")
     try:
         timestamp = convert_from_gps_time(
-            timestamp) if convert_gps_time else datetime.datetime.strptime(timestamp, time_format)
+            timestamp) if convert_gps_time else format_time(timestamp, convert_utc_time, time_format)
     except:
         print("Error, date/time {} could not be parsed with format {}".format(
             timestamp, time_format))
@@ -170,6 +183,7 @@ def process_csv(import_path,
                 data_columns,
                 time_format="%Y:%m:%d %H:%M:%S.%f",
                 convert_gps_time=False,
+                convert_utc_time=False,
                 delimiter=",",
                 header=False,
                 meta_columns=None,
@@ -231,7 +245,7 @@ def process_csv(import_path,
 
         # get required data
         timestamp, lat, lon, heading, altitude = parse_csv_geotag_data(
-            csv_data, image_index, data_fields, convert_gps_time, time_format)
+            csv_data, image_index, data_fields, convert_gps_time, convert_utc_time, time_format)
         if not all([x for x in [timestamp, lat, lon]]):
             print("Error, required data not extracted from csv for image " + image)
 
