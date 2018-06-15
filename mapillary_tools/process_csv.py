@@ -5,7 +5,7 @@ import sys
 import datetime
 import process_import_meta_properties
 from exif_write import ExifEdit
-
+import csv
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
 
@@ -160,9 +160,7 @@ def read_csv(csv_path, delimiter=",", header=False):
         if header:
             next(csvreader, None)
 
-        for row in csvreader:
-            for idx, field in enumerate(row):
-                csv_data[idx].append(field)
+        csv_data = zip(*csvreader)
 
     return csv_data
 
