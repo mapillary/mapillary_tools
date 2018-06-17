@@ -6,12 +6,22 @@ import sys
 from mapillary_tools import commands
 
 advanced = '--advanced' in sys.argv
+version = '--version' in sys.argv
+
+if version:
+    print("")
+    print("Mapillary tools version : " + commands.VERSION)
+    print("")
+    if len(sys.argv) < 3:
+        sys.exit()
 
 # Create the top-level parser
 parser = argparse.ArgumentParser(
-    'Mapillary import tool', usage="see -h for available tools and corresponding arguments and add --advanced to see additional advanced tools and/or arguments.")
+    'Mapillary import tool', usage="see -h for available tools and corresponding arguments, add --advanced to see additional advanced tools and/or arguments and --version to see version.")
 parser.add_argument(
     '--advanced', help='Use the tools under an advanced level with additional arguments and tools available.', action='store_true', required=False, default=False)
+parser.add_argument(
+    '--version', help='Print mapillary tools version.', action='store_true', required=False, default=False)
 
 subparsers = parser.add_subparsers(
     help="Please choose one of the available tools", dest='tool', metavar='tool')
@@ -40,6 +50,8 @@ args_command = vars(args)['tool']
 del vars(args)['tool']
 if 'advanced' in vars(args):
     del vars(args)['advanced']
+if 'version' in vars(args):
+    del vars(args)['version']
 
 # Run the selected subcommand if unit command, or in case of batch
 # command, run several unit commands

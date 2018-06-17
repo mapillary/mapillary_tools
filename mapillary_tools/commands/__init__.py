@@ -32,10 +32,15 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
+VERSION = "0.0.1"
+
 
 def add_general_arguments(parser, command):
     parser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
                         action='store_true', required=False, default=False)
+    parser.add_argument('--version', help='Print mapillary tools version.',
+                        action='store_true', required=False, default=False)
+
     if command == "authenticate":
         return
     #import path
