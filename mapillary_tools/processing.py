@@ -535,13 +535,13 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     process_file_list = []
     if skip_subfolders:
         process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(import_path, root_dir, file, process, rerun))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(import_path, root_dir, file, process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
             if ".mapillary" in root:
                 continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
-                import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+                import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     inform_processing_start(root_dir,
                             len(process_file_list),
