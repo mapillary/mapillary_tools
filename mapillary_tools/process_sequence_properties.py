@@ -133,11 +133,11 @@ def process_sequence_properties(import_path,
         final_file_list = file_list[:]
         final_directions = directions[:]
         final_capture_times = capture_times[:]
-
         # FLAG DUPLICATES --------------------------------------
         if flag_duplicates:
             final_file_list = [file_list[0]]
             final_directions = [directions[0]]
+            final_capture_times = [capture_times[0]]
             prev_latlon = latlons[0]
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
@@ -167,6 +167,7 @@ def process_sequence_properties(import_path,
                     prev_direction = directions[k]
                     final_file_list.append(filename)
                     final_directions.append(directions[k])
+                    final_capture_times.append(capture_times[k])
         # ---------------------------------------
 
         # FINALIZE ------------------------------------
