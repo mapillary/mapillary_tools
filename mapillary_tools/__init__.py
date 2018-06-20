@@ -20,4 +20,4 @@ import gpmf
 import ffmpeg
 import commands
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"

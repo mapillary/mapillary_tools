@@ -22,3 +22,9 @@
 
 ### Bug fixes
 * Store the subsecond estimations done in sequence processing in case of identical timestamps
+
+
+## 0.0.2 (2018-06-20)
+
+### Bug fixes
+* Update the timestamps list in case duplicates are flagged
