@@ -940,7 +940,7 @@ def interpolate_timestamp(capture_times,
         time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[
             0]]["count"] * 1.
 
-    # interpolate timestampes
+    # interpolate timestamps
     for f, t in zip(file_list,
                     capture_times):
         d = time_dict[t]
@@ -951,3 +951,21 @@ def interpolate_timestamp(capture_times,
         timestamps.append(updated_time)
 
     return timestamps, file_list
+
+
+def get_images_geotags(process_file_list):
+    geotags = []
+    missing_geotags = []
+    for image in sorted(process_file_list):
+        exif = ExifRead(image)
+        timestamp = exif.extract_capture_time()
+        lon, lat = exif.extract_lon_lat()
+        altitude = exif.extract_altitude()
+        if timestamp and lon and lat:
+            geotags.append((timestamp, lat, lon, altitude))
+            continue
+        if timestamp and (not lon or not lat):
+            missing_geotags.append((image, timestamp))
+        else:
+            print("Error image {} does not have captured time.".format(image))
+    return geotags, missing_geotags

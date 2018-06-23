@@ -12,6 +12,7 @@ from . import video_process
 from . import video_process_and_upload
 from . import process_csv
 from . import authenticate
+from . import interpolate_gps
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -24,7 +25,8 @@ mapillary_tools_advanced_commands = [
     extract_upload_params,
     exif_insert,
     process_csv,
-    authenticate
+    authenticate,
+    interpolate_gps
 ]
 mapillary_tools_commands = [
     process,
@@ -32,7 +34,7 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 
 
 def add_general_arguments(parser, command):
