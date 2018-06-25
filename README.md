@@ -73,7 +73,7 @@ To install `ffmpeg` on Windows, follow these [instructions](http://adaptivesampl
 
 ### User Authentication
 
-To upload images to Mapillary, an account is required and can be created [here]( https://www.mapillary.com/signup). When using the upload tools for the first time, user authentication is required. You will be prompted to enter your account credentials.
+To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When using the upload tools for the first time, user authentication is required. You will be prompted to enter your account credentials.
 
 ### Metadata
 
@@ -359,7 +359,7 @@ Process unit tools are tools executed by the `process` tool. Usage of process un
 
 #### `extract_sequence_data`
 
-`extract_sequence_data` will process the entire set of images located in the import path and create sequences, initially based on the file system structure, then based on image capture time and location and in the end splitting sequences longer then 500 images. Optionally, duplicates can be flagged(ie marked to be skipped when uploading) and camera directions can be  derived based on latitude and longitude.
+`extract_sequence_data` will process the entire set of images located in the import path and create sequences, initially based on the file system structure, then based on image capture time and location and in the end splitting sequences longer than 500 images. Optionally, duplicates can be flagged (ie marked to be skipped when uploading) and camera directions can be  derived based on latitude and longitude.
 
 #### `extract_upload_params`
 
