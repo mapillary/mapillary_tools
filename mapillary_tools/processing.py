@@ -902,18 +902,17 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
     return sequences
 
 
-def interpolate_timestamp(capture_times,
-                          file_list):
+def interpolate_timestamp(capture_times):
     '''
     Interpolate time stamps in case of identical timestamps
     '''
     timestamps = []
-    num_file = len(file_list)
+    num_file = len(capture_times)
 
     time_dict = OrderedDict()
 
     if num_file < 2:
-        return capture_times, file_list
+        return capture_times
 
     # trace identical timestamps (always assume capture_times is sorted)
     time_dict = OrderedDict()
@@ -941,8 +940,7 @@ def interpolate_timestamp(capture_times,
             0]]["count"] * 1.
 
     # interpolate timestamps
-    for f, t in zip(file_list,
-                    capture_times):
+    for t in capture_times:
         d = time_dict[t]
         s = datetime.timedelta(
             seconds=d["pointer"] * d["interval"] / float(d["count"]))
@@ -950,7 +948,7 @@ def interpolate_timestamp(capture_times,
         time_dict[t]["pointer"] += 1
         timestamps.append(updated_time)
 
-    return timestamps, file_list
+    return timestamps
 
 
 def get_images_geotags(process_file_list):

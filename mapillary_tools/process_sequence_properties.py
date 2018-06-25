@@ -127,8 +127,7 @@ def process_sequence_properties(import_path,
         # ---------------------------------------
 
         # INTERPOLATE TIMESTAMPS, in case of identical timestamps
-        capture_times, file_list = processing.interpolate_timestamp(capture_times,
-                                                                    file_list)
+        capture_times = processing.interpolate_timestamp(capture_times)
 
         final_file_list = file_list[:]
         final_directions = directions[:]
