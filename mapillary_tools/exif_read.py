@@ -331,7 +331,7 @@ class ExifRead:
             'EXIF SubSecTime'
         ]
         sub_sec, _ = self._extract_alternative_fields(
-            fields, default=0, field_type=str)
+            fields, default='', field_type=str)
         return sub_sec
 
     def fields_exist(self, fields):
