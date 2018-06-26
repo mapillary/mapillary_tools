@@ -194,11 +194,18 @@ def interpolate_lat_lon(points, t, max_dt=1):
     dt_before = (t - before[0]).total_seconds()
     dt_after = (after[0] - t).total_seconds()
 
-    # simple linear interpolation
-    lat = (before[1] * dt_after + after[1] *
-           dt_before) / (dt_before + dt_after)
-    lon = (before[2] * dt_after + after[2] *
-           dt_before) / (dt_before + dt_after)
+    # simple linear interpolation in case points are not the same
+    if before[1] == after[1]:
+        lat = before[1]
+    else:
+        lat = (before[1] * dt_after + after[1] *
+               dt_before) / (dt_before + dt_after)
+
+    if before[2] == after[2]:
+        lon = before[2]
+    else:
+        lon = (before[2] * dt_after + after[2] *
+               dt_before) / (dt_before + dt_after)
 
     bearing = compute_bearing(before[1], before[2], after[1], after[2])
 
