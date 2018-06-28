@@ -87,6 +87,16 @@ def process_geotag_properties(import_path,
                                                                sub_second_interval,
                                                                use_gps_start_time,
                                                                verbose)
+    elif geotag_source == "blackvue":
+        geotag_properties = processing.geotag_from_blackvue_video(process_file_list,
+                                                                  import_path,
+                                                                  geotag_source_path,
+                                                                  offset_time,
+                                                                  offset_angle,
+                                                                  local_time,
+                                                                  sub_second_interval,
+                                                                  use_gps_start_time,
+                                                                  verbose)
     elif geotag_source == "json":
         geotag_properties = processing.geotag_from_json(process_file_list,
                                                         import_path,

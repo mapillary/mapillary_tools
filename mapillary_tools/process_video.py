@@ -6,6 +6,7 @@ import processing
 import sys
 
 from exif_write import ExifEdit
+from exif_read import ExifRead
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
@@ -104,6 +105,7 @@ def insert_video_frame_timestamp(import_path, start_time, sample_interval, durat
                                                       start_time,
                                                       sample_interval,
                                                       duration_ratio)
+
     for image, timestamp in zip(frame_list,
                                 video_frame_timestamps):
         try:

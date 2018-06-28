@@ -58,7 +58,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'blackvue'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -109,6 +109,7 @@ class Command:
 
         process_sequence_properties(
             **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_sequence_properties).args}))
+        return
 
         process_upload_params(**({k: v for k, v in vars_args.iteritems()
                                   if k in inspect.getargspec(process_upload_params).args}))
