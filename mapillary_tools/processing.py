@@ -38,8 +38,8 @@ def exif_time(filename):
 def estimate_sub_second_time(files, interval=0.0):
     '''
     Estimate the capture time of a sequence with sub-second precision
-    EXIF times are only given up to a second of precission. This function
-    uses the given interval between shots to Estimate the time inside that
+    EXIF times are only given up to a second of precision. This function
+    uses the given interval between shots to estimate the time inside that
     second that each picture was taken.
     '''
     if interval <= 0.0:
@@ -155,7 +155,7 @@ def geotag_from_gopro_video(process_file_list,
             raise Exception
     except:
         if verbose:
-            print("Error, failed extracting data from gopro video , exiting...")
+            print("Error, failed extracting data from gopro video, exiting...")
         sys.exit()
     geotag_from_gps_trace(process_file_list,
                           import_path,

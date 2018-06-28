@@ -19,3 +19,5 @@ import gpx_from_gopro
 import gpmf
 import ffmpeg
 import commands
+
+VERSION = "0.0.2"
