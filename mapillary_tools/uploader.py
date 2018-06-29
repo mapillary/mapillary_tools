@@ -187,7 +187,7 @@ def get_upload_file_list(import_path, skip_subfolders=False):
         for root, dir, files in os.walk(import_path):
             upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(
                 import_path, root, file))
-    return upload_file_list
+    return sorted(upload_file_list)
 
 
 def get_total_file_list(import_path, skip_subfolders=False):
@@ -199,7 +199,7 @@ def get_total_file_list(import_path, skip_subfolders=False):
         for root, dir, files in os.walk(import_path):
             total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
-    return total_file_list
+    return sorted(total_file_list)
 
 
 def get_failed_upload_file_list(import_path, skip_subfolders=False):
@@ -212,7 +212,7 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
             failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(
                 import_path, root, file))
 
-    return failed_upload_file_list
+    return sorted(failed_upload_file_list)
 
 
 def get_success_upload_file_list(import_path, skip_subfolders=False):
@@ -225,7 +225,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
             success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(
                 import_path, root, file))
 
-    return success_upload_file_list
+    return sorted(success_upload_file_list)
 
 
 def success_upload(import_path, root, file):
@@ -275,7 +275,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
             finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(
                 import_path, root, file))
 
-    return finalize_file_list
+    return sorted(finalize_file_list)
 
 
 def preform_finalize(import_path, root, file):

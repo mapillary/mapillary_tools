@@ -224,7 +224,6 @@ def geotag_from_gps_trace(process_file_list,
     if use_gps_start_time:
         # update offset time with the gps start time
         offset_time += (sub_second_times[0] - gps_trace[0][0]).total_seconds()
-
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
 
@@ -546,7 +545,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     inform_processing_start(root_dir,
                             len(process_file_list),
                             process)
-    return process_file_list
+    return sorted(process_file_list)
 
 
 def preform_process(import_path, root, file, process, rerun=False):
