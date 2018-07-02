@@ -210,8 +210,7 @@ def interpolate_lat_lon(points, t, max_dt=1):
 
     # altitude
     if before[3] is not None:
-        ele = (before[3] * dt_after + after[3] *
-               dt_before) / (dt_before + dt_after)
+        ele = before[3] - weight * before[3] + weight * after[3]
     else:
         ele = None
 
