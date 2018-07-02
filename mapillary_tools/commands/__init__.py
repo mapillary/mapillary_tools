@@ -12,7 +12,7 @@ from . import video_process
 from . import video_process_and_upload
 from . import process_csv
 from . import authenticate
-from . import interpolate_gps
+from . import interpolate
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -26,7 +26,7 @@ mapillary_tools_advanced_commands = [
     exif_insert,
     process_csv,
     authenticate,
-    interpolate_gps
+    interpolate
 ]
 mapillary_tools_commands = [
     process,
@@ -45,9 +45,13 @@ def add_general_arguments(parser, command):
 
     if command == "authenticate":
         return
-    #import path
-    parser.add_argument(
-        '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=True)
     # print out warnings
     parser.add_argument(
         '--verbose', help='print debug info', action='store_true', default=False, required=False)
+    #import path
+    required = True
+    if command == "interpolate":
+        required = False
+
+    parser.add_argument(
+        '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=required)
