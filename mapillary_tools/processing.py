@@ -732,9 +732,12 @@ def user_properties_master(user_name,
         return None
     user_properties['MAPSettingsUserKey'] = user_key
 
-    if organization_key and private:
+    if organization_key:
         user_properties.update(
-            {'MAPOrganizationKey': organization_key, 'MAPPrivate': private})
+            {'MAPOrganizationKey': organization_key})
+        if private:
+            user_properties.update(
+                {'MAPPrivate': private})
 
     return user_properties
 
