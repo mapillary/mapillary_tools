@@ -5,7 +5,7 @@ import sys
 from geo import interpolate_lat_lon
 from exif_write import ExifEdit
 from exif_read import ExifRead
-from import_meta_properties import add_meta_tag
+from process_import_meta_properties import add_meta_tag
 import process_csv
 import csv
 
