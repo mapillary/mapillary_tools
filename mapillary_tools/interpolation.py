@@ -5,7 +5,7 @@ import sys
 from geo import interpolate_lat_lon
 from exif_write import ExifEdit
 from exif_read import ExifRead
-
+from import_meta_properties import add_meta_tag
 import process_csv
 import csv
 
@@ -151,8 +151,14 @@ def interpolation(data,
                         print(
                             "Warning, altitude not interpolated for image {}.".format(image))
 
-                file_out = image if not keep_original else image[
-                    :-4] + "_processed."
+                meta = {}
+
+                add_meta_tag(meta, "booleans", "interpolated_gps", True)
+
+                exif_edit.add_image_history(meta["MAPMetaTags"])
+
+                file_out = image if not keep_original else image[:-
+                                                                 4] + "_processed."
                 exif_edit.write(filename=file_out)
 
         elif data == "identical_timestamps":
