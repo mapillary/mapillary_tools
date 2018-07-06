@@ -314,7 +314,7 @@ class ExifRead:
         fields = ['Image Orientation']
         orientation, _ = self._extract_alternative_fields(
             fields, default=1, field_type=int)
-        if orientation not in [1, 3, 6, 8]:
+        if orientation not in range(1, 9):
             return 1
         return orientation
 
