@@ -29,7 +29,6 @@ def finalize_sequence_processing(sequence,
                 capture_time, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
         }
         processing.create_and_log_process(image,
-                                          import_path,
                                           "sequence_process",
                                           "success",
                                           mapillary_description,
@@ -70,7 +69,7 @@ def process_sequence_properties(import_path,
         else:
             # LOAD TIME AND GPS POINTS ------------------------------------
             file_list, capture_times, lats, lons, directions = processing.load_geotag_points(
-                process_file_list, import_path, verbose)
+                process_file_list, verbose)
             # ---------------------------------------
 
             # SPLIT SEQUENCES --------------------------------------
@@ -99,7 +98,7 @@ def process_sequence_properties(import_path,
 
                 # LOAD TIME AND GPS POINTS ------------------------------------
                 file_list, capture_times, lats, lons, directions = processing.load_geotag_points(
-                    process_file_list, import_path, verbose)
+                    process_file_list, verbose)
                 # ---------------------------------------
 
                 # SPLIT SEQUENCES --------------------------------------
@@ -140,8 +139,7 @@ def process_sequence_properties(import_path,
             prev_latlon = latlons[0]
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
-                log_root = uploader.log_rootpath(import_path,
-                                                 filename)
+                log_root = uploader.log_rootpath(filename)
                 duplicate_flag_path = os.path.join(log_root,
                                                    "duplicate")
                 sequence_process_success_path = os.path.join(log_root,

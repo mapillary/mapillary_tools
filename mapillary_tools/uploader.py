@@ -171,10 +171,9 @@ def finalize_upload(finalize_params):
         upload_done_file(params)
 
 
-def flag_finalization(import_path, finalize_file_list):
+def flag_finalization(finalize_file_list):
     for file in finalize_file_list:
-        finalize_flag = os.path.join(log_rootpath(
-            import_path, file), "upload_finalized")
+        finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
         open(finalize_flag, 'a').close()
 
 
@@ -182,11 +181,11 @@ def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
     if skip_subfolders:
         upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(
-                import_path, root, file))
+            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
     return sorted(upload_file_list)
 
 
@@ -206,11 +205,11 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
     failed_upload_file_list = []
     if skip_subfolders:
         failed_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(
-                import_path, root, file))
+            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
 
     return sorted(failed_upload_file_list)
 
@@ -219,18 +218,18 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
     success_upload_file_list = []
     if skip_subfolders:
         success_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(
-                import_path, root, file))
+            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
 
     return sorted(success_upload_file_list)
 
 
-def success_upload(import_path, root, file):
+def success_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     upload_success = os.path.join(log_root, "upload_success")
     upload_finalization = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
@@ -239,9 +238,9 @@ def success_upload(import_path, root, file):
     return success
 
 
-def preform_upload(import_path, root, file):
+def preform_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     process_failed = os.path.join(
         log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
@@ -252,9 +251,9 @@ def preform_upload(import_path, root, file):
     return upload
 
 
-def failed_upload(import_path, root, file):
+def failed_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     process_failed = os.path.join(
         log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
@@ -269,18 +268,18 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
     finalize_file_list = []
     if skip_subfolders:
         finalize_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(
-                import_path, root, file))
+            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
 
     return sorted(finalize_file_list)
 
 
-def preform_finalize(import_path, root, file):
+def preform_finalize(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     upload_succes = os.path.join(log_root, "upload_success")
     upload_finalized = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
@@ -536,9 +535,9 @@ def upload_file(filepath, root, url, permission, signature, key=None, aws_key=No
             response = urllib2.urlopen(request)
             if filename != "DONE":
                 if response.getcode() == 204:
-                    create_upload_log(root, filepath, "upload_success")
+                    create_upload_log(filepath, "upload_success")
                 else:
-                    create_upload_log(root, filepath, "upload_failed")
+                    create_upload_log(filepath, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:
@@ -595,12 +594,16 @@ def upload_file_list(file_list, root, file_params={}):
         sys.exit()
 
 
-def log_rootpath(root, filepath):
-    return os.path.join(root, ".mapillary", "logs", filepath.split(root)[1][1:-4])
+def log_rootpath(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.basename(filepath).split(".")[0])
 
 
-def create_upload_log(root, filepath, status):
-    upload_log_root = log_rootpath(root, filepath)
+def processed_images_rootpath(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary_proccessed_images", os.path.basename(filepath))
+
+
+def create_upload_log(filepath, status):
+    upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
     upload_opposite_log_filepath = os.path.join(
         upload_log_root, UPLOAD_STATUS_PAIRS[status])

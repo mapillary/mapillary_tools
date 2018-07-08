@@ -32,8 +32,7 @@ def insert_MAPJson(import_path,
 
     for image in process_file_list:
         # check the processing logs
-        log_root = uploader.log_rootpath(import_path,
-                                         image)
+        log_root = uploader.log_rootpath(image)
 
         duplicate_path = os.path.join(log_root,
                                       "duplicate")
@@ -48,7 +47,6 @@ def insert_MAPJson(import_path,
                                                                                              skip_EXIF_insert)
 
         processing.create_and_log_process(image,
-                                          import_path,
                                           "mapillary_image_description",
                                           "success",
                                           final_mapillary_image_description,

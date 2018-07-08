@@ -81,7 +81,6 @@ def finalize_import_properties_process(image,
                  "0.0.2")
 
     processing.create_and_log_process(image,
-                                      import_path,
                                       "import_meta_data_process",
                                       "success",
                                       mapillary_description,

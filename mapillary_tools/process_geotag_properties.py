@@ -37,7 +37,6 @@ def process_geotag_properties(import_path,
         # needs to be provided, if not, exit
         print("Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
         processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
                                                   "geotag_process"
                                                   "failed",
                                                   verbose)
@@ -47,7 +46,6 @@ def process_geotag_properties(import_path,
         print("Error, " + geotag_source_path +
               " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
         processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
                                                   "geotag_process"
                                                   "failed",
                                                   verbose)

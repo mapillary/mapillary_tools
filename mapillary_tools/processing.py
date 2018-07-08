@@ -78,7 +78,6 @@ def geotag_from_exif(process_file_list,
             image, offset_angle, verbose)
 
         create_and_log_process(image,
-                               import_path,
                                "geotag_process",
                                "success",
                                geotag_properties,
@@ -205,7 +204,6 @@ def geotag_from_gps_trace(process_file_list,
         if verbose:
             print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
-                                       import_path,
                                        "geotag_process"
                                        "failed",
                                        verbose)
@@ -215,7 +213,6 @@ def geotag_from_gps_trace(process_file_list,
         if verbose:
             print("Error, gps trace file was not read, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
-                                       import_path,
                                        "geotag_process",
                                        "failed",
                                        verbose)
@@ -231,7 +228,6 @@ def geotag_from_gps_trace(process_file_list,
             if verbose:
                 print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
-                                   import_path,
                                    "geotag_process",
                                    "failed",
                                    verbose=verbose)
@@ -240,7 +236,6 @@ def geotag_from_gps_trace(process_file_list,
             image, capture_time, gps_trace, offset_angle, offset_time, verbose)
 
         create_and_log_process(image,
-                               import_path,
                                "geotag_process",
                                "success",
                                geotag_properties,
@@ -462,7 +457,7 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
     return final_mapillary_image_description
 
 
-def get_geotag_data(log_root, image, import_path, verbose=False):
+def get_geotag_data(log_root, image, verbose=False):
     if not os.path.isdir(log_root):
         if verbose:
             print("Warning, no logs for image " + image)
@@ -534,13 +529,13 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     process_file_list = []
     if skip_subfolders:
         process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(import_path, root_dir, file, process, rerun))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
             if ".mapillary" in root:
                 continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
-                import_path, root, file, process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+                os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     inform_processing_start(root_dir,
                             len(process_file_list),
@@ -548,9 +543,8 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     return sorted(process_file_list)
 
 
-def preform_process(import_path, root, file, process, rerun=False):
-    file_path = os.path.join(root, file)
-    log_root = uploader.log_rootpath(import_path, file_path)
+def preform_process(file_path, process, rerun=False):
+    log_root = uploader.log_rootpath(file_path)
     process_succes = os.path.join(log_root, process + "_success")
     upload_succes = os.path.join(log_root, "upload_success")
     preform = not os.path.isfile(upload_succes) and (
@@ -559,8 +553,7 @@ def preform_process(import_path, root, file, process, rerun=False):
 
 
 def video_upload(video_file, import_path, verbose=False):
-    root_path = os.path.dirname(os.path.abspath(video_file))
-    log_root = uploader.log_rootpath(root_path, video_file)
+    log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
     if os.path.isdir(import_path):
         if verbose:
@@ -581,8 +574,7 @@ def video_upload(video_file, import_path, verbose=False):
 
 
 def create_and_log_video_process(video_file, import_path):
-    root_path = os.path.dirname(os.path.abspath(video_file))
-    log_root = uploader.log_rootpath(root_path, video_file)
+    log_root = uploader.log_rootpath(video_file)
     if not os.path.isdir(log_root):
         os.makedirs(log_root)
     # set the log flags for process
@@ -598,8 +590,7 @@ def create_and_log_video_process(video_file, import_path):
 
 
 def video_import_paths(video_file):
-    root_path = os.path.dirname(os.path.abspath(video_file))
-    log_root = uploader.log_rootpath(root_path, video_file)
+    log_root = uploader.log_rootpath(video_file)
     if not os.path.isdir(log_root):
         return []
     log_process = os.path.join(
@@ -613,23 +604,21 @@ def video_import_paths(video_file):
 
 
 def create_and_log_process_in_list(process_file_list,
-                                   import_path,
                                    process,
                                    status,
                                    verbose=False,
                                    mapillary_description={}):
     for image in process_file_list:
         create_and_log_process(image,
-                               import_path,
                                process,
                                status,
                                mapillary_description,
                                verbose)
 
 
-def create_and_log_process(image, import_path, process, status, mapillary_description={}, verbose=False):
+def create_and_log_process(image, process, status, mapillary_description={}, verbose=False):
     # set log path
-    log_root = uploader.log_rootpath(import_path, image)
+    log_root = uploader.log_rootpath(image)
     # make all the dirs if not there
     if not os.path.isdir(log_root):
         os.makedirs(log_root)
@@ -789,7 +778,7 @@ def inform_processing_start(import_path, len_process_file_list, process, skip_su
                                                                  len(total_file_list) - len_process_file_list))
 
 
-def load_geotag_points(process_file_list, import_path, verbose=False):
+def load_geotag_points(process_file_list, verbose=False):
 
     file_list = []
     capture_times = []
@@ -799,15 +788,12 @@ def load_geotag_points(process_file_list, import_path, verbose=False):
 
     for image in process_file_list:
                 # check the status of the geotagging
-        log_root = uploader.log_rootpath(import_path,
-                                         image)
+        log_root = uploader.log_rootpath(image)
         geotag_data = get_geotag_data(log_root,
                                       image,
-                                      import_path,
                                       verbose)
         if not geotag_data:
             create_and_log_process(image,
-                                   import_path,
                                    "sequence_process",
                                    "failed",
                                    verbose=verbose)
