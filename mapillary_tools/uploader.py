@@ -41,10 +41,9 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, root):
+    def __init__(self, queue):
         threading.Thread.__init__(self)
         self.q = queue
-        self.root = root
         self.total_task = self.q.qsize()
 
     def run(self):
@@ -57,7 +56,7 @@ class UploadThread(threading.Thread):
             else:
                 progress(self.total_task - self.q.qsize(), self.total_task,
                          '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, self.root, **params)
+                upload_file(filepath, **params)
                 self.q.task_done()
 
 
@@ -117,31 +116,6 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3, auto_done=False):
-    '''
-    Finalize and confirm upload
-    '''
-    # retry if input is unclear
-    for i in range(retry):
-        if not auto_done:
-            proceed = raw_input("Finalize upload? [y/n]: ")
-        else:
-            proceed = "y"
-        if proceed in ["y", "Y", "yes", "Yes"]:
-            # upload an empty DONE file
-            upload_done_file(params)
-            print("Done uploading.")
-            break
-        elif proceed in ["n", "N", "no", "No"]:
-            print("Aborted. No files were submitted. Try again if you had failures.")
-            break
-        else:
-            if i == 2:
-                print("Aborted. No files were submitted. Try again if you had failures.")
-            else:
-                print('Please answer y or n. Try again.')
-
-
 def prompt_to_finalize(subcommand):
     for i in range(3):
         finalize = raw_input(
@@ -166,9 +140,9 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(finalize_params):
+def finalize_upload(import_path, finalize_params):
     for params in finalize_params:
-        upload_done_file(params)
+        upload_done_file(import_path, params)
 
 
 def flag_finalization(finalize_file_list):
@@ -486,17 +460,20 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(params):
-    if not os.path.exists("DONE"):
-        open("DONE", 'a').close()
+def upload_done_file(import_path, params):
+
+    DONE_filepath = os.path.join(import_path, "DONE")
+
+    if not os.path.exists(DONE_filepath):
+        open(DONE_filepath, 'a').close()
     # upload
-    upload_file("DONE", None, **params)
+    upload_file(DONE_filepath, None, **params)
     # remove
-    if os.path.exists("DONE"):
-        os.remove("DONE")
+    if os.path.exists(DONE_filepath):
+        os.remove(DONE_filepath)
 
 
-def upload_file(filepath, root, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
@@ -504,11 +481,14 @@ def upload_file(filepath, root, url, permission, signature, key=None, aws_key=No
     filename = os.path.basename(filepath)
 
     s3_filename = filename
-    if root != None:
-        try:
-            s3_filename = ExifRead(filepath).exif_name()
-        except:
-            pass
+    try:
+        s3_filename = ExifRead(filepath).exif_name()
+    except:
+        pass
+    filepath_keep_original = processing.processed_images_rootpath(filepath)
+    filepath_in = filepath
+    if os.path.isfile(filepath_keep_original):
+        filepath = filepath_keep_original
 
     # add S3 'path' if given
     if key is None:
@@ -535,9 +515,9 @@ def upload_file(filepath, root, url, permission, signature, key=None, aws_key=No
             response = urllib2.urlopen(request)
             if filename != "DONE":
                 if response.getcode() == 204:
-                    create_upload_log(filepath, "upload_success")
+                    create_upload_log(filepath_in, "upload_success")
                 else:
-                    create_upload_log(filepath, "upload_failed")
+                    create_upload_log(filepath_in, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:
@@ -565,7 +545,7 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, root, file_params={}):
+def upload_file_list(file_list, file_params={}):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
@@ -574,7 +554,7 @@ def upload_file_list(file_list, root, file_params={}):
         else:
             q.put((filepath, file_params[filepath]))
     # create uploader threads
-    uploaders = [UploadThread(q, root) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
@@ -595,11 +575,7 @@ def upload_file_list(file_list, root, file_params={}):
 
 
 def log_rootpath(filepath):
-    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.basename(filepath).split(".")[0])
-
-
-def processed_images_rootpath(filepath):
-    return os.path.join(os.path.dirname(filepath), ".mapillary_proccessed_images", os.path.basename(filepath))
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", ".".join(os.path.basename(filepath).split(".")[:-1]))
 
 
 def create_upload_log(filepath, status):

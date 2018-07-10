@@ -29,7 +29,8 @@ class Command:
                             default=False, required=False, action='store_true')
 
     def add_advanced_arguments(self, parser):
-        pass
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 

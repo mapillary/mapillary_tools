@@ -75,7 +75,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
 
     # call the actual upload, passing the list of images, the root of the
     # import and the upload params
-    uploader.upload_file_list(upload_file_list, import_path, params)
+    uploader.upload_file_list(upload_file_list, params)
 
     # finalize manual uploads if necessary
     finalize_file_list = uploader.get_finalize_file_list(
@@ -91,7 +91,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
             # get the s3 locations of the sequences
             finalize_params = uploader.process_upload_finalization(
                 finalize_file_list, params)
-            uploader.finalize_upload(finalize_params)
+            uploader.finalize_upload(import_path, finalize_params)
             # flag finalization for each file
             uploader.flag_finalization(finalize_file_list)
         else:

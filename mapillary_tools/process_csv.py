@@ -189,14 +189,15 @@ def process_csv(import_path,
                 meta_columns=None,
                 meta_names=None,
                 meta_types=None,
-                verbose=False):
+                verbose=False,
+                keep_original = False):
 
     # sanity checks
     if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
               " doesnt not exist, exiting...")
         sys.exit()
-
+        
     if not csv_path or not os.path.isfile(csv_path):
         print("Error, csv file not provided or does not exist. Please specify a valid path to a csv file.")
         sys.exit()
@@ -264,4 +265,14 @@ def process_csv(import_path,
         if meta:
             exif_edit.add_image_history(meta["MAPMetaTags"])
 
-        exif_edit.write()
+        filename=image
+        if keep_original:
+            filename=processing.processed_images_rootpath(image)
+            if not os.path.isdir(os.path.dirname(filename)):
+                os.makedirs(os.path.dirname(filename))
+
+        try:
+            exif_edit.write(filename=filename)
+        except:
+            print("Error, image EXIF could not be written back for image " + image)
+            return None

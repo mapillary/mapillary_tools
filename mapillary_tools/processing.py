@@ -362,7 +362,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
@@ -448,8 +448,16 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
     except:
         pass
+    filename = image
+    filename_keep_original = processed_images_rootpath(image)
+    if os.path.isfile(filename_keep_original):
+        os.remove(filename_keep_original)
+    if keep_original:
+        filename = filename_keep_original
+        if not os.path.isdir(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename))
     try:
-        image_exif.write()
+        image_exif.write(filename=filename)
     except:
         print("Error, image EXIF could not be written back for image " + image)
         return None
@@ -550,6 +558,10 @@ def preform_process(file_path, process, rerun=False):
     preform = not os.path.isfile(upload_succes) and (
         not os.path.isfile(process_succes) or rerun)
     return preform
+
+
+def processed_images_rootpath(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
 
 def video_upload(video_file, import_path, verbose=False):
