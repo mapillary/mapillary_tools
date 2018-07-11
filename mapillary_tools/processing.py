@@ -590,10 +590,13 @@ def video_upload(video_file, import_path, verbose=False):
             print("Warning, {} has already been sampled into {}, previously \
                    sampled frames will be deleted".format(video_file, import_path))
         shutil.rmtree(import_path)
+
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
+
     if import_path not in import_paths:
         import_paths.append(import_path)
+
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):

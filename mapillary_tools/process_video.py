@@ -1,12 +1,13 @@
-import os
-import datetime
 from ffprobe import FFProbe
-import uploader
+import datetime
+import os
 import processing
+import subprocess
 import sys
+import uploader
 
 from exif_write import ExifEdit
-from exif_read import ExifRead
+
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
@@ -54,20 +55,28 @@ def sample_video(video_file,
         print("Error, video file " + video_file + " does not exist, exiting...")
         sys.exit()
 
+    # check video logs
+    video_upload = processing.video_upload(video_file, import_path, verbose)
+
+    if video_upload:
+        return
+
     if os.path.isdir(video_file):
         # if we pass a directory, process each individually then combine the gpx files
         if geotag_source != 'blackvue':
             sys.exit('not sure what to do with a directory of video files that are not blackvue')
 
         video_list = uploader.get_video_file_list(video_file)
+        count = 0
         for video in video_list:
-            filename = os.path.splitext(os.path.basename(video))[0]
-            extract_frames(video,
-                           os.path.join(import_path, filename),
-                           video_sample_interval,
-                           video_start_time,
-                           video_duration_ratio,
-                           verbose)
+            frames = extract_frames(video,
+                                    import_path,
+                                    video_sample_interval,
+                                    video_start_time,
+                                    video_duration_ratio,
+                                    verbose,
+                                    count)
+            count = frames + 1
     else:
         # single video file
         extract_frames(video_file,
@@ -82,24 +91,31 @@ def extract_frames(video_file,
                    video_sample_interval,
                    video_start_time=None,
                    video_duration_ratio=1.0,
-                   verbose=False):
+                   verbose=False,
+                   start_number=None):
 
-    print 'extracting frames from', video_file
-
-    # check video logs
-    video_upload = processing.video_upload(video_file, import_path, verbose)
-
-    if video_upload:
-        return
+    if verbose:
+        print 'extracting frames from', video_file
 
     video_file = video_file.replace(" ", "\ ")
-    s = "ffmpeg -i {} -loglevel quiet -vf fps=1/{} -qscale 1 {}/%0{}d.jpg".format(
-        video_file, video_sample_interval, import_path, ZERO_PADDING)
-    os.system(s)
+
+    command = [
+        'ffmpeg',
+        '-i', video_file,
+        '-loglevel', 'quiet',
+        '-vf', 'fps=1/{}'.format(video_sample_interval),
+        '-qscale', '1',
+    ]
+
+    if start_number:
+        command += '-start_number', str(start_number)
+
+    command.append('{}/%0{}d.jpg'.format(import_path, ZERO_PADDING))
+
+    subprocess.call(command)
 
     if video_start_time:
-        video_start_time = datetime.datetime.utcfromtimestamp(
-            video_start_time / 1000.)
+        video_start_time = datetime.datetime.utcfromtimestamp(video_start_time / 1000.)
     else:
         video_start_time = get_video_start_time(video_file)
         if not video_start_time:
@@ -115,6 +131,8 @@ def extract_frames(video_file,
                                  verbose)
 
     processing.create_and_log_video_process(video_file, import_path)
+
+    return len(uploader.get_total_file_list(import_path))
 
 
 def get_video_duration(video_file):
