@@ -96,8 +96,7 @@ def insert_video_frame_timestamp(import_path, start_time, sample_interval, durat
     frame_list = uploader.get_total_file_list(import_path)
 
     if not len(frame_list):
-        if verbose:
-            print("No video frames were sampled.")
+        print("No video frames were sampled.")
         return
 
     video_frame_timestamps = timestamps_from_filename(frame_list,
@@ -111,9 +110,8 @@ def insert_video_frame_timestamp(import_path, start_time, sample_interval, durat
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
         except:
-            if verbose:
-                print("Could not insert timestamp into video frame " +
-                      os.path.basename(image)[:-4])
+            print("Could not insert timestamp into video frame " +
+                  os.path.basename(image)[:-4])
             continue
 
 

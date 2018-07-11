@@ -88,31 +88,27 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
     try:
         exif = ExifRead(image)
     except:
-        if verbose:
-            print("Error, EXIF could not be read for image " +
-                  image + ", geotagging process failed for this image since gps/time properties not read.")
+        print("Error, EXIF could not be read for image " +
+              image + ", geotagging process failed for this image since gps/time properties not read.")
         return None
     # required tags
     try:
         lon, lat = exif.extract_lon_lat()
     except:
-        if verbose:
-            print("Error, " + image +
-                  " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        print("Error, " + image +
+              " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
     if lat != None and lon != None:
         geotag_properties = {"MAPLatitude": lat}
         geotag_properties["MAPLongitude"] = lon
     else:
-        if verbose:
-            print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        print("Error, " + image + " image latitude or longitude tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
     try:
         timestamp = exif.extract_capture_time()
     except:
-        if verbose:
-            print("Error, " + image +
-                  " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
+        print("Error, " + image +
+              " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
 
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
@@ -153,8 +149,7 @@ def geotag_from_gopro_video(process_file_list,
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
     except:
-        if verbose:
-            print("Error, failed extracting data from gopro video, exiting...")
+        print("Error, failed extracting data from gopro video, exiting...")
         sys.exit()
     geotag_from_gps_trace(process_file_list,
                           import_path,
@@ -182,14 +177,11 @@ def geotag_from_gps_trace(process_file_list,
     # print time now to warn in case local_time
     if local_time:
         now = datetime.datetime.now(tzlocal())
-        if verbose:
-            print("Your local timezone is {0}. If not, the geotags will be wrong."
-                  .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+        print("Your local timezone is {0}. If not, the geotags will be wrong."
+              .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
     else:
         # if not local time to be used, warn UTC will be used
-        if verbose:
-            print(
-                "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
+        print("It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
 
     # read gps file to get track locations
     if geotag_source == "gpx":
@@ -201,8 +193,7 @@ def geotag_from_gps_trace(process_file_list,
     sub_second_times = estimate_sub_second_time(process_file_list,
                                                 sub_second_interval)
     if not sub_second_times:
-        if verbose:
-            print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+        print("Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        "geotag_process"
                                        "failed",
@@ -210,8 +201,7 @@ def geotag_from_gps_trace(process_file_list,
         return
 
     if not gps_trace:
-        if verbose:
-            print("Error, gps trace file was not read, images can not be geotagged.")
+        print("Error, gps trace file was not read, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        "geotag_process",
                                        "failed",
@@ -225,8 +215,7 @@ def geotag_from_gps_trace(process_file_list,
                                    sub_second_times):
 
         if not capture_time:
-            if verbose:
-                print("Error, capture time could not be extracted for image " + image)
+            print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
                                    "geotag_process",
                                    "failed",
@@ -250,9 +239,8 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
         lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace,
                                                            capture_time)
     except Exception as e:
-        if verbose:
-            print(
-                "Warning, {}, interpolation of latitude and longitude failed for image {}".format(e, image))
+        print("Warning, {}, interpolation of latitude and longitude failed for image {}".format(
+            e, image))
         return None
 
     corrected_bearing = (bearing + offset_angle) % 360
@@ -261,9 +249,7 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
         geotag_properties = {"MAPLatitude": lat}
         geotag_properties["MAPLongitude"] = lon
     else:
-        if verbose:
-            print(
-                "Warning, invalid latitude and longitude for image {}".format(image))
+        print("Warning, invalid latitude and longitude for image {}".format(image))
         return None
 
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(capture_time,
@@ -303,18 +289,16 @@ def geotag_from_json(process_file_list,
 def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, verbose=False):
 
     if not os.path.isdir(log_root):
-        if verbose:
-            print("Warning, sequence process has not been done for image " + image +
-                  ", therefore it will not be included in the upload params processing.")
+        print("Warning, sequence process has not been done for image " + image +
+              ", therefore it will not be included in the upload params processing.")
         return None
 
     # check if geotag process was a success
     log_sequence_process_success = os.path.join(
         log_root, "sequence_process_success")
     if not os.path.isfile(log_sequence_process_success):
-        if verbose:
-            print("Warning, sequence process failed for image " + image +
-                  ", therefore it will not be included in the upload params processing.")
+        print("Warning, sequence process failed for image " + image +
+              ", therefore it will not be included in the upload params processing.")
         return None
 
     upload_params_process_success_path = os.path.join(log_root,
@@ -328,15 +312,13 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         sequence_data = load_json(
             sequence_process_json_path)
     except:
-        if verbose:
-            print("Warning, sequence data not read for image " + image +
-                  ", therefore it will not be included in the upload params processing.")
+        print("Warning, sequence data not read for image " + image +
+              ", therefore it will not be included in the upload params processing.")
         return None
 
     if "MAPSequenceUUID" not in sequence_data:
-        if verbose:
-            print("Warning, sequence uuid not in sequence data for image " + image +
-                  ", therefore it will not be included in the upload params processing.")
+        print("Warning, sequence uuid not in sequence data for image " + image +
+              ", therefore it will not be included in the upload params processing.")
         return None
 
     sequence_uuid = sequence_data["MAPSequenceUUID"]
@@ -355,9 +337,8 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         save_json({"MAPSettingsUploadHash": settings_upload_hash},
                   os.path.join(log_root, "settings_upload_hash.json"))
     except:
-        if verbose:
-            print("Warning, settings upload hash not set for image " + image +
-                  ", therefore it will not be uploaded.")
+        print("Warning, settings upload hash not set for image " + image +
+              ", therefore it will not be uploaded.")
         return None
     return upload_params
 
@@ -372,9 +353,8 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             log_root, sub_command + "_failed")
 
         if os.path.isfile(sub_command_status) and sub_command != "import_meta_data_process":
-            if verbose:
-                print("Warning, required {} failed for image ".format(sub_command) +
-                      image)
+            print("Warning, required {} failed for image ".format(sub_command) +
+                  image)
             return None
 
         sub_command_data_path = os.path.join(
@@ -383,9 +363,8 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             if (sub_command == "settings_upload_hash" or sub_command == "upload_params_process") and master_upload:
                 continue
             else:
-                if verbose:
-                    print("Warning, required {} did not result in a valid json file for image ".format(
-                        sub_command) + image)
+                print("Warning, required {} did not result in a valid json file for image ".format(
+                    sub_command) + image)
                 return None
         if sub_command == "settings_upload_hash" or sub_command == "upload_params_process":
             continue
@@ -474,9 +453,8 @@ def get_geotag_data(log_root, image, verbose=False):
     log_geotag_process_success = os.path.join(log_root,
                                               "geotag_process_success")
     if not os.path.isfile(log_geotag_process_success):
-        if verbose:
-            print("Warning, geotag process failed for image " + image +
-                  ", therefore it will not be included in the sequence processing.")
+        print("Warning, geotag process failed for image " + image +
+              ", therefore it will not be included in the sequence processing.")
         return None
     # load the geotag json
     geotag_process_json_path = os.path.join(log_root,
@@ -568,9 +546,8 @@ def video_upload(video_file, import_path, verbose=False):
     log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
     if os.path.isdir(import_path):
-        if verbose:
-            print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
-                video_file, import_path))
+        print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
+            video_file, import_path))
         shutil.rmtree(import_path)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
