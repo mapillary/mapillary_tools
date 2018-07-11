@@ -17,8 +17,7 @@ def process_geotag_properties(import_path,
     # basic check for all
     import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+        print("Error, import directory " + import_path + " doesnt not exist, exiting...")
         sys.exit()
 
     # get list of file to process
@@ -27,6 +26,7 @@ def process_geotag_properties(import_path,
                                                          rerun,
                                                          verbose,
                                                          skip_subfolders)
+
     if not len(process_file_list):
         print("No images to run geotag process")
         print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
@@ -42,8 +42,7 @@ def process_geotag_properties(import_path,
                                                   "failed",
                                                   verbose)
         return
-
-    elif geotag_source != "exif" and not os.path.isfile(geotag_source_path):
+    elif geotag_source not in ["exif", 'blackvue'] and not os.path.isfile(geotag_source_path):
         print("Error, " + geotag_source_path +
               " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
         processing.create_and_log_process_in_list(process_file_list,

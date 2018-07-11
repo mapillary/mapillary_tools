@@ -36,6 +36,7 @@ def timestamps_from_filename(full_image_list,
 
 def sample_video(video_file,
                  import_path,
+                 geotag_source,
                  video_sample_interval,
                  video_start_time=None,
                  video_duration_ratio=1.0,
@@ -44,20 +45,49 @@ def sample_video(video_file,
     # basic check for all
     import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+        print("Error, import directory " + import_path + " doesnt not exist, exiting...")
         sys.exit()
 
     # command specific checks
     video_file = os.path.abspath(video_file) if video_file else None
-    if video_file and not os.path.isfile(video_file):
-        print("Error, video file " + video_file +
-              " does not exist, exiting...")
+    if not video_file:
+        print("Error, video file " + video_file + " does not exist, exiting...")
         sys.exit()
 
+    if os.path.isdir(video_file):
+        # if we pass a directory, process each individually then combine the gpx files
+        if geotag_source != 'blackvue':
+            sys.exit('not sure what to do with a directory of video files that are not blackvue')
+
+        video_list = uploader.get_video_file_list(video_file)
+        for video in video_list:
+            filename = os.path.splitext(os.path.basename(video))[0]
+            extract_frames(video,
+                           os.path.join(import_path, filename),
+                           video_sample_interval,
+                           video_start_time,
+                           video_duration_ratio,
+                           verbose)
+    else:
+        # single video file
+        extract_frames(video_file,
+                       import_path,
+                       video_sample_interval,
+                       video_start_time,
+                       video_duration_ratio,
+                       verbose)
+
+def extract_frames(video_file,
+                   import_path,
+                   video_sample_interval,
+                   video_start_time=None,
+                   video_duration_ratio=1.0,
+                   verbose=False):
+
+    print 'extracting frames from', video_file
+
     # check video logs
-    video_upload = processing.video_upload(
-        video_file, import_path, verbose)
+    video_upload = processing.video_upload(video_file, import_path, verbose)
 
     if video_upload:
         return
@@ -73,7 +103,9 @@ def sample_video(video_file,
     else:
         video_start_time = get_video_start_time(video_file)
         if not video_start_time:
-            print("Warning, video start time not provided and could not be extracted from the video file, default video start time set to 0 milliseconds since UNIX epoch.")
+            print("Warning, video start time not provided and could not be \
+                   extracted from the video file, default video start time set \
+                   to 0 milliseconds since UNIX epoch.")
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
     insert_video_frame_timestamp(import_path,
@@ -82,8 +114,7 @@ def sample_video(video_file,
                                  video_duration_ratio,
                                  verbose)
 
-    processing.create_and_log_video_process(
-        video_file, import_path)
+    processing.create_and_log_video_process(video_file, import_path)
 
 
 def get_video_duration(video_file):

@@ -182,7 +182,8 @@ def geotag_from_blackvue_video(process_file_list,
         geotag_source_path = gpx_from_blackvue(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except:
+    except Exception as e:
+        print e
         if verbose:
             print("Error, failed extracting data from blackvue video, exiting...")
         sys.exit()
@@ -583,13 +584,11 @@ def preform_process(import_path, root, file, process, rerun=False):
 
 
 def video_upload(video_file, import_path, verbose=False):
-    root_path = os.path.dirname(os.path.abspath(video_file))
-    log_root = uploader.log_rootpath(root_path, video_file)
     import_paths = video_import_paths(video_file)
     if os.path.isdir(import_path):
         if verbose:
-            print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
-                video_file, import_path))
+            print("Warning, {} has already been sampled into {}, previously \
+                   sampled frames will be deleted".format(video_file, import_path))
         shutil.rmtree(import_path)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)

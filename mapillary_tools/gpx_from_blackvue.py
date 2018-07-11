@@ -5,8 +5,10 @@ import gpxpy
 import gpxpy.gpx
 import os
 import io
+import sys
 import re
 import pynmea2
+import uploader
 
 from pymp4.parser import Box
 from construct.core import RangeError, ConstError
@@ -67,6 +69,7 @@ def get_points_from_bv(path):
                     # Parse GPS trace
                     for l in lines.splitlines():
                         # this utc millisecond timestamp seems to be the camera's
+                        # todo: unused?
                         # match = re.search('\[([0-9]+)\]', l)
                         # if match:
                         #     utcdate = match.group(1)
@@ -92,11 +95,21 @@ def get_points_from_bv(path):
 
 
 def gpx_from_blackvue(bv_video):
+    bv_data = []
 
-    bv_data = get_points_from_bv(bv_video)
+    if os.path.isdir(bv_video):
+        video_files = uploader.get_video_file_list(bv_video)
+        for video in video_files:
+            bv_data += get_points_from_bv(video)
 
-    basename, extension = os.path.splitext(bv_video)
-    gpx_path = basename + '.gpx'
+        dirname = os.path.dirname(bv_video)
+        gpx_path = os.path.join(dirname, 'path.gpx')
+    else:
+        bv_data = get_points_from_bv(bv_video)
+        basename, extension = os.path.splitext(bv_video)
+        gpx_path = basename + '.gpx'
+
+    bv_data.sort(key=lambda x: x[0])
 
     write_gpx(gpx_path, bv_data)
 
