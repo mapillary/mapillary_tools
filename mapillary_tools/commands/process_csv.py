@@ -1,5 +1,6 @@
 
 from mapillary_tools.process_csv import process_csv
+from builtins import int
 
 
 class Command:
@@ -15,8 +16,18 @@ class Command:
                             help="Convert gps time in ticks to standard time.", action="store_true", default=False, required=False)
         parser.add_argument("--convert_utc_time",
                             help="Convert utc epoch time in seconds or milliseconds.", action="store_true", default=False, required=False)
-        parser.add_argument("--data_columns",
-                            help='Specify the data column numbers in the following order, where first four are required and last two are optional : "filename,time,lat,lon,[heading,altitude]". To specify one optional column, but skip the other, leave the field blank, example "0,1,2,3,,4".', action="store", required=True)
+        parser.add_argument("--filename_column",
+                            help='Specify the column number of image filename, counting from 1 on.', action="store", required=True, type=int)
+        parser.add_argument("--timestamp_column",
+                            help='Specify the column number of image timestamp, counting from 1 on.', action="store", required=False, type=int)
+        parser.add_argument("--latitude_column",
+                            help='Specify the column number of image latitude, counting from 1 on.', action="store", required=False, type=int)
+        parser.add_argument("--longitude_column",
+                            help='Specify the column number of image longitude, counting from 1 on.', action="store", required=False, type=int)
+        parser.add_argument("--heading_column",
+                            help='Specify the column number of image heading, counting from 1 on.', action="store", required=False, type=int)
+        parser.add_argument("--altitude_column",
+                            help='Specify the column number of image altitude, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--meta_columns",
                             help='Specify the column numbers containing meta data, separate numbers with commas, example "7,9,10".', action="store", default=None, required=False)
         parser.add_argument("--meta_names",
