@@ -16,7 +16,7 @@ class Command:
 
     def add_advanced_arguments(self, parser):
         pass
-
+    
     def run(self, args):
 
         upload(**vars(args))

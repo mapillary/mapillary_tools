@@ -6,10 +6,6 @@ import uploader
 import json
 from exif_aux import verify_mapillary_tag
 
-'''
-'''
-LOG_FILEPATH = '.mapillary/log'
-
 
 def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False):
     '''
@@ -64,7 +60,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
     # get upload params
     params = {}
     for image in total_file_list:
-        log_root = uploader.log_rootpath(import_path, image)
+        log_root = uploader.log_rootpath(image)
         upload_params_path = os.path.join(
             log_root, "upload_params_process.json")
         if os.path.isfile(upload_params_path):
@@ -79,7 +75,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
 
     # call the actual upload, passing the list of images, the root of the
     # import and the upload params
-    uploader.upload_file_list(upload_file_list, import_path, params)
+    uploader.upload_file_list(upload_file_list, params)
 
     # finalize manual uploads if necessary
     finalize_file_list = uploader.get_finalize_file_list(
@@ -95,9 +91,9 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
             # get the s3 locations of the sequences
             finalize_params = uploader.process_upload_finalization(
                 finalize_file_list, params)
-            uploader.finalize_upload(finalize_params)
+            uploader.finalize_upload(import_path, finalize_params)
             # flag finalization for each file
-            uploader.flag_finalization(import_path, finalize_file_list)
+            uploader.flag_finalization(finalize_file_list)
         else:
             print("Uploads will not be finalized.")
             print("If you wish to finalize your uploads, run the upload tool again.")

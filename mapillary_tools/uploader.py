@@ -41,10 +41,9 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
 
 
 class UploadThread(threading.Thread):
-    def __init__(self, queue, root):
+    def __init__(self, queue):
         threading.Thread.__init__(self)
         self.q = queue
-        self.root = root
         self.total_task = self.q.qsize()
 
     def run(self):
@@ -57,7 +56,7 @@ class UploadThread(threading.Thread):
             else:
                 progress(self.total_task - self.q.qsize(), self.total_task,
                          '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, self.root, **params)
+                upload_file(filepath, **params)
                 self.q.task_done()
 
 
@@ -117,31 +116,6 @@ def encode_multipart(fields, files, boundary=None):
     return (body, headers)
 
 
-def finalize_upload(params, retry=3, auto_done=False):
-    '''
-    Finalize and confirm upload
-    '''
-    # retry if input is unclear
-    for i in range(retry):
-        if not auto_done:
-            proceed = raw_input("Finalize upload? [y/n]: ")
-        else:
-            proceed = "y"
-        if proceed in ["y", "Y", "yes", "Yes"]:
-            # upload an empty DONE file
-            upload_done_file(params)
-            print("Done uploading.")
-            break
-        elif proceed in ["n", "N", "no", "No"]:
-            print("Aborted. No files were submitted. Try again if you had failures.")
-            break
-        else:
-            if i == 2:
-                print("Aborted. No files were submitted. Try again if you had failures.")
-            else:
-                print('Please answer y or n. Try again.')
-
-
 def prompt_to_finalize(subcommand):
     for i in range(3):
         finalize = raw_input(
@@ -166,15 +140,14 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(finalize_params):
+def finalize_upload(import_path, finalize_params):
     for params in finalize_params:
-        upload_done_file(params)
+        upload_done_file(import_path, params)
 
 
-def flag_finalization(import_path, finalize_file_list):
+def flag_finalization(finalize_file_list):
     for file in finalize_file_list:
-        finalize_flag = os.path.join(log_rootpath(
-            import_path, file), "upload_finalized")
+        finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
         open(finalize_flag, 'a').close()
 
 
@@ -182,55 +155,63 @@ def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
     if skip_subfolders:
         upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(
-                import_path, root, file))
-    return upload_file_list
+            if ".mapillary" in root:
+                continue
+            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
+    return sorted(upload_file_list)
 
 
 def get_total_file_list(import_path, skip_subfolders=False):
     total_file_list = []
     if skip_subfolders:
         total_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     else:
         for root, dir, files in os.walk(import_path):
+            if ".mapillary" in root:
+                continue
             total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
-            ).endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
-    return total_file_list
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    return sorted(total_file_list)
 
 
 def get_failed_upload_file_list(import_path, skip_subfolders=False):
     failed_upload_file_list = []
     if skip_subfolders:
         failed_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(
-                import_path, root, file))
+            if ".mapillary" in root:
+                continue
+            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
 
-    return failed_upload_file_list
+    return sorted(failed_upload_file_list)
 
 
 def get_success_upload_file_list(import_path, skip_subfolders=False):
     success_upload_file_list = []
     if skip_subfolders:
         success_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(
-                import_path, root, file))
+            if ".mapillary" in root:
+                continue
+            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
 
-    return success_upload_file_list
+    return sorted(success_upload_file_list)
 
 
-def success_upload(import_path, root, file):
+def success_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     upload_success = os.path.join(log_root, "upload_success")
     upload_finalization = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
@@ -239,9 +220,9 @@ def success_upload(import_path, root, file):
     return success
 
 
-def preform_upload(import_path, root, file):
+def preform_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     process_failed = os.path.join(
         log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
@@ -252,9 +233,9 @@ def preform_upload(import_path, root, file):
     return upload
 
 
-def failed_upload(import_path, root, file):
+def failed_upload(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     process_failed = os.path.join(
         log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
@@ -269,18 +250,20 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
     finalize_file_list = []
     if skip_subfolders:
         finalize_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(('jpg', 'jpeg', 'png', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(
-                import_path, root, file))
+            if ".mapillary" in root:
+                continue
+            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
 
-    return finalize_file_list
+    return sorted(finalize_file_list)
 
 
-def preform_finalize(import_path, root, file):
+def preform_finalize(root, file):
     file_path = os.path.join(root, file)
-    log_root = log_rootpath(import_path, file_path)
+    log_root = log_rootpath(file_path)
     upload_succes = os.path.join(log_root, "upload_success")
     upload_finalized = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
@@ -299,9 +282,14 @@ def get_upload_token(mail, pwd):
     '''
     Get upload token
     '''
-    params = urllib.urlencode({"email": mail, "password": pwd})
-    response = urllib.urlopen(LOGIN_URL, params)
+    try:
+        params = urllib.urlencode({"email": mail, "password": pwd})
+        response = urllib.urlopen(LOGIN_URL, params)
+    except:
+        return None
     resp = json.loads(response.read())
+    if not resp or 'token' not in resp:
+        return None
     return resp['token']
 
 
@@ -376,12 +364,16 @@ def progress(count, total, suffix=''):
 
 def prompt_user_for_user_items(user_name):
     user_items = {}
-
+    print("Enter user credentials for user " + user_name + " :")
     user_email = raw_input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
     user_key = get_user_key(user_name)
+    if not user_key:
+        return None
     upload_token = get_upload_token(
         user_email, user_password)
+    if not upload_token:
+        return None
     user_permission_hash, user_signature_hash = get_user_hashes(
         user_key, upload_token)
 
@@ -402,8 +394,9 @@ def authenticate_user(user_name):
         if user_name in global_config_object.sections():
             user_items = config.load_user(global_config_object, user_name)
             return user_items
-    print("enter user credentials for user " + user_name)
     user_items = prompt_user_for_user_items(user_name)
+    if not user_items:
+        return None
     config.create_config(GLOBAL_CONFIG_FILEPATH)
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
@@ -452,13 +445,15 @@ def set_master_key():
 
 
 def get_user_key(user_name):
-    user_key = ""
-    req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
-    resp = json.loads(urllib2.urlopen(req).read())
-    if 'key' in resp[0]:
-        user_key = resp[0]['key']
-
-    return user_key
+    try:
+        req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
+        resp = json.loads(urllib2.urlopen(req).read())
+    except:
+        return ""
+    if not resp or 'key' not in resp[0]:
+        print("Error, user name {} does not exist...".format(user_name))
+        return ""
+    return resp[0]['key']
 
 
 def get_user_hashes(user_key, upload_token):
@@ -475,17 +470,20 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(params):
-    if not os.path.exists("DONE"):
-        open("DONE", 'a').close()
+def upload_done_file(import_path, params):
+
+    DONE_filepath = os.path.join(import_path, "DONE")
+
+    if not os.path.exists(DONE_filepath):
+        open(DONE_filepath, 'a').close()
     # upload
-    upload_file("DONE", None, **params)
+    upload_file(DONE_filepath, None, **params)
     # remove
-    if os.path.exists("DONE"):
-        os.remove("DONE")
+    if os.path.exists(DONE_filepath):
+        os.remove(DONE_filepath)
 
 
-def upload_file(filepath, root, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
@@ -493,11 +491,14 @@ def upload_file(filepath, root, url, permission, signature, key=None, aws_key=No
     filename = os.path.basename(filepath)
 
     s3_filename = filename
-    if root != None:
-        try:
-            s3_filename = ExifRead(filepath).exif_name()
-        except:
-            pass
+    try:
+        s3_filename = ExifRead(filepath).exif_name()
+    except:
+        pass
+    filepath_keep_original = processing.processed_images_rootpath(filepath)
+    filepath_in = filepath
+    if os.path.isfile(filepath_keep_original):
+        filepath = filepath_keep_original
 
     # add S3 'path' if given
     if key is None:
@@ -524,9 +525,9 @@ def upload_file(filepath, root, url, permission, signature, key=None, aws_key=No
             response = urllib2.urlopen(request)
             if filename != "DONE":
                 if response.getcode() == 204:
-                    create_upload_log(root, filepath, "upload_success")
+                    create_upload_log(filepath_in, "upload_success")
                 else:
-                    create_upload_log(root, filepath, "upload_failed")
+                    create_upload_log(filepath_in, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:
@@ -554,7 +555,7 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, root, file_params={}):
+def upload_file_list(file_list, file_params={}):
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
@@ -563,7 +564,7 @@ def upload_file_list(file_list, root, file_params={}):
         else:
             q.put((filepath, file_params[filepath]))
     # create uploader threads
-    uploaders = [UploadThread(q, root) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
@@ -583,12 +584,12 @@ def upload_file_list(file_list, root, file_params={}):
         sys.exit()
 
 
-def log_rootpath(root, filepath):
-    return os.path.join(root, ".mapillary", "logs", filepath.split(root)[1][1:-4])
+def log_rootpath(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", ".".join(os.path.basename(filepath).split(".")[:-1]))
 
 
-def create_upload_log(root, filepath, status):
-    upload_log_root = log_rootpath(root, filepath)
+def create_upload_log(filepath, status):
+    upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
     upload_opposite_log_filepath = os.path.join(
         upload_log_root, UPLOAD_STATUS_PAIRS[status])

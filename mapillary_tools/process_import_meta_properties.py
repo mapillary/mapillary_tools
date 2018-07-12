@@ -5,28 +5,41 @@ import processing
 import uploader
 from exif_read import ExifRead
 
+META_DATA_TYPES = {"strings": str,
+                   "doubles": float,
+                   "longs": long,
+                   "dates": int,
+                   "booleans": bool}
+
+
+def validate_type(tag_type, tag_value):
+    if not isinstance(tag_value, META_DATA_TYPES[tag_type]):
+        try:
+            tag_value = META_DATA_TYPES[tag_type](tag_value)
+        except:
+            print(
+                "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(tag_type, tag_value))
+            return None
+    return tag_value
+
 
 def add_meta_tag(mapillary_description,
-                 type,
+                 tag_type,
                  key,
                  value):
+    value = validate_type(tag_type, value)
+    if not value:
+        return
+    meta_tag = {"key": key,
+                "value": value}
     if 'MAPMetaTags' in mapillary_description:
-        if type in mapillary_description['MAPMetaTags']:
-            mapillary_description['MAPMetaTags'][type].append(
-                {"key": key,
-                 "value": value}
-            )
+        if tag_type in mapillary_description['MAPMetaTags']:
+            mapillary_description['MAPMetaTags'][tag_type].append(meta_tag)
         else:
-            mapillary_description['MAPMetaTags'][type] = [
-                {"key": key,
-                 "value": value}
-            ]
+            mapillary_description['MAPMetaTags'][tag_type] = [meta_tag]
     else:
         mapillary_description['MAPMetaTags'] = {
-            type: [
-                {"key": key,
-                 "value": value}
-            ]
+            tag_type: [meta_tag]
         }
 
 
@@ -68,7 +81,6 @@ def finalize_import_properties_process(image,
                  "0.0.2")
 
     processing.create_and_log_process(image,
-                                      import_path,
                                       "import_meta_data_process",
                                       "success",
                                       mapillary_description,

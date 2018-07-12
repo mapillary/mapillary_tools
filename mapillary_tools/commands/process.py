@@ -47,7 +47,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -79,6 +79,8 @@ class Command:
 
         # EXIF insert
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
                             action='store_true', default=False, required=False)
 
     def run(self, args):

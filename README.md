@@ -39,7 +39,7 @@ You will need to have [python=2.7.x](https://www.python.org/downloads/release/py
 
 To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
 
-	pip install git+https://github.com/mapillary/mapillary_tools
+	pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 
 which will enable processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
@@ -85,9 +85,31 @@ To upload videos to Mapillary, videos are required to be sampled into images and
 
 ## Usage
 
-Upload tools can be used with the executable `mapillary_tools`. On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is. See instructions below for Windows-specific usage. 
+Upload tools can be used with the executable `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`. 
 
-To see the available tools, use the following in the command line:
+### Execution
+Running the executable `mapillary_tools` is slightly different on Unix and Windows OS.
+
+#### Windows 
+On Windows, the executable `mapillary_tools` is installed under the python's `Scripts` and needs to be inserted in the PATH manually.
+At the same time, the interpreter program `python` needs to be specified, as the interpreter directive in the executable is specified for Unix OS. Path to the interpreter program `python` needs to be available in the PATH. Example of usage, in case `python` and `mapillary_tools` are available in the PATH: 
+
+	python mapillary_tools
+
+in case of issues with editing PATH, both `python` and `mapillary_tools` can be specified with the absolute path:
+
+	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
+	
+note that the location of the `python` interpreter program and scripts installed as `python` scripts can be different depending on the Windows and Python versions. Therefore users need to check the exact paths locally before running.
+
+#### Unix
+On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is (no need to specify `python` as the interpreter program and no need for setting up the PATH or providing the absolute path to executable, no matter where in the command line you are located).
+ 
+
+
+### Available tools
+
+To see the available tools, use the following in the command line(for Windows, adjust the command according the instructions for execution):
 
 ```
 mapillary_tools -h
@@ -117,16 +139,10 @@ mapillary_tools process -h
 mapillary_tools process -h --advanced
 ```
 
-### Windows 
-On Windows, instead of `mapillary_tools`, the interpreter program `python` also needs to be specified, i.e.
-
-	python mapillary_tools
-
-or in case python path (e.g. `C:\python27\`) and its script path (e.g. `C:\python27\Scripts\`) are not in system environmental variables:
-
-	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
 
 ### Examples
+
+For Windows, adjust the commands according the instructions for execution.
 
 #### Process Images
 The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`.
@@ -165,6 +181,10 @@ Available tools for advanced usage:
   - extract_sequence_data
   - extract_upload_params
   - exif_insert
+- Other Tools:
+  - process_csv
+  - interpolate
+  - authenticate
 
 ### Geotag and Upload
 
@@ -180,6 +200,37 @@ or
  ```bash
 mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
+
+### Keep original images intact and Upload
+
+ - To prevent data loss or control versions, the original images can be left intact by specifying the flag `--keep_original`. This will result in the edited image being saved in a copy of the original image, instead of the original image itself. Copies are saved in `{$import_path/$image_path/}.mapilary/process_images}` and are deleted at the start of every processing run.
+ 
+```bash
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --keep_original
+mapillary_tools upload --import_path "path/to/images"
+```
+
+or
+
+ ```bash
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --keep_original
+```
+
+
+### Derive image direction, flag duplicates and Upload
+ - Derive image direction (image heading or camera angle) based on image latitude and longitude and flag duplicates to be excluded from the upload. If images are missing direction, the direction is derived automatically, if direction is present, it will be derived and overwritten only if the flag `--interpolate directions` is specified.
+
+ ```bash
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --flag_duplicates --interpolate_directions
+mapillary_tools upload --import_path "path/to/images"
+```
+
+or
+
+ ```bash
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --flag_duplicates --interpolate_directions
+```
+
 ### Video Sampling and Upload
 
  - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 0.5 seconds and tag the sampled images with `capture time`.
@@ -202,15 +253,20 @@ or
 mapillary_tools video_process_and_upload --import_path "path/to/images" --video_file "path/to/video" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
 
+### Process csv
+ - Insert image capture time and gps data from a csv file, based on filename:
+
+```bash
+mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --filename_column 1 --timestamp_column 4 --latitude_column 2 --longitude_column 3 --advanced
+```
+
 
 ## Tool Specifications
 
 
 ### `process`
 
-The `process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, latitude and longitude can be read from a gpx track file or a GoPro video, while camera direction can be derived based on latitude and longitude.
-
-See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
+The `process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, additional functionalities are available, for example latitude and longitude can be read from a gpx track file or a GoPro video, camera direction can be derived based on latitude and longitude, duplicates can be flagged to be excluded from the upload etc. See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
 
 #### Examples
 
@@ -370,6 +426,49 @@ Process unit tools are tools executed by the `process` tool. Usage of process un
 `exif_insert` will take all the meta data read and processed in the other processing unit tools and insert it in the image EXIF.
 
 
+### Other Tools
+
+
+#### `authenticate`
+
+`authenticate` will update the user credentials stored in `/.config/mapillary/config` for the specified user_name.
+
+#### `interpolate`
+
+`interpolate` will interpolate identical timestamps in an csv file or stored in image EXIF or will interpolate missing gps data in a set of otherwise geotagged images.
+
+#### `process_csv`
+
+`process_csv` will parse the specified csv file and insert data in the image EXIF.
+
+
+## Troubleshooting
+
+In case of any issues with the installation and usage of `mapillary_tools`, check this section in case it has already been addressed, otherwise, open an issue on Github.
+
+#### General
+ - In case of any issues, it is always safe to try and rerun the failing command while specifying `--verbose` to see more information printed out. Uploaded images should not get uploaded more than once and should not be processed after uploading. The tool should take care of that, if it occurs otherwise, please open an issue on Github.
+ - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When installing the latest version, dont forget you need to specify `--upgrade`.
+ - Advanced user are encouraged to explore the processed data and log files in the `{image_path}/.mapillary/logs/{image_name}/` to get more insight in the failure.
+ 
+#### Execution
+ - Windows users sometimes have trouble with the bare execution of `mapillary_tools`, since it is not inserted in the PATH automatically.
+ If you are trying to execute `mapillary_tools` on Windows and dont have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
+ 
+#### Run time issues
+ - HTTP Errors can occur due to poor network connection or high load on the import pipeline. In most cases the images eventually get uploaded regardless. But in some cases HTTP Errors can occur due to authentication issues, which can be resolved by either removing the config file with the users credentials, located in `~/.config/mapillary/config` or running the `authenticate` command available under advanced usage of `mapillary_tools`.
+ - Missing required data is often the reason for failed uploads, especially if the processing included parsing external data like a gps trace. Images are aligned with a gps trace based on the image capture time and gps time, where the default assumption is that both are in UTC. Check the begin and end date of your capture and the begin and end date of the gps trace to make sure that the image capture time is in the scope of the gps trace. To correct any offset between the two capture times, you can specify `--offset_time "offset time"`.
+ Timezone differences can result in such issues, if you know that the image capture time was stored in your current local timezone, while the gps trace is stored in UTC, specify `--local_time`. If images do not contain capture time or the capture time is unreliable, while gps time is accurate, specify `use_gps_start_time`.
+ - In cases where the `import_path` is located on an external mount, images can potentially get overwritten, if breaking the script with Ctrl+c. To keep the images intact, you can specify `--keep_original` and all the processed data will be inserted in a copy of the original image. We are still in progress of improving this step of data import and will make sure that no image gets overwritten at any point.
+
+#### Upload quality issues
+ - Some devices do not store the camera direction properly, often storing only 0. Camera direction will get derived based on latitide and longitude only if the camera direction is not set or `--interpolate_directions` is specified. Before processing and uploading images, make sure that the camera direction is either correct or missing and in case it is present but incorrect, you specify `-interpolate_directions`.
+ - Timestamp interpolation is required in case the latitude and longitude are stored in an external gps trace with a higher capture frequency then the image capture frequency which results in identical image capture times. Command `interpolate` can be used to interpolate image capture time:
+ 
+```bash
+mapillary_tools interpolate --data "identical_timestamps" --import_path "path/to/images --advanced 
+ ```
+
 ## Misc
 
 ### Download
@@ -383,25 +482,14 @@ The script below downloads images using the Mapillary image search API. Images c
 python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_results)] [--image_size=(320, 640, 1024, or 2048)]
 ```
 
-### Config
 
-User authentication is required to upload images to Mapillary. When uploading for the first time, user is prompted for user credentials and authentication logs are stored in a global config file for future authentication.
-
-If you wish to manually edit a config file, you can use the script below.
-The default config file is your global Mapillary config file and will be used if no other file path is provided.
-
-
-#### `edit_config.py`
-
-```bash
-python edit_config.py
-python edit_config.py "path/to/config_file"
-```
 
 [exifread]: https://pypi.python.org/pypi/ExifRead
 
-[gpxpy]: https://pypi.python.org/pypi/gpxp
+[gpxpy]: https://pypi.python.org/pypi/gpxpy
 
-[PIL]: https://pypi.python.org/pypi/Pillow/2.2.
+[PIL]: https://pypi.python.org/pypi/Pillow/2.9.0
 
 [Piexif]: https://github.com/mapillary/Piexif
+
+

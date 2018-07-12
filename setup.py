@@ -1,16 +1,17 @@
 #!/usr/bin/env python
-from distutils.core import setup
+from setuptools import setup
 
 setup(name='mapillary_tools',
-      version='0.0.2',
+      version='0.1.0',
       description='Mapillary Image/Video Import Pipeline',
       url='https://github.com/mapillary/mapillary_tools',
       author='Mapillary',
       license='BSD',
+      python_requires='>=2.7.0,<3.0.0',
       packages=['mapillary_tools', 'mapillary_tools.commands'],
       scripts=['bin/mapillary_tools'],
       install_requires=[
-          'exifread==1.4.1',
+          'exifread==2.1.2',
           'gpxpy==0.9.8',
           'Pillow==2.9.0',
           'python-dateutil==2.7.3',

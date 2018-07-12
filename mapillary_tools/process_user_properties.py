@@ -33,7 +33,6 @@ def process_user_properties(import_path,
     if not user_name:
         print("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
@@ -42,7 +41,6 @@ def process_user_properties(import_path,
     if private and not organization_username and not organization_key:
         print("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
@@ -66,7 +64,6 @@ def process_user_properties(import_path,
                                                             verbose)
     # write data and logs
     processing.create_and_log_process_in_list(process_file_list,
-                                              import_path,
                                               "user_process",
                                               "success",
                                               verbose,

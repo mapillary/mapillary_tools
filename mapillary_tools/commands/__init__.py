@@ -10,6 +10,9 @@ from . import process
 from . import process_and_upload
 from . import video_process
 from . import video_process_and_upload
+from . import process_csv
+from . import authenticate
+from . import interpolate
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -20,7 +23,10 @@ mapillary_tools_advanced_commands = [
     extract_import_meta_data,
     extract_sequence_data,
     extract_upload_params,
-    exif_insert
+    exif_insert,
+    process_csv,
+    authenticate,
+    interpolate
 ]
 mapillary_tools_commands = [
     process,
@@ -28,13 +34,24 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
+VERSION = "0.0.2"
+
 
 def add_general_arguments(parser, command):
-    #import path
-    parser.add_argument(
-        '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=True)
+    parser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
+                        action='store_true', required=False, default=False)
+    parser.add_argument('--version', help='Print mapillary tools version.',
+                        action='store_true', required=False, default=False)
+
+    if command == "authenticate":
+        return
     # print out warnings
     parser.add_argument(
         '--verbose', help='print debug info', action='store_true', default=False, required=False)
-    parser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
-                        action='store_true', required=False, default=False)
+    #import path
+    required = True
+    if command == "interpolate":
+        required = False
+
+    parser.add_argument(
+        '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=required)
