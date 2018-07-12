@@ -39,7 +39,7 @@ You will need to have [python=2.7.x](https://www.python.org/downloads/release/py
 
 To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
 
-	pip install git+https://github.com/mapillary/mapillary_tools
+	pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 
 which will enable processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
@@ -85,9 +85,31 @@ To upload videos to Mapillary, videos are required to be sampled into images and
 
 ## Usage
 
-Upload tools can be used with the executable `mapillary_tools`. On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is. See instructions below for Windows-specific usage. 
+Upload tools can be used with the executable `mapillary_tools`, located in `mapillary_tools/bin`. 
 
-To see the available tools, use the following in the command line:
+### Execution
+Running the executable `mapillary_tools` is slightly different on Unix and Windows OS.
+
+#### Windows 
+On Windows, the executable `mapillary_tools` is installed under the python's `Scripts` and needs to be inserted in the PATH manually.
+At the same time, the interpreter program `python` needs to be specified, as the interpreter directive in the executable is specified for Unix OS. Path to the interpreter program `python` needs to be available in the PATH. Example of usage, in case `python` and `mapillary_tools` are available in the PATH: 
+
+	python mapillary_tools
+
+in case of issues with editing PATH, both `python` and `mapillary_tools` can be specified with the absolute path:
+
+	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
+	
+note that the location of the `python` interpreter program and scripts installed as `python` scripts can be different depending on the Windows and Python versions. Therefore users need to check the exact paths locally before running.
+
+#### Unix
+On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is (no need to specify `python` as the interpreter program and no need for setting up the PATH or providing the absolute path to executable, no matter where in the command line you are located).
+ 
+
+
+### Available tools
+
+To see the available tools, use the following in the command line(for Windows, adjust the command according the instructions for execution):
 
 ```
 mapillary_tools -h
@@ -117,16 +139,10 @@ mapillary_tools process -h
 mapillary_tools process -h --advanced
 ```
 
-### Windows 
-On Windows, instead of `mapillary_tools`, the interpreter program `python` also needs to be specified, i.e.
-
-	python mapillary_tools
-
-or in case python path (e.g. `C:\python27\`) and its script path (e.g. `C:\python27\Scripts\`) are not in system environmental variables:
-
-	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
 
 ### Examples
+
+For Windows, adjust the commands according the instructions for execution.
 
 #### Process Images
 The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`.
@@ -180,6 +196,37 @@ or
  ```bash
 mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 ```
+
+### Keep original images intact and Upload
+
+ - To prevent data loss or control versions, the original images can be left intact by specifying the flag `--keep_original`. This will result in the edited image being saved in a copy of the original image, instead of the original image itself. Copies are saved in `{$import_path/$image_path/}.mapilary/process_images}` and are deleted at the start of every processing run.
+ 
+```bash
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --keep_original
+mapillary_tools upload --import_path "path/to/images"
+```
+
+or
+
+ ```bash
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --keep_original
+```
+
+
+### Derive image direction, flag duplicates and Upload
+ - Derive image direction (image heading or camera angle) based on image latitude and longitude and flag duplicates to be excluded from the upload. If images are missing direction, the direction is derived automatically, if direction is present, it will be derived and overwritten only if the flag `--interpolate directions` is specified.
+
+ ```bash
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapilary --flag_duplicates --interpolate_directions
+mapillary_tools upload --import_path "path/to/images"
+```
+
+or
+
+ ```bash
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapilary --flag_duplicates --interpolate_directions
+```
+
 ### Video Sampling and Upload
 
  - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 0.5 seconds and tag the sampled images with `capture time`.
@@ -208,9 +255,7 @@ mapillary_tools video_process_and_upload --import_path "path/to/images" --video_
 
 ### `process`
 
-The `process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, latitude and longitude can be read from a gpx track file or a GoPro video, while camera direction can be derived based on latitude and longitude.
-
-See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
+The `process` tool will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, additional functionalities are available, for example latitude and longitude can be read from a gpx track file or a GoPro video, camera direction can be derived based on latitude and longitude, duplicates can be flagged to be excluded from the upload etc. See the tool specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
 
 #### Examples
 
