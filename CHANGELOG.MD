@@ -29,3 +29,20 @@
 ### Bug fixes
 * Update the timestamps list in case duplicates are flagged
 
+
+## 0.1.0 (2018-06-12)
+
+### Breaking changes
+
+* Logging was modified to store log files in a hidden directory where the image is located and not in the import path.
+
+### Features and improvements
+* DONE file is created in the import path and not where the tools are being run from.
+* exifread version requirement upgraded to resolve installation issues
+* support geotagging from a csv file
+* support various interpolations
+* support re-authentication as a command
+* support option to keep the original images intact
+* print out version
+* increase the amount of information printed out without the verbose flag.
+
