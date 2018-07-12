@@ -1,6 +1,5 @@
 
 from mapillary_tools.process_csv import process_csv
-from builtins import int
 
 
 class Command:
