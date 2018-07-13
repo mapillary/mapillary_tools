@@ -28,7 +28,7 @@ def add_meta_tag(mapillary_description,
                  key,
                  value):
     value = validate_type(tag_type, value)
-    if not value:
+    if value == None:
         return
     meta_tag = {"key": key,
                 "value": value}
