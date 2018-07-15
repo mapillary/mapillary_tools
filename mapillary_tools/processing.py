@@ -538,6 +538,25 @@ def preform_process(file_path, process, rerun=False):
     return preform
 
 
+def get_failed_process_file_list(import_path, process):
+
+    failed_process_file_list = []
+    for root, dir, files in os.walk(import_path):
+        if ".mapillary" in root:
+            continue
+        failed_process_file_list.extend(os.path.join(root, file) for file in files if failed_process(
+            os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    return sorted(failed_process_file_list)
+
+
+def failed_process(file_path, process):
+    log_root = uploader.log_rootpath(file_path)
+    process_failed = os.path.join(log_root, process + "_failed")
+    process_failed_true = os.path.isfile(process_failed)
+    return process_failed_true
+
+
 def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
