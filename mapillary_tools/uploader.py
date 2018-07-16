@@ -17,6 +17,7 @@ import time
 import config
 import getpass
 import sys
+import processing
 
 MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
