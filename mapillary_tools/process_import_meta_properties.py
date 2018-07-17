@@ -137,7 +137,7 @@ def process_import_meta_properties(import_path,
     import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+              " doesn't exist, exiting...")
         sys.exit()
 
      # get list of file to process
