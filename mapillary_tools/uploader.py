@@ -478,7 +478,7 @@ def upload_done_file(import_path, params):
     if not os.path.exists(DONE_filepath):
         open(DONE_filepath, 'a').close()
     # upload
-    upload_file(DONE_filepath, None, **params)
+    upload_file(DONE_filepath, **params)
     # remove
     if os.path.exists(DONE_filepath):
         os.remove(DONE_filepath)
