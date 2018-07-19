@@ -24,7 +24,10 @@
       "config_vars": [],
       "marathon_name": "",
       "name": "mapillary_tools_upload_provider",
-      "services": [],
+      "services": [{
+          "description": "description",
+          "name": "mapillary_tools_upload_provider"
+      }],
       "type": "script"
     }
   ],
