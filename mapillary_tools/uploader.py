@@ -477,12 +477,16 @@ def upload_done_file(import_path, params):
 
     if not os.path.exists(DONE_filepath):
         open(DONE_filepath, 'a').close()
+
     # upload
     upload_file(DONE_filepath, **params)
+
     # remove
     if os.path.exists(DONE_filepath):
         os.remove(DONE_filepath)
 
+def is_done_file(filename):
+    return filename == "DONE"
 
 def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     '''
@@ -490,12 +494,15 @@ def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
 
     '''
     filename = os.path.basename(filepath)
+    done_file = is_done_file(filename)
 
     s3_filename = filename
     try:
-        s3_filename = ExifRead(filepath).exif_name()
+        if not done_file:
+            s3_filename = ExifRead(filepath).exif_name()
     except:
         pass
+
     filepath_keep_original = processing.processed_images_rootpath(filepath)
     filepath_in = filepath
     if os.path.isfile(filepath_keep_original):
@@ -524,7 +531,7 @@ def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
-            if filename != "DONE":
+            if not done_file:
                 if response.getcode() == 204:
                     create_upload_log(filepath_in, "upload_success")
                 else:
