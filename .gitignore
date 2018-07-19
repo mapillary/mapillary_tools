@@ -4,3 +4,6 @@
 *.egg-info
 .settings
 .idea
+mapillary_run_provider.yml
+docker/dockercontext/mapillary
+gitversion
