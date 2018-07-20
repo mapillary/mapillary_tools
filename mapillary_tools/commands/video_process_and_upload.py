@@ -7,7 +7,6 @@ from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import sample_video
 from mapillary_tools.upload import upload
-import sys
 
 
 class Command:
@@ -120,8 +119,6 @@ class Command:
 
         insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
                            if k in inspect.getargspec(insert_MAPJson).args}))
-
-        sys.exit('not uploading!')
 
         upload(**({k: v for k, v in vars_args.iteritems()
                    if k in inspect.getargspec(upload).args}))
