@@ -168,8 +168,7 @@ class ExifRead:
             capture_time = format_time(capture_time)
             sub_sec = self.extract_subsec()
             capture_time = capture_time + \
-                datetime.timedelta(seconds=float(
-                    sub_sec) / 10**len(str(sub_sec)))
+                datetime.timedelta(seconds=float("0." + sub_sec))
 
         return capture_time
 
@@ -315,7 +314,7 @@ class ExifRead:
         fields = ['Image Orientation']
         orientation, _ = self._extract_alternative_fields(
             fields, default=1, field_type=int)
-        if orientation not in [1, 3, 6, 8]:
+        if orientation not in range(1, 9):
             return 1
         return orientation
 
@@ -332,8 +331,7 @@ class ExifRead:
             'EXIF SubSecTime'
         ]
         sub_sec, _ = self._extract_alternative_fields(
-            fields, default=0, field_type=str)
-        sub_sec = int(sub_sec)
+            fields, default='', field_type=str)
         return sub_sec
 
     def fields_exist(self, fields):
@@ -353,10 +351,12 @@ class ExifRead:
 
     def mapillary_tag_exists(self):
         '''
-        Check existence of Mapillary tag
+        Check existence of required Mapillary tags
         '''
         description_tag = "Image ImageDescription"
-        if description_tag in self.tags:
-            if "MAPSequenceUUID" in self.tags[description_tag].values:
-                return True
-        return False
+        if description_tag not in self.tags:
+            return False
+        for requirement in ["MAPSequenceUUID", "MAPSettingsUserKey", "MAPCaptureTime", "MAPLongitude", "MAPLatitude"]:
+            if requirement not in self.tags[description_tag].values:
+                return False
+        return True

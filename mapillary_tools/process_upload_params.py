@@ -31,7 +31,6 @@ def process_upload_params(import_path,
     if not user_name:
         print("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
-                                                  import_path,
                                                   "upload_params_process"
                                                   "failed",
                                                   verbose)
@@ -43,7 +42,6 @@ def process_upload_params(import_path,
         except:
             print("Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
-                                                      import_path,
                                                       "upload_params_process"
                                                       "failed",
                                                       verbose)
@@ -51,7 +49,6 @@ def process_upload_params(import_path,
         if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
             print("Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
-                                                      import_path,
                                                       "upload_params_process"
                                                       "failed",
                                                       verbose)
@@ -64,8 +61,7 @@ def process_upload_params(import_path,
 
     for image in process_file_list:
         # check the status of the sequence processing
-        log_root = uploader.log_rootpath(import_path,
-                                         image)
+        log_root = uploader.log_rootpath(image)
         duplicate_flag_path = os.path.join(log_root,
                                            "duplicate")
         upload_params_path = os.path.join(
@@ -86,7 +82,6 @@ def process_upload_params(import_path,
                                                                           user_key,
                                                                           verbose)
         processing.create_and_log_process(image,
-                                          import_path,
                                           "upload_params_process",
                                           "success",
                                           upload_params_properties,

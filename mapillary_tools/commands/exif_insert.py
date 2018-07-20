@@ -18,6 +18,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 

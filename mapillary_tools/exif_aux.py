@@ -1,4 +1,6 @@
 from exif_read import ExifRead
+import os
+import processing
 
 
 def exif_gps_fields():
@@ -42,8 +44,11 @@ def verify_exif(filename):
     return required_exif_exist
 
 
-def verify_mapillary_tag(filename):
+def verify_mapillary_tag(filepath):
+    filepath_keep_original = processing.processed_images_rootpath(filepath)
+    if os.path.isfile(filepath_keep_original):
+        filepath = filepath_keep_original
     '''
     Check that image file has the required Mapillary tag
     '''
-    return ExifRead(filename).mapillary_tag_exists()
+    return ExifRead(filepath).mapillary_tag_exists()

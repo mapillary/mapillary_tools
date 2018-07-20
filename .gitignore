@@ -3,3 +3,4 @@
 .pydevproject
 *.egg-info
 .settings
+.idea

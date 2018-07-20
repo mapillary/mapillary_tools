@@ -19,5 +19,7 @@ import gpx_from_gopro
 import gpmf
 import ffmpeg
 import commands
+import process_csv
+import interpolation
 
-VERSION = "0.0.2"
+VERSION = "0.1.2"

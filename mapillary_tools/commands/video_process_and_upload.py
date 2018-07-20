@@ -7,6 +7,7 @@ from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import sample_video
 from mapillary_tools.upload import upload
+import sys
 
 
 class Command:
@@ -60,7 +61,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video', 'blackvue'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -92,6 +93,8 @@ class Command:
         # EXIF insert
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 
@@ -117,6 +120,8 @@ class Command:
 
         insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
                            if k in inspect.getargspec(insert_MAPJson).args}))
+
+        sys.exit('not uploading!')
 
         upload(**({k: v for k, v in vars_args.iteritems()
                    if k in inspect.getargspec(upload).args}))

@@ -5,28 +5,41 @@ import processing
 import uploader
 from exif_read import ExifRead
 
+META_DATA_TYPES = {"strings": str,
+                   "doubles": float,
+                   "longs": long,
+                   "dates": int,
+                   "booleans": bool}
+
+
+def validate_type(tag_type, tag_value):
+    if not isinstance(tag_value, META_DATA_TYPES[tag_type]):
+        try:
+            tag_value = META_DATA_TYPES[tag_type](tag_value)
+        except:
+            print(
+                "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(tag_type, tag_value))
+            return None
+    return tag_value
+
 
 def add_meta_tag(mapillary_description,
-                 type,
+                 tag_type,
                  key,
                  value):
+    value = validate_type(tag_type, value)
+    if value == None:
+        return
+    meta_tag = {"key": key,
+                "value": value}
     if 'MAPMetaTags' in mapillary_description:
-        if type in mapillary_description['MAPMetaTags']:
-            mapillary_description['MAPMetaTags'][type].append(
-                {"key": key,
-                 "value": value}
-            )
+        if tag_type in mapillary_description['MAPMetaTags']:
+            mapillary_description['MAPMetaTags'][tag_type].append(meta_tag)
         else:
-            mapillary_description['MAPMetaTags'][type] = [
-                {"key": key,
-                 "value": value}
-            ]
+            mapillary_description['MAPMetaTags'][tag_type] = [meta_tag]
     else:
         mapillary_description['MAPMetaTags'] = {
-            type: [
-                {"key": key,
-                 "value": value}
-            ]
+            tag_type: [meta_tag]
         }
 
 
@@ -65,10 +78,9 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.0.2")
+                 "0.1.2")
 
     processing.create_and_log_process(image,
-                                      import_path,
                                       "import_meta_data_process",
                                       "success",
                                       mapillary_description,
@@ -125,7 +137,7 @@ def process_import_meta_properties(import_path,
     import_path = os.path.abspath(import_path)
     if not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+              " doesn't exist, exiting...")
         sys.exit()
 
      # get list of file to process
