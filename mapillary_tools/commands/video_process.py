@@ -111,7 +111,6 @@ class Command:
 
         process_sequence_properties(
             **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_sequence_properties).args}))
-        return
 
         process_upload_params(**({k: v for k, v in vars_args.iteritems()
                                   if k in inspect.getargspec(process_upload_params).args}))

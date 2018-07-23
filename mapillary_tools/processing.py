@@ -178,10 +178,8 @@ def geotag_from_blackvue_video(process_file_list,
         geotag_source_path = gpx_from_blackvue(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except Exception as e:
-        if verbose:
-            print e
-            print("Error, failed extracting data from blackvue video, exiting...")
+    except Exception:
+        print("Error, failed extracting data from blackvue video, exiting...")
         sys.exit()
 
     geotag_from_gps_trace(process_file_list,
