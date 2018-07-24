@@ -12,12 +12,9 @@ RUN \
 RUN \
     pip install --upgrade pip
 
-COPY . /source/mapillary_tools
+COPY . /mapillary_source/
 
-WORKDIR /source/mapillary_tools
-
+WORKDIR /mapillary_source
 RUN pip install -r requirements.txt
-
 COPY docker/dockercontext/mapillary/ /mapillary
-
 ENV PATH="/mapillary:${PATH}"

@@ -7,7 +7,7 @@ then
     map_cluster_wait_for_it $S3_WAIT
     while :
     do
-        mapillary_tools upload --import_path tests/integration/mapillary_tools_upload_provider/data/
+        mapillary_tools upload --import_path tests/integration/mapillary_tools_upload_provider/data/images/
         sleep 60
     done
 fi

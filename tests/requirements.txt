@@ -1,0 +1,6 @@
+pep8
+boto
+requests
+redis
+bcrypt
+git+https://28f9bfdcfb10fcb7e6d2c02b5ce87a29437b5c8f:x-oauth-basic@github.com/mapillary/mapillary_messi.git
