@@ -19,7 +19,8 @@
       "description": "Mapillary main webpage",
       "extDependencies": [],
       "dockerparameters": {
-         "command": "script/run"
+         "command": "script/run upload",
+         "volumes": ["./tests:/mapillary_source/tests"]
       },
       "config_vars": [],
       "marathon_name": "",
