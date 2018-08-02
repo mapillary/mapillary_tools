@@ -77,7 +77,7 @@ def add_date_time_original_general(test_obj, filename):
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = load_exif()
-    test_obj.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S.%f')[
+    test_obj.assertEqual(test_datetime.strftime('%Y:%m:%d %H:%M:%S')[
                          :-3], exif_data[EXIF_PRIMARY_TAGS_DICT['DateTimeOriginal']])
 
 
