@@ -427,6 +427,12 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
     except:
         pass
+    try:
+        if "MAPOrientation" in final_mapillary_image_description:
+            image_exif.add_orientation(
+                final_mapillary_image_description["MAPOrientation"])
+    except:
+        pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
