@@ -10,4 +10,13 @@ then
         mapillary_tools upload --import_path tests/integration/mapillary_tools_upload_provider/data/images/
         sleep 60
     done
+elif [ $1 = "process" ];
+then
+    map_cluster_wait_for_it $S3_WAIT
+    while :
+    do
+        mapillary_tools process --import_path tests/integration/mapillary_tools_process_images_provider/data/images/ --advanced --user_name mapillary_user
+        mapillary_tools upload --import_path tests/integration/mapillary_tools_process_images_provider/data/images/
+        sleep 60
+    done
 fi

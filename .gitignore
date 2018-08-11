@@ -10,3 +10,5 @@ gitversion
 mapillary_run_provider.yml
 tests/integration/mapillary_tools_upload_provider/data/images
 tests/20180212
+config
+tests/integration/mapillary_tools_process_images_provider/data/images

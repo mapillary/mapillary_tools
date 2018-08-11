@@ -1,9 +1,6 @@
 from exif_read import ExifRead
 import json
 import os
-import string
-import threading
-import sys
 import urllib2
 import urllib
 import httplib
@@ -19,7 +16,11 @@ import getpass
 import sys
 import processing
 
-MAPILLARY_UPLOAD_URL = "http://awss3provider:4569/mtf_upload_images"
+if os.getenv("AWS_S3_ENDPOINT", None) is None:
+    MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+else:
+    MAPILLARY_UPLOAD_URL = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
+
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
@@ -28,17 +29,21 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
-CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
-LOGIN_URL = "https://a.mapillary.com/v2/ua/login?client_id={}".format(
-    CLIENT_ID)
-ORGANIZATIONS_URL = "https://a.mapillary.com/v3/users/{}/organizations?client_id={}"
-USER_URL = "https://a.mapillary.com/v3/users?usernames={}&client_id={}"
-ME_URL = "https://a.mapillary.com/v3/me?client_id={}".format(CLIENT_ID)
-USER_UPLOAD_URL = "https://a.mapillary.com/v3/users/{}/upload_tokens?client_id={}"
+CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+
+if os.getenv("API_PROXY_HOST", None) is None:
+    API_ENDPOINT = "https://a.mapillary.com"
+else:
+    API_ENDPOINT = "http://{}".format(os.getenv("API_PROXY_HOST"))
+LOGIN_URL = "{}/v2/ua/login?client_id={}".format(API_ENDPOINT, CLIENT_ID)
+ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations?client_id={}"
+USER_URL = API_ENDPOINT + "/v3/users?usernames={}&client_id={}"
+ME_URL = "{}/v3/me?client_id={}".format(API_ENDPOINT, CLIENT_ID)
+USER_UPLOAD_URL = API_ENDPOINT + "/v3/users/{}/upload_tokens?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
-GLOBAL_CONFIG_FILEPATH = os.path.join(
-    os.path.expanduser('~'), ".config", "mapillary", 'config')
+GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'),
+                                                                          ".config", "mapillary", 'config'))
 
 
 class UploadThread(threading.Thread):
@@ -449,6 +454,7 @@ def get_user_key(user_name):
     try:
         req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
+
     except:
         return ""
     if not resp or 'key' not in resp[0]:
