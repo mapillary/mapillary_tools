@@ -27,7 +27,7 @@ class UploadProviderTestCase(TestCase):
         super(UploadProviderTestCase, self).setUp()
 
     def test_images_uploaded_are_harvested(self):
-        user_a = User(key="tz1mPY3BVBA1eeCrleJc4A")
+        user_a = User(key="24cc3715-7661-4411-81f9-942c842124c7")
         self.useFixture(PsqlMainUserFixture([user_a]))
         copyfile(image_path, new_image_path)
 
