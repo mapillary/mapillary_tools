@@ -322,8 +322,14 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         return None
 
     sequence_uuid = sequence_data["MAPSequenceUUID"]
+
+    if os.getenv("AWS_S3_ENDPOINT", None) is None:
+        url = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
+    else:
+        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
+
     upload_params = {
-        "url": "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images",
+        "url": url,
         "permission": user_permission_hash,
         "signature": user_signature_hash,
         "key": user_name + "/" + sequence_uuid + "/",

@@ -15,8 +15,11 @@ then
     map_cluster_wait_for_it $S3_WAIT
     while :
     do
+        echo "Processing images..."
         mapillary_tools process --import_path tests/integration/mapillary_tools_process_images_provider/data/images/ --advanced --user_name mapillary_user
+        sleep 3
+        echo "Uploading images..."
         mapillary_tools upload --import_path tests/integration/mapillary_tools_process_images_provider/data/images/
-        sleep 60
+        sleep 30
     done
 fi
