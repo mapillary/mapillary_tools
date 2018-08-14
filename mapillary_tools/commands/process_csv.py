@@ -16,7 +16,7 @@ class Command:
         parser.add_argument("--convert_utc_time",
                             help="Convert utc epoch time in seconds or milliseconds.", action="store_true", default=False, required=False)
         parser.add_argument("--filename_column",
-                            help='Specify the column number of image filename, counting from 1 on.', action="store", required=True, type=int)
+                            help='Specify the column number of image filename, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--timestamp_column",
                             help='Specify the column number of image timestamp, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--latitude_column",

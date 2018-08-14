@@ -260,6 +260,11 @@ mapillary_tools video_process_and_upload --import_path "path/to/images" --video_
 mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --filename_column 1 --timestamp_column 4 --latitude_column 2 --longitude_column 3 --advanced
 ```
 
+ - Insert image capture time and meta data from a csv file based on the order of image file names (in case filename column is missing):
+ 
+```bash
+mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --timestamp_column 1 --meta_columns "6,7" --meta_names "random_name1,random_name2" --meta_types "double,string" --advanced
+```
 
 ## Tool Specifications
 

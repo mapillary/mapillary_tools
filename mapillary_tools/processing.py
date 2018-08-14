@@ -439,8 +439,8 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         os.remove(filename_keep_original)
     if keep_original:
         filename = filename_keep_original
-        if not os.path.isdir(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
+        if not os.path.isdir(os.path.dirname(filename_keep_original)):
+            os.makedirs(os.path.dirname(filename_keep_original))
     try:
         image_exif.write(filename=filename)
     except:

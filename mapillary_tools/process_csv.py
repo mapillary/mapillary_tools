@@ -94,7 +94,11 @@ def get_image_index(image, file_names):
             file_names = [os.path.basename(entry) for entry in file_names]
             image_index = file_names.index(os.path.basename(image))
         except:
-            pass
+            try:
+                image_index = [idx for idx, file_name in enumerate(
+                    file_names) if file_name in image][0]
+            except:
+                pass
     return image_index
 
 
@@ -112,18 +116,18 @@ def parse_csv_geotag_data(csv_data, image_index, column_indexes, convert_gps_tim
     heading_column = column_indexes[4]
     altitude_column = column_indexes[5]
 
-    if timestamp_column:
+    if timestamp_column != None:
         timestamp = csv_data[timestamp_column][image_index]
         timestamp = convert_from_gps_time(
             timestamp) if convert_gps_time else format_time(timestamp, convert_utc_time, time_format)
 
-    if latitude_column:
+    if latitude_column != None:
         lat = float(csv_data[latitude_column][image_index])
-    if longitude_column:
+    if longitude_column != None:
         lon = float(csv_data[longitude_column][image_index])
-    if heading_column:
+    if heading_column != None:
         heading = float(csv_data[heading_column][image_index])
-    if altitude_column:
+    if altitude_column != None:
         altitude = float(csv_data[altitude_column][image_index])
 
     return timestamp, lat, lon, heading, altitude
@@ -158,7 +162,7 @@ def read_csv(csv_path, delimiter=",", header=False):
 
 def process_csv(import_path,
                 csv_path,
-                filename_column,
+                filename_column=None,
                 timestamp_column=None,
                 latitude_column=None,
                 longitude_column=None,
@@ -206,13 +210,21 @@ def process_csv(import_path,
     csv_data = read_csv(csv_path,
                         delimiter=delimiter,
                         header=header)
-    file_names = csv_data[filename_column - 1]
+
+    # align by filename column if provided, otherwise align in order of image
+    # names
+    file_names = None
+    if filename_column:
+        file_names = csv_data[filename_column - 1]
+    else:
+        if verbose:
+            print("Warning, filename column not provided, images will be aligned with the csv data in order of the image filenames.")
 
     # process each image
-    for image in process_file_list:
+    for idx, image in enumerate(process_file_list):
 
         # get image entry index
-        image_index = get_image_index(image, file_names)
+        image_index = get_image_index(image, file_names) if file_names else idx
         if image_index == None:
             print("Warning, no entry found in csv file for image " + image)
             continue
@@ -245,8 +257,8 @@ def process_csv(import_path,
             os.remove(filename_keep_original)
 
         if keep_original:
-            if not os.path.isdir(os.path.dirname(filename)):
-                os.makedirs(os.path.dirname(filename))
+            if not os.path.isdir(os.path.dirname(filename_keep_original)):
+                os.makedirs(os.path.dirname(filename_keep_original))
             filename = filename_keep_original
 
         try:
