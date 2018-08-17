@@ -11,6 +11,10 @@ META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
 
 MILLISECONDS_PRECISION_CUT_OFF = 10000000000
 
+GPS_START = datetime.datetime(1980, 1, 6)
+
+SECS_IN_WEEK = 604800
+
 
 def format_time(timestamp, time_utc=False, time_format='%Y-%m-%dT%H:%M:%SZ'):
     if time_utc:
@@ -60,28 +64,39 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
     return meta_columns, meta_names, meta_types
 
 
-def convert_from_gps_time(gps_time):
+def convert_from_gps_time(gps_time, gps_week=None):
     """ Convert gps time in ticks to standard time. """
-    # TAI scale with 1970-01-01 00:00:10 (TAI) epoch
-    os.environ['TZ'] = 'right/UTC'
-    # time.tzset()
+
+    converted_gps_time = None
     gps_timestamp = float(gps_time)
-    gps_epoch_as_gps = datetime.datetime(1980, 1, 6)
 
-    # by definition
-    gps_time_as_gps = gps_epoch_as_gps + \
-        datetime.timedelta(seconds=gps_timestamp)
+    if gps_week != None:
 
-    # constant offset
-    gps_time_as_tai = gps_time_as_gps + \
-        datetime.timedelta(seconds=19)
-    tai_epoch_as_tai = datetime.datetime(1970, 1, 1, 0, 0, 10)
+        # image date
+        converted_gps_time = GPS_START + datetime.timedelta(seconds=int(gps_week) *
+                                                            SECS_IN_WEEK + gps_timestamp)
 
-    # by definition
-    tai_timestamp = (gps_time_as_tai - tai_epoch_as_tai).total_seconds()
+    else:
+        # TAI scale with 1970-01-01 00:00:10 (TAI) epoch
+        os.environ['TZ'] = 'right/UTC'
+
+        # by definition
+        gps_time_as_gps = GPS_START + \
+            datetime.timedelta(seconds=gps_timestamp)
+
+        # constant offset
+        gps_time_as_tai = gps_time_as_gps + \
+            datetime.timedelta(seconds=19)
+        tai_epoch_as_tai = datetime.datetime(1970, 1, 1, 0, 0, 10)
+
+        # by definition
+        tai_timestamp = (gps_time_as_tai - tai_epoch_as_tai).total_seconds()
+
+        converted_gps_time = (
+            datetime.datetime.utcfromtimestamp(tai_timestamp))
 
     # "right" timezone is in effect
-    return (datetime.datetime.utcfromtimestamp(tai_timestamp))
+    return converted_gps_time
 
 
 def get_image_index(image, file_names):
@@ -115,11 +130,15 @@ def parse_csv_geotag_data(csv_data, image_index, column_indexes, convert_gps_tim
     longitude_column = column_indexes[3]
     heading_column = column_indexes[4]
     altitude_column = column_indexes[5]
+    gps_week_column = column_indexes[6]
 
     if timestamp_column != None:
         timestamp = csv_data[timestamp_column][image_index]
+        gps_week = None
+        if gps_week_column != None:
+            gps_week = csv_data[gps_week_column][image_index]
         timestamp = convert_from_gps_time(
-            timestamp) if convert_gps_time else format_time(timestamp, convert_utc_time, time_format)
+            timestamp, gps_week) if convert_gps_time else format_time(timestamp, convert_utc_time, time_format)
 
     if latitude_column != None:
         lat = float(csv_data[latitude_column][image_index])
@@ -168,6 +187,7 @@ def process_csv(import_path,
                 longitude_column=None,
                 heading_column=None,
                 altitude_column=None,
+                gps_week_column=None,
                 time_format="%Y:%m:%d %H:%M:%S.%f",
                 convert_gps_time=False,
                 convert_utc_time=False,
@@ -195,13 +215,23 @@ def process_csv(import_path,
         print("No images found in the import path " + import_path)
         sys.exit()
 
+    if gps_week_column != None and convert_gps_time == None:
+        print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting...")
+        sys.exit()
+
+    if (convert_gps_time != None or convert_utc_time != None) and timestamp_column == None:
+        print("Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting...")
+        sys.exit()
+
     column_indexes = [filename_column, timestamp_column,
-                      latitude_column, longitude_column, heading_column, altitude_column]
+                      latitude_column, longitude_column, heading_column, altitude_column, gps_week_column]
+
     if any([column == 0 for column in column_indexes]):
         print("Error, csv column numbers start with 1, one of the columns specified is 0.")
         sys.exit()
 
     column_indexes = map(lambda x: x - 1 if x else None, column_indexes)
+
     # checks for meta arguments if any
     meta_columns, meta_names, meta_types = validate_meta_data(
         meta_columns, meta_names, meta_types)
