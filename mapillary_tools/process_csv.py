@@ -215,11 +215,11 @@ def process_csv(import_path,
         print("No images found in the import path " + import_path)
         sys.exit()
 
-    if gps_week_column != None and convert_gps_time == None:
+    if gps_week_column != None and convert_gps_time == False:
         print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting...")
         sys.exit()
 
-    if (convert_gps_time != None or convert_utc_time != None) and timestamp_column == None:
+    if (convert_gps_time != False or convert_utc_time != False) and timestamp_column == None:
         print("Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting...")
         sys.exit()
 
