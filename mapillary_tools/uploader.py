@@ -450,10 +450,10 @@ def get_user_key(user_name):
         req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
     except:
-        return ""
+        return None
     if not resp or 'key' not in resp[0]:
         print("Error, user name {} does not exist...".format(user_name))
-        return ""
+        return None
     return resp[0]['key']
 
 
@@ -485,8 +485,10 @@ def upload_done_file(import_path, params):
     if os.path.exists(DONE_filepath):
         os.remove(DONE_filepath)
 
+
 def is_done_file(filename):
     return filename == "DONE"
+
 
 def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     '''

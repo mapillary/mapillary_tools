@@ -733,7 +733,10 @@ def user_properties_master(user_name,
         print("Error, no user key obtained for the user name " + user_name +
               ", check if the user name is spelled correctly and if the master key is correct")
         return None
-    user_properties['MAPSettingsUserKey'] = user_key
+    if user_key:
+        user_properties['MAPSettingsUserKey'] = user_key
+    else:
+        return None
 
     if organization_key:
         user_properties.update(
