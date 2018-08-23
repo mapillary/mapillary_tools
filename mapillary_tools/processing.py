@@ -570,14 +570,12 @@ def processed_images_rootpath(filepath):
 def video_upload(video_file, import_path, verbose=False):
     log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
-    if os.path.isdir(import_path):
-        print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
-            video_file, import_path))
-        shutil.rmtree(import_path)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
     if import_path not in import_paths:
         import_paths.append(import_path)
+    else:
+        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
