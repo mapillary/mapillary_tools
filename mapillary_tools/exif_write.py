@@ -42,6 +42,14 @@ class ExifEdit(object):
             self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
+            
+    def add_subsectimeoriginal(self, subsec_value):
+        """Add subsecond value in the subsectimeoriginal exif tag"""
+        try:
+            subsec = str(subsec_value).zfill(6)
+            self._ef['Exif'][piexif.ExifIFD.SubSecTimeOriginal] = subsec
+        except Exception as e:
+            print("Error writing SubSecTimeOriginal, due to " + str(e))
 
     def add_lat_lon(self, lat, lon, precision=1e7):
         """Add lat, lon to gps (lat, lon in float)."""
