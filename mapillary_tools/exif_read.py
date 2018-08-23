@@ -357,6 +357,6 @@ class ExifRead:
         if description_tag not in self.tags:
             return False
         for requirement in ["MAPSequenceUUID", "MAPSettingsUserKey", "MAPCaptureTime", "MAPLongitude", "MAPLatitude"]:
-            if requirement not in self.tags[description_tag].values:
+            if requirement not in self.tags[description_tag].values or json.loads(self.tags[description_tag].values)[requirement] in ["", None, " "]:
                 return False
         return True
