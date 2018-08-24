@@ -38,7 +38,7 @@ class ExifEdit(object):
     def add_date_time_original(self, date_time):
         """Add date time original."""
         try:
-            DateTimeOriginal = date_time.strftime('%Y:%m:%d %H:%M:%S)
+            DateTimeOriginal = date_time.strftime('%Y:%m:%d %H:%M:%S')
             self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
