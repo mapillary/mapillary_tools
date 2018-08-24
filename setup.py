@@ -15,6 +15,7 @@ setup(name='mapillary_tools',
           'gpxpy==0.9.8',
           'Pillow==2.9.0',
           'python-dateutil==2.7.3',
+          'pymp4==1.1.0',
           'pynmea2==1.12.0',
           'pytest==3.2.3'
       ])
