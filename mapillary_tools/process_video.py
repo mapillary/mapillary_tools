@@ -38,7 +38,7 @@ def timestamps_from_filename(full_image_list,
 def sample_video(video_file,
                  import_path,
                  geotag_source,
-                 video_sample_interval,
+                 video_sample_interval=2.0,
                  video_start_time=None,
                  video_duration_ratio=1.0,
                  verbose=False):

@@ -8,6 +8,10 @@ from exif_read import ExifRead
 from process_import_meta_properties import add_meta_tag
 import process_csv
 import csv
+import datetime
+
+
+EPOCH = datetime.datetime.utcfromtimestamp(0)
 
 
 def format_datetime(timestamps_interpolated, time_utc=False, time_format="%Y-%m-%dT%H:%M:%SZ"):

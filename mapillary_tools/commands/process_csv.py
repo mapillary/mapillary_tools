@@ -16,7 +16,7 @@ class Command:
         parser.add_argument("--convert_utc_time",
                             help="Convert utc epoch time in seconds or milliseconds.", action="store_true", default=False, required=False)
         parser.add_argument("--filename_column",
-                            help='Specify the column number of image filename, counting from 1 on.', action="store", required=True, type=int)
+                            help='Specify the column number of image filename, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--timestamp_column",
                             help='Specify the column number of image timestamp, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--latitude_column",
@@ -27,6 +27,8 @@ class Command:
                             help='Specify the column number of image heading, counting from 1 on.', action="store", required=False, type=int)
         parser.add_argument("--altitude_column",
                             help='Specify the column number of image altitude, counting from 1 on.', action="store", required=False, type=int)
+        parser.add_argument("--gps_week_column",
+                            help='Specify the column number of image timestamps gps week, counting from 1 on. Used only with --convert_gps_time.', action="store", required=False, type=int)
         parser.add_argument("--meta_columns",
                             help='Specify the column numbers containing meta data, separate numbers with commas, example "7,9,10".', action="store", default=None, required=False)
         parser.add_argument("--meta_names",

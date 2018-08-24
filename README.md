@@ -236,7 +236,7 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
  - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 0.5 seconds and tag the sampled images with `capture time`.
 
  ```bash
-mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --sample_interval 0.5 --advanced
+mapillary_tools sample_video --import_path "path/to/images" --video_file "path/to/video.mp4" --video_sample_interval 0.5 --advanced
 ```
 
  - Sample the video `path/to/video.mp4` into the directory `path/to/images`, at a sample interval of 2 seconds (default value) and tag the resulting images with `capture time`. And then process and upload the resulting images in `path/to/images` for user `username_at_mapilary`, specifying a gpx track to be the source of geotag data. 
@@ -260,6 +260,11 @@ mapillary_tools video_process_and_upload --import_path "path/to/images" --video_
 mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --filename_column 1 --timestamp_column 4 --latitude_column 2 --longitude_column 3 --advanced
 ```
 
+ - Insert image capture time and meta data from a csv file based on the order of image file names (in case filename column is missing):
+ 
+```bash
+mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --timestamp_column 1 --meta_columns "6,7" --meta_names "random_name1,random_name2" --meta_types "double,string" --advanced
+```
 
 ## Tool Specifications
 

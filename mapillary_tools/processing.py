@@ -241,7 +241,8 @@ def geotag_from_gps_trace(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sorted(sub_second_times)[0] - gps_trace[0][0]).total_seconds()
+        offset_time += (sorted(sub_second_times)
+                        [0] - gps_trace[0][0]).total_seconds()
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
 
@@ -457,14 +458,20 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
     except:
         pass
+    try:
+        if "MAPOrientation" in final_mapillary_image_description:
+            image_exif.add_orientation(
+                final_mapillary_image_description["MAPOrientation"])
+    except:
+        pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
         os.remove(filename_keep_original)
     if keep_original:
         filename = filename_keep_original
-        if not os.path.isdir(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
+        if not os.path.isdir(os.path.dirname(filename_keep_original)):
+            os.makedirs(os.path.dirname(filename_keep_original))
     try:
         image_exif.write(filename=filename)
     except:
@@ -594,17 +601,12 @@ def processed_images_rootpath(filepath):
 def video_upload(video_file, import_path, verbose=False):
     log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
-    if os.path.isdir(import_path):
-        print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
-            video_file, import_path))
-        shutil.rmtree(import_path)
-
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
-
     if import_path not in import_paths:
         import_paths.append(import_path)
-
+    else:
+        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
@@ -760,7 +762,10 @@ def user_properties_master(user_name,
         print("Error, no user key obtained for the user name " + user_name +
               ", check if the user name is spelled correctly and if the master key is correct")
         return None
-    user_properties['MAPSettingsUserKey'] = user_key
+    if user_key:
+        user_properties['MAPSettingsUserKey'] = user_key
+    else:
+        return None
 
     if organization_key:
         user_properties.update(

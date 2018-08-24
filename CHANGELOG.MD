@@ -46,3 +46,18 @@
 * print out version
 * increase the amount of information printed out without the verbose flag.
 
+
+## 0.1.4 (2018-08-14)
+
+### Bug fixes
+* Create .mapillary folder for image copies in case of passing `--keep_original`
+* Add missing global variable EPOCH in interpolation
+
+### Features and improvements
+* Do not require filename column to be passed when processing csv, but align csv data and images in order by image file names if filename column is missing
+* Support partial matching between image file names and file names in the csv file
+
+## 0.1.5 (2018-08-23)
+
+### Bug fixes
+* Do not delete the import path in case it is specified as an import path for video files to be sampled into and that particular video file was already sampled into that import path, but rather issue a warning that user needs to delete existing frames that were sampled in any previous runs

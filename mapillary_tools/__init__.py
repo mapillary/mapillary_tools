@@ -22,4 +22,4 @@ import commands
 import process_csv
 import interpolation
 
-VERSION = "0.1.2"
+VERSION = "0.1.4"
