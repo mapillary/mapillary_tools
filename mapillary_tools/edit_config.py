@@ -43,12 +43,12 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         if not user_key:
             print("User name {} does not exist, please try again or contact Mapillary user support.".format(
                 section))
-            sys.exit()
+            sys.exit(1)
         upload_token = uploader.get_upload_token(user_email, user_password)
         if not upload_token:
             print("Authentication failed for user name " +
                   section + ", please try again.")
-            sys.exit()
+            sys.exit(1)
         user_permission_hash, user_signature_hash = uploader.get_user_hashes(
             user_key, upload_token)
 
@@ -64,6 +64,6 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
     if not user_items:
         print("Authentication failed for user name " +
               section + ", please try again.")
-        sys.exit()
+        sys.exit(1)
 
     config.update_config(config_file_path, section, user_items)
