@@ -96,7 +96,7 @@ def extract_frames(video_file,
                    start_number=None):
 
     if verbose:
-        print 'extracting frames from', video_file
+        print('extracting frames from', video_file)
 
     video_file = video_file.replace(" ", "\ ")
 

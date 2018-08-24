@@ -47,10 +47,10 @@ def get_points_from_bv(path):
         try:
             box = Box.parse_stream(fd)
         except RangeError:
-            print 'error parsing blackvue GPS information, exiting'
+            print('error parsing blackvue GPS information, exiting')
             sys.exit()
         except ConstError:
-            print 'error parsing blackvue GPS information, exiting'
+            print('error parsing blackvue GPS information, exiting')
             sys.exit()
 
         if box.type.decode('utf-8') == 'free':
