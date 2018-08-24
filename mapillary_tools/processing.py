@@ -210,7 +210,8 @@ def geotag_from_gps_trace(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sub_second_times[0] - gps_trace[0][0]).total_seconds()
+        offset_time += (sorted(sub_second_times)
+                        [0] - gps_trace[0][0]).total_seconds()
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
 
