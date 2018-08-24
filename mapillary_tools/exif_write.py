@@ -42,6 +42,9 @@ class ExifEdit(object):
             self._ef['Exif'][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
         except Exception as e:
             print("Error writing DateTimeOriginal, due to " + str(e))
+                                                  
+        if date_time.microsecond != 0:
+            self.add_subsectimeoriginal(date_time.microsecond)
             
     def add_subsectimeoriginal(self, subsec_value):
         """Add subsecond value in the subsectimeoriginal exif tag"""
