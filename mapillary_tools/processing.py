@@ -17,6 +17,7 @@ import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
+from gpx_from_blackvue import gpx_from_blackvue
 
 
 STATUS_PAIRS = {"success": "failed",
@@ -151,6 +152,36 @@ def geotag_from_gopro_video(process_file_list,
     except:
         print("Error, failed extracting data from gopro video, exiting...")
         sys.exit()
+
+    geotag_from_gps_trace(process_file_list,
+                          import_path,
+                          "gpx",
+                          geotag_source_path,
+                          offset_time,
+                          offset_angle,
+                          local_time,
+                          sub_second_interval,
+                          use_gps_start_time,
+                          verbose)
+
+
+def geotag_from_blackvue_video(process_file_list,
+                               import_path,
+                               geotag_source_path,
+                               offset_time,
+                               offset_angle,
+                               local_time,
+                               sub_second_interval,
+                               use_gps_start_time=False,
+                               verbose=False):
+    try:
+        geotag_source_path = gpx_from_blackvue(geotag_source_path)
+        if not geotag_source_path or not os.path.isfile(geotag_source_path):
+            raise Exception
+    except Exception:
+        print("Error, failed extracting data from blackvue video, exiting...")
+        sys.exit()
+
     geotag_from_gps_trace(process_file_list,
                           import_path,
                           "gpx",
@@ -233,7 +264,6 @@ def geotag_from_gps_trace(process_file_list,
 
 
 def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
-
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
@@ -568,15 +598,15 @@ def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
 
-def video_upload(video_file, import_path, verbose=False):
-    log_root = uploader.log_rootpath(video_file)
-    import_paths = video_import_paths(video_file)
+def video_upload(video_path, import_path, verbose=False):
+    log_root = uploader.log_rootpath(video_path)
+    import_paths = video_import_paths(video_path)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
     if import_path not in import_paths:
         import_paths.append(import_path)
     else:
-        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
+        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_path, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
@@ -586,14 +616,14 @@ def video_upload(video_file, import_path, verbose=False):
     return 0
 
 
-def create_and_log_video_process(video_file, import_path):
-    log_root = uploader.log_rootpath(video_file)
+def create_and_log_video_process(video_path, import_path):
+    log_root = uploader.log_rootpath(video_path)
     if not os.path.isdir(log_root):
         os.makedirs(log_root)
     # set the log flags for process
     log_process = os.path.join(
         log_root, "video_process.json")
-    import_paths = video_import_paths(video_file)
+    import_paths = video_import_paths(video_path)
     if import_path in import_paths:
         return
     import_paths.append(import_path)
@@ -602,8 +632,8 @@ def create_and_log_video_process(video_file, import_path):
     save_json(video_process, log_process)
 
 
-def video_import_paths(video_file):
-    log_root = uploader.log_rootpath(video_file)
+def video_import_paths(video_path):
+    log_root = uploader.log_rootpath(video_path)
     if not os.path.isdir(log_root):
         return []
     log_process = os.path.join(
