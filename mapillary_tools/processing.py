@@ -17,6 +17,7 @@ import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
+from gpx_from_blackvue import gpx_from_blackvue
 
 
 STATUS_PAIRS = {"success": "failed",
@@ -151,6 +152,36 @@ def geotag_from_gopro_video(process_file_list,
     except:
         print("Error, failed extracting data from gopro video, exiting...")
         sys.exit()
+
+    geotag_from_gps_trace(process_file_list,
+                          import_path,
+                          "gpx",
+                          geotag_source_path,
+                          offset_time,
+                          offset_angle,
+                          local_time,
+                          sub_second_interval,
+                          use_gps_start_time,
+                          verbose)
+
+
+def geotag_from_blackvue_video(process_file_list,
+                               import_path,
+                               geotag_source_path,
+                               offset_time,
+                               offset_angle,
+                               local_time,
+                               sub_second_interval,
+                               use_gps_start_time=False,
+                               verbose=False):
+    try:
+        geotag_source_path = gpx_from_blackvue(geotag_source_path)
+        if not geotag_source_path or not os.path.isfile(geotag_source_path):
+            raise Exception
+    except Exception:
+        print("Error, failed extracting data from blackvue video, exiting...")
+        sys.exit()
+
     geotag_from_gps_trace(process_file_list,
                           import_path,
                           "gpx",
@@ -233,7 +264,6 @@ def geotag_from_gps_trace(process_file_list,
 
 
 def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
-
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
