@@ -1,3 +1,2 @@
 -e .
 git+https://github.com/mapillary/Piexif
-pymp4==1.1.0
