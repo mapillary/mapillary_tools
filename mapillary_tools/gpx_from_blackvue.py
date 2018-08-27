@@ -100,8 +100,8 @@ def gpx_from_blackvue(bv_video):
     bv_data = []
 
     if os.path.isdir(bv_video):
-        video_files = uploader.get_video_file_list(bv_video)
-        for video in video_files:
+        video_paths = uploader.get_video_path_list(bv_video)
+        for video in video_paths:
             bv_data += get_points_from_bv(video)
 
         dirname = os.path.dirname(bv_video)
