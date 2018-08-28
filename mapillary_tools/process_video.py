@@ -18,7 +18,6 @@ def timestamp_from_filename(video_filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
-    print(filename.lstrip("0").replace("_{}.jpg".format(video_filename), ""))
     seconds = (int(filename.lstrip("0").replace("_{}.jpg".format(video_filename), "")) - 1) * \
         interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
