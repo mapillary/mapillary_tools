@@ -18,6 +18,7 @@ def timestamp_from_filename(video_filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
+    print(filename.lstrip("0").replace("_{}.jpg".format(video_filename), ""))
     seconds = (int(filename.lstrip("0").replace("_{}.jpg".format(video_filename), "")) - 1) * \
         interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
@@ -152,7 +153,7 @@ def get_video_duration(video_path):
 def insert_video_frame_timestamp(video_filename, import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
 
     # get list of file to process
-    frame_list = uploader.get_total_file_list(import_path)
+    frame_list = uploader.get_total_frame_list(video_filename, import_path)
 
     if not len(frame_list):
         print("No video frames were sampled.")

@@ -189,6 +189,13 @@ def get_total_file_list(import_path, skip_subfolders=False):
     return sorted(total_file_list)
 
 
+def get_total_frame_list(video_filename, import_path):
+    frame_list = []
+    frame_list.extend(os.path.join(import_path, file) for file in os.listdir(
+        import_path) if file.lower().endswith("jpg") and video_filename in file)
+    return sorted(frame_list)
+
+
 def get_failed_upload_file_list(import_path, skip_subfolders=False):
     failed_upload_file_list = []
     if skip_subfolders:
