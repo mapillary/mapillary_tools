@@ -74,7 +74,6 @@ def sample_video(video_path,
             sys.exit(1)
 
         video_list = uploader.get_video_path_list(video_path)
-        #count = 0
         for video in video_list:
             extract_frames(video,
                            import_path,
@@ -82,8 +81,6 @@ def sample_video(video_path,
                            video_start_time,
                            video_duration_ratio,
                            verbose)
-            # count)
-            #count = frames + 1
     else:
         # single video file
         extract_frames(video_path,
@@ -102,7 +99,6 @@ def extract_frames(video_path,
                    video_start_time=None,
                    video_duration_ratio=1.0,
                    verbose=False):
-                   # start_number=None):
 
     if verbose:
         print('extracting frames from', video_path)
@@ -140,8 +136,6 @@ def extract_frames(video_path,
                                  video_sample_interval,
                                  video_duration_ratio,
                                  verbose)
-
-    # return len(uploader.get_total_file_list(import_path))
 
 
 def get_video_duration(video_path):
