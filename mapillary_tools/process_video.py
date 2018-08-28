@@ -18,7 +18,7 @@ def timestamp_from_filename(video_filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
-    seconds = (int(filename.lstrip("0").rstrip("_{}.jpg".format(video_filename))) - 1) * \
+    seconds = (int(filename.lstrip("0").replace("_{}.jpg".format(video_filename), "")) - 1) * \
         interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
 
@@ -108,7 +108,7 @@ def extract_frames(video_path,
         print('extracting frames from', video_path)
 
     video_path = video_path.replace(" ", "\ ")
-    video_filename = os.path.basename(video_path)
+    video_filename = os.path.basename(video_path).rstrip(".mp4")
 
     command = [
         'ffmpeg',
