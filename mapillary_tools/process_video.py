@@ -17,7 +17,7 @@ def timestamp_from_filename(filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
-    seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
+    seconds = (int(filename.lstrip("0").rstrip(".jpg")) - 1) * \
         interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
 
@@ -71,16 +71,16 @@ def sample_video(video_path,
             sys.exit(1)
 
         video_list = uploader.get_video_path_list(video_path)
-        count = 0
+        #count = 0
         for video in video_list:
-            frames = extract_frames(video,
-                                    import_path,
-                                    video_sample_interval,
-                                    video_start_time,
-                                    video_duration_ratio,
-                                    verbose,
-                                    count)
-            count = frames + 1
+            extract_frames(video,
+                           import_path,
+                           video_sample_interval,
+                           video_start_time,
+                           video_duration_ratio,
+                           verbose)
+            # count)
+            #count = frames + 1
     else:
         # single video file
         extract_frames(video_path,
@@ -98,8 +98,8 @@ def extract_frames(video_path,
                    video_sample_interval=2.0,
                    video_start_time=None,
                    video_duration_ratio=1.0,
-                   verbose=False,
-                   start_number=None):
+                   verbose=False):
+                   # start_number=None):
 
     if verbose:
         print('extracting frames from', video_path)
@@ -113,9 +113,6 @@ def extract_frames(video_path,
         '-vf', 'fps=1/{}'.format(video_sample_interval),
         '-qscale', '1',
     ]
-
-    if start_number != None:
-        command += '-start_number', str(start_number)
 
     command.append('{}/%0{}d.jpg'.format(import_path, ZERO_PADDING))
 
@@ -138,7 +135,7 @@ def extract_frames(video_path,
                                  video_duration_ratio,
                                  verbose)
 
-    return len(uploader.get_total_file_list(import_path))
+    # return len(uploader.get_total_file_list(import_path))
 
 
 def get_video_duration(video_path):
