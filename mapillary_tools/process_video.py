@@ -13,22 +13,25 @@ TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 
-def timestamp_from_filename(filename,
+def timestamp_from_filename(video_filename,
+                            filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
-    seconds = (int(filename.lstrip("0").rstrip(".jpg")) - 1) * \
+    seconds = (int(filename.lstrip("0").rstrip("_{}.jpg".format(video_filename))) - 1) * \
         interval * adjustment
     return start_time + datetime.timedelta(seconds=seconds)
 
 
-def timestamps_from_filename(full_image_list,
+def timestamps_from_filename(video_filename,
+                             full_image_list,
                              start_time,
                              interval=2.0,
                              adjustment=1.0):
     capture_times = []
     for image in full_image_list:
-        capture_times.append(timestamp_from_filename(os.path.basename(image),
+        capture_times.append(timestamp_from_filename(video_filename,
+                                                     os.path.basename(image),
                                                      start_time,
                                                      interval,
                                                      adjustment))
@@ -105,6 +108,7 @@ def extract_frames(video_path,
         print('extracting frames from', video_path)
 
     video_path = video_path.replace(" ", "\ ")
+    video_filename = os.path.basename(video_path)
 
     command = [
         'ffmpeg',
@@ -114,7 +118,8 @@ def extract_frames(video_path,
         '-qscale', '1',
     ]
 
-    command.append('{}/%0{}d.jpg'.format(import_path, ZERO_PADDING))
+    command.append('{}/%0{}d_{}.jpg'.format(import_path,
+                                            ZERO_PADDING, video_filename))
 
     subprocess.call(command)
 
@@ -129,7 +134,8 @@ def extract_frames(video_path,
                    to 0 milliseconds since UNIX epoch.")
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
-    insert_video_frame_timestamp(import_path,
+    insert_video_frame_timestamp(video_filename,
+                                 import_path,
                                  video_start_time,
                                  video_sample_interval,
                                  video_duration_ratio,
@@ -143,7 +149,7 @@ def get_video_duration(video_path):
     return float(FFProbe(video_path).video[0].duration)
 
 
-def insert_video_frame_timestamp(import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
+def insert_video_frame_timestamp(video_filename, import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
 
     # get list of file to process
     frame_list = uploader.get_total_file_list(import_path)
@@ -152,7 +158,8 @@ def insert_video_frame_timestamp(import_path, start_time, sample_interval=2.0, d
         print("No video frames were sampled.")
         return
 
-    video_frame_timestamps = timestamps_from_filename(frame_list,
+    video_frame_timestamps = timestamps_from_filename(video_filename,
+                                                      frame_list,
                                                       start_time,
                                                       sample_interval,
                                                       duration_ratio)
