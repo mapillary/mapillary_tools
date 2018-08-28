@@ -114,7 +114,7 @@ def extract_frames(video_path,
         '-qscale', '1',
     ]
 
-    if start_number:
+    if start_number != None:
         command += '-start_number', str(start_number)
 
     command.append('{}/%0{}d.jpg'.format(import_path, ZERO_PADDING))
