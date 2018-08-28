@@ -15,7 +15,7 @@ TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 def timestamp_from_filename(filename,
                             start_time,
-                            interval=1,
+                            interval=2.0,
                             adjustment=1.0):
     seconds = (int(filename.lstrip("0").rstrip(".jpg"))) * \
         interval * adjustment
@@ -24,7 +24,7 @@ def timestamp_from_filename(filename,
 
 def timestamps_from_filename(full_image_list,
                              start_time,
-                             interval=1,
+                             interval=2.0,
                              adjustment=1.0):
     capture_times = []
     for image in full_image_list:
@@ -67,7 +67,7 @@ def sample_video(video_path,
         # if we pass a directory, process each individually then combine the
         # gpx files
         if geotag_source != 'blackvue':
-            print('Processing a set of video files only supported for Blackvue captures, please set the --geotag_source "blackvue".')
+            print('Processing a set of video files only supported for Blackvue captures, please set the --geotag_source "blackvue" and the --geotag_source_path to the directory of videos captured by Blackvue.')
             sys.exit(1)
 
         video_list = uploader.get_video_path_list(video_path)
@@ -146,7 +146,7 @@ def get_video_duration(video_path):
     return float(FFProbe(video_path).video[0].duration)
 
 
-def insert_video_frame_timestamp(import_path, start_time, sample_interval, duration_ratio=1.0, verbose=False):
+def insert_video_frame_timestamp(import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
 
     # get list of file to process
     frame_list = uploader.get_total_file_list(import_path)
