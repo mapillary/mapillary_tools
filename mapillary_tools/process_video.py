@@ -61,7 +61,7 @@ def sample_video(video_path,
     # set sampling path
     video_sampling_path = processing.sampled_video_frames_rootpath(video_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.dirname(video_path), sampled_video_frames_rootpath)
+        os.path.dirname(video_path), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs

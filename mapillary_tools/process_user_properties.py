@@ -26,7 +26,7 @@ def process_user_properties(import_path,
         video_sampling_path = processing.sampled_video_frames_rootpath(
             video_path)
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-            os.path.dirname(video_path), sampled_video_frames_rootpath)
+            os.path.dirname(video_path), video_sampling_path)
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
@@ -34,6 +34,7 @@ def process_user_properties(import_path,
               " does not exist, exiting...")
         sys.exit(1)
 
+    print(import_path)
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",
