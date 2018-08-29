@@ -166,13 +166,13 @@ def get_upload_file_list(import_path, skip_subfolders=False):
     return sorted(upload_file_list)
 
 
-# get a list of video files in a video_path
-def get_video_path_list(video_path):
-    video_path_list = []
-    for root, dir, files in os.walk(video_path):
-        video_path_list.extend(os.path.join(root, file)
+# get a list of video files in a video_file
+def get_video_file_list(video_file):
+    video_file_list = []
+    for root, dir, files in os.walk(video_file):
+        video_file_list.extend(os.path.join(root, file)
                                for file in files if file.lower().endswith(('mp4')))
-    return sorted(video_path_list)
+    return sorted(video_file_list)
 
 
 def get_total_file_list(import_path, skip_subfolders=False):
