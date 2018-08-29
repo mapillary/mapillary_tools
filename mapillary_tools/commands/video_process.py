@@ -29,7 +29,7 @@ class Command:
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
         # video specific args
-        parser.add_argument('--video_path', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
+        parser.add_argument('--video_file', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
                             action='store', default=None, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)

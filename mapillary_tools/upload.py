@@ -7,7 +7,7 @@ import json
 from exif_aux import verify_mapillary_tag
 
 
-def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False):
+def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False, video_file=None):
     '''
     Upload local images to Mapillary
     Args:
@@ -19,13 +19,25 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False)
     Returns:
         Images are uploaded to Mapillary and flagged locally as uploaded.
     '''
+    # sanity check if video file is passed
+    if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
+        print("Error, video path " + video_file +
+              " does not exist, exiting...")
+        sys.exit(1)
+
+    # in case of video processing, adjust the import path
+    if video_file:
+        # set sampling path
+        video_sampling_path = processing.sampled_video_frames_rootpath(
+            video_file)
+        import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
+            os.path.dirname(video_file), video_sampling_path)
 
     # basic check for all
-    import_path = os.path.abspath(import_path)
-    if not os.path.isdir(import_path):
+    if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
-        sys.exit()
+              " does not exist, exiting...")
+        sys.exit(1)
 
     # get list of file to process
     total_file_list = uploader.get_total_file_list(

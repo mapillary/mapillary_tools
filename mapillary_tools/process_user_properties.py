@@ -11,14 +11,30 @@ def process_user_properties(import_path,
                             master_upload=False,
                             verbose=False,
                             rerun=False,
-                            skip_subfolders=False):
-    # basic check for all
-    import_path = os.path.abspath(import_path)
-    if not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
-        sys.exit()
+                            skip_subfolders=False,
+                            video_file=None):
 
+    # sanity check if video file is passed
+    if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
+        print("Error, video path " + video_file +
+              " does not exist, exiting...")
+        sys.exit(1)
+
+    # in case of video processing, adjust the import path
+    if video_file:
+        # set sampling path
+        video_sampling_path = processing.sampled_video_frames_rootpath(
+            video_file)
+        import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
+            os.path.dirname(video_file), video_sampling_path)
+
+    # basic check for all
+    if not import_path or not os.path.isdir(import_path):
+        print("Error, import directory " + import_path +
+              " does not exist, exiting...")
+        sys.exit(1)
+
+    print(import_path)
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",

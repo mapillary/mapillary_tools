@@ -38,7 +38,7 @@ def timestamps_from_filename(video_filename,
     return capture_times
 
 
-def sample_video(video_path,
+def sample_video(video_file,
                  import_path,
                  geotag_source=None,
                  video_sample_interval=2.0,
@@ -46,34 +46,38 @@ def sample_video(video_path,
                  video_duration_ratio=1.0,
                  verbose=False):
 
-    # basic check for all
-    import_path = os.path.abspath(import_path)
-    if not os.path.isdir(import_path):
+    if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
               " does not exist, exiting...")
         sys.exit(1)
 
     # command specific checks
-    video_path = os.path.abspath(video_path) if (
-        os.path.isfile(video_path) or os.path.isdir(video_path)) else None
-    if not video_path:
-        print("Error, video path " + video_path + " does not exist, exiting...")
+    video_file = os.path.abspath(video_file) if (
+        os.path.isfile(video_file) or os.path.isdir(video_file)) else None
+    if not video_file:
+        print("Error, video path " + video_file + " does not exist, exiting...")
         sys.exit(1)
 
+    # set sampling path
+    video_sampling_path = processing.sampled_video_frames_rootpath(video_file)
+    import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
+        os.path.dirname(video_file), video_sampling_path)
+    print("Video sampling path set to {}".format(import_path))
+
     # check video logs
-    video_upload = processing.video_upload(video_path, import_path, verbose)
+    video_upload = processing.video_upload(video_file, import_path, verbose)
 
     if video_upload:
         return
 
-    if os.path.isdir(video_path):
+    if os.path.isdir(video_file):
         # if we pass a directory, process each individually then combine the
         # gpx files
         if geotag_source != 'blackvue':
             print('Processing a set of video files only supported for Blackvue captures, please set the --geotag_source "blackvue" and the --geotag_source_path to the directory of videos captured by Blackvue.')
             sys.exit(1)
 
-        video_list = uploader.get_video_path_list(video_path)
+        video_list = uploader.get_video_file_list(video_file)
         for video in video_list:
             extract_frames(video,
                            import_path,
@@ -83,17 +87,17 @@ def sample_video(video_path,
                            verbose)
     else:
         # single video file
-        extract_frames(video_path,
+        extract_frames(video_file,
                        import_path,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
                        verbose)
 
-    processing.create_and_log_video_process(video_path, import_path)
+    processing.create_and_log_video_process(video_file, import_path)
 
 
-def extract_frames(video_path,
+def extract_frames(video_file,
                    import_path,
                    video_sample_interval=2.0,
                    video_start_time=None,
@@ -101,14 +105,14 @@ def extract_frames(video_path,
                    verbose=False):
 
     if verbose:
-        print('extracting frames from', video_path)
+        print('extracting frames from', video_file)
 
-    video_path = video_path.replace(" ", "\ ")
-    video_filename = os.path.basename(video_path).rstrip(".mp4")
+    video_file = video_file.replace(" ", "\ ")
+    video_filename = os.path.basename(video_file).rstrip(".mp4")
 
     command = [
         'ffmpeg',
-        '-i', video_path,
+        '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
         '-qscale', '1',
@@ -123,7 +127,7 @@ def extract_frames(video_path,
         video_start_time = datetime.datetime.utcfromtimestamp(
             video_start_time / 1000.)
     else:
-        video_start_time = get_video_start_time(video_path)
+        video_start_time = get_video_start_time(video_file)
         if not video_start_time:
             print("Warning, video start time not provided and could not be \
                    extracted from the video file, default video start time set \
@@ -138,9 +142,9 @@ def extract_frames(video_path,
                                  verbose)
 
 
-def get_video_duration(video_path):
+def get_video_duration(video_file):
     """Get video duration in seconds"""
-    return float(FFProbe(video_path).video[0].duration)
+    return float(FFProbe(video_file).video[0].duration)
 
 
 def insert_video_frame_timestamp(video_filename, import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
@@ -170,10 +174,10 @@ def insert_video_frame_timestamp(video_filename, import_path, start_time, sample
             continue
 
 
-def get_video_start_time(video_path):
+def get_video_start_time(video_file):
     """Get video start time in seconds"""
     try:
-        time_string = FFProbe(video_path).video[0].creation_time
+        time_string = FFProbe(video_file).video[0].creation_time
         try:
             creation_time = datetime.datetime.strptime(
                 time_string, TIME_FORMAT)

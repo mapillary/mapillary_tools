@@ -159,20 +159,20 @@ def get_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
     return sorted(upload_file_list)
 
 
-# get a list of video files in a video_path
-def get_video_path_list(video_path):
-    video_path_list = []
-    for root, dir, files in os.walk(video_path):
-        video_path_list.extend(os.path.join(root, file)
+# get a list of video files in a video_file
+def get_video_file_list(video_file):
+    video_file_list = []
+    for root, dir, files in os.walk(video_file):
+        video_file_list.extend(os.path.join(root, file)
                                for file in files if file.lower().endswith(('mp4')))
-    return sorted(video_path_list)
+    return sorted(video_file_list)
 
 
 def get_total_file_list(import_path, skip_subfolders=False):
@@ -182,7 +182,7 @@ def get_total_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -203,7 +203,7 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
@@ -218,7 +218,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
@@ -270,7 +270,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))

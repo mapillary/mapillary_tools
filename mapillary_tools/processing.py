@@ -555,7 +555,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
                 os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -579,7 +579,7 @@ def get_failed_process_file_list(import_path, process):
 
     failed_process_file_list = []
     for root, dir, files in os.walk(import_path):
-        if ".mapillary" in root:
+        if ".mapillary" in root and "sampled_video_frames" not in root:
             continue
         failed_process_file_list.extend(os.path.join(root, file) for file in files if failed_process(
             os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -598,15 +598,19 @@ def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
 
-def video_upload(video_path, import_path, verbose=False):
-    log_root = uploader.log_rootpath(video_path)
-    import_paths = video_import_paths(video_path)
+def sampled_video_frames_rootpath(filepath):
+    return os.path.join(".mapillary", "sampled_video_frames", os.path.basename(filepath).rstrip(".mp4"))
+
+
+def video_upload(video_file, import_path, verbose=False):
+    log_root = uploader.log_rootpath(video_file)
+    import_paths = video_import_paths(video_file)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
     if import_path not in import_paths:
         import_paths.append(import_path)
     else:
-        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_path, import_path))
+        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
@@ -616,14 +620,14 @@ def video_upload(video_path, import_path, verbose=False):
     return 0
 
 
-def create_and_log_video_process(video_path, import_path):
-    log_root = uploader.log_rootpath(video_path)
+def create_and_log_video_process(video_file, import_path):
+    log_root = uploader.log_rootpath(video_file)
     if not os.path.isdir(log_root):
         os.makedirs(log_root)
     # set the log flags for process
     log_process = os.path.join(
         log_root, "video_process.json")
-    import_paths = video_import_paths(video_path)
+    import_paths = video_import_paths(video_file)
     if import_path in import_paths:
         return
     import_paths.append(import_path)
@@ -632,8 +636,8 @@ def create_and_log_video_process(video_path, import_path):
     save_json(video_process, log_process)
 
 
-def video_import_paths(video_path):
-    log_root = uploader.log_rootpath(video_path)
+def video_import_paths(video_file):
+    log_root = uploader.log_rootpath(video_file)
     if not os.path.isdir(log_root):
         return []
     log_process = os.path.join(
