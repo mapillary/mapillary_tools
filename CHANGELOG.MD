@@ -61,3 +61,10 @@
 
 ### Bug fixes
 * Do not delete the import path in case it is specified as an import path for video files to be sampled into and that particular video file was already sampled into that import path, but rather issue a warning that user needs to delete existing frames that were sampled in any previous runs
+
+## 0.1.6 (2018-08-29)
+
+### Features and improvements
+* Sample video frames into a made up sub directory `.mapillary/sampled_video_frames/"video filename"`, either where the video is located or in the import path if it is specified.
+* Add command line arguments for `user_name`, `user_email` and `user_password` for `authenticate` command, in order to avoid the prompt.
+
