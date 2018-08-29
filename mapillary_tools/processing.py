@@ -598,6 +598,10 @@ def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
 
+def sampled_video_frames_rootpath(filepath):
+    return os.path.join(".mapillary", "sampled_video_frames", os.path.basename(filepath).rstrip(".mp4"))
+
+
 def video_upload(video_path, import_path, verbose=False):
     log_root = uploader.log_rootpath(video_path)
     import_paths = video_import_paths(video_path)

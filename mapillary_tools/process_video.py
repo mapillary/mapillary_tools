@@ -46,9 +46,7 @@ def sample_video(video_path,
                  video_duration_ratio=1.0,
                  verbose=False):
 
-    # basic check for all
-    import_path = os.path.abspath(import_path)
-    if not os.path.isdir(import_path):
+    if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -59,6 +57,12 @@ def sample_video(video_path,
     if not video_path:
         print("Error, video path " + video_path + " does not exist, exiting...")
         sys.exit(1)
+
+    # set sampling path
+    video_sampling_path = processing.sampled_video_frames_rootpath(video_path)
+    import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
+        os.path.dirname(video_path), sampled_video_frames_rootpath)
+    print("Video sampling path set to {}".format(import_path))
 
     # check video logs
     video_upload = processing.video_upload(video_path, import_path, verbose)

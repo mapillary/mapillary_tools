@@ -9,13 +9,28 @@ def process_upload_params(import_path,
                           master_upload=False,
                           verbose=False,
                           rerun=False,
-                          skip_subfolders=False):
+                          skip_subfolders=False,
+                          video_path=None):
+
+    # sanity check if video file is passed
+    if video_path and not (os.path.isdir(video_path) or os.path.isfile(video_path)):
+        print("Error, video path " + video_path +
+              " does not exist, exiting...")
+        sys.exit(1)
+
+    # in case of video processing, adjust the import path
+    if video_path:
+        # set sampling path
+        video_sampling_path = processing.sampled_video_frames_rootpath(
+            video_path)
+        import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
+            os.path.dirname(video_path), sampled_video_frames_rootpath)
+
     # basic check for all
-    import_path = os.path.abspath(import_path)
-    if not os.path.isdir(import_path):
+    if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
-        sys.exit()
+              " does not exist, exiting...")
+        sys.exit(1)
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
