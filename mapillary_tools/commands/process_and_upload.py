@@ -84,6 +84,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
 
     def run(self, args):
 

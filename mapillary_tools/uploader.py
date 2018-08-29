@@ -581,7 +581,10 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, file_params={}):
+def upload_file_list(file_list, file_params={}, number_threads=None):
+
+    if number_threads == None:
+        number_threads = NUMBER_THREADS
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
@@ -590,11 +593,11 @@ def upload_file_list(file_list, file_params={}):
         else:
             q.put((filepath, file_params[filepath]))
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q) for i in range(number_threads)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
-        print("Uploading with {} threads".format(NUMBER_THREADS))
+        print("Uploading with {} threads".format(number_threads))
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()

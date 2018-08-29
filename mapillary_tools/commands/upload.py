@@ -15,8 +15,9 @@ class Command:
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
-        pass
-    
+        parser.add_argument(
+            '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
+
     def run(self, args):
 
         upload(**vars(args))

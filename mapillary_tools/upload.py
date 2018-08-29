@@ -7,7 +7,7 @@ import json
 from exif_aux import verify_mapillary_tag
 
 
-def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False, video_file=None):
+def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False, video_file=None, number_threads=None):
     '''
     Upload local images to Mapillary
     Args:
@@ -87,7 +87,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False,
 
     # call the actual upload, passing the list of images, the root of the
     # import and the upload params
-    uploader.upload_file_list(upload_file_list, params)
+    uploader.upload_file_list(upload_file_list, params, number_threads)
 
     # finalize manual uploads if necessary
     finalize_file_list = uploader.get_finalize_file_list(
