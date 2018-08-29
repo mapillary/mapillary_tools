@@ -611,7 +611,7 @@ def upload_file_list(file_list, file_params={}):
 
 
 def log_rootpath(filepath):
-    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", ".".join(os.path.basename(filepath).split(".")[:-1]))
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.splitext(os.path.basename(filepath))[0])
 
 
 def create_upload_log(filepath, status):

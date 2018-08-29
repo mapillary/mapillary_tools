@@ -40,7 +40,6 @@ def timestamps_from_filename(video_filename,
 
 def sample_video(video_file,
                  import_path,
-                 geotag_source=None,
                  video_sample_interval=2.0,
                  video_start_time=None,
                  video_duration_ratio=1.0,
@@ -71,11 +70,6 @@ def sample_video(video_file,
         return
 
     if os.path.isdir(video_file):
-        # if we pass a directory, process each individually then combine the
-        # gpx files
-        if geotag_source != 'blackvue':
-            print('Processing a set of video files only supported for Blackvue captures, please set the --geotag_source "blackvue" and the --geotag_source_path to the directory of videos captured by Blackvue.')
-            sys.exit(1)
 
         video_list = uploader.get_video_file_list(video_file)
         for video in video_list:
