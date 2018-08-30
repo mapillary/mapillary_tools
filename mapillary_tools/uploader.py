@@ -24,8 +24,8 @@ MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uplo
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
-NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
-MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
+NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
+MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
@@ -141,9 +141,9 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(import_path, max_attempts, finalize_params):
+def finalize_upload(import_path, finalize_params):
     for params in finalize_params:
-        upload_done_file(import_path, max_attempts, params)
+        upload_done_file(import_path, params)
 
 
 def flag_finalization(finalize_file_list):
@@ -487,14 +487,15 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(import_path, max_attempts, params):
+def upload_done_file(import_path, params):
 
     DONE_filepath = os.path.join(import_path, "DONE")
 
     if not os.path.exists(DONE_filepath):
         open(DONE_filepath, 'a').close()
 
-    # upload
+    # upload with many attempts to avoid issues
+    max_attempts = 100
     upload_file(DONE_filepath, max_attempts, **params)
 
     # remove
