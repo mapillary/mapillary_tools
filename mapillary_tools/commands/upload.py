@@ -17,6 +17,8 @@ class Command:
     def add_advanced_arguments(self, parser):
         parser.add_argument(
             '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
+        parser.add_argument(
+            '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
 
     def run(self, args):
 

@@ -50,14 +50,14 @@ class UploadThread(threading.Thread):
     def run(self):
         while True:
             # fetch file from the queue and upload
-            filepath, params = self.q.get()
+            filepath, max_attempts, params = self.q.get()
             if filepath is None:
                 self.q.task_done()
                 break
             else:
                 progress(self.total_task - self.q.qsize(), self.total_task,
                          '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, **params)
+                upload_file(filepath, max_attempts, **params)
                 self.q.task_done()
 
 
@@ -141,9 +141,9 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(import_path, finalize_params):
+def finalize_upload(import_path, max_attempts, finalize_params):
     for params in finalize_params:
-        upload_done_file(import_path, params)
+        upload_done_file(import_path, max_attempts, params)
 
 
 def flag_finalization(finalize_file_list):
@@ -487,7 +487,7 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(import_path, params):
+def upload_done_file(import_path, max_attempts, params):
 
     DONE_filepath = os.path.join(import_path, "DONE")
 
@@ -495,7 +495,7 @@ def upload_done_file(import_path, params):
         open(DONE_filepath, 'a').close()
 
     # upload
-    upload_file(DONE_filepath, **params)
+    upload_file(DONE_filepath, max_attempts, **params)
 
     # remove
     if os.path.exists(DONE_filepath):
@@ -506,11 +506,14 @@ def is_done_file(filename):
     return filename == "DONE"
 
 
-def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
     '''
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
     filename = os.path.basename(filepath)
     done_file = is_done_file(filename)
 
@@ -541,7 +544,7 @@ def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
 
-    for attempt in range(MAX_ATTEMPTS):
+    for attempt in range(max_attempts):
 
         # Initialize response before each attempt
         response = None
@@ -581,17 +584,21 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, file_params={}, number_threads=None):
+def upload_file_list(file_list, file_params={}, number_threads=None, max_attempts=None):
 
+    # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
         if filepath not in file_params:
-            q.put((filepath, UPLOAD_PARAMS))
+            q.put((filepath, max_attempts, UPLOAD_PARAMS))
         else:
-            q.put((filepath, file_params[filepath]))
+            q.put((filepath, max_attempts, file_params[filepath]))
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(number_threads)]
 

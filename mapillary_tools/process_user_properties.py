@@ -34,7 +34,6 @@ def process_user_properties(import_path,
               " does not exist, exiting...")
         sys.exit(1)
 
-    print(import_path)
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",
