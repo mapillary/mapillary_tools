@@ -566,6 +566,49 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     return sorted(process_file_list)
 
 
+def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+
+    status_process_file_list = []
+    if skip_subfolders:
+        status_process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if ".mapillary" in root and "sampled_video_frames" not in root:
+                continue
+            status_process_file_list.extend(os.path.join(root, file) for file in files if process_status(
+                os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    return sorted(status_process_file_list)
+
+
+def process_status(file_path, process, status):
+    log_root = uploader.log_rootpath(file_path)
+    process_status = os.path.join(log_root, process + "_" + status)
+    return os.path.isfile(process_status)
+
+
+def get_duplicate_file_list(import_path, skip_subfolders=False):
+    duplicate_file_list = []
+    if skip_subfolders:
+        duplicate_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if ".mapillary" in root and "sampled_video_frames" not in root:
+                continue
+            duplicate_file_list.extend(os.path.join(root, file) for file in files if is_duplicate(
+                os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    return sorted(duplicate_file_list)
+
+
+def is_duplicate(file_path):
+    log_root = uploader.log_rootpath(file_path)
+    duplicate_flag_path = os.path.join(log_root, "duplicate")
+    return os.path.isfile(duplicate_flag_path)
+
+
 def preform_process(file_path, process, rerun=False):
     log_root = uploader.log_rootpath(file_path)
     process_succes = os.path.join(log_root, process + "_success")
