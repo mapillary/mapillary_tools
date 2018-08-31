@@ -151,7 +151,7 @@ def geotag_from_gopro_video(process_file_list,
             raise Exception
     except:
         print("Error, failed extracting data from gopro video, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
                           import_path,
@@ -180,7 +180,7 @@ def geotag_from_blackvue_video(process_file_list,
             raise Exception
     except Exception:
         print("Error, failed extracting data from blackvue video, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
                           import_path,
@@ -229,7 +229,7 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process"
                                        "failed",
                                        verbose)
-        return
+        sys.exit(1)
 
     if not gps_trace:
         print("Error, gps trace file was not read, images can not be geotagged.")
@@ -237,7 +237,7 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process",
                                        "failed",
                                        verbose)
-        return
+        sys.exit(1)
 
     if use_gps_start_time:
         # update offset time with the gps start time
@@ -785,7 +785,7 @@ def process_organization(user_properties, organization_username=None, organizati
     if not "user_upload_token" in user_properties or not "MAPSettingsUserKey" in user_properties:
         print(
             "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
-        sys.exit()
+        sys.exit(1)
     user_key = user_properties["MAPSettingsUserKey"]
     user_upload_token = user_properties["user_upload_token"]
     if not organization_key and organization_username:
@@ -795,7 +795,7 @@ def process_organization(user_properties, organization_username=None, organizati
                                                              user_upload_token)
         except:
             print("Error, could not obtain organization key, exiting...")
-            sys.exit()
+            sys.exit(1)
 
     # validate key
     try:
@@ -804,7 +804,7 @@ def process_organization(user_properties, organization_username=None, organizati
                                            user_upload_token)
     except:
         print("Error, organization key validation failed, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     # validate privacy
     try:
@@ -814,7 +814,7 @@ def process_organization(user_properties, organization_username=None, organizati
                                                user_upload_token)
     except:
         print("Error, organization privacy validation failed, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     return organization_key
 

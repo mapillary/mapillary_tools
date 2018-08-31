@@ -329,7 +329,7 @@ def get_organization_key(user_key, organization_username, upload_token):
               organization_username)
         print("Available organization user names for current user are : ")
         print(organization_usernames)
-        sys.exit()
+        sys.exit(1)
     return organization_key
 
 
@@ -343,7 +343,7 @@ def validate_organization_key(user_key, organization_key, upload_token):
         if org['key'] == organization_key:
             return
     print("Organization key does not exist.")
-    sys.exit()
+    sys.exit(1)
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
@@ -363,7 +363,7 @@ def validate_organization_privacy(user_key, organization_key, private, upload_to
                 privacy_provided = "private" if private else "public"
                 print("Organization " +
                       org['name'] + " with key " + org['key'] + " is " + privacy + " while your import privacy settings state " + privacy_provided)
-                sys.exit()
+                sys.exit(1)
 
 
 def progress(count, total, suffix=''):

@@ -51,7 +51,7 @@ def process_user_properties(import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     if private and not organization_username and not organization_key:
         print("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
@@ -59,7 +59,7 @@ def process_user_properties(import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     # function calls
     if not master_upload:

@@ -49,7 +49,7 @@ def process_upload_params(import_path,
                                                   "upload_params_process"
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     if not master_upload:
         try:
@@ -60,14 +60,14 @@ def process_upload_params(import_path,
                                                       "upload_params_process"
                                                       "failed",
                                                       verbose)
-            return
+            sys.exit(1)
         if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
             print("Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
                                                       "upload_params_process"
                                                       "failed",
                                                       verbose)
-            return
+            sys.exit(1)
 
         user_upload_token = credentials["user_upload_token"]
         user_permission_hash = credentials["user_permission_hash"]

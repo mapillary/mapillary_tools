@@ -17,6 +17,7 @@ from construct.core import RangeError, ConstError
 Pulls geo data out of a BlackVue video files
 '''
 
+
 def write_gpx(path, data):
     gpx = gpxpy.gpx.GPX()
 
@@ -48,10 +49,10 @@ def get_points_from_bv(path):
             box = Box.parse_stream(fd)
         except RangeError:
             print('error parsing blackvue GPS information, exiting')
-            sys.exit()
+            sys.exit(1)
         except ConstError:
             print('error parsing blackvue GPS information, exiting')
-            sys.exit()
+            sys.exit(1)
 
         if box.type.decode('utf-8') == 'free':
             length = len(box.data)
@@ -84,7 +85,8 @@ def get_points_from_bv(path):
 
                         if "$GPGGA" in m:
                             data = pynmea2.parse(m)
-                            timestamp = datetime.datetime.combine(date, data.timestamp)
+                            timestamp = datetime.datetime.combine(
+                                date, data.timestamp)
                             lat, lon, alt = data.latitude, data.longitude, data.altitude
                             points.append((timestamp, lat, lon, alt))
 
