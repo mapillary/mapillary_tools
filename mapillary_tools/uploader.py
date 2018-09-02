@@ -237,6 +237,30 @@ def success_upload(root, file):
     return success
 
 
+def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False):
+    success_only_manual_upload_file_list = []
+    if skip_subfolders:
+        success_only_manual_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if ".mapillary" in root and "sampled_video_frames" not in root:
+                continue
+            success_only_manual_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(root, file))
+
+    return sorted(success_only_manual_upload_file_list)
+
+
+def success_only_manual_upload(root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(file_path)
+    upload_success = os.path.join(log_root, "upload_success")
+    manual_upload = os.path.join(log_root, "manual_upload")
+    success = os.path.isfile(upload_success) and os.path.isfile(manual_upload)
+    return success
+
+
 def preform_upload(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)

@@ -134,8 +134,10 @@ def post_process(import_path,
     # push images that were uploaded successfully
     # collect upload params
     if push_images:
+        to_be_pushed_files = uploader.get_success_only_manual_upload_file_list(
+            import_path, skip_subfolders)
         params = {}
-        for image in to_be_finalized_files:
+        for image in to_be_pushed_files:
             log_root = uploader.log_rootpath(image)
             upload_params_path = os.path.join(
                 log_root, "upload_params_process.json")
@@ -146,7 +148,7 @@ def post_process(import_path,
 
         # get the s3 locations of the sequences
         finalize_params = uploader.process_upload_finalization(
-            to_be_finalized_files, params)
+            to_be_pushed_files, params)
         uploader.finalize_upload(import_path, finalize_params)
         # flag finalization for each file
-        uploader.flag_finalization(to_be_finalized_files)
+        uploader.flag_finalization(to_be_pushed_files)
