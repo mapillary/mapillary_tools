@@ -92,6 +92,17 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
                             action='store_true', default=False, required=False)
+        # post process
+        parser.add_argument('--summarize', help='Summarize import for given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_images', help='Move images corresponding to sequence uuid, duplicate flag and upload status.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--save_as_json', help='Save summary or file status list in a json.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--list_file_status', help='List file status for given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--push_images', help='Push images uploaded in given import path.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 
@@ -117,3 +128,8 @@ class Command:
 
         insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
                            if k in inspect.getargspec(insert_MAPJson).args}))
+
+        print("Process done.")
+
+        post_process(**({k: v for k, v in vars_args.iteritems()
+                         if k in inspect.getargspec(post_process).args}))
