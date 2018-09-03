@@ -96,6 +96,11 @@ class Command:
         parser.add_argument('--push_images', help='Push images uploaded in given import path.',
                             action='store_true', default=False, required=False)
 
+        # add custom meta data in a form of a string consisting of a triplet
+        # "name,type,value"
+        parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
+                            default=None, required=False)
+
     def run(self, args):
 
         vars_args = vars(args)
