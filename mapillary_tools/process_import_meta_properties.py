@@ -73,7 +73,8 @@ def finalize_import_properties_process(image,
                                        add_import_date=False,
                                        verbose=False,
                                        mapillary_description={},
-                                       custom_meta_data=None):
+                                       custom_meta_data=None,
+                                       camera_uuid=None):
     # always check if there are any command line arguments passed, they will
     if orientation:
         mapillary_description["MAPOrientation"] = orientation
@@ -83,6 +84,8 @@ def finalize_import_properties_process(image,
         mapillary_description['MAPDeviceModel'] = device_model
     if GPS_accuracy:
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
+    if camera_uuid:
+        mapillary_description['MAPCameraUUID'] = camera_uuid
 
     if add_file_name:
         add_meta_tag(mapillary_description,
@@ -101,8 +104,9 @@ def finalize_import_properties_process(image,
                  "mapillary_tools_version",
                  "0.1.6")
 
-    parse_and_add_custom_meta_tags(mapillary_description,
-                                   custom_meta_data)
+    if custom_meta_data:
+        parse_and_add_custom_meta_tags(mapillary_description,
+                                       custom_meta_data)
 
     processing.create_and_log_process(image,
                                       "import_meta_data_process",
@@ -158,7 +162,8 @@ def process_import_meta_properties(import_path,
                                    rerun=False,
                                    skip_subfolders=False,
                                    video_file=None,
-                                   custom_meta_data=None):
+                                   custom_meta_data=None,
+                                   camera_uuid=None):
 
     # sanity check if video file is passed
     if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
@@ -209,4 +214,5 @@ def process_import_meta_properties(import_path,
                                            add_import_date,
                                            verbose,
                                            import_meta_data_properties,
-                                           custom_meta_data)
+                                           custom_meta_data,
+                                           camera_uuid)

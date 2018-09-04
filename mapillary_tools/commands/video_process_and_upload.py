@@ -57,6 +57,8 @@ class Command:
                             choices=[0, 90, 180, 270], type=int, default=None, required=False)
         parser.add_argument(
             "--GPS_accuracy", help="GPS accuracy in meters. Note this input has precedence over the input read from the import source file.", default=None, required=False)
+        parser.add_argument(
+            "--camera_uuid", help="Custom string used to differentiate different captures taken with the same camera make and model.", default=None, required=False)
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
