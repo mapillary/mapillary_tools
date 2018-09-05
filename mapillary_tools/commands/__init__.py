@@ -34,7 +34,7 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
-VERSION = "0.1.2"
+VERSION = "0.1.6"
 
 
 def add_general_arguments(parser, command):
@@ -50,7 +50,7 @@ def add_general_arguments(parser, command):
         '--verbose', help='print debug info', action='store_true', default=False, required=False)
     #import path
     required = True
-    if command == "interpolate":
+    if command in ["interpolate", "video_process", "video_process_and_upload", "sample_video"]:
         required = False
 
     parser.add_argument(

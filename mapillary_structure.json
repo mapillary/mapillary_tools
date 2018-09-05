@@ -14,9 +14,15 @@
         },
         {
           "name": "aws_s3"
+        },
+        {
+          "name": "api_v2"
+        },
+        {
+          "name": "api_v3"
         }
       ],
-      "description": "Mapillary main webpage",
+      "description": "Mapillary tools to upload images to s3",
       "extDependencies": [],
       "dockerparameters": {
          "command": "script/run upload",
@@ -28,6 +34,37 @@
       "services": [{
           "description": "description",
           "name": "mapillary_tools_upload_provider"
+      }],
+      "type": "script"
+    },
+    {
+      "dependencies": [
+        {
+          "name": "harvest_images"
+        },
+        {
+          "name": "aws_s3"
+        },
+        {
+          "name": "api_v2"
+        },
+        {
+          "name": "api_v3"
+        }
+      ],
+      "description": "Mapillary tools to process images before upload them to s3",
+      "extDependencies": [],
+      "dockerparameters": {
+         "command": "script/run process",
+         "volumes": ["./tests:/mapillary_source/tests"],
+         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/config"]
+      },
+      "config_vars": [],
+      "marathon_name": "",
+      "name": "mapillary_tools_process_images_provider",
+      "services": [{
+          "description": "description",
+          "name": "mapillary_tools_process_images_provider"
       }],
       "type": "script"
     }

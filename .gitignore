@@ -9,5 +9,5 @@ tests/integration/mapillary_tools_upload_provider/data/images/.mapillary/
 tests/integration/mapillary_tools_process_images_provider/data/images/.mapillary/
 gitversion
 mapillary_run_provider.yml
-tests/20180212
-config
+build/
+dist/

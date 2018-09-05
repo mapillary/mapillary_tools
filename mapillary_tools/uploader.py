@@ -164,11 +164,20 @@ def get_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
     return sorted(upload_file_list)
+
+
+# get a list of video files in a video_file
+def get_video_file_list(video_file):
+    video_file_list = []
+    for root, dir, files in os.walk(video_file):
+        video_file_list.extend(os.path.join(root, file)
+                               for file in files if file.lower().endswith(('mp4')))
+    return sorted(video_file_list)
 
 
 def get_total_file_list(import_path, skip_subfolders=False):
@@ -178,11 +187,18 @@ def get_total_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     return sorted(total_file_list)
+
+
+def get_total_frame_list(video_filename, import_path):
+    frame_list = []
+    frame_list.extend(os.path.join(import_path, file) for file in os.listdir(
+        import_path) if file.lower().endswith("jpg") and video_filename in file)
+    return sorted(frame_list)
 
 
 def get_failed_upload_file_list(import_path, skip_subfolders=False):
@@ -192,7 +208,7 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
@@ -207,7 +223,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
@@ -259,7 +275,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
@@ -456,10 +472,10 @@ def get_user_key(user_name):
         resp = json.loads(urllib2.urlopen(req).read())
 
     except:
-        return ""
+        return None
     if not resp or 'key' not in resp[0]:
         print("Error, user name {} does not exist...".format(user_name))
-        return ""
+        return None
     return resp[0]['key']
 
 
@@ -491,8 +507,10 @@ def upload_done_file(import_path, params):
     if os.path.exists(DONE_filepath):
         os.remove(DONE_filepath)
 
+
 def is_done_file(filename):
     return filename == "DONE"
+
 
 def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     '''
@@ -599,7 +617,7 @@ def upload_file_list(file_list, file_params={}):
 
 
 def log_rootpath(filepath):
-    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", ".".join(os.path.basename(filepath).split(".")[:-1]))
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.splitext(os.path.basename(filepath))[0])
 
 
 def create_upload_log(filepath, status):

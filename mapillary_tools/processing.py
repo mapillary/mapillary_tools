@@ -17,6 +17,7 @@ import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
+from gpx_from_blackvue import gpx_from_blackvue
 
 
 STATUS_PAIRS = {"success": "failed",
@@ -151,6 +152,36 @@ def geotag_from_gopro_video(process_file_list,
     except:
         print("Error, failed extracting data from gopro video, exiting...")
         sys.exit()
+
+    geotag_from_gps_trace(process_file_list,
+                          import_path,
+                          "gpx",
+                          geotag_source_path,
+                          offset_time,
+                          offset_angle,
+                          local_time,
+                          sub_second_interval,
+                          use_gps_start_time,
+                          verbose)
+
+
+def geotag_from_blackvue_video(process_file_list,
+                               import_path,
+                               geotag_source_path,
+                               offset_time,
+                               offset_angle,
+                               local_time,
+                               sub_second_interval,
+                               use_gps_start_time=False,
+                               verbose=False):
+    try:
+        geotag_source_path = gpx_from_blackvue(geotag_source_path)
+        if not geotag_source_path or not os.path.isfile(geotag_source_path):
+            raise Exception
+    except Exception:
+        print("Error, failed extracting data from blackvue video, exiting...")
+        sys.exit()
+
     geotag_from_gps_trace(process_file_list,
                           import_path,
                           "gpx",
@@ -210,7 +241,8 @@ def geotag_from_gps_trace(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sub_second_times[0] - gps_trace[0][0]).total_seconds()
+        offset_time += (sorted(sub_second_times)
+                        [0] - gps_trace[0][0]).total_seconds()
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
 
@@ -232,7 +264,6 @@ def geotag_from_gps_trace(process_file_list,
 
 
 def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
-
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
@@ -433,14 +464,20 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
     except:
         pass
+    try:
+        if "MAPOrientation" in final_mapillary_image_description:
+            image_exif.add_orientation(
+                final_mapillary_image_description["MAPOrientation"])
+    except:
+        pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
         os.remove(filename_keep_original)
     if keep_original:
         filename = filename_keep_original
-        if not os.path.isdir(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
+        if not os.path.isdir(os.path.dirname(filename_keep_original)):
+            os.makedirs(os.path.dirname(filename_keep_original))
     try:
         image_exif.write(filename=filename)
     except:
@@ -524,7 +561,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and "sampled_video_frames" not in root:
                 continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
                 os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -548,7 +585,7 @@ def get_failed_process_file_list(import_path, process):
 
     failed_process_file_list = []
     for root, dir, files in os.walk(import_path):
-        if ".mapillary" in root:
+        if ".mapillary" in root and "sampled_video_frames" not in root:
             continue
         failed_process_file_list.extend(os.path.join(root, file) for file in files if failed_process(
             os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -567,17 +604,19 @@ def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
 
 
+def sampled_video_frames_rootpath(filepath):
+    return os.path.join(".mapillary", "sampled_video_frames", os.path.basename(filepath).rstrip(".mp4"))
+
+
 def video_upload(video_file, import_path, verbose=False):
     log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
-    if os.path.isdir(import_path):
-        print("Warning, {} has already been sampled into {}, previously sampled frames will be deleted".format(
-            video_file, import_path))
-        shutil.rmtree(import_path)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
     if import_path not in import_paths:
         import_paths.append(import_path)
+    else:
+        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
@@ -733,7 +772,10 @@ def user_properties_master(user_name,
         print("Error, no user key obtained for the user name " + user_name +
               ", check if the user name is spelled correctly and if the master key is correct")
         return None
-    user_properties['MAPSettingsUserKey'] = user_key
+    if user_key:
+        user_properties['MAPSettingsUserKey'] = user_key
+    else:
+        return None
 
     if organization_key:
         user_properties.update(

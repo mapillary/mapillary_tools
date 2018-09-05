@@ -27,7 +27,7 @@ class Command:
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         # video specific args
-        parser.add_argument('--video_file', help='Provide the path to the video file.',
+        parser.add_argument('--video_file', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
                             action='store', default=None, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
@@ -60,7 +60,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video', 'nmea'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)

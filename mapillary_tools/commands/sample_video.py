@@ -8,7 +8,7 @@ class Command:
 
     def add_basic_arguments(self, parser):
         # video specific args
-        parser.add_argument('--video_file', help='Provide the path to the video file.',
+        parser.add_argument('--video_file', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
                             action='store', required=True)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
