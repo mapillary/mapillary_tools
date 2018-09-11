@@ -3,19 +3,25 @@ import sys
 import processing
 import uploader
 import json
+import shutil
 
 
 def post_process(import_path,
+                 split_import_path=None,
                  video_file=None,
                  summarize=False,
                  move_images=False,
+                 move_duplicates=False,
+                 move_uploaded=False,
                  save_as_json=False,
                  list_file_status=False,
                  push_images=False,
-                 skip_subfolders=False):
+                 skip_subfolders=False,
+                 verbose=False):
 
     # return if nothing specified
-    if not summarize and not move_images and not list_file_status and not push_images:
+    if not summarize and not move_images and not list_file_status and not push_images and not move_duplicates and not move_uploaded:
+        print("No post processing action specified.")
         return
 
     # sanity check if video file is passed
@@ -38,7 +44,7 @@ def post_process(import_path,
               " does not exist, exiting...")
         sys.exit(1)
 
-    print("Reading import logs for import path {} :".format(import_path))
+    print("Reading import logs for import path {}...".format(import_path))
 
     # collect logs
     summary_dict = {}
@@ -152,3 +158,90 @@ def post_process(import_path,
         uploader.finalize_upload(import_path, finalize_params)
         # flag finalization for each file
         uploader.flag_finalization(to_be_pushed_files)
+
+    if move_images or move_duplicates or move_uploaded:
+        print("Note that images will be moved along with their mapillary logs in order to preserve the import status")
+        defualt_split_import_path = os.path.join(
+            import_path, "mapillary_import_split_images")
+        if not split_import_path:
+            final_split_path = defualt_split_import_path
+            print(
+                "Split import path not provided and will therefore be set to default path {}".format(defualt_split_import_path))
+        if split_import_path:
+            if not os.path.isfile(split_import_path):
+                final_split_path = defualt_split_import_path
+                print("Split import path does not exist, split import path will be set to default path {}".format(
+                    defualt_split_import_path))
+            else:
+                final_split_path = split_import_path
+        print("")
+        print("Splitting import path {} into {} based on image import status...".format(
+            import_path, final_split_path))
+        if move_images:
+            move_duplicates = True
+            move_uploaded = True
+            # move failed uploads
+            if not len(failed_upload_files):
+                print(
+                    "There are no failed upload images in the specified import path.")
+            else:
+                failed_upload_path = os.path.join(
+                    final_split_path, "upload_failed")
+
+                if not os.path.isdir(failed_upload_path):
+                    os.makedirs(failed_upload_path)
+
+                for failed in failed_upload_files:
+                    failed_upload_image_path = os.path.join(
+                        failed_upload_path, os.path.basename(failed))
+                    os.rename(failed, failed_upload_path)
+                    failed_upload_log_path = uploader.log_rootpath(
+                        failed_upload_image_path)
+                    if not os.path.isdir(failed_upload_log_path):
+                        os.makedirs(failed_upload_log_path)
+                    shutil.move(uploader.log_rootpath(failed),
+                                failed_upload_log_path)
+                print("Done moving failed upload images to {}".format(
+                    failed_upload_path))
+        if move_duplicates:
+            if not len(duplicates_file_list):
+                print("There were no duplicates flagged in the specified import path. If you are processing the images with mapillary_tools and would like to flag duplicates, you must specify --advanced --flag_duplicates")
+            else:
+                duplicate_path = os.path.join(final_split_path, "duplicates")
+                if not os.path.isdir(duplicate_path):
+                    os.makedirs(duplicate_path)
+                for duplicate in duplicates_file_list:
+                    duplicate_image_path = os.path.join(
+                        duplicate_path, os.path.basename(duplicate))
+                    os.rename(duplicate, duplicate_image_path)
+                    duplicate_log_path = uploader.log_rootpath(
+                        duplicate_image_path)
+                    if not os.path.isdir(duplicate_log_path):
+                        os.makedirs(duplicate_log_path)
+                    shutil.move(uploader.log_rootpath(duplicate),
+                                duplicate_log_path)
+                print("Done moving duplicate images to {}".format(
+                    duplicate_path))
+        if move_uploaded:
+            if not len(uploaded_files):
+                print(
+                    "There are no successfuly uploaded images in the specified import path.")
+            else:
+                upload_success_path = os.path.join(
+                    final_split_path, "upload_success")
+
+                if not os.path.isdir(upload_success_path):
+                    os.makedirs(upload_success_path)
+
+                for uploaded in uploaded_files:
+                    uploaded_image_path = os.path.join(
+                        upload_success_path, os.path.basename(uploaded))
+                    os.rename(uploaded, upload_success_path)
+                    uploaded_log_path = uploader.log_rootpath(
+                        uploaded_image_path)
+                    if not os.path.isdir(uploaded_log_path):
+                        os.makedirs(uploaded_log_path)
+                    shutil.move(uploader.log_rootpath(uploaded),
+                                uploaded_log_path)
+                print("Done moving successfully uploaded images to {}".format(
+                    upload_success_path))

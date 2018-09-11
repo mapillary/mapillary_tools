@@ -102,6 +102,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--push_images', help='Push images uploaded in given import path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--split_import_path', help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.', default=None, required=False)
 
         # add custom meta data in a form of a string consisting of a triplet
         # "name,type,value"

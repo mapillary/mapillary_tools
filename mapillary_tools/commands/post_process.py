@@ -4,7 +4,7 @@ from mapillary_tools.post_process import post_process
 
 class Command:
     name = 'post_process'
-    help = 'Advanced tool : Post process for a given import path.'
+    help = 'Post process tool : Post process for a given import path, including import summary and grouping/moving based on import status.'
 
     def add_basic_arguments(self, parser):
 
@@ -19,7 +19,11 @@ class Command:
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
                             action='store_true', default=False, required=False)
-        parser.add_argument('--move_images', help='Move images corresponding to sequence uuid, duplicate flag and upload status.',
+        parser.add_argument('--move_images', help='Move images corresponding to import status.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_duplicates', help='Move images in case they were flagged as duplicates.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_uploaded', help='Move images in case they were uploaded successfully.',
                             action='store_true', default=False, required=False)
         parser.add_argument('--save_as_json', help='Save summary or file status list in a json.',
                             action='store_true', default=False, required=False)
@@ -27,6 +31,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--push_images', help='Push images uploaded in given import path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument('--split_import_path', help='Provide the path where the images should be moved to based on the import status.',
+                            action='store', required=False, default=None)
 
     def run(self, args):
 
