@@ -109,7 +109,7 @@ def post_process(import_path,
 
     # summary
     if summarize:
-        print("\n")
+        print("")
         print("Import summary for import path {} :".format(import_path))
         print(json.dumps(summary_dict, indent=4))
 
@@ -124,7 +124,7 @@ def post_process(import_path,
 
     # list file status
     if list_file_status:
-        print("\n")
+        print("")
         print("List of file status for import path {} :".format(import_path))
         print(json.dumps(status_list_dict, indent=4))
 
@@ -160,11 +160,13 @@ def post_process(import_path,
         uploader.flag_finalization(to_be_pushed_files)
 
     if move_images or move_duplicates or move_uploaded:
+        print("")
         print("Note that images will be moved along with their mapillary logs in order to preserve the import status")
         defualt_split_import_path = os.path.join(
             import_path, "mapillary_import_split_images")
         if not split_import_path:
             final_split_path = defualt_split_import_path
+            print("")
             print(
                 "Split import path not provided and will therefore be set to default path {}".format(defualt_split_import_path))
         if split_import_path:
@@ -182,6 +184,7 @@ def post_process(import_path,
             move_uploaded = True
             # move failed uploads
             if not len(failed_upload_files):
+                print("")
                 print(
                     "There are no failed upload images in the specified import path.")
             else:
@@ -195,16 +198,18 @@ def post_process(import_path,
                     failed_upload_image_path = os.path.join(
                         failed_upload_path, os.path.basename(failed))
                     os.rename(failed, failed_upload_path)
-                    failed_upload_log_path = uploader.log_rootpath(
-                        failed_upload_image_path)
+                    failed_upload_log_path = os.path.dirname(uploader.log_rootpath(
+                        failed_upload_image_path))
                     if not os.path.isdir(failed_upload_log_path):
                         os.makedirs(failed_upload_log_path)
                     shutil.move(uploader.log_rootpath(failed),
                                 failed_upload_log_path)
+                print("")
                 print("Done moving failed upload images to {}".format(
                     failed_upload_path))
         if move_duplicates:
             if not len(duplicates_file_list):
+                print("")
                 print("There were no duplicates flagged in the specified import path. If you are processing the images with mapillary_tools and would like to flag duplicates, you must specify --advanced --flag_duplicates")
             else:
                 duplicate_path = os.path.join(final_split_path, "duplicates")
@@ -214,16 +219,18 @@ def post_process(import_path,
                     duplicate_image_path = os.path.join(
                         duplicate_path, os.path.basename(duplicate))
                     os.rename(duplicate, duplicate_image_path)
-                    duplicate_log_path = uploader.log_rootpath(
-                        duplicate_image_path)
+                    duplicate_log_path = os.path.dirname(uploader.log_rootpath(
+                        duplicate_image_path))
                     if not os.path.isdir(duplicate_log_path):
                         os.makedirs(duplicate_log_path)
                     shutil.move(uploader.log_rootpath(duplicate),
                                 duplicate_log_path)
+                print("")
                 print("Done moving duplicate images to {}".format(
                     duplicate_path))
         if move_uploaded:
             if not len(uploaded_files):
+                print("")
                 print(
                     "There are no successfuly uploaded images in the specified import path.")
             else:
@@ -237,11 +244,12 @@ def post_process(import_path,
                     uploaded_image_path = os.path.join(
                         upload_success_path, os.path.basename(uploaded))
                     os.rename(uploaded, upload_success_path)
-                    uploaded_log_path = uploader.log_rootpath(
-                        uploaded_image_path)
+                    uploaded_log_path = os.path.dirname(uploader.log_rootpath(
+                        uploaded_image_path))
                     if not os.path.isdir(uploaded_log_path):
                         os.makedirs(uploaded_log_path)
                     shutil.move(uploader.log_rootpath(uploaded),
                                 uploaded_log_path)
+                print("")
                 print("Done moving successfully uploaded images to {}".format(
                     upload_success_path))
