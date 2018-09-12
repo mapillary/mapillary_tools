@@ -470,8 +470,8 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
 then in vim editor:
 
 ```
- > :set ff=unix
- > :wq
+ :set ff=unix
+ :wq
  ```
  
 #### Run time issues
