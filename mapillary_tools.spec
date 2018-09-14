@@ -5,12 +5,12 @@ block_cipher = None
 options = [('u', None, 'OPTION')]
 
 a = Analysis(['bin/mapillary_tools'],
-             pathex=['/Users/matias/code/mapillary/mapillary_tools'],
+             pathex=[SPECPATH],
              binaries=[],
              datas=[],
              hiddenimports=[],
-             hookspath=[],
-             runtime_hooks=[],
+             hookspath=['./pyinstaller/hooks'],
+             runtime_hooks=['./pyinstaller/runtime-hooks/ssl.py'],
              excludes=[],
              win_no_prefer_redirects=False,
              win_private_assemblies=False,
