@@ -468,7 +468,7 @@ def set_master_key():
 
 def get_user_key(user_name):
     try:
-        req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
+        req = urllib2.Request(USER_URL.format(urllib2.quote(user_name), CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
 
     except:
