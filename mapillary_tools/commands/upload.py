@@ -1,5 +1,6 @@
 import inspect
 from mapillary_tools.upload import upload
+from mapillary_tools.post_process import post_process
 
 
 class Command:
