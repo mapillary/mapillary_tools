@@ -68,3 +68,7 @@
 * Sample video frames into a made up sub directory `.mapillary/sampled_video_frames/"video filename"`, either where the video is located or in the import path if it is specified.
 * Add command line arguments for `user_name`, `user_email` and `user_password` for `authenticate` command, in order to avoid the prompt.
 
+## 0.1.7 (2018-09-18)
+
+### Bug fixes
+* Fix bug that resulted in sub seconds added twice in case subseconds were written to capture time tag as well as sub second time tag.
