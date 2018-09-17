@@ -24,16 +24,19 @@ def format_time(time_string):
 
     e.g. 2014_03_31_24_10_11 => 2014_04_01_00_10_11
     '''
+    subseconds = False
     data = time_string.split("_")
     hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
     date = datetime.datetime.strptime("_".join(data[:3]), "%Y_%m_%d")
-    subsec = 0
+    subsec = 0.0
     if len(data) == 7:
-        subsec = float(data[6]) / 10**len(data[6])
+        if float(data[6]) != 0:
+            subsec = float(data[6]) / 10**len(data[6])
+            subseconds = True
     date_time = date + \
         datetime.timedelta(hours=hours, minutes=minutes,
                            seconds=seconds + subsec)
-    return date_time
+    return date_time, subseconds
 
 
 def gps_to_decimal(values, reference):
@@ -165,8 +168,10 @@ class ExifRead:
             capture_time = capture_time.replace("-", "_")
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()])
-            capture_time = format_time(capture_time)
-            sub_sec = self.extract_subsec()
+            capture_time, subseconds = format_time(capture_time)
+            sub_sec = "0"
+            if not subseconds:
+                sub_sec = self.extract_subsec()
             capture_time = capture_time + \
                 datetime.timedelta(seconds=float("0." + sub_sec))
 
