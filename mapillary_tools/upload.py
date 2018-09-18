@@ -104,7 +104,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False,
             # get the s3 locations of the sequences
             finalize_params = uploader.process_upload_finalization(
                 finalize_file_list, params)
-            uploader.finalize_upload(import_path, finalize_params)
+            uploader.finalize_upload(finalize_params)
             # flag finalization for each file
             uploader.flag_finalization(finalize_file_list)
         else:

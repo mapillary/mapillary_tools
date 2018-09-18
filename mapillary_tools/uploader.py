@@ -148,9 +148,9 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(import_path, finalize_params):
+def finalize_upload(finalize_params):
     for params in finalize_params:
-        upload_done_file(import_path, params)
+        upload_done_file(**params)
 
 
 def flag_finalization(finalize_file_list):
@@ -501,7 +501,6 @@ def get_user_key(user_name):
         req = urllib2.Request(USER_URL.format(
             urllib2.quote(user_name), CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
-
     except:
         return None
     if not resp or 'key' not in resp[0]:
@@ -524,24 +523,51 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(import_path, params):
-
-    DONE_filepath = os.path.join(import_path, "DONE")
-
-    if not os.path.exists(DONE_filepath):
-        open(DONE_filepath, 'a').close()
+def upload_done_file(url, permission, signature, key=None, aws_key=None):
 
     # upload with many attempts to avoid issues
     max_attempts = 100
-    upload_file(DONE_filepath, max_attempts, **params)
+    s3_filename = "DONE"
+    if key is None:
+        s3_key = s3_filename
+    else:
+        s3_key = key + s3_filename
 
-    # remove
-    if os.path.exists(DONE_filepath):
-        os.remove(DONE_filepath)
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
+                  "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
+    encoded_string = ''
 
-def is_done_file(filename):
-    return filename == "DONE"
+    data, headers = encode_multipart(
+        parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
+
+    for attempt in range(max_attempts):
+
+        # Initialize response before each attempt
+        response = None
+
+        try:
+            request = urllib2.Request(url, data=data, headers=headers)
+            response = urllib2.urlopen(request)
+            break  # attempts
+        except urllib2.HTTPError as e:
+            print("HTTP error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except urllib2.URLError as e:
+            print("URL error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except httplib.HTTPException as e:
+            print("HTTP exception: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except OSError as e:
+            print("OS error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except socket.timeout as e:
+            # Specific timeout handling for Python 2.7
+            print("Timeout error: {0} (retrying)".format(s3_filename))
+        finally:
+            if response is not None:
+                response.close()
 
 
 def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
@@ -553,12 +579,10 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
         max_attempts = MAX_ATTEMPTS
 
     filename = os.path.basename(filepath)
-    done_file = is_done_file(filename)
 
     s3_filename = filename
     try:
-        if not done_file:
-            s3_filename = ExifRead(filepath).exif_name()
+        s3_filename = ExifRead(filepath).exif_name()
     except:
         pass
 
@@ -590,11 +614,10 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
-            if not done_file:
-                if response.getcode() == 204:
-                    create_upload_log(filepath_in, "upload_success")
-                else:
-                    create_upload_log(filepath_in, "upload_failed")
+            if response.getcode() == 204:
+                create_upload_log(filepath_in, "upload_success")
+            else:
+                create_upload_log(filepath_in, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:

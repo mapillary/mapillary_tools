@@ -155,7 +155,7 @@ def post_process(import_path,
         # get the s3 locations of the sequences
         finalize_params = uploader.process_upload_finalization(
             to_be_pushed_files, params)
-        uploader.finalize_upload(import_path, finalize_params)
+        uploader.finalize_upload(finalize_params)
         # flag finalization for each file
         uploader.flag_finalization(to_be_pushed_files)
 
