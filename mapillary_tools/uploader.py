@@ -19,7 +19,8 @@ import processing
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 else:
-    MAPILLARY_UPLOAD_URL = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
+    MAPILLARY_UPLOAD_URL = "{}/{}".format(
+        os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
 
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
@@ -29,7 +30,8 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
-CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
+                      "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
 
 if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
@@ -443,7 +445,11 @@ def authenticate_user(user_name):
     user_items = prompt_user_for_user_items(user_name)
     if not user_items:
         return None
-    config.create_config(GLOBAL_CONFIG_FILEPATH)
+    try:
+        config.create_config(GLOBAL_CONFIG_FILEPATH)
+    except Exception as e:
+        print("Failed to create authentication config file due to ".format(e))
+        sys.exit()
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
@@ -492,7 +498,8 @@ def set_master_key():
 
 def get_user_key(user_name):
     try:
-        req = urllib2.Request(USER_URL.format(urllib2.quote(user_name), CLIENT_ID))
+        req = urllib2.Request(USER_URL.format(
+            urllib2.quote(user_name), CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
 
     except:

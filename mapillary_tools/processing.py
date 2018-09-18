@@ -769,9 +769,11 @@ def user_properties(user_name,
         user_properties = uploader.authenticate_user(user_name)
     except:
         print("Error, user authentication failed for user " + user_name)
+        print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
         return None
     if not user_properties:
         print("Error, user authentication failed for user " + user_name)
+        print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
         return None
     # organization validation
     if organization_username or organization_key:
