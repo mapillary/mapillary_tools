@@ -22,7 +22,7 @@ def format_datetime(timestamps_interpolated, time_utc=False, time_format="%Y-%m-
                                        * 1000.0) for datetime_timestamp in timestamps_interpolated]
         except:
             print("Formating timestamps from datetime to UTC failed...")
-            sys.exit()
+            sys.exit(1)
     else:
         try:
             timestamps_formated = [datetime_timestamp.strftime(
@@ -30,7 +30,7 @@ def format_datetime(timestamps_interpolated, time_utc=False, time_format="%Y-%m-
         except:
             print("Formating timestamps from datetime to time format {} failed...".format(
                 time_format))
-            sys.exit()
+            sys.exit(1)
     return timestamps_formated
 
 
@@ -50,19 +50,19 @@ def interpolation(data,
     if not data:
         print("Error, you must specify the data for interpolation.")
         print('Choose between "missing_gps" or "identical_timestamps"')
-        sys.exit()
+        sys.exit(1)
 
     if not import_path and not file_in_path:
         print("Error, you must specify a path to data, either path to directory with images or path to an external log file.")
-        sys.exit()
+        sys.exit(1)
 
     if file_in_path:
         if not os.path.isfile(file_in_path):
             print("Error, specified input file does not exist, exiting...")
-            sys.exit()
+            sys.exit(1)
         if file_format != "csv":
             print("Only csv file format is supported at the moment, exiting...")
-            sys.exit()
+            sys.exit(1)
 
         csv_data = process_csv.read_csv(
             file_in_path, delimiter=delimiter, header=header)
@@ -89,21 +89,21 @@ def interpolation(data,
         elif data == "missing_gps":
             print(
                 "Error, missing gps interpolation in an external log file not supported yet, exiting...")
-            sys.exit()
+            sys.exit(1)
         else:
             print("Error unsupported data for interpolation, exiting...")
-            sys.exit()
+            sys.exit(1)
 
     if import_path:
         if not os.path.isdir(import_path):
             print("Error, specified import path does not exist, exiting...")
-            sys.exit()
+            sys.exit(1)
 
         # get list of files to process
         process_file_list = uploader.get_total_file_list(import_path)
         if not len(process_file_list):
             print("No images found in the import path " + import_path)
-            sys.exit()
+            sys.exit(1)
 
         if data == "missing_gps":
             # get geotags from images and a list of tuples with images missing geotags
@@ -113,10 +113,10 @@ def interpolation(data,
             if not len(missing_geotags):
                 print("No images in directory {} missing geotags, exiting...".format(
                     import_path))
-                sys.exit()
+                sys.exit(1)
             if not len(geotags):
                 print("No images in directory {} with geotags.".format(import_path))
-                sys.exit()
+                sys.exit(1)
 
             sys.stdout.write("Interpolating gps for {} images missing geotags.".format(
                 len(missing_geotags)))
@@ -217,5 +217,5 @@ def interpolation(data,
             sys.exit()
         else:
             print("Error unsupported data for interpolation, exiting...")
-            sys.exit()
+            sys.exit(1)
     print("")

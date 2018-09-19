@@ -67,7 +67,7 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False,
     if not len(upload_file_list):
         print("No images to upload.")
         print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
-        sys.exit()
+        sys.exit(1)
 
     # get upload params
     params = {}

@@ -35,7 +35,7 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
         if any([not(x) for x in [meta_columns, meta_names, meta_types]]):
             print(
                 "Error, if extracting meta data you need to specify meta_columns, meta_names and meta_types.")
-            sys.exit()
+            sys.exit(1)
 
         # get meta data column numbers
         meta_columns = meta_columns.split(",")
@@ -43,7 +43,7 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
             meta_columns = [int(field) - 1 for field in meta_columns]
         except:
             print('Error, meta column numbers could not be extracted. Meta column numbers need to be separated with commas, example "7,9,10"')
-            sys.exit()
+            sys.exit(1)
 
         # get meta data names and types
         meta_names = meta_names.split(",")
@@ -53,14 +53,14 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
         if len(meta_columns) != len(meta_names) or len(meta_types) != len(meta_names):
             print(
                 "Error, number of meta data column numbers, types and names must be the same.")
-            sys.exit()
+            sys.exit(1)
 
         # check if types are valid
         for meta_type in meta_types:
             if meta_type not in META_DATA_TYPES:
                 print("Error, invalid meta data type, valid types are " +
                       str(META_DATA_TYPES))
-                sys.exit()
+                sys.exit(1)
     return meta_columns, meta_names, meta_types
 
 
@@ -203,32 +203,32 @@ def process_csv(import_path,
     if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
               " doesnt not exist, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     if not csv_path or not os.path.isfile(csv_path):
         print("Error, csv file not provided or does not exist. Please specify a valid path to a csv file.")
-        sys.exit()
+        sys.exit(1)
 
     # get list of file to process
     process_file_list = uploader.get_total_file_list(import_path)
     if not len(process_file_list):
         print("No images found in the import path " + import_path)
-        sys.exit()
+        sys.exit(1)
 
     if gps_week_column != None and convert_gps_time == False:
         print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     if (convert_gps_time != False or convert_utc_time != False) and timestamp_column == None:
         print("Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting...")
-        sys.exit()
+        sys.exit(1)
 
     column_indexes = [filename_column, timestamp_column,
                       latitude_column, longitude_column, heading_column, altitude_column, gps_week_column]
 
     if any([column == 0 for column in column_indexes]):
         print("Error, csv column numbers start with 1, one of the columns specified is 0.")
-        sys.exit()
+        sys.exit(1)
 
     column_indexes = map(lambda x: x - 1 if x else None, column_indexes)
 
