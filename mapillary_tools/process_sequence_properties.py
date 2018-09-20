@@ -132,9 +132,10 @@ def process_sequence_properties(import_path,
         # COMPUTE DIRECTIONS --------------------------------------
         interpolated_directions = [compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
                                    for ll1, ll2 in zip(latlons[:-1], latlons[1:])]
-        print("directions {}".format(len(directions)))
-        print("interpolated {}".format(len(interpolated_directions)))
-        interpolated_directions.append(interpolated_directions[-1])
+        if len(interpolated_directions):
+            interpolated_directions.append(interpolated_directions[-1])
+        else:
+            interpolated_directions.append(directions[-1])
         # use interpolated directions if direction not available or if flag for
         # interpolate_directions
         for i, d in enumerate(directions):
