@@ -101,7 +101,7 @@ def process_geotag_properties(import_path,
                                                                sub_second_interval,
                                                                use_gps_start_time,
                                                                verbose)
-    elif geotag_source == "blackvue":
+    elif geotag_source == "blackvue_videos":
         geotag_properties = processing.geotag_from_blackvue_video(process_file_list,
                                                                   import_path,
                                                                   geotag_source_path,

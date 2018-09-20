@@ -63,7 +63,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue_videos'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
