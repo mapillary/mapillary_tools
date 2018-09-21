@@ -95,7 +95,7 @@ def process_sequence_properties(import_path,
     else:
         # sequence limited to the root of the files
         for root, dirs, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             if len(files):
                 process_file_list = processing.get_process_file_list(import_path,

@@ -19,7 +19,8 @@ import processing
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
 else:
-    MAPILLARY_UPLOAD_URL = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
+    MAPILLARY_UPLOAD_URL = "{}/{}".format(
+        os.getenv("AWS_S3_ENDPOINT"), "mtf_upload_images")
 
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
@@ -29,7 +30,8 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
-CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
+                      "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
 
 if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
@@ -164,7 +166,7 @@ def get_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
@@ -187,7 +189,7 @@ def get_total_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -208,7 +210,7 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
@@ -223,7 +225,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
@@ -275,7 +277,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
