@@ -561,7 +561,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
                 os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -580,7 +580,7 @@ def get_process_status_file_list(import_path, process, status, skip_subfolders=F
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             status_process_file_list.extend(os.path.join(root, file) for file in files if process_status(
                 os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -601,7 +601,7 @@ def get_duplicate_file_list(import_path, skip_subfolders=False):
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
     else:
         for root, dir, files in os.walk(import_path):
-            if ".mapillary" in root and "sampled_video_frames" not in root:
+            if os.path.join(".mapillary", "logs") in root:
                 continue
             duplicate_file_list.extend(os.path.join(root, file) for file in files if is_duplicate(
                 os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
@@ -628,7 +628,7 @@ def get_failed_process_file_list(import_path, process):
 
     failed_process_file_list = []
     for root, dir, files in os.walk(import_path):
-        if ".mapillary" in root and "sampled_video_frames" not in root:
+        if os.path.join(".mapillary", "logs") in root:
             continue
         failed_process_file_list.extend(os.path.join(root, file) for file in files if failed_process(
             os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
