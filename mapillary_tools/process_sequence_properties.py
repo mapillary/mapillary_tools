@@ -95,7 +95,7 @@ def process_sequence_properties(import_path,
     else:
         # sequence limited to the root of the files
         for root, dirs, files in os.walk(import_path):
-            if ".mapillary" in root:
+            if ".mapillary" in root and not "sampled_video_frames" in root:
                 continue
             if len(files):
                 process_file_list = processing.get_process_file_list(import_path,
@@ -110,12 +110,10 @@ def process_sequence_properties(import_path,
                         print(
                             "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
                     continue
-
                 # LOAD TIME AND GPS POINTS ------------------------------------
                 file_list, capture_times, lats, lons, directions = processing.load_geotag_points(
                     process_file_list, verbose)
                 # ---------------------------------------
-
                 # SPLIT SEQUENCES --------------------------------------
                 if len(capture_times) and len(lats) and len(lons):
                     sequences.extend(processing.split_sequences(
