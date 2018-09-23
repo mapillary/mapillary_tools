@@ -56,7 +56,7 @@ def process_geotag_properties(import_path,
                                                   "geotag_process"
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
     elif geotag_source != "exif" and not os.path.isfile(geotag_source_path) and not os.path.isdir(geotag_source_path):
         print("Error, " + geotag_source_path +
               " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file.")
@@ -64,7 +64,7 @@ def process_geotag_properties(import_path,
                                                   "geotag_process"
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     # function calls
     if geotag_source == "exif":
@@ -101,7 +101,7 @@ def process_geotag_properties(import_path,
                                                                sub_second_interval,
                                                                use_gps_start_time,
                                                                verbose)
-    elif geotag_source == "blackvue":
+    elif geotag_source == "blackvue_videos":
         geotag_properties = processing.geotag_from_blackvue_video(process_file_list,
                                                                   import_path,
                                                                   geotag_source_path,
@@ -118,3 +118,4 @@ def process_geotag_properties(import_path,
                                                         offset_time,
                                                         offset_angle,
                                                         verbose)
+    print("Sub process finished")

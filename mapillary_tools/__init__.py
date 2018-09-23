@@ -21,5 +21,6 @@ import ffmpeg
 import commands
 import process_csv
 import interpolation
+import post_process
 
-VERSION = "0.1.4"
+VERSION = "0.1.6"

@@ -73,8 +73,14 @@ def geotag_from_exif(process_file_list,
                      import_path,
                      offset_angle=0.0,
                      verbose=False):
-
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         geotag_properties = get_geotag_properties_from_exif(
             image, offset_angle, verbose)
 
@@ -229,7 +235,7 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process"
                                        "failed",
                                        verbose)
-        return
+        sys.exit(1)
 
     if not gps_trace:
         print("Error, gps trace file was not read, images can not be geotagged.")
@@ -237,15 +243,23 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process",
                                        "failed",
                                        verbose)
-        return
+        sys.exit(1)
 
     if use_gps_start_time:
         # update offset time with the gps start time
         offset_time += (sorted(sub_second_times)
                         [0] - gps_trace[0][0]).total_seconds()
+    if verbose:
+        sys.stdout.write("Geotagging from gpx trace...")
+    progress_count = 0
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
-
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         if not capture_time:
             print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
@@ -572,6 +586,49 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     return sorted(process_file_list)
 
 
+def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+
+    status_process_file_list = []
+    if skip_subfolders:
+        status_process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if os.path.join(".mapillary", "logs") in root:
+                continue
+            status_process_file_list.extend(os.path.join(root, file) for file in files if process_status(
+                os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    return sorted(status_process_file_list)
+
+
+def process_status(file_path, process, status):
+    log_root = uploader.log_rootpath(file_path)
+    process_status = os.path.join(log_root, process + "_" + status)
+    return os.path.isfile(process_status)
+
+
+def get_duplicate_file_list(import_path, skip_subfolders=False):
+    duplicate_file_list = []
+    if skip_subfolders:
+        duplicate_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if os.path.join(".mapillary", "logs") in root:
+                continue
+            duplicate_file_list.extend(os.path.join(root, file) for file in files if is_duplicate(
+                os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+
+    return sorted(duplicate_file_list)
+
+
+def is_duplicate(file_path):
+    log_root = uploader.log_rootpath(file_path)
+    duplicate_flag_path = os.path.join(log_root, "duplicate")
+    return os.path.isfile(duplicate_flag_path)
+
+
 def preform_process(file_path, process, rerun=False):
     log_root = uploader.log_rootpath(file_path)
     process_succes = os.path.join(log_root, process + "_success")
@@ -661,7 +718,16 @@ def create_and_log_process_in_list(process_file_list,
                                    status,
                                    verbose=False,
                                    mapillary_description={}):
+    if verbose:
+        sys.stdout.write("Logging...")
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         create_and_log_process(image,
                                process,
                                status,
@@ -726,9 +792,11 @@ def user_properties(user_name,
         user_properties = uploader.authenticate_user(user_name)
     except:
         print("Error, user authentication failed for user " + user_name)
+        print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
         return None
     if not user_properties:
         print("Error, user authentication failed for user " + user_name)
+        print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
         return None
     # organization validation
     if organization_username or organization_key:
@@ -842,7 +910,16 @@ def load_geotag_points(process_file_list, verbose=False):
     lons = []
     directions = []
 
+    if verbose:
+        sys.stdout.write("Loading geotag points...")
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
                 # check the status of the geotagging
         log_root = uploader.log_rootpath(image)
         geotag_data = get_geotag_data(log_root,

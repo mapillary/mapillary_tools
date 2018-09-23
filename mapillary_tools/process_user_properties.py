@@ -34,7 +34,6 @@ def process_user_properties(import_path,
               " does not exist, exiting...")
         sys.exit(1)
 
-    print(import_path)
     # get list of file to process
     process_file_list = processing.get_process_file_list(import_path,
                                                          "user_process",
@@ -52,7 +51,7 @@ def process_user_properties(import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     if private and not organization_username and not organization_key:
         print("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
@@ -60,7 +59,7 @@ def process_user_properties(import_path,
                                                   "user_process",
                                                   "failed",
                                                   verbose)
-        return
+        sys.exit(1)
 
     # function calls
     if not master_upload:
@@ -84,3 +83,4 @@ def process_user_properties(import_path,
                                               "success",
                                               verbose,
                                               user_properties)
+    print("Sub process finished")

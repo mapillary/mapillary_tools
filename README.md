@@ -460,6 +460,19 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
 #### Execution
  - Windows users sometimes have trouble with the bare execution of `mapillary_tools`, since it is not inserted in the PATH automatically.
  If you are trying to execute `mapillary_tools` on Windows and dont have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
+ - Execution issues can occur in case the executable is saved with additional characters, like for example `\r`, which results in error message `env: python\r: No such file or directory`. In that case the executable needs to be edited to remove additional characters as suggested [here](https://stackoverflow.com/questions/19425857/env-python-r-no-such-file-or-directory), one example:
+ 
+ in terminal:
+ 
+ ```
+ sudo vim /usr/local/bin/mapillary_tools
+ ```
+then in vim editor:
+
+```
+ :set ff=unix
+ :wq
+ ```
  
 #### Run time issues
  - HTTP Errors can occur due to poor network connection or high load on the import pipeline. In most cases the images eventually get uploaded regardless. But in some cases HTTP Errors can occur due to authentication issues, which can be resolved by either removing the config file with the users credentials, located in `~/.config/mapillary/config` or running the `authenticate` command available under advanced usage of `mapillary_tools`.

@@ -43,6 +43,26 @@ def add_meta_tag(mapillary_description,
         }
 
 
+def parse_and_add_custom_meta_tags(mapillary_description,
+                                   custom_meta_data):
+    # parse entry
+    meta_data_entries = custom_meta_data.split(";")
+    for entry in meta_data_entries:
+        # parse name, type and value
+        entry_fields = entry.split(",")
+
+        # set name, type and value
+        tag_name = entry_fields[0]
+        tag_type = entry_fields[1] + "s"
+        tag_value = entry_fields[2]
+
+        # insert name, type and value
+        add_meta_tag(mapillary_description,
+                     tag_type,
+                     tag_name,
+                     tag_value)
+
+
 def finalize_import_properties_process(image,
                                        import_path,
                                        orientation=None,
@@ -52,7 +72,9 @@ def finalize_import_properties_process(image,
                                        add_file_name=False,
                                        add_import_date=False,
                                        verbose=False,
-                                       mapillary_description={}):
+                                       mapillary_description={},
+                                       custom_meta_data=None,
+                                       camera_uuid=None):
     # always check if there are any command line arguments passed, they will
     if orientation:
         mapillary_description["MAPOrientation"] = orientation
@@ -62,6 +84,8 @@ def finalize_import_properties_process(image,
         mapillary_description['MAPDeviceModel'] = device_model
     if GPS_accuracy:
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
+    if camera_uuid:
+        mapillary_description['MAPCameraUUID'] = camera_uuid
 
     if add_file_name:
         add_meta_tag(mapillary_description,
@@ -79,6 +103,10 @@ def finalize_import_properties_process(image,
                  "strings",
                  "mapillary_tools_version",
                  "0.1.7")
+
+    if custom_meta_data:
+        parse_and_add_custom_meta_tags(mapillary_description,
+                                       custom_meta_data)
 
     processing.create_and_log_process(image,
                                       "import_meta_data_process",
@@ -133,7 +161,9 @@ def process_import_meta_properties(import_path,
                                    verbose=False,
                                    rerun=False,
                                    skip_subfolders=False,
-                                   video_file=None):
+                                   video_file=None,
+                                   custom_meta_data=None,
+                                   camera_uuid=None):
 
     # sanity check if video file is passed
     if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
@@ -171,7 +201,14 @@ def process_import_meta_properties(import_path,
 
     # read import meta from image EXIF and finalize the import
     # properties process
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         import_meta_data_properties = get_import_meta_properties_exif(
             image, verbose)
         finalize_import_properties_process(image,
@@ -183,4 +220,7 @@ def process_import_meta_properties(import_path,
                                            add_file_name,
                                            add_import_date,
                                            verbose,
-                                           import_meta_data_properties)
+                                           import_meta_data_properties,
+                                           custom_meta_data,
+                                           camera_uuid)
+    print("Sub process finished")

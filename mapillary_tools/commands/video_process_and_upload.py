@@ -7,6 +7,7 @@ from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import sample_video
 from mapillary_tools.upload import upload
+from mapillary_tools.post_process import post_process
 
 
 class Command:
@@ -57,10 +58,12 @@ class Command:
                             choices=[0, 90, 180, 270], type=int, default=None, required=False)
         parser.add_argument(
             "--GPS_accuracy", help="GPS accuracy in meters. Note this input has precedence over the input read from the import source file.", default=None, required=False)
+        parser.add_argument(
+            "--camera_uuid", help="Custom string used to differentiate different captures taken with the same camera make and model.", default=None, required=False)
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue_videos'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -94,6 +97,28 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
+        parser.add_argument(
+            '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
+        # post process
+        parser.add_argument('--summarize', help='Summarize import for given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_images', help='Move images corresponding to sequence uuid, duplicate flag and upload status.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--save_as_json', help='Save summary or file status list in a json.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--list_file_status', help='List file status for given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--push_images', help='Push images uploaded in given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--split_import_path', help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.', default=None, required=False)
+
+        # add custom meta data in a form of a string consisting of a triplet
+        # "name,type,value"
+        parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
+                            default=None, required=False)
 
     def run(self, args):
 
@@ -120,5 +145,10 @@ class Command:
         insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
                            if k in inspect.getargspec(insert_MAPJson).args}))
 
+        print("Process done.")
+
         upload(**({k: v for k, v in vars_args.iteritems()
                    if k in inspect.getargspec(upload).args}))
+
+        post_process(**({k: v for k, v in vars_args.iteritems()
+                         if k in inspect.getargspec(post_process).args}))

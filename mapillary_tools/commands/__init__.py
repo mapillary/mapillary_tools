@@ -13,6 +13,7 @@ from . import video_process_and_upload
 from . import process_csv
 from . import authenticate
 from . import interpolate
+from . import post_process
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -26,8 +27,10 @@ mapillary_tools_advanced_commands = [
     exif_insert,
     process_csv,
     authenticate,
-    interpolate
+    interpolate,
+    post_process
 ]
+
 mapillary_tools_commands = [
     process,
     upload,

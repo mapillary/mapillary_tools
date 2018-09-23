@@ -110,12 +110,10 @@ def process_sequence_properties(import_path,
                         print(
                             "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
                     continue
-
                 # LOAD TIME AND GPS POINTS ------------------------------------
                 file_list, capture_times, lats, lons, directions = processing.load_geotag_points(
                     process_file_list, verbose)
                 # ---------------------------------------
-
                 # SPLIT SEQUENCES --------------------------------------
                 if len(capture_times) and len(lats) and len(lons):
                     sequences.extend(processing.split_sequences(
@@ -151,6 +149,9 @@ def process_sequence_properties(import_path,
         final_capture_times = capture_times[:]
         # FLAG DUPLICATES --------------------------------------
         if flag_duplicates:
+            if verbose:
+                print(
+                    "Flagging images as duplicates if consecutive distance difference less than {} and angle difference less than".format(duplicate_distance, duplicate_angle))
             final_file_list = [file_list[0]]
             final_directions = [directions[0]]
             final_capture_times = [capture_times[0]]
@@ -196,3 +197,4 @@ def process_sequence_properties(import_path,
                                                              MAX_SEQUENCE_LENGTH],
                                          import_path,
                                          verbose)
+    print("Sub process finished")

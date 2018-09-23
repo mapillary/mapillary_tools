@@ -26,8 +26,8 @@ MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uplo
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
 SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
-NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '4'))
-MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '10'))
+NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
+MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
@@ -57,14 +57,14 @@ class UploadThread(threading.Thread):
     def run(self):
         while True:
             # fetch file from the queue and upload
-            filepath, params = self.q.get()
+            filepath, max_attempts, params = self.q.get()
             if filepath is None:
                 self.q.task_done()
                 break
             else:
                 progress(self.total_task - self.q.qsize(), self.total_task,
                          '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, **params)
+                upload_file(filepath, max_attempts, **params)
                 self.q.task_done()
 
 
@@ -148,9 +148,9 @@ def process_upload_finalization(file_list, params):
     return list_params
 
 
-def finalize_upload(import_path, finalize_params):
+def finalize_upload(finalize_params):
     for params in finalize_params:
-        upload_done_file(import_path, params)
+        upload_done_file(**params)
 
 
 def flag_finalization(finalize_file_list):
@@ -241,6 +241,30 @@ def success_upload(root, file):
     manual_upload = os.path.join(log_root, "manual_upload")
     success = (os.path.isfile(
         upload_success) and not os.path.isfile(manual_upload)) or (os.path.isfile(upload_success) and os.path.isfile(manual_upload) and os.path.isfile(upload_finalization))
+    return success
+
+
+def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False):
+    success_only_manual_upload_file_list = []
+    if skip_subfolders:
+        success_only_manual_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(import_path, file))
+    else:
+        for root, dir, files in os.walk(import_path):
+            if os.path.join(".mapillary", "logs") in root:
+                continue
+            success_only_manual_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(root, file))
+
+    return sorted(success_only_manual_upload_file_list)
+
+
+def success_only_manual_upload(root, file):
+    file_path = os.path.join(root, file)
+    log_root = log_rootpath(file_path)
+    upload_success = os.path.join(log_root, "upload_success")
+    manual_upload = os.path.join(log_root, "manual_upload")
+    success = os.path.isfile(upload_success) and os.path.isfile(manual_upload)
     return success
 
 
@@ -421,7 +445,11 @@ def authenticate_user(user_name):
     user_items = prompt_user_for_user_items(user_name)
     if not user_items:
         return None
-    config.create_config(GLOBAL_CONFIG_FILEPATH)
+    try:
+        config.create_config(GLOBAL_CONFIG_FILEPATH)
+    except Exception as e:
+        print("Failed to create authentication config file due to ".format(e))
+        sys.exit()
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
@@ -470,9 +498,9 @@ def set_master_key():
 
 def get_user_key(user_name):
     try:
-        req = urllib2.Request(USER_URL.format(user_name, CLIENT_ID))
+        req = urllib2.Request(USER_URL.format(
+            urllib2.quote(user_name), CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
-
     except:
         return None
     if not resp or 'key' not in resp[0]:
@@ -495,37 +523,66 @@ def get_user_hashes(user_key, upload_token):
     return (user_permission_hash, user_signature_hash)
 
 
-def upload_done_file(import_path, params):
+def upload_done_file(url, permission, signature, key=None, aws_key=None):
 
-    DONE_filepath = os.path.join(import_path, "DONE")
+    # upload with many attempts to avoid issues
+    max_attempts = 100
+    s3_filename = "DONE"
+    if key is None:
+        s3_key = s3_filename
+    else:
+        s3_key = key + s3_filename
 
-    if not os.path.exists(DONE_filepath):
-        open(DONE_filepath, 'a').close()
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
+                  "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
-    # upload
-    upload_file(DONE_filepath, **params)
+    encoded_string = ''
 
-    # remove
-    if os.path.exists(DONE_filepath):
-        os.remove(DONE_filepath)
+    data, headers = encode_multipart(
+        parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
+
+    for attempt in range(max_attempts):
+
+        # Initialize response before each attempt
+        response = None
+
+        try:
+            request = urllib2.Request(url, data=data, headers=headers)
+            response = urllib2.urlopen(request)
+            break  # attempts
+        except urllib2.HTTPError as e:
+            print("HTTP error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except urllib2.URLError as e:
+            print("URL error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except httplib.HTTPException as e:
+            print("HTTP exception: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except OSError as e:
+            print("OS error: {0} on {1}".format(e, s3_filename))
+            time.sleep(5)
+        except socket.timeout as e:
+            # Specific timeout handling for Python 2.7
+            print("Timeout error: {0} (retrying)".format(s3_filename))
+        finally:
+            if response is not None:
+                response.close()
 
 
-def is_done_file(filename):
-    return filename == "DONE"
-
-
-def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
     '''
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
     filename = os.path.basename(filepath)
-    done_file = is_done_file(filename)
 
     s3_filename = filename
     try:
-        if not done_file:
-            s3_filename = ExifRead(filepath).exif_name()
+        s3_filename = ExifRead(filepath).exif_name()
     except:
         pass
 
@@ -549,7 +606,7 @@ def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
 
-    for attempt in range(MAX_ATTEMPTS):
+    for attempt in range(max_attempts):
 
         # Initialize response before each attempt
         response = None
@@ -557,11 +614,10 @@ def upload_file(filepath, url, permission, signature, key=None, aws_key=None):
         try:
             request = urllib2.Request(url, data=data, headers=headers)
             response = urllib2.urlopen(request)
-            if not done_file:
-                if response.getcode() == 204:
-                    create_upload_log(filepath_in, "upload_success")
-                else:
-                    create_upload_log(filepath_in, "upload_failed")
+            if response.getcode() == 204:
+                create_upload_log(filepath_in, "upload_success")
+            else:
+                create_upload_log(filepath_in, "upload_failed")
             break  # attempts
 
         except urllib2.HTTPError as e:
@@ -589,20 +645,27 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, file_params={}):
+def upload_file_list(file_list, file_params={}, number_threads=None, max_attempts=None):
+
+    # set some uploader params first
+    if number_threads == None:
+        number_threads = NUMBER_THREADS
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
     # create upload queue with all files
     q = Queue()
     for filepath in file_list:
         if filepath not in file_params:
-            q.put((filepath, UPLOAD_PARAMS))
+            q.put((filepath, max_attempts, UPLOAD_PARAMS))
         else:
-            q.put((filepath, file_params[filepath]))
+            q.put((filepath, max_attempts, file_params[filepath]))
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(NUMBER_THREADS)]
+    uploaders = [UploadThread(q) for i in range(number_threads)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
-        print("Uploading with {} threads".format(NUMBER_THREADS))
+        print("Uploading with {} threads".format(number_threads))
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
