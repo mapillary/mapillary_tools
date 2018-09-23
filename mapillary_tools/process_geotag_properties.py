@@ -118,3 +118,4 @@ def process_geotag_properties(import_path,
                                                         offset_time,
                                                         offset_angle,
                                                         verbose)
+    print("Sub process finished")

@@ -73,8 +73,14 @@ def geotag_from_exif(process_file_list,
                      import_path,
                      offset_angle=0.0,
                      verbose=False):
-
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         geotag_properties = get_geotag_properties_from_exif(
             image, offset_angle, verbose)
 
@@ -243,9 +249,17 @@ def geotag_from_gps_trace(process_file_list,
         # update offset time with the gps start time
         offset_time += (sorted(sub_second_times)
                         [0] - gps_trace[0][0]).total_seconds()
+    if verbose:
+        sys.stdout.write("Geotagging from gpx trace...")
+    progress_count = 0
     for image, capture_time in zip(process_file_list,
                                    sub_second_times):
-
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         if not capture_time:
             print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
@@ -704,7 +718,16 @@ def create_and_log_process_in_list(process_file_list,
                                    status,
                                    verbose=False,
                                    mapillary_description={}):
+    if verbose:
+        sys.stdout.write("Logging...")
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         create_and_log_process(image,
                                process,
                                status,
@@ -887,7 +910,16 @@ def load_geotag_points(process_file_list, verbose=False):
     lons = []
     directions = []
 
+    if verbose:
+        sys.stdout.write("Loading geotag points...")
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
                 # check the status of the geotagging
         log_root = uploader.log_rootpath(image)
         geotag_data = get_geotag_data(log_root,

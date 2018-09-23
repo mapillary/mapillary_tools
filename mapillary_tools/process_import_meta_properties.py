@@ -201,7 +201,14 @@ def process_import_meta_properties(import_path,
 
     # read import meta from image EXIF and finalize the import
     # properties process
+    progress_count = 0
     for image in process_file_list:
+        progress_count += 1
+        if verbose:
+            if (progress_count % 50) == 0:
+                sys.stdout.write(".")
+            if (progress_count % 5000) == 0:
+                print("")
         import_meta_data_properties = get_import_meta_properties_exif(
             image, verbose)
         finalize_import_properties_process(image,
@@ -216,3 +223,4 @@ def process_import_meta_properties(import_path,
                                            import_meta_data_properties,
                                            custom_meta_data,
                                            camera_uuid)
+    print("Sub process finished")
