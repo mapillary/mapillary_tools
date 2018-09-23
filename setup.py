@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='mapillary_tools',
-      version='0.1.7',
+      version='0.2.0',
       description='Mapillary Image/Video Import Pipeline',
       url='https://github.com/mapillary/mapillary_tools',
       author='Mapillary',

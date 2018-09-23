@@ -72,3 +72,15 @@
 
 ### Bug fixes
 * Fix bug that resulted in sub seconds added twice in case subseconds were written to capture time tag as well as sub second time tag.
+
+## 0.2.0 (2018-09-23)
+
+### Features and improvements
+* Additional information and progress bars under verbose in process,
+* Partial optimization in DONE file sending,
+* Post process command covering process summary, list of image status and options to move image according to status
+* Extend support in csv processing
+* Adding number of threads and max attempts in upload as command line arguments
+
+### Bug fixes
+* Correct the last interpolated direction
