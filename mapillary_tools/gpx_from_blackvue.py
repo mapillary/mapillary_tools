@@ -107,7 +107,8 @@ def gpx_from_blackvue(bv_video):
             bv_data += get_points_from_bv(video)
 
         dirname = os.path.dirname(bv_video)
-        gpx_path = os.path.join(dirname, 'path.gpx')
+        basename = os.path.basename(bv_video)
+        gpx_path = os.path.join(dirname, basename + '.gpx')
     else:
         bv_data = get_points_from_bv(bv_video)
         basename, extension = os.path.splitext(bv_video)

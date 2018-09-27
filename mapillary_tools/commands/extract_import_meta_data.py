@@ -4,7 +4,7 @@ from mapillary_tools.process_import_meta_properties import process_import_meta_p
 
 class Command:
     name = 'extract_import_meta_data'
-    help = "Process unit tool : Extract and process import meta properties."
+    help = "Process unit tool: Extract and process import meta properties."
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
