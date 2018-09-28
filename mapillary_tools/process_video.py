@@ -18,8 +18,10 @@ def timestamp_from_filename(video_filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
-    seconds = (int(filename.lstrip("0").replace("_{}.jpg".format(video_filename), "")) - 1) * \
-        interval * adjustment
+
+    seconds = (int(filename.rstrip(".jpg").replace("{}_".format(
+        video_filename), "").lstrip("0")) - 1) * interval * adjustment
+
     return start_time + datetime.timedelta(seconds=seconds)
 
 
@@ -99,7 +101,7 @@ def extract_frames(video_file,
                    verbose=False):
 
     if verbose:
-        print('extracting frames from', video_file)
+        print('extracting frames from {}'.format(video_file))
 
     video_file = video_file.replace(" ", "\ ")
     video_filename = os.path.basename(video_file).rstrip(".mp4")
@@ -112,9 +114,8 @@ def extract_frames(video_file,
         '-qscale', '1',
     ]
 
-    command.append('{}/%0{}d_{}.jpg'.format(import_path,
-                                            ZERO_PADDING, video_filename))
-
+    command.append('{}/{}_%0{}d.jpg'.format(import_path,
+                                            video_filename, ZERO_PADDING))
     subprocess.call(command)
 
     if video_start_time:

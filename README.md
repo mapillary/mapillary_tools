@@ -456,7 +456,10 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
  - In case of any issues, it is always safe to try and rerun the failing command while specifying `--verbose` to see more information printed out. Uploaded images should not get uploaded more than once and should not be processed after uploading. The tool should take care of that, if it occurs otherwise, please open an issue on Github.
  - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When installing the latest version, dont forget you need to specify `--upgrade`.
  - Advanced user are encouraged to explore the processed data and log files in the `{image_path}/.mapillary/logs/{image_name}/` to get more insight in the failure.
- 
+
+#### Dependencies
+ - If having issues installing `pip` with `brew` on macOS, one solution is `sudo easy_install pip`. If the installed version is not appropriate then upgrade with `sudo pip install --upgrade pip`.
+
 #### Execution
  - Windows users sometimes have trouble with the bare execution of `mapillary_tools`, since it is not inserted in the PATH automatically.
  If you are trying to execute `mapillary_tools` on Windows and dont have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
