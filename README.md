@@ -2,7 +2,7 @@
 
 ## Mapillary Tools
 
-Mapillary tools is a library for processing and uploading geotagged images to Mapillary.
+Mapillary tools is a library for processing and uploading images to Mapillary.
 
 <!--ts-->
    * [Dependencies](#dependencies)
@@ -38,7 +38,7 @@ You will need to have [python=2.7.x](https://www.python.org/downloads/release/py
 
 #### Install Mapillary Tools
 
-To install `mapillary_tools` on MacOSX, Ubuntu, or Windows, run:
+To install `mapillary_tools` on macOS, Ubuntu, or Windows, run:
 
 	pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 
@@ -48,9 +48,9 @@ which will enable processing and uploading of images. Note that the commands sho
 
 To sample images from videos, you will also need to install `ffmpeg`.
 
-#### MacOSX
+#### macOS
 
-To install `ffmpeg` on Mac OS X use [Homebrew](https://brew.sh).
+To install `ffmpeg` on macOS use [Homebrew](https://brew.sh).
 Once you have Homebrew installed, you can install `ffmpeg` by running:
 
 ```bash
