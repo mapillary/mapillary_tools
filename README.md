@@ -186,6 +186,7 @@ Available tools for advanced usage:
   - process_csv
   - interpolate
   - authenticate
+  - post_process
 
 ### Geotag and Upload
 
@@ -447,6 +448,9 @@ Process unit tools are tools executed by the `process` tool. Usage of process un
 
 `process_csv` will parse the specified csv file and insert data in the image EXIF.
 
+#### `post_process`
+
+`post_process` provides functionalities to help summarize and organize the results of the `process` and/or `upload` commands.
 
 ## Troubleshooting
 
