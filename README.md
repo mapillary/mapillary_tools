@@ -380,7 +380,7 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
 
 #### Examples
 
- - Sample the video `path/to/video_filename.mp4` to directory `path/to/images` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/video_filename.mp4.mp4` and specifying to derive camera direction based on `GPS`.
+ - Sample the video `path/to/video_filename.mp4` to directory `path/to/images` at the default sampling rate 2 seconds, ie 1 video frame every 2 seconds and process resulting video frames for user `mapillary_user`, reading geotag data from a GoPro video `path/to/video_filename.mp4` and specifying to derive camera direction based on `GPS`.
 
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video_filename.mp4" --user_name "mapillary_user" --advanced --geotag_source "gopro_video" --geotag_source_path "path/to/video_filename.mp4" --interpolate_directions
@@ -390,6 +390,12 @@ mapillary_tools video_process --import_path "path/to/images" --video_file "path/
 
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/video_filename.mp4" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx" --use_gps_start_time --offset_time 2
+```
+
+ - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from Blackvue videos in `path/to/videos` and specifying to derive camera direction based on `GPS` and use the `GPS` start time.
+ 
+```bash
+mapillary_tools video_process --import_path "path/to/images" --video_file "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "blackvue_videos" --geotag_source_path "path/to/videos" --use_gps_start_time --interpolate_directions --video_sample_interval 0.2
 ```
 
 ### `video_process_and_upload`
