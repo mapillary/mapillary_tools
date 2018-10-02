@@ -244,7 +244,7 @@ mapillary_tools sample_video --import_path "path/to/images" --video_file "path/t
  - Sample the video `path/to/video_filename.mp4`, at a sample interval of 2 seconds (default value) and tag the resulting images with `capture time`. And then process and upload the resulting images for user `username_at_mapillary`, specifying a gpx track to be the source of geotag data. 
 
 ```bash
-mapillary_tools sample_video --video_file "path/to/video_filename.mp4"
+mapillary_tools sample_video --video_file "path/to/video_filename.mp4" --advanced
 mapillary_tools process --advanced --import_path "path/to/.mapillary/sampled_video_frames/video_filename" --user_name "username_at_mapillary" --geotag_source "gpx" --geotag_source_path "path/to/gpx_file"
 mapillary_tools upload --import_path "path/to/.mapillary/sampled_video_frames/video_filename"
 ```
