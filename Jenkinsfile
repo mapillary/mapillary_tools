@@ -3,6 +3,7 @@
 com.mapillary.pipeline.Pipeline.builder(this, steps)
     .withBuildStage()
     .withReleaseWindowsStage()
+    .withReleaseOsxStage()
     .withPublishStage()
     .build()
     .execute()
