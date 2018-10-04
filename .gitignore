@@ -11,3 +11,4 @@ gitversion
 mapillary_run_provider.yml
 build/
 dist/
+venv/
