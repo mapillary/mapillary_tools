@@ -1,3 +1,4 @@
 -e .
 git+https://github.com/mapillary/Piexif
 redis
+certifi
