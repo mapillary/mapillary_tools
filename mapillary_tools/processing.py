@@ -18,7 +18,7 @@ from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
-
+from tqdm import tqdm
 
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
@@ -44,11 +44,11 @@ def estimate_sub_second_time(files, interval=0.0):
     second that each picture was taken.
     '''
     if interval <= 0.0:
-        return [exif_time(f) for f in files]
+        return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     onesecond = datetime.timedelta(seconds=1.0)
     T = datetime.timedelta(seconds=interval)
-    for i, f in enumerate(files):
+    for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
         m = exif_time(f)
         if not m:
             pass
@@ -73,14 +73,7 @@ def geotag_from_exif(process_file_list,
                      import_path,
                      offset_angle=0.0,
                      verbose=False):
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Extracting gps data from image EXIF"):
         geotag_properties = get_geotag_properties_from_exif(
             image, offset_angle, verbose)
 
@@ -249,17 +242,8 @@ def geotag_from_gps_trace(process_file_list,
         # update offset time with the gps start time
         offset_time += (sorted(sub_second_times)
                         [0] - gps_trace[0][0]).total_seconds()
-    if verbose:
-        sys.stdout.write("Geotagging from gpx trace...")
-    progress_count = 0
-    for image, capture_time in zip(process_file_list,
-                                   sub_second_times):
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image, capture_time in tqdm(zip(process_file_list,
+                                        sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
             print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
@@ -718,16 +702,7 @@ def create_and_log_process_in_list(process_file_list,
                                    status,
                                    verbose=False,
                                    mapillary_description={}):
-    if verbose:
-        sys.stdout.write("Logging...")
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Logging"):
         create_and_log_process(image,
                                process,
                                status,
@@ -910,17 +885,7 @@ def load_geotag_points(process_file_list, verbose=False):
     lons = []
     directions = []
 
-    if verbose:
-        sys.stdout.write("Loading geotag points...")
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
-                # check the status of the geotagging
+    for image in tqdm(process_file_list, desc="Loading geotag points"):
         log_root = uploader.log_rootpath(image)
         geotag_data = get_geotag_data(log_root,
                                       image,
@@ -1075,7 +1040,7 @@ def interpolate_timestamp(capture_times):
 def get_images_geotags(process_file_list):
     geotags = []
     missing_geotags = []
-    for image in sorted(process_file_list):
+    for image in tqdm(sorted(process_file_list), desc="Reading gps data"):
         exif = ExifRead(image)
         timestamp = exif.extract_capture_time()
         lon, lat = exif.extract_lon_lat()

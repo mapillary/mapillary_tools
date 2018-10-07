@@ -9,6 +9,7 @@ from process_import_meta_properties import add_meta_tag
 import process_csv
 import csv
 import datetime
+from tqdm import tqdm
 
 
 EPOCH = datetime.datetime.utcfromtimestamp(0)
@@ -121,12 +122,7 @@ def interpolation(data,
             sys.stdout.write("Interpolating gps for {} images missing geotags.".format(
                 len(missing_geotags)))
 
-            counter = 0
-            for image, timestamp in missing_geotags:
-                counter += 1
-                sys.stdout.write('.')
-                if (counter % 100) == 0:
-                    print("")
+            for image, timestamp in tqdm(missing_geotags, desc="Interpolating missing gps"):
                 # interpolate
                 try:
                     lat, lon, bearing, elevation = interpolate_lat_lon(
@@ -171,14 +167,7 @@ def interpolation(data,
 
             # read timestamps
             timestamps = []
-            counter = 0
-            for image in process_file_list:
-
-                # print progress
-                counter += 1
-                sys.stdout.write('.')
-                if (counter % 100) == 0:
-                    print("")
+            for image in tqdm(process_file_list, desc="Interpolating identical timestamps"):
 
                 # load exif
                 exif = ExifRead(image)
@@ -197,7 +186,7 @@ def interpolation(data,
             counter = 0
 
             # write back
-            for image, timestamp in zip(process_file_list, timestamps_interpolated):
+            for image, timestamp in tqdm(zip(process_file_list, timestamps_interpolated), desc="Writing capture time in image EXIF"):
 
                 # print progress
                 counter += 1

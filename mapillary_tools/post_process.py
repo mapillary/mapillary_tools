@@ -4,6 +4,7 @@ import processing
 import uploader
 import json
 import shutil
+from tqdm import tqdm
 
 
 def post_process(import_path,
@@ -143,7 +144,7 @@ def post_process(import_path,
         to_be_pushed_files = uploader.get_success_only_manual_upload_file_list(
             import_path, skip_subfolders)
         params = {}
-        for image in to_be_pushed_files:
+        for image in tqdm(to_be_pushed_files, desc="Pushing images"):
             log_root = uploader.log_rootpath(image)
             upload_params_path = os.path.join(
                 log_root, "upload_params_process.json")

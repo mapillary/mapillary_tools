@@ -5,6 +5,7 @@ import processing
 import subprocess
 import sys
 import uploader
+from tqdm import tqdm
 
 from exif_write import ExifEdit
 
@@ -31,7 +32,7 @@ def timestamps_from_filename(video_filename,
                              interval=2.0,
                              adjustment=1.0):
     capture_times = []
-    for image in full_image_list:
+    for image in tqdm(full_image_list, desc="Deriving frame capture time"):
         capture_times.append(timestamp_from_filename(video_filename,
                                                      os.path.basename(image),
                                                      start_time,
@@ -157,8 +158,8 @@ def insert_video_frame_timestamp(video_filename, import_path, start_time, sample
                                                       sample_interval,
                                                       duration_ratio)
 
-    for image, timestamp in zip(frame_list,
-                                video_frame_timestamps):
+    for image, timestamp in tqdm(zip(frame_list,
+                                     video_frame_timestamps), desc="Inserting frame capture time"):
         try:
             exif_edit = ExifEdit(image)
             exif_edit.add_date_time_original(timestamp)
