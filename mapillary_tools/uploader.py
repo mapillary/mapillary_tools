@@ -671,7 +671,7 @@ def upload_file_list(file_list, file_params={}, number_threads=None, max_attempt
             uploader.start()
 
         for uploader in uploaders:
-            uploaders[i].join(1)
+            uploaders[uploader].join(1)
 
         while q.unfinished_tasks:
             time.sleep(1)
