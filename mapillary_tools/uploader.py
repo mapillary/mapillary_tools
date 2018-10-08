@@ -670,7 +670,7 @@ def upload_file_list(file_list, file_params={}, number_threads=None, max_attempt
             uploader.daemon = True
             uploader.start()
 
-        for idx in enumerate(uploaders):
+        for idx, uploader in enumerate(uploaders):
             uploaders[idx].join(1)
 
         while q.unfinished_tasks:
