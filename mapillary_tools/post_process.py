@@ -68,7 +68,7 @@ def post_process(import_path,
                     print(
                         "Error, photo uuid not in mapillary_image_description.json log file.")
             else:
-                print("Warning, mapillary_image_description.json log file does not exist for image {}. Likely it was not processed successfully.")
+                print("Warning, mapillary_image_description.json log file does not exist for image {}. Likely it was not processed successfully.".format(file))
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
             for row in local_mapping:
