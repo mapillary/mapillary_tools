@@ -17,5 +17,6 @@ setup(name='mapillary_tools',
           'python-dateutil==2.7.3',
           'pymp4==1.1.0',
           'pynmea2==1.12.0',
-          'pytest==3.2.3'
+          'pytest==3.2.3',
+          'tqdm==2.2.4'
       ])
