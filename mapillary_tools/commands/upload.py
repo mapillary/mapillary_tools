@@ -32,6 +32,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--push_images', help='Push images uploaded in given import path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 
