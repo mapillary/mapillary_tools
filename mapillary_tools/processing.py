@@ -18,6 +18,7 @@ from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
+from gpx_from_exif import gpx_from_exif
 from tqdm import tqdm
 
 STATUS_PAIRS = {"success": "failed",
@@ -71,17 +72,36 @@ def estimate_sub_second_time(files, interval=0.0):
 
 def geotag_from_exif(process_file_list,
                      import_path,
+                     offset_time=0.0,
                      offset_angle=0.0,
                      verbose=False):
-    for image in tqdm(process_file_list, desc="Extracting gps data from image EXIF"):
-        geotag_properties = get_geotag_properties_from_exif(
-            image, offset_angle, verbose)
+    if offset_time == 0:
+        for image in tqdm(process_file_list, desc="Extracting gps data from image EXIF"):
+            geotag_properties = get_geotag_properties_from_exif(
+                image, offset_angle, verbose)
 
-        create_and_log_process(image,
-                               "geotag_process",
-                               "success",
-                               geotag_properties,
-                               verbose)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "success",
+                                   geotag_properties,
+                                   verbose)
+    else:
+        try:
+            geotag_source_path = gpx_from_exif(
+                process_file_list, import_path, verbose)
+            if not geotag_source_path or not os.path.isfile(geotag_source_path):
+                raise Exception
+        except Exception as e:
+            print(
+                "Error, failed extracting data from exif due to {}, exiting...".format(e))
+            sys.exit(1)
+
+        geotag_from_gps_trace(process_file_list,
+                              "gpx",
+                              geotag_source_path,
+                              offset_time,
+                              offset_angle,
+                              verbose)
 
 
 def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
@@ -292,24 +312,6 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
         if verbose:
             print("Warning, image direction tag not set.")
     return geotag_properties
-
-
-def geotag_from_csv(process_file_list,
-                    import_path,
-                    geotag_source_path,
-                    offset_time,
-                    offset_angle,
-                    verbose=False):
-    pass
-
-
-def geotag_from_json(process_file_list,
-                     import_path,
-                     geotag_source_path,
-                     offset_time,
-                     offset_angle,
-                     verbose=False):
-    pass
 
 
 def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, verbose=False):
