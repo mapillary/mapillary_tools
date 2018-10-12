@@ -6,6 +6,7 @@ import json
 import shutil
 from tqdm import tqdm
 import csv
+import exif_read
 
 
 def post_process(import_path,
@@ -54,6 +55,7 @@ def post_process(import_path,
 
         local_mapping = []
         for file in total_files:
+            image_file_uuid = None
             relative_path = file.lstrip(os.path.abspath(import_path))
             log_rootpath = uploader.log_rootpath(file)
             image_description_json_path = os.path.join(
@@ -63,12 +65,19 @@ def post_process(import_path,
                     image_description_json_path)
                 if "MAPPhotoUUID" in image_description_json:
                     image_file_uuid = image_description_json["MAPPhotoUUID"]
-                    local_mapping.append((relative_path, image_file_uuid))
                 else:
                     print(
                         "Error, photo uuid not in mapillary_image_description.json log file.")
             else:
-                print("Warning, mapillary_image_description.json log file does not exist for image {}. Likely it was not processed successfully.".format(file))
+                image_exif = exif_read.ExifRead(file)
+                image_description = json.loads(
+                    image_exif.extract_image_description())
+                if "MAPPhotoUUID" in image_description:
+                    image_file_uuid = str(image_description["MAPPhotoUUID"])
+                else:
+                    print("Warning, image {} EXIF does not contain mapillary image description and mapillary_image_description.json log file does not exist. Try to process the image using mapillary_tools.".format(file))
+            if image_file_uuid:
+                local_mapping.append((relative_path, image_file_uuid))
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
             for row in local_mapping:
