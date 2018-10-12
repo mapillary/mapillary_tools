@@ -6,6 +6,7 @@ from mapillary_tools.process_sequence_properties import process_sequence_propert
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.upload import upload
+from mapillary_tools.post_process import post_process
 
 
 class Command:
