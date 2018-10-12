@@ -136,7 +136,6 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
 
 
 def geotag_from_gopro_video(process_file_list,
-                            import_path,
                             geotag_source_path,
                             offset_time,
                             offset_angle,
@@ -148,12 +147,12 @@ def geotag_from_gopro_video(process_file_list,
         geotag_source_path = gpx_from_gopro(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except:
-        print("Error, failed extracting data from gopro video, exiting...")
+    except Exception as e:
+        print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
+            geotag_source_path, e))
         sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
-                          import_path,
                           "gpx",
                           geotag_source_path,
                           offset_time,
@@ -165,7 +164,6 @@ def geotag_from_gopro_video(process_file_list,
 
 
 def geotag_from_blackvue_video(process_file_list,
-                               import_path,
                                geotag_source_path,
                                offset_time,
                                offset_angle,
@@ -177,12 +175,12 @@ def geotag_from_blackvue_video(process_file_list,
         geotag_source_path = gpx_from_blackvue(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except Exception:
-        print("Error, failed extracting data from blackvue video, exiting...")
+    except Exception as e:
+        print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
+            geotag_source_path, e))
         sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
-                          import_path,
                           "gpx",
                           geotag_source_path,
                           offset_time,
@@ -194,7 +192,6 @@ def geotag_from_blackvue_video(process_file_list,
 
 
 def geotag_from_gps_trace(process_file_list,
-                          import_path,
                           geotag_source,
                           geotag_source_path,
                           offset_time=0.0,
