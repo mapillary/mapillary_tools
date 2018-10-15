@@ -60,6 +60,7 @@ def get_points_from_exif(file_list, verbose=False):
 
 def gpx_from_exif(file_list, import_path, verbose=False):
     data = get_points_from_exif(file_list, verbose)
+    data = sorted(data, key=lambda x: x[0])
     gpx_path = import_path + '.gpx'
     write_gpx(gpx_path, data)
     return gpx_path

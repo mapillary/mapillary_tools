@@ -101,7 +101,7 @@ def geotag_from_exif(process_file_list,
                               geotag_source_path,
                               offset_time,
                               offset_angle,
-                              verbose)
+                              verbose=verbose)
 
 
 def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
@@ -220,7 +220,6 @@ def geotag_from_gps_trace(process_file_list,
                           sub_second_interval=0.0,
                           use_gps_start_time=False,
                           verbose=False):
-
     # print time now to warn in case local_time
     if local_time:
         now = datetime.datetime.now(tzlocal())
