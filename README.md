@@ -450,7 +450,7 @@ Process unit tools are tools executed by the `process` tool. Usage of process un
 
 ### Blackvue
 
- - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the Blackvue videos in `path/to/videos` and specifying to derive camera direction based on `GPS` and use the `GPS` start time. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`.
+ - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the Blackvue videos in `path/to/videos` and specifying to derive camera direction based on `GPS` and use the `GPS` start time. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient.
  
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "blackvue_videos" --geotag_source_path "path/to/videos" --use_gps_start_time --interpolate_directions --video_sample_interval 0.2
@@ -458,7 +458,7 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
 
 ### GoPro
 
- - Sample one or more GoPro videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.5 seconds, ie 2 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the GoPro videos in `path/to/videos` and specifying to derive camera direction based on `GPS`. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`.
+ - Sample one or more GoPro videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.5 seconds, ie 2 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the GoPro videos in `path/to/videos` and specifying to derive camera direction based on `GPS`. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient.
 
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "gopro_video" --geotag_source_path "path/to/videos" --interpolate_directions --video_sample_interval 0.5
