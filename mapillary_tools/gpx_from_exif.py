@@ -4,17 +4,13 @@ import exif_read
 
 def write_gpx(path, data):
     gpx = gpxpy.gpx.GPX()
-
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx.tracks.append(gpx_track)
-
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gpx_track.segments.append(gpx_segment)
-
     for point in data:
         gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
             point[1], point[2], elevation=point[3], time=point[0]))
-
     with open(path, "w") as f:
         f.write(gpx.to_xml())
 
@@ -24,7 +20,7 @@ def get_points_from_exif(file_list, verbose=False):
     for file in file_list:
         point = ()
         try:
-            exif = ExifRead(image)
+            exif = exif_read.ExifRead(file)
         except:
             if verbose:
                 print("Warning, EXIF could not be read for image {}.".format(file))
@@ -47,7 +43,6 @@ def get_points_from_exif(file_list, verbose=False):
             point = point + (timestamp, lat, lon)
         else:
             continue
-
         try:
             altitude = exif.extract_altitude()
             point = point + (altitude, )
@@ -67,5 +62,4 @@ def gpx_from_exif(file_list, import_path, verbose=False):
     data = get_points_from_exif(file_list, verbose)
     gpx_path = import_path + '.gpx'
     write_gpx(gpx_path, data)
-
     return gpx_path
