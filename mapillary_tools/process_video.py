@@ -41,7 +41,7 @@ def timestamps_from_filename(video_filename,
     return capture_times
 
 
-def sample_video(video_file,
+def sample_video(video_import_path,
                  import_path,
                  video_sample_interval=2.0,
                  video_start_time=None,
@@ -54,44 +54,37 @@ def sample_video(video_file,
         sys.exit(1)
 
     # command specific checks
-    video_file = os.path.abspath(video_file) if (
-        os.path.isfile(video_file) or os.path.isdir(video_file)) else None
-    if not video_file:
-        print("Error, video path " + video_file + " does not exist, exiting...")
+    video_import_path = os.path.abspath(
+        video_import_path) if os.path.isdir(video_import_path) else None
+    if not video_import_path:
+        print("Error, video import path " + video_import_path +
+              " does not exist or is not a directory, please provide a path to a directory with the video(s) you wish to import, exiting...")
         sys.exit(1)
 
     # set sampling path
-    video_sampling_path = processing.sampled_video_frames_rootpath(video_file)
+    video_sampling_path = processing.sampled_video_frames_rootpath(
+        video_import_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.dirname(video_file), video_sampling_path)
+        os.path.dirname(video_import_path), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs
-    video_upload = processing.video_upload(video_file, import_path, verbose)
+    video_upload = processing.video_upload(
+        video_import_path, import_path, verbose)
 
     if video_upload:
         return
 
-    if os.path.isdir(video_file):
-
-        video_list = uploader.get_video_file_list(video_file)
-        for video in video_list:
-            extract_frames(video,
-                           import_path,
-                           video_sample_interval,
-                           video_start_time,
-                           video_duration_ratio,
-                           verbose)
-    else:
-        # single video file
-        extract_frames(video_file,
+    video_list = uploader.get_video_file_list(video_import_path)
+    for video in video_list:
+        extract_frames(video,
                        import_path,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
                        verbose)
 
-    processing.create_and_log_video_process(video_file, import_path)
+    processing.create_and_log_video_process(video_import_path, import_path)
 
 
 def extract_frames(video_file,
