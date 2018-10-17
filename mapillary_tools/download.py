@@ -7,7 +7,7 @@ import signal
 import sys
 import threading
 import time
-import urllib
+import requests
 
 
 class BlurDownloader(threading.Thread):
@@ -24,7 +24,7 @@ class BlurDownloader(threading.Thread):
     def download_file(self, image_key, filename):
         download_url = "https://a.mapillary.com/v3/images/{}/download_original_uuid?client_id={}&token={}".format(
             image_key, uploader.CLIENT_ID, self.token)
-        response = urllib.urlopen(download_url)
+        response = requests.get(download_url, stream=True)
 
         if response.status_code != 200:
             print(response.json())
@@ -68,7 +68,7 @@ class BlurDownloader(threading.Thread):
                 self.lock.release()
             else:
                 self.lock.acquire()
-                downloaded_images["success"] += 1
+                self.downloaded_images["success"] += 1
                 self.lock.release()
 
             self.lock.acquire()
