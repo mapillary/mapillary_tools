@@ -9,6 +9,40 @@ import csv
 import exif_read
 
 
+def save_local_mapping(import_path):
+    local_mapping_filepath = os.path.join(os.path.dirname(
+        import_path), import_path + "_mapillary_image_uuid_to_local_path_mapping.csv")
+
+    total_files = uploader.get_total_file_list(import_path)
+
+    local_mapping = []
+    for file in tqdm(total_files, desc="Reading image uuids"):
+        image_file_uuid = None
+        relative_path = file.lstrip(os.path.abspath(import_path))
+        log_rootpath = uploader.log_rootpath(file)
+        image_description_json_path = os.path.join(
+            log_rootpath, "mapillary_image_description.json")
+        if os.path.isfile(image_description_json_path):
+            image_description_json = processing.load_json(
+                image_description_json_path)
+            if "MAPPhotoUUID" in image_description_json:
+                image_file_uuid = image_description_json["MAPPhotoUUID"]
+            else:
+                print(
+                    "Error, photo uuid not in mapillary_image_description.json log file.")
+        else:
+            image_exif = exif_read.ExifRead(file)
+            image_description = json.loads(
+                image_exif.extract_image_description())
+            if "MAPPhotoUUID" in image_description:
+                image_file_uuid = str(image_description["MAPPhotoUUID"])
+            else:
+                print("Warning, image {} EXIF does not contain mapillary image description and mapillary_image_description.json log file does not exist. Try to process the image using mapillary_tools.".format(file))
+        if image_file_uuid:
+            local_mapping.append((relative_path, image_file_uuid))
+    return local_mapping
+
+
 def post_process(import_path,
                  split_import_path=None,
                  video_file=None,
@@ -48,43 +82,12 @@ def post_process(import_path,
               " does not exist, exiting...")
         sys.exit(1)
     if save_local_mapping:
-        local_mapping_filepath = os.path.join(os.path.dirname(
-            import_path), import_path + "_mapillary_image_uuid_to_local_path_mapping.csv")
-
-        total_files = uploader.get_total_file_list(import_path)
-
-        local_mapping = []
-        for file in total_files:
-            image_file_uuid = None
-            relative_path = file.lstrip(os.path.abspath(import_path))
-            log_rootpath = uploader.log_rootpath(file)
-            image_description_json_path = os.path.join(
-                log_rootpath, "mapillary_image_description.json")
-            if os.path.isfile(image_description_json_path):
-                image_description_json = processing.load_json(
-                    image_description_json_path)
-                if "MAPPhotoUUID" in image_description_json:
-                    image_file_uuid = image_description_json["MAPPhotoUUID"]
-                else:
-                    print(
-                        "Error, photo uuid not in mapillary_image_description.json log file.")
-            else:
-                image_exif = exif_read.ExifRead(file)
-                image_description = json.loads(
-                    image_exif.extract_image_description())
-                if "MAPPhotoUUID" in image_description:
-                    image_file_uuid = str(image_description["MAPPhotoUUID"])
-                else:
-                    print("Warning, image {} EXIF does not contain mapillary image description and mapillary_image_description.json log file does not exist. Try to process the image using mapillary_tools.".format(file))
-            if image_file_uuid:
-                local_mapping.append((relative_path, image_file_uuid))
+        local_mapping = save_local_mapping(import_path)
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
             for row in local_mapping:
                 csvwriter.writerow(row)
-
     else:
-
         print("Reading import logs for import path {}...".format(import_path))
 
         # collect logs

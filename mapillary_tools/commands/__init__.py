@@ -14,6 +14,7 @@ from . import process_csv
 from . import authenticate
 from . import interpolate
 from . import post_process
+from . import download
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -28,7 +29,8 @@ mapillary_tools_advanced_commands = [
     process_csv,
     authenticate,
     interpolate,
-    post_process
+    post_process,
+    download
 ]
 
 mapillary_tools_commands = [
