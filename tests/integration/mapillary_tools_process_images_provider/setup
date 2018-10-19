@@ -3,7 +3,5 @@ from time import sleep
 
 from mapillary_messi.waiters.base_waiter import BaseWaiter
 
-base_waiter = BaseWaiter([], envs=["KAFKA_MAIN_WAIT", "PSQL_MAIN_V2_WAIT"])
+base_waiter = BaseWaiter([], envs=["KAFKA_MAIN_WAIT", "PSQL_MAIN_V2_WAIT", "API_WAIT"])
 base_waiter.wait()
-
-sleep(60)
