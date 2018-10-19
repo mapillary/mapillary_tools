@@ -10,7 +10,7 @@
     {
       "dependencies": [
         {
-          "name": "harvest_images"
+          "name": "harvest_manual"
         },
         {
           "name": "aws_s3"
@@ -40,7 +40,7 @@
     {
       "dependencies": [
         {
-          "name": "harvest_images"
+          "name": "harvest_manual"
         },
         {
           "name": "aws_s3"
