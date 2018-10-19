@@ -8,7 +8,7 @@ class Command:
 
     def add_basic_arguments(self, parser):
         parser.add_argument("--output_folder",
-                            help="Output folder for the downloaded images.", required=False, default=".")
+                            help="Output folder for the downloaded images.", required=True)
         parser.add_argument("--user_name", help="user name", required=True)
 
     def add_advanced_arguments(self, parser):
