@@ -5,6 +5,8 @@ source map_cluster_init
 if [ "$1" = "upload" ];
 then
     map_cluster_wait_for_it $S3_WAIT
+    map_cluster_wait_for_it $API_WAIT
+    sleep 30
     while :
     do
         mapillary_tools upload --import_path tests/integration/mapillary_tools_upload_provider/data/images/
@@ -13,6 +15,8 @@ then
 elif [ $1 = "process" ];
 then
     map_cluster_wait_for_it $S3_WAIT
+    map_cluster_wait_for_it $API_WAIT
+    sleep 30
     while :
     do
         echo "Processing images..."
