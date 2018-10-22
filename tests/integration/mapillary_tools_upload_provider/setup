@@ -1,6 +1,0 @@
-#!/usr/bin/python3
-from mapillary_messi.waiters.base_waiter import BaseWaiter
-
-base_waiter = BaseWaiter([], envs=["KAFKA_MAIN_WAIT", "PSQL_MAIN_V2_WAIT"])
-base_waiter.wait()
-
