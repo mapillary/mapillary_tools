@@ -326,10 +326,10 @@ By default, 4 threads upload in parallel and the script retries 10 times upon en
 mapillary_tools upload --import_path "path/to/images"
 ```
 
- - upload all images in the directory `path/to/images`, while skipping its sub directories and prompting the user to finalize the upload:
+ - upload all images in the directory `path/to/images`, while skipping its sub directories:
 
 ```bash
-mapillary_tools upload --import_path "path/to/images" --skip_subfolders --manual_done
+mapillary_tools upload --import_path "path/to/images" --skip_subfolders
 ```
 
 This tool has no additional advanced arguments.

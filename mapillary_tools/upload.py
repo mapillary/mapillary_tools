@@ -7,14 +7,13 @@ import json
 from exif_aux import verify_mapillary_tag
 
 
-def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False, video_file=None, number_threads=None, max_attempts=None):
+def upload(import_path, verbose=False, skip_subfolders=False, video_file=None, number_threads=None, max_attempts=None):
     '''
     Upload local images to Mapillary
     Args:
         import_path: Directory path to where the images are stored.
         verbose: Print extra warnings and errors.
         skip_subfolders: Skip images stored in subdirectories.
-        manual_done: Prompt user to confirm upload finalization.
 
     Returns:
         Images are uploaded to Mapillary and flagged locally as uploaded.
@@ -69,9 +68,12 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False,
         print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
         sys.exit(1)
 
-    # get upload params
+    # get upload params for the manual upload images, group them per sequence
+    # and separate direct upload images
     params = {}
-    for image in total_file_list:
+    list_per_sequence_mapping = {}
+    direct_upload_file_list = []
+    for image in upload_file_list:
         log_root = uploader.log_rootpath(image)
         upload_params_path = os.path.join(
             log_root, "upload_params_process.json")
@@ -79,37 +81,25 @@ def upload(import_path, manual_done=False, verbose=False, skip_subfolders=False,
             with open(upload_params_path, "rb") as jf:
                 params[image] = json.load(
                     jf, object_hook=uploader.ascii_encode_dict)
+                sequence = params[image]["key"]
+                if sequence in list_per_sequence_mapping:
+                    list_per_sequence_mapping[sequence].append(image)
+                else:
+                    list_per_sequence_mapping[sequence] = [image]
+        else:
+            direct_upload_file_list.append(image)
 
     # inform how many images are to be uploaded and how many are being skipped
     # from upload
+
     print("Uploading {} images with valid mapillary tags (Skipping {})".format(
         len(upload_file_list), len(total_file_list) - len(upload_file_list)))
 
-    # call the actual upload, passing the list of images, the root of the
-    # import and the upload params
-    uploader.upload_file_list(upload_file_list, params,
-                              number_threads, max_attempts)
-
-    # finalize manual uploads if necessary
-    finalize_file_list = uploader.get_finalize_file_list(
-        import_path, skip_subfolders)
-
-    # if manual uploads a DONE file needs to be uploaded to let the harvester
-    # know the sequence is done uploading
-    if len(finalize_file_list):
-        finalize_all = 1
-        if manual_done:
-            finalize_all = uploader.prompt_to_finalize("uploads")
-        if finalize_all:
-            # get the s3 locations of the sequences
-            finalize_params = uploader.process_upload_finalization(
-                finalize_file_list, params)
-            uploader.finalize_upload(finalize_params)
-            # flag finalization for each file
-            uploader.flag_finalization(finalize_file_list)
-        else:
-            print("Uploads will not be finalized.")
-            print("If you wish to finalize your uploads, run the upload tool again.")
-            sys.exit()
+    if len(direct_upload_file_list):
+        uploader.upload_file_list_direct(
+            direct_upload_file_list, number_threads, max_attempts)
+    for idx, sequence in enumerate(list_per_sequence_mapping):
+        uploader.upload_file_list_manual(
+            list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
 
     uploader.print_summary(upload_file_list)

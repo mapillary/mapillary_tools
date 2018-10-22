@@ -137,22 +137,6 @@ def prompt_to_finalize(subcommand):
     return 0
 
 
-def process_upload_finalization(file_list, params):
-    list_params = []
-    keys = []
-    for file in file_list:
-        if file in params:
-            if params[file]["key"] not in keys:
-                keys.append(params[file]["key"])
-                list_params.append(params[file])
-    return list_params
-
-
-def finalize_upload(finalize_params):
-    for params in finalize_params:
-        upload_done_file(**params)
-
-
 def flag_finalization(finalize_file_list):
     for file in finalize_file_list:
         finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
@@ -645,21 +629,18 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list(file_list, file_params={}, number_threads=None, max_attempts=None):
-
+def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
-    # create upload queue with all files
+    # create upload queue with all files per sequence
+
     q = Queue()
     for filepath in file_list:
-        if filepath not in file_params:
-            q.put((filepath, max_attempts, UPLOAD_PARAMS))
-        else:
-            q.put((filepath, max_attempts, file_params[filepath]))
+        q.put((filepath, max_attempts, UPLOAD_PARAMS))
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(number_threads)]
 
@@ -679,6 +660,41 @@ def upload_file_list(file_list, file_params={}, number_threads=None, max_attempt
     except (KeyboardInterrupt, SystemExit):
         print("\nBREAK: Stopping upload.")
         sys.exit(1)
+
+
+def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads=None, max_attempts=None):
+    # set some uploader params first
+    if number_threads == None:
+        number_threads = NUMBER_THREADS
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
+    # create upload queue with all files per sequence
+    q = Queue()
+    for filepath in file_list:
+        q.put((filepath, max_attempts, file_params[filepath]))
+    # create uploader threads
+    uploaders = [UploadThread(q) for i in range(number_threads)]
+
+    # start uploaders as daemon threads that can be stopped (ctrl-c)
+    try:
+        print("Uploading {}. sequence with {} threads".format(
+            sequence_idx + 1, number_threads))
+        for uploader in uploaders:
+            uploader.daemon = True
+            uploader.start()
+
+        for idx, uploader in enumerate(uploaders):
+            uploaders[idx].join(1)
+
+        while q.unfinished_tasks:
+            time.sleep(1)
+        q.join()
+    except (KeyboardInterrupt, SystemExit):
+        print("\nBREAK: Stopping upload.")
+        sys.exit(1)
+    upload_done_file(**file_params[filepath])
+    flag_finalization(file_list)
 
 
 def log_rootpath(filepath):

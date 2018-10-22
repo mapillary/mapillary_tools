@@ -27,8 +27,6 @@ class Command:
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         parser.add_argument(
-            '--manual_done', help='Manually finalize the upload', action='store_true', default=False, required=False)
-        parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
