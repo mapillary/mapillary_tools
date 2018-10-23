@@ -74,7 +74,7 @@ To install `ffmpeg` on Windows, follow these [instructions](http://adaptivesampl
 
 ### User Authentication
 
-To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When using the upload tools for the first time, user authentication is required. You will be prompted to enter your account credentials.
+To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When using the upload tools for the first time, user authentication is required. You will be prompted to enter your account credentials. Only Mapilary account credentials are valid for authentication in mapillary_tools, unlike in web uploads, where other account credentials can be used as well.
 
 ### Metadata
 
