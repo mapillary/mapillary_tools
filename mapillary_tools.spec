@@ -29,3 +29,8 @@ exe = EXE(pyz,
           upx=True,
           runtime_tmpdir=None,
           console=True )
+
+app = BUNDLE(exe,
+         name='mapillary_tools.app',
+         icon=None,
+         bundle_identifier=None)

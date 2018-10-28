@@ -1,0 +1,10 @@
+#!/bin/bash
+
+/usr/local/bin/virtualenv venv
+source venv/bin/activate
+pip install pyinstaller 
+pip install -r requirements.txt
+
+pyinstaller --onefile --windowed mapillary_tools.spec
+
+deactivate

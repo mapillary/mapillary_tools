@@ -1,15 +1,18 @@
-import json
 import os
-import urllib
 from shutil import copyfile, rmtree
 from time import sleep
 
 import requests
 from mapillary_messi.assertions.harvest_assertions import HarvestAssertion
+from mapillary_messi.db.kafka_base_driver import KafkaBaseDriver
+from mapillary_messi.db.psql_base_driver import PsqlMainV2BaseDriver
+from mapillary_messi.db.s3_base_driver import S3BaseDriver
 from mapillary_messi.fixtures.app_fixture import MapillaryAppFixture
 from mapillary_messi.fixtures.user_fixture import UserFixture
+from mapillary_messi.matchers.matcher import Eventually
 from mapillary_messi.models import User
 from testtools import TestCase
+from testtools.matchers import NotEquals, Equals
 
 from tests.utils import config
 
@@ -27,6 +30,7 @@ else:
     API_ENDPOINT = "http://{}".format(os.getenv("API_PROXY_HOST"))
 LOGIN_URL = "{}/v2/ua/login?client_id={}".format(API_ENDPOINT, CLIENT_ID)
 USER_UPLOAD_URL = API_ENDPOINT + "/v3/users/{}/upload_tokens?client_id={}"
+PRIVATE_BUCKET_NAME = os.getenv("AWS_S3_PRIVATE_UPLOAD_BUCKET", "miab_private_images")
 
 
 class ProcessImagesProviderTestCase(TestCase):
@@ -41,18 +45,32 @@ class ProcessImagesProviderTestCase(TestCase):
             except Exception as e:
                 print(e)
         self.useFixture(MapillaryAppFixture())
-        super(ProcessImagesProviderTestCase, self).setUp()
 
-    def test_processed_images_are_uploaded_and_harvested(self):
-        user_a = User(username="mapillary_user")
-        self.useFixture(UserFixture([user_a]))
+        self.user = User(username="mapillary_user")
+        self.useFixture(UserFixture([self.user]))
 
         config.create_config("/mapillary_source/tests/.config/mapillary/config")
         config.update_config("/mapillary_source/tests/.config/mapillary/config",
-                             user_a.username, self._get_user_items(user_a))
+                             self.user.username, self._get_user_items(self.user))
 
+        super(ProcessImagesProviderTestCase, self).setUp()
+
+    def test_processed_images_are_uploaded_and_harvested(self):
         copyfile(image_path, new_image_path)
-        HarvestAssertion(self).assert_test_case(user_a.id)
+        HarvestAssertion(self).assert_test_case(self.user.id)
+
+    def test_process_and_upload_multiple_sequences_images(self):
+        image1_path = os.path.join(data_dir, 'data/{}'.format("DSC00497.JPG"))
+        image2_path = os.path.join(data_dir, 'data/{}'.format("DSC00001.JPG"))
+
+        new_image1_path = "{}/data/images/{}".format(data_dir, "DSC00497.JPG")
+        new_image2_path = "{}/data/images/{}".format(data_dir, "DSC00001.JPG")
+
+        copyfile(image1_path, new_image1_path)
+        copyfile(image2_path, new_image2_path)
+
+        sql = 'select count(key) from map_images where user_id={}'.format(self.user.id)
+        self.assertThat(lambda: PsqlMainV2BaseDriver().execute(sql)['count'], Eventually(Equals(2), timeout=180))
 
     def _get_user_items(self, user):
         user_items = {}
