@@ -109,7 +109,15 @@ def extract_frames(video_file,
 
     command.append('{}/{}_%0{}d.jpg'.format(import_path,
                                             video_filename, ZERO_PADDING))
-    subprocess.call(command)
+    try:
+        subprocess.call(command)
+    except OSError as e:
+        print("Error, ffmpeg is not installed or set in the OS system path.")
+        sys.exit(1)
+    except Exception as e:
+        print("Error, could not extract frames from video {} due to {}".format(
+            video_file, e))
+        sys.exit(1)
 
     if video_start_time:
         video_start_time = datetime.datetime.utcfromtimestamp(
