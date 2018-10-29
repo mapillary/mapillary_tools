@@ -20,6 +20,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
                             action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 

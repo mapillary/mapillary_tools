@@ -106,6 +106,9 @@ class Command:
         parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
                             action='store_true', default=False, required=False)
 
+        parser.add_argument('--overwrite_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+                            action='store_true', default=False, required=False)
+
         # add custom meta data in a form of a string consisting of a triplet
         # "name,type,value"
         parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',

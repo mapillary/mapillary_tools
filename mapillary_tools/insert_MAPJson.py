@@ -14,7 +14,8 @@ def insert_MAPJson(import_path,
                    skip_subfolders=False,
                    skip_EXIF_insert=False,
                    keep_original=False,
-                   video_file=None):
+                   video_file=None,
+                   overwrite_EXIF_tags=False):
 
     # sanity check if video file is passed
     if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
@@ -61,7 +62,8 @@ def insert_MAPJson(import_path,
                                                                                              master_upload,
                                                                                              verbose,
                                                                                              skip_EXIF_insert,
-                                                                                             keep_original)
+                                                                                             keep_original,
+                                                                                             overwrite_EXIF_tags)
 
         processing.create_and_log_process(image,
                                           "mapillary_image_description",

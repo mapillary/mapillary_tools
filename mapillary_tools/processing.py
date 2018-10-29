@@ -353,7 +353,8 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     if os.getenv("AWS_S3_ENDPOINT", None) is None:
         url = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
     else:
-        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf-manual-uploads-images")
+        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"),
+                             "mtf-manual-uploads-images")
 
     upload_params = {
         "url": url,
@@ -376,7 +377,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False, overwrite_EXIF_tags=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
@@ -445,27 +446,28 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         return None
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
-    try:
-        image_exif.add_date_time_original(datetime.datetime.strptime(
-            final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
-    except:
-        pass
-    try:
-        image_exif.add_lat_lon(
-            final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
-    except:
-        pass
-    try:
-        image_exif.add_direction(
-            final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
-    except:
-        pass
-    try:
-        if "MAPOrientation" in final_mapillary_image_description:
-            image_exif.add_orientation(
-                final_mapillary_image_description["MAPOrientation"])
-    except:
-        pass
+    if overwrite_EXIF_tags:
+        try:
+            image_exif.add_date_time_original(datetime.datetime.strptime(
+                final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+        except:
+            pass
+        try:
+            image_exif.add_lat_lon(
+                final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
+        except:
+            pass
+        try:
+            image_exif.add_direction(
+                final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
+        except:
+            pass
+        try:
+            if "MAPOrientation" in final_mapillary_image_description:
+                image_exif.add_orientation(
+                    final_mapillary_image_description["MAPOrientation"])
+        except:
+            pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
