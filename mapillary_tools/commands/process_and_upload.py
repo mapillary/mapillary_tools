@@ -105,10 +105,16 @@ class Command:
             '--split_import_path', help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.', default=None, required=False)
         parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
                             action='store_true', default=False, required=False)
-
-        parser.add_argument('--overwrite_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+        parser.add_argument('--overwrite_all_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
                             action='store_true', default=False, required=False)
-
+        parser.add_argument('--overwrite_EXIF_time_tag', help='Overwrite the capture time EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_gps_tag', help='Overwrite the gps EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_direction_tag', help='Overwrite the camera direction EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_orientation_tag', help='Overwrite the orientation EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
         # add custom meta data in a form of a string consisting of a triplet
         # "name,type,value"
         parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
