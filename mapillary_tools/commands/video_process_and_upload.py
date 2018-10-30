@@ -99,7 +99,15 @@ class Command:
             '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
         parser.add_argument(
             '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
-        parser.add_argument('--overwrite_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+        parser.add_argument('--overwrite_all_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_time_tag', help='Overwrite the capture time EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_gps_tag', help='Overwrite the gps EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_direction_tag', help='Overwrite the camera direction EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_orientation_tag', help='Overwrite the orientation EXIF tag with the value obtained in process.',
                             action='store_true', default=False, required=False)
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',

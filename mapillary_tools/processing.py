@@ -377,7 +377,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False, overwrite_EXIF_tags=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False, overwrite_all_EXIF_tags=False, overwrite_EXIF_time_tag=False, overwrite_EXIF_gps_tag=False, overwrite_EXIF_direction_tag=False, overwrite_EXIF_orientation_tag=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
@@ -446,7 +446,7 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         return None
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
-    if overwrite_EXIF_tags:
+    if overwrite_all_EXIF_tags:
         try:
             image_exif.add_date_time_original(datetime.datetime.strptime(
                 final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
@@ -468,6 +468,32 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
                     final_mapillary_image_description["MAPOrientation"])
         except:
             pass
+    else:
+        if overwrite_EXIF_time_tag:
+            try:
+                image_exif.add_date_time_original(datetime.datetime.strptime(
+                    final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+            except:
+                pass
+        if overwrite_EXIF_gps_tag:
+            try:
+                image_exif.add_lat_lon(
+                    final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
+            except:
+                pass
+        if overwrite_EXIF_direction_tag:
+            try:
+                image_exif.add_direction(
+                    final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
+            except:
+                pass
+        if overwrite_EXIF_orientation_tag:
+            try:
+                if "MAPOrientation" in final_mapillary_image_description:
+                    image_exif.add_orientation(
+                        final_mapillary_image_description["MAPOrientation"])
+            except:
+                pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
