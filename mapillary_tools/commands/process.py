@@ -119,6 +119,8 @@ class Command:
     def run(self, args):
 
         vars_args = vars(args)
+        if args.geotag_source == 'blackvue_videos':
+            args.device_make = "Blackvue"
         process_user_properties(**({k: v for k, v in vars_args.iteritems()
                                     if k in inspect.getargspec(process_user_properties).args}))
 
