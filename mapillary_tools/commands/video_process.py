@@ -129,7 +129,7 @@ class Command:
     def run(self, args):
 
         vars_args = vars(args)
-        if args.geotag_source == 'blackvue_videos':
+        if args.geotag_source == 'blackvue_videos' and not args.device_make:
             args.device_make = "Blackvue"
         sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
