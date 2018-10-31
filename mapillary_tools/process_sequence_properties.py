@@ -7,6 +7,7 @@ from exif_read import ExifRead
 from geo import compute_bearing, gps_distance, diff_bearing
 import processing
 import uploader
+from tqdm import tqdm
 
 MAX_SEQUENCE_LENGTH = 500
 
@@ -17,8 +18,8 @@ def finalize_sequence_processing(sequence,
                                  final_capture_times,
                                  import_path,
                                  verbose=False):
-    for image, direction, capture_time in zip(final_file_list,
-                                              final_directions, final_capture_times):
+    for image, direction, capture_time in tqdm(zip(final_file_list,
+                                                   final_directions, final_capture_times), desc="Finalizing sequence process"):
         mapillary_description = {
             'MAPSequenceUUID': sequence,
             'MAPCompassHeading': {
@@ -197,4 +198,4 @@ def process_sequence_properties(import_path,
                                                              MAX_SEQUENCE_LENGTH],
                                          import_path,
                                          verbose)
-    print("Sub process finished")
+    print("Sub process ended")

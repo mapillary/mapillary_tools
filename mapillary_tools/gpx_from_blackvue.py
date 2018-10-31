@@ -65,8 +65,12 @@ def get_points_from_bv(path):
                     for l in lines:
                         if "GPRMC" in l:
                             m = l.lstrip('[]0123456789')
-                            data = pynmea2.parse(m)
-                            date = data.datetime.date()
+                            try:
+                                data = pynmea2.parse(m)
+                                date = data.datetime.date()
+                            except Exception as e:
+                                print(
+                                    "Error in extracting the gps trace, nmea parsing failed due to {}".format(e))
                             break
 
                     # Parse GPS trace
@@ -80,15 +84,22 @@ def get_points_from_bv(path):
                         m = l.lstrip('[]0123456789')
 
                         if "GPRMC" in m:
-                            data = pynmea2.parse(m)
-                            date = data.datetime.date()
-
+                            try:
+                                data = pynmea2.parse(m)
+                                date = data.datetime.date()
+                            except Exception as e:
+                                print(
+                                    "Error in parsing gps trace to extract date information, nmea parsing failed due to {}".format(e))
                         if "$GPGGA" in m:
-                            data = pynmea2.parse(m)
-                            timestamp = datetime.datetime.combine(
-                                date, data.timestamp)
-                            lat, lon, alt = data.latitude, data.longitude, data.altitude
-                            points.append((timestamp, lat, lon, alt))
+                            try:
+                                data = pynmea2.parse(m)
+                                timestamp = datetime.datetime.combine(
+                                    date, data.timestamp)
+                                lat, lon, alt = data.latitude, data.longitude, data.altitude
+                                points.append((timestamp, lat, lon, alt))
+                            except Exception as e:
+                                print(
+                                    "Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {}".format(e))
 
                     points.sort()
                 offset += newb.end
@@ -104,13 +115,21 @@ def gpx_from_blackvue(bv_video):
     if os.path.isdir(bv_video):
         video_files = uploader.get_video_file_list(bv_video)
         for video in video_files:
-            bv_data += get_points_from_bv(video)
+            try:
+                bv_data += get_points_from_bv(video)
+            except Exception as e:
+                print(
+                    "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(video, e))
 
         dirname = os.path.dirname(bv_video)
         basename = os.path.basename(bv_video)
         gpx_path = os.path.join(dirname, basename + '.gpx')
     else:
-        bv_data = get_points_from_bv(bv_video)
+        try:
+            bv_data = get_points_from_bv(bv_video)
+        except Exception as e:
+            print(
+                "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
         basename, extension = os.path.splitext(bv_video)
         gpx_path = basename + '.gpx'
 

@@ -27,8 +27,6 @@ class Command:
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         parser.add_argument(
-            '--manual_done', help='Manually finalize the upload', action='store_true', default=False, required=False)
-        parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
@@ -53,7 +51,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_video', 'nmea'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_video', 'nmea', 'blackvue_videos'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)
@@ -85,7 +83,7 @@ class Command:
         # EXIF insert
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)
-        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory called "processed_images" located in .mapillary in the import_path.',
                             action='store_true', default=False, required=False)
         parser.add_argument(
             '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
@@ -105,7 +103,18 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument(
             '--split_import_path', help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.', default=None, required=False)
-
+        parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_all_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_time_tag', help='Overwrite the capture time EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_gps_tag', help='Overwrite the gps EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_direction_tag', help='Overwrite the camera direction EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_orientation_tag', help='Overwrite the orientation EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
         # add custom meta data in a form of a string consisting of a triplet
         # "name,type,value"
         parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
@@ -114,6 +123,8 @@ class Command:
     def run(self, args):
 
         vars_args = vars(args)
+        if args.geotag_source == 'blackvue_videos' and not args.device_make:
+            args.device_make = "Blackvue"
         process_user_properties(**({k: v for k, v in vars_args.iteritems()
                                     if k in inspect.getargspec(process_user_properties).args}))
 

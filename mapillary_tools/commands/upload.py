@@ -11,8 +11,6 @@ class Command:
 
         # command specific args
         parser.add_argument(
-            '--manual_done', help='Manually finalize the upload', action='store_true', default=False, required=False)
-        parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
@@ -31,6 +29,8 @@ class Command:
         parser.add_argument('--list_file_status', help='List file status for given import path.',
                             action='store_true', default=False, required=False)
         parser.add_argument('--push_images', help='Push images uploaded in given import path.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
                             action='store_true', default=False, required=False)
 
     def run(self, args):

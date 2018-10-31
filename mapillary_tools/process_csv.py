@@ -6,6 +6,7 @@ import datetime
 import process_import_meta_properties
 from exif_write import ExifEdit
 import csv
+from tqdm import tqdm
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
 
@@ -251,7 +252,7 @@ def process_csv(import_path,
             print("Warning, filename column not provided, images will be aligned with the csv data in order of the image filenames.")
 
     # process each image
-    for idx, image in enumerate(process_file_list):
+    for idx, image in tqdm(enumerate(process_file_list), desc="Inserting csv data in image EXIF"):
 
         # get image entry index
         image_index = get_image_index(image, file_names) if file_names else idx

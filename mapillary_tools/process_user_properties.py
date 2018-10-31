@@ -83,4 +83,4 @@ def process_user_properties(import_path,
                                               "success",
                                               verbose,
                                               user_properties)
-    print("Sub process finished")
+    print("Sub process ended")

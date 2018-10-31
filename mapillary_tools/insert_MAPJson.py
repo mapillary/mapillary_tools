@@ -4,6 +4,7 @@ import uuid
 import sys
 import processing
 import uploader
+from tqdm import tqdm
 
 
 def insert_MAPJson(import_path,
@@ -13,7 +14,12 @@ def insert_MAPJson(import_path,
                    skip_subfolders=False,
                    skip_EXIF_insert=False,
                    keep_original=False,
-                   video_file=None):
+                   video_file=None,
+                   overwrite_all_EXIF_tags=False,
+                   overwrite_EXIF_time_tag=False,
+                   overwrite_EXIF_gps_tag=False,
+                   overwrite_EXIF_direction_tag=False,
+                   overwrite_EXIF_orientation_tag=False):
 
     # sanity check if video file is passed
     if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
@@ -45,14 +51,7 @@ def insert_MAPJson(import_path,
         print("No images to run process finalization")
         print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
 
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Inserting mapillary image description in image EXIF"):
         # check the processing logs
         log_root = uploader.log_rootpath(image)
 
@@ -67,7 +66,12 @@ def insert_MAPJson(import_path,
                                                                                              master_upload,
                                                                                              verbose,
                                                                                              skip_EXIF_insert,
-                                                                                             keep_original)
+                                                                                             keep_original,
+                                                                                             overwrite_all_EXIF_tags,
+                                                                                             overwrite_EXIF_time_tag,
+                                                                                             overwrite_EXIF_gps_tag,
+                                                                                             overwrite_EXIF_direction_tag,
+                                                                                             overwrite_EXIF_orientation_tag)
 
         processing.create_and_log_process(image,
                                           "mapillary_image_description",
@@ -75,4 +79,4 @@ def insert_MAPJson(import_path,
                                           final_mapillary_image_description,
                                           verbose=verbose)
 
-    print("Sub process finished")
+    print("Sub process ended")
