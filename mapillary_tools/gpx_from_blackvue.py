@@ -43,7 +43,7 @@ def get_points_from_bv(path):
     fd.seek(0, io.SEEK_END)
     eof = fd.tell()
     fd.seek(0)
-
+    date = None
     while fd.tell() < eof:
         try:
             box = Box.parse_stream(fd)
@@ -94,7 +94,7 @@ def get_points_from_bv(path):
                             try:
                                 data = pynmea2.parse(m)
                                 timestamp = datetime.datetime.combine(
-                                    date, data.timestamp)
+                                    date, data.timestamp) if date else data.timestamp
                                 lat, lon, alt = data.latitude, data.longitude, data.altitude
                                 points.append((timestamp, lat, lon, alt))
                             except Exception as e:
