@@ -1,16 +1,5 @@
 #!/bin/bash
+aws s3 cp dist/mapillary_tools.exe s3://mapillary-tools/latest/mapillary_tools.exe
 
-OS="`uname`"
-case $OS in
-  'Linux')
-    ;;
-  'WindowsNT')
-    echo "Publishing windows..."
-    aws s3 cp dist/mapillary_tools.exe s3://mapillary-tools/latest/mapillary_tools.exe
-    ;;
-  'Darwin')
-    echo "Publising OSX..."
-    zip mapillary_tools.zip dist/mapillary_tools.app/
-    aws s3 cp mapillary_tools.zip s3://mapillary-tools/latest/mapillary_tools.zip
-    ;;
-esac
+zip mapillary_tools.zip dist/mapillary_tools.app/
+aws s3 cp mapillary_tools.zip s3://mapillary-tools/latest/mapillary_tools.zip
