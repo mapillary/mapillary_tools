@@ -33,6 +33,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument('--split_import_path', help='Provide the path where the images should be moved to based on the import status.',
                             action='store', required=False, default=None)
+        parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
+                            action='store_true', default=False, required=False)
 
     def run(self, args):
 

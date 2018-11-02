@@ -18,7 +18,8 @@ from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
-
+from gpx_from_exif import gpx_from_exif
+from tqdm import tqdm
 
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
@@ -44,11 +45,11 @@ def estimate_sub_second_time(files, interval=0.0):
     second that each picture was taken.
     '''
     if interval <= 0.0:
-        return [exif_time(f) for f in files]
+        return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     onesecond = datetime.timedelta(seconds=1.0)
     T = datetime.timedelta(seconds=interval)
-    for i, f in enumerate(files):
+    for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
         m = exif_time(f)
         if not m:
             pass
@@ -71,24 +72,36 @@ def estimate_sub_second_time(files, interval=0.0):
 
 def geotag_from_exif(process_file_list,
                      import_path,
+                     offset_time=0.0,
                      offset_angle=0.0,
                      verbose=False):
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
-        geotag_properties = get_geotag_properties_from_exif(
-            image, offset_angle, verbose)
+    if offset_time == 0:
+        for image in tqdm(process_file_list, desc="Extracting gps data from image EXIF"):
+            geotag_properties = get_geotag_properties_from_exif(
+                image, offset_angle, verbose)
 
-        create_and_log_process(image,
-                               "geotag_process",
-                               "success",
-                               geotag_properties,
-                               verbose)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "success",
+                                   geotag_properties,
+                                   verbose)
+    else:
+        try:
+            geotag_source_path = gpx_from_exif(
+                process_file_list, import_path, verbose)
+            if not geotag_source_path or not os.path.isfile(geotag_source_path):
+                raise Exception
+        except Exception as e:
+            print(
+                "Error, failed extracting data from exif due to {}, exiting...".format(e))
+            sys.exit(1)
+
+        geotag_from_gps_trace(process_file_list,
+                              "gpx",
+                              geotag_source_path,
+                              offset_time,
+                              offset_angle,
+                              verbose=verbose)
 
 
 def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
@@ -143,7 +156,6 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
 
 
 def geotag_from_gopro_video(process_file_list,
-                            import_path,
                             geotag_source_path,
                             offset_time,
                             offset_angle,
@@ -155,12 +167,12 @@ def geotag_from_gopro_video(process_file_list,
         geotag_source_path = gpx_from_gopro(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except:
-        print("Error, failed extracting data from gopro video, exiting...")
+    except Exception as e:
+        print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
+            geotag_source_path, e))
         sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
-                          import_path,
                           "gpx",
                           geotag_source_path,
                           offset_time,
@@ -172,7 +184,6 @@ def geotag_from_gopro_video(process_file_list,
 
 
 def geotag_from_blackvue_video(process_file_list,
-                               import_path,
                                geotag_source_path,
                                offset_time,
                                offset_angle,
@@ -184,12 +195,12 @@ def geotag_from_blackvue_video(process_file_list,
         geotag_source_path = gpx_from_blackvue(geotag_source_path)
         if not geotag_source_path or not os.path.isfile(geotag_source_path):
             raise Exception
-    except Exception:
-        print("Error, failed extracting data from blackvue video, exiting...")
+    except Exception as e:
+        print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
+            geotag_source_path, e))
         sys.exit(1)
 
     geotag_from_gps_trace(process_file_list,
-                          import_path,
                           "gpx",
                           geotag_source_path,
                           offset_time,
@@ -201,7 +212,6 @@ def geotag_from_blackvue_video(process_file_list,
 
 
 def geotag_from_gps_trace(process_file_list,
-                          import_path,
                           geotag_source,
                           geotag_source_path,
                           offset_time=0.0,
@@ -210,7 +220,6 @@ def geotag_from_gps_trace(process_file_list,
                           sub_second_interval=0.0,
                           use_gps_start_time=False,
                           verbose=False):
-
     # print time now to warn in case local_time
     if local_time:
         now = datetime.datetime.now(tzlocal())
@@ -249,17 +258,8 @@ def geotag_from_gps_trace(process_file_list,
         # update offset time with the gps start time
         offset_time += (sorted(sub_second_times)
                         [0] - gps_trace[0][0]).total_seconds()
-    if verbose:
-        sys.stdout.write("Geotagging from gpx trace...")
-    progress_count = 0
-    for image, capture_time in zip(process_file_list,
-                                   sub_second_times):
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image, capture_time in tqdm(zip(process_file_list,
+                                        sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
             print("Error, capture time could not be extracted for image " + image)
             create_and_log_process(image,
@@ -313,24 +313,6 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
     return geotag_properties
 
 
-def geotag_from_csv(process_file_list,
-                    import_path,
-                    geotag_source_path,
-                    offset_time,
-                    offset_angle,
-                    verbose=False):
-    pass
-
-
-def geotag_from_json(process_file_list,
-                     import_path,
-                     geotag_source_path,
-                     offset_time,
-                     offset_angle,
-                     verbose=False):
-    pass
-
-
 def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, verbose=False):
 
     if not os.path.isdir(log_root):
@@ -371,7 +353,8 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     if os.getenv("AWS_S3_ENDPOINT", None) is None:
         url = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
     else:
-        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"), "mtf-manual-uploads-images")
+        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"),
+                             "mtf-manual-uploads-images")
 
     upload_params = {
         "url": url,
@@ -394,7 +377,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False, overwrite_all_EXIF_tags=False, overwrite_EXIF_time_tag=False, overwrite_EXIF_gps_tag=False, overwrite_EXIF_direction_tag=False, overwrite_EXIF_orientation_tag=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
@@ -463,27 +446,54 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         return None
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
-    try:
-        image_exif.add_date_time_original(datetime.datetime.strptime(
-            final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
-    except:
-        pass
-    try:
-        image_exif.add_lat_lon(
-            final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
-    except:
-        pass
-    try:
-        image_exif.add_direction(
-            final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
-    except:
-        pass
-    try:
-        if "MAPOrientation" in final_mapillary_image_description:
-            image_exif.add_orientation(
-                final_mapillary_image_description["MAPOrientation"])
-    except:
-        pass
+    if overwrite_all_EXIF_tags:
+        try:
+            image_exif.add_date_time_original(datetime.datetime.strptime(
+                final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+        except:
+            pass
+        try:
+            image_exif.add_lat_lon(
+                final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
+        except:
+            pass
+        try:
+            image_exif.add_direction(
+                final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
+        except:
+            pass
+        try:
+            if "MAPOrientation" in final_mapillary_image_description:
+                image_exif.add_orientation(
+                    final_mapillary_image_description["MAPOrientation"])
+        except:
+            pass
+    else:
+        if overwrite_EXIF_time_tag:
+            try:
+                image_exif.add_date_time_original(datetime.datetime.strptime(
+                    final_mapillary_image_description["MAPCaptureTime"], '%Y_%m_%d_%H_%M_%S_%f'))
+            except:
+                pass
+        if overwrite_EXIF_gps_tag:
+            try:
+                image_exif.add_lat_lon(
+                    final_mapillary_image_description["MAPLatitude"], final_mapillary_image_description["MAPLongitude"])
+            except:
+                pass
+        if overwrite_EXIF_direction_tag:
+            try:
+                image_exif.add_direction(
+                    final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"])
+            except:
+                pass
+        if overwrite_EXIF_orientation_tag:
+            try:
+                if "MAPOrientation" in final_mapillary_image_description:
+                    image_exif.add_orientation(
+                        final_mapillary_image_description["MAPOrientation"])
+            except:
+                pass
     filename = image
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
@@ -718,16 +728,7 @@ def create_and_log_process_in_list(process_file_list,
                                    status,
                                    verbose=False,
                                    mapillary_description={}):
-    if verbose:
-        sys.stdout.write("Logging...")
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Logging"):
         create_and_log_process(image,
                                process,
                                status,
@@ -910,17 +911,7 @@ def load_geotag_points(process_file_list, verbose=False):
     lons = []
     directions = []
 
-    if verbose:
-        sys.stdout.write("Loading geotag points...")
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
-                # check the status of the geotagging
+    for image in tqdm(process_file_list, desc="Loading geotag points"):
         log_root = uploader.log_rootpath(image)
         geotag_data = get_geotag_data(log_root,
                                       image,
@@ -1075,7 +1066,7 @@ def interpolate_timestamp(capture_times):
 def get_images_geotags(process_file_list):
     geotags = []
     missing_geotags = []
-    for image in sorted(process_file_list):
+    for image in tqdm(sorted(process_file_list), desc="Reading gps data"):
         exif = ExifRead(image)
         timestamp = exif.extract_capture_time()
         lon, lat = exif.extract_lon_lat()

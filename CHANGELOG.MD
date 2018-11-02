@@ -84,3 +84,17 @@
 
 ### Bug fixes
 * Correct the last interpolated direction
+
+## 0.3.0 (2018-10-31)
+
+### Features and improvements
+* Enable specification of a time offset in case of already geotagged images
+* Add better progress bars and information output in process
+* Support Blackvue videos with embedded gps data
+* Add a simple `download` command to download all the blurred imaged from Mapillary for a certain `import_path`
+* Support import of multiple videos 
+
+### Breaking changes
+* Argument `--video_file` was renamed to `--video_import_path` as directories of one or more videos can now be processed and uploaded. Note that even if one video is to be processed and uploaded, the directory of the video should be specified as the video import path and not the video file itself. 
+* Only the Image Description EXIF tag is overwritten with the mapillary image description which includes all the data obtained during the `process` command. If one would like the rest of the tags to be overwritten, an additional argument needs to be passed under advanced usage. Single specific tags can also be overwritten by additional specific corresponding arguments.
+

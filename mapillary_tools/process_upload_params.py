@@ -2,6 +2,7 @@ import os
 import sys
 import processing
 import uploader
+from tqdm import tqdm
 
 
 def process_upload_params(import_path,
@@ -74,14 +75,8 @@ def process_upload_params(import_path,
         user_signature_hash = credentials["user_signature_hash"]
         user_key = credentials["MAPSettingsUserKey"]
 
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Processing image upload parameters"):
+
         # check the status of the sequence processing
         log_root = uploader.log_rootpath(image)
         duplicate_flag_path = os.path.join(log_root,
@@ -113,4 +108,4 @@ def process_upload_params(import_path,
             log_root, "manual_upload")
         open(log_manual_upload, 'a').close()
 
-    print("Sub process finished")
+    print("Sub process ended")

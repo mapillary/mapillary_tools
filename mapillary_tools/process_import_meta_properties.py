@@ -4,6 +4,7 @@ import sys
 import processing
 import uploader
 from exif_read import ExifRead
+from tqdm import tqdm
 
 META_DATA_TYPES = {"strings": str,
                    "doubles": float,
@@ -102,7 +103,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.2.0")
+                 "0.3.0")
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description,
@@ -201,14 +202,8 @@ def process_import_meta_properties(import_path,
 
     # read import meta from image EXIF and finalize the import
     # properties process
-    progress_count = 0
-    for image in process_file_list:
-        progress_count += 1
-        if verbose:
-            if (progress_count % 50) == 0:
-                sys.stdout.write(".")
-            if (progress_count % 5000) == 0:
-                print("")
+    for image in tqdm(process_file_list, desc="Processing image import properties"):
+
         import_meta_data_properties = get_import_meta_properties_exif(
             image, verbose)
         finalize_import_properties_process(image,
@@ -223,4 +218,4 @@ def process_import_meta_properties(import_path,
                                            import_meta_data_properties,
                                            custom_meta_data,
                                            camera_uuid)
-    print("Sub process finished")
+    print("Sub process ended")

@@ -5,6 +5,7 @@ import processing
 import subprocess
 import sys
 import uploader
+from tqdm import tqdm
 
 from exif_write import ExifEdit
 
@@ -31,7 +32,7 @@ def timestamps_from_filename(video_filename,
                              interval=2.0,
                              adjustment=1.0):
     capture_times = []
-    for image in full_image_list:
+    for image in tqdm(full_image_list, desc="Deriving frame capture time"):
         capture_times.append(timestamp_from_filename(video_filename,
                                                      os.path.basename(image),
                                                      start_time,
@@ -40,7 +41,7 @@ def timestamps_from_filename(video_filename,
     return capture_times
 
 
-def sample_video(video_file,
+def sample_video(video_import_path,
                  import_path,
                  video_sample_interval=2.0,
                  video_start_time=None,
@@ -53,44 +54,37 @@ def sample_video(video_file,
         sys.exit(1)
 
     # command specific checks
-    video_file = os.path.abspath(video_file) if (
-        os.path.isfile(video_file) or os.path.isdir(video_file)) else None
-    if not video_file:
-        print("Error, video path " + video_file + " does not exist, exiting...")
+    video_import_path = os.path.abspath(
+        video_import_path) if os.path.isdir(video_import_path) else None
+    if not video_import_path:
+        print("Error, video import path " + video_import_path +
+              " does not exist or is not a directory, please provide a path to a directory with the video(s) you wish to import, exiting...")
         sys.exit(1)
 
     # set sampling path
-    video_sampling_path = processing.sampled_video_frames_rootpath(video_file)
+    video_sampling_path = processing.sampled_video_frames_rootpath(
+        video_import_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.dirname(video_file), video_sampling_path)
+        os.path.dirname(video_import_path), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs
-    video_upload = processing.video_upload(video_file, import_path, verbose)
+    video_upload = processing.video_upload(
+        video_import_path, import_path, verbose)
 
     if video_upload:
         return
 
-    if os.path.isdir(video_file):
-
-        video_list = uploader.get_video_file_list(video_file)
-        for video in video_list:
-            extract_frames(video,
-                           import_path,
-                           video_sample_interval,
-                           video_start_time,
-                           video_duration_ratio,
-                           verbose)
-    else:
-        # single video file
-        extract_frames(video_file,
+    video_list = uploader.get_video_file_list(video_import_path)
+    for video in video_list:
+        extract_frames(video,
                        import_path,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
                        verbose)
 
-    processing.create_and_log_video_process(video_file, import_path)
+    processing.create_and_log_video_process(video_import_path, import_path)
 
 
 def extract_frames(video_file,
@@ -103,7 +97,6 @@ def extract_frames(video_file,
     if verbose:
         print('extracting frames from {}'.format(video_file))
 
-    video_file = video_file.replace(" ", "\ ")
     video_filename = os.path.basename(video_file).rstrip(".mp4")
 
     command = [
@@ -111,12 +104,20 @@ def extract_frames(video_file,
         '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
-        '-qscale', '1',
+        '-qscale', '1', '-nostdin'
     ]
 
     command.append('{}/{}_%0{}d.jpg'.format(import_path,
                                             video_filename, ZERO_PADDING))
-    subprocess.call(command)
+    try:
+        subprocess.call(command)
+    except OSError as e:
+        print("Error, ffmpeg is not installed or set in the OS system path.")
+        sys.exit(1)
+    except Exception as e:
+        print("Error, could not extract frames from video {} due to {}".format(
+            video_file, e))
+        sys.exit(1)
 
     if video_start_time:
         video_start_time = datetime.datetime.utcfromtimestamp(
@@ -157,8 +158,8 @@ def insert_video_frame_timestamp(video_filename, import_path, start_time, sample
                                                       sample_interval,
                                                       duration_ratio)
 
-    for image, timestamp in zip(frame_list,
-                                video_frame_timestamps):
+    for image, timestamp in tqdm(zip(frame_list,
+                                     video_frame_timestamps), desc="Inserting frame capture time"):
         try:
             exif_edit = ExifEdit(image)
             exif_edit.add_date_time_original(timestamp)

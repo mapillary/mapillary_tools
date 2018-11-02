@@ -28,7 +28,7 @@ class Command:
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         # video specific args
-        parser.add_argument('--video_file', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
+        parser.add_argument('--video_import_path', help='Path to a directory with one or more video files.',
                             action='store', default=None, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
@@ -36,8 +36,6 @@ class Command:
                             help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
         parser.add_argument("--video_start_time", help="Video start time in epochs (milliseconds)",
                             type=int, default=None, required=False)
-        parser.add_argument(
-            '--manual_done', help='Manually finalize the upload', action='store_true', default=False, required=False)
         parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
@@ -95,12 +93,22 @@ class Command:
         # EXIF insert
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)
-        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
+        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory called "processed_images" located in .mapillary in the import_path.',
                             action='store_true', default=False, required=False)
         parser.add_argument(
             '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
         parser.add_argument(
             '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
+        parser.add_argument('--overwrite_all_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_time_tag', help='Overwrite the capture time EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_gps_tag', help='Overwrite the gps EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_direction_tag', help='Overwrite the camera direction EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--overwrite_EXIF_orientation_tag', help='Overwrite the orientation EXIF tag with the value obtained in process.',
+                            action='store_true', default=False, required=False)
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
                             action='store_true', default=False, required=False)
@@ -114,6 +122,8 @@ class Command:
                             action='store_true', default=False, required=False)
         parser.add_argument(
             '--split_import_path', help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.', default=None, required=False)
+        parser.add_argument('--save_local_mapping', help='Save the mapillary photo uuid to local file mapping in a csv.',
+                            action='store_true', default=False, required=False)
 
         # add custom meta data in a form of a string consisting of a triplet
         # "name,type,value"
@@ -123,7 +133,8 @@ class Command:
     def run(self, args):
 
         vars_args = vars(args)
-
+        if args.geotag_source == 'blackvue_videos' and not args.device_make:
+            args.device_make = "Blackvue"
         sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
 

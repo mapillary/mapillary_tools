@@ -32,4 +32,6 @@ class Command:
                             help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
 
     def run(self, args):
+        if args.geotag_source == 'blackvue_videos' and not args.device_make:
+            args.device_make = "Blackvue"
         process_geotag_properties(**vars(args))
