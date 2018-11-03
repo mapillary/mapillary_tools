@@ -1,4 +1,9 @@
 #!/bin/bash
+
+ls -la dist
+ls -la dist/win
+ls -la dist/osx
+
 aws s3 cp dist/win/mapillary_tools.exe s3://mapillary-tools/latest/mapillary_tools.exe
 
 zip -r mapillary_tools.zip dist/osx/mapillary_tools.app/
