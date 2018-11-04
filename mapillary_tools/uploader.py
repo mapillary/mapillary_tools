@@ -535,24 +535,24 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
             response = urllib2.urlopen(request)
             break  # attempts
         except urllib2.HTTPError as e:
-            print("HTTP error: {0} on {1}, attempting upload again for {} more times".format(
+            print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                 e, s3_filename, max_attempts - attempt - 1))
             time.sleep(5)
         except urllib2.URLError as e:
-            print("URL error: {0} on {1}, attempting upload again for {} more times".format(
+            print("URL error: {} on {}, will attempt upload again for {} more times".format(
                 e, s3_filename, max_attempts - attempt - 1))
             time.sleep(5)
         except httplib.HTTPException as e:
-            print("HTTP exception: {0} on {1}, attempting upload again for {} more times".format(
+            print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
                 e, s3_filename, max_attempts - attempt - 1))
             time.sleep(5)
         except OSError as e:
-            print("OS error: {0} on {1}, attempting upload again for {} more times".format(
+            print("OS error: {} on {}, will attempt upload again for {} more times".format(
                 e, s3_filename, max_attempts - attempt - 1))
             time.sleep(5)
         except socket.timeout as e:
             # Specific timeout handling for Python 2.7
-            print("Timeout error: {0}, attempting upload again for {} more times".format(
+            print("Timeout error: {0}, will attempt upload again for {} more times".format(
                 s3_filename, max_attempts - attempt - 1))
         finally:
             if response is not None:
@@ -610,20 +610,25 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
             break  # attempts
 
         except urllib2.HTTPError as e:
-            print("HTTP error: {0} on {1}".format(e, filename))
+            print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
+                e, filename, max_attempts - attempt - 1))
             time.sleep(5)
         except urllib2.URLError as e:
-            print("URL error: {0} on {1}".format(e, filename))
+            print("URL error: {} on {}, will attempt upload again for {} more times".format(
+                e, filename, max_attempts - attempt - 1))
             time.sleep(5)
         except httplib.HTTPException as e:
-            print("HTTP exception: {0} on {1}".format(e, filename))
+            print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
+                e, filename, max_attempts - attempt - 1))
             time.sleep(5)
         except OSError as e:
-            print("OS error: {0} on {1}".format(e, filename))
+            print("OS error: {} on {}, will attempt upload again for {} more times".format(
+                e, filename, max_attempts - attempt - 1))
             time.sleep(5)
         except socket.timeout as e:
             # Specific timeout handling for Python 2.7
-            print("Timeout error: {0} (retrying)".format(filename))
+            print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
+                filename, max_attempts - attempt - 1))
         finally:
             if response is not None:
                 response.close()
