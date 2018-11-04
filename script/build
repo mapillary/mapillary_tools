@@ -5,6 +5,9 @@ source venv/bin/activate
 pip install pyinstaller 
 pip install -r requirements.txt
 
-pyinstaller --onefile --windowed mapillary_tools.spec
+pyinstaller --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
 
 deactivate
+
+mkdir -p publish/
+mv dist/osx publish
