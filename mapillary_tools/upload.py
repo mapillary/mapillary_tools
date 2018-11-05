@@ -27,8 +27,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, video_file=None, n
     # in case of video processing, adjust the import path
     if video_file:
         # set sampling path
-        video_sampling_path = processing.sampled_video_frames_rootpath(
-            video_file)
+        video_sampling_path = "mapillary_sampled_video_frames"
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
             os.path.dirname(video_file), video_sampling_path)
 
