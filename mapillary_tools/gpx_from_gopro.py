@@ -56,7 +56,7 @@ def write_gpx(path, data):
                 latitude=point[1], longitude=point[2], time=point[0]))
 
     with open(path, "w") as f:
-        f.write(gpx.to_xml())
+        f.write(gpx.to_xml())  # loosing milliseconds here
 
 
 def get_points_from_gpmf(path):

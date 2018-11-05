@@ -14,7 +14,7 @@ def insert_MAPJson(import_path,
                    skip_subfolders=False,
                    skip_EXIF_insert=False,
                    keep_original=False,
-                   video_file=None,
+                   video_import_path=None,
                    overwrite_all_EXIF_tags=False,
                    overwrite_EXIF_time_tag=False,
                    overwrite_EXIF_gps_tag=False,
@@ -22,18 +22,17 @@ def insert_MAPJson(import_path,
                    overwrite_EXIF_orientation_tag=False):
 
     # sanity check if video file is passed
-    if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
-        print("Error, video path " + video_file +
+    if video_import_path and not os.path.isdir(video_import_path):
+        print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
 
     # in case of video processing, adjust the import path
-    if video_file:
+    if video_import_path:
         # set sampling path
-        video_sampling_path = processing.sampled_video_frames_rootpath(
-            video_file)
+        video_sampling_path = "mapillary_sampled_video_frames"
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-            os.path.dirname(video_file), video_sampling_path)
+            os.path.abspath(video_import_path), video_sampling_path)
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
