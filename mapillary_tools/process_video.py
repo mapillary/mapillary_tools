@@ -64,7 +64,7 @@ def sample_video(video_import_path,
     # set sampling path
     video_sampling_path = "mapillary_sampled_video_frames"
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.dirname(video_import_path), video_sampling_path)
+        os.path.abspath(video_import_path), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs

@@ -27,7 +27,7 @@ def process_geotag_properties(import_path,
         # set sampling path
         video_sampling_path = "mapillary_sampled_video_frames"
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-            os.path.dirname(video_file), video_sampling_path)
+            os.path.abspath(video_file), video_sampling_path)
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
