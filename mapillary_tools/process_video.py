@@ -97,7 +97,8 @@ def extract_frames(video_file,
     if verbose:
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).replace(".mp4", "")
+    video_filename = os.path.basename(video_file).replace(
+        ".mp4", "").replace(".MP4", "")
 
     command = [
         'ffmpeg',

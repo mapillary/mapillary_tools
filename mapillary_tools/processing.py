@@ -179,7 +179,7 @@ def geotag_from_gopro_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, os.path.basename(gopro_video).replace(".mp4", "")) in x]
+            import_path, os.path.basename(gopro_video).replace(".mp4", "").replace(".MP4", "")) in x]
 
         geotag_from_gps_trace(process_file_sublist,
                               "gpx",
@@ -682,7 +682,7 @@ def processed_images_rootpath(filepath):
 
 
 def sampled_video_frames_rootpath(filepath):
-    return os.path.join("mapillary_sampled_video_frames", os.path.basename(filepath).replace(".mp4", ""))
+    return os.path.join("mapillary_sampled_video_frames", os.path.basename(filepath).replace(".mp4", "").replace(".MP4", ""))
 
 
 def video_upload(video_file, import_path, verbose=False):
