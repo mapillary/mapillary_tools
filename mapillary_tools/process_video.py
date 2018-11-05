@@ -6,6 +6,7 @@ import subprocess
 import sys
 import uploader
 from tqdm import tqdm
+import logging
 
 from exif_write import ExifEdit
 
@@ -50,13 +51,14 @@ def sample_video(video_import_path,
 
     if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+              " does not exist, exiting...")  # ERROR LOG
         sys.exit(1)
 
     # command specific checks
     video_import_path = os.path.abspath(
         video_import_path) if os.path.isdir(video_import_path) else None
     if not video_import_path:
+        # ERROR LOG
         print("Error, video import path " + video_import_path +
               " does not exist or is not a directory, please provide a path to a directory with the video(s) you wish to import, exiting...")
         sys.exit(1)
@@ -66,6 +68,7 @@ def sample_video(video_import_path,
         video_import_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
         os.path.dirname(video_import_path), video_sampling_path)
+    # INFO LOG
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs
@@ -95,6 +98,7 @@ def extract_frames(video_file,
                    verbose=False):
 
     if verbose:
+        # INFO LOG
         print('extracting frames from {}'.format(video_file))
 
     video_filename = os.path.basename(video_file).rstrip(".mp4")
@@ -112,9 +116,11 @@ def extract_frames(video_file,
     try:
         subprocess.call(command)
     except OSError as e:
+        # ERROR LOG
         print("Error, ffmpeg is not installed or set in the OS system path.")
         sys.exit(1)
     except Exception as e:
+        # ERROR LOG
         print("Error, could not extract frames from video {} due to {}".format(
             video_file, e))
         sys.exit(1)
@@ -125,6 +131,7 @@ def extract_frames(video_file,
     else:
         video_start_time = get_video_start_time(video_file)
         if not video_start_time:
+            # WARNING LOG
             print("Warning, video start time not provided and could not be \
                    extracted from the video file, default video start time set \
                    to 0 milliseconds since UNIX epoch.")
@@ -149,6 +156,7 @@ def insert_video_frame_timestamp(video_filename, import_path, start_time, sample
     frame_list = uploader.get_total_frame_list(video_filename, import_path)
 
     if not len(frame_list):
+        # WARNING LOG
         print("No video frames were sampled.")
         return
 
@@ -165,6 +173,7 @@ def insert_video_frame_timestamp(video_filename, import_path, start_time, sample
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
         except:
+            # ERROR LOG
             print("Could not insert timestamp into video frame " +
                   os.path.basename(image)[:-4])
             continue

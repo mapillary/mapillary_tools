@@ -63,6 +63,7 @@ def estimate_sub_second_time(files, interval=0.0):
     if not smin or not smax:
         return None
     if smin > smax:
+        # ERROR LOG
         print('Interval not compatible with EXIF times')
         return None
     else:
@@ -92,6 +93,7 @@ def geotag_from_exif(process_file_list,
             if not geotag_source_path or not os.path.isfile(geotag_source_path):
                 raise Exception
         except Exception as e:
+            # ERROR LOG
             print(
                 "Error, failed extracting data from exif due to {}, exiting...".format(e))
             sys.exit(1)
