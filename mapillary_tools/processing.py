@@ -203,24 +203,34 @@ def geotag_from_blackvue_video(process_file_list,
                                sub_second_interval,
                                use_gps_start_time=False,
                                verbose=False):
-    try:
-        geotag_source_path = gpx_from_blackvue(geotag_source_path)
-        if not geotag_source_path or not os.path.isfile(geotag_source_path):
-            raise Exception
-    except Exception as e:
-        print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
-            geotag_source_path, e))
-        sys.exit(1)
 
-    geotag_from_gps_trace(process_file_list,
-                          "gpx",
-                          geotag_source_path,
-                          offset_time,
-                          offset_angle,
-                          local_time,
-                          sub_second_interval,
-                          use_gps_start_time,
-                          verbose)
+    # for each video, create gpx trace and geotag the corresponding video
+    # frames
+    blackvue_videos = uploader.get_video_file_list(geotag_source_path)
+    for blackvue_video in blackvue_videos:
+        blackvue_video_filename = os.path.basename(blackvue_video).replace(
+            ".mp4", "").replace(".MP4", "")
+        try:
+            gpx_path = gpx_from_blackvue(blackvue_video)
+            if not gpx_path or not os.path.isfile(gpx_path):
+                raise Exception
+        except Exception as e:
+            print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
+                blackvue_video, e))
+            sys.exit(1)
+
+        process_file_sublist = [x for x in process_file_list if os.path.join(
+            import_path, blackvue_video_filename, blackvue_video_filename + "_") in x]
+
+        geotag_from_gps_trace(process_file_sublist,
+                              "gpx",
+                              gpx_path,
+                              offset_time,
+                              offset_angle,
+                              local_time,
+                              sub_second_interval,
+                              use_gps_start_time,
+                              verbose)
 
 
 def geotag_from_gps_trace(process_file_list,
