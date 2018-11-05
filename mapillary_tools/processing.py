@@ -182,7 +182,7 @@ def geotag_from_gopro_video(process_file_list,
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
             import_path, gopro_video_filename, gopro_video_filename + "_") in x]
-
+        print(len(process_file_sublist))
         geotag_from_gps_trace(process_file_sublist,
                               "gpx",
                               gpx_path,
