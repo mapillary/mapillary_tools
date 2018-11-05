@@ -108,7 +108,7 @@ def extract_frames(video_file,
     ]
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
-        import_path, video_filename), ZERO_PADDING))
+        import_path, video_filename, video_filename), ZERO_PADDING))
     try:
         subprocess.call(command)
     except OSError as e:

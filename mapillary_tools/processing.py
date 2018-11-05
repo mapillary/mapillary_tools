@@ -169,6 +169,8 @@ def geotag_from_gopro_video(process_file_list,
     # frames
     gopro_videos = uploader.get_video_file_list(geotag_source_path)
     for gopro_video in gopro_videos:
+        gopro_video_filename = os.path.basename(gopro_video).replace(
+            ".mp4", "").replace(".MP4", "")
         try:
             gpx_path = gpx_from_gopro(gopro_video)
             if not gpx_path or not os.path.isfile(gpx_path):
@@ -179,7 +181,7 @@ def geotag_from_gopro_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, os.path.basename(gopro_video).replace(".mp4", "").replace(".MP4", "")) in x]
+            import_path, gopro_video_filename, gopro_video_filename + "_") in x]
 
         geotag_from_gps_trace(process_file_sublist,
                               "gpx",
