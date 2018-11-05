@@ -20,6 +20,7 @@ Mapillary tools is a library for processing and uploading images to Mapillary.
 * [gpxpy]
 * [PIL]
 * [pymp4]
+* [tqdm]
 * [Piexif]
 
 Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif), which needs to be installed separately. The rest of dependencies are installed along with the tools.
