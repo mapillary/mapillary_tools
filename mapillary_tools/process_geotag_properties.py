@@ -17,7 +17,7 @@ def process_geotag_properties(import_path,
                               video_file=None):
 
     # sanity check if video file is passed
-    if video_file and not (os.path.isdir(video_file) or os.path.isfile(video_file)):
+    if video_file and not os.path.isdir(video_file):
         print("Error, video path " + video_file +
               " does not exist, exiting...")
         sys.exit(1)
@@ -84,8 +84,9 @@ def process_geotag_properties(import_path,
                                                              sub_second_interval,
                                                              use_gps_start_time,
                                                              verbose)
-    elif geotag_source == "gopro_video":
+    elif geotag_source == "gopro_videos":
         geotag_properties = processing.geotag_from_gopro_video(process_file_list,
+                                                               import_path,
                                                                geotag_source_path,
                                                                offset_time,
                                                                offset_angle,
@@ -95,6 +96,7 @@ def process_geotag_properties(import_path,
                                                                verbose)
     elif geotag_source == "blackvue_videos":
         geotag_properties = processing.geotag_from_blackvue_video(process_file_list,
+                                                                  import_path,
                                                                   geotag_source_path,
                                                                   offset_time,
                                                                   offset_angle,

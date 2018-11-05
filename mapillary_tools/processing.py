@@ -156,6 +156,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
 
 
 def geotag_from_gopro_video(process_file_list,
+                            import_path,
                             geotag_source_path,
                             offset_time,
                             offset_angle,
@@ -163,27 +164,36 @@ def geotag_from_gopro_video(process_file_list,
                             sub_second_interval,
                             use_gps_start_time=False,
                             verbose=False):
-    try:
-        geotag_source_path = gpx_from_gopro(geotag_source_path)
-        if not geotag_source_path or not os.path.isfile(geotag_source_path):
-            raise Exception
-    except Exception as e:
-        print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
-            geotag_source_path, e))
-        sys.exit(1)
 
-    geotag_from_gps_trace(process_file_list,
-                          "gpx",
-                          geotag_source_path,
-                          offset_time,
-                          offset_angle,
-                          local_time,
-                          sub_second_interval,
-                          use_gps_start_time,
-                          verbose)
+    # for each video, create gpx trace and geotag the corresponding video
+    # frames
+    gopro_videos = uploader.get_video_file_list(geotag_source_path)
+    for gopro_video in gopro_videos:
+        try:
+            gpx_path = gpx_from_gopro(gopro_video)
+            if not gpx_path or not os.path.isfile(gpx_path):
+                raise Exception
+        except Exception as e:
+            print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
+                gopro_video, e))
+            sys.exit(1)
+
+        process_file_sublist = [x for x in process_file_list if os.path.join(
+            import_path, os.path.basename(gopro_video).replace(".mp4", "")) in x]
+
+        geotag_from_gps_trace(process_file_sublist,
+                              "gpx",
+                              gpx_path,
+                              offset_time,
+                              offset_angle,
+                              local_time,
+                              sub_second_interval,
+                              use_gps_start_time,
+                              verbose)
 
 
 def geotag_from_blackvue_video(process_file_list,
+                               import_path,
                                geotag_source_path,
                                offset_time,
                                offset_angle,
@@ -672,7 +682,7 @@ def processed_images_rootpath(filepath):
 
 
 def sampled_video_frames_rootpath(filepath):
-    return os.path.join(".mapillary", "sampled_video_frames", os.path.basename(filepath).rstrip(".mp4"))
+    return os.path.join("mapillary_sampled_video_frames", os.path.basename(filepath).replace(".mp4", ""))
 
 
 def video_upload(video_file, import_path, verbose=False):

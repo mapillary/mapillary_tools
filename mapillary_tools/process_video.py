@@ -97,7 +97,7 @@ def extract_frames(video_file,
     if verbose:
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).rstrip(".mp4")
+    video_filename = os.path.basename(video_file).replace(".mp4", "")
 
     command = [
         'ffmpeg',
@@ -107,8 +107,8 @@ def extract_frames(video_file,
         '-qscale', '1', '-nostdin'
     ]
 
-    command.append('{}/{}_%0{}d.jpg'.format(import_path,
-                                            video_filename, ZERO_PADDING))
+    command.append('{}_%0{}d.jpg'.format(os.path.join(
+        import_path, video_filename), ZERO_PADDING))
     try:
         subprocess.call(command)
     except OSError as e:
