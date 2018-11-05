@@ -99,8 +99,8 @@ def extract_frames(video_file,
     video_filename = os.path.basename(video_file).replace(
         ".mp4", "").replace(".MP4", "")
     video_sampling_path = os.path.join(import_path, video_filename)
-    if not os.path.isdir(os.path.dirname(video_sampling_path)):
-        os.makedirs(os.path.dirname(video_sampling_path))
+    if not os.path.isdir(video_sampling_path):
+        os.makedirs(video_sampling_path)
 
     command = [
         'ffmpeg',
