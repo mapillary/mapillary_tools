@@ -92,9 +92,13 @@ def get_points_from_bv(path):
                                     "Error in parsing gps trace to extract date information, nmea parsing failed due to {}".format(e))
                         if "$GPGGA" in m:
                             try:
+                                if not date:
+                                    print(
+                                        "Error, could not extract date from the video gps trace, exiting...")
+                                    sys.exit(1)
                                 data = pynmea2.parse(m)
                                 timestamp = datetime.datetime.combine(
-                                    date, data.timestamp) if date else data.timestamp
+                                    date, data.timestamp)
                                 lat, lon, alt = data.latitude, data.longitude, data.altitude
                                 points.append((timestamp, lat, lon, alt))
                             except Exception as e:
