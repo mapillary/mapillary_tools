@@ -1,5 +1,5 @@
 #!/bin/bash
-aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe
+#aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe
 
 zip -r mapillary_tools.zip publish/osx/mapillary_tools.app/
 aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
