@@ -94,8 +94,6 @@ def process_geotag_properties(import_path,
                                                                use_gps_start_time,
                                                                verbose)
     elif geotag_source == "blackvue_videos":
-        print("temporarly unavailable, exiting...")
-        sys.exit(1)
         geotag_properties = processing.geotag_from_blackvue_video(process_file_list,
                                                                   import_path,
                                                                   geotag_source_path,
