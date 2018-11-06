@@ -62,10 +62,9 @@ def sample_video(video_import_path,
         sys.exit(1)
 
     # set sampling path
-    video_sampling_path = processing.sampled_video_frames_rootpath(
-        video_import_path)
+    video_sampling_path = "mapillary_sampled_video_frames"
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.dirname(video_import_path), video_sampling_path)
+        os.path.abspath(video_import_path), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs
@@ -97,7 +96,11 @@ def extract_frames(video_file,
     if verbose:
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).rstrip(".mp4")
+    video_filename = os.path.basename(video_file).replace(
+        ".mp4", "").replace(".MP4", "")
+    video_sampling_path = os.path.join(import_path, video_filename)
+    if not os.path.isdir(video_sampling_path):
+        os.makedirs(video_sampling_path)
 
     command = [
         'ffmpeg',
@@ -107,8 +110,8 @@ def extract_frames(video_file,
         '-qscale', '1', '-nostdin'
     ]
 
-    command.append('{}/{}_%0{}d.jpg'.format(import_path,
-                                            video_filename, ZERO_PADDING))
+    command.append('{}_%0{}d.jpg'.format(os.path.join(
+        video_sampling_path, video_filename), ZERO_PADDING))
     try:
         subprocess.call(command)
     except OSError as e:
@@ -131,7 +134,7 @@ def extract_frames(video_file,
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
     insert_video_frame_timestamp(video_filename,
-                                 import_path,
+                                 video_sampling_path,
                                  video_start_time,
                                  video_sample_interval,
                                  video_duration_ratio,
@@ -143,10 +146,10 @@ def get_video_duration(video_file):
     return float(FFProbe(video_file).video[0].duration)
 
 
-def insert_video_frame_timestamp(video_filename, import_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
+def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
 
     # get list of file to process
-    frame_list = uploader.get_total_frame_list(video_filename, import_path)
+    frame_list = uploader.get_total_file_list(video_sampling_path)
 
     if not len(frame_list):
         print("No video frames were sampled.")

@@ -156,6 +156,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
 
 
 def geotag_from_gopro_video(process_file_list,
+                            import_path,
                             geotag_source_path,
                             offset_time,
                             offset_angle,
@@ -163,27 +164,38 @@ def geotag_from_gopro_video(process_file_list,
                             sub_second_interval,
                             use_gps_start_time=False,
                             verbose=False):
-    try:
-        geotag_source_path = gpx_from_gopro(geotag_source_path)
-        if not geotag_source_path or not os.path.isfile(geotag_source_path):
-            raise Exception
-    except Exception as e:
-        print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
-            geotag_source_path, e))
-        sys.exit(1)
 
-    geotag_from_gps_trace(process_file_list,
-                          "gpx",
-                          geotag_source_path,
-                          offset_time,
-                          offset_angle,
-                          local_time,
-                          sub_second_interval,
-                          use_gps_start_time,
-                          verbose)
+    # for each video, create gpx trace and geotag the corresponding video
+    # frames
+    gopro_videos = uploader.get_video_file_list(geotag_source_path)
+    for gopro_video in gopro_videos:
+        gopro_video_filename = os.path.basename(gopro_video).replace(
+            ".mp4", "").replace(".MP4", "")
+        try:
+            gpx_path = gpx_from_gopro(gopro_video)
+            if not gpx_path or not os.path.isfile(gpx_path):
+                raise Exception
+        except Exception as e:
+            print("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
+                gopro_video, e))
+            sys.exit(1)
+
+        process_file_sublist = [x for x in process_file_list if os.path.join(
+            import_path, gopro_video_filename, gopro_video_filename + "_") in x]
+
+        geotag_from_gps_trace(process_file_sublist,
+                              "gpx",
+                              gpx_path,
+                              offset_time,
+                              offset_angle,
+                              local_time,
+                              sub_second_interval,
+                              use_gps_start_time,
+                              verbose)
 
 
 def geotag_from_blackvue_video(process_file_list,
+                               import_path,
                                geotag_source_path,
                                offset_time,
                                offset_angle,
@@ -191,24 +203,34 @@ def geotag_from_blackvue_video(process_file_list,
                                sub_second_interval,
                                use_gps_start_time=False,
                                verbose=False):
-    try:
-        geotag_source_path = gpx_from_blackvue(geotag_source_path)
-        if not geotag_source_path or not os.path.isfile(geotag_source_path):
-            raise Exception
-    except Exception as e:
-        print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
-            geotag_source_path, e))
-        sys.exit(1)
 
-    geotag_from_gps_trace(process_file_list,
-                          "gpx",
-                          geotag_source_path,
-                          offset_time,
-                          offset_angle,
-                          local_time,
-                          sub_second_interval,
-                          use_gps_start_time,
-                          verbose)
+    # for each video, create gpx trace and geotag the corresponding video
+    # frames
+    blackvue_videos = uploader.get_video_file_list(geotag_source_path)
+    for blackvue_video in blackvue_videos:
+        blackvue_video_filename = os.path.basename(blackvue_video).replace(
+            ".mp4", "").replace(".MP4", "")
+        try:
+            gpx_path = gpx_from_blackvue(blackvue_video)
+            if not gpx_path or not os.path.isfile(gpx_path):
+                raise Exception
+        except Exception as e:
+            print("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
+                blackvue_video, e))
+            sys.exit(1)
+
+        process_file_sublist = [x for x in process_file_list if os.path.join(
+            import_path, blackvue_video_filename, blackvue_video_filename + "_") in x]
+
+        geotag_from_gps_trace(process_file_sublist,
+                              "gpx",
+                              gpx_path,
+                              offset_time,
+                              offset_angle,
+                              local_time,
+                              sub_second_interval,
+                              use_gps_start_time,
+                              verbose)
 
 
 def geotag_from_gps_trace(process_file_list,
@@ -581,13 +603,13 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
 
     process_file_list = []
     if skip_subfolders:
-        process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+        process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            process_file_list.extend(os.path.join(root, file) for file in files if preform_process(
+            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
                 os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     inform_processing_start(root_dir,
@@ -600,13 +622,13 @@ def get_process_status_file_list(import_path, process, status, skip_subfolders=F
 
     status_process_file_list = []
     if skip_subfolders:
-        status_process_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+        status_process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            status_process_file_list.extend(os.path.join(root, file) for file in files if process_status(
+            status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
                 os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(status_process_file_list)
@@ -621,13 +643,13 @@ def process_status(file_path, process, status):
 def get_duplicate_file_list(import_path, skip_subfolders=False):
     duplicate_file_list = []
     if skip_subfolders:
-        duplicate_file_list.extend(os.path.join(root_dir, file) for file in os.listdir(root_dir) if file.lower().endswith(
+        duplicate_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            duplicate_file_list.extend(os.path.join(root, file) for file in files if is_duplicate(
+            duplicate_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_duplicate(
                 os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(duplicate_file_list)
@@ -654,7 +676,7 @@ def get_failed_process_file_list(import_path, process):
     for root, dir, files in os.walk(import_path):
         if os.path.join(".mapillary", "logs") in root:
             continue
-        failed_process_file_list.extend(os.path.join(root, file) for file in files if failed_process(
+        failed_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if failed_process(
             os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(failed_process_file_list)
@@ -669,10 +691,6 @@ def failed_process(file_path, process):
 
 def processed_images_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
-
-
-def sampled_video_frames_rootpath(filepath):
-    return os.path.join(".mapillary", "sampled_video_frames", os.path.basename(filepath).rstrip(".mp4"))
 
 
 def video_upload(video_file, import_path, verbose=False):
