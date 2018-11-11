@@ -119,6 +119,10 @@ def process_sequence_properties(import_path,
                     sequences.extend(processing.split_sequences(
                         capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose))
                 # ---------------------------------------
+    if flag_duplicates:
+        if verbose:
+            print("Flagging images as duplicates if consecutive distance difference less than {} and angle difference less than {}".format(
+                duplicate_distance, duplicate_angle))
 
     # process for each sequence
     for sequence in sequences:
@@ -149,9 +153,6 @@ def process_sequence_properties(import_path,
         final_capture_times = capture_times[:]
         # FLAG DUPLICATES --------------------------------------
         if flag_duplicates:
-            if verbose:
-                print(
-                    "Flagging images as duplicates if consecutive distance difference less than {} and angle difference less than".format(duplicate_distance, duplicate_angle))
             final_file_list = [file_list[0]]
             final_directions = [directions[0]]
             final_capture_times = [capture_times[0]]

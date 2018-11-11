@@ -131,8 +131,13 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
               " image capture time tag not in EXIF. Geotagging process failed for this image, since this is required information.")
         return None
 
-    geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
-        timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+    try:
+        geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
+            timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+    except:
+        print("Error, " + image +
+              " image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.")
+        return None
 
     # optional fields
     try:
