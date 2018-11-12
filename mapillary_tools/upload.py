@@ -49,56 +49,56 @@ def upload(import_path, verbose=False, skip_subfolders=False, video_file=None, n
 
     if len(success_file_list) == len(total_file_list):
         print("All images have already been uploaded")
-        sys.exit()
+    else:
+        if len(failed_file_list):
+            upload_failed = raw_input(
+                "Retry uploading previously failed image uploads? [y/n]: ")
+            # if yes, add images to the upload list
+            if upload_failed in ["y", "Y", "yes", "Yes"]:
+                upload_file_list.extend(failed_file_list)
 
-    if len(failed_file_list):
-        upload_failed = raw_input(
-            "Retry uploading previously failed image uploads? [y/n]: ")
-        # if yes, add images to the upload list
-        if upload_failed in ["y", "Y", "yes", "Yes"]:
-            upload_file_list.extend(failed_file_list)
+        # verify the images in the upload list, they need to have the image
+        # description and certain MAP properties
+        upload_file_list = [
+            f for f in upload_file_list if verify_mapillary_tag(f)]
 
-    # verify the images in the upload list, they need to have the image
-    # description and certain MAP properties
-    upload_file_list = [f for f in upload_file_list if verify_mapillary_tag(f)]
+        if not len(upload_file_list):
+            print("No images to upload.")
+            print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
+            sys.exit(1)
 
-    if not len(upload_file_list):
-        print("No images to upload.")
-        print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
-        sys.exit(1)
+        # get upload params for the manual upload images, group them per sequence
+        # and separate direct upload images
+        params = {}
+        list_per_sequence_mapping = {}
+        direct_upload_file_list = []
+        for image in upload_file_list:
+            log_root = uploader.log_rootpath(image)
+            upload_params_path = os.path.join(
+                log_root, "upload_params_process.json")
+            if os.path.isfile(upload_params_path):
+                with open(upload_params_path, "rb") as jf:
+                    params[image] = json.load(
+                        jf, object_hook=uploader.ascii_encode_dict)
+                    sequence = params[image]["key"]
+                    if sequence in list_per_sequence_mapping:
+                        list_per_sequence_mapping[sequence].append(image)
+                    else:
+                        list_per_sequence_mapping[sequence] = [image]
+            else:
+                direct_upload_file_list.append(image)
 
-    # get upload params for the manual upload images, group them per sequence
-    # and separate direct upload images
-    params = {}
-    list_per_sequence_mapping = {}
-    direct_upload_file_list = []
-    for image in upload_file_list:
-        log_root = uploader.log_rootpath(image)
-        upload_params_path = os.path.join(
-            log_root, "upload_params_process.json")
-        if os.path.isfile(upload_params_path):
-            with open(upload_params_path, "rb") as jf:
-                params[image] = json.load(
-                    jf, object_hook=uploader.ascii_encode_dict)
-                sequence = params[image]["key"]
-                if sequence in list_per_sequence_mapping:
-                    list_per_sequence_mapping[sequence].append(image)
-                else:
-                    list_per_sequence_mapping[sequence] = [image]
-        else:
-            direct_upload_file_list.append(image)
+        # inform how many images are to be uploaded and how many are being skipped
+        # from upload
 
-    # inform how many images are to be uploaded and how many are being skipped
-    # from upload
+        print("Uploading {} images with valid mapillary tags (Skipping {})".format(
+            len(upload_file_list), len(total_file_list) - len(upload_file_list)))
 
-    print("Uploading {} images with valid mapillary tags (Skipping {})".format(
-        len(upload_file_list), len(total_file_list) - len(upload_file_list)))
+        if len(direct_upload_file_list):
+            uploader.upload_file_list_direct(
+                direct_upload_file_list, number_threads, max_attempts)
+        for idx, sequence in enumerate(list_per_sequence_mapping):
+            uploader.upload_file_list_manual(
+                list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
 
-    if len(direct_upload_file_list):
-        uploader.upload_file_list_direct(
-            direct_upload_file_list, number_threads, max_attempts)
-    for idx, sequence in enumerate(list_per_sequence_mapping):
-        uploader.upload_file_list_manual(
-            list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
-
-    uploader.print_summary(upload_file_list)
+        uploader.print_summary(upload_file_list)
