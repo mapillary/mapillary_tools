@@ -363,7 +363,7 @@ def validate_organization_privacy(user_key, organization_key, private, upload_to
 
     for org in resp:
         if org['key'] == organization_key:
-            if ('private_repository' in org and org['private_repository'] != private) or ('private_repository' not in org and private):
+            if (private and (('private_repository' not in org) or not org['private_repository'])) or (not private and (('public_repository' not in org) or not org['public_repository'])):
                 print(
                     "Organization privacy does not match provided privacy settings.")
                 privacy = "private" if 'private_repository' in org and org[
