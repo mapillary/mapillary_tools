@@ -18,5 +18,6 @@ setup(name='mapillary_tools',
           'pymp4==1.1.0',
           'pynmea2==1.12.0',
           'pytest==3.2.3',
-          'tqdm==2.2.4'
+          'tqdm==2.2.4',
+          'requests==2.20.0'
       ])

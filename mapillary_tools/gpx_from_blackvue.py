@@ -115,27 +115,13 @@ def get_points_from_bv(path):
 
 def gpx_from_blackvue(bv_video):
     bv_data = []
-
-    if os.path.isdir(bv_video):
-        video_files = uploader.get_video_file_list(bv_video)
-        for video in video_files:
-            try:
-                bv_data += get_points_from_bv(video)
-            except Exception as e:
-                print(
-                    "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(video, e))
-
-        dirname = os.path.dirname(bv_video)
-        basename = os.path.basename(bv_video)
-        gpx_path = os.path.join(dirname, basename + '.gpx')
-    else:
-        try:
-            bv_data = get_points_from_bv(bv_video)
-        except Exception as e:
-            print(
-                "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
-        basename, extension = os.path.splitext(bv_video)
-        gpx_path = basename + '.gpx'
+    try:
+        bv_data = get_points_from_bv(bv_video)
+    except Exception as e:
+        print(
+            "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
+    basename, extension = os.path.splitext(bv_video)
+    gpx_path = basename + '.gpx'
 
     bv_data.sort(key=lambda x: x[0])
 

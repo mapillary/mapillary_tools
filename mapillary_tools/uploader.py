@@ -146,13 +146,13 @@ def flag_finalization(finalize_file_list):
 def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
     if skip_subfolders:
-        upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        upload_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            upload_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+            upload_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
     return sorted(upload_file_list)
 
@@ -161,7 +161,7 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 def get_video_file_list(video_file):
     video_file_list = []
     for root, dir, files in os.walk(video_file):
-        video_file_list.extend(os.path.join(root, file)
+        video_file_list.extend(os.path.join(os.path.abspath(root), file)
                                for file in files if file.lower().endswith(('mp4')))
     return sorted(video_file_list)
 
@@ -169,34 +169,27 @@ def get_video_file_list(video_file):
 def get_total_file_list(import_path, skip_subfolders=False):
     total_file_list = []
     if skip_subfolders:
-        total_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        total_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            total_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            total_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
     return sorted(total_file_list)
-
-
-def get_total_frame_list(video_filename, import_path):
-    frame_list = []
-    frame_list.extend(os.path.join(import_path, file) for file in os.listdir(
-        import_path) if file.lower().endswith("jpg") and video_filename in file)
-    return sorted(frame_list)
 
 
 def get_failed_upload_file_list(import_path, skip_subfolders=False):
     failed_upload_file_list = []
     if skip_subfolders:
-        failed_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        failed_upload_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            failed_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            failed_upload_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and failed_upload(root, file))
 
     return sorted(failed_upload_file_list)
@@ -205,13 +198,13 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
 def get_success_upload_file_list(import_path, skip_subfolders=False):
     success_upload_file_list = []
     if skip_subfolders:
-        success_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        success_upload_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            success_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            success_upload_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_upload(root, file))
 
     return sorted(success_upload_file_list)
@@ -231,13 +224,13 @@ def success_upload(root, file):
 def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False):
     success_only_manual_upload_file_list = []
     if skip_subfolders:
-        success_only_manual_upload_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        success_only_manual_upload_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            success_only_manual_upload_file_list.extend(os.path.join(root, file) for file in files if file.lower(
+            success_only_manual_upload_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower(
             ).endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and success_only_manual_upload(root, file))
 
     return sorted(success_only_manual_upload_file_list)
@@ -281,13 +274,13 @@ def failed_upload(root, file):
 def get_finalize_file_list(import_path, skip_subfolders=False):
     finalize_file_list = []
     if skip_subfolders:
-        finalize_file_list.extend(os.path.join(import_path, file) for file in os.listdir(import_path) if file.lower().endswith(
+        finalize_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            finalize_file_list.extend(os.path.join(root, file) for file in files if file.lower().endswith(
+            finalize_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower().endswith(
                 ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
 
     return sorted(finalize_file_list)
@@ -370,7 +363,7 @@ def validate_organization_privacy(user_key, organization_key, private, upload_to
 
     for org in resp:
         if org['key'] == organization_key:
-            if ('private_repository' in org and org['private_repository'] != private) or ('private_repository' not in org and private):
+            if (private and (('private_repository' not in org) or not org['private_repository'])) or (not private and (('public_repository' not in org) or not org['public_repository'])):
                 print(
                     "Organization privacy does not match provided privacy settings.")
                 privacy = "private" if 'private_repository' in org and org[
