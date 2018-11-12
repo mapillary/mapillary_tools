@@ -175,6 +175,9 @@ def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time
 
 def get_video_start_time(video_file):
     """Get video start time in seconds"""
+    if not os.path.isfile(video_file):
+        print("Error, video file {} does not exist".format(video_file))
+        return None
     try:
         time_string = FFProbe(video_file).video[0].creation_time
         try:
