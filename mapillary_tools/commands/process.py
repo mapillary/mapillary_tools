@@ -73,8 +73,8 @@ class Command:
                             help='maximum time interval in seconds within a sequence', required=False)
         parser.add_argument('--interpolate_directions',
                             help='perform interploation of directions', action='store_true', required=False)
-        parser.add_argument('--flag_duplicates',
-                            help='flag duplicates', action='store_true', required=False)
+        parser.add_argument('--keep_duplicates',
+                            help='keep duplicates, ie do not flag duplicates for upload exclusion, but keep them to be uploaded', action='store_true', required=False, default=False)
         parser.add_argument('--duplicate_distance',
                             help='max distance for two images to be considered duplicates in meters', type=float, default=0.1, required=False)
         parser.add_argument(
