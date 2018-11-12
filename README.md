@@ -148,7 +148,7 @@ mapillary_tools process -h --advanced
 For Windows, adjust the commands according the instructions for execution.
 
 #### Process Images
-The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`. By default, only the Image Description EXIF tag is overwritten.
+The command below processes all images in the directory and its sub-directories. It will update the images with Mapillary-specific metadata in the image EXIF for the user with user name `mapillary_user`. It requires that each image in the directory contains `capture time` and `GPS`. By default, only the Image Description EXIF tag is overwritten. and duplicate images are flagged to be excluded from upload using default thresholds for duplicate distance 0.1 m and duplicate angle 5°.
 
  ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
@@ -222,18 +222,18 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 ```
 
 
-### Derive image direction, flag duplicates and Upload
- - Derive image direction (image heading or camera angle) based on image latitude and longitude and flag duplicates to be excluded from the upload. If images are missing direction, the direction is derived automatically, if direction is present, it will be derived and overwritten only if the flag `--interpolate directions` is specified.
+### Derive image direction and Upload
+ - Derive image direction (image heading or camera angle) based on image latitude and longitude. If images are missing direction, the direction is derived automatically, if direction is present, it will be derived and overwritten only if the flag `--interpolate directions` is specified.
 
  ```bash
-mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapillary --flag_duplicates --interpolate_directions
+mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapillary --interpolate_directions
 mapillary_tools upload --import_path "path/to/images"
 ```
 
 or
 
  ```bash
-mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapillary --flag_duplicates --interpolate_directions
+mapillary_tools process_and_upload --advanced --import_path "path/to/images" --user_name username_at_mapillary --interpolate_directions
 ```
 
 ### Video Sampling and Upload
@@ -276,7 +276,7 @@ mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/c
 
 ### `process`
 
-The `process` command will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF Image Description tag. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, additional functionalities are available, for example latitude and longitude can be read from a gpx track file or a GoPro video, camera direction can be derived based on latitude and longitude, duplicates can be flagged to be excluded from the upload etc. See the command specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
+The `process` command will format the required and optional meta data into a Mapillary image description and insert it in the image EXIF Image Description tag. Images are required to contain image capture time, latitude, longitude and camera direction in the image EXIF. Under advanced usage, additional functionalities are available, for example latitude and longitude can be read from a gpx track file or a GoPro video, camera direction can be derived based on latitude and longitude, duplicates can be kept instead of excluded from the upload etc. See the command specific help for required and optional arguments, add `--advanced` to see additional advanced optional arguments.
 
 #### Examples
 
@@ -293,10 +293,10 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 
 #### Advanced Examples
 
- - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°. Additionally pass the `--overwrite_EXIF_gps_tag` to overwrite values with the values obtained from the gpx track.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and specifying to keep duplicates to be uploaded instead of flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°. Additionally pass the `--overwrite_EXIF_gps_tag` to overwrite values with the values obtained from the gpx track.
 
 ```bash
-mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --flag_duplicates --overwrite_EXIF_gps_tag
+mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --keep_duplicates --overwrite_EXIF_gps_tag
 ```
  - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, specifying the import to be private imagery belonging to an organization with organization username `mapillary_organization`. You can find the organization username in your dashboard.
 
@@ -349,10 +349,10 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 #### Advanced Examples
 
-- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, while skipping duplicate images. Here duplicate images are specified as consecutive images that are less than 0.5 meter apart according to image `GPS` and have less than 1° camera angle difference according to image direction.
+- Process and upload all the images in directory `path/to/images` and its sub-directories for user `mapillary_user`, while specifying duplicate distance and angle threshold so that duplicate images are consecutive images that are less than 0.5 meter apart according to image `GPS` and have less than 1° camera angle difference according to image direction.
 
 ```bash
-mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --flag_duplicates --duplicate_distance 0.5 --duplicate_angle 1 --advanced
+mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_user" --verbose --rerun --duplicate_distance 0.5 --duplicate_angle 1 --advanced
 ```
 
 ### `sample_video`
@@ -417,7 +417,7 @@ Process unit commands are commands executed by the `process` command. Usage of p
 
 #### `extract_sequence_data`
 
-`extract_sequence_data` will process the entire set of images located in the import path and create sequences, initially based on the file system structure, then based on image capture time and location and in the end splitting sequences longer than 500 images. Optionally, duplicates can be flagged (ie marked to be skipped when uploading) and camera directions can be  derived based on latitude and longitude.
+`extract_sequence_data` will process the entire set of images located in the import path and create sequences, initially based on the file system structure, then based on image capture time and location and in the end splitting sequences longer than 500 images. By default, duplicates are flagged to be excluded from upload, using the default duplicate thresholds for distance 0.1 m and angle 5°. Optionally, duplicates can be kept and camera directions can be derived based on latitude and longitude.
 
 #### `extract_upload_params`
 

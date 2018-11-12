@@ -253,7 +253,8 @@ def post_process(import_path,
             if move_duplicates:
                 if not len(duplicates_file_list):
                     print("")
-                    print("There were no duplicates flagged in the specified import path. If you are processing the images with mapillary_tools and would like to flag duplicates, you must specify --advanced --flag_duplicates")
+                    print(
+                        "There were no duplicates flagged in the specified import path.")
                 else:
                     duplicate_path = os.path.join(
                         final_split_path, "duplicates")
