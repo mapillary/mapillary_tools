@@ -1,18 +1,6 @@
 import gpxpy
 import exif_read
-
-
-def write_gpx(path, data):
-    gpx = gpxpy.gpx.GPX()
-    gpx_track = gpxpy.gpx.GPXTrack()
-    gpx.tracks.append(gpx_track)
-    gpx_segment = gpxpy.gpx.GPXTrackSegment()
-    gpx_track.segments.append(gpx_segment)
-    for point in data:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-            point[1], point[2], elevation=point[3], time=point[0]))
-    with open(path, "w") as f:
-        f.write(gpx.to_xml())
+from geo import write_gpx
 
 
 def get_points_from_exif(file_list, verbose=False):

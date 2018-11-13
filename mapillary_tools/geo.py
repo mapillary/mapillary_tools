@@ -2,6 +2,8 @@
 
 import datetime
 import math
+import gpxpy
+import gpxpy.gpx
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
@@ -216,3 +218,16 @@ def interpolate_lat_lon(points, t, max_dt=1):
         ele = None
 
     return lat, lon, bearing, ele
+
+
+def write_gpx(path, data):
+    gpx = gpxpy.gpx.GPX()
+    gpx_track = gpxpy.gpx.GPXTrack()
+    gpx.tracks.append(gpx_track)
+    gpx_segment = gpxpy.gpx.GPXTrackSegment()
+    gpx_track.segments.append(gpx_segment)
+    for point in data:
+        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
+            point[1], point[2], elevation=point[3], time=point[0]))
+    with open(path, "w") as f:
+        f.write(gpx.to_xml())

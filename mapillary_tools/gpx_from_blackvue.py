@@ -9,6 +9,7 @@ import sys
 import re
 import pynmea2
 import uploader
+from geo import write_gpx
 
 from pymp4.parser import Box
 from construct.core import RangeError, ConstError
@@ -16,23 +17,6 @@ from construct.core import RangeError, ConstError
 '''
 Pulls geo data out of a BlackVue video files
 '''
-
-
-def write_gpx(path, data):
-    gpx = gpxpy.gpx.GPX()
-
-    gpx_track = gpxpy.gpx.GPXTrack()
-    gpx.tracks.append(gpx_track)
-
-    gpx_segment = gpxpy.gpx.GPXTrackSegment()
-    gpx_track.segments.append(gpx_segment)
-
-    for point in data:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-            point[1], point[2], elevation=point[3], time=point[0]))
-
-    with open(path, "w") as f:
-        f.write(gpx.to_xml())
 
 
 def get_points_from_bv(path):

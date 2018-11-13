@@ -289,7 +289,7 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process"
                                        "failed",
                                        verbose)
-        sys.exit(1)
+        return
 
     if not gps_trace:
         print("Error, gps trace file was not read, images can not be geotagged.")
@@ -297,7 +297,7 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process",
                                        "failed",
                                        verbose)
-        sys.exit(1)
+        return
 
     if use_gps_start_time:
         # update offset time with the gps start time
