@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 import datetime
-import gpxpy
-import gpxpy.gpx
 import os
 from ffmpeg import extract_stream, get_ffprobe
 from gpmf import parse_bin, interpolate_times

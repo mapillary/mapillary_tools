@@ -1,4 +1,3 @@
-import gpxpy
 import exif_read
 from geo import write_gpx
 

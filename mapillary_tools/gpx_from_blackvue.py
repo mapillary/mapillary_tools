@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 import datetime
-import gpxpy
-import gpxpy.gpx
 import os
 import io
 import sys

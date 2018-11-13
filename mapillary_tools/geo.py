@@ -2,9 +2,6 @@
 
 import datetime
 import math
-import gpxpy
-import gpxpy.gpx
-
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
@@ -220,14 +217,24 @@ def interpolate_lat_lon(points, t, max_dt=1):
     return lat, lon, bearing, ele
 
 
-def write_gpx(path, data):
-    gpx = gpxpy.gpx.GPX()
-    gpx_track = gpxpy.gpx.GPXTrack()
-    gpx.tracks.append(gpx_track)
-    gpx_segment = gpxpy.gpx.GPXTrackSegment()
-    gpx_track.segments.append(gpx_segment)
-    for point in data:
-        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-            point[1], point[2], elevation=point[3], time=point[0]))
-    with open(path, "w") as f:
-        f.write(gpx.to_xml())
+def write_gpx(filename, gps_trace):
+    time_format = "%Y-%m-%dT%H:%M:%S.%f"
+    gpx = "<gpx>" + "\n"
+    gpx += "<trk>" + "\n"
+    gpx += "<name>Mapillary GPX</name>" + "\n"
+    gpx += "<trkseg>" + "\n"
+    for point in gps_trace:
+        lat = point[1]
+        lon = point[2]
+        time = datetime.datetime.strftime(point[0], time_format)[:-3]
+        elevation = point[3]
+        gpx += "<trkpt lat=\"" + \
+            str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
+        gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
+        gpx += "<time>" + time + "</time>" + "\n"
+        gpx += "</trkpt>" + "\n"
+    gpx += "</trkseg>" + "\n"
+    gpx += "</trk>" + "\n"
+    gpx += "</gpx>" + "\n"
+    with open(filename, "w") as fout:
+        fout.write(gpx)
