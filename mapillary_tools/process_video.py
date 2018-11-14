@@ -75,7 +75,7 @@ def sample_video(video_import_path,
         return
 
     video_list = uploader.get_video_file_list(video_import_path)
-    for video in video_list:
+    for video in tqdm(video_list, desc="Extracting video frames"):
         extract_frames(video,
                        import_path,
                        video_sample_interval,
