@@ -185,7 +185,7 @@ def geotag_from_gopro_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, gopro_video_filename, gopro_video_filename + "_") in x]
+            gopro_video_filename, gopro_video_filename + "_") in x]
 
         if not len(process_file_sublist):
             print("Error, no video frames extracted for video file {} in import_path {}".format(
@@ -233,7 +233,7 @@ def geotag_from_blackvue_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, blackvue_video_filename, blackvue_video_filename + "_") in x]
+            blackvue_video_filename, blackvue_video_filename + "_") in x]
 
         if not len(process_file_sublist):
             print("Error, no video frames extracted for video file {} in import_path {}".format(
