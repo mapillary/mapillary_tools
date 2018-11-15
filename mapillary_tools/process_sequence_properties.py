@@ -50,7 +50,7 @@ def process_sequence_properties(import_path,
                                 video_import_path=None):
 
     # sanity check if video file is passed
-    if video_import_path and not os.path.isdir(video_import_path):
+    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -59,8 +59,10 @@ def process_sequence_properties(import_path,
     if video_import_path:
         # set sampling path
         video_sampling_path = "mapillary_sampled_video_frames"
+        video_dirname = video_import_path if os.path.isdir(
+            video_import_path) else os.path.dirname(video_import_path)
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-            os.path.abspath(video_import_path), video_sampling_path)
+            os.path.abspath(video_dirname), video_sampling_path)
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):

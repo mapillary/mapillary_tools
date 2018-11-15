@@ -137,8 +137,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
         geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
             timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
     except:
-        print("Error, " + image +
-              " image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.")
+        print("Error, {} image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.".format(image))
         return None
 
     # optional fields
@@ -188,7 +187,7 @@ def geotag_from_gopro_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, gopro_video_filename, gopro_video_filename + "_") in x]
+            gopro_video_filename, gopro_video_filename + "_") in x]
 
         if not len(process_file_sublist):
             print("Error, no video frames extracted for video file {} in import_path {}".format(
@@ -236,7 +235,7 @@ def geotag_from_blackvue_video(process_file_list,
             sys.exit(1)
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
-            import_path, blackvue_video_filename, blackvue_video_filename + "_") in x]
+            blackvue_video_filename, blackvue_video_filename + "_") in x]
 
         if not len(process_file_sublist):
             print("Error, no video frames extracted for video file {} in import_path {}".format(
@@ -291,15 +290,16 @@ def geotag_from_gps_trace(process_file_list,
                                        "geotag_process"
                                        "failed",
                                        verbose)
-        sys.exit(1)
+        return
 
     if not gps_trace:
-        print("Error, gps trace file was not read, images can not be geotagged.")
+        print("Error, gps trace file {} was not read, images can not be geotagged.".format(
+            geotag_source_path))
         create_and_log_process_in_list(process_file_list,
                                        "geotag_process",
                                        "failed",
                                        verbose)
-        sys.exit(1)
+        return
 
     if use_gps_start_time:
         # update offset time with the gps start time

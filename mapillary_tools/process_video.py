@@ -54,19 +54,18 @@ def sample_video(video_import_path,
               " does not exist, exiting...")  # ERROR LOG
         sys.exit(1)
 
-    # command specific checks
-    video_import_path = os.path.abspath(
-        video_import_path) if os.path.isdir(video_import_path) else None
-    if not video_import_path:
-        # ERROR LOG
-        print("Error, video import path " + video_import_path +
-              " does not exist or is not a directory, please provide a path to a directory with the video(s) you wish to import, exiting...")
+    # sanity check
+    if not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
+        print("Error, video path " + video_import_path +
+              " does not exist, exiting...")
         sys.exit(1)
 
-    # set sampling path
+    # Adjust the import path
     video_sampling_path = "mapillary_sampled_video_frames"
+    video_dirname = video_import_path if os.path.isdir(
+        video_import_path) else os.path.dirname(video_import_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
-        os.path.abspath(video_import_path), video_sampling_path)
+        os.path.abspath(video_dirname), video_sampling_path)
     print("Video sampling path set to {}".format(import_path))
 
     # check video logs
@@ -76,8 +75,9 @@ def sample_video(video_import_path,
     if video_upload:
         return
 
-    video_list = uploader.get_video_file_list(video_import_path)
-    for video in video_list:
+    video_list = uploader.get_video_file_list(video_import_path) if os.path.isdir(
+        video_import_path) else [video_import_path]
+    for video in tqdm(video_list, desc="Extracting video frames"):
         extract_frames(video,
                        import_path,
                        video_sample_interval,

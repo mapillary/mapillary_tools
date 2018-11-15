@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
 import datetime
-import gpxpy
-import gpxpy.gpx
 import os
 from ffmpeg import extract_stream, get_ffprobe
 from gpmf import parse_bin, interpolate_times
-
+from geo import write_gpx
 
 # author https://github.com/stilldavid
 
@@ -36,27 +34,6 @@ def extract_bin(path):
     extract_stream(path, bin_path, stream_id)
 
     return bin_path
-
-
-def write_gpx(path, data):
-    gpx = gpxpy.gpx.GPX()
-
-    gpx_track = gpxpy.gpx.GPXTrack()
-    gpx.tracks.append(gpx_track)
-
-    gpx_segment = gpxpy.gpx.GPXTrackSegment()
-    gpx_track.segments.append(gpx_segment)
-
-    for point in data:
-        if len(point) > 3:
-            gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-                latitude=point[1], longitude=point[2], elevation=point[3], time=point[0]))
-        else:
-            gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(
-                latitude=point[1], longitude=point[2], time=point[0]))
-
-    with open(path, "w") as f:
-        f.write(gpx.to_xml())  # loosing milliseconds here
 
 
 def get_points_from_gpmf(path):
@@ -95,6 +72,6 @@ def gpx_from_gopro(gopro_video):
     basename, extension = os.path.splitext(gopro_video)
     gpx_path = basename + '.gpx'
 
-    write_gpx(gpx_path, gopro_data)
+    write_gpx(gpx_path, sorted(gopro_data))
 
     return gpx_path

@@ -2,4 +2,4 @@
 git+https://github.com/mapillary/Piexif
 redis
 certifi
-requests
+requests==2.20.0
