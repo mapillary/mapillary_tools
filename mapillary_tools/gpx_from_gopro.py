@@ -72,6 +72,6 @@ def gpx_from_gopro(gopro_video):
     basename, extension = os.path.splitext(gopro_video)
     gpx_path = basename + '.gpx'
 
-    write_gpx(gpx_path, gopro_data)
+    write_gpx(gpx_path, sorted(gopro_data))
 
     return gpx_path
