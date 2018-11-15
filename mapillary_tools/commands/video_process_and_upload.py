@@ -28,7 +28,7 @@ class Command:
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         # video specific args
-        parser.add_argument('--video_import_path', help='Path to a directory with one or more video files.',
+        parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
                             action='store', default=None, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
