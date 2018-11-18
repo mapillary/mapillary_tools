@@ -87,12 +87,8 @@ def finalize_import_properties_process(image,
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
     if camera_uuid:
         mapillary_description['MAPCameraUUID'] = camera_uuid
-
     if add_file_name:
-        add_meta_tag(mapillary_description,
-                     "strings",
-                     "original_file_name",
-                     image)
+        mapillary_description['MAPFilename'] = image
 
     if add_import_date:
         add_meta_tag(mapillary_description,
