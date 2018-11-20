@@ -66,18 +66,24 @@ def sample_video(video_import_path,
         video_import_path) else os.path.dirname(video_import_path)
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
         os.path.abspath(video_dirname), video_sampling_path)
-    print("Video sampling path set to {}".format(import_path))
-
-    # check video logs
-    video_upload = processing.video_upload(
-        video_import_path, import_path, verbose)
-
-    if video_upload:
-        return
 
     video_list = uploader.get_video_file_list(video_import_path) if os.path.isdir(
         video_import_path) else [video_import_path]
+
     for video in tqdm(video_list, desc="Extracting video frames"):
+
+        import_path = os.path.join(import_path, os.path.basename(video).replace(
+            ".mp4", "").replace(".MP4", ""))
+        if not os.path.isdir(import_path):
+            os.makedirs(import_path)
+
+        print("Video sampling path set to {}".format(import_path))
+        # check video logs
+        video_upload = processing.video_upload(
+            video_import_path, import_path, verbose)
+        if video_upload:
+            print("Video {} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.".format(video))
+
         extract_frames(video,
                        import_path,
                        video_sample_interval,
@@ -101,9 +107,6 @@ def extract_frames(video_file,
 
     video_filename = os.path.basename(video_file).replace(
         ".mp4", "").replace(".MP4", "")
-    video_sampling_path = os.path.join(import_path, video_filename)
-    if not os.path.isdir(video_sampling_path):
-        os.makedirs(video_sampling_path)
 
     command = [
         'ffmpeg',
@@ -114,7 +117,7 @@ def extract_frames(video_file,
     ]
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
-        video_sampling_path, video_filename), ZERO_PADDING))
+        import_path, video_filename), ZERO_PADDING))
     try:
         subprocess.call(command)
     except OSError as e:
@@ -140,7 +143,7 @@ def extract_frames(video_file,
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
     insert_video_frame_timestamp(video_filename,
-                                 video_sampling_path,
+                                 import_path,
                                  video_start_time,
                                  video_sample_interval,
                                  video_duration_ratio,
