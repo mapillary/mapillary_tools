@@ -40,7 +40,11 @@ class Command:
         parser.add_argument(
             '--add_file_name', help="Add original file name to EXIF. Note this input has precedence over the input read from the import source file.", action='store_true', required=False)
         parser.add_argument(
+            '--exclude_import_path', help="If local file name is to be added exclude import_path from the name.", action='store_true', required=False)
+        parser.add_argument(
             '--add_import_date', help="Add import date.", action='store_true', required=False)
+        parser.add_argument(
+            '--windows_path', help="If local file name is to be added with --add_file_name, added it as a windows path.", action='store_true', required=False)
         parser.add_argument('--orientation', help='Specify the image orientation in degrees. Note this might result in image rotation. Note this input has precedence over the input read from the import source file.',
                             choices=[0, 90, 180, 270], type=int, default=None, required=False)
         parser.add_argument(

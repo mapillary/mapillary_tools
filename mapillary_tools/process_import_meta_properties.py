@@ -75,7 +75,9 @@ def finalize_import_properties_process(image,
                                        verbose=False,
                                        mapillary_description={},
                                        custom_meta_data=None,
-                                       camera_uuid=None):
+                                       camera_uuid=None,
+                                       windows_path=False,
+                                       exclude_import_path=False):
     # always check if there are any command line arguments passed, they will
     if orientation:
         mapillary_description["MAPOrientation"] = orientation
@@ -88,7 +90,13 @@ def finalize_import_properties_process(image,
     if camera_uuid:
         mapillary_description['MAPCameraUUID'] = camera_uuid
     if add_file_name:
-        mapillary_description['MAPFilename'] = image
+        if exclude_import_path:
+            image_path = image.replace(import_path, "") if not windows_path else image.replace(
+                import_path, "").replace("/", "\\")
+        else:
+            image_path = image if not windows_path else image.replace(
+                "/", "\\")
+        mapillary_description['MAPFilename'] = image_path
 
     if add_import_date:
         add_meta_tag(mapillary_description,
@@ -160,7 +168,8 @@ def process_import_meta_properties(import_path,
                                    skip_subfolders=False,
                                    video_import_path=None,
                                    custom_meta_data=None,
-                                   camera_uuid=None):
+                                   camera_uuid=None,
+                                   windows_path=False):
 
     # sanity check if video file is passed
     if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
@@ -214,5 +223,6 @@ def process_import_meta_properties(import_path,
                                            verbose,
                                            import_meta_data_properties,
                                            custom_meta_data,
-                                           camera_uuid)
+                                           camera_uuid,
+                                           windows_path)
     print("Sub process ended")
