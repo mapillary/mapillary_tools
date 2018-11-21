@@ -114,7 +114,11 @@ def get_image_index(image, file_names):
                 image_index = [idx for idx, file_name in enumerate(
                     file_names) if file_name in image][0]
             except:
-                pass
+                try:
+                    image_index = [idx for idx, file_name in enumerate(
+                        file_names) if ".".join(file_name.split(".")[:-1]) in image][0]
+                except:
+                    pass
     return image_index
 
 
