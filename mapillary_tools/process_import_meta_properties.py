@@ -77,7 +77,8 @@ def finalize_import_properties_process(image,
                                        custom_meta_data=None,
                                        camera_uuid=None,
                                        windows_path=False,
-                                       exclude_import_path=False):
+                                       exclude_import_path=False,
+                                       exclude_path=None):
     # always check if there are any command line arguments passed, they will
     if orientation:
         mapillary_description["MAPOrientation"] = orientation
@@ -90,12 +91,14 @@ def finalize_import_properties_process(image,
     if camera_uuid:
         mapillary_description['MAPCameraUUID'] = camera_uuid
     if add_file_name:
+        image_path = image
         if exclude_import_path:
-            image_path = image.replace(import_path, "") if not windows_path else image.replace(
-                import_path, "").replace("/", "\\")
-        else:
-            image_path = image if not windows_path else image.replace(
-                "/", "\\")
+            image_path = image_path.replace(import_path, "")
+        elif exclude_path:
+            image_path = image_path.replace(exclude_path, "")
+        if windows_path:
+            image_path = image_path.replace("/", "\\")
+
         mapillary_description['MAPFilename'] = image_path
 
     if add_import_date:

@@ -53,6 +53,8 @@ class Command:
         parser.add_argument(
             '--exclude_import_path', help="If local file name is to be added exclude import_path from the name.", action='store_true', required=False)
         parser.add_argument(
+            "--exclude_path", help="If local file name is to be added, specify the path to be excluded.", default=None, required=False)
+        parser.add_argument(
             '--windows_path', help="If local file name is to be added with --add_file_name, added it as a windows path.", action='store_true', required=False)
         parser.add_argument(
             '--add_import_date', help="Add import date.", action='store_true', required=False)
