@@ -172,7 +172,8 @@ def process_import_meta_properties(import_path,
                                    video_import_path=None,
                                    custom_meta_data=None,
                                    camera_uuid=None,
-                                   windows_path=False):
+                                   windows_path=False,
+                                   exclude_path=None):
 
     # sanity check if video file is passed
     if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
@@ -227,5 +228,6 @@ def process_import_meta_properties(import_path,
                                            import_meta_data_properties,
                                            custom_meta_data,
                                            camera_uuid,
-                                           windows_path)
+                                           windows_path,
+                                           exclude_path)
     print("Sub process ended")
