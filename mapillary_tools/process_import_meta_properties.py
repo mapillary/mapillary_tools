@@ -173,6 +173,7 @@ def process_import_meta_properties(import_path,
                                    custom_meta_data=None,
                                    camera_uuid=None,
                                    windows_path=False,
+                                   exclude_import_path=False,
                                    exclude_path=None):
 
     # sanity check if video file is passed
@@ -229,5 +230,6 @@ def process_import_meta_properties(import_path,
                                            custom_meta_data,
                                            camera_uuid,
                                            windows_path,
+                                           exclude_import_path,
                                            exclude_path)
     print("Sub process ended")
