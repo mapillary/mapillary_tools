@@ -7,6 +7,7 @@ import shutil
 from tqdm import tqdm
 import csv
 import exif_read
+from . import ipc
 
 
 def save_local_mapping(import_path):
@@ -155,6 +156,8 @@ def post_process(import_path,
             print("")
             print("Import summary for import path {} :".format(import_path))
             print(json.dumps(summary_dict, indent=4))
+
+            ipc.send('summary', summary_dict)
 
             if save_as_json:
 

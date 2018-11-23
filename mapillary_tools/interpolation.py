@@ -10,6 +10,7 @@ import process_csv
 import csv
 import datetime
 from tqdm import tqdm
+from .error import print_error
 
 
 EPOCH = datetime.datetime.utcfromtimestamp(0)
@@ -49,20 +50,20 @@ def interpolation(data,
                   verbose=False):
 
     if not data:
-        print("Error, you must specify the data for interpolation.")
-        print('Choose between "missing_gps" or "identical_timestamps"')
+        print_error("Error, you must specify the data for interpolation." +
+            'Choose between "missing_gps" or "identical_timestamps"')
         sys.exit(1)
 
     if not import_path and not file_in_path:
-        print("Error, you must specify a path to data, either path to directory with images or path to an external log file.")
+        print_error("Error, you must specify a path to data, either path to directory with images or path to an external log file.")
         sys.exit(1)
 
     if file_in_path:
         if not os.path.isfile(file_in_path):
-            print("Error, specified input file does not exist, exiting...")
+            print_error("Error, specified input file does not exist, exiting...")
             sys.exit(1)
         if file_format != "csv":
-            print("Only csv file format is supported at the moment, exiting...")
+            print_error("Only csv file format is supported at the moment, exiting...")
             sys.exit(1)
 
         csv_data = process_csv.read_csv(
@@ -88,16 +89,16 @@ def interpolation(data,
                     csvwriter.writerow(row)
             sys.exit()
         elif data == "missing_gps":
-            print(
+            print_error(
                 "Error, missing gps interpolation in an external log file not supported yet, exiting...")
             sys.exit(1)
         else:
-            print("Error unsupported data for interpolation, exiting...")
+            print_error("Error unsupported data for interpolation, exiting...")
             sys.exit(1)
 
     if import_path:
         if not os.path.isdir(import_path):
-            print("Error, specified import path does not exist, exiting...")
+            print_error("Error, specified import path does not exist, exiting...")
             sys.exit(1)
 
         # get list of files to process
@@ -128,7 +129,7 @@ def interpolation(data,
                     lat, lon, bearing, elevation = interpolate_lat_lon(
                         geotags, timestamp, max_time_delta)
                 except Exception as e:
-                    print("Error, {}, interpolation of latitude and longitude failed for image {}".format(
+                    print_error("Error, {}, interpolation of latitude and longitude failed for image {}".format(
                         e, image))
                     continue
                 # insert into exif
@@ -136,7 +137,7 @@ def interpolation(data,
                 if lat and lon:
                     exif_edit.add_lat_lon(lat, lon)
                 else:
-                    print(
+                    print_error(
                         "Error, lat and lon not interpolated for image {}.".format(image))
                 if bearing:
                     exif_edit.add_direction(bearing)
@@ -205,6 +206,6 @@ def interpolation(data,
 
             sys.exit()
         else:
-            print("Error unsupported data for interpolation, exiting...")
+            print_error("Error unsupported data for interpolation, exiting...")
             sys.exit(1)
     print("")
