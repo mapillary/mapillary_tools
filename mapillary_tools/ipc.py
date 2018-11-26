@@ -8,11 +8,11 @@ import time
 NODE_CHANNEL_FD = int(os.getenv('NODE_CHANNEL_FD', -1))
 
 if NODE_CHANNEL_FD == -1:
-    def write(obj):
+    def __write(obj):
         pass
 
 elif os.name == 'nt':
-    def write(obj):
+    def __write(obj):
         data = json.dumps(obj, separators=(',', ':')
                           ).encode('utf-8') + os.linesep
         # On windows, using node v8.11.4, this assertion fails
@@ -24,13 +24,16 @@ elif os.name == 'nt':
         os.write(NODE_CHANNEL_FD, header + data)
 
 else:
-    def write(obj):
+    def __write(obj):
         data = json.dumps(obj, separators=(',', ':')
                           ).encode('utf-8') + os.linesep
         os.write(NODE_CHANNEL_FD, data)
 
+def is_enabled():
+    return NODE_CHANNEL_FD != -1
+
 def send(type, payload):
-    write({
+    __write({
         'type': type,
         'payload': payload,
     })
