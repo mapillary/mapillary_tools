@@ -1,7 +1,5 @@
 #!/bin/bash
-ls -la publish/
-
 aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe
 
-zip -r mapillary_tools.zip publish/osx/mapillary_tools.app/
+zip mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README.txt
 aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
