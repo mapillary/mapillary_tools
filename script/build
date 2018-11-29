@@ -10,9 +10,5 @@ pyinstaller --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-
 deactivate
 
 mkdir -p publish/
-
-ls -la publish/
-
 mv dist/osx publish
 
-ls -la publish/
