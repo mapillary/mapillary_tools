@@ -6,6 +6,6 @@ chmod +x mapillary_tools
 
 Check your available options with ./mapillary_tools --help
 
-Example:
-./mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user"
+For examples, see https://github.com/mapillary/mapillary_tools/blob/master/README.md
 
+If you need help, contact us at support@mapillary.com.
