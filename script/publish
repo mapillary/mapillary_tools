@@ -1,5 +1,10 @@
 #!/bin/bash
-aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe
 
-zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README.txt
-aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
+if [ "$BRANCH_NAME" = "master" ]; then
+    aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe
+
+    zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README.txt
+    aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
+else
+    echo "Will NOT publish branch $BRANCH_NAME. Only master is published to s3"
+fi
