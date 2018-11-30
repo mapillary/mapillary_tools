@@ -189,7 +189,7 @@ Available commands for advanced usage:
   - interpolate
   - authenticate
   - post_process
-  - download private images
+  - download
 
 ### Geotag and Upload
 
