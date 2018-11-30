@@ -189,7 +189,7 @@ Available commands for advanced usage:
   - interpolate
   - authenticate
   - post_process
-  - download
+  - download private images
 
 ### Geotag and Upload
 
@@ -433,11 +433,11 @@ Process unit commands are commands executed by the `process` command. Usage of p
 
 #### `authenticate`
 
-`authenticate` will update the user credentials stored in `/.config/mapillary/config`. Mapilllary acount `user_name`, `user_email` and `user_passoword` are required and can either be passed as arguments to the command or left unspecified and entered upon prompt.
+`authenticate` will update the user credentials stored in `/.config/mapillary/config`. Mapillary acount `user_name`, `user_email` and `user_passoword` are required and can either be passed as arguments to the command or left unspecified and entered upon prompt.
 
 #### `interpolate`
 
-`interpolate` will interpolate identical timestamps in an csv file or stored in image EXIF or will interpolate missing gps data in a set of otherwise geotagged images.
+`interpolate` will interpolate identical timestamps in a csv file or stored in image EXIF or will interpolate missing gps data in a set of otherwise geotagged images.
 
 #### `process_csv`
 
@@ -449,7 +449,11 @@ Process unit commands are commands executed by the `process` command. Usage of p
 
 #### `download`
 
-`download` will download all blurred images from Mapillary for a certain `import_path`.
+`download` will download blurred originals of private images on Mapillary for a certain `import_path`. The import path is specified as a folder where you have the images you've uploaded to Mapillary as private imagery. They need to have the Mapillary image description field in EXIF (which gets added during capture with our mobile apps or processing with our command line tools). Matching images will be downloaded to the output folder you specify.
+
+```bash
+mapillary_tools download --import_path "path/to/images" --output_folder "path/to/output_folder"
+```
 
 ## Camera specific
 
