@@ -5,6 +5,7 @@ import processing
 import uploader
 from exif_read import ExifRead
 from tqdm import tqdm
+from .error import print_error
 
 META_DATA_TYPES = {"strings": str,
                    "doubles": float,
@@ -18,7 +19,7 @@ def validate_type(tag_type, tag_value):
         try:
             tag_value = META_DATA_TYPES[tag_type](tag_value)
         except:
-            print(
+            print_error(
                 "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(tag_type, tag_value))
             return None
     return tag_value
@@ -168,7 +169,7 @@ def process_import_meta_properties(import_path,
 
     # sanity check if video file is passed
     if video_import_path and not os.path.isdir(video_import_path):
-        print("Error, video path " + video_import_path +
+        print_error("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
 
@@ -181,7 +182,7 @@ def process_import_meta_properties(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
+        print_error("Error, import directory " + import_path +
               " does not exist, exiting...")
         sys.exit(1)
 

@@ -5,7 +5,7 @@ import os
 import uploader
 import json
 from exif_aux import verify_mapillary_tag
-
+from . import ipc
 
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None):
     '''
@@ -48,7 +48,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
     else:
         if len(failed_file_list):
             upload_failed = raw_input(
-                "Retry uploading previously failed image uploads? [y/n]: ")
+                "Retry uploading previously failed image uploads? [y/n]: ") if not ipc.is_enabled() else 'y'
             # if yes, add images to the upload list
             if upload_failed in ["y", "Y", "yes", "Yes"]:
                 upload_file_list.extend(failed_file_list)

@@ -8,6 +8,7 @@ from geo import compute_bearing, gps_distance, diff_bearing
 import processing
 import uploader
 from tqdm import tqdm
+from .error import print_error
 
 MAX_SEQUENCE_LENGTH = 500
 
@@ -51,7 +52,7 @@ def process_sequence_properties(import_path,
 
     # sanity check if video file is passed
     if video_import_path and not os.path.isdir(video_import_path):
-        print("Error, video path " + video_import_path +
+        print_error("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
 
@@ -64,7 +65,7 @@ def process_sequence_properties(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
+        print_error("Error, import directory " + import_path +
               " does not exist, exiting...")
         sys.exit(1)
 
