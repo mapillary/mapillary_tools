@@ -93,9 +93,11 @@ def finalize_import_properties_process(image,
     if add_file_name:
         image_path = image
         if exclude_import_path:
-            image_path = image_path.replace(import_path, "")
+            image_path = image_path.replace(
+                import_path, "").lstrip("\\").lstrip("/")
         elif exclude_path:
-            image_path = image_path.replace(exclude_path, "")
+            image_path = image_path.replace(
+                exclude_path, "").lstrip("\\").lstrip("/")
         if windows_path:
             image_path = image_path.replace("/", "\\")
 
