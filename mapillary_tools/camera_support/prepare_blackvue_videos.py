@@ -1,4 +1,3 @@
-from pymp4.parser import Box
 import io
 import sys
 
@@ -13,6 +12,7 @@ def find_camera_model(videos_folder):
     fd.seek(0, io.SEEK_END)
     eof = fd.tell()
     fd.seek(0)
+    from pymp4.parser import Box
     while fd.tell() < eof:
         try:
             box = Box.parse_stream(fd)

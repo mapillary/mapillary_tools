@@ -10,8 +10,12 @@ from geo import write_gpx
 from geo import get_max_distance_from_start
 from geo import get_total_distance_traveled
 
-from pymp4.parser import Box
-from construct.core import RangeError, ConstError
+try:
+    from pymp4.parser import Box
+    from construct.core import RangeError, ConstError
+    _has_pymp4 = True
+except:
+    _has_pymp4 = False
 
 '''
 Pulls geo data out of a BlackVue video files
@@ -164,7 +168,10 @@ def is_video_stationary(max_distance_from_start,total_distance_traveled):
 def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     bv_data = []
     try:
-        bv_data = get_points_from_bv(bv_video,use_nmea_stream_timestamp)
+        if _has_pymp4:
+            bv_data = get_points_from_bv(bv_video,use_nmea_stream_timestamp)
+        else:
+            raise Exception("missing pymp4.parser or construct.core Python libraries")
     except Exception as e:
         print(
             "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))

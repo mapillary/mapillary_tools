@@ -9,7 +9,6 @@ from tqdm import tqdm
 import logging
 import io
 import struct
-from pymp4.parser import Box
 
 from exif_write import ExifEdit
 
@@ -225,6 +224,7 @@ def get_video_start_time(video_file):
 
 
 def get_video_start_time_blackvue(video_file):
+    from pymp4.parser import Box
     with open(video_file, 'rb') as fd:
         fd.seek(0, io.SEEK_END)
         eof = fd.tell()
