@@ -99,7 +99,13 @@ class Command:
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
                             action='store_true', default=False, required=False)
-        parser.add_argument('--move_images', help='Move images corresponding to sequence uuid, duplicate flag and upload status.',
+        parser.add_argument('--move_all_images', help='Move all images in import_path according to import state.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_duplicates', help='Move images in case they were flagged as duplicates.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_uploaded', help='Move images according to upload state.',
+                            action='store_true', default=False, required=False)
+        parser.add_argument('--move_sequences', help='Move images into sequence folders.',
                             action='store_true', default=False, required=False)
         parser.add_argument('--save_as_json', help='Save summary or file status list in a json.',
                             action='store_true', default=False, required=False)
