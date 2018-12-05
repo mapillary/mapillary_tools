@@ -263,4 +263,8 @@ def post_process(import_path,
             continue
         if not os.path.isdir(destination_logs_dir):
             os.makedirs(destination_logs_dir)
+        elif destination_logs_dir != image_logs_dir:
+            os.unlink(destination_logs_dir)
+        else:
+            continue
         os.rename(image_logs_dir, destination_logs_dir)
