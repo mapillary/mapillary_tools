@@ -4,12 +4,13 @@ import datetime
 import time
 import sys
 from exif_read import ExifRead
-from geo import compute_bearing, gps_distance, diff_bearing
+from geo import compute_bearing, gps_distance, diff_bearing, gps_speed
 import processing
 import uploader
 from tqdm import tqdm
 
 MAX_SEQUENCE_LENGTH = 500
+MAX_CAPTURE_SPEED = 45 #in m/s
 
 
 def finalize_sequence_processing(sequence,
@@ -147,6 +148,15 @@ def process_sequence_properties(import_path,
                 d is not None and not interpolate_directions) else (interpolated_directions[i] + offset_angle) % 360.0
         # ---------------------------------------
 
+        # COMPUTE SPEED -------------------------------------------
+        computed_delta_ts = [(t1-t0).total_seconds() 
+                            for t0,t1 in zip(capture_times[:-1], capture_times[1:]) ]
+        computed_distances = [gps_distance(l1,l0)
+                            for l0,l1 in zip(latlons[:-1],latlons[1:])]
+        computed_speed = gps_speed(computed_distances,computed_delta_ts) #in meters/second
+        if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED])>0:
+            print("Warning: The distance between images is too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?")
+        
         # INTERPOLATE TIMESTAMPS, in case of identical timestamps
         capture_times = processing.interpolate_timestamp(capture_times)
 
