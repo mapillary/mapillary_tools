@@ -23,15 +23,19 @@ Now you can download the full Mapillary Tools library in one click.  Once on you
 
 ### Windows Package Installation
 
-http://tools.mapillary.com/binary/win/mapillary_tools.exe
+https://tools.mapillary.com/binary/win/mapillary_tools.exe
 
 ### MacOS Package Installation
 
-http://tools.mapillary.com/binary/osx/mapillary_tools.zip
+https://tools.mapillary.com/binary/osx/mapillary_tools.zip
 
 ### Linux Package Installation
 
 Utilize [Custom Installation](#custom-installation) to process and upload images.
+
+### Package Support
+
+View additional tips in the [Mapillary Help Center](https://help.mapillary.com) or contact [Mapillary Support](mailto:support@mapillary.com?subject=[Mapillary]%20Help%20with%20Mapillary%20Tools%20on%20GitHub). 
 
 ### Video Support Package
 
