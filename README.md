@@ -29,9 +29,13 @@ http://tools.mapillary.com/binary/win/mapillary_tools.exe
 
 http://tools.mapillary.com/binary/osx/mapillary_tools.zip
 
+### Linux Package Installation
+
+Utilize [Custom Installation](#custom-installation) to process and upload images.
+
 ### Video Support Package
 
-To upload and sample images from videos, you will also need to install `ffmpeg`. Review (#video-support).
+To sample images from videos, you will also need to install `ffmpeg`. Review [video support](#video-support).
 
 ## Requirements
 
@@ -462,6 +466,10 @@ which will enable processing and uploading of images. Note that the commands sho
 
 To sample images from videos, you will also need to install `ffmpeg`.
 
+#### Windows
+
+To install `ffmpeg` on Windows, follow these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
+
 #### macOS
 
 To install `ffmpeg` on macOS use [Homebrew](https://brew.sh).
@@ -478,10 +486,6 @@ To install `ffmpeg` on Ubuntu:
 ```bash
 sudo apt-get install ffmpeg
 ```
-
-#### Windows
-
-To install `ffmpeg` on Windows, follow these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
 
 ### Execution
 Running the executable `mapillary_tools` is slightly different on Unix and Windows OS.
