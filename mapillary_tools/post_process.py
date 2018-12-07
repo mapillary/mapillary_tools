@@ -86,7 +86,7 @@ def post_process(import_path,
                  save_local_mapping=False):
 
     # return if nothing specified
-    if not any([summarize, move_all_images, list_file_status, push_images, move_duplicates, move_uploaded, save_local_mapping]):
+    if not any([summarize, move_all_images, list_file_status, push_images, move_duplicates, move_uploaded, save_local_mapping, move_sequences]):
         print("No post processing action specified.")
         return
 
