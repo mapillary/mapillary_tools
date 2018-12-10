@@ -104,7 +104,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.3.0")
+                 "0.3.1")
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description,
@@ -170,7 +170,7 @@ def process_import_meta_properties(import_path,
     # sanity check if video file is passed
     if video_import_path and not os.path.isdir(video_import_path):
         print_error("Error, video path " + video_import_path +
-              " does not exist, exiting...")
+                    " does not exist, exiting...")
         sys.exit(1)
 
     # in case of video processing, adjust the import path
@@ -183,7 +183,7 @@ def process_import_meta_properties(import_path,
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
         print_error("Error, import directory " + import_path +
-              " does not exist, exiting...")
+                    " does not exist, exiting...")
         sys.exit(1)
 
      # get list of file to process

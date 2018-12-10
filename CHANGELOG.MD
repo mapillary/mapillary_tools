@@ -98,3 +98,7 @@
 * Argument `--video_file` was renamed to `--video_import_path` as directories of one or more videos can now be processed and uploaded. Note that even if one video is to be processed and uploaded, the directory of the video should be specified as the video import path and not the video file itself. 
 * Only the Image Description EXIF tag is overwritten with the mapillary image description which includes all the data obtained during the `process` command. If one would like the rest of the tags to be overwritten, an additional argument needs to be passed under advanced usage. Single specific tags can also be overwritten by additional specific corresponding arguments.
 
+## 0.3.1 (2018-12-10)
+
+### Features and improvements
+* mapillary_tools available to be downloaded and installed as a package
