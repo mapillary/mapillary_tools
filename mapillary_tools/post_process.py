@@ -86,7 +86,7 @@ def post_process(import_path,
                  save_local_mapping=False):
 
     # return if nothing specified
-    if not any([summarize, move_all_images, list_file_status, push_images, move_duplicates, move_uploaded, save_local_mapping]):
+    if not any([summarize, move_all_images, list_file_status, push_images, move_duplicates, move_uploaded, save_local_mapping, move_sequences]):
         print("No post processing action specified.")
         return
 
@@ -261,6 +261,6 @@ def post_process(import_path,
         destination_logs_dir = uploader.log_rootpath(image_destination_path)
         if not os.path.isdir(image_logs_dir):
             continue
-        if not os.path.isdir(destination_logs_dir):
-            os.makedirs(destination_logs_dir)
+        if not os.path.isdir(os.path.dirname(destination_logs_dir)):
+            os.makedirs(os.path.dirname(destination_logs_dir))
         os.rename(image_logs_dir, destination_logs_dir)
