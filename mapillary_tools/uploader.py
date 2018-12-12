@@ -32,6 +32,7 @@ UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+DRY_RUN = bool(os.getenv('DRY_RUN',False))
 
 if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
@@ -517,40 +518,39 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
 
     data, headers = encode_multipart(
         parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
-
-    for attempt in range(max_attempts):
-
-        # Initialize response before each attempt
-        response = None
-
-        try:
-            request = urllib2.Request(url, data=data, headers=headers)
-            response = urllib2.urlopen(request)
-            break  # attempts
-        except urllib2.HTTPError as e:
-            print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                e, s3_filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except urllib2.URLError as e:
-            print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                e, s3_filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except httplib.HTTPException as e:
-            print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                e, s3_filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except OSError as e:
-            print("OS error: {} on {}, will attempt upload again for {} more times".format(
-                e, s3_filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except socket.timeout as e:
-            # Specific timeout handling for Python 2.7
-            print("Timeout error: {0}, will attempt upload again for {} more times".format(
-                s3_filename, max_attempts - attempt - 1))
-        finally:
-            if response is not None:
-                response.close()
-
+    if DRY_RUN==False:
+        for attempt in range(max_attempts):
+            # Initialize response before each attempt
+            response = None
+            try:
+                request = urllib2.Request(url, data=data, headers=headers)
+                #response = urllib2.urlopen(request)
+                break  # attempts
+            except urllib2.HTTPError as e:
+                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
+                    e, s3_filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except urllib2.URLError as e:
+                print("URL error: {} on {}, will attempt upload again for {} more times".format(
+                    e, s3_filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except httplib.HTTPException as e:
+                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
+                    e, s3_filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except OSError as e:
+                print("OS error: {} on {}, will attempt upload again for {} more times".format(
+                    e, s3_filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except socket.timeout as e:
+                # Specific timeout handling for Python 2.7
+                print("Timeout error: {0}, will attempt upload again for {} more times".format(
+                    s3_filename, max_attempts - attempt - 1))
+            finally:
+                if response is not None:
+                    response.close()
+    else:
+        print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
 
 def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
@@ -587,44 +587,44 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
 
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
+    if (DRY_RUN == False):
+        for attempt in range(max_attempts):
+            # Initialize response before each attempt
+            response = None
+            try:
+                request = urllib2.Request(url, data=data, headers=headers)
+                response = urllib2.urlopen(request)
+                if response.getcode() == 204:
+                    create_upload_log(filepath_in, "upload_success")
+                else:
+                    create_upload_log(filepath_in, "upload_failed")
+                break  # attempts
 
-    for attempt in range(max_attempts):
-
-        # Initialize response before each attempt
-        response = None
-
-        try:
-            request = urllib2.Request(url, data=data, headers=headers)
-            response = urllib2.urlopen(request)
-            if response.getcode() == 204:
-                create_upload_log(filepath_in, "upload_success")
-            else:
-                create_upload_log(filepath_in, "upload_failed")
-            break  # attempts
-
-        except urllib2.HTTPError as e:
-            print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                e, filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except urllib2.URLError as e:
-            print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                e, filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except httplib.HTTPException as e:
-            print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                e, filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except OSError as e:
-            print("OS error: {} on {}, will attempt upload again for {} more times".format(
-                e, filename, max_attempts - attempt - 1))
-            time.sleep(5)
-        except socket.timeout as e:
-            # Specific timeout handling for Python 2.7
-            print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
-                filename, max_attempts - attempt - 1))
-        finally:
-            if response is not None:
-                response.close()
+            except urllib2.HTTPError as e:
+                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except urllib2.URLError as e:
+                print("URL error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except httplib.HTTPException as e:
+                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except OSError as e:
+                print("OS error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except socket.timeout as e:
+                # Specific timeout handling for Python 2.7
+                print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
+                    filename, max_attempts - attempt - 1))
+            finally:
+                if response is not None:
+                    response.close()
+    else:
+        print('DRY_RUN, Skipping actual image upload. Use this for debug only.')
 
 
 def ascii_encode_dict(data):
@@ -653,9 +653,6 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
-
-        for idx, uploader in enumerate(uploaders):
-            uploaders[idx].join(1)
 
         while q.unfinished_tasks:
             time.sleep(1)
@@ -686,9 +683,6 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
-
-        for idx, uploader in enumerate(uploaders):
-            uploaders[idx].join(1)
 
         while q.unfinished_tasks:
             time.sleep(1)
