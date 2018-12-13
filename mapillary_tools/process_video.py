@@ -72,20 +72,20 @@ def sample_video(video_import_path,
 
     for video in tqdm(video_list, desc="Extracting video frames"):
 
-        import_path = os.path.join(import_path, os.path.basename(video).replace(
+        per_video_import_path = os.path.join(import_path, os.path.basename(video).replace(
             ".mp4", "").replace(".MP4", ""))
-        if not os.path.isdir(import_path):
-            os.makedirs(import_path)
+        if not os.path.isdir(per_video_import_path):
+            os.makedirs(per_video_import_path)
 
-        print("Video sampling path set to {}".format(import_path))
+        print("Video sampling path set to {}".format(per_video_import_path))
         # check video logs
         video_upload = processing.video_upload(
-            video_import_path, import_path, verbose)
+            video_import_path, per_video_import_path, verbose)
         if video_upload:
             print("Video {} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.".format(video))
 
         extract_frames(video,
-                       import_path,
+                       per_video_import_path,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
