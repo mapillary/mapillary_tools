@@ -75,9 +75,8 @@ def get_points_from_bv(path):
                         if "$GPGGA" in m:
                             try:
                                 if not date:
-                                    print(
-                                        "Error, could not extract date from the video gps trace, exiting...")
-                                    sys.exit(1)
+                                    #discarding Lat/Lon messages if date has not been set yet. TODO: we could save the messages and add the date later
+                                    continue 
                                 data = pynmea2.parse(m)
                                 timestamp = datetime.datetime.combine(
                                     date, data.timestamp)
