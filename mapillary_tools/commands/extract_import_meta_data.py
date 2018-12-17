@@ -12,7 +12,7 @@ class Command:
         parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
-    def add_basic_arguments(self, parser):
+    def add_advanced_arguments(self, parser):
 
         # command specific args
         parser.add_argument(
@@ -37,9 +37,6 @@ class Command:
             "--camera_uuid", help="Custom string used to differentiate different captures taken with the same camera make and model.", default=None, required=False)
         parser.add_argument('--custom_meta_data', help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
                             default=None, required=False)
-
-    def add_advanced_arguments(self, parser):
-        pass
 
     def run(self, args):
 
