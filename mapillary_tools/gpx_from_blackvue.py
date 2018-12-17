@@ -17,7 +17,7 @@ Pulls geo data out of a BlackVue video files
 '''
 
 
-def get_points_from_bv(path):
+def get_points_from_bv(path,use_nmea_stream_timestamp=False):
     points = []
 
     fd = open(path, 'rb')
@@ -63,15 +63,24 @@ def get_points_from_bv(path):
                         # if match:
                         #     utcdate = match.group(1)
 
-                        m = l.lstrip('[]0123456789')
+                        #By default, use camera timestamp. Only use GPS Timestamp if camera was not set up correctly and date/time is wrong
+                        if use_nmea_stream_timestamp==False:
+                            match = re.search('\[([0-9]+)\]', l)
+                            if match:
+                                utcdate = match.group(1)
 
-                        if "GPRMC" in m:
-                            try:
-                                data = pynmea2.parse(m)
-                                date = data.datetime.date()
-                            except Exception as e:
-                                print(
-                                    "Error in parsing gps trace to extract date information, nmea parsing failed due to {}".format(e))
+                            date=datetime.datetime.utcfromtimestamp(int(utcdate)/1000.0)
+
+                            m = l.lstrip('[]0123456789')
+                        else:
+                            if "GPRMC" in m:
+                                try:
+                                    data = pynmea2.parse(m)
+                                    date = data.datetime.date()
+                                except Exception as e:
+                                    print(
+                                        "Error in parsing gps trace to extract date information, nmea parsing failed due to {}".format(e))
+                            
                         if "$GPGGA" in m:
                             try:
                                 if not date:
@@ -94,10 +103,10 @@ def get_points_from_bv(path):
     return points
 
 
-def gpx_from_blackvue(bv_video):
+def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     bv_data = []
     try:
-        bv_data = get_points_from_bv(bv_video)
+        bv_data = get_points_from_bv(bv_video,use_nmea_stream_timestamp)
     except Exception as e:
         print(
             "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
