@@ -87,10 +87,11 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                                     #discarding Lat/Lon messages if date has not been set yet. TODO: we could save the messages and add the date later
                                     continue 
                                 data = pynmea2.parse(m)
-                                timestamp = datetime.datetime.combine(
-                                    date, data.timestamp)
-                                lat, lon, alt = data.latitude, data.longitude, data.altitude
-                                points.append((timestamp, lat, lon, alt))
+                                if(data.is_valid):
+                                    timestamp = datetime.datetime.combine(
+                                        date, data.timestamp)
+                                    lat, lon, alt = data.latitude, data.longitude, data.altitude
+                                    points.append((timestamp, lat, lon, alt))
                             except Exception as e:
                                 print(
                                     "Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {}".format(e))
@@ -101,7 +102,7 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
             break
 
     return points
-
+#TODO control for zeros
 
 def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     bv_data = []
