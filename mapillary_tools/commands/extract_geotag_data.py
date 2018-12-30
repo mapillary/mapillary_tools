@@ -29,7 +29,7 @@ class Command:
         parser.add_argument('--offset_angle', default=0., type=float,
                             help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
         parser.add_argument("--use_gps_start_time",
-                            help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
+                            help="Use the GPS trace start time when deriving the timestamp from filename.", action="store_true", default=False, required=False)
 
     def run(self, args):
         vars_args=vars(args)
