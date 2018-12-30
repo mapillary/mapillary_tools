@@ -867,7 +867,7 @@ def user_properties(user_name,
         user_properties.update(
             {'MAPOrganizationKey': organization_key, 'MAPPrivate': private})
 
-    # remove uneeded credentials
+    # remove unneeded credentials
     if "user_upload_token" in user_properties:
         del user_properties["user_upload_token"]
     if "user_permission_hash" in user_properties:

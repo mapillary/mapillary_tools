@@ -186,7 +186,7 @@ def process_sequence_properties(import_path,
                     direction_diff = diff_bearing(directions[k],
                                                   prev_direction)
                 else:
-                    # dont use bearing difference if no bearings are
+                    # don't use bearing difference if no bearings are
                     # available
                     direction_diff = 360
                 if distance < duplicate_distance and direction_diff < duplicate_angle:
