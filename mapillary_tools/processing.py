@@ -715,7 +715,7 @@ def failed_process(file_path, process):
 
 
 def processed_images_rootpath(filepath):
-    return os.path.join(os.path.dirname(filepath), ".mapillary", "proccessed_images", os.path.basename(filepath))
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "processed_images", os.path.basename(filepath))
 
 
 def video_upload(video_file, import_path, verbose=False):
