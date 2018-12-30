@@ -246,29 +246,23 @@ def interpolate_lat_lon(points, t, max_dt=1):
                 after = points[i]
                 break
 
-    # weight based on time
-    weight = (t - before[0]).total_seconds() / \
-        (after[0] - before[0]).total_seconds()
-
     # simple linear interpolation in case points are not the same
-    if before[1] == after[1]:
+    ele = None
+    if before[0] == after[0]:
         lat = before[1]
-    else:
-        lat = before[1] - weight * before[1] + weight * after[1]
-
-    if before[2] == after[2]:
         lon = before[2]
+        ele = before[3]
     else:
-        lon = before[2] - weight * before[2] + weight * after[2]
+        # weight based on time
+        weight = (t - before[0]).total_seconds() / \
+                 (after[0] - before[0]).total_seconds()
+        lat = (1 - weight) * before[1] + weight * after[1]
+        lon = (1 - weight) * before[2] + weight * after[2]
+        if before[3] is not None:
+            ele = (1 - weight) * before[3] + weight * after[3]
 
     # camera angle
     bearing = compute_bearing(before[1], before[2], after[1], after[2])
-
-    # altitude
-    if before[3] is not None:
-        ele = before[3] - weight * before[3] + weight * after[3]
-    else:
-        ele = None
 
     return lat, lon, bearing, ele
 
