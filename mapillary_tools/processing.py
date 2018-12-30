@@ -289,7 +289,7 @@ def geotag_from_gps_trace(process_file_list,
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
                                                 sub_second_interval)
-    if not sub_second_times:
+    if not sub_second_times and process_file_list:
         print_error(
             "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
         create_and_log_process_in_list(process_file_list,
