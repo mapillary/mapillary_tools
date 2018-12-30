@@ -28,7 +28,7 @@ STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
                 }
 '''
-auxillary processing functions
+auxiliary processing functions
 '''
 
 

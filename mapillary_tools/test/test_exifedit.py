@@ -6,7 +6,7 @@ from mapillary_tools.geo import decimal_to_dms
 import datetime
 import shutil
 
-"""Initialize all the neccessary data"""
+"""Initialize all the necessary data"""
 
 this_file = os.path.abspath(__file__)
 this_file_dir = os.path.dirname(this_file)

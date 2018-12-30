@@ -89,7 +89,7 @@ class ExifRead:
     def _extract_alternative_fields(self, fields, default=None, field_type=float):
         '''
         Extract a value for a list of ordered fields.
-        Return the value of the first existed field in the list
+        Return the value of the first existing field in the list
         '''
         for field in fields:
             if field in self.tags:
