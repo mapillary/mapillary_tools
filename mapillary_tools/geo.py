@@ -224,9 +224,17 @@ def interpolate_lat_lon(points, t, max_dt=1):
         if t < points[0][0]:
             before = points[0]
             after = points[1]
+            # Most gpxpy versions lose the subsecond timestamp precision which
+            # can result in duplicate timestamps at the start and end of a GPX
+            # trace. When that happens extrapolate from a bit further so we
+            # can get a bearing.
+            if before[0] == after[0] and len(points) > 2:
+                after = points[2]
         else:
             before = points[-2]
             after = points[-1]
+            if before[0] == after[0] and len(points) > 2:
+                before = points[-3]
         bearing = compute_bearing(before[1], before[2], after[1], after[2])
 
         if t == points[0][0]:
