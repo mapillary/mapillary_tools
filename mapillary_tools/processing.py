@@ -291,7 +291,7 @@ def geotag_from_gps_trace(process_file_list,
                                                 sub_second_interval)
     if not sub_second_times:
         print_error(
-            "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+            "Error, capture times could not be estimated to sub second precision, images cannot be geotagged.")
         create_and_log_process_in_list(process_file_list,
                                        "geotag_process"
                                        "failed",
@@ -299,7 +299,7 @@ def geotag_from_gps_trace(process_file_list,
         return
 
     if not gps_trace:
-        print_error("Error, gps trace file {} was not read, images can not be geotagged.".format(
+        print_error("Error, gps trace file {} was not read, images cannot be geotagged.".format(
             geotag_source_path))
         create_and_log_process_in_list(process_file_list,
                                        "geotag_process",
@@ -918,7 +918,7 @@ def user_properties_master(user_name,
 def process_organization(user_properties, organization_username=None, organization_key=None, private=False):
     if not "user_upload_token" in user_properties or not "MAPSettingsUserKey" in user_properties:
         print_error(
-            "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
+            "Error, cannot authenticate to validate organization import, upload token or user key missing in the config.")
         sys.exit(1)
     user_key = user_properties["MAPSettingsUserKey"]
     user_upload_token = user_properties["user_upload_token"]
@@ -1057,7 +1057,7 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
                         print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
                             cut, distances[i], cutoff_distance, file_list[i + 1]))
                     elif cut_time:
-                        print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
+                        print('Cut {}: Delta in time {} seconds is bigger than cutoff_time {} seconds at {}'.format(
                             cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
             else:
                 # delta not too big, continue with current

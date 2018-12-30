@@ -86,7 +86,7 @@ def sample_video(video_import_path,
         video_upload = processing.video_upload(
             video_import_path, per_video_import_path, verbose)
         if video_upload:
-            print("Video {} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.".format(video))
+            print("Video {} has already been uploaded, contact support@mapillary for help with reuploading it if necessary.".format(video))
 
         extract_frames(video,
                        per_video_import_path,

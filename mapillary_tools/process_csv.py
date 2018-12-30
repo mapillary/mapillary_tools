@@ -207,7 +207,7 @@ def process_csv(import_path,
     # sanity checks
     if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+              " does not exist, exiting...")
         sys.exit(1)
 
     if not csv_path or not os.path.isfile(csv_path):
