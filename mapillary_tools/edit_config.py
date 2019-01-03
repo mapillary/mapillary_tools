@@ -10,17 +10,30 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
     os.path.expanduser('~'), ".config", "mapillary", 'config')
 
 
-def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, force_overwrite=False):
-
+def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, force_overwrite=False, user_key=None):
     config_file_path = config_file if config_file else GLOBAL_CONFIG_FILEPATH
 
     if not os.path.isfile(config_file_path):
         config.create_config(config_file_path)
 
+    user_items = {}
+    if user_key: #Manually add user_key
+        user_items["MAPSettingsUsername"] = "Dummy_MAPSettingsUsername"
+        user_items["MAPSettingsUserKey"] = user_key
+
+        user_items["user_upload_token"] = "Dummy_upload_token"
+        user_items["user_permission_hash"] = "Dummy_user_permission_hash"
+        user_items["user_signature_hash"] = "Dummy_user_signature_hash"
+
+        section = "Dummy_user"
+        config.update_config(config_file_path, section, user_items)
+        return
+
     # config file must exist at this step
     # load
     config_object = config.load_config(config_file_path)
     section = user_name
+
     if not section:
         section = raw_input(
             "Enter the Mapillary user name you would like to (re)authenticate : ")
@@ -37,7 +50,6 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
     else:
         config_object.add_section(section)
 
-    user_items = {}
     if user_email and user_password:
         user_key = uploader.get_user_key(section)
         if not user_key:
@@ -61,6 +73,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
     else:
         # fill in the items and save
         user_items = uploader.prompt_user_for_user_items(section)
+
     if not user_items:
         print("Authentication failed for user name " +
               section + ", please try again.")
