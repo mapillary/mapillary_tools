@@ -17,7 +17,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         config.create_config(config_file_path)
 
     user_items = {}
-    if user_key: #Manually add user_key
+    if user_key and user_name: #Manually add user_key
         user_items["MAPSettingsUsername"] = "Dummy_MAPSettingsUsername"
         user_items["MAPSettingsUserKey"] = user_key
 
@@ -25,7 +25,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_permission_hash"] = "Dummy_user_permission_hash"
         user_items["user_signature_hash"] = "Dummy_user_signature_hash"
 
-        section = "Dummy_user"
+        section = user_name
         config.update_config(config_file_path, section, user_items)
         return
 
