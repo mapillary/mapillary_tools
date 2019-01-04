@@ -6,7 +6,6 @@ import io
 import sys
 import re
 import pynmea2
-import uploader
 from geo import write_gpx
 
 from pymp4.parser import Box
@@ -102,7 +101,6 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
             break
 
     return points
-#TODO control for zeros
 
 def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     bv_data = []
