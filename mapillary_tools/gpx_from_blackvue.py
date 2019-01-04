@@ -43,17 +43,6 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                 if newb.type.decode('utf-8') == 'gps':
                     lines = newb.data
 
-                    for l in lines:
-                        if "GPRMC" in l:
-                            m = l.lstrip('[]0123456789')
-                            try:
-                                data = pynmea2.parse(m)
-                                date = data.datetime.date()
-                            except Exception as e:
-                                print(
-                                    "Error in extracting the gps trace, nmea parsing failed due to {}".format(e))
-                            break
-
                     # Parse GPS trace
                     for l in lines.splitlines():
                         # this utc millisecond timestamp seems to be the camera's
