@@ -90,6 +90,8 @@ class Command:
                             help='maximum time interval in seconds within a sequence', required=False)
         parser.add_argument('--interpolate_directions',
                             help='perform interploation of directions', action='store_true', required=False)
+        parser.add_argument('--flag_duplicates',
+                            help='flag_duplicates is default behaviour now and command is deprecated. Use keep_duplicates to keep duplicates.', action='store_true', required=False, default=False)
         parser.add_argument('--keep_duplicates',
                             help='keep duplicates, ie do not flag duplicates for upload exclusion, but keep them to be uploaded', action='store_true', required=False, default=False)
         parser.add_argument('--duplicate_distance',
@@ -149,6 +151,10 @@ class Command:
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"].lower() == "Blackvue".lower():
             vars_args["duplicate_angle"] = "360"
+
+        if "flag_duplicates" in vars_args:
+            print('Warning: Flag duplicates command is deprecated. Ignoring duplicates is default behaviour now. To keep duplicates use the --keep_duplicates command') 
+
         sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
 
