@@ -524,7 +524,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
             response = None
             try:
                 request = urllib2.Request(url, data=data, headers=headers)
-                #response = urllib2.urlopen(request)
+                response = urllib2.urlopen(request)
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
