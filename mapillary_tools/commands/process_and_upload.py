@@ -139,8 +139,10 @@ class Command:
         vars_args = vars(args)
         if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
             vars_args["device_make"] = "Blackvue"
-        if "device_make" in vars_args and vars_args["device_make"].lower() == "Blackvue".lower():
-            vars_args["duplicate_angle"] = "360"
+        if "device_make" in vars_args:
+            if vars_args["device_make"] is not None:
+                if vars_args["device_make"].lower() == "Blackvue".lower():
+                    vars_args["duplicate_angle"] = "360"
 
         if "flag_duplicates" in vars_args:
             print('Warning: Flag duplicates command is deprecated. Ignoring duplicates is default behaviour now. To keep duplicates use the --keep_duplicates command') 

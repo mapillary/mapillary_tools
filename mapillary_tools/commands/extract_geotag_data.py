@@ -34,6 +34,8 @@ class Command:
     def run(self, args):
         if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
             vars_args["device_make"] = "Blackvue"
-        if "device_make" in vars_args and vars_args["device_make"].lower() == "Blackvue".lower():
-            vars_args["duplicate_angle"] = "360"
+        if "device_make" in vars_args:
+            if vars_args["device_make"] is not None:
+                if vars_args["device_make"].lower() == "Blackvue".lower():
+                    vars_args["duplicate_angle"] = "360"
         process_geotag_properties(**vars(args))
