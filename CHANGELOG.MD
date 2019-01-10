@@ -102,3 +102,19 @@
 
 ### Features and improvements
 * mapillary_tools available to be downloaded and installed as a package
+
+## 0.4.0 (2018-10-01)
+
+### Features and improvements
+* Improved upload stability
+* Improved processing of Blackvue videos with embedded gps data
+* Added features for process_csv command
+* More options for storing local image file path
+* Improved and added features for post_process command
+
+### Breaking changes
+* Argument `--video_import_path` can be single video or a directory of videos  
+* Duplicate flagging is now done automatically with the default duplicate thresholds. To keep duplicates, argument --keep_duplicates must be passed.
+
+### Bug fixes
+* Store username in case authenticating manually
