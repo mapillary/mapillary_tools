@@ -8,6 +8,7 @@ from mapillary_tools import commands
 advanced = '--advanced' in sys.argv
 version = '--version' in sys.argv
 full_help = '--full_help' in sys.argv
+flag_duplicates = '--flag_duplicates' in sys.argv
 
 if version:
     print("")
@@ -15,7 +16,9 @@ if version:
     print("")
     if len(sys.argv) < 3:
         sys.exit()
-
+if flag_duplicates:
+    print('\nWarning: --flag duplicates argument is deprecated, since duplicates are flagged by default from and including v0.4.0 on, please remove this argument from your command.\nTo keep duplicates use the --keep_duplicates command.\nDuplicate thresholds can be set as before, without having to specify --flag_duplicates.')
+    sys.exit(1)
 # Create the top-level parser
 parser = argparse.ArgumentParser(
     'Mapillary import tool', usage="see -h for available tools and corresponding arguments, add --advanced to see additional advanced tools and/or arguments and --version to see version.")

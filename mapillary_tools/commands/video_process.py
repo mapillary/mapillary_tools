@@ -8,6 +8,7 @@ from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import sample_video
 from mapillary_tools.post_process import post_process
 
+
 class Command:
     name = 'video_process'
     help = "Batch tool : Sample video into images and process image meta data and insert it in image EXIF ImageDescription."
@@ -89,8 +90,6 @@ class Command:
                             help='maximum time interval in seconds within a sequence', required=False)
         parser.add_argument('--interpolate_directions',
                             help='perform interpolation of directions', action='store_true', required=False)
-        parser.add_argument('--flag_duplicates',
-                            help='flag_duplicates is default behaviour now and command is deprecated. Use keep_duplicates to keep duplicates.', action='store_true', required=False, default=False)
         parser.add_argument('--keep_duplicates',
                             help='keep duplicates, ie do not flag duplicates for upload exclusion, but keep them to be uploaded', action='store_true', required=False, default=False)
         parser.add_argument('--duplicate_distance',
@@ -143,15 +142,10 @@ class Command:
         vars_args = vars(args)
         if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
             vars_args["device_make"] = "Blackvue"
-        if "device_make" in vars_args:
-            if vars_args["device_make"] is not None:
-                if vars_args["device_make"].lower() == "Blackvue".lower():
-                    vars_args["duplicate_angle"] = "360"
+        if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
+            vars_args["duplicate_angle"] = 360
         sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
-
-        if "flag_duplicates" in vars_args:
-            print('Warning: Flag duplicates command is deprecated. Ignoring duplicates is default behaviour now. To keep duplicates use the --keep_duplicates command') 
 
         process_user_properties(**({k: v for k, v in vars_args.iteritems()
                                     if k in inspect.getargspec(process_user_properties).args}))
