@@ -91,7 +91,7 @@ def post_process(import_path,
         return
 
     # sanity check if video file is passed
-    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
+    if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)

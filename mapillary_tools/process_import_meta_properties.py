@@ -5,6 +5,7 @@ import processing
 import uploader
 from exif_read import ExifRead
 from tqdm import tqdm
+from .error import print_error
 
 META_DATA_TYPES = {"strings": str,
                    "doubles": float,
@@ -18,7 +19,7 @@ def validate_type(tag_type, tag_value):
         try:
             tag_value = META_DATA_TYPES[tag_type](tag_value)
         except:
-            print(
+            print_error(
                 "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(tag_type, tag_value))
             return None
     return tag_value
@@ -112,7 +113,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.3.0")
+                 "0.3.1")
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description,
@@ -179,7 +180,7 @@ def process_import_meta_properties(import_path,
                                    exclude_path=None):
 
     # sanity check if video file is passed
-    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
+    if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -195,8 +196,8 @@ def process_import_meta_properties(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print_error("Error, import directory " + import_path +
+                    " does not exist, exiting...")
         sys.exit(1)
 
      # get list of file to process

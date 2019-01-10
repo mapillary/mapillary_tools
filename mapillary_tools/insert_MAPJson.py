@@ -6,6 +6,8 @@ import processing
 import uploader
 from tqdm import tqdm
 
+from .error import print_error
+
 
 def insert_MAPJson(import_path,
                    master_upload=False,
@@ -22,7 +24,7 @@ def insert_MAPJson(import_path,
                    overwrite_EXIF_orientation_tag=False):
 
     # sanity check if video file is passed
-    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
+    if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -38,8 +40,8 @@ def insert_MAPJson(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print_error("Error, import directory " + import_path +
+                    " does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process

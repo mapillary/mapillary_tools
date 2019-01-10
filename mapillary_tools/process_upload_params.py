@@ -3,6 +3,7 @@ import sys
 import processing
 import uploader
 from tqdm import tqdm
+from .error import print_error
 
 
 def process_upload_params(import_path,
@@ -14,7 +15,7 @@ def process_upload_params(import_path,
                           video_import_path=None):
 
     # sanity check if video file is passed
-    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
+    if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -30,8 +31,8 @@ def process_upload_params(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print_error("Error, import directory " + import_path +
+                    " does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process
@@ -46,7 +47,7 @@ def process_upload_params(import_path,
 
     # sanity checks
     if not user_name:
-        print("Error, must provide a valid user name, exiting...")
+        print_error("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   "upload_params_process"
                                                   "failed",
@@ -57,14 +58,16 @@ def process_upload_params(import_path,
         try:
             credentials = uploader.authenticate_user(user_name)
         except:
-            print("Error, user authentication failed for user " + user_name)
+            print_error(
+                "Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
                                                       "upload_params_process"
                                                       "failed",
                                                       verbose)
             sys.exit(1)
         if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
-            print("Error, user authentication failed for user " + user_name)
+            print_error(
+                "Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
                                                       "upload_params_process"
                                                       "failed",

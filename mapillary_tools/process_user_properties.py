@@ -1,6 +1,7 @@
 import processing
 import os
 import sys
+from .error import print_error
 
 
 def process_user_properties(import_path,
@@ -15,7 +16,7 @@ def process_user_properties(import_path,
                             video_import_path=None):
 
     # sanity check if video file is passed
-    if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
+    if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         print("Error, video path " + video_import_path +
               " does not exist, exiting...")
         sys.exit(1)
@@ -31,8 +32,8 @@ def process_user_properties(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print_error("Error, import directory " + import_path +
+                    " does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process
@@ -47,7 +48,7 @@ def process_user_properties(import_path,
 
     # sanity checks
     if not user_name:
-        print("Error, must provide a valid user name, exiting...")
+        print_error("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   "user_process",
                                                   "failed",
@@ -55,7 +56,7 @@ def process_user_properties(import_path,
         sys.exit(1)
 
     if private and not organization_username and not organization_key:
-        print("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
+        print_error("Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting...")
         processing.create_and_log_process_in_list(process_file_list,
                                                   "user_process",
                                                   "failed",

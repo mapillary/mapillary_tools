@@ -15,6 +15,8 @@ import config
 import getpass
 import sys
 import processing
+from . import ipc
+from .error import print_error
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -249,13 +251,12 @@ def success_only_manual_upload(root, file):
 def preform_upload(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
-    process_failed = os.path.join(
-        log_root, "mapillary_image_description_failed")
+    process_success = os.path.join(
+        log_root, "mapillary_image_description_success")
     duplicate = os.path.join(log_root, "duplicate")
     upload_succes = os.path.join(log_root, "upload_success")
-    upload = not os.path.isfile(
-        upload_succes) and not os.path.isfile(process_failed) and not os.path.isfile(
-        duplicate)
+    upload = not os.path.isfile(upload_succes) and os.path.isfile(
+        process_success) and not os.path.isfile(duplicate)
     return upload
 
 
@@ -426,8 +427,8 @@ def authenticate_user(user_name):
     try:
         config.create_config(GLOBAL_CONFIG_FILEPATH)
     except Exception as e:
-        print("Failed to create authentication config file due to ".format(e))
-        sys.exit()
+        print("Failed to create authentication config file due to {}".format(e))
+        sys.exit(1)
     config.update_config(
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
@@ -482,7 +483,7 @@ def get_user_key(user_name):
     except:
         return None
     if not resp or 'key' not in resp[0]:
-        print("Error, user name {} does not exist...".format(user_name))
+        print_error("Error, user name {} does not exist...".format(user_name))
         return None
     return resp[0]['key']
 
@@ -715,6 +716,13 @@ def create_upload_log(filepath, status):
                  str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
+
+    ipc.send(
+        'upload',
+        {
+            'image': filepath,
+            'status': 'success' if status == 'upload_success' else 'failed',
+        })
 
 
 # TODO change this, to summarize the upload.log and the processing.log
