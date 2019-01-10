@@ -103,7 +103,7 @@
 ### Features and improvements
 * mapillary_tools available to be downloaded and installed as a package
 
-## 0.4.0 (2018-10-01)
+## 0.4.0 (2018-01-10)
 
 ### Features and improvements
 * Improved upload stability
