@@ -17,6 +17,7 @@ import sys
 import processing
 from . import ipc
 from .error import print_error
+from .utils import force_decode
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -717,10 +718,12 @@ def create_upload_log(filepath, status):
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
 
+    decoded_filepath = force_decode(filepath)
+
     ipc.send(
         'upload',
         {
-            'image': filepath,
+            'image': decoded_filepath,
             'status': 'success' if status == 'upload_success' else 'failed',
         })
 

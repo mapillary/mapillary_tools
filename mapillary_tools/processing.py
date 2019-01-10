@@ -22,6 +22,7 @@ from gpx_from_exif import gpx_from_exif
 from tqdm import tqdm
 from . import ipc
 from .error import print_error
+from .utils import force_decode
 
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"
@@ -829,9 +830,11 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
                     process))
             os.remove(log_MAPJson)
 
+    decoded_image = force_decode(image)
+
     ipc.send(
         process,
-        {'image': image, 'status': status, 'description': mapillary_description})
+        { 'image': decoded_image, 'status': status, 'description': mapillary_description })
 
 
 def user_properties(user_name,
