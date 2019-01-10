@@ -114,7 +114,7 @@
 
 ### Breaking changes
 * Argument `--video_import_path` can be single video or a directory of videos  
-* Duplicate flagging is now done automatically with the default duplicate thresholds. To keep duplicates, argument --keep_duplicates must be passed.
+* Duplicate flagging is now done automatically with the default duplicate thresholds. To keep duplicates, argument `--keep_duplicates` must be passed.
 
 ### Bug fixes
 * Store username in case authenticating manually
