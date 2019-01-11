@@ -31,7 +31,7 @@ SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
-UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
+UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, #TODO: This URL is dynamic in api 2.0
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
@@ -146,6 +146,8 @@ def flag_finalization(finalize_file_list):
         finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
         open(finalize_flag, 'a').close()
 
+def get_upload_url(user,password,upload_type):
+    return #TODO ask mapillary_api 2.0 for url endpoint
 
 def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
@@ -642,7 +644,6 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
         max_attempts = MAX_ATTEMPTS
 
     # create upload queue with all files per sequence
-
     q = Queue()
     for filepath in file_list:
         q.put((filepath, max_attempts, UPLOAD_PARAMS))

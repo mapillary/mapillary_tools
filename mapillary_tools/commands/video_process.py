@@ -144,7 +144,7 @@ class Command:
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
             vars_args["duplicate_angle"] = 360
-        sample_video(**({k: v for k, v in vars_args.iteritems()
+        sample_video(**({k: v for k, v in vars_args.iteritems() 
                          if k in inspect.getargspec(sample_video).args}))
 
         process_user_properties(**({k: v for k, v in vars_args.iteritems()
