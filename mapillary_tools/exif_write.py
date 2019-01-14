@@ -69,7 +69,7 @@ class ExifEdit(object):
 
     def add_altitude(self, altitude, precision=100):
         """Add altitude (pre is the precision)."""
-        ref = 1 if altitude > 0 else 0
+        ref = 0 if altitude > 0 else 1
         self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (
             int(abs(altitude) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
