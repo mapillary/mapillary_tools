@@ -867,6 +867,9 @@ def upload_video_for_processing(video, upload_destination, permission, signature
                     upload_destination, data=data, headers=headers)
                 response = urllib2.urlopen(request)
                 if response.getcode() == 204:
+                    # JOSE this might need to be modified, its the logging for
+                    # images, but i think we need to keep the logs here aswell
+                    # somehow
                     create_upload_log(video, "upload_success")
                 else:
                     create_upload_log(video, "upload_failed")
