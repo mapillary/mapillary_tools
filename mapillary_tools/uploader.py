@@ -31,11 +31,11 @@ SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
-UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH, #TODO: This URL is dynamic in api 2.0
+UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,  # TODO: This URL is dynamic in api 2.0
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
-DRY_RUN = bool(os.getenv('DRY_RUN',False))
+DRY_RUN = bool(os.getenv('DRY_RUN', False))
 
 if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
@@ -146,8 +146,10 @@ def flag_finalization(finalize_file_list):
         finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
         open(finalize_flag, 'a').close()
 
-def get_upload_url(user,password,upload_type):
-    return #TODO ask mapillary_api 2.0 for url endpoint
+
+def get_upload_url(user, password, upload_type):
+    return  # TODO ask mapillary_api 2.0 for url endpoint
+
 
 def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
@@ -164,11 +166,15 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 
 
 # get a list of video files in a video_file
-def get_video_file_list(video_file):
+def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
-    for root, dir, files in os.walk(video_file):
-        video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                               for file in files if file.lower().endswith(('mp4')))
+    if skip_subfolders:
+        video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
+                               for file in os.listdir(video_file) if file.lower().endswith(('mp4')))
+    else:
+        for root, dir, files in os.walk(video_file):
+            video_file_list.extend(os.path.join(os.path.abspath(root), file)
+                                   for file in files if file.lower().endswith(('mp4')))
     return sorted(video_file_list)
 
 
@@ -522,7 +528,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
 
     data, headers = encode_multipart(
         parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
-    if DRY_RUN==False:
+    if DRY_RUN == False:
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -555,6 +561,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
                     response.close()
     else:
         print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
+
 
 def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
@@ -636,7 +643,7 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list_direct(file_list, number_threads=None, max_attempts=None,api_version=1.0):
+def upload_file_list_direct(file_list, number_threads=None, max_attempts=None, api_version=1.0):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
@@ -757,5 +764,136 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     lines = '\n'.join(lines)
     return lines
 
-def send_files_for_processing()
-    return
+
+# JOSE consider having api version as string,
+# JOSE consider if we will support master uploads, ie us uploading the videos
+# for user
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None):
+    # safe checks
+    if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
+        print("video import path {} does not exist or is invalid, exiting...".format(
+            video_import_path))
+        sys.exit(1)
+    # get user credentials, function authenticate_user, will prompt user if
+    # config doesnt exist or user is not in config, so first check if user
+    # passed email and password through args, otherwise call the usual
+    # authentication
+    if user_email and user_password:
+        upload_token = uploader.get_upload_token(user_email, user_password)
+        if not upload_token:
+            print("Authentication failed for user name " +
+                  user_name + ", please try again.")
+            sys.exit(1)
+        user_key = get_user_key(user_name)
+        if not user_key:
+            print("User name {} does not exist, please try again or contact Mapillary user support.".format(
+                user_name))
+            sys.exit(1)
+        user_permission_hash, user_signature_hash = get_user_hashes(
+            user_key, upload_token)
+
+        user_items["MAPSettingsUsername"] = section
+        user_items["MAPSettingsUserKey"] = user_key
+
+        user_items["user_upload_token"] = upload_token
+        user_items["user_permission_hash"] = user_permission_hash
+        user_items["user_signature_hash"] = user_signature_hash
+        if api_version == 2.0:
+            user_items["upload_url"] = uploader.get_upload_url(
+                user_email, user_password, upload_type)
+    else:
+        credentials = None
+        try:
+            credentials = authenticate_user(user_name)
+        except:
+            pass
+        if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
+            print("Error, user authentication failed for user " + user_name)
+            sys.exit(1)
+
+        # user_upload_token = credentials["user_upload_token"] # JOSE this might be needed maybe for
+        # the backend call
+        user_permission_hash = credentials["user_permission_hash"]
+        user_signature_hash = credentials["user_signature_hash"]
+        # user_key = credentials["MAPSettingsUserKey"] # JOSE this is not
+        # needed here, but maybe it will be, so i m leaving it
+    upload_destination = ""
+    '''
+    insert the call to backend to get the upload destination here
+    would need to get info from backend on what needs to be in the header of call, user upload token?
+    would need to get info from the backend on the format of the upload destination, for example will it be like this : "bucket_name"/"user_name"/"video_processing_session"
+    and will we need to put it together here, or will the final destination be returned in the response
+    '''
+    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images/jerneja"
+    if not upload_destination:
+        print("Upload destination could not be obtained, please make sure your user crednetials are correct and try again, exiting...")
+        sys.exit(1)
+    # upload all videos in the import path
+    # get a list of all videos first
+    all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
+        video_import_path) else [video_import_path]
+    # get the upload specific params
+    if number_threads == None:
+        number_threads = NUMBER_THREADS
+    if max_attempts == None:
+        max_attempts = MAX_ATTEMPTS
+
+    # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
+    # max_attempts
+    for video in all_videos:
+        upload_video_for_processing(
+            video, upload_destination, user_permission_hash, user_signature_hash, max_attempts)
+
+
+def upload_video_for_processing(video, upload_destination, permission, signature, max_attempts):
+
+    # NOTE key is hardcoded, need to change this
+    parameters = {"AWSAccessKeyId": "AKIAIJJIMLWVT6GBZQIQ", "acl": "private",
+                  "policy": permission, "signature": signature, "Content-Type": "video/mp4"}
+    with open(video, "rb") as f:
+        encoded_string = f.read()
+
+    # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
+    # local filename might need to be modified for the s3 filename
+    filename = os.path.basename(video)
+    data, headers = encode_multipart(
+        parameters, {'file': {'filename': filename, 'content': encoded_string}})
+    if not DRY_RUN:
+        for attempt in range(max_attempts):
+            # Initialize response before each attempt
+            response = None
+            try:
+                request = urllib2.Request(
+                    upload_destination, data=data, headers=headers)
+                response = urllib2.urlopen(request)
+                if response.getcode() == 204:
+                    create_upload_log(video, "upload_success")
+                else:
+                    create_upload_log(video, "upload_failed")
+                break  # attempts
+
+            except urllib2.HTTPError as e:
+                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except urllib2.URLError as e:
+                print("URL error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except httplib.HTTPException as e:
+                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except OSError as e:
+                print("OS error: {} on {}, will attempt upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except socket.timeout as e:
+                # Specific timeout handling for Python 2.7
+                print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
+                    filename, max_attempts - attempt - 1))
+            finally:
+                if response is not None:
+                    response.close()
+    else:
+        print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
