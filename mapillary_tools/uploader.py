@@ -636,7 +636,7 @@ def ascii_encode_dict(data):
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
-def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
+def upload_file_list_direct(file_list, number_threads=None, max_attempts=None,api_version=1.0):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
@@ -756,3 +756,6 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     lines.append('  failed:       {}'.format(total_failed))
     lines = '\n'.join(lines)
     return lines
+
+def send_files_for_processing()
+    return
