@@ -824,7 +824,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     would need to get info from the backend on the format of the upload destination, for example will it be like this : "bucket_name"/"user_name"/"video_processing_session"
     and will we need to put it together here, or will the final destination be returned in the response
     '''
-    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images/jerneja"
+    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
     if not upload_destination:
         print("Upload destination could not be obtained, please make sure your user crednetials are correct and try again, exiting...")
         sys.exit(1)
@@ -842,20 +842,20 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     # max_attempts
     for video in all_videos:
         upload_video_for_processing(
-            video, upload_destination, user_permission_hash, user_signature_hash, max_attempts)
+            video, upload_destination, user_name, user_permission_hash, user_signature_hash, max_attempts)
 
 
-def upload_video_for_processing(video, upload_destination, permission, signature, max_attempts):
-
-    # NOTE key is hardcoded, need to change this
-    parameters = {"AWSAccessKeyId": "AKIAIJJIMLWVT6GBZQIQ", "acl": "private",
-                  "policy": permission, "signature": signature, "Content-Type": "video/mp4"}
-    with open(video, "rb") as f:
-        encoded_string = f.read()
+def upload_video_for_processing(video, upload_destination, user_name, permission, signature, max_attempts):
 
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
+    # NOTE key is hardcoded, need to change this
+    parameters = {"key": user_name, "AWSAccessKeyId": "AKIAIJJIMLWVT6GBZQIQ", "acl": "private",
+                  "policy": permission, "signature": signature, "Content-Type": "video/mp4"}
+    with open(video, "rb") as f:
+        encoded_string = f.read()
+
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
     if not DRY_RUN:
