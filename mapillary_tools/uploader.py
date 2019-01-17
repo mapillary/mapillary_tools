@@ -824,7 +824,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     would need to get info from the backend on the format of the upload destination, for example will it be like this : "bucket_name"/"user_name"/"video_processing_session"
     and will we need to put it together here, or will the final destination be returned in the response
     '''
-    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
+    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.videos"
     if not upload_destination:
         print("Upload destination could not be obtained, please make sure your user crednetials are correct and try again, exiting...")
         sys.exit(1)
