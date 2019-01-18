@@ -7,6 +7,8 @@ import sys
 import re
 import pynmea2
 from geo import write_gpx
+from geo import get_max_distance_from_start
+from geo import get_total_distance_traveled
 
 from pymp4.parser import Box
 from construct.core import RangeError, ConstError
@@ -14,7 +16,6 @@ from construct.core import RangeError, ConstError
 '''
 Pulls geo data out of a BlackVue video files
 '''
-
 
 def get_points_from_bv(path,use_nmea_stream_timestamp=False):
     points = []
@@ -96,6 +97,15 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
 
     return points
 
+def is_video_stationary(max_distance_from_start,total_distance_traveled):
+    radius_treshold = 10
+    accumulated_distance_threshold = 20
+
+    if (max_distance_from_start < radius_treshold or accumulated_distance_threshold < accumulated_distance_threshold):
+        return True
+    else:
+        return False
+
 def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     bv_data = []
     try:
@@ -103,6 +113,9 @@ def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     except Exception as e:
         print(
             "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
+
+    is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data),get_total_distance_traveled(bv_data))
+    
     basename, extension = os.path.splitext(bv_video)
     gpx_path = basename + '.gpx'
 
@@ -110,4 +123,4 @@ def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
 
     write_gpx(gpx_path, bv_data)
 
-    return gpx_path
+    return gpx_path,is_stationary_video
