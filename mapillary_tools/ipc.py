@@ -33,10 +33,15 @@ def is_enabled():
     return NODE_CHANNEL_FD != -1
 
 def send(type, payload):
-    __write({
+    obj = {
         'type': type,
         'payload': payload,
-    })
+    }
+    try:
+        __write(obj)
+    except Exception as e:
+        print('IPC error for: %s' % obj)
+        print('Error: %s' % e)
 
 def send_error(message):
     send('error', {'message': message})
