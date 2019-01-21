@@ -7,6 +7,7 @@ import shutil
 from tqdm import tqdm
 import csv
 import exif_read
+from . import ipc
 
 
 def map_images_to_sequences(destination_mapping, total_files):
@@ -186,6 +187,9 @@ def post_process(import_path,
         summary_dict["process summary"]["processed_not_yet_uploaded"] = to_be_uploaded_files_count
         print("Import summary for import path {} :".format(import_path))
         print(json.dumps(summary_dict, indent=4))
+
+        ipc.send('summary', summary_dict)
+
         if save_as_json:
             try:
                 processing.save_json(summary_dict, os.path.join(
