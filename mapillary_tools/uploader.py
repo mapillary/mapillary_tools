@@ -502,6 +502,11 @@ def get_user_hashes(user_key, upload_token):
 
     return (user_permission_hash, user_signature_hash)
 
+def get_user(jwt):
+    req = urllib2.Request(ME_URL)
+    req.add_header('Authorization', 'Bearer {}'.format(jwt))
+    return json.loads(urllib2.urlopen(req).read())
+
 
 def upload_done_file(url, permission, signature, key=None, aws_key=None):
 

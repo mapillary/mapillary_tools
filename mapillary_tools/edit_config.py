@@ -10,11 +10,20 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
     os.path.expanduser('~'), ".config", "mapillary", 'config')
 
 
-def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, force_overwrite=False, user_key=None):
+def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, jwt=None, force_overwrite=False, user_key=None):
     config_file_path = config_file if config_file else GLOBAL_CONFIG_FILEPATH
 
     if not os.path.isfile(config_file_path):
         config.create_config(config_file_path)
+
+    if jwt:
+        try:
+            edit_config_with_jwt(jwt, config_file_path)
+        except Exception as e:
+            print('Error: %s' % e)
+            sys.exit(1)
+
+        return
 
     user_items = {}
     if user_key and user_name: #Manually add user_key
@@ -80,3 +89,19 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         sys.exit(1)
 
     config.update_config(config_file_path, section, user_items)
+
+
+def edit_config_with_jwt(jwt, config_file_path):
+    user = uploader.get_user(jwt)
+
+    user_permission_hash, user_signature_hash = uploader.get_user_hashes(
+        user['key'], jwt)
+
+    user_items = {}
+    user_items["MAPSettingsUsername"] = user['username']
+    user_items["MAPSettingsUserKey"] = user['key']
+    user_items["user_upload_token"] = jwt
+    user_items["user_permission_hash"] = user_permission_hash
+    user_items["user_signature_hash"] = user_signature_hash
+
+    config.update_config(config_file_path, user['username'], user_items)
