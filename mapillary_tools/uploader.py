@@ -18,6 +18,7 @@ import processing
 from . import ipc
 from .error import print_error
 from .utils import force_decode
+import requests
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -868,13 +869,13 @@ def upload_video_for_processing(video, upload_destination, user_name, permission
     with open(video, "rb") as f:
         encoded_string = f.read()
 
-    data, headers = encode_multipart(
-        parameters, {'file': {'filename': filename, 'content': encoded_string}})
+    #data, headers = encode_multipart(
+    #    parameters, {'file': {'filename': filename, 'content': encoded_string}})
     print("filename: {}".format(filename))
     print("parameters: {}".format(parameters))
 
     print("Printing data...")
-    print(type(data))
+    #print(type(data))
 
     #print("data: {}".format(data))
     #print("headers: {}".format(headers))
@@ -884,16 +885,23 @@ def upload_video_for_processing(video, upload_destination, user_name, permission
             # Initialize response before each attempt
             response = None
             try:
-                request = urllib2.Request(
-                        parameters["url"], data="", headers=headers)
-                response = urllib2.urlopen(request)
-                if response.getcode() == 204:
+                #files = {"file": {'filename': filename, 'content': encoded_string}}
+                files = {"file": encoded_string}
+                response = requests.post(parameters["url"],data=parameters["fields"],files=files)
+                print("Response: {}".format(response))
+            except requests.exceptions.RequestException as e:  
+                print e
+                sys.exit(1)
+                #request = urllib2.Request(
+                #        str(parameters["url"]), data=data)
+                #response = urllib2.urlopen(request)
+                #if response.getcode() == 204:
                     # JOSE this might need to be modified, its the logging for
                     # images, but i think we need to keep the logs here aswell
                     # somehow
-                    create_upload_log(video, "upload_success")
-                else:
-                    create_upload_log(video, "upload_failed")
+                #    create_upload_log(video, "upload_success")
+                #else:
+                #    create_upload_log(video, "upload_failed")
                 break  # attempts
 
             except urllib2.HTTPError as e:
