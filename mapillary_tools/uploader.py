@@ -818,28 +818,18 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         user_signature_hash = credentials["user_signature_hash"]
         # user_key = credentials["MAPSettingsUserKey"] # JOSE this is not
         # needed here, but maybe it will be, so i m leaving it
-    upload_destination = ""
-    '''
-    insert the call to backend to get the upload destination here
-    would need to get info from backend on what needs to be in the header of call, user upload token?
-    would need to get info from the backend on the format of the upload destination, for example will it be like this : "bucket_name"/"user_name"/"video_processing_session"
-    and will we need to put it together here, or will the final destination be returned in the response
-    '''
 
     request_url = "https://a.mapillary.com/v3/users/{}/upload_secrets?client_id={}".format(credentials["MAPSettingsUserKey"],CLIENT_ID)
     request = urllib2.Request(request_url)
     request.add_header('Authorization', 'Bearer {}'.format(credentials["user_upload_token"]))
-    response = json.loads(urllib2.urlopen(request).read())
-
-    request_params = response['videos'] #TODO check for errors on http request
-
-    print("printing videos .....")
-    print(response['videos'])
-    
-    upload_destination = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.videos"
-    if not upload_destination:
-        print("Upload destination could not be obtained, please make sure your user crednetials are correct and try again, exiting...")
+    try:
+        response = json.loads(urllib2.urlopen(request).read())
+    except requests.exceptions.HTTPError as e:
+        print("Error getting upload parameters, upload could not start")
         sys.exit(1)
+
+    request_params = response['videos']
+
     # upload all videos in the import path
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
@@ -854,77 +844,30 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     # max_attempts
     for video in all_videos:
         upload_video_for_processing(
-            video, upload_destination, user_name, user_permission_hash, user_signature_hash, max_attempts,request_params)
+            video, credentials, user_permission_hash, user_signature_hash, max_attempts,request_params)
 
 
-def upload_video_for_processing(video, upload_destination, user_name, permission, signature, max_attempts,parameters):
+def upload_video_for_processing(video, credentials, permission, signature, max_attempts,parameters):
     
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
-    # NOTE key is hardcoded, need to change this
     
-    #parameters = {"key": user_name, "AWSAccessKeyId": "AKIAIJJIMLWVT6GBZQIQ", "acl": "private",
-    #              "policy": permission, "signature": signature, "Content-Type": "video/mp4"}
     with open(video, "rb") as f:
         encoded_string = f.read()
 
-    #data, headers = encode_multipart(
-    #    parameters, {'file': {'filename': filename, 'content': encoded_string}})
-    print("filename: {}".format(filename))
-    print("parameters: {}".format(parameters))
-    parameters["fields"]["key"] = "ACiAzwbaVBdMSkrdruPYWw/uploads/videos/"
-
-    print("Printing data...")
-    #print(type(data))
-
-    #print("data: {}".format(data))
-    #print("headers: {}".format(headers))
-
+    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}".format(credentials["MAPSettingsUserKey"],filename)
     if not DRY_RUN:
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
             try:
-                #files = {"file": {'filename': filename, 'content': encoded_string}}
                 files = {"file": encoded_string}
                 response = requests.post(parameters["url"],data=parameters["fields"],files=files)
-                print("Response: {}".format(response))
-            except requests.exceptions.RequestException as e:  
-                print e
-                sys.exit(1)
-                #request = urllib2.Request(
-                #        str(parameters["url"]), data=data)
-                #response = urllib2.urlopen(request)
-                #if response.getcode() == 204:
-                    # JOSE this might need to be modified, its the logging for
-                    # images, but i think we need to keep the logs here aswell
-                    # somehow
-                #    create_upload_log(video, "upload_success")
-                #else:
-                #    create_upload_log(video, "upload_failed")
-                break  # attempts
-
-            except urllib2.HTTPError as e:
-                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
+                break
+            except requests.exceptions.HTTPError as e:
+                return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e,filename,max_attempts - attempt - 1)
                 time.sleep(5)
-            except urllib2.URLError as e:
-                print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except httplib.HTTPException as e:
-                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except OSError as e:
-                print("OS error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except socket.timeout as e:
-                # Specific timeout handling for Python 2.7
-                print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
-                    filename, max_attempts - attempt - 1))
             finally:
                 if response is not None:
                     response.close()
