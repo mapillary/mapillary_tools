@@ -118,3 +118,8 @@
 
 ### Bug fixes
 * Store username in case authenticating manually
+
+## 0.4.1 (2018-01-22)
+
+### Features and improvements
+ * Fix ipc exif encoding to support desktop uploader
