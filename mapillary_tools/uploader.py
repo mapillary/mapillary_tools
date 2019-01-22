@@ -873,6 +873,7 @@ def upload_video_for_processing(video, upload_destination, user_name, permission
     #    parameters, {'file': {'filename': filename, 'content': encoded_string}})
     print("filename: {}".format(filename))
     print("parameters: {}".format(parameters))
+    parameters["fields"]["key"] = "ACiAzwbaVBdMSkrdruPYWw/uploads/videos/"
 
     print("Printing data...")
     #print(type(data))
