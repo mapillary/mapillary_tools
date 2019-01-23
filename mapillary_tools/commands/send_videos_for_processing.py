@@ -22,6 +22,12 @@ class Command:
             '--skip_subfolders', help='Skip all subfolders and import only the videos in the given directory path.', action='store_true', default=False, required=False)
         parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
                             action='store', required=True)
+        parser.add_argument(
+            '--organization_username', help="Specify organization user name", default=None, required=False)
+        parser.add_argument(
+            '--organization_key', help="Specify organization key", default=None, required=False)
+        parser.add_argument('--private',
+                            help="Specify whether the import is private", action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
         pass

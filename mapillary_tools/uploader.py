@@ -19,6 +19,8 @@ from . import ipc
 from .error import print_error
 from .utils import force_decode
 import requests
+import yaml
+from tqdm import tqdm
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -769,7 +771,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider having api version as string,
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None,organization_username=None,organization_key=None,private=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -842,12 +844,14 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
     # max_attempts
-    for video in all_videos:
+
+    for video in tqdm(all_videos,desc="Uploading videos for processing"):
+        time.sleep(1)
         upload_video_for_processing(
-            video, credentials, user_permission_hash, user_signature_hash, max_attempts,request_params)
+            video, credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
 
 
-def upload_video_for_processing(video, credentials, permission, signature, max_attempts,parameters):
+def upload_video_for_processing(video, credentials, permission, signature, max_attempts,parameters,organization_username,organization_key,private):
     
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
@@ -855,9 +859,13 @@ def upload_video_for_processing(video, credentials, permission, signature, max_a
     
     with open(video, "rb") as f:
         encoded_string = f.read()
-
-    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}".format(credentials["MAPSettingsUserKey"],filename)
+    dateTimeStamp = time.strftime('%Y_%m_%d') #in the format YYYYMMDDHHMMSS  
+    filename_no_ext, file_extension = os.path.splitext(filename)
+    path=os.path.dirname(video)
+    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(credentials["MAPSettingsUserKey"],dateTimeStamp,filename_no_ext,filename)
+    print(parameters["fields"]["key"])
     if not DRY_RUN:
+        
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -871,5 +879,32 @@ def upload_video_for_processing(video, credentials, permission, signature, max_a
             finally:
                 if response is not None:
                     response.close()
+        
+        data=dict(
+            parameters = dict (
+                organization_key = organization_key, #TODO
+                private = private
+            )
+        )
+        with open ("{}/DONE".format(path),'w') as outfile:
+            yaml.dump(data,outfile,default_flow_style=False)
+
+            with open("{}/DONE".format(path), "rb") as f:
+                encoded_string = f.read()
+            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/DONE".format(credentials["MAPSettingsUserKey"],dateTimeStamp,filename_no_ext,filename)
+
+            for attempt in range(max_attempts):
+                # Initialize response before each attempt
+                response = None
+                try:
+                    files = {"file": encoded_string}
+                    response = requests.post(parameters["url"],data=parameters["fields"],files=files)
+                    break
+                except requests.exceptions.HTTPError as e:
+                    return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e,filename,max_attempts - attempt - 1)
+                    time.sleep(5)
+                finally:
+                    if response is not None:
+                        response.close()
     else:
         print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
