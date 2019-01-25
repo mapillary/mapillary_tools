@@ -911,7 +911,7 @@ def upload_video_for_processing(video, max_attempts, credentials, permission, si
             parameters = dict (
                 organization_key = organization_key, 
                 private = private
-                images_upload_v2 = true'
+                images_upload_v2 = 'true'
             )
         )
         with open ("{}/DONE".format(path),'w') as outfile:
