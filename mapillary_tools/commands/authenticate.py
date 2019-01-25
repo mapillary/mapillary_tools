@@ -16,6 +16,8 @@ class Command:
         parser.add_argument(
             "--user_password", help="password associated with the Mapillary user account", default=None, required=False)
         parser.add_argument(
+            "--jwt", help="JWT authentication token", default=None, required=False)
+        parser.add_argument(
             '--user_key', help='Manually specify user key', default=False, required=False)
         parser.add_argument(
             '--force_overwrite', help='Automatically overwrite any existing credentials stored in the config file for the specified user.', action='store_true', default=False, required=False)
