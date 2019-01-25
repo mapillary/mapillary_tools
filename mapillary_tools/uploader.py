@@ -910,7 +910,7 @@ def upload_video_for_processing(video, max_attempts, credentials, permission, si
         data=dict(
             parameters = dict (
                 organization_key = organization_key, 
-                private = private
+                private = private,
                 images_upload_v2 = 'true'
             )
         )
