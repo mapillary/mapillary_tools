@@ -113,9 +113,11 @@ def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     except Exception as e:
         print(
             "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
-
-    is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data),get_total_distance_traveled(bv_data))
-    
+    if bv_data != []:
+        is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data),get_total_distance_traveled(bv_data))
+    else:
+        is_stationary_video = True
+        return [],is_stationary_video
     basename, extension = os.path.splitext(bv_video)
     gpx_path = basename + '.gpx'
 

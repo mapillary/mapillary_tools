@@ -21,6 +21,7 @@ from .utils import force_decode
 import requests
 import yaml
 from tqdm import tqdm
+from gpx_from_blackvue import gpx_from_blackvue
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -847,8 +848,10 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         max_attempts = MAX_ATTEMPTS
 
     for video in tqdm(all_videos,desc="Uploading videos for processing"):
-        upload_video_for_processing(
-            video, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
+        [points, isStationaryVid] = gpx_from_blackvue(video)
+        if not isStationaryVid:
+            upload_video_for_processing(
+                video, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
 '''
     #params = (credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
 
@@ -910,7 +913,7 @@ def upload_video_for_processing(video, max_attempts, credentials, permission, si
         data=dict(
             parameters = dict (
                 organization_key = organization_key, 
-                private = private
+                private = private,
                 images_upload_v2 = 'true'
             )
         )
