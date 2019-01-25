@@ -852,6 +852,8 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         if not isStationaryVid:
             upload_video_for_processing(
                 video, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
+        else
+            print("Skipping file {} due to camera being stationary".format(video))
 '''
     #params = (credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
 
