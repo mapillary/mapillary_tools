@@ -837,22 +837,49 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
         video_import_path) else [video_import_path]
     # get the upload specific params
+
+    # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
+    # max_attempts
+
     if number_threads == None:
         number_threads = NUMBER_THREADS
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
-    # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
-    # max_attempts
-
     for video in tqdm(all_videos,desc="Uploading videos for processing"):
-        time.sleep(1)
         upload_video_for_processing(
-            video, credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
+            video, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
+'''
+    #params = (credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
 
+    # create upload queue with all files per sequence
+    q = Queue()
+    for filepath in all_videos:
+        q.put((filepath,max_attempts,vars_args,upload_video_for_processing))
+    # create uploader threads
+    uploaders = [UploadThread(q) for i in range (number_threads)]
 
-def upload_video_for_processing(video, credentials, permission, signature, max_attempts,parameters,organization_username,organization_key,private):
+    #start uploaders as daemon threads that can be stopped
+
+    try:
+        print("Uploading {} folder with {} threads".format(
+            video_import_path, number_threads))
+        for uploader in uploaders:
+            uploader.daemon = True
+            uploader.start()
+
+        while q.unfinished_tasks:
+            time.sleep(1)
+        q.join()
+    except (KeyboardInterrupt, SystemExit):
+        print("\nBREAK: Stopping upload.")
+        sys.exit(1)
+    upload_done_file(**file_params[filepath])
+    flag_finalization(file_list)
+'''
     
+
+def upload_video_for_processing(video, max_attempts, credentials, permission, signature, parameters,organization_username,organization_key,private):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
@@ -882,8 +909,9 @@ def upload_video_for_processing(video, credentials, permission, signature, max_a
         
         data=dict(
             parameters = dict (
-                organization_key = organization_key, #TODO
+                organization_key = organization_key, 
                 private = private
+                images_upload_v2 = true'
             )
         )
         with open ("{}/DONE".format(path),'w') as outfile:

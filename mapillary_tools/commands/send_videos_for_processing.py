@@ -28,10 +28,12 @@ class Command:
             '--organization_key', help="Specify organization key", default=None, required=False)
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
-
     def add_advanced_arguments(self, parser):
-        pass
+        # master upload
+        parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
+                            action='store_true', default=False, required=False)
 
+        
     def run(self, args):
         vars_args = vars(args)
         send_videos_for_processing(

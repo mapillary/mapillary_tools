@@ -56,7 +56,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
             print("User name {} does not exist, please try again or contact Mapillary user support.".format(
                 section))
             sys.exit(1)
-        upload_token = uploader.get_upload_token(user_email, user_password)
+            upload_token = uploader.get_upload_token(user_email, user_password)
         if not upload_token:
             print("Authentication failed for user name " +
                   section + ", please try again.")
