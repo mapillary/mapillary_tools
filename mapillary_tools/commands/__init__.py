@@ -39,7 +39,7 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 
 
 def add_general_arguments(parser, command):

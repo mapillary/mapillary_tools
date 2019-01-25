@@ -123,3 +123,8 @@
 
 ### Features and improvements
  * Fix ipc exif encoding to support desktop uploader
+ 
+## 0.4.2 (2018-01-25)
+
+### Features and improvements
+ * Enable JWT authentication to support desktop uploader

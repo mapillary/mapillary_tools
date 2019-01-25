@@ -23,4 +23,4 @@ import process_csv
 import interpolation
 import post_process
 
-VERSION = "0.4.1"
+VERSION = "0.4.2"
