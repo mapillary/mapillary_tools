@@ -235,7 +235,6 @@ def geotag_from_blackvue_video(process_file_list,
         except Exception as e:
             print_error("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
                 blackvue_video, e))
-            sys.exit(1)
         if is_stationary_video:
             print_error("Warning: Skipping stationary video")
             continue
