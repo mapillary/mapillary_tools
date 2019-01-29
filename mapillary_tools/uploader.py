@@ -21,7 +21,7 @@ from .utils import force_decode
 import requests
 import yaml
 from tqdm import tqdm
-from gpx_from_blackvue import gpx_from_blackvue
+from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -850,8 +850,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     for video in tqdm(all_videos,desc="Uploading videos for processing"):
         [points, isStationaryVid] = gpx_from_blackvue(video)
         if not isStationaryVid:
+            points = get_points_from_bv(video)
+            video_start_time = points[0][0]
+
             upload_video_for_processing(
-                video, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
+                video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
         else:
             print("Skipping file {} due to camera being stationary".format(video))
     print("Upload completed")
@@ -885,7 +888,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 '''
     
 
-def upload_video_for_processing(video, max_attempts, credentials, permission, signature, parameters,organization_username,organization_key,private):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters,organization_username,organization_key,private):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
@@ -917,7 +920,11 @@ def upload_video_for_processing(video, max_attempts, credentials, permission, si
             parameters = dict (
                 organization_key = organization_key, 
                 private = private,
-                images_upload_v2 = 'true'
+                images_upload_v2 = 'true',
+                make = 'Blackvue',
+                model = 'DR900S-1CH',
+                sample_interval_distance = 0.5
+                #video_start_time = video_start_time
             )
         )
         with open ("{}/DONE".format(path),'w') as outfile:
