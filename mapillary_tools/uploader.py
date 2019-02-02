@@ -35,7 +35,7 @@ UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,
                  "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
-DRY_RUN = bool(os.getenv('DRY_RUN',False))
+DRY_RUN = bool(os.getenv('DRY_RUN', False))
 
 if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
@@ -252,12 +252,12 @@ def success_only_manual_upload(root, file):
 def preform_upload(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
-    process_success = os.path.join(
-        log_root, "mapillary_image_description_success")
+    process_failed = os.path.join(
+        log_root, "mapillary_image_description_failed")
     duplicate = os.path.join(log_root, "duplicate")
     upload_succes = os.path.join(log_root, "upload_success")
-    upload = not os.path.isfile(upload_succes) and os.path.isfile(
-        process_success) and not os.path.isfile(duplicate)
+    upload = not os.path.isfile(upload_succes) and not os.path.isfile(
+        process_failed) and not os.path.isfile(duplicate)
     return upload
 
 
@@ -502,6 +502,7 @@ def get_user_hashes(user_key, upload_token):
 
     return (user_permission_hash, user_signature_hash)
 
+
 def get_user(jwt):
     req = urllib2.Request(ME_URL)
     req.add_header('Authorization', 'Bearer {}'.format(jwt))
@@ -525,7 +526,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
 
     data, headers = encode_multipart(
         parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
-    if DRY_RUN==False:
+    if DRY_RUN == False:
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -558,6 +559,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
                     response.close()
     else:
         print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
+
 
 def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
