@@ -908,6 +908,8 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             try:
                 files = {"file": encoded_string}
                 response = requests.post(parameters["url"],data=parameters["fields"],files=files)
+                if response.status_code=='204':
+                    create_upload_log(video, "upload_success")
                 break
             except requests.exceptions.HTTPError as e:
                 return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e,filename,max_attempts - attempt - 1)
