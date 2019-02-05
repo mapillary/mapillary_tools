@@ -22,6 +22,9 @@ import requests
 import yaml
 from tqdm import tqdm
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
+from process_video import get_video_duration
+from process_video import get_video_start_time
+import datetime
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
@@ -853,6 +856,10 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             points = get_points_from_bv(video)
             video_start_time = points[0][0]
 
+            duration = get_video_duration(video)
+            endtime = get_video_start_time(video) #Blackvue actually reports endtime in the created_at exif field
+            video_start_time = endtime - datetime.timedelta(seconds=duration)
+
             upload_video_for_processing(
                 video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
         else:
@@ -925,10 +932,11 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 images_upload_v2 = 'true',
                 make = 'Blackvue',
                 model = 'DR900S-1CH',
-                sample_interval_distance = 0.5
-                #video_start_time = video_start_time
+                sample_interval_distance = 0.5,
+                video_start_time = video_start_time
             )
         )
+        print("VIDEO START TIME: {}".format(video_start_time))
         with open ("{}/DONE".format(path),'w') as outfile:
             yaml.dump(data,outfile,default_flow_style=False)
 
