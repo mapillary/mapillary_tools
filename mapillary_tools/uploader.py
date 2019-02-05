@@ -27,7 +27,7 @@ from process_video import get_video_start_time
 import datetime
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
-    MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+    MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
     MAPILLARY_UPLOAD_URL = "{}/{}".format(
         os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
@@ -775,7 +775,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider having api version as string,
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None,organization_username=None,organization_key=None,private=False):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -825,9 +825,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         # user_key = credentials["MAPSettingsUserKey"] # JOSE this is not
         # needed here, but maybe it will be, so i m leaving it
 
-    request_url = "https://a.mapillary.com/v3/users/{}/upload_secrets?client_id={}".format(credentials["MAPSettingsUserKey"],CLIENT_ID)
+    request_url = "https://a.mapillary.com/v3/users/{}/upload_secrets?client_id={}".format(
+        credentials["MAPSettingsUserKey"], CLIENT_ID)
     request = urllib2.Request(request_url)
-    request.add_header('Authorization', 'Bearer {}'.format(credentials["user_upload_token"]))
+    request.add_header('Authorization', 'Bearer {}'.format(
+        credentials["user_upload_token"]))
     try:
         response = json.loads(urllib2.urlopen(request).read())
     except requests.exceptions.HTTPError as e:
@@ -850,21 +852,24 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
-    for video in tqdm(all_videos,desc="Uploading videos for processing"):
+    for video in tqdm(all_videos, desc="Uploading videos for processing"):
         [points, isStationaryVid] = gpx_from_blackvue(video)
         if not isStationaryVid:
             points = get_points_from_bv(video)
             video_start_time = points[0][0]
 
             duration = get_video_duration(video)
-            endtime = get_video_start_time(video) #Blackvue actually reports endtime in the created_at exif field
+            # Blackvue actually reports endtime in the created_at exif field
+            endtime = get_video_start_time(video)
             video_start_time = endtime - datetime.timedelta(seconds=duration)
 
             upload_video_for_processing(
-                video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash,request_params,organization_username,organization_key,private)
+                video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
         else:
             print("Skipping file {} due to camera being stationary".format(video))
     print("Upload completed")
+
+
 '''
     #params = (credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
 
@@ -893,66 +898,70 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     upload_done_file(**file_params[filepath])
     flag_finalization(file_list)
 '''
-    
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters,organization_username,organization_key,private):
+
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
-    
+
     with open(video, "rb") as f:
         encoded_string = f.read()
-    dateTimeStamp = time.strftime('%Y_%m_%d') #in the format YYYYMMDDHHMMSS  
+    dateTimeStamp = time.strftime('%Y_%m_%d')  # in the format YYYYMMDDHHMMSS
     filename_no_ext, file_extension = os.path.splitext(filename)
-    path=os.path.dirname(video)
-    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(credentials["MAPSettingsUserKey"],dateTimeStamp,filename_no_ext,filename)
+    path = os.path.dirname(video)
+    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(
+        credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
     print(parameters["fields"]["key"])
     if not DRY_RUN:
-        
+
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
             try:
                 files = {"file": encoded_string}
-                response = requests.post(parameters["url"],data=parameters["fields"],files=files)
-                if response.status_code=='204':
+                response = requests.post(
+                    parameters["url"], data=parameters["fields"], files=files)
+                if response.status_code == '204':
                     create_upload_log(video, "upload_success")
                 break
             except requests.exceptions.HTTPError as e:
-                return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e,filename,max_attempts - attempt - 1)
+                return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
                 time.sleep(5)
             finally:
                 if response is not None:
                     response.close()
-        
-        data=dict(
-            parameters = dict (
-                organization_key = organization_key, 
-                private = private,
-                images_upload_v2 = 'true',
-                make = 'Blackvue',
-                model = 'DR900S-1CH',
-                sample_interval_distance = 0.5,
-                video_start_time = video_start_time
+
+        data = dict(
+            parameters=dict(
+                organization_key=organization_key,
+                private=private,
+                images_upload_v2='true',
+                make='Blackvue',
+                model='DR900S-1CH',
+                sample_interval_distance=0.5,
+                video_start_time=video_start_time
             )
         )
         print("VIDEO START TIME: {}".format(video_start_time))
-        with open ("{}/DONE".format(path),'w') as outfile:
-            yaml.dump(data,outfile,default_flow_style=False)
+        with open("{}/DONE".format(path), 'w') as outfile:
+            yaml.dump(data, outfile, default_flow_style=False)
 
             with open("{}/DONE".format(path), "rb") as f:
                 encoded_string = f.read()
-            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/DONE".format(credentials["MAPSettingsUserKey"],dateTimeStamp,filename_no_ext,filename)
+            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/DONE".format(
+                credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
 
             for attempt in range(max_attempts):
                 # Initialize response before each attempt
                 response = None
                 try:
                     files = {"file": encoded_string}
-                    response = requests.post(parameters["url"],data=parameters["fields"],files=files)
+                    response = requests.post(
+                        parameters["url"], data=parameters["fields"], files=files)
                     break
                 except requests.exceptions.HTTPError as e:
-                    return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e,filename,max_attempts - attempt - 1)
+                    return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
                     time.sleep(5)
                 finally:
                     if response is not None:
