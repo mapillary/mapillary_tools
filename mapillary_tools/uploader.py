@@ -861,10 +861,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             duration = get_video_duration(video)
             # Blackvue actually reports endtime in the created_at exif field
             endtime = get_video_start_time(video)
-            video_start_time = endtime - datetime.timedelta(seconds=duration)
+            video_start_time = (endtime - datetime.timedelta(seconds=duration))
+            video_start_timestamp = (((video_start_time - datetime.datetime(1970, 1, 1)).total_seconds())-3600)*1000 #TODO Currently adding an hour due to error in camera config. How to fix long term?
 
             upload_video_for_processing(
-                video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
+                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
         else:
             print("Skipping file {} due to camera being stationary".format(video))
     print("Upload completed")
@@ -943,7 +944,6 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 video_start_time=video_start_time
             )
         )
-        print("VIDEO START TIME: {}".format(video_start_time))
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
@@ -968,3 +968,5 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                         response.close()
     else:
         print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
+        print("VIDEO START TIME: {}".format(video_start_time))
+
