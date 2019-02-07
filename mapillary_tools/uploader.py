@@ -906,7 +906,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     filename_no_ext, file_extension = os.path.splitext(filename)
     path=os.path.dirname(video)
     parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(credentials["MAPSettingsUserKey"],dateTimeStamp,filename_no_ext,filename)
-    print(parameters["fields"]["key"])
+    print(parameters["fields"]["key"])    
     if not DRY_RUN:
         
         for attempt in range(max_attempts):
