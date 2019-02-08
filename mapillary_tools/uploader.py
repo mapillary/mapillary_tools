@@ -830,12 +830,13 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     request = urllib2.Request(request_url)
     request.add_header('Authorization', 'Bearer {}'.format(
         credentials["user_upload_token"]))
+ 
     try:
         response = json.loads(urllib2.urlopen(request).read())
     except requests.exceptions.HTTPError as e:
         print("Error getting upload parameters, upload could not start")
         sys.exit(1)
-
+    
     request_params = response['videos']
 
     # upload all videos in the import path
@@ -853,7 +854,22 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         max_attempts = MAX_ATTEMPTS
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
+        print("Preparing video {} for upload".format(os.path.basename(video)))
         [points, isStationaryVid] = gpx_from_blackvue(video)
+        if isStationaryVid:
+            if not points:
+                no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
+                if not os.path.exists(no_gps_folder):
+                    os.mkdir(no_gps_folder)
+                os.rename(video,no_gps_folder+os.path.basename(video))
+                print("Skipping file {} due to file not containing gps data".format(video))
+                continue
+            stationary_folder = os.path.dirname(video)+'/stationary/'
+            if not os.path.exists(stationary_folder):
+                os.mkdir(stationary_folder)
+            os.rename(video,stationary_folder+os.path.basename(video))
+            print("Skipping file {} due to camera being stationary".format(video))
+            continue
         if not isStationaryVid:
             points = get_points_from_bv(video)
             video_start_time = points[0][0]
@@ -866,8 +882,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
             upload_video_for_processing(
                 video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
-        else:
-            print("Skipping file {} due to camera being stationary".format(video))
+            
     print("Upload completed")
 
 
