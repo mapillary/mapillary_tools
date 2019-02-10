@@ -1,4 +1,5 @@
 import os
+import image_status
 import time
 import uuid
 import sys
@@ -58,10 +59,10 @@ def insert_MAPJson(import_path,
         # check the processing logs
         log_root = uploader.log_rootpath(image)
 
-        duplicate_path = os.path.join(log_root,
-                                      "duplicate")
-
-        if os.path.isfile(duplicate_path):
+        # duplicate_path = os.path.join(log_root, "duplicate")
+        # if os.path.isfile(duplicate_path):
+        #     continue
+        if image_status.get_value(image, "duplicate", 0):
             continue
 
         final_mapillary_image_description = processing.get_final_mapillary_image_description(log_root,

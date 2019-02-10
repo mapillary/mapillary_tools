@@ -6,7 +6,7 @@ from mapillary_tools.process_sequence_properties import process_sequence_propert
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.post_process import post_process
-
+from mapillary_tools.image_status import initiate_storage
 
 class Command:
     name = 'process'
@@ -129,14 +129,17 @@ class Command:
                             default=None, required=False)
 
     def run(self, args):
-
         vars_args = vars(args)
         if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
             vars_args["duplicate_angle"] = 360
-        process_user_properties(**({k: v for k, v in vars_args.iteritems()
-                                    if k in inspect.getargspec(process_user_properties).args}))
+
+        initiate_storage(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_user_properties).args}))
+
+        process_user_properties(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_user_properties).args}))
 
         process_import_meta_properties(
             **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_import_meta_properties).args}))
@@ -147,13 +150,13 @@ class Command:
         process_sequence_properties(
             **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_sequence_properties).args}))
 
-        process_upload_params(**({k: v for k, v in vars_args.iteritems()
-                                  if k in inspect.getargspec(process_upload_params).args}))
+        process_upload_params(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_upload_params).args}))
 
-        insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
-                           if k in inspect.getargspec(insert_MAPJson).args}))
+        insert_MAPJson(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(insert_MAPJson).args}))
 
         print("Process done.")
 
-        post_process(**({k: v for k, v in vars_args.iteritems()
-                         if k in inspect.getargspec(post_process).args}))
+        post_process(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(post_process).args}))

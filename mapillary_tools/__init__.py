@@ -22,5 +22,6 @@ import commands
 import process_csv
 import interpolation
 import post_process
+import image_status
 
 VERSION = "0.4.2"

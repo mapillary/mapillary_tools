@@ -217,9 +217,7 @@ def process_import_meta_properties(import_path,
     # read import meta from image EXIF and finalize the import
     # properties process
     for image in tqdm(process_file_list, desc="Processing image import properties"):
-
-        import_meta_data_properties = get_import_meta_properties_exif(
-            image, verbose)
+        import_meta_data_properties = get_import_meta_properties_exif(image, verbose)
         finalize_import_properties_process(image,
                                            import_path,
                                            orientation,

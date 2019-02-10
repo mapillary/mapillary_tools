@@ -1,4 +1,5 @@
 import os
+import image_status
 import sys
 import processing
 import uploader
@@ -83,15 +84,13 @@ def process_upload_params(import_path,
 
         # check the status of the sequence processing
         log_root = uploader.log_rootpath(image)
-        duplicate_flag_path = os.path.join(log_root,
-                                           "duplicate")
-        upload_params_path = os.path.join(
-            log_root, "upload_params_process.json")
+        #duplicate_flag_path = os.path.join(log_root, "duplicate")
+        #upload_params_path = os.path.join(log_root, "upload_params_process.json")
 
-        if os.path.isfile(upload_params_path):
-            os.remove(upload_params_path)
+        image_status.set_value(image, 'upload_params_process_log', None)
 
-        if os.path.isfile(duplicate_flag_path) or master_upload:
+        if image_status.get_value(image, 'duplicate') == 1 or master_upload:
+            image_status.set_value(image, 'upload_params_process', 1)
             continue
 
         upload_params_properties = processing.get_upload_param_properties(log_root,
@@ -107,9 +106,10 @@ def process_upload_params(import_path,
                                           "success",
                                           upload_params_properties,
                                           verbose=verbose)
+
         # flag manual upload
-        log_manual_upload = os.path.join(
-            log_root, "manual_upload")
-        open(log_manual_upload, 'a').close()
+        image_status.set_value(image, "manual_upload", 1)
+        #log_manual_upload = os.path.join(log_root, "manual_upload")
+        #open(log_manual_upload, 'a').close()
 
     print("Sub process ended")

@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import cProfile
 
 from mapillary_tools import commands
 
@@ -69,8 +70,14 @@ if 'version' in vars(args):
 if 'full_help' in vars(args):
     del vars(args)['full_help']
 
+#pr = cProfile.Profile()
+#pr.enable()
+
 # Run the selected subcommand if unit command, or in case of batch
 # command, run several unit commands
 for command in all_commands:
     if args_command == command.name:
         command.run(args)
+
+#pr.disable()
+#pr.print_stats()

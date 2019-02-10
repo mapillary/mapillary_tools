@@ -19,11 +19,10 @@ from . import ipc
 from .error import print_error
 from .utils import force_decode
 
-if os.getenv("AWS_S3_ENDPOINT", None) is None:
-    MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
-else:
-    MAPILLARY_UPLOAD_URL = "{}/{}".format(
-        os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
+#if os.getenv("AWS_S3_ENDPOINT", None) is None:
+#    MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+#else:
+MAPILLARY_UPLOAD_URL = "{}/{}".format("http://awss3provider:4569", "mtf-upload-images")
 
 MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
 PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
@@ -596,6 +595,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
 
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
+
     if (DRY_RUN == False):
         for attempt in range(max_attempts):
             # Initialize response before each attempt

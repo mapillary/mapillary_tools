@@ -75,16 +75,25 @@ class ExifRead:
     EXIF class for reading exif from an image
     '''
 
+    exif_hash = {}
+
     def __init__(self, filename, details=False):
         '''
         Initialize EXIF object with FILE as filename or fileobj
         '''
         self.filename = filename
+
+        if filename in ExifRead.exif_hash:
+            self.tags = ExifRead.exif_hash[filename]
+            return
+
         if type(filename) == str:
             with open(filename, 'rb') as fileobj:
                 self.tags = exifread.process_file(fileobj, details=details)
         else:
             self.tags = exifread.process_file(filename, details=details)
+
+        ExifRead.exif_hash[filename] = self.tags
 
     def _extract_alternative_fields(self, fields, default=None, field_type=float):
         '''

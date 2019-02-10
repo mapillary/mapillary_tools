@@ -7,7 +7,7 @@ from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.upload import upload
 from mapillary_tools.post_process import post_process
-
+from mapillary_tools.image_status import initiate_storage
 
 class Command:
     name = 'process_and_upload'
@@ -139,6 +139,9 @@ class Command:
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
             vars_args["duplicate_angle"] = 360
+
+        initiate_storage(
+            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_user_properties).args}))
 
         process_user_properties(**({k: v for k, v in vars_args.iteritems()
                                     if k in inspect.getargspec(process_user_properties).args}))

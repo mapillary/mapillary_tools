@@ -14,6 +14,7 @@ from exif_aux import verify_exif
 from geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
 import config
 import uploader
+import image_status
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
@@ -367,30 +368,39 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
 
 def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, verbose=False):
 
-    if not os.path.isdir(log_root):
-        print("Warning, sequence process has not been done for image " + image +
-              ", therefore it will not be included in the upload params processing.")
-        return None
+    # if not os.path.isdir(log_root):
+    #     print("Warning, sequence process has not been done for image " + image +
+    #           ", therefore it will not be included in the upload params processing.")
+    #     return None
 
     # check if geotag process was a success
-    log_sequence_process_success = os.path.join(
-        log_root, "sequence_process_success")
-    if not os.path.isfile(log_sequence_process_success):
+    #log_sequence_process_success = os.path.join(log_root, "sequence_process_success")
+    #if not os.path.isfile(log_sequence_process_success):
+    #    print("Warning, sequence process failed for image " + image +
+    #          ", therefore it will not be included in the upload params processing.")
+    #    return None
+
+    if image_status.get_value(image, 'sequence_process', 0) == 0:
         print("Warning, sequence process failed for image " + image +
               ", therefore it will not be included in the upload params processing.")
         return None
 
-    upload_params_process_success_path = os.path.join(log_root,
-                                                      "upload_params_process_success")
+
+    #upload_params_process_success_path = os.path.join(log_root, "upload_params_process_success")
 
     # load the sequence json
-    sequence_process_json_path = os.path.join(log_root,
-                                              "sequence_process.json")
-    sequence_data = ""
-    try:
-        sequence_data = load_json(
-            sequence_process_json_path)
-    except:
+    #sequence_process_json_path = os.path.join(log_root, "sequence_process.json")
+    #sequence_data = ""
+    #try:
+    #    sequence_data = load_json(sequence_process_json_path)
+    #except:
+    #    print("Warning, sequence data not read for image " + image +
+    #          ", therefore it will not be included in the upload params processing.")
+    #    return None
+
+    sequence_data = image_status.get_value(image, 'sequence_process_log')
+
+    if sequence_data is None:
         print("Warning, sequence data not read for image " + image +
               ", therefore it will not be included in the upload params processing.")
         return None
@@ -420,12 +430,18 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         settings_upload_hash = hashlib.sha256("%s%s%s" % (user_upload_token,
                                                           user_key,
                                                           base64.b64encode(image))).hexdigest()
-        save_json({"MAPSettingsUploadHash": settings_upload_hash},
-                  os.path.join(log_root, "settings_upload_hash.json"))
+
+        image_status.set_value(image, 'settings_upload_hash', 1)
+        image_status.set_value(image, 'settings_upload_hash_log', {"MAPSettingsUploadHash": settings_upload_hash})
+        #save_json(
+        #    {"MAPSettingsUploadHash": settings_upload_hash},
+        #    os.path.join(log_root, "settings_upload_hash.json")
+        #)
     except:
         print("Warning, settings upload hash not set for image " + image +
               ", therefore it will not be uploaded.")
         return None
+
     return upload_params
 
 
@@ -435,45 +451,55 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
 
     final_mapillary_image_description = {}
     for sub_command in sub_commands:
-        sub_command_status = os.path.join(
-            log_root, sub_command + "_failed")
+        # sub_command_status = os.path.join(log_root, sub_command + "_failed")
 
-        if os.path.isfile(sub_command_status) and sub_command != "import_meta_data_process":
-            print("Warning, required {} failed for image ".format(sub_command) +
-                  image)
+        # if os.path.isfile(sub_command_status) and sub_command != "import_meta_data_process":
+        #     print("Warning, required {} failed for image ".format(sub_command) +
+        #           image)
+        #     return None
+
+        if image_status.get_value(image, sub_command, 0) == 0 and sub_command != "import_meta_data_process":
+            print("Warning, required {} failed for image ".format(sub_command) + image)
             return None
 
-        sub_command_data_path = os.path.join(
-            log_root, sub_command + ".json")
-        if not os.path.isfile(sub_command_data_path) and sub_command != "import_meta_data_process":
+        sub_command_data = image_status.get_value(image, sub_command + "_log")
+        if sub_command_data is None and sub_command != "import_meta_data_process":
             if (sub_command == "settings_upload_hash" or sub_command == "upload_params_process") and master_upload:
                 continue
             else:
                 print("Warning, required {} did not result in a valid json file for image ".format(
                     sub_command) + image)
                 return None
+
         if sub_command == "settings_upload_hash" or sub_command == "upload_params_process":
             continue
-        try:
-            sub_command_data = load_json(sub_command_data_path)
-            if not sub_command_data:
-                if verbose:
-                    print(
-                        "Warning, no data read from json file " + json_file)
-                return None
 
-            final_mapillary_image_description.update(sub_command_data)
-        except:
-            if sub_command == "import_meta_data_process":
-                if verbose:
-                    print("Warning, could not load json file " +
-                          sub_command_data_path)
-                continue
-            else:
-                if verbose:
-                    print("Warning, could not load json file " +
-                          sub_command_data_path)
-                return None
+        final_mapillary_image_description.update(sub_command_data)
+
+        # FIXME
+        # FIXME NOT ALL ERRORS ARE HANDLED HERE
+        # FIXME
+
+        # try:
+        #     sub_command_data = load_json(sub_command_data_path)
+        #     if not sub_command_data:
+        #         if verbose:
+        #             print(
+        #                 "Warning, no data read from json file " + json_file)
+        #         return None
+        #
+        #
+        # except:
+        #     if sub_command == "import_meta_data_process":
+        #         if verbose:
+        #             print("Warning, could not load json file " +
+        #                   sub_command_data_path)
+        #         continue
+        #     else:
+        #         if verbose:
+        #             print("Warning, could not load json file " +
+        #                   sub_command_data_path)
+        #         return None
 
     # a unique photo ID to check for duplicates in the backend in case the
     # image gets uploaded more than once
@@ -565,28 +591,34 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
 
 
 def get_geotag_data(log_root, image, verbose=False):
-    if not os.path.isdir(log_root):
-        if verbose:
-            print("Warning, no logs for image " + image)
-        return None
-    # check if geotag process was a success
-    log_geotag_process_success = os.path.join(log_root,
-                                              "geotag_process_success")
-    if not os.path.isfile(log_geotag_process_success):
+    geotag_data = image_status.get_value(image, 'geotag_process_log')
+
+    if geotag_data is None:
         print("Warning, geotag process failed for image " + image +
               ", therefore it will not be included in the sequence processing.")
-        return None
+
+    return geotag_data
+
+    #if not os.path.isdir(log_root):
+    #    if verbose:
+    #        print("Warning, no logs for image " + image)
+    #    return None
+    # check if geotag process was a success
+    #log_geotag_process_success = os.path.join(log_root, "geotag_process_success")
+    #if not os.path.isfile(log_geotag_process_success):
+    #    print("Warning, geotag process failed for image " + image +
+    #          ", therefore it will not be included in the sequence processing.")
+    #    return None
     # load the geotag json
-    geotag_process_json_path = os.path.join(log_root,
-                                            "geotag_process.json")
-    try:
-        geotag_data = load_json(geotag_process_json_path)
-        return geotag_data
-    except:
-        if verbose:
-            print("Warning, geotag data not read for image " + image +
-                  ", therefore it will not be included in the sequence processing.")
-        return None
+    #geotag_process_json_path = os.path.join(log_root, "geotag_process.json")
+    #try:
+    #    geotag_data = load_json(geotag_process_json_path)
+    #    return geotag_data
+    #except:
+    #    if verbose:
+    #        print("Warning, geotag data not read for image " + image +
+    #              ", therefore it will not be included in the sequence processing.")
+    #    return None
 
 
 def format_orientation(orientation):
@@ -628,41 +660,25 @@ def update_json(data, file_path, process):
 
 
 def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
-
-    if not root_dir:
-        root_dir = import_path
-
-    process_file_list = []
-    if skip_subfolders:
-        process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
-    else:
-        for root, dir, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
-                os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
-
-    inform_processing_start(root_dir,
-                            len(process_file_list),
-                            process)
-    return sorted(process_file_list)
-
+    return image_status.get_keys_with_status(process, 1)
 
 def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+    print(import_path)
+    print(process)
+    print(status)
 
-    status_process_file_list = []
-    if skip_subfolders:
-        status_process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
-    else:
-        for root, dir, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
-                os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
-
-    return sorted(status_process_file_list)
+    # status_process_file_list = []
+    # if skip_subfolders:
+    #     status_process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+    #         ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
+    # else:
+    #     for root, dir, files in os.walk(import_path):
+    #         if os.path.join(".mapillary", "logs") in root:
+    #             continue
+    #         status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
+    #             os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+    #
+    # return sorted(status_process_file_list)
 
 
 def process_status(file_path, process, status):
@@ -783,52 +799,46 @@ def create_and_log_process_in_list(process_file_list,
                                status,
                                mapillary_description,
                                verbose)
+    image_status.transact()
 
 
 def create_and_log_process(image, process, status, mapillary_description={}, verbose=False):
     # set log path
-    log_root = uploader.log_rootpath(image)
+    # log_root = uploader.log_rootpath(image)
     # make all the dirs if not there
-    if not os.path.isdir(log_root):
-        os.makedirs(log_root)
+    # if not os.path.isdir(log_root):
+    #    os.makedirs(log_root)
     # set the log flags for process
-    log_process = os.path.join(
-        log_root, process)
-    log_process_succes = log_process + "_success"
-    log_process_failed = log_process + "_failed"
-    log_MAPJson = os.path.join(log_root, process + ".json")
+    # log_process = os.path.join(
+    #     log_root, process)
+    # log_process_succes = log_process + "_success"
+    # log_process_failed = log_process + "_failed"
+    # log_MAPJson = os.path.join(log_root, process + ".json")
+    #print(image)
+    #print(log_process)
+    #print(log_MAPJson)
 
     if status == "success" and not mapillary_description:
         status = "failed"
     elif status == "success":
-        try:
-            save_json(mapillary_description, log_MAPJson)
-            open(log_process_succes, "w").close()
-            open(log_process_succes + "_" +
-                 str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
-            # if there is a failed log from before, remove it
-            if os.path.isfile(log_process_failed):
-                os.remove(log_process_failed)
-        except:
-            # if the image description could not have been written to the
-            # filesystem, log failed
-            print_error("Error, " + process +
-                        " logging failed for image " + image)
-            status = "failed"
+        image_status.set_value(image, process, 1, False)
+        image_status.set_value(image, process + "_log", mapillary_description, False)
 
     if status == "failed":
-        open(log_process_failed, "w").close()
-        open(log_process_failed + "_" +
-             str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
-        # if there is a success log from before, remove it
-        if os.path.isfile(log_process_succes):
-            os.remove(log_process_succes)
-        # if there is meta data from before, remove it
-        if os.path.isfile(log_MAPJson):
-            if verbose:
-                print("Warning, {} in this run has failed, previously generated properties will be removed.".format(
-                    process))
-            os.remove(log_MAPJson)
+        image_status.set_value(image, process, 0, False)
+        image_status.set_value(image, process + "_log", None, False)
+        #open(log_process_failed, "w").close()
+        #open(log_process_failed + "_" +
+        #     str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
+        ## if there is a success log from before, remove it
+        #if os.path.isfile(log_process_succes):
+        #    os.remove(log_process_succes)
+        ## if there is meta data from before, remove it
+        #if os.path.isfile(log_MAPJson):
+        #    if verbose:
+        #        print("Warning, {} in this run has failed, previously generated properties will be removed.".format(
+        #            process))
+        #    os.remove(log_MAPJson)
 
     decoded_image = force_decode(image)
 
@@ -951,9 +961,7 @@ def process_organization(user_properties, organization_username=None, organizati
 
 
 def inform_processing_start(import_path, len_process_file_list, process, skip_subfolders=False):
-
-    total_file_list = uploader.get_total_file_list(
-        import_path, skip_subfolders)
+    total_file_list = image_status.get_all_files()
     print("Running {} for {} images, skipping {} images.".format(process,
                                                                  len_process_file_list,
                                                                  len(total_file_list) - len_process_file_list))
@@ -988,10 +996,9 @@ def load_geotag_points(process_file_list, verbose=False):
                           ) if "MAPCompassHeading" in geotag_data else directions.append(0.0)
 
         # remove previously created duplicate flags
-        duplicate_flag_path = os.path.join(log_root,
-                                           "duplicate")
-        if os.path.isfile(duplicate_flag_path):
-            os.remove(duplicate_flag_path)
+        # duplicate_flag_path = os.path.join(log_root, "duplicate")
+        # if os.path.isfile(duplicate_flag_path):
+        #     os.remove(duplicate_flag_path)
 
     return file_list, capture_times, lats, lons, directions
 

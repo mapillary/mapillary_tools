@@ -16,14 +16,14 @@ elif [ $1 = "process" ];
 then
     map_cluster_wait_for_it $S3_WAIT
     map_cluster_wait_for_it $API_WAIT
-    sleep 30
-    while :
-    do
-        echo "Processing images..."
-        mapillary_tools process --import_path tests/integration/mapillary_tools_process_images_provider/data/images/ --advanced --user_name mapillary_user
-        sleep 3
-        echo "Uploading images..."
-        mapillary_tools upload --import_path tests/integration/mapillary_tools_process_images_provider/data/images/
-        sleep 30
-    done
+    # sleep 30
+    #while :
+    #do
+    echo "Processing images..."
+    mapillary_tools process --import_path tests/integration/mapillary_tools_process_images_provider/data/fake/ --advanced --user_name mapillary_user
+    #sleep 3
+    #echo "Uploading images..."
+    #mapillary_tools upload --import_path tests/integration/mapillary_tools_process_images_provider/data/images/
+    #sleep 30
+    # done
 fi

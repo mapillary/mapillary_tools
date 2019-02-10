@@ -2,6 +2,7 @@ import os
 import sys
 import processing
 import uploader
+import image_status
 import json
 import shutil
 from tqdm import tqdm
@@ -157,8 +158,7 @@ def post_process(import_path,
         total_files = uploader.get_total_file_list(import_path)
         total_files_count = len(total_files)
     if any([summarize, move_duplicates, list_file_status]):
-        duplicates_file_list = processing.get_duplicate_file_list(
-            import_path, skip_subfolders)
+        duplicates_file_list = image_status.get_keys_with_status_fixme("duplicate", "success")
         duplicates_file_list_count = len(duplicates_file_list)
     if summarize:
         summary_dict = {}
@@ -170,15 +170,20 @@ def post_process(import_path,
         }
         # process logs
         summary_dict["process summary"] = {}
-        process_steps = ["user_process", "import_meta_process", "geotag_process",
+        # FIXME UPDATED TO impoer_meta_data_process here
+        process_steps = ["user_process", "import_meta_data_process", "geotag_process",
                          "sequence_process", "upload_params_process", "mapillary_image_description"]
         process_status = ["success", "failed"]
         for step in process_steps:
 
-            process_success = len(processing.get_process_status_file_list(
-                import_path, step, "success", skip_subfolders))
-            process_failed = len(processing.get_process_status_file_list(
-                import_path, step, "failed", skip_subfolders))
+            # process_success = len(processing.get_process_status_file_list(
+            #     import_path, step, "success", skip_subfolders))
+            # process_failed = len(processing.get_process_status_file_list(
+            #     import_path, step, "failed", skip_subfolders))
+
+            process_success = len(image_status.get_keys_with_status_fixme(step, 'success'))
+            process_failed = len(image_status.get_keys_with_status_fixme(step, 'failed'))
+
             summary_dict["process summary"][step] = {
                 "failed": process_failed,
                 "success": process_success
