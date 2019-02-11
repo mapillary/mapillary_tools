@@ -52,6 +52,7 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
 
                     # Parse GPS trace
                     for l in lines.splitlines():
+                        m = l.lstrip('[]0123456789')
                         # this utc millisecond timestamp seems to be the camera's
                         # todo: unused?
                         # match = re.search('\[([0-9]+)\]', l)
@@ -60,7 +61,6 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                         
                         #By default, use camera timestamp. Only use GPS Timestamp if camera was not set up correctly and date/time is wrong
                         if use_nmea_stream_timestamp==False:
-                            m = l.lstrip('[]0123456789')
                             if "$GPGGA" in m:
                                 match = re.search('\[([0-9]+)\]', l)
                                 if match:
@@ -88,15 +88,16 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                         if use_nmea_stream_timestamp==True:
                             if "$GPGGA" in m:
                                 try:
-                                    if not date:
-                                        #discarding Lat/Lon messages if date has not been set yet. TODO: we could save the messages and add the date later
-                                        continue 
                                     data = pynmea2.parse(m)
                                     if(data.is_valid):
-                                        timestamp = datetime.datetime.combine(
-                                            date, data.timestamp)
                                         lat, lon, alt = data.latitude, data.longitude, data.altitude
+                                        if not date:
+                                            timestamp = data.timestamp
+                                        else:
+                                            timestamp = datetime.datetime.combine(
+                                            date, data.timestamp)
                                         points.append((timestamp, lat, lon, alt))
+
                                 except Exception as e:
                                     print(
                                         "Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {}".format(e))
@@ -116,6 +117,24 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
 
                         points = utc_points
                         points.sort()
+
+                    else:
+                        #add date to points that don't have it yet, because GPRMC message came later
+                        utc_points=[]
+                        for idx, point in enumerate(points):
+                            if type(points[idx][0]) != type(datetime.datetime.today()):
+                                timestamp = datetime.datetime.combine(
+                                        first_gps_date, points[idx][0])
+                            else:
+                                timestamp = points[idx][0]                                    
+                            lat = points[idx][1]
+                            lon = points[idx][2]
+                            alt = points[idx][3]
+                            utc_points.append((timestamp, lat, lon, alt))
+
+                        points = utc_points
+                        points.sort()
+
                 offset += newb.end
 
             break
