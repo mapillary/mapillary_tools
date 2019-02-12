@@ -855,33 +855,51 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [points, isStationaryVid] = gpx_from_blackvue(video)
+        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
         if isStationaryVid:
             if not points:
-                no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
-                if not os.path.exists(no_gps_folder):
-                    os.mkdir(no_gps_folder)
-                os.rename(video,no_gps_folder+os.path.basename(video))
+                if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
+                    no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
+                    if not os.path.exists(no_gps_folder):
+                        os.mkdir(no_gps_folder)
+                    os.rename(video,no_gps_folder+os.path.basename(video))
                 print("Skipping file {} due to file not containing gps data".format(video))
                 continue
-            stationary_folder = os.path.dirname(video)+'/stationary/'
-            if not os.path.exists(stationary_folder):
-                os.mkdir(stationary_folder)
-            os.rename(video,stationary_folder+os.path.basename(video))
+            if os.path.basename(os.path.dirname(video)) != 'stationary':
+                stationary_folder = os.path.dirname(video)+'/stationary/'
+                if not os.path.exists(stationary_folder):
+                    os.mkdir(stationary_folder)
+                os.rename(video,stationary_folder+os.path.basename(video))
             print("Skipping file {} due to camera being stationary".format(video))
             continue
         if not isStationaryVid:
             points = get_points_from_bv(video)
-            video_start_time = points[0][0]
-
+            gps_video_start_time = points[0][0]
             duration = get_video_duration(video)
             # Blackvue actually reports endtime in the created_at exif field
             endtime = get_video_start_time(video)
             video_start_time = (endtime - datetime.timedelta(seconds=duration))
-            video_start_timestamp = int((((video_start_time - datetime.datetime(1970, 1, 1)).total_seconds())-3600)*1000) #TODO Currently adding an hour due to error in camera config. How to fix long term?
+            # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
+            # Only hours are corrected, so that second offsets are taken into account correctly
+            delta_t = video_start_time-gps_video_start_time
+            print("delta_t: {}".format(delta_t))
+            print("delta_t in seconds: {}".format(round(delta_t.total_seconds())))
+            print("delta_t.days>0: {}".format(delta_t.days>0))
+            if delta_t.days>0:
+                hours_diff_to_utc = round(delta_t.total_seconds()/3600)
+            else:
+                hours_diff_to_utc = round(delta_t.total_seconds()/3600) * -1
+            video_start_time_utc = video_start_time + datetime.timedelta(hours=hours_diff_to_utc)
+            video_start_timestamp = int((((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds()))*1000)
 
+
+            print("video_start_time: {}".format(video_start_time))
+            print("hours_diff_to_utc: {}".format(hours_diff_to_utc))
+            print("video_start_timestamp {}".format(video_start_timestamp))
+            print("gps_video_start_time: {}".format(gps_video_start_time))
+            print("video_start_time_utc: {}".format(video_start_time_utc))
             upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
+                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload)
             
     print("Upload completed")
 

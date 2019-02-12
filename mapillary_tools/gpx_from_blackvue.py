@@ -17,7 +17,7 @@ from construct.core import RangeError, ConstError
 Pulls geo data out of a BlackVue video files
 '''
 
-def get_points_from_bv(path,use_nmea_stream_timestamp=False):
+def get_points_from_bv(path,use_nmea_stream_timestamp=True):
     points = []
 
     fd = open(path, 'rb')
@@ -104,12 +104,16 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                     
                     if use_nmea_stream_timestamp==False:
                         # If we use the camera timestamp, we need to get the timezone offset, since Mapillary backend expects UTC timestamps
+                        # TODO: There seems to be a 1h difference between nmea and camera timestamp even after this.
                         first_gps_timestamp = datetime.datetime.combine(first_gps_date, first_gps_time)
-                        time_zone_diff_to_utc = round((first_gps_timestamp-points[0][0]).seconds/3600)
-
+                        delta_t = points[0][0]-first_gps_timestamp
+                        if delta_t.days>0:
+                            hours_diff_to_utc = round(delta_t.total_seconds()/3600)
+                        else:
+                            hours_diff_to_utc = round(delta_t.total_seconds()/3600) * -1
                         utc_points=[]
                         for idx, point in enumerate(points):
-                            new_timestamp = points[idx][0]+datetime.timedelta(hours=time_zone_diff_to_utc)
+                            new_timestamp = points[idx][0]+datetime.timedelta(hours=hours_diff_to_utc)
                             lat = points[idx][1]
                             lon = points[idx][2]
                             alt = points[idx][3]
