@@ -775,7 +775,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider having api version as string,
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -830,7 +830,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     request = urllib2.Request(request_url)
     request.add_header('Authorization', 'Bearer {}'.format(
         credentials["user_upload_token"]))
- 
+        
     try:
         response = json.loads(urllib2.urlopen(request).read())
     except requests.exceptions.HTTPError as e:
@@ -838,7 +838,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         sys.exit(1)
     
     request_params = response['videos']
-
+        
     # upload all videos in the import path
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
@@ -916,7 +916,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 '''
 
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
@@ -929,6 +929,20 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(
         credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
     print(parameters["fields"]["key"])
+
+    data = dict(
+            parameters=dict(
+                organization_key=organization_key,
+                private=private,
+                images_upload_v2='true',
+                make='Blackvue',
+                model='DR900S-1CH',
+                sample_interval_distance=0.5,
+                video_start_time=video_start_time
+            )
+        )
+    if master_upload != None:
+        data['parameters']['user_key']=master_upload
     if not DRY_RUN:
 
         for attempt in range(max_attempts):
@@ -948,17 +962,6 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 if response is not None:
                     response.close()
 
-        data = dict(
-            parameters=dict(
-                organization_key=organization_key,
-                private=private,
-                images_upload_v2='true',
-                make='Blackvue',
-                model='DR900S-1CH',
-                sample_interval_distance=0.5,
-                video_start_time=video_start_time
-            )
-        )
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
