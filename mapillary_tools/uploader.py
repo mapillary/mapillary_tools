@@ -855,7 +855,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
+        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=False)
         if isStationaryVid:
             if not points:
                 if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
@@ -875,10 +875,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         if not isStationaryVid:
             points = get_points_from_bv(video)
             gps_video_start_time = points[0][0]
-            duration = get_video_duration(video)
-            # Blackvue actually reports endtime in the created_at exif field
-            endtime = get_video_start_time(video)
-            video_start_time = (endtime - datetime.timedelta(seconds=duration))
+            video_start_time = get_video_start_time(video)
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into account correctly
             delta_t = video_start_time-gps_video_start_time

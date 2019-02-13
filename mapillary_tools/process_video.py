@@ -184,8 +184,8 @@ def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time
             continue
 
 
-def get_video_start_time(video_file):
-    """Get video start time in seconds"""
+def get_video_end_time(video_file):
+    """Get video end time in seconds"""
     if not os.path.isfile(video_file):
         print("Error, video file {} does not exist".format(video_file))
         return None
@@ -200,3 +200,13 @@ def get_video_start_time(video_file):
     except:
         return None
     return creation_time
+
+def get_video_start_time(video_file):
+    """Get start time in seconds"""
+    if not os.path.isfile(video_file):
+        print("Error, video file {} does not exist".format(video_file))
+        return None
+    video_end_time = get_video_end_time(video_file)
+    duration = get_video_duration(video_file)
+    video_start_time = (video_end_time - datetime.timedelta(seconds=duration))
+    return video_start_time
