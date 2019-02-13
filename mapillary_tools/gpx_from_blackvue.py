@@ -17,7 +17,7 @@ from construct.core import RangeError, ConstError
 Pulls geo data out of a BlackVue video files
 '''
 
-def get_points_from_bv(path,use_nmea_stream_timestamp=True):
+def get_points_from_bv(path,use_nmea_stream_timestamp=False):
     points = []
 
     fd = open(path, 'rb')
@@ -113,7 +113,8 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=True):
                             hours_diff_to_utc = round(delta_t.total_seconds()/3600) * -1
                         utc_points=[]
                         for idx, point in enumerate(points):
-                            new_timestamp = points[idx][0]+datetime.timedelta(hours=hours_diff_to_utc)
+                            delay_compensation = datetime.timedelta(seconds=-1.8) #Compensate for solution age when location gets timestamped by camera clock. Value is empirical from various cameras/recordings
+                            new_timestamp = points[idx][0]+datetime.timedelta(hours=hours_diff_to_utc)+delay_compensation
                             lat = points[idx][1]
                             lon = points[idx][2]
                             alt = points[idx][3]

@@ -855,7 +855,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=False)
+        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
         if isStationaryVid:
             if not points:
                 if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
