@@ -879,6 +879,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
                 if not os.path.exists(stationary_folder):
                     os.mkdir(stationary_folder)
                 os.rename(video,stationary_folder+os.path.basename(video))
+                os.rename(points,stationary_folder+os.path.basename(points))
             print("Skipping file {} due to camera being stationary".format(video))
             continue
         if not isStationaryVid:
@@ -961,7 +962,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 images_upload_v2='true',
                 make='Blackvue',
                 model='DR900S-1CH',
-                sample_interval_distance=0.5,
+                sample_interval_distance=2,
                 video_start_time=video_start_time
             )
         )
