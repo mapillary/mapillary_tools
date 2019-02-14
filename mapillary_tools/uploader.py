@@ -536,16 +536,21 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
     data, headers = encode_multipart(
         parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
     if DRY_RUN == False:
+        displayed_upload_error = False
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
             try:
                 request = urllib2.Request(url, data=data, headers=headers)
                 response = urllib2.urlopen(request)
+                if response.getcode() == 204:
+                    if displayed_upload_error == True:
+                        print("Successful upload of {} on attempt {}".format(s3_filename,attempt))
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, s3_filename, max_attempts - attempt - 1))
+                displayed_upload_error = True
                 time.sleep(5)
             except urllib2.URLError as e:
                 print("URL error: {} on {}, will attempt upload again for {} more times".format(
@@ -606,6 +611,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
     if (DRY_RUN == False):
+        displayed_upload_error = False
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -614,6 +620,8 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 response = urllib2.urlopen(request)
                 if response.getcode() == 204:
                     create_upload_log(filepath_in, "upload_success")
+                    if displayed_upload_error == True:
+                        print("Successful upload of {} on attempt {}".format(filename,attempt))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
                 break  # attempts
@@ -621,6 +629,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, filename, max_attempts - attempt - 1))
+                displayed_upload_error = True
                 time.sleep(5)
             except urllib2.URLError as e:
                 print("URL error: {} on {}, will attempt upload again for {} more times".format(
