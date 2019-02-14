@@ -536,16 +536,21 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
     data, headers = encode_multipart(
         parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
     if DRY_RUN == False:
+        displayed_upload_error = False
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
             try:
                 request = urllib2.Request(url, data=data, headers=headers)
                 response = urllib2.urlopen(request)
+                if response.getcode() == 204:
+                    if displayed_upload_error == True:
+                        print("Successful upload of {} on attempt {}".format(s3_filename,attempt))
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, s3_filename, max_attempts - attempt - 1))
+                displayed_upload_error = True
                 time.sleep(5)
             except urllib2.URLError as e:
                 print("URL error: {} on {}, will attempt upload again for {} more times".format(
@@ -606,6 +611,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
     data, headers = encode_multipart(
         parameters, {'file': {'filename': filename, 'content': encoded_string}})
     if (DRY_RUN == False):
+        displayed_upload_error = False
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -614,6 +620,8 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 response = urllib2.urlopen(request)
                 if response.getcode() == 204:
                     create_upload_log(filepath_in, "upload_success")
+                    if displayed_upload_error == True:
+                        print("Successful upload of {} on attempt {}".format(filename,attempt))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
                 break  # attempts
@@ -621,6 +629,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, filename, max_attempts - attempt - 1))
+                displayed_upload_error = True
                 time.sleep(5)
             except urllib2.URLError as e:
                 print("URL error: {} on {}, will attempt upload again for {} more times".format(
@@ -775,7 +784,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider having api version as string,
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -830,14 +839,15 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     request = urllib2.Request(request_url)
     request.add_header('Authorization', 'Bearer {}'.format(
         credentials["user_upload_token"]))
+        
     try:
         response = json.loads(urllib2.urlopen(request).read())
     except requests.exceptions.HTTPError as e:
         print("Error getting upload parameters, upload could not start")
         sys.exit(1)
-
+    
     request_params = response['videos']
-
+        
     # upload all videos in the import path
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
@@ -853,20 +863,51 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         max_attempts = MAX_ATTEMPTS
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
-        [points, isStationaryVid] = gpx_from_blackvue(video)
+        print("Preparing video {} for upload".format(os.path.basename(video)))
+        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
+        if isStationaryVid:
+            if not points:
+                if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
+                    no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
+                    if not os.path.exists(no_gps_folder):
+                        os.mkdir(no_gps_folder)
+                    os.rename(video,no_gps_folder+os.path.basename(video))
+                print("Skipping file {} due to file not containing gps data".format(video))
+                continue
+            if os.path.basename(os.path.dirname(video)) != 'stationary':
+                stationary_folder = os.path.dirname(video)+'/stationary/'
+                if not os.path.exists(stationary_folder):
+                    os.mkdir(stationary_folder)
+                os.rename(video,stationary_folder+os.path.basename(video))
+                os.rename(points,stationary_folder+os.path.basename(points))
+            print("Skipping file {} due to camera being stationary".format(video))
+            continue
         if not isStationaryVid:
             points = get_points_from_bv(video)
-            video_start_time = points[0][0]
+            gps_video_start_time = points[0][0]
+            video_start_time = get_video_start_time(video)
+            # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
+            # Only hours are corrected, so that second offsets are taken into account correctly
+            delta_t = video_start_time-gps_video_start_time
+            print("delta_t: {}".format(delta_t))
+            print("delta_t in seconds: {}".format(round(delta_t.total_seconds())))
+            print("delta_t.days>0: {}".format(delta_t.days>0))
+            if delta_t.days>0:
+                hours_diff_to_utc = round(delta_t.total_seconds()/3600)
+            else:
+                hours_diff_to_utc = round(delta_t.total_seconds()/3600) * -1
+            video_start_time_utc = video_start_time + datetime.timedelta(hours=hours_diff_to_utc)
+            video_start_timestamp = int((((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds()))*1000)
 
-            duration = get_video_duration(video)
-            # Blackvue actually reports endtime in the created_at exif field
-            endtime = get_video_start_time(video)
-            video_start_time = endtime - datetime.timedelta(seconds=duration)
 
+            print("video_start_time: {}".format(video_start_time))
+            print("hours_diff_to_utc: {}".format(hours_diff_to_utc))
+            print("video_start_timestamp {}".format(video_start_timestamp))
+            print("gps_video_start_time: {}".format(gps_video_start_time))
+            print("video_start_time_utc: {}".format(video_start_time_utc))
             upload_video_for_processing(
-                video, video_start_time, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private)
-        else:
-            print("Skipping file {} due to camera being stationary".format(video))
+                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload)
+            
     print("Upload completed")
 
 
@@ -900,7 +941,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 '''
 
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
@@ -913,6 +954,20 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(
         credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
     print(parameters["fields"]["key"])
+
+    data = dict(
+            parameters=dict(
+                organization_key=organization_key,
+                private=private,
+                images_upload_v2='true',
+                make='Blackvue',
+                model='DR900S-1CH',
+                sample_interval_distance=2,
+                video_start_time=video_start_time
+            )
+        )
+    if master_upload != None:
+        data['parameters']['user_key']=master_upload
     if not DRY_RUN:
 
         for attempt in range(max_attempts):
@@ -932,18 +987,6 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 if response is not None:
                     response.close()
 
-        data = dict(
-            parameters=dict(
-                organization_key=organization_key,
-                private=private,
-                images_upload_v2='true',
-                make='Blackvue',
-                model='DR900S-1CH',
-                sample_interval_distance=0.5,
-                video_start_time=video_start_time
-            )
-        )
-        print("VIDEO START TIME: {}".format(video_start_time))
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
@@ -968,3 +1011,5 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                         response.close()
     else:
         print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
+        print("VIDEO START TIME: {}".format(video_start_time))
+
