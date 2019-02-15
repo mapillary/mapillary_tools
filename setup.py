@@ -21,5 +21,7 @@ setup(name='mapillary_tools',
           'tqdm==2.2.4',
           'requests==2.20.0',
           'pyyaml==3.13',
-          'requests==2.20.0'
+          'requests==2.20.0',
+          'pytz',
+          'tzwhere==3.0.3'
       ])

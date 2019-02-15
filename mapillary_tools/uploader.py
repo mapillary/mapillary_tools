@@ -25,7 +25,7 @@ from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_duration
 from process_video import get_video_start_time
 import datetime
-
+from geo import get_timezone_and_utc_offset
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
@@ -784,6 +784,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider having api version as string,
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
+
 def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
@@ -864,9 +865,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [points, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
+        [gpx_file_path, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=True)
+        video_start_time = get_video_start_time(video)
+
         if isStationaryVid:
-            if not points:
+            if not gpx_file_path:
                 if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
                     no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
                     if not os.path.exists(no_gps_folder):
@@ -879,13 +882,29 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
                 if not os.path.exists(stationary_folder):
                     os.mkdir(stationary_folder)
                 os.rename(video,stationary_folder+os.path.basename(video))
-                os.rename(points,stationary_folder+os.path.basename(points))
+                os.rename(gpx_file_path,stationary_folder+os.path.basename(gpx_file_path))
             print("Skipping file {} due to camera being stationary".format(video))
             continue
+        
         if not isStationaryVid:
-            points = get_points_from_bv(video)
-            gps_video_start_time = points[0][0]
-            video_start_time = get_video_start_time(video)
+            gpx_points = get_points_from_bv(video)
+            gps_video_start_time = gpx_points[0][0]
+            
+            #Check if video was taken at night
+            _,local_timezone_offset = get_timezone_and_utc_offset(gpx_points[0][1],gpx_points[0][2])
+            local_video_datetime = video_start_time + local_timezone_offset
+            print("local_timezone_offset: {}".format(local_timezone_offset))
+            print("local_video_time: {}".format(local_video_datetime))
+            if local_video_datetime.time() < datetime.time(9,0,0) or local_video_datetime.time() > datetime.time(18,0,0):
+                if os.path.basename(os.path.dirname(video)) != 'nighttime':
+                    night_time_folder = os.path.dirname(video)+'/nighttime/'
+                if not os.path.exists(night_time_folder):
+                    os.mkdir(night_time_folder)
+                os.rename(video,night_time_folder+os.path.basename(video))
+                os.rename(gpx_file_path,night_time_folder+os.path.basename(gpx_file_path))
+            print("Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
+            continue
+
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into account correctly
             delta_t = video_start_time-gps_video_start_time
@@ -969,7 +988,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     if master_upload != None:
         data['parameters']['user_key']=master_upload
     if not DRY_RUN:
-
+        
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -986,7 +1005,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             finally:
                 if response is not None:
                     response.close()
-
+        
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
