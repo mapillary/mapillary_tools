@@ -785,7 +785,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 # JOSE consider if we will support master uploads, ie us uploading the videos
 # for user
 
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=0.5):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -925,7 +925,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             print("gps_video_start_time: {}".format(gps_video_start_time))
             print("video_start_time_utc: {}".format(video_start_time_utc))
             upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload)
+                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
             
     print("Upload completed")
 
@@ -960,7 +960,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 '''
 
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload,sampling_distance):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
@@ -981,12 +981,13 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 images_upload_v2='true',
                 make='Blackvue',
                 model='DR900S-1CH',
-                sample_interval_distance=0.5,
+                sample_interval_distance=sampling_distance,
                 video_start_time=video_start_time
             )
         )
     if master_upload != None:
         data['parameters']['user_key']=master_upload
+
     if not DRY_RUN:
         
         for attempt in range(max_attempts):
