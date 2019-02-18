@@ -15,6 +15,7 @@ from . import authenticate
 from . import interpolate
 from . import post_process
 from . import download
+from . import download_blurred
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -30,7 +31,8 @@ mapillary_tools_advanced_commands = [
     authenticate,
     interpolate,
     post_process,
-    download
+    download,
+    download_blurred
 ]
 
 mapillary_tools_commands = [
