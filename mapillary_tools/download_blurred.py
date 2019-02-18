@@ -8,6 +8,7 @@ import uploader
 import urllib
 import queue
 import time
+import signal
 
 
 MAPILLARY_ENDPOINT = 'http://localhost:4000'
@@ -28,7 +29,7 @@ class WorkerMonitor(threading.Thread):
         self.shutdown_flag = threading.Event()
 
     def run(self):
-        while not self.q.empty():
+        while not self.shutdown_flag.is_set():
             stats = []
             message = ''
             total = 0
@@ -40,8 +41,10 @@ class WorkerMonitor(threading.Thread):
             output = message + 'Total: {}/{}\r'.format(total, self.q.maxsize)
             sys.stdout.write(output)
             sys.stdout.flush()
-        sys.stdout.write('\nDownload complete: {}\n'.format(self.q.maxsize))
 
+            if (self.q.empty()):
+                sys.stdout.write('\nDownload complete: {}\n'.format(self.q.maxsize))
+                self.shutdown_flag.set()
 
 def create_dirs(base_path):
     """
@@ -139,6 +142,10 @@ def query_search_api(headers, **kwargs):
     return keys
 
 
+def service_shutdown(signum, frame):
+    raise ServiceExit
+
+
 def download(client_id,
              organization_keys,
              start_time,
@@ -167,6 +174,9 @@ def download(client_id,
     :param user_name: user name of the requesting user
     :type  user_name: string
     """
+    signal.signal(signal.SIGTERM, service_shutdown)
+    signal.signal(signal.SIGINT, service_shutdown)
+
     headers = get_headers_for_username(user_name)
 
     start_time_b64 = '' if not start_time else start_time
@@ -281,30 +291,33 @@ def download(client_id,
         monitor.start()
 
         while True:
-            any_alive = False
+            any_alive = False or monitor.is_alive()
+
             for t in threads:
                 any_alive = (any_alive or t.is_alive())
 
             if not any_alive:
                 break
             time.sleep(0.5)
-            monitor.shutdown_flag.set()
-            monitor.join()
 
-    except ServiceExit:
+    except (ServiceExit, KeyboardInterrupt):
+        print('\nexit or interrupt\n')
         monitor.shutdown_flag.set()
-        monitor.join()
+
         for t in threads:
             t.shutdown_flag.set()
+
+        for t in threads:
             t.join()
+            print('INFO: Thread stopped {}'.format(t))
+
+        monitor.join()
+        print('INFO: Thread stopped {}'.format(monitor))
 
         all_file_obj.close()
         done_file_obj.close()
         err_file_obj.close()
-
-    # TODO
-    # Kill all threads on Ctrl-C
-    # otherwise Ctrl-z, ps, kill proc_num
+        sys.exit(1)
 
 
 class BlurredOriginalsDownloader(threading.Thread):
@@ -389,8 +402,6 @@ class BlurredOriginalsDownloader(threading.Thread):
             self.lock.acquire()
             self.counter['done'] += 1
             self.worker_stats += 1
-            count = self.counter['done']
-            total = self.queue.maxsize
             self.lock.release()
 
             if self.queue.empty():
@@ -399,7 +410,3 @@ class BlurredOriginalsDownloader(threading.Thread):
 
 class ServiceExit(Exception):
     pass
-
-
-def service_shutdown(signum, frame):
-    raise ServiceExit
