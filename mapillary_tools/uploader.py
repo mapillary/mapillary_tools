@@ -981,7 +981,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                 images_upload_v2='true',
                 make='Blackvue',
                 model='DR900S-1CH',
-                sample_interval_distance=sampling_distance,
+                sample_interval_distance=float(sampling_distance),
                 video_start_time=video_start_time
             )
         )
