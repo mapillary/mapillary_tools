@@ -891,20 +891,22 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             gps_video_start_time = gpx_points[0][0]
             
             #Check if video was taken at night
-            _,local_timezone_offset = get_timezone_and_utc_offset(gpx_points[0][1],gpx_points[0][2])
-            local_video_datetime = video_start_time + local_timezone_offset
-            print("local_timezone_offset: {}".format(local_timezone_offset))
-            print("local_video_time: {}".format(local_video_datetime))
-            if local_video_datetime.time() < datetime.time(9,0,0) or local_video_datetime.time() > datetime.time(18,0,0):
-                if os.path.basename(os.path.dirname(video)) != 'nighttime':
-                    night_time_folder = os.path.dirname(video)+'/nighttime/'
-                if not os.path.exists(night_time_folder):
-                    os.mkdir(night_time_folder)
-                os.rename(video,night_time_folder+os.path.basename(video))
-                os.rename(gpx_file_path,night_time_folder+os.path.basename(gpx_file_path))
-                print("Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
-                continue
-
+            try:
+                _,local_timezone_offset = get_timezone_and_utc_offset(gpx_points[0][1],gpx_points[0][2])
+                local_video_datetime = video_start_time + local_timezone_offset
+                print("local_timezone_offset: {}".format(local_timezone_offset))
+                print("local_video_time: {}".format(local_video_datetime))
+                if local_video_datetime.time() < datetime.time(9,0,0) or local_video_datetime.time() > datetime.time(18,0,0):
+                    if os.path.basename(os.path.dirname(video)) != 'nighttime':
+                        night_time_folder = os.path.dirname(video)+'/nighttime/'
+                    if not os.path.exists(night_time_folder):
+                        os.mkdir(night_time_folder)
+                    os.rename(video,night_time_folder+os.path.basename(video))
+                    os.rename(gpx_file_path,night_time_folder+os.path.basename(gpx_file_path))
+                    print("Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
+                    continue
+            except Exception as e:
+                print("Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into account correctly
             delta_t = video_start_time-gps_video_start_time
