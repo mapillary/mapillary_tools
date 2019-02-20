@@ -2,6 +2,11 @@
 
 import datetime
 import math
+
+import datetime
+import pytz
+from tzwhere import tzwhere
+
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
@@ -287,3 +292,10 @@ def write_gpx(filename, gps_trace):
     gpx += "</gpx>" + "\n"
     with open(filename, "w") as fout:
         fout.write(gpx)
+
+def get_timezone_and_utc_offset(lat, lon):
+   tz = tzwhere.tzwhere()
+   timezone_str = tz.tzNameAt(lat, lon)
+   timezone = pytz.timezone(timezone_str)
+   dt = datetime.datetime.utcnow()
+   return [timezone_str,timezone.utcoffset(dt)]
