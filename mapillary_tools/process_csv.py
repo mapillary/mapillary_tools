@@ -19,10 +19,10 @@ SECS_IN_WEEK = 604800
 
 def format_time(timestamp, time_utc=False, time_format='%Y-%m-%dT%H:%M:%SZ'):
     if time_utc:
-        division = 1.0 if int(
+        division = 1.0 if float(
             timestamp) < MILLISECONDS_PRECISION_CUT_OFF else 1000.0
         t_datetime = datetime.datetime.utcfromtimestamp(
-            int(timestamp) / division)
+            float(timestamp) / division)
     else:
         t_datetime = datetime.datetime.strptime(timestamp, time_format)
     return t_datetime
