@@ -6,7 +6,7 @@ import sys
 import threading
 import uploader
 import urllib
-import queue
+from Queue import Queue
 import time
 import signal
 
@@ -45,6 +45,7 @@ class WorkerMonitor(threading.Thread):
             if (self.q.empty()):
                 sys.stdout.write('\nDownload complete: {}\n'.format(self.q.maxsize))
                 self.shutdown_flag.set()
+
 
 def create_dirs(base_path):
     """
@@ -267,7 +268,7 @@ def download(client_id,
 
     # Set up a queue for the downloads so threads can take downloads from
     # it asynchronously
-    q = queue.Queue(len(image_keys))
+    q = Queue(len(image_keys))
 
     for i in image_keys:
         q.put(i)
