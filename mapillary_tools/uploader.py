@@ -974,8 +974,8 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     basename = os.path.splitext(filename)[0]
     gpx_path = "{}/{}.gpx".format(os.path.dirname(video),basename)
 
-    if not os.path.exists(video,os.path.dirname(video)+'/uploaded/'):
-        os.mkdir(video,os.path.dirname(video)+'/uploaded/')
+    if not os.path.exists(os.path.dirname(video)+'/uploaded/'):
+        os.mkdir(os.path.dirname(video)+'/uploaded/')
 
     with open(video, "rb") as f:
         encoded_string = f.read()
