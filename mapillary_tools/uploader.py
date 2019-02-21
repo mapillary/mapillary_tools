@@ -853,6 +853,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
         video_import_path) else [video_import_path]
+    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='uploaded'] #Filter already uploaded videos
+    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='stationary']
+    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='no_gps_data']
+    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='nighttime']
+
     # get the upload specific params
 
     # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
@@ -966,6 +971,8 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
+    basename = os.path.splitext(filename)[0]
+    gpx_path = "{}/{}.gpx".format(os.path.dirname(video),basename)
 
     with open(video, "rb") as f:
         encoded_string = f.read()
@@ -1024,6 +1031,9 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                     files = {"file": encoded_string}
                     response = requests.post(
                         parameters["url"], data=parameters["fields"], files=files)
+                    os.rename(video,os.path.dirname(video)+'/uploaded/'+os.path.basename(video))
+                    os.rename(gpx_path,os.path.dirname(video)+'/uploaded/'+os.path.basename(gpx_path))
+
                     break
                 except requests.exceptions.HTTPError as e:
                     return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
