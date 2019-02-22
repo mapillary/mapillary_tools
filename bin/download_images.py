@@ -9,7 +9,7 @@ import argparse
 BASE_DIR = 'downloaded/'
 # See https://www.mapillary.com/developer/api-documentation/
 MAPILLARY_API_IM_SEARCH_URL = 'https://a.mapillary.com/v3/images?'
-MAPILLARY_API_IM_RETRIEVE_URL = 'https://d1cuyjsrcm0gby.cloudfront.net/'
+MAPILLARY_API_IM_RETRIEVE_URL = 'https://images.mapillary.com/'
 CLIENT_ID = 'TG1sUUxGQlBiYWx2V05NM0pQNUVMQTo2NTU3NTBiNTk1NzM1Y2U2'
 
 

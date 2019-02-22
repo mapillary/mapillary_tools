@@ -20,7 +20,7 @@ from .error import print_error
 from .utils import force_decode
 
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
-    MAPILLARY_UPLOAD_URL = "https://d22zcsn13kp53w.cloudfront.net/"
+    MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com/"
 else:
     MAPILLARY_UPLOAD_URL = "{}/{}".format(
         os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
