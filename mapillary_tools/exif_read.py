@@ -143,7 +143,7 @@ class ExifRead:
         fields = ['GPS GPSAltitude', 'EXIF GPS GPSAltitude']
         refs = ['GPS GPSAltitudeRef', 'EXIF GPS GPSAltitudeRef']
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
-        ref = 1 if not any([True for x in refs if x in self.tags]) else [
+        ref = 0 if not any([True for x in refs if x in self.tags]) else [
             self.tags[x].values for x in refs if x in self.tags][0][0]
         return altitude * altitude_ref[ref]
 

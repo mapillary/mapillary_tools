@@ -17,7 +17,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         config.create_config(config_file_path)
 
     user_items = {}
-    if user_key and user_name: #Manually add user_key
+    if user_key and user_name:  # Manually add user_key
         user_items["MAPSettingsUsername"] = "Dummy_MAPSettingsUsername"
         user_items["MAPSettingsUserKey"] = user_key
 
@@ -56,7 +56,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
             print("User name {} does not exist, please try again or contact Mapillary user support.".format(
                 section))
             sys.exit(1)
-            upload_token = uploader.get_upload_token(user_email, user_password)
+        upload_token = uploader.get_upload_token(user_email, user_password)
         if not upload_token:
             print("Authentication failed for user name " +
                   section + ", please try again.")
@@ -71,12 +71,12 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_permission_hash"] = user_permission_hash
         user_items["user_signature_hash"] = user_signature_hash
         if api_version == 2.0:
-            user_items["upload_url"] = uploader.get_upload_url(user_email,user_password,upload_type)
+            user_items["upload_url"] = uploader.get_upload_url(
+                user_email, user_password, upload_type)
     else:
         # fill in the items and save
         user_items = uploader.prompt_user_for_user_items(section)
 
-    
     if not user_items:
         print("Authentication failed for user name " +
               section + ", please try again.")
