@@ -1,7 +1,6 @@
 import hashlib
 import os
 import requests
-import shutil
 import sys
 import threading
 import uploader
@@ -11,7 +10,7 @@ import time
 import signal
 
 
-MAPILLARY_ENDPOINT = 'http://localhost:4000'
+MAPILLARY_ENDPOINT = 'https://a.mapillary.com/'
 MAPILLARY_API_IM_SEARCH_URL = "{}/v3/images?".format(MAPILLARY_ENDPOINT)
 
 
@@ -43,21 +42,18 @@ class WorkerMonitor(threading.Thread):
             sys.stdout.flush()
 
             if (self.q.empty()):
-                sys.stdout.write('\nDownload complete: {}\n'.format(self.q.maxsize))
+                sys.stdout.write(
+                    '\nTotal: {}\n'.format(self.q.maxsize))
                 self.shutdown_flag.set()
 
 
-def create_dirs(base_path):
+def maybe_create_dirs(image_path):
     """
-    Create directory if it doesn't exist.
-    :param base_path: where to create the directory
-    :type  base_path: string
+    :param path: path to an image
+    :type path: string
     """
-    try:
-        shutil.rmtree(base_path)
-    except Exception:
-        pass
-    os.mkdir(base_path)
+    if not os.path.exists(os.path.dirname(image_path)):
+        os.makedirs(os.path.dirname(image_path))
 
 
 def get_token(user_name):
@@ -92,9 +88,6 @@ def get_headers_for_username(user_name):
 
 def query_search_api(headers, **kwargs):
     """
-    :param arg['client_id']: CLIENT_ID to be used with requests
-    :type arg['client_id']: string, required
-
     :param arg['organization_keys']: organization keys to filter results by
     :type  arg['organization_keys']: List<string>, required
 
@@ -114,6 +107,7 @@ def query_search_api(headers, **kwargs):
             set_params.append((k, str(v)))
 
     set_params.append(('private', 'true'))
+    set_params.append(('client_id', uploader.CLIENT_ID))
     params = urllib.urlencode(set_params)
 
     # Get data from server, then parse JSON
@@ -147,8 +141,7 @@ def service_shutdown(signum, frame):
     raise ServiceExit
 
 
-def download(client_id,
-             organization_keys,
+def download(organization_keys,
              start_time,
              end_time,
              output_folder,
@@ -156,9 +149,6 @@ def download(client_id,
              number_threads=4):
     """
     The main function to spin up the downloads threads.
-
-    :param client_id: CLIENT_ID required for requests
-    :type client_id: string
 
     :param organization_keys: list of orgs to filter by
     :type  organization_keys: List<string>
@@ -182,8 +172,7 @@ def download(client_id,
 
     start_time_b64 = '' if not start_time else start_time
     end_time_hash = '' if not end_time else end_time
-    download_id = b','.join([client_id,
-                             organization_keys,
+    download_id = b','.join([organization_keys,
                              start_time_b64,
                              end_time_hash,
                              output_folder,
@@ -193,7 +182,6 @@ def download(client_id,
     download_id = str(hash_object.hexdigest())
 
     # create directories for saving
-    create_dirs(output_folder)
     save_path = download_id
 
     # create most of the bookkeeping files
@@ -214,7 +202,7 @@ def download(client_id,
         all_keys = all_file_obj.read().split('\n')
 
         done_file_obj = open(
-            done_file, 'r+') if done_file_exists is True else open(done_file, 'r+')
+            done_file, 'r') if done_file_exists is True else open(done_file, 'r+')
 
         err_file_obj = open(
             err_file, 'r') if err_file_exists is True else open(err_file, 'r+')
@@ -226,16 +214,16 @@ def download(client_id,
         set_err = set(err_keys)
 
         diff = list(set_all.difference(set_done).difference(set_err))
-        print("Download {} continued: {}/{}".format(download_id, len(diff), len(all_keys)))
+        print("Download {} continued: {}/{}".format(download_id,
+                                                    len(diff), len(all_keys)))
 
         image_keys = diff
         done_file_obj.close()
         err_file_obj.close()
     else:
-        headers = get_headers_for_username("knikel")
+        headers = get_headers_for_username(user_name)
         image_keys = query_search_api(
             headers,
-            client_id=uploader,
             organization_keys=organization_keys,
             start_time=start_time,
             end_time=end_time,
@@ -244,17 +232,16 @@ def download(client_id,
 
         all_file_obj.writelines('\n'.join(image_keys))
         all_file_obj.close()
-        print('wrote')
 
     done_file_obj = open(
-            done_file, 'w') if done_file_exists is True else open(done_file, 'a+')
+        done_file, 'w') if done_file_exists is True else open(done_file, 'a+')
     err_file_obj = open(
-            err_file, 'w') if err_file_exists is True else open(err_file, 'w+')
+        err_file, 'w') if err_file_exists is True else open(err_file, 'w+')
 
     # download begins here
 
     if len(image_keys) == 0:
-        print('All images downloaded for this query. Remove the download_XXXX_todo/all/err files to re-download.')
+        print('All images downloaded for this query. Remove the {}/all/err files to re-download.'.format(download_id))
         return
 
     lock = threading.Lock()
@@ -302,7 +289,6 @@ def download(client_id,
             time.sleep(0.5)
 
     except (ServiceExit, KeyboardInterrupt):
-        print('\nexit or interrupt\n')
         monitor.shutdown_flag.set()
 
         for t in threads:
@@ -344,12 +330,13 @@ class BlurredOriginalsDownloader(threading.Thread):
         self.output_folder = output_folder
         self.shutdown_flag = threading.Event()
         self.worker_stats = 0
+        self.client_id = uploader.CLIENT_ID
 
     def download_file(self, image_key, filename):
         download_url = "{}/v3/images/{}/download_original?client_id={}".format(
             MAPILLARY_ENDPOINT,
             image_key,
-            uploader.CLIENT_ID)
+            self.client_id)
 
         response = requests.get(
             download_url, stream=True, headers=self.headers)
@@ -380,8 +367,7 @@ class BlurredOriginalsDownloader(threading.Thread):
             image_path = os.path.join(
                 self.output_folder, '{}.jpg'.format(current_image_key))
 
-            if not os.path.exists(os.path.dirname(image_path)):
-                os.makedirs(os.path.dirname(image_path))
+            maybe_create_dirs(image_path)
 
             self.lock.release()
 
