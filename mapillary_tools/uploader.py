@@ -1039,6 +1039,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
 
                     break
                 except requests.exceptions.HTTPError as e:
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
                     return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
                     time.sleep(5)
                 finally:
