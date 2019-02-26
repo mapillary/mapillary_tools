@@ -157,7 +157,8 @@ def process_sequence_properties(import_path,
         computed_speed = gps_speed(
             computed_distances, computed_delta_ts)  # in meters/second
         if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED]) > 0:
-            print("Warning: The distance between images is too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?")
+            print("Warning: The distance in sequence including images\n{}\nto\n{}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?".format(
+                file_list[0], file_list[-1]))
 
         # INTERPOLATE TIMESTAMPS, in case of identical timestamps
         capture_times = processing.interpolate_timestamp(capture_times)
