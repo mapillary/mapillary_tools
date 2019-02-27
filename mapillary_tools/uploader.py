@@ -252,12 +252,12 @@ def success_only_manual_upload(root, file):
 def preform_upload(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
-    process_failed = os.path.join(
-        log_root, "mapillary_image_description_failed")
+    process_success = os.path.join(
+        log_root, "mapillary_image_description_success")
     duplicate = os.path.join(log_root, "duplicate")
     upload_succes = os.path.join(log_root, "upload_success")
-    upload = not os.path.isfile(upload_succes) and not os.path.isfile(
-        process_failed) and not os.path.isfile(duplicate)
+    upload = not os.path.isfile(upload_succes) and os.path.isfile(
+        process_success) and not os.path.isfile(duplicate)
     return upload
 
 
