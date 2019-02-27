@@ -177,11 +177,11 @@ def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if file.lower().endswith(('mp4')))
+                               for file in os.listdir(video_file) if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi'))) )
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if file.lower().endswith(('mp4')))
+                                   for file in files if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi'))) )
     return sorted(video_file_list)
 
 
@@ -990,7 +990,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             parameters=dict(
                 organization_key=organization_key,
                 private=private,
-                images_upload_v2='true',
+                images_upload_v2=True,
                 make='Blackvue',
                 model='DR900S-1CH',
                 sample_interval_distance=float(sampling_distance),

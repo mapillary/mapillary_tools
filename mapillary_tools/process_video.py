@@ -208,5 +208,8 @@ def get_video_start_time(video_file):
         return None
     video_end_time = get_video_end_time(video_file)
     duration = get_video_duration(video_file)
-    video_start_time = (video_end_time - datetime.timedelta(seconds=duration))
-    return video_start_time
+    if video_end_time == None or duration == None:
+        return None
+    else: 
+        video_start_time = (video_end_time - datetime.timedelta(seconds=duration))
+        return video_start_time
