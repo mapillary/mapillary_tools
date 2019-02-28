@@ -46,6 +46,10 @@ either for a specified import path or by image keys.
             download_blurred(**({k: v for k, v in vars_args.iteritems()
                                  if k in inspect.getargspec(download_blurred).args}))
         else:
+            if "import_path" not in vars_args or not vars_args["import_path"]:
+                print(
+                    "Error: To download images imported with mapillary_tools, you need to specify --import_path")
+                sys.exit(1)
             download(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(download).args}))
 
