@@ -196,7 +196,8 @@ def download(organization_keys,
     err_file = '{}_err.txt'.format(save_path)
     err_file_exists = os.path.isfile(err_file)
 
-    # fetch image keys and store basic state for downloads from bookkeeping files
+    # fetch image keys and store basic state for downloads from bookkeeping
+    # files
     image_keys = []
     if all_file_exists:
         all_keys = all_file_obj.read().split('\n')
@@ -376,10 +377,10 @@ class BlurredOriginalsDownloader(threading.Thread):
                 self.lock.acquire()
                 if success:
                     self.counter['ok'] += 1
-                    self.done_file.write(current_image_key)
+                    self.done_file.write(current_image_key + "\n")
                 else:
                     self.counter['err'] += 1
-                    self.err_file.write(current_image_key)
+                    self.err_file.write(current_image_key + "\n")
                 self.lock.release()
             else:
                 self.lock.acquire()
