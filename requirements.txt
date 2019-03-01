@@ -3,3 +3,4 @@ git+https://github.com/mapillary/Piexif
 redis
 certifi
 requests==2.20.0
+fitparse==1.0.1
