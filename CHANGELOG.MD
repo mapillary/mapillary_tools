@@ -128,3 +128,8 @@
 
 ### Features and improvements
  * Enable JWT authentication to support desktop uploader
+ 
+ ## 0.4.4 (YYYY-MM-DD)
+ 
+ ### Features and improvements
+ * Add a way to download blurred original which were uploaded privately to an organization (See `download` command documentation)
