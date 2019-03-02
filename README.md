@@ -523,7 +523,7 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
 
 #### General
  - In case of any issues, it is always safe to try and rerun the failing command while specifying `--verbose` to see more information printed out. Uploaded images should not get uploaded more than once and should not be processed after uploading. mapillary_tools should take care of that, if it occurs otherwise, please open an issue on Github.
- - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When installing the latest version, dont forget you need to specify `--upgrade`.
+ - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When installing the latest version, don't forget you need to specify `--upgrade`.
  - Advanced user are encouraged to explore the processed data and log files in the `{image_path}/.mapillary/logs/{image_name}/` to get more insight in the failure.
 
 #### Dependencies
@@ -531,7 +531,7 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
 
 #### Execution
  - Windows users sometimes have trouble with the bare execution of `mapillary_tools`, since it is not inserted in the PATH automatically.
- If you are trying to execute `mapillary_tools` on Windows and dont have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
+ If you are trying to execute `mapillary_tools` on Windows and don't have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
  - Execution issues can occur in case the executable is saved with additional characters, like for example `\r`, which results in error message `env: python\r: No such file or directory`. In that case the executable needs to be edited to remove additional characters as suggested [here](https://stackoverflow.com/questions/19425857/env-python-r-no-such-file-or-directory), one example:
  
  in terminal:
