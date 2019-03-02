@@ -515,7 +515,7 @@ in case of issues with editing PATH, both `python` and `mapillary_tools` can be 
 note that the location of the `python` interpreter program and scripts installed as `python` scripts can be different depending on the Windows and Python versions. Therefore users need to check the exact paths locally before running.
 
 #### Unix
-On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is (no need to specify `python` as the interpreter program and no need for setting up the PATH or providing the absolute path to executable, no matter where in the command line you are located).
+On Ubuntu and macOS the executable is available in the PATH after installation and can be used as is (no need to specify `python` as the interpreter program and no need for setting up the PATH or providing the absolute path to executable, no matter where in the command line you are located).
 
 ## Troubleshooting
 
