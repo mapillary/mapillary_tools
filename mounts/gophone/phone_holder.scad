@@ -30,7 +30,7 @@ difference (){
 		borders();
 		translate([ph_thick+wall*2-wall,0,0]) borders();
 	}
-	//everything that shoudl be cut out
+	//everything that should be cut out
 	union() {
 		translate([wall,wall,wall])
 		//phone body

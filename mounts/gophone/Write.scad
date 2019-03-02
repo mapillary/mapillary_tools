@@ -14,7 +14,7 @@
  (The file TestWrite.scad gives More usage examples)
  (This module requires the file Letters.dxf to reside in the same folder)
  (The file Letters.dfx was created with inkscape..Each letter is in its own layer)
- (This module seperates each letter in the string and imports it from Letters.dfx)
+ (This module separates each letter in the string and imports it from Letters.dfx)
  
 */
 
@@ -33,7 +33,7 @@
 	t = 1; 			//mm letter thickness
 	space =1; 			//extra space between characters in (character widths)
 	rotate=0;			// text rotation (clockwise)
-	font = "Letters.dxf";	//default for aditional fonts
+	font = "Letters.dxf";	//default for additional fonts
 
 
 // write cube defaults
@@ -46,7 +46,7 @@
 
 // write sphere defaults
 	rounded=false;	 //default for rounded letters on writesphere
-	north=0; 		// intial text position (I suggest leave these 0 defaults)
+	north=0; 		// initial text position (I suggest leave these 0 defaults)
 	south=0;
 	east=0;
 	west=0;
@@ -54,8 +54,8 @@
 // writecylinder defaults
 	middle=0;     //(mm toward middle of circle)
 	ccw=false;   //write on top or bottom in a ccw direction
- 	r1=0; 	//(not implimented yet)
-	r2=0;	 	//(not implimented yet)
+	r1=0; 	//(not implemented yet)
+	r2=0;	 	//(not implemented yet)
 	
 
 

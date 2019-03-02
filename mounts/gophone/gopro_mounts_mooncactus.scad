@@ -42,7 +42,7 @@ gopro_bar_screw_head_d= 6.2;
 gopro_bar_screw_nut_d= 6.01;
 // How thick are the shoulders on which to bolt (each side)
 gopro_bar_screw_shoulder_th=4.5;
-// Whether to reverse the bolt orientation (from which side you will screw the bolt, defaut is from the joint)
+// Whether to reverse the bolt orientation (from which side you will screw the bolt, default is from the joint)
 gopro_bar_screw_reversed=false; // [true,false]
 
 /* [Hidden] */
