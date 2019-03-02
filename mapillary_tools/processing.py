@@ -697,10 +697,10 @@ def is_duplicate(file_path):
 
 def preform_process(file_path, process, rerun=False):
     log_root = uploader.log_rootpath(file_path)
-    process_succes = os.path.join(log_root, process + "_success")
-    upload_succes = os.path.join(log_root, "upload_success")
-    preform = not os.path.isfile(upload_succes) and (
-        not os.path.isfile(process_succes) or rerun)
+    process_success = os.path.join(log_root, process + "_success")
+    upload_success = os.path.join(log_root, "upload_success")
+    preform = not os.path.isfile(upload_success) and (
+        not os.path.isfile(process_success) or rerun)
     return preform
 
 
@@ -797,7 +797,7 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
     # set the log flags for process
     log_process = os.path.join(
         log_root, process)
-    log_process_succes = log_process + "_success"
+    log_process_success = log_process + "_success"
     log_process_failed = log_process + "_failed"
     log_MAPJson = os.path.join(log_root, process + ".json")
 
@@ -806,8 +806,8 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
     elif status == "success":
         try:
             save_json(mapillary_description, log_MAPJson)
-            open(log_process_succes, "w").close()
-            open(log_process_succes + "_" +
+            open(log_process_success, "w").close()
+            open(log_process_success + "_" +
                  str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
             # if there is a failed log from before, remove it
             if os.path.isfile(log_process_failed):
@@ -824,8 +824,8 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
         open(log_process_failed + "_" +
              str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
         # if there is a success log from before, remove it
-        if os.path.isfile(log_process_succes):
-            os.remove(log_process_succes)
+        if os.path.isfile(log_process_success):
+            os.remove(log_process_success)
         # if there is meta data from before, remove it
         if os.path.isfile(log_MAPJson):
             if verbose:

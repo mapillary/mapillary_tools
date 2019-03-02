@@ -284,8 +284,8 @@ def preform_upload(root, file):
     process_success = os.path.join(
         log_root, "mapillary_image_description_success")
     duplicate = os.path.join(log_root, "duplicate")
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload = not os.path.isfile(upload_succes) and os.path.isfile(
+    upload_success = os.path.join(log_root, "upload_success")
+    upload = not os.path.isfile(upload_success) and os.path.isfile(
         process_success) and not os.path.isfile(duplicate)
     return upload
 
@@ -321,11 +321,11 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
 def preform_finalize(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
-    upload_succes = os.path.join(log_root, "upload_success")
+    upload_success = os.path.join(log_root, "upload_success")
     upload_finalized = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
     finalize = os.path.isfile(
-        upload_succes) and not os.path.isfile(upload_finalized) and os.path.isfile(manual_upload)
+        upload_success) and not os.path.isfile(upload_finalized) and os.path.isfile(manual_upload)
     return finalize
 
 
