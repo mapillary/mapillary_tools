@@ -20,20 +20,20 @@ def format_datetime(timestamps_interpolated, time_utc=False, time_format="%Y-%m-
 
     if time_utc:
         try:
-            timestamps_formated = [int((datetime_timestamp - EPOCH).total_seconds()
+            timestamps_formatted = [int((datetime_timestamp - EPOCH).total_seconds()
                                        * 1000.0) for datetime_timestamp in timestamps_interpolated]
         except:
             print("Formatting timestamps from datetime to UTC failed...")
             sys.exit(1)
     else:
         try:
-            timestamps_formated = [datetime_timestamp.strftime(
+            timestamps_formatted = [datetime_timestamp.strftime(
                 time_format) for datetime_timestamp in timestamps_interpolated]
         except:
             print("Formatting timestamps from datetime to time format {} failed...".format(
                 time_format))
             sys.exit(1)
-    return timestamps_formated
+    return timestamps_formatted
 
 
 def interpolation(data,
