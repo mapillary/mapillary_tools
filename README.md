@@ -254,7 +254,7 @@ mapillary_tools process --import_path "path/to/images" --user_name "mapillary_us
 
 #### Advanced Examples
 
- - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and specifying to keep duplicates to be uploaded instead of flagging images as duplicates in case they are apart by equal or less then the default 0.1 m and differ by the camera angle by equal or less than the default 5°. Additionally pass the `--overwrite_EXIF_gps_tag` to overwrite values with the values obtained from the gpx track.
+ - Process all images for user `mapillary_user`, in the directory `path/to/images` and its sub-directories, reading geotag data from a gpx track stored in file `path/to/gpx_file`, specifying an offset of 2 seconds between the camera and gps device, ie, camera is 2 seconds ahead of the gps device and specifying to keep duplicates to be uploaded instead of flagging images as duplicates in case they are apart by equal or less than the default 0.1 m and differ by the camera angle by equal or less than the default 5°. Additionally pass the `--overwrite_EXIF_gps_tag` to overwrite values with the values obtained from the gpx track.
 
 ```bash
 mapillary_tools process --import_path "path/to/images" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --offset_time 2 --keep_duplicates --overwrite_EXIF_gps_tag
