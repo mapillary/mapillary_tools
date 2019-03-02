@@ -638,12 +638,12 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     process_file_list = []
     if skip_subfolders:
         process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and perform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
+            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if perform_process(
                 os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     inform_processing_start(root_dir,
@@ -695,13 +695,13 @@ def is_duplicate(file_path):
     return os.path.isfile(duplicate_flag_path)
 
 
-def preform_process(file_path, process, rerun=False):
+def perform_process(file_path, process, rerun=False):
     log_root = uploader.log_rootpath(file_path)
     process_success = os.path.join(log_root, process + "_success")
     upload_success = os.path.join(log_root, "upload_success")
-    preform = not os.path.isfile(upload_success) and (
+    perform = not os.path.isfile(upload_success) and (
         not os.path.isfile(process_success) or rerun)
-    return preform
+    return perform
 
 
 def get_failed_process_file_list(import_path, process):

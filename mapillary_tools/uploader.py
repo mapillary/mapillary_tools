@@ -175,13 +175,13 @@ def get_upload_file_list(import_path, skip_subfolders=False):
     upload_file_list = []
     if skip_subfolders:
         upload_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and perform_upload(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             upload_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower().endswith(
-                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_upload(root, file))
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and perform_upload(root, file))
     return sorted(upload_file_list)
 
 
@@ -278,7 +278,7 @@ def success_only_manual_upload(root, file):
     return success
 
 
-def preform_upload(root, file):
+def perform_upload(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     process_success = os.path.join(
@@ -307,18 +307,18 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
     finalize_file_list = []
     if skip_subfolders:
         finalize_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(import_path, file))
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and perform_finalize(import_path, file))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             finalize_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if file.lower().endswith(
-                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_finalize(root, file))
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and perform_finalize(root, file))
 
     return sorted(finalize_file_list)
 
 
-def preform_finalize(root, file):
+def perform_finalize(root, file):
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     upload_success = os.path.join(log_root, "upload_success")
