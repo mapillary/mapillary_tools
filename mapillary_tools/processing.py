@@ -7,6 +7,7 @@ import sys
 import shutil
 import hashlib
 import base64
+import re
 from collections import OrderedDict
 from exif_read import ExifRead
 from exif_write import ExifEdit
@@ -14,7 +15,7 @@ from exif_aux import verify_exif
 from geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
 import config
 import uploader
-from dateutil.tz import tzlocal
+import dateutil.tz
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
@@ -32,15 +33,34 @@ auxillary processing functions
 '''
 
 
-def exif_time(filename):
+_TZ_RE = re.compile(r".*[0-9]{4}[ _-]?[0-9]{2}[ _-]?[0-9]{2}.*([+-])([0-9]{2})([0-9]{2})(?:\..*)?")
+
+def get_tzinfo_from_string(str):
+    # Only extract a timezone offset if the string looks like a timestamp
+    r = _TZ_RE.match(str)
+    if r is None:
+        return None
+    offset = int(r.group(2)) * 3600 + int(r.group(3)) * 60
+    if r.group(1) == '-':
+        offset = -offset
+    offset = datetime.timedelta(seconds=offset)
+    return dateutil.tz.tzoffset(r.group(1) + r.group(2) + r.group(3), offset)
+
+def exif_time(filename, default_tzinfo=None):
     '''
     Get image capture time from exif
     '''
     metadata = ExifRead(filename)
-    return metadata.extract_capture_time()
+    ts = metadata.extract_capture_time()
+    tzinfo = get_tzinfo_from_string(filename)
+    if tzinfo is None:
+        tzinfo = default_tzinfo
+    if tzinfo:
+        ts = ts.replace(tzinfo=tzinfo)
+    return ts
 
 
-def estimate_sub_second_time(files, interval=0.0):
+def estimate_sub_second_time(files, interval=0.0, tzinfo=None):
     '''
     Estimate the capture time of a sequence with sub-second precision
     EXIF times are only given up to a second of precision. This function
@@ -48,12 +68,12 @@ def estimate_sub_second_time(files, interval=0.0):
     second that each picture was taken.
     '''
     if interval <= 0.0:
-        return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
+        return [exif_time(f, tzinfo) for f in tqdm(files, desc="Reading image capture time")]
 
     onesecond = datetime.timedelta(seconds=1.0)
     T = datetime.timedelta(seconds=interval)
     for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
-        m = exif_time(f)
+        m = exif_time(f, tzinfo)
         if not m:
             pass
         if i == 0:
@@ -271,24 +291,43 @@ def geotag_from_gps_trace(process_file_list,
                           sub_second_interval=0.0,
                           use_gps_start_time=False,
                           verbose=False):
-    # print time now to warn in case local_time
-    if local_time:
-        now = datetime.datetime.now(tzlocal())
-        print("Your local timezone is {0}. If not, the geotags will be wrong."
-              .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
-    else:
-        # if not local time to be used, warn UTC will be used
-        print("It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
-
     # read gps file to get track locations
     if geotag_source == "gpx":
-        gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
+        gps_trace, gps_tzinfo = get_lat_lon_time_from_gpx(geotag_source_path)
     elif geotag_source == "nmea":
-        gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
+        gps_trace, gps_tzinfo = get_lat_lon_time_from_nmea(geotag_source_path)
+
+    # Autodetect the timezone information
+    tzinfo = None
+    if tzinfo is None:
+        # From the filename of the first image (e.g. Mapillary app)
+        tzinfo = get_tzinfo_from_string(process_file_list[0])
+    if tzinfo is None:
+        # Or from the englobing image directory (e.g. Mapillary app)
+        tzinfo = get_tzinfo_from_string(os.path.dirname(process_file_list[0]))
+    if local_time and tzinfo is None:
+        # Or from the GPX trace (vey unlikely to provide results)
+        tzinfo = gps_tzinfo
+    if local_time and tzinfo is None:
+        # Or from the filename of the GPX trace. Useful when using a GPX trace
+        # from the Mapillary app to geotag images from another source.
+        tzinfo = get_tzinfo_from_string(geotag_source_path)
+    if local_time and tzinfo is None:
+        # Or from the GPX trace directory (e.g. Mapillary app)
+        tzinfo = get_tzinfo_from_string(os.path.dirname(geotag_source_path))
+
+    if local_time and tzinfo is None:
+        tzinfo = dateutil.tz.tzlocal()
+        now = datetime.datetime.now(tzinfo)
+        print("Could not detect the timezone for the image timestamps. Assuming it matches your current local time, that is {0}. If not, the geotags will be wrong."
+              .format(now.strftime('%Y-%m-%d %H:%M:%S %Z')))
+    elif tzinfo is None:
+        # if not local time to be used, warn UTC will be used
+        print("Could not detect the timezone for the image timestamps. Assuming they are in UTC. If not, try using the option --local_time.")
 
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
-                                                sub_second_interval)
+                                                sub_second_interval, tzinfo)
     if not sub_second_times:
         print_error(
             "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")

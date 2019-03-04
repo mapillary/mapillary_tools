@@ -3,6 +3,7 @@
 import sys
 import os
 import datetime
+import dateutil.tz
 import time
 from geo import gpgga_to_dms, utc_to_localtime
 
@@ -17,44 +18,60 @@ Methods for parsing gps data from various file format e.g. GPX, NMEA, SRT.
 '''
 
 
-def get_lat_lon_time_from_gpx(gpx_file, local_time=True):
+def get_lat_lon_time_from_gpx(gpx_file):
     '''
     Read location and time stamps from a track in a GPX file.
 
-    Returns a list of tuples (time, lat, lon).
-
-    GPX stores time in UTC, by default we assume your camera used the local time
-    and convert accordingly.
+    Returns a list of tuples (time, lat, lon) with proper timezone
+    information for the timestamps; and the timezone information
+    recovered from the GPX file if any.
     '''
     with open(gpx_file, 'r') as f:
         gpx = gpxpy.parse(f)
 
     points = []
+    tzinfo = None
     if len(gpx.tracks) > 0:
         for track in gpx.tracks:
             for segment in track.segments:
                 for point in segment.points:
-                    t = utc_to_localtime(point.time) if local_time else point.time
-                    points.append((t, point.latitude, point.longitude, point.elevation))
+                    if point.time.tzinfo is None:
+                        # By default timestamps are in the UTC timezone
+                        point.time = point.time.replace(tzinfo=dateutil.tz.UTC)
+                    elif tzinfo is None:
+                        tzinfo = point.time.tzinfo
+                    elif tzinfo.utcoffset(point.time) != point.time.utcoffset():
+                        print("{0} contains inconsistent timezone information: {1} != {2}".format(gpx_file, tzinfo, point.time.tzinfo))
+                    points.append((point.time, point.latitude, point.longitude, point.elevation))
     if len(gpx.waypoints) > 0:
         for point in gpx.waypoints:
-            t = utc_to_localtime(point.time) if local_time else point.time
-            points.append((t, point.latitude, point.longitude, point.elevation))
+            if point.time.tzinfo is None:
+                # By default timestamps are in the UTC timezone
+                point.time = point.time.replace(tzinfo=dateutil.tz.UTC)
+            elif tzinfo is None:
+                tzinfo = point.time.tzinfo
+            elif tzinfo.utcoffset(point.time) != point.time.utcoffset():
+                print("{0} contains inconsistent timezone information: {1} != {2}".format(gpx_file, tzinfo, point.time.tzinfo))
+            points.append((point.time, point.latitude, point.longitude, point.elevation))
+    if tzinfo is not None and \
+       tzinfo.utcoffset(points[0][0]).total_seconds() == 0:
+        # UTC timestamps are the default in GPX files so this does not mean
+        # the trace was taken in that timezone.
+        tzinfo = None
 
     # sort by time just in case
     points.sort()
 
-    return points
+    return points, tzinfo
 
 
-def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
+def get_lat_lon_time_from_nmea(nmea_file):
     '''
     Read location and time stamps from a track in a NMEA file.
 
-    Returns a list of tuples (time, lat, lon).
-
-    GPX stores time in UTC, by default we assume your camera used the local time
-    and convert accordingly.
+    Returns a list of tuples (time, lat, lon) with proper timezone
+    information for the timestamps; and the timezone information
+    recovered from the NMEA file if any.
     '''
     with open(nmea_file, "r") as f:
         lines = f.readlines()
@@ -76,9 +93,12 @@ def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
 
         if "$GPGGA" in l:
             data = pynmea2.parse(l)
-            timestamp = datetime.datetime.combine(date, data.timestamp)
+            # Timestamps are always in the UTC timezone for GPGGA records
+            timestamp = datetime.datetime.combine(date, data.timestamp).replace(tzinfo=dateutil.tz.UTC)
             lat, lon, alt = data.latitude, data.longitude, data.altitude
             points.append((timestamp, lat, lon, alt))
 
     points.sort()
-    return points
+
+    # Only the $GPZDA records have timezone information so return None
+    return points, None
