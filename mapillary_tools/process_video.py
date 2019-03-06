@@ -20,6 +20,8 @@ def timestamp_from_filename(video_filename,
                             start_time,
                             interval=2.0,
                             adjustment=1.0):
+    print("\nSECONDS: " + filename.rstrip(".jpg").replace("{}_".format(
+        video_filename), "").lstrip("0"))
 
     seconds = (int(filename.rstrip(".jpg").replace("{}_".format(
         video_filename), "").lstrip("0")) - 1) * interval * adjustment
@@ -142,6 +144,7 @@ def extract_frames(video_file,
                    to 0 milliseconds since UNIX epoch.")
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
+    print("\nSTART TIME: ", video_start_time)
     insert_video_frame_timestamp(video_filename,
                                  import_path,
                                  video_start_time,

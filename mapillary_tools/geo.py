@@ -244,3 +244,8 @@ def write_gpx(filename, gps_trace):
     gpx += "</gpx>" + "\n"
     with open(filename, "w") as fout:
         fout.write(gpx)
+
+
+def semicircle_to_degrees(semicircle):
+    decimal = semicircle * (180.0/(2**31))
+    return decimal

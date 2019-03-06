@@ -16,6 +16,7 @@ import config
 import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
+from fit_parser import get_lat_lon_time_from_fit
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
 from gpx_from_exif import gpx_from_exif
@@ -258,6 +259,46 @@ def geotag_from_blackvue_video(process_file_list,
                               sub_second_interval,
                               use_gps_start_time,
                               verbose)
+
+
+def geotag_from_garmin_fit(process_file_list,
+                           geotag_file_list,
+                           offset_time=0.0,
+                           offset_angle=0.0,
+                           local_time=False,
+                           sub_second_interval=0.0,
+                           use_gps_start_time=False,
+                           verbose=False):
+    gps_trace = get_lat_lon_time_from_fit(geotag_file_list, local_time, verbose=True)
+
+    # Estimate capture time with sub-second precision, reading from image EXIF
+    sub_second_times = estimate_sub_second_time(process_file_list,
+                                                sub_second_interval)
+    if not sub_second_times:
+        print_error(
+            "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+        create_and_log_process_in_list(process_file_list,
+                                       "geotag_process"
+                                       "failed",
+                                       verbose)
+        return
+
+    for image, capture_time in tqdm(zip(process_file_list, sub_second_times), desc="Inserting gps data into image EXIF"):
+        if not capture_time:
+            print_error(
+                "Error, capture time could not be extracted for image " + image)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "failed",
+                                   verbose=verbose)
+        geotag_properties = get_geotag_properties_from_gps_trace(
+            image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
+
+        create_and_log_process(image,
+                               "geotag_process",
+                               "success",
+                               geotag_properties,
+                               verbose)
 
 
 def geotag_from_gps_trace(process_file_list,
