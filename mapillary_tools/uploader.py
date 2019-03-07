@@ -173,15 +173,16 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 
 
 # get a list of video files in a video_file
+#TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi'))) )
+                               for file in os.listdir(video_file) if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi'))) )
+                                   for file in files if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
     return sorted(video_file_list)
 
 
