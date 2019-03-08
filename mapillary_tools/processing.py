@@ -16,6 +16,7 @@ import config
 import uploader
 from dateutil.tz import tzlocal
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
+from fit_parser import get_lat_lon_time_from_fit
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
 from gpx_from_exif import gpx_from_exif
@@ -258,6 +259,53 @@ def geotag_from_blackvue_video(process_file_list,
                               sub_second_interval,
                               use_gps_start_time,
                               verbose)
+
+
+def geotag_from_garmin_fit(process_file_list,
+                           geotag_source_path,
+                           offset_time=0.0,
+                           offset_angle=0.0,
+                           local_time=False,
+                           sub_second_interval=0.0,
+                           use_gps_start_time=False,
+                           verbose=False):
+    # We offer the ability to send a geotag directory for this since multiple .fit files could correspond to a directory of videos
+    if os.path.isfile(geotag_source_path):
+        gps_trace = get_lat_lon_time_from_fit([geotag_source_path], local_time, verbose=verbose)
+    else:
+        geotag_file_list = get_geotag_file_list(geotag_source_path,
+                                                "geotag_process",
+                                                verbose)
+        gps_trace = get_lat_lon_time_from_fit(geotag_file_list, local_time, verbose=verbose)
+
+    # Estimate capture time with sub-second precision, reading from image EXIF
+    sub_second_times = estimate_sub_second_time(process_file_list,
+                                                sub_second_interval)
+    if not sub_second_times:
+        print_error(
+            "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")
+        create_and_log_process_in_list(process_file_list,
+                                       "geotag_process"
+                                       "failed",
+                                       verbose)
+        return
+
+    for image, capture_time in tqdm(zip(process_file_list, sub_second_times), desc="Inserting gps data into image EXIF"):
+        if not capture_time:
+            print_error(
+                "Error, capture time could not be extracted for image " + image)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "failed",
+                                   verbose=verbose)
+        geotag_properties = get_geotag_properties_from_gps_trace(
+            image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
+
+        create_and_log_process(image,
+                               "geotag_process",
+                               "success",
+                               geotag_properties,
+                               verbose)
 
 
 def geotag_from_gps_trace(process_file_list,
@@ -647,6 +695,27 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
                             len(process_file_list),
                             process)
     return sorted(process_file_list)
+
+def get_geotag_file_list(geotag_source_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = geotag_source_path
+
+    geotag_file_list = []
+    if skip_subfolders:
+        geotag_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('gpx', 'csv', 'fit')) and preform_process(os.path.join(root_dir, file), process, rerun))
+    else:
+        for root, dir, files in os.walk(geotag_source_path):
+            if os.path.join(".mapillary", "logs") in root:
+                continue
+            geotag_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
+                os.path.join(root, file), process, rerun) and file.lower().endswith(('gpx', 'csv', 'fit')))
+
+    inform_processing_start(root_dir,
+                            len(geotag_file_list),
+                            process)
+    return sorted(geotag_file_list)
 
 
 def get_process_status_file_list(import_path, process, status, skip_subfolders=False):

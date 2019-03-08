@@ -107,4 +107,13 @@ def process_geotag_properties(import_path,
                                                                   sub_second_interval,
                                                                   use_gps_start_time,
                                                                   verbose)
+    elif geotag_source == "garmin_fit":
+        geotag_properties = processing.geotag_from_garmin_fit(process_file_list,
+                                                             geotag_source_path,
+                                                             offset_time,
+                                                             offset_angle,
+                                                             local_time,
+                                                             sub_second_interval,
+                                                             use_gps_start_time,
+                                                             verbose)
     print("Sub process ended")
