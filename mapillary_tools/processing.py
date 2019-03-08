@@ -262,14 +262,21 @@ def geotag_from_blackvue_video(process_file_list,
 
 
 def geotag_from_garmin_fit(process_file_list,
-                           geotag_file_list,
+                           geotag_source_path,
                            offset_time=0.0,
                            offset_angle=0.0,
                            local_time=False,
                            sub_second_interval=0.0,
                            use_gps_start_time=False,
                            verbose=False):
-    gps_trace = get_lat_lon_time_from_fit(geotag_file_list, local_time, verbose=True)
+    # We offer the ability to send a geotag directory for this since multiple .fit files could correspond to a directory of videos
+    if os.path.isfile(geotag_source_path):
+        gps_trace = get_lat_lon_time_from_fit([geotag_source_path], local_time, verbose=verbose)
+    else:
+        geotag_file_list = get_geotag_file_list(geotag_source_path,
+                                                "geotag_process",
+                                                verbose)
+        gps_trace = get_lat_lon_time_from_fit(geotag_file_list, local_time, verbose=verbose)
 
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
@@ -688,6 +695,27 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
                             len(process_file_list),
                             process)
     return sorted(process_file_list)
+
+def get_geotag_file_list(geotag_source_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = geotag_source_path
+
+    geotag_file_list = []
+    if skip_subfolders:
+        geotag_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+            ('gpx', 'csv', 'fit')) and preform_process(os.path.join(root_dir, file), process, rerun))
+    else:
+        for root, dir, files in os.walk(geotag_source_path):
+            if os.path.join(".mapillary", "logs") in root:
+                continue
+            geotag_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
+                os.path.join(root, file), process, rerun) and file.lower().endswith(('gpx', 'csv', 'fit')))
+
+    inform_processing_start(root_dir,
+                            len(geotag_file_list),
+                            process)
+    return sorted(geotag_file_list)
 
 
 def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
