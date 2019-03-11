@@ -23,7 +23,7 @@ import yaml
 from tqdm import tqdm
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_duration
-from process_video import get_video_start_time
+from process_video import get_video_start_time_blackvue
 import datetime
 from geo import get_timezone_and_utc_offset
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
@@ -173,15 +173,16 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 
 
 # get a list of video files in a video_file
+#TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if file.lower().endswith(('mp4')))
+                               for file in os.listdir(video_file) if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if file.lower().endswith(('mp4')))
+                                   for file in files if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
     return sorted(video_file_list)
 
 
@@ -871,7 +872,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
         [gpx_file_path, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=False)
-        video_start_time = get_video_start_time(video)
+        video_start_time = get_video_start_time_blackvue(video)
 
         if isStationaryVid:
             if not gpx_file_path:
@@ -990,7 +991,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             parameters=dict(
                 organization_key=organization_key,
                 private=private,
-                images_upload_v2='true',
+                images_upload_v2=True,
                 make='Blackvue',
                 model='DR900S-1CH',
                 sample_interval_distance=float(sampling_distance),
@@ -1039,6 +1040,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
 
                     break
                 except requests.exceptions.HTTPError as e:
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
                     return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
                     time.sleep(5)
                 finally:
