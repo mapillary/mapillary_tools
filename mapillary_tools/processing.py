@@ -330,7 +330,7 @@ def geotag_from_gps_trace(process_file_list,
     if os.path.isfile(geotag_source_path):
         geotag_file_list = [geotag_source_path]
     else:
-        geotag_file_list = get_geotag_file_list(geotag_source_path
+        geotag_file_list = get_geotag_file_list(geotag_source_path,
                                                 'geotag_process',
                                                 verbose)
     if geotag_source == "gpx":
