@@ -155,7 +155,7 @@ def extract_frames(video_file,
 
 def get_video_duration(video_file):
     """Get video duration in seconds"""
-    return float(FFProbe(video_file).video[0].duration)
+    return float(FFProbe(video_file).duration)
 
 
 def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
@@ -204,6 +204,7 @@ def get_video_end_time(video_file):
         return None
     return creation_time
 
+
 def get_video_start_time(video_file):
     """Get start time in seconds"""
     if not os.path.isfile(video_file):
@@ -213,9 +214,11 @@ def get_video_start_time(video_file):
     duration = get_video_duration(video_file)
     if video_end_time == None or duration == None:
         return None
-    else: 
-        video_start_time = (video_end_time - datetime.timedelta(seconds=duration))
+    else:
+        video_start_time = (
+            video_end_time - datetime.timedelta(seconds=duration))
         return video_start_time
+
 
 def get_video_start_time_blackvue(video_file):
     fd = open(video_file, 'rb')
@@ -243,5 +246,6 @@ def get_video_start_time_blackvue(video_file):
             # in seconds since midnight, January 1, 1904
             video_start_time_epoch = creation_time * 1000 - duration
             epoch_start = datetime.datetime(year=1904, month=1, day=1)
-            video_start_time = epoch_start + datetime.timedelta(milliseconds=video_start_time_epoch)
+            video_start_time = epoch_start + \
+                datetime.timedelta(milliseconds=video_start_time_epoch)
             return video_start_time
