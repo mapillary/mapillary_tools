@@ -114,7 +114,7 @@ def extract_frames(video_file,
         '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
-        '-qscale', '1', '-nostdin'
+        '-qscale:v', '1', '-nostdin'
     ]
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
@@ -136,7 +136,6 @@ def extract_frames(video_file,
             video_start_time / 1000.)
     else:
         video_start_time = get_video_start_time(video_file)
-        print("\nVIDEO_START_TIME: " + str(video_start_time))
         if not video_start_time:
             # WARNING LOG
             print("Warning, video start time not provided and could not be \
@@ -195,15 +194,12 @@ def get_video_start_time(video_file):
         # time_string = FFProbe(video_file).video[0].creation_time
         result = subprocess.Popen(["ffprobe", video_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         time_string = next(iter(x.split(': ')[-1] for x in result.stdout.readlines() if "creation_time" in x)).strip("\n")
-        print("\nTIME_STRING: " + time_string)
         try:
             creation_time = datetime.datetime.strptime(
                 time_string, TIME_FORMAT)
-            print("\nCREATION: " + str(creation_time))
         except:
             creation_time = datetime.datetime.strptime(
                 time_string, TIME_FORMAT_2)
-            print("\nCREATION: " + str(creation_time))
     except:
         return None
     return creation_time
