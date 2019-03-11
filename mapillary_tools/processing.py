@@ -327,10 +327,16 @@ def geotag_from_gps_trace(process_file_list,
         print("It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
 
     # read gps file to get track locations
+    if os.path.isfile(geotag_source_path):
+        geotag_file_list = [geotag_source_path]
+    else:
+        geotag_file_list = get_geotag_file_list(geotag_source_path
+                                                'geotag_process',
+                                                verbose)
     if geotag_source == "gpx":
-        gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
+        gps_trace = get_lat_lon_time_from_gpx(geotag_file_list, local_time)
     elif geotag_source == "nmea":
-        gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
+        gps_trace = get_lat_lon_time_from_nmea(geotag_file_list, local_time)
 
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
@@ -704,13 +710,13 @@ def get_geotag_file_list(geotag_source_path, process, rerun=False, verbose=False
     geotag_file_list = []
     if skip_subfolders:
         geotag_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('gpx', 'csv', 'fit')) and preform_process(os.path.join(root_dir, file), process, rerun))
+            ('gpx', 'nmea', 'csv', 'fit')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
         for root, dir, files in os.walk(geotag_source_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             geotag_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
-                os.path.join(root, file), process, rerun) and file.lower().endswith(('gpx', 'csv', 'fit')))
+                os.path.join(root, file), process, rerun) and file.lower().endswith(('gpx', 'nmea', 'csv', 'fit')))
 
     inform_processing_start(root_dir,
                             len(geotag_file_list),
