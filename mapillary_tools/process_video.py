@@ -136,6 +136,7 @@ def extract_frames(video_file,
             video_start_time / 1000.)
     else:
         video_start_time = get_video_start_time(video_file)
+        print("\nVIDEO_START_TIME: " + str(video_start_time))
         if not video_start_time:
             # WARNING LOG
             print("Warning, video start time not provided and could not be \
