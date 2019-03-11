@@ -155,7 +155,7 @@ def extract_frames(video_file,
 
 def get_video_duration(video_file):
     """Get video duration in seconds"""
-    return float(FFProbe(video_file).duration)
+    return float(FFProbe(video_file).video[0].duration)
 
 
 def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time, sample_interval=2.0, duration_ratio=1.0, verbose=False):
