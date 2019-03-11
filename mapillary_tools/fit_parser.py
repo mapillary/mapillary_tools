@@ -25,10 +25,9 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
         lat = None
         lon = None
         time_delta = None
-        start_time = datetime.datetime.strptime(basename_no_extension, "%Y-%m-%d-%H-%M-%S") + datetime.timedelta(seconds=27)
         try:
+            start_time = datetime.datetime.strptime(basename_no_extension, "%Y-%m-%d-%H-%M-%S") + datetime.timedelta(seconds=27)
             fit = FitFile(geotag_file)
-
             messages = fit.get_messages(20)
             for record in tqdm(messages, desc='Extracting GPS data from .FIT file'):
                 try:
@@ -46,7 +45,7 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
 
         except ValueError:
             if verbose:
-                print("File {} not formatted properly".format(geotag_file))
+                print("Warning: {} is not formatted properly".format(geotag_file))
             pass
     points.sort()
     return points
