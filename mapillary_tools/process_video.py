@@ -193,6 +193,7 @@ def get_video_start_time(video_file):
     try:
         # time_string = FFProbe(video_file).video[0].creation_time
         result = subprocess.Popen(["ffprobe", video_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(result.stdout.readlines())
         time_string = next(iter(x.split(': ')[-1] for x in result.stdout.readlines() if "creation_time" in x)).strip("\n")
         try:
             creation_time = datetime.datetime.strptime(
