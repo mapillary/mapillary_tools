@@ -43,8 +43,7 @@ class FFProbe:
             self.audio=[]
             datalines=[]
 
-            for a in iter(p.stdout.readline, b''):
-                
+            for a in p:
                 if re.match('\[STREAM\]',a):
                     datalines=[]
                 elif re.match('\[\/STREAM\]',a):
@@ -52,16 +51,6 @@ class FFProbe:
                     datalines=[]
                 else:
                     datalines.append(a)
-            for a in iter(p.stderr.readline, b''):
-                if re.match('\[STREAM\]',a):
-                    datalines=[]
-                elif re.match('\[\/STREAM\]',a):
-                    self.streams.append(FFStream(datalines))
-                    datalines=[]
-                else:
-                    datalines.append(a)
-            p.stdout.close()
-            p.stderr.close()
             for a in self.streams:
                 if a.isAudio():
                     self.audio.append(a)
