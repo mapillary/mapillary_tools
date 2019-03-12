@@ -29,12 +29,9 @@ class FFProbe:
         if os.path.isfile(video_file):
             video_file = self.video_file.replace(" ", "\ ")
 
-            if str(platform.system())=='Windows':
-                cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
-            else:
-                cmd=["ffprobe -show_streams " + '"'+video_file+'"']
-
-            p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
+            cmd="ffprobe -show_streams ", '"'+video_file+'"'
+            
+            p = os.popen(cmd).read().split("\n")
             self.format=None
             self.created=None
             self.duration=None
