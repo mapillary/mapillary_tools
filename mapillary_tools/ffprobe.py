@@ -29,7 +29,7 @@ class FFProbe:
         if os.path.isfile(video_file):
             video_file = self.video_file.replace(" ", "\ ")
 
-            cmd="ffprobe -show_streams ", '"'+video_file+'"'
+            cmd="ffprobe -show_streams "+ '"'+video_file+'"'
             
             p = os.popen(cmd).read().split("\n")
             self.format=None
