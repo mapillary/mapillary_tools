@@ -32,8 +32,6 @@ class FFProbe:
             cmd="ffprobe -show_streams "+ '"'+video_file+'"'
             
             p = os.popen(cmd).read().split("\n")
-            print(cmd)
-            print(p)
             self.format=None
             self.created=None
             self.duration=None
