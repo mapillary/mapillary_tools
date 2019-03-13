@@ -27,7 +27,7 @@ class FFProbe:
         except:
             raise IOError('ffprobe not found.')
         if os.path.isfile(video_file):
-            video_file = self.video_file.replace(" ", "\ ")
+            video_file = self.video_file.replace("\\", "\\\\")
 
             cmd="ffprobe -show_streams "+ '"'+video_file+'"'
             
