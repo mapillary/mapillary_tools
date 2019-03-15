@@ -114,7 +114,8 @@ def extract_frames(video_file,
         '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
-        '-qscale:v', '1', '-nostdin'
+        '-qscale', '1', '-nostdin',
+        '-qmin', '1', '-qmax', '1'
     ]
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
