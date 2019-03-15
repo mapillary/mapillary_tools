@@ -2,7 +2,6 @@
 
 from fitparse import FitFile
 import datetime
-import os
 from tqdm import tqdm
 
 '''
