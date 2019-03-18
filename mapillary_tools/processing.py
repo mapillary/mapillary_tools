@@ -271,8 +271,8 @@ def geotag_from_garmin_fit(process_file_list,
                            verbose=False):
     '''
     We offer the ability to send a geotag directory for this since multiple .fit files could correspond to a directory of videos
-    
-    We get a dictionary of videos_gps that has a video_id from the fit file as the key and it's value is an array of tuples that's expected by geotag_from_gps_trace. We do this so we can "sync" the video with the proper points from the fit file.
+
+    We get a dictionary of videos_gps that has a video_id from the fit file as the key and it's value is a tuple with the video's start time according to the .fit file and a list of tuples that's expected by geotag_from_gps_trace. We do this so we can "sync" the video with the proper points from the fit file.
     '''
     if os.path.isfile(geotag_source_path):
         videos_gps = get_lat_lon_time_from_fit([geotag_source_path], local_time, verbose=verbose)
@@ -303,9 +303,13 @@ def geotag_from_garmin_fit(process_file_list,
                                    "failed",
                                    verbose=verbose)
         vid_id = image.split(os.sep)[-2][-3:]
-        gps_trace = videos_gps[vid_id]
-        # update offset time with the gps start time
-        offset_time = (sorted(sub_second_times)[0] - gps_trace[0][0]).total_seconds()
+        try:
+            gps_trace = videos_gps[vid_id][1]
+            # create offset using the start camera_event from the fit file to correct the image timestamp
+            offset_time = (sorted(sub_second_times)[0] - videos_gps[vid_id][0]).total_seconds()
+        except:
+            print("Warning: Cant' correlate image {} with gps.".format(image))
+            continue
         geotag_properties = get_geotag_properties_from_gps_trace(
             image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
 

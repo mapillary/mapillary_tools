@@ -14,14 +14,14 @@ def parse_uuid_string(uuid_string):
     Parses a video uuid string from fit similar to:  VIRBactioncameraULTRA30_Timelapse_3840_2160_1.0000_3936073999_36a2eff0_1_111_2019-01-17-09-01-03.fit
     Returns a tuple (camera_type, video_type, width, height, frame_rate, serial, unknown_1, unkown_2, video_id, fit_filename)
     '''
-    return tuple(uuid_string.split("_")) 
+    return tuple(uuid_string.split("_"))
 
 
 def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
     '''
     Read location and time stamps from a track in a FIT file.
 
-    Returns a list of tuples (time, lat, lon, altitude)
+    Returns a tuple (video_start_time, points) where points is a list of tuples (time, lat, lon, altitude)
     '''
     vids = {}
     for geotag_file in geotag_file_list:
@@ -67,7 +67,7 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
                         continue
                     if alt is not None and lat is not None and lon is not None and wp_datetime is not None and times[0] <= wp_datetime <= times[-1]:
                         points.append((wp_datetime, lat, lon, alt))
-                vids[vid_id] = sorted(points)
+                vids[vid_id] = (times[0], sorted(points))
 
         except ValueError:
             if verbose:
