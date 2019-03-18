@@ -294,6 +294,9 @@ def geotag_from_garmin_fit(process_file_list,
                                        verbose)
         return
 
+    vid_id = None
+    start_time = None
+
     for image, capture_time in tqdm(zip(process_file_list, sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
             print_error(
@@ -302,11 +305,13 @@ def geotag_from_garmin_fit(process_file_list,
                                    "geotag_process",
                                    "failed",
                                    verbose=verbose)
-        vid_id = image.split(os.sep)[-2][-3:]
+        if vid_id != image.split(os.sep)[-2][-3:]:
+            vid_id = image.split(os.sep)[-2][-3:]
+            start_time = capture_time
         try:
             gps_trace = videos_gps[vid_id][1]
             # create offset using the start camera_event from the fit file to correct the image timestamp
-            offset_time = (sorted(sub_second_times)[0] - videos_gps[vid_id][0]).total_seconds()
+            offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
         except:
             print("Warning: Cant' correlate image {} with gps.".format(image))
             continue
