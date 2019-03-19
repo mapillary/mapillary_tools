@@ -318,6 +318,15 @@ class ExifRead:
             fields, default='none', field_type=str)
         return model
 
+    def extract_firmware(self):
+        '''
+        Extract camera firmware (tag is called 'software' in EXIF)
+        '''
+        fields = ['Image Software']
+        software, _ = self._extract_alternative_fields(
+            fields,default="",field_type=str)
+        return software
+
     def extract_orientation(self):
         '''
         Extract image orientation
