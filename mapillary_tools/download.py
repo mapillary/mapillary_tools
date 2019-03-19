@@ -1,6 +1,6 @@
 import processing
 import uploader
-from post_process import save_local_mapping
+from post_process import get_local_mapping
 from tqdm import tqdm
 import os
 import signal
@@ -126,7 +126,7 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
     total_files = uploader.get_total_file_list(import_path)
     rows = []
 
-    local_mapping = save_local_mapping(import_path)
+    local_mapping = get_local_mapping(import_path)
 
     signal.signal(signal.SIGTERM, service_shutdown)
     signal.signal(signal.SIGINT, service_shutdown)

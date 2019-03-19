@@ -37,7 +37,7 @@ def map_images_to_sequences(destination_mapping, total_files):
     return destination_mapping
 
 
-def save_local_mapping(import_path):
+def get_local_mapping(import_path):
     local_mapping_filepath = os.path.join(os.path.dirname(
         import_path), import_path + "_mapillary_image_uuid_to_local_path_mapping.csv")
 
@@ -115,7 +115,7 @@ def post_process(import_path,
               " does not exist, exiting...")
         sys.exit(1)
     if save_local_mapping:
-        local_mapping = save_local_mapping(import_path)
+        local_mapping = get_local_mapping(import_path)
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
             for row in local_mapping:
