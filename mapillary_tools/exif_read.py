@@ -172,6 +172,7 @@ class ExifRead:
             capture_time = capture_time.replace(":", "_")
             capture_time = capture_time.replace(".", "_")
             capture_time = capture_time.replace("-", "_")
+            capture_time = capture_time.replace(",", "_")
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()])
             capture_time, subseconds = format_time(capture_time)
