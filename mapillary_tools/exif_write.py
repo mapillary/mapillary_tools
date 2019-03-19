@@ -83,6 +83,10 @@ class ExifEdit(object):
             int(abs(direction) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
+    def add_firmware(self,firmware_string):
+        """Add firmware version of camera"""
+        self._ef['0th'][piexif.ImageIFD.Software] = firmware_string
+
     def add_custom_tag(self, value, main_key, tag_key):
         try:
             self._ef[main_key][tag_key] = value
