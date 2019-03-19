@@ -42,12 +42,15 @@ def gps_distance(latlon_1, latlon_2):
 
     return dis
 
-def gps_speed(distance,delta_t):
-    #Most timestamps have 1 second resolution so change zeros in delta_t for 0.5 so that we don't divide by zero
-    delta_t_corrected = [0.5 if x==0 else x for x in delta_t]
+
+def gps_speed(distance, delta_t):
+    # Most timestamps have 1 second resolution so change zeros in delta_t for
+    # 0.5 so that we don't divide by zero
+    delta_t_corrected = [0.5 if x == 0 else x for x in delta_t]
     speed = [distance / delta_t_corrected
-            for distance,delta_t_corrected in zip(distance,delta_t_corrected)]
+             for distance, delta_t_corrected in zip(distance, delta_t_corrected)]
     return speed
+
 
 def dms_to_decimal(degrees, minutes, seconds, hemisphere):
     '''
@@ -233,7 +236,7 @@ def write_gpx(filename, gps_trace):
         lat = point[1]
         lon = point[2]
         time = datetime.datetime.strftime(point[0], time_format)[:-3]
-        elevation = point[3]
+        elevation = point[3] if len(point) > 3 else 0
         gpx += "<trkpt lat=\"" + \
             str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
         gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
