@@ -47,7 +47,8 @@ def sample_video(video_import_path,
                  video_sample_interval=2.0,
                  video_start_time=None,
                  video_duration_ratio=1.0,
-                 verbose=False):
+                 verbose=False,
+                 skip_subfolder=False):
 
     if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
@@ -67,7 +68,7 @@ def sample_video(video_import_path,
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
         os.path.abspath(video_dirname), video_sampling_path)
 
-    video_list = uploader.get_video_file_list(video_import_path) if os.path.isdir(
+    video_list = uploader.get_video_file_list(video_import_path, skip_subfolder) if os.path.isdir(
         video_import_path) else [video_import_path]
 
     for video in tqdm(video_list, desc="Extracting video frames"):
