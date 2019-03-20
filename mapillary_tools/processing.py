@@ -650,6 +650,10 @@ _MAPILLARY_DIRS = (os.path.join("", ".mapillary"),
 def is_mapillary_dir(path):
     return path.endswith(_MAPILLARY_DIRS)
 
+def is_image(filepath):
+    return filepath.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff',
+                                      'pgm', 'pnm', 'gif'))
+
 def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
 
     if not root_dir:
@@ -657,14 +661,12 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
 
     process_file_list = []
     if skip_subfolders:
-        process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
+        process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if is_image(file) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _dirs, files in os.walk(import_path):
             if is_mapillary_dir(root):
                 continue
-            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
-                os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_image(file) and preform_process(os.path.join(root, file), process, rerun))
 
     inform_processing_start(root_dir,
                             len(process_file_list),
@@ -676,14 +678,12 @@ def get_process_status_file_list(import_path, process, status, skip_subfolders=F
 
     status_process_file_list = []
     if skip_subfolders:
-        status_process_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(import_path, file), process, status))
+        status_process_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if is_image(file) and process_status(os.path.join(import_path, file), process, status))
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _dirs, files in os.walk(import_path):
             if is_mapillary_dir(root):
                 continue
-            status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
-                os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_image(file) and process_status(os.path.join(root, file), process, status))
 
     return sorted(status_process_file_list)
 
@@ -698,14 +698,13 @@ def get_duplicate_file_list(import_path, skip_subfolders=False):
 
     duplicate_file_list = []
     if skip_subfolders:
-        duplicate_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(import_path, file)))
+        duplicate_file_list.extend(os.path.join(os.path.abspath(import_path), file) for file in os.listdir(import_path) if is_image(file) and is_duplicate(os.path.join(import_path, file)))
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _dirs, files in os.walk(import_path):
             if is_mapillary_dir(root):
                 continue
-            duplicate_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_duplicate(
-                os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            duplicate_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_image(file) and is_duplicate(
+                os.path.join(root, file)))
 
     return sorted(duplicate_file_list)
 
@@ -728,11 +727,10 @@ def preform_process(file_path, process, rerun=False):
 def get_failed_process_file_list(import_path, process):
 
     failed_process_file_list = []
-    for root, dir, files in os.walk(import_path):
+    for root, _dirs, files in os.walk(import_path):
         if is_mapillary_dir(root):
             continue
-        failed_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if failed_process(
-            os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+        failed_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_image(file) and failed_process(os.path.join(root, file), process))
 
     return sorted(failed_process_file_list)
 
