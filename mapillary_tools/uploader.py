@@ -1032,7 +1032,10 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                     create_upload_log(video, "upload_success")
                 break
             except requests.exceptions.HTTPError as e:
-                return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
+                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                time.sleep(5)
+            except requests.exceptions.ConnectionError as e:
+                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
                 time.sleep(5)
             finally:
                 if response is not None:
@@ -1060,9 +1063,10 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
 
                     break
                 except requests.exceptions.HTTPError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                        e, filename, max_attempts - attempt - 1))
-                    return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                    time.sleep(5)
+                except requests.exceptions.ConnectionError as e:
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
                     time.sleep(5)
                 finally:
                     if response is not None:
