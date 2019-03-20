@@ -109,8 +109,7 @@ def extract_frames(video_file,
         # INFO LOG
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).replace(
-        ".mp4", "").replace(".MP4", "")
+    video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
     command = [
         'ffmpeg',
