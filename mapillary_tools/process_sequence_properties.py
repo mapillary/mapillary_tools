@@ -174,12 +174,15 @@ def process_sequence_properties(import_path,
             prev_latlon = latlons[0]
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
+                k = i + 1 # i skips file_list[0]
                 log_root = uploader.log_rootpath(filename)
                 duplicate_flag_path = os.path.join(log_root,
                                                    "duplicate")
                 sequence_process_success_path = os.path.join(log_root,
                                                              "sequence_process_success")
-                k = i + 1
+                # Compute the cumulative position and direction change since
+                # the last non-duplicate image. Do not sum over
+                # computed_distances[] to avoid compounding GPS errors.
                 distance = gps_distance(latlons[k], prev_latlon)
                 direction_diff = diff_bearing(directions[k], prev_direction)
 
