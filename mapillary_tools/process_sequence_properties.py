@@ -154,9 +154,9 @@ def process_sequence_properties(import_path,
                              for t0, t1 in zip(capture_times[:-1], capture_times[1:])]
         computed_distances = [gps_distance(l1, l0)
                               for l0, l1 in zip(latlons[:-1], latlons[1:])]
-        computed_speed = gps_speed(
+        computed_speeds = gps_speed(
             computed_distances, computed_delta_ts)  # in meters/second
-        if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED]) > 0:
+        if len([x for x in computed_speeds if x > MAX_CAPTURE_SPEED]) > 0:
             print("Warning: The distance in sequence including images\n{}\nto\n{}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?".format(
                 file_list[0], file_list[-1]))
 
