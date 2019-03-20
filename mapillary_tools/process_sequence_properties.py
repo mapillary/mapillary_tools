@@ -180,15 +180,9 @@ def process_sequence_properties(import_path,
                 sequence_process_success_path = os.path.join(log_root,
                                                              "sequence_process_success")
                 k = i + 1
-                distance = gps_distance(latlons[k],
-                                        prev_latlon)
-                if directions[k] is not None and prev_direction is not None:
-                    direction_diff = diff_bearing(directions[k],
-                                                  prev_direction)
-                else:
-                    # dont use bearing difference if no bearings are
-                    # available
-                    direction_diff = 360
+                distance = gps_distance(latlons[k], prev_latlon)
+                direction_diff = diff_bearing(directions[k], prev_direction)
+
                 # When not moving the direction will change wildly with every
                 # minor GPS position error. So ignore duplicate_angle if
                 # mostly still.
