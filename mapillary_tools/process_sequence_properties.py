@@ -171,15 +171,14 @@ def process_sequence_properties(import_path,
             final_file_list = [file_list[0]]
             final_directions = [directions[0]]
             final_capture_times = [capture_times[0]]
-            prev_latlon = latlons[0]
-            prev_direction = directions[0]
+            prev_index = 0
             for i, filename in enumerate(file_list[1:]):
                 k = i + 1 # i skips file_list[0]
                 # Compute the cumulative position and direction change since
                 # the last non-duplicate image. Do not sum over
                 # computed_distances[] to avoid compounding GPS errors.
-                distance = gps_distance(latlons[k], prev_latlon)
-                direction_diff = diff_bearing(directions[k], prev_direction)
+                distance = gps_distance(latlons[k], latlons[prev_index])
+                direction_diff = diff_bearing(directions[k], directions[prev_index])
 
                 # When not moving the direction will change wildly with every
                 # minor GPS position error. So ignore duplicate_angle if
@@ -195,8 +194,7 @@ def process_sequence_properties(import_path,
                     open(sequence_process_success_path + "_" +
                          str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
                 else:
-                    prev_latlon = latlons[k]
-                    prev_direction = directions[k]
+                    prev_index = k
                     final_file_list.append(filename)
                     final_directions.append(directions[k])
                     final_capture_times.append(capture_times[k])
