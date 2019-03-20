@@ -77,7 +77,7 @@ def sample_video(video_import_path,
     for video in tqdm(video_list, desc="Extracting video frames"):
 
         per_video_import_path = os.path.join(
-            import_path, os.path.basename(video).split(".")[:-1])
+            import_path, ".".join(os.path.basename(video).split(".")[:-1]))
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
