@@ -9,6 +9,7 @@ from mapillary_tools.process_video import sample_video
 from mapillary_tools.post_process import post_process
 from mapillary_tools.apply_camera_specific_config import apply_camera_specific_config
 
+
 class Command:
     name = 'video_process'
     help = "Batch tool : Sample video into images and process image meta data and insert it in image EXIF ImageDescription."
@@ -141,8 +142,8 @@ class Command:
         vars_args = vars(args)
 
         vars_args = apply_camera_specific_config(vars_args)
-        
-        sample_video(**({k: v for k, v in vars_args.iteritems() 
+
+        sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
 
         process_user_properties(**({k: v for k, v in vars_args.iteritems()

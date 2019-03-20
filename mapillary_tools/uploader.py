@@ -173,16 +173,16 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 
 
 # get a list of video files in a video_file
-#TODO: Create list of supported files instead of adding only these 3
+# TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
+                               for file in os.listdir(video_file) if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if ( file.lower().endswith(('mp4')) or  file.lower().endswith(('tavi')) or file.lower().endswith(('avi'))) )
+                                   for file in files if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
     return sorted(video_file_list)
 
 
@@ -546,7 +546,8 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
                 response = urllib2.urlopen(request)
                 if response.getcode() == 204:
                     if displayed_upload_error == True:
-                        print("Successful upload of {} on attempt {}".format(s3_filename,attempt))
+                        print("Successful upload of {} on attempt {}".format(
+                            s3_filename, attempt))
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
@@ -622,7 +623,8 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 if response.getcode() == 204:
                     create_upload_log(filepath_in, "upload_success")
                     if displayed_upload_error == True:
-                        print("Successful upload of {} on attempt {}".format(filename,attempt))
+                        print("Successful upload of {} on attempt {}".format(
+                            filename, attempt))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
                 break  # attempts
@@ -841,23 +843,27 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     request = urllib2.Request(request_url)
     request.add_header('Authorization', 'Bearer {}'.format(
         credentials["user_upload_token"]))
-        
+
     try:
         response = json.loads(urllib2.urlopen(request).read())
     except requests.exceptions.HTTPError as e:
         print("Error getting upload parameters, upload could not start")
         sys.exit(1)
-    
+
     request_params = response['videos']
-        
+
     # upload all videos in the import path
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
         video_import_path) else [video_import_path]
-    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='uploaded'] #Filter already uploaded videos
-    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='stationary']
-    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='no_gps_data']
-    all_videos = [x for x in all_videos if os.path.basename(os.path.dirname(x))!='nighttime']
+    all_videos = [x for x in all_videos if os.path.basename(
+        os.path.dirname(x)) != 'uploaded']  # Filter already uploaded videos
+    all_videos = [x for x in all_videos if os.path.basename(
+        os.path.dirname(x)) != 'stationary']
+    all_videos = [x for x in all_videos if os.path.basename(
+        os.path.dirname(x)) != 'no_gps_data']
+    all_videos = [x for x in all_videos if os.path.basename(
+        os.path.dirname(x)) != 'nighttime']
 
     # get the upload specific params
 
@@ -871,61 +877,73 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [gpx_file_path, isStationaryVid] = gpx_from_blackvue(video,use_nmea_stream_timestamp=False)
+        [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
+            video, use_nmea_stream_timestamp=False)
         video_start_time = get_video_start_time_blackvue(video)
 
         if isStationaryVid:
             if not gpx_file_path:
                 if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
-                    no_gps_folder = os.path.dirname(video)+'/no_gps_data/'
+                    no_gps_folder = os.path.dirname(video) + '/no_gps_data/'
                     if not os.path.exists(no_gps_folder):
                         os.mkdir(no_gps_folder)
-                    os.rename(video,no_gps_folder+os.path.basename(video))
-                print("Skipping file {} due to file not containing gps data".format(video))
+                    os.rename(video, no_gps_folder + os.path.basename(video))
+                print(
+                    "Skipping file {} due to file not containing gps data".format(video))
                 continue
             if os.path.basename(os.path.dirname(video)) != 'stationary':
-                stationary_folder = os.path.dirname(video)+'/stationary/'
+                stationary_folder = os.path.dirname(video) + '/stationary/'
                 if not os.path.exists(stationary_folder):
                     os.mkdir(stationary_folder)
-                os.rename(video,stationary_folder+os.path.basename(video))
-                os.rename(gpx_file_path,stationary_folder+os.path.basename(gpx_file_path))
+                os.rename(video, stationary_folder + os.path.basename(video))
+                os.rename(gpx_file_path, stationary_folder +
+                          os.path.basename(gpx_file_path))
             print("Skipping file {} due to camera being stationary".format(video))
             continue
-        
+
         if not isStationaryVid:
             gpx_points = get_points_from_bv(video)
             gps_video_start_time = gpx_points[0][0]
-            
-            #Check if video was taken at night
+
+            # Check if video was taken at night
             try:
-                _,local_timezone_offset = get_timezone_and_utc_offset(gpx_points[0][1],gpx_points[0][2])
+                _, local_timezone_offset = get_timezone_and_utc_offset(
+                    gpx_points[0][1], gpx_points[0][2])
                 local_video_datetime = video_start_time + local_timezone_offset
                 print("local_timezone_offset: {}".format(local_timezone_offset))
                 print("local_video_time: {}".format(local_video_datetime))
-                if local_video_datetime.time() < datetime.time(9,0,0) or local_video_datetime.time() > datetime.time(18,0,0):
+                if local_video_datetime.time() < datetime.time(9, 0, 0) or local_video_datetime.time() > datetime.time(18, 0, 0):
                     if os.path.basename(os.path.dirname(video)) != 'nighttime':
-                        night_time_folder = os.path.dirname(video)+'/nighttime/'
+                        night_time_folder = os.path.dirname(
+                            video) + '/nighttime/'
                     if not os.path.exists(night_time_folder):
                         os.mkdir(night_time_folder)
-                    os.rename(video,night_time_folder+os.path.basename(video))
-                    os.rename(gpx_file_path,night_time_folder+os.path.basename(gpx_file_path))
-                    print("Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
+                    os.rename(video, night_time_folder +
+                              os.path.basename(video))
+                    os.rename(gpx_file_path, night_time_folder +
+                              os.path.basename(gpx_file_path))
+                    print(
+                        "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
                     continue
             except Exception as e:
-                print("Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
+                print(
+                    "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
-            # Only hours are corrected, so that second offsets are taken into account correctly
-            delta_t = video_start_time-gps_video_start_time
+            # Only hours are corrected, so that second offsets are taken into
+            # account correctly
+            delta_t = video_start_time - gps_video_start_time
             print("delta_t: {}".format(delta_t))
-            print("delta_t in seconds: {}".format(round(delta_t.total_seconds())))
-            print("delta_t.days>0: {}".format(delta_t.days>0))
-            if delta_t.days>0:
-                hours_diff_to_utc = round(delta_t.total_seconds()/3600)
+            print("delta_t in seconds: {}".format(
+                round(delta_t.total_seconds())))
+            print("delta_t.days>0: {}".format(delta_t.days > 0))
+            if delta_t.days > 0:
+                hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
             else:
-                hours_diff_to_utc = round(delta_t.total_seconds()/3600) * -1
-            video_start_time_utc = video_start_time + datetime.timedelta(hours=hours_diff_to_utc)
-            video_start_timestamp = int((((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds()))*1000)
-
+                hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
+            video_start_time_utc = video_start_time + \
+                datetime.timedelta(hours=hours_diff_to_utc)
+            video_start_timestamp = int(
+                (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
 
             print("video_start_time: {}".format(video_start_time))
             print("hours_diff_to_utc: {}".format(hours_diff_to_utc))
@@ -934,7 +952,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             print("video_start_time_utc: {}".format(video_start_time_utc))
             upload_video_for_processing(
                 video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
-            
+
     print("Upload completed")
 
 
@@ -968,15 +986,15 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 '''
 
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload,sampling_distance):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance):
     # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
     # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
     basename = os.path.splitext(filename)[0]
-    gpx_path = "{}/{}.gpx".format(os.path.dirname(video),basename)
+    gpx_path = "{}/{}.gpx".format(os.path.dirname(video), basename)
 
-    if not os.path.exists(os.path.dirname(video)+'/uploaded/'):
-        os.mkdir(os.path.dirname(video)+'/uploaded/')
+    if not os.path.exists(os.path.dirname(video) + '/uploaded/'):
+        os.mkdir(os.path.dirname(video) + '/uploaded/')
 
     with open(video, "rb") as f:
         encoded_string = f.read()
@@ -988,21 +1006,21 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     print(parameters["fields"]["key"])
 
     data = dict(
-            parameters=dict(
-                organization_key=organization_key,
-                private=private,
-                images_upload_v2=True,
-                make='Blackvue',
-                model='DR900S-1CH',
-                sample_interval_distance=float(sampling_distance),
-                video_start_time=video_start_time
-            )
+        parameters=dict(
+            organization_key=organization_key,
+            private=private,
+            images_upload_v2=True,
+            make='Blackvue',
+            model='DR900S-1CH',
+            sample_interval_distance=float(sampling_distance),
+            video_start_time=video_start_time
         )
+    )
     if master_upload != None:
-        data['parameters']['user_key']=master_upload
+        data['parameters']['user_key'] = master_upload
 
     if not DRY_RUN:
-        
+
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -1019,7 +1037,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             finally:
                 if response is not None:
                     response.close()
-        
+
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
@@ -1035,12 +1053,15 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                     files = {"file": encoded_string}
                     response = requests.post(
                         parameters["url"], data=parameters["fields"], files=files)
-                    os.rename(video,os.path.dirname(video)+'/uploaded/'+os.path.basename(video))
-                    os.rename(gpx_path,os.path.dirname(video)+'/uploaded/'+os.path.basename(gpx_path))
+                    os.rename(video, os.path.dirname(video) +
+                              '/uploaded/' + os.path.basename(video))
+                    os.rename(gpx_path, os.path.dirname(video) +
+                              '/uploaded/' + os.path.basename(gpx_path))
 
                     break
                 except requests.exceptions.HTTPError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
+                        e, filename, max_attempts - attempt - 1))
                     return "Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1)
                     time.sleep(5)
                 finally:
@@ -1049,4 +1070,3 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
     else:
         print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
         print("VIDEO START TIME: {}".format(video_start_time))
-
