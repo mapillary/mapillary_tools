@@ -73,8 +73,8 @@ def sample_video(video_import_path,
 
     for video in tqdm(video_list, desc="Extracting video frames"):
 
-        per_video_import_path = os.path.join(import_path, os.path.basename(video).replace(
-            ".mp4", "").replace(".MP4", ""))
+        per_video_import_path = os.path.join(
+            import_path, ".".join(os.path.basename(video).split(".")[:-1]))
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
@@ -106,8 +106,7 @@ def extract_frames(video_file,
         # INFO LOG
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).replace(
-        ".mp4", "").replace(".MP4", "")
+    video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
     command = [
         'ffmpeg',
