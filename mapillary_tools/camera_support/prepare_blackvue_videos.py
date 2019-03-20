@@ -31,3 +31,31 @@ def apply_config_blackvue(vars_args):
     vars_args["geotag_source"] = 'blackvue_videos'
     vars_args["duplicate_angle"] = 360
     return vars_args
+
+def get_blackvue_info(video_file):
+    with open(video_file,'rb') as f:
+        response={}
+        first_bytes = f.read(150)
+        video_details = first_bytes.split(';')
+
+        #Check if file is Blackvue video
+        if 'Pittasoft' in video_details[0]:
+            response['is_Blackvue_video']=True
+        else:
+            response['is_Blackvue_video']=False
+            return response
+
+        response['header'] = video_details[0]
+        response['model_info'] = video_details[1]
+        response['firmware_version']  = video_details[2]
+        response['language'] = video_details[3]
+        if int(video_details[4])==1:
+            response['camera_direction'] = 'Front'
+        elif int(video_details[4])==2:
+            response['camera_direction'] = 'Back'
+        # Check that string is actually the SN, it could be missing since some firmware don't output it
+        if video_details[5][0:2]==response['model_info'][0:2]:
+            response['serial_number'] = video_details[5]
+        else:
+            response['serial_number'] = None
+    return response
