@@ -175,11 +175,6 @@ def process_sequence_properties(import_path,
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
                 k = i + 1 # i skips file_list[0]
-                log_root = uploader.log_rootpath(filename)
-                duplicate_flag_path = os.path.join(log_root,
-                                                   "duplicate")
-                sequence_process_success_path = os.path.join(log_root,
-                                                             "sequence_process_success")
                 # Compute the cumulative position and direction change since
                 # the last non-duplicate image. Do not sum over
                 # computed_distances[] to avoid compounding GPS errors.
@@ -192,6 +187,9 @@ def process_sequence_properties(import_path,
                 if distance < duplicate_distance and \
                    (computed_distances[i] < 0.5 or \
                     direction_diff < duplicate_angle):
+                    log_root = uploader.log_rootpath(filename)
+                    duplicate_flag_path = os.path.join(log_root, "duplicate")
+                    sequence_process_success_path = os.path.join(log_root, "sequence_process_success")
                     open(duplicate_flag_path, "w").close()
                     open(sequence_process_success_path, "w").close()
                     open(sequence_process_success_path + "_" +
