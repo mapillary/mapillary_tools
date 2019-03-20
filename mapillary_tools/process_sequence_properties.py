@@ -189,7 +189,12 @@ def process_sequence_properties(import_path,
                     # dont use bearing difference if no bearings are
                     # available
                     direction_diff = 360
-                if distance < duplicate_distance and direction_diff < duplicate_angle:
+                # When not moving the direction will change wildly with every
+                # minor GPS position error. So ignore duplicate_angle if
+                # mostly still.
+                if distance < duplicate_distance and \
+                   (computed_distances[i] < 0.5 or \
+                    direction_diff < duplicate_angle):
                     open(duplicate_flag_path, "w").close()
                     open(sequence_process_success_path, "w").close()
                     open(sequence_process_success_path + "_" +
