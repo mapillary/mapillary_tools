@@ -12,6 +12,39 @@ import datetime
 from tqdm import tqdm
 from .error import print_error
 
+def add_interpolation_arguments(parser):
+    parser.add_argument('--data',
+        help='Specify which data you want to interpolate.',
+        action='store', required=True,
+        choices=['missing_gps', 'identical_timestamps'])
+    parser.add_argument('--max_time_delta',
+        help='Maximum delta time in seconds, for an image with a timestamp out of scope to have missing gps extrapolated.',
+        type=float, default=1.0, required=False)
+    parser.add_argument('--file_in_path',
+        help='Input file path, in case the identical timestamps to be interpolated are in an external file.',
+        required=False)
+    parser.add_argument('--file_format',
+        help='Format of the input file, only csv supported for now.',
+        default='csv', required=False)
+    parser.add_argument('--time_column',
+        help='Column with the timestamps, in case interpolating missing timestamps in a csv file.',
+        type=int, default=0, required=False)
+    parser.add_argument('--delimiter',
+        help='Delimiter between the columns, in case interpolating missing timestamps in a csv file.',
+        default=',', required=False)
+    parser.add_argument('--time_utc',
+        help='Is the timestamp in utc',
+        action='store_true', default=False, required=False)
+    parser.add_argument('--time_format',
+        help='Time format as a string.',
+        default='%Y-%m-%dT%H:%M:%SZ', required=False)
+    parser.add_argument('--header',
+        help='Specify whether the csv file includes a header, in case interpolating missing timestamps in a csv file.',
+        action='store_true', default=False, required=False)
+    parser.add_argument('--keep_original',
+        help='Do not overwrite original file, instead save the file with interpolated times in a new file by adding suffix "_processed" to the input file.',
+        action='store_true', default=False, required=False)
+
 
 EPOCH = datetime.datetime.utcfromtimestamp(0)
 
