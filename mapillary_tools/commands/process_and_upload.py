@@ -7,7 +7,9 @@ from mapillary_tools.process_user_properties import (
 from mapillary_tools.process_import_meta_properties import (
     add_import_meta_arguments,
     process_import_meta_properties)
-from mapillary_tools.process_geotag_properties import process_geotag_properties
+from mapillary_tools.process_geotag_properties import (
+    add_geotag_arguments,
+    process_geotag_properties)
 from mapillary_tools.process_sequence_properties import process_sequence_properties
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
@@ -26,24 +28,7 @@ class Command:
     def add_advanced_arguments(self, parser):
         add_mapillary_arguments(parser)
         add_import_meta_arguments(parser)
-
-        # geotagging
-        parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_videos', 'nmea', 'blackvue_videos'], default="exif", required=False)
-        parser.add_argument(
-            '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
-            default=None, required=False)
-        parser.add_argument(
-            '--local_time', help='Assume image timestamps are in your local time', action='store_true', default=False, required=False)
-        parser.add_argument('--sub_second_interval',
-                            help='Sub second time between shots. Used to set image times with sub-second precision',
-                            type=float, default=0.0, required=False)
-        parser.add_argument('--offset_time', default=0., type=float,
-                            help='time offset between the camera and the gps device, in seconds.', required=False)
-        parser.add_argument('--offset_angle', default=0., type=float,
-                            help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
-        parser.add_argument("--use_gps_start_time",
-                            help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
+        add_geotag_arguments(parser)
 
         # sequence
         parser.add_argument('--cutoff_distance', default=600., type=float,
