@@ -10,7 +10,9 @@ from mapillary_tools.process_import_meta_properties import (
 from mapillary_tools.process_geotag_properties import (
     add_geotag_arguments,
     process_geotag_properties)
-from mapillary_tools.process_sequence_properties import process_sequence_properties
+from mapillary_tools.process_sequence_properties import (
+    add_sequence_arguments,
+    process_sequence_properties)
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import (
@@ -33,20 +35,8 @@ class Command:
         add_mapillary_arguments(parser)
         add_import_meta_arguments(parser)
         add_geotag_arguments(parser)
+        add_sequence_arguments(parser)
 
-        # sequence
-        parser.add_argument('--cutoff_distance', default=600., type=float,
-                            help='maximum gps distance in meters within a sequence', required=False)
-        parser.add_argument('--cutoff_time', default=60., type=float,
-                            help='maximum time interval in seconds within a sequence', required=False)
-        parser.add_argument('--interpolate_directions',
-                            help='perform interpolation of directions', action='store_true', required=False)
-        parser.add_argument('--keep_duplicates',
-                            help='keep duplicates, ie do not flag duplicates for upload exclusion, but keep them to be uploaded', action='store_true', required=False, default=False)
-        parser.add_argument('--duplicate_distance',
-                            help='max distance for two images to be considered duplicates in meters', type=float, default=0.1, required=False)
-        parser.add_argument(
-            '--duplicate_angle', help='max angle for two images to be considered duplicates in degrees', type=float, default=5, required=False)
         # EXIF insert
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)

@@ -4,6 +4,11 @@ import sys
 from .error import print_error
 
 
+def add_offset_angle_argument(parser):
+    parser.add_argument('--offset_angle',
+        help='Offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing).',
+        type=float, default=0.0, required=False)
+
 def add_geotag_arguments(parser):
     parser.add_argument('--geotag_source',
         help='Provide the source of date/time and gps information needed for geotagging.',
@@ -21,9 +26,7 @@ def add_geotag_arguments(parser):
     parser.add_argument('--offset_time',
         help='Time offset between the camera and the gps device, in seconds.',
         type=float, default=0.0, required=False)
-    parser.add_argument('--offset_angle',
-        help='Offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing).',
-        type=float, default=0.0, required=False)
+    add_offset_angle_argument(parser)
     parser.add_argument('--use_gps_start_time',
         help='Use GPS trace starting time in case of derivating timestamp from filename.',
         action='store_true', default=False, required=False)
