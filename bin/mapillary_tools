@@ -22,12 +22,15 @@ if flag_duplicates:
 # Create the top-level parser
 parser = argparse.ArgumentParser(
     'Mapillary import tool', usage="see -h for available tools and corresponding arguments, add --advanced to see additional advanced tools and/or arguments and --version to see version.")
-parser.add_argument(
-    '--advanced', help='Use the tools under an advanced level with additional arguments and tools available.', action='store_true', required=False, default=False)
-parser.add_argument(
-    '--version', help='Print mapillary tools version.', action='store_true', required=False, default=False)
-parser.add_argument(
-    '--full_help', help='Print full help for all the available commands and their arguments.', action='store_true', required=False, default=False)
+parser.add_argument('--advanced',
+    help='Use the tools under an advanced level with additional arguments and tools available.',
+    action='store_true', required=False, default=False)
+parser.add_argument('--version',
+    help='Print mapillary tools version.',
+    action='store_true', required=False, default=False)
+parser.add_argument('--full_help',
+    help='Print full help for all the available commands and their arguments.',
+    action='store_true', required=False, default=False)
 
 subparsers = parser.add_subparsers(
     help="Please choose one of the available tools", dest='tool', metavar='tool')

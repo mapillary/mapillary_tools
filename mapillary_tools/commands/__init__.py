@@ -45,20 +45,24 @@ VERSION = "0.5.3"
 
 
 def add_general_arguments(parser, command):
-    parser.add_argument('--advanced', help='Use the tools under an advanced level with additional arguments and tools available.',
-                        action='store_true', required=False, default=False)
-    parser.add_argument('--version', help='Print mapillary tools version.',
-                        action='store_true', required=False, default=False)
+    parser.add_argument('--advanced',
+        help='Use the tools under an advanced level with additional arguments and tools available.',
+        action='store_true', required=False, default=False)
+    parser.add_argument('--version',
+        help='Print mapillary tools version.',
+        action='store_true', required=False, default=False)
 
     if command == "authenticate":
         return
     # print out warnings
-    parser.add_argument(
-        '--verbose', help='print debug info', action='store_true', default=False, required=False)
+    parser.add_argument('--verbose',
+        help='Print debug information.',
+        action='store_true', default=False, required=False)
     #import path
     required = True
     if command in ["interpolate", "video_process", "video_process_and_upload", "sample_video", "send_videos_for_processing"]:
         required = False
 
-    parser.add_argument(
-        '--import_path', help='path to your photos, or in case of video, path where the photos from video sampling will be saved', required=required)
+    parser.add_argument('--import_path',
+        help='Path to your photos, or in case of video, path where the photos from video sampling will be saved.',
+        required=required)
