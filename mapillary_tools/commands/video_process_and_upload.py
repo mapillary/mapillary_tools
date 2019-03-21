@@ -14,7 +14,9 @@ from mapillary_tools.process_sequence_properties import (
     add_sequence_arguments,
     process_sequence_properties)
 from mapillary_tools.process_upload_params import process_upload_params
-from mapillary_tools.insert_MAPJson import insert_MAPJson
+from mapillary_tools.insert_MAPJson import (
+    add_EXIF_insert_arguments,
+    insert_MAPJson)
 from mapillary_tools.process_video import (
     add_video_arguments,
     sample_video)
@@ -36,26 +38,13 @@ class Command:
         add_import_meta_arguments(parser)
         add_geotag_arguments(parser)
         add_sequence_arguments(parser)
+        add_EXIF_insert_arguments(parser)
 
-        # EXIF insert
-        parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
-                            action='store_true', default=False, required=False)
-        parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory called "processed_images" located in .mapillary in the import_path.',
-                            action='store_true', default=False, required=False)
         parser.add_argument(
             '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
         parser.add_argument(
             '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
-        parser.add_argument('--overwrite_all_EXIF_tags', help='Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.',
-                            action='store_true', default=False, required=False)
-        parser.add_argument('--overwrite_EXIF_time_tag', help='Overwrite the capture time EXIF tag with the value obtained in process.',
-                            action='store_true', default=False, required=False)
-        parser.add_argument('--overwrite_EXIF_gps_tag', help='Overwrite the gps EXIF tag with the value obtained in process.',
-                            action='store_true', default=False, required=False)
-        parser.add_argument('--overwrite_EXIF_direction_tag', help='Overwrite the camera direction EXIF tag with the value obtained in process.',
-                            action='store_true', default=False, required=False)
-        parser.add_argument('--overwrite_EXIF_orientation_tag', help='Overwrite the orientation EXIF tag with the value obtained in process.',
-                            action='store_true', default=False, required=False)
+
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
                             action='store_true', default=False, required=False)
