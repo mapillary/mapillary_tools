@@ -5,29 +5,29 @@ from .error import print_error
 
 
 def add_offset_angle_argument(parser):
-    parser.add_argument('--offset_angle',
+    parser.add_argument('--offset-angle', '--offset_angle',
         help='Offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing).',
         type=float, default=0.0, required=False)
 
 def add_geotag_arguments(parser):
-    parser.add_argument('--geotag_source',
+    parser.add_argument('--geotag-source', '--geotag_source',
         help='Provide the source of date/time and gps information needed for geotagging.',
         action='store', default='exif', required=False,
         choices=['exif', 'gpx', 'gopro_videos', 'nmea', 'blackvue_videos'])
-    parser.add_argument('--geotag_source_path',
+    parser.add_argument('--geotag-source-path', '--geotag_source_path',
         help='Provide the path to the file source of date/time and gps information needed for geotagging.',
         action='store', default=None, required=False)
-    parser.add_argument('--local_time',
+    parser.add_argument('--local-time', '--local_time',
         help='Assume image timestamps are in your local time.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--sub_second_interval',
+    parser.add_argument('--sub-second-interval', '--sub_second_interval',
         help='Sub second time between shots. Used to set image times with sub-second precision.',
         type=float, default=0.0, required=False)
-    parser.add_argument('--offset_time',
+    parser.add_argument('--offset-time', '--offset_time',
         help='Time offset between the camera and the gps device, in seconds.',
         type=float, default=0.0, required=False)
     add_offset_angle_argument(parser)
-    parser.add_argument('--use_gps_start_time',
+    parser.add_argument('--use-gps-start-time', '--use_gps_start_time',
         help='Use GPS trace starting time in case of derivating timestamp from filename.',
         action='store_true', default=False, required=False)
 

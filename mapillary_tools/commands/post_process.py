@@ -13,7 +13,7 @@ class Command:
 
     def add_advanced_arguments(self, parser):
         # video
-        parser.add_argument('--video_import_path',
+        parser.add_argument('--video-import-path', '--video_import_path',
             help='Path to a video or a directory with one or more video files.',
             action='store', default=None, required=False)
 

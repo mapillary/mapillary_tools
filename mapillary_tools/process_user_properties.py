@@ -5,15 +5,15 @@ from .error import print_error
 
 
 def add_user_arguments(parser):
-    parser.add_argument('--user_name',
+    parser.add_argument('--user-name', '--user_name',
         help='Mapillary user name for the upload.',
         required=True)
 
 def add_organization_arguments(parser):
-    parser.add_argument('--organization_username',
+    parser.add_argument('--organization-username', '--organization_username',
         help='Specify organization user name.',
         default=None, required=False)
-    parser.add_argument('--organization_key',
+    parser.add_argument('--organization-key', '--organization_key',
         help='Specify organization key.',
         default=None, required=False)
     parser.add_argument('--private',
@@ -21,7 +21,7 @@ def add_organization_arguments(parser):
         action='store_true', default=False, required=False)
 
 def add_mapillary_arguments(parser):
-    parser.add_argument('--master_upload',
+    parser.add_argument('--master-upload', '--master_upload',
         help='Process / upload performed on behalf of the specified user account. Note: only for Mapillary employee use.',
         action='store_true', default=False, required=False)
 

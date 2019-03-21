@@ -906,7 +906,7 @@ def user_properties_master(user_name,
         master_key = uploader.get_master_key()
     except:
         print_error("Error, no master key found.")
-        print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
+        print("If you are a user, run the process script without the --master-upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
         return None
 
     user_properties = {"MAPVideoSecure": master_key}

@@ -14,31 +14,31 @@ def add_post_process_arguments(parser):
     parser.add_argument('--summarize',
         help='Summarize import for given import path.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--move_all_images',
+    parser.add_argument('--move-all-images', '--move_all_images',
         help='Move all images in import_path according to import state.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--move_duplicates',
+    parser.add_argument('--move-duplicates', '--move_duplicates',
         help='Move images in case they were flagged as duplicates.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--move_uploaded',
+    parser.add_argument('--move-uploaded', '--move_uploaded',
         help='Move images according to upload state.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--move_sequences',
+    parser.add_argument('--move-sequences', '--move_sequences',
         help='Move images into sequence folders.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--save_as_json',
+    parser.add_argument('--save-as-json', '--save_as_json',
         help='Save summary or file status list in a json.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--list_file_status',
+    parser.add_argument('--list-file-status', '--list_file_status',
         help='List file status for given import path.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--push_images',
+    parser.add_argument('--push-images', '--push_images',
         help='Push images uploaded in given import path.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--split_import_path',
+    parser.add_argument('--split-import-path', '--split_import_path',
         help='If splitting the import path into duplicates, sequences, success and failed uploads, provide a path for the splits.',
         default=None, required=False)
-    parser.add_argument('--save_local_mapping',
+    parser.add_argument('--save-local-mapping', '--save_local_mapping',
         help='Save the mapillary photo uuid to local file mapping in a csv.',
         action='store_true', default=False, required=False)
 

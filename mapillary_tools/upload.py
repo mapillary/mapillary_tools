@@ -8,15 +8,15 @@ from exif_aux import verify_mapillary_tag
 from . import ipc
 
 def add_upload_arguments(parser):
-    parser.add_argument('--number_threads',
+    parser.add_argument('--number-threads', '--number_threads',
         help='Specify the number of upload threads.',
         type=int, default=None, required=False)
-    parser.add_argument('--max_attempts',
+    parser.add_argument('--max-attempts', '--max_attempts',
         help='Specify the maximum number of attempts to upload.',
         type=int, default=None, required=False)
 
 def add_dry_run_arguments(parser):
-    parser.add_argument('--dry_run',
+    parser.add_argument('--dry-run', '--dry_run',
         help='Disable actual upload. Used for debugging only',
         type=bool, default=False, required=False)
 

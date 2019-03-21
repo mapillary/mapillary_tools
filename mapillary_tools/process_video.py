@@ -45,16 +45,16 @@ def timestamps_from_filename(video_filename,
     return capture_times
 
 def add_video_arguments(parser):
-    parser.add_argument('--video_import_path',
+    parser.add_argument('--video-import-path', '--video_import_path',
         help='Path to a video or a directory with one or more video files.',
         action='store', default=None, required=False)
-    parser.add_argument('--video_sample_interval',
+    parser.add_argument('--video-sample-interval', '--video_sample_interval',
         help='Time interval for sampled video frames in seconds.',
         type=float, default=2.0, required=False)
-    parser.add_argument('--video_duration_ratio',
+    parser.add_argument('--video-duration-ratio', '--video_duration_ratio',
         help='Real time video duration ratio of the under or oversampled video duration.',
         type=float, default=1.0, required=False)
-    parser.add_argument('--video_start_time',
+    parser.add_argument('--video-start-time', '--video_start_time',
         help='Video start time in epochs (milliseconds).',
         type=int, default=None, required=False)
 

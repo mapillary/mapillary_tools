@@ -122,12 +122,12 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
         return True
 
 def add_download_basic_arguments(parser):
-    parser.add_argument('--output_folder',
+    parser.add_argument('--output-folder', '--output_folder',
         help='Output folder for the downloaded images.',
         required=True)
 
 def add_download_advanced_arguments(parser):
-    parser.add_argument('--number_threads',
+    parser.add_argument('--number-threads', '--number_threads',
         help='Specify the number of download threads.',
         type=int, default=10, required=False)
 

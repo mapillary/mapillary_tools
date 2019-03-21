@@ -184,49 +184,49 @@ def read_csv(csv_path, delimiter=",", header=False):
     return csv_data
 
 def add_process_csv_basic_arguments(parser):
-    parser.add_argument('--csv_path',
+    parser.add_argument('--csv-path', '--csv_path',
         help='Provide the path to the csv file.',
         action='store', required=True)
     parser.add_argument('--delimiter',
         help='Delimiter between the columns.',
         action='store', default=',', required=False)
-    parser.add_argument('--convert_gps_time',
+    parser.add_argument('--convert-gps-time', '--convert_gps_time',
         help='Convert gps time in ticks to standard time.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--convert_utc_time',
+    parser.add_argument('--convert-utc-time', '--convert_utc_time',
         help='Convert utc epoch time in seconds or milliseconds.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--filename_column',
+    parser.add_argument('--filename-column', '--filename_column',
         help='Specify the column number of image filename, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--timestamp_column',
+    parser.add_argument('--timestamp-column', '--timestamp_column',
         help='Specify the column number of image timestamp, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--latitude_column',
+    parser.add_argument('--latitude-column', '--latitude_column',
         help='Specify the column number of image latitude, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--longitude_column',
+    parser.add_argument('--longitude-column', '--longitude_column',
         help='Specify the column number of image longitude, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--heading_column',
+    parser.add_argument('--heading-column', '--heading_column',
         help='Specify the column number of image heading, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--altitude_column',
+    parser.add_argument('--altitude-column', '--altitude_column',
         help='Specify the column number of image altitude, counting from 1 on.',
         action='store', type=int, required=False)
-    parser.add_argument('--gps_week_column',
-        help='Specify the column number of image timestamps gps week, counting from 1 on. Used only with --convert_gps_time.',
+    parser.add_argument('--gps-week-column', '--gps_week_column',
+        help='Specify the column number of image timestamps gps week, counting from 1 on. Used only with --convert-gps-time.',
         action='store', type=int, required=False)
-    parser.add_argument('--meta_columns',
+    parser.add_argument('--meta-columns', '--meta_columns',
         help='Specify the column numbers containing meta data, separate numbers with commas, example "7,9,10".',
         action='store', default=None, required=False)
-    parser.add_argument('--meta_names',
+    parser.add_argument('--meta-names', '--meta_names',
         help='Specify the meta data names, separate names with commas, example "meta_data_1,meta_data2,meta_data3".',
         action='store', default=None, required=False)
-    parser.add_argument('--meta_types',
+    parser.add_argument('--meta-types', '--meta_types',
         help='Specify the meta data types, separate types with commas, example "string,string,long". Available types are [string, double, long, date, boolean]',
         action='store', default=None, required=False)
-    parser.add_argument('--time_format',
+    parser.add_argument('--time-format', '--time_format',
         help='Specify the format of the date/time.',
         action='store', default='%Y:%m:%d %H:%M:%S.%f', required=False)
     parser.add_argument('--header',
@@ -234,7 +234,7 @@ def add_process_csv_basic_arguments(parser):
         action='store_true', default=False, required=False)
 
 def add_process_csv_advanced_arguments(parser):
-    parser.add_argument('--keep_original',
+    parser.add_argument('--keep-original', '--keep_original',
         help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
         action='store_true', default=False, required=False)
 
@@ -275,7 +275,7 @@ def process_csv(import_path,
         sys.exit(1)
 
     if gps_week_column != None and convert_gps_time == False:
-        print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting...")
+        print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert-gps-time, exiting...")
         sys.exit(1)
 
     if (convert_gps_time != False or convert_utc_time != False) and timestamp_column == None:

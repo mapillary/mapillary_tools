@@ -94,10 +94,10 @@ if __name__ == '__main__':
     parser.add_argument('max_lat', type=float)
     parser.add_argument('min_lon', type=float)
     parser.add_argument('max_lon', type=float)
-    parser.add_argument('--max_results', type=int, default=400)
-    parser.add_argument('--image_size', type=int,
+    parser.add_argument('--max-results', '--max_results', type=int, default=400)
+    parser.add_argument('--image-size', '--image_size', type=int,
                         default=1024, choices=[320, 640, 1024, 2048])
-    parser.add_argument('--output_path', default=None, required=False)
+    parser.add_argument('--output-path', '--output_path', default=None, required=False)
     args = parser.parse_args()
 
     # query api

@@ -14,25 +14,25 @@ MAX_SEQUENCE_LENGTH = 500
 MAX_CAPTURE_SPEED = 45  # in m/s
 
 def add_sequence_arguments(parser):
-    parser.add_argument('--cutoff_distance',
+    parser.add_argument('--cutoff-distance', '--cutoff_distance',
         help='Maximum gps distance in meters within a sequence.',
         type=float, default=600.0, required=False)
-    parser.add_argument('--cutoff_time',
+    parser.add_argument('--cutoff-time', '--cutoff_time',
         help='Maximum time interval in seconds within a sequence.',
         type=float, default=60.0, required=False)
-    parser.add_argument('--interpolate_directions',
+    parser.add_argument('--interpolate-directions', '--interpolate_directions',
         help='Perform interpolation of directions.',
         action='store_true', required=False)
-    parser.add_argument('--keep_duplicates',
+    parser.add_argument('--keep-duplicates', '--keep_duplicates',
         help='Keep duplicates, that is do not flag duplicates for upload exclusion, but keep them to be uploaded.',
         action='store_true', default=False, required=False)
-    parser.add_argument('--duplicate_distance',
+    parser.add_argument('--duplicate-distance', '--duplicate_distance',
         help='Maximum distance for two images to be considered duplicates in meters.',
         type=float, default=0.1, required=False)
-    parser.add_argument('--duplicate_angle',
+    parser.add_argument('--duplicate-angle', '--duplicate_angle',
         help='Maximum angle for two images to be considered duplicates in degrees.',
         type=float, default=5.0, required=False)
-    # --offset_angle is already declared by add_geotag_arguments()
+    # --offset-angle is already declared by add_geotag_arguments()
 
 def finalize_sequence_processing(sequence,
                                  final_file_list,

@@ -14,32 +14,32 @@ GLOBAL_CONFIG_FILEPATH = os.getenv(
 
 
 def add_user_auth_arguments(parser, has_jwt=True):
-    parser.add_argument('--user_name',
+    parser.add_argument('--user-name', '--user_name',
         help='Mapillary user name.',
         default=None, required=False)
-    parser.add_argument('--user_email',
+    parser.add_argument('--user-email', '--user_email',
         help='User email. Used to create the Mapillary account.',
         default=None, required=False)
-    parser.add_argument('--user_password',
+    parser.add_argument('--user-password', '--user_password',
         help='Password associated with the Mapillary user account.',
         default=None, required=False)
     if has_jwt:
         parser.add_argument('--jwt',
             help='JWT authentication token.',
             default=None, required=False)
-    parser.add_argument('--user_key',
+    parser.add_argument('--user-key', '--user_key',
         help='Manually specify user key.',
         default=False, required=False)
     # Consider having API version as a string
-    parser.add_argument('--api_version',
+    parser.add_argument('--api-version', '--api_version',
         help='Choose which Mapillary API version to use.',
         default=1.0, required=False)
 
 def add_edit_config_arguments(parser):
-    parser.add_argument('--config_file',
+    parser.add_argument('--config-file', '--config_file',
         help='Full path to the config file to be edited. Default is ~/.config/mapillary/config/MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh',
         default=None, required=False)
-    parser.add_argument('--force_overwrite',
+    parser.add_argument('--force-overwrite', '--force_overwrite',
         help='Automatically overwrite any existing credentials stored in the config file for the specified user.',
         action='store_true', default=False, required=False)
 
