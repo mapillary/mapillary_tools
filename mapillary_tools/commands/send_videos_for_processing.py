@@ -1,6 +1,7 @@
 from mapillary_tools.process_user_properties import (
     add_organization_arguments,
     add_mapillary_arguments)
+from mapillary_tools.edit_config import add_user_auth_arguments
 from mapillary_tools.uploader import send_videos_for_processing
 import inspect
 
@@ -10,19 +11,9 @@ class Command:
     help = "Helper tool : Send videos for processing at Mapillary."
 
     def add_basic_arguments(self, parser):
-        parser.add_argument(
-            "--user_name", help="Mapillary user name", required=True)
-        parser.add_argument(
-            "--user_email", help="user email, used to create Mapillary account", default=None, required=False)
-        parser.add_argument(
-            "--user_password", help="password associated with the Mapillary user account", default=None, required=False)
-        parser.add_argument(
-            '--user_key', help='Manually specify user key', default=False, required=False)
-        parser.add_argument(
-            '--api_version', help='Choose which Mapillary API version to use', default=1.0, required=False)
-# consider having api version as string
-        parser.add_argument(
-            '--video_import_path', help='Path to a video or a directory with one or more video files.', action='store', required=True)
+        add_user_auth_arguments(parser, has_jwt=False)
+        parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
+                            action='store', required=True)
         add_organization_arguments(parser)
         parser.add_argument(
             '--sampling_distance', help="Specify distance between images to be used when sampling video", default=2, required=False)
