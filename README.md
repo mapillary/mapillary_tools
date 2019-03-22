@@ -426,7 +426,7 @@ Downloading blurred originals by image key works **only** for private imagery wh
 mapillary_tools download --by key \
 --import_path dev/null \
 --output-folder "path/to/output_folder" \
---organization_keys "org_key" \
+--organization_keys "org_key1" "org_key2" \
 --user_name "auth user's username"
 ```
 
