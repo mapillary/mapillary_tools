@@ -423,7 +423,7 @@ mapillary_tools download --import_path "path/to/images" --output_folder "path/to
 Downloading blurred originals by image key works **only** for private imagery which belongs to an organization.
 
 ```bash
-mapillary_tools download --by key \
+mapillary_tools download --by_property key \
 --import_path dev/null \
 --output-folder "path/to/output_folder" \
 --organization_keys "org_key1" "org_key2" \

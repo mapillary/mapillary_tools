@@ -1,3 +1,4 @@
+import sys
 import inspect
 from mapillary_tools.download import download
 from mapillary_tools.download_blurred import download as download_blurred
@@ -16,7 +17,7 @@ either for a specified import path or by image keys.
         parser.add_argument("--user_name",
                             help="user name",
                             required=True)
-        parser.add_argument("--by",
+        parser.add_argument("--by_property",
                             help="Image reference, either UUID or KEY",
                             type=str,
                             choices=['key', 'uuid'],
@@ -40,9 +41,9 @@ either for a specified import path or by image keys.
 
         vars_args = vars(args)
 
-        if (vars_args['by'] == 'key'):
+        if (vars_args['by_property'] == 'key'):
             if (vars_args['organization_keys'] is None):
-                raise Exception('organization_keys is required when by=key')
+                raise Exception('organization_keys is required when by_property=key')
             download_blurred(**({k: v for k, v in vars_args.iteritems()
                                  if k in inspect.getargspec(download_blurred).args}))
         else:
