@@ -235,6 +235,8 @@ def write_gpx(filename, gps_trace):
     for point in gps_trace:
         lat = point[1]
         lon = point[2]
+        if lat == 0 or lon == 0:
+            continue
         time = datetime.datetime.strftime(point[0], time_format)[:-3]
         elevation = point[3] if len(point) > 3 else 0
         gpx += "<trkpt lat=\"" + \
