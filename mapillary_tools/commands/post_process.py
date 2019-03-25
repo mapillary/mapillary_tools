@@ -12,9 +12,9 @@ class Command:
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
-        # video file
-        parser.add_argument('--video_file', help='Provide the path to a video file or a directory containing a set of Blackvue video files.',
-                            action='store', required=False, default=None)
+        # video
+        parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
+                            action='store', default=None, required=False)
 
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
