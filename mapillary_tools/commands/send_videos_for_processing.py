@@ -29,7 +29,7 @@ class Command:
         parser.add_argument(
             '--private', help="Specify whether the import is private", action='store_true', default=False, required=False)
         parser.add_argument(
-            '--sampling_distance', help="Specify distance between images to be used when sampling video", default=0.5, required=False)
+            '--sampling_distance', help="Specify distance between images to be used when sampling video", default=2, required=False)
         
     def add_advanced_arguments(self, parser):
         parser.add_argument(

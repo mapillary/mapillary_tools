@@ -4,6 +4,7 @@ import os
 import urllib2
 import urllib
 import httplib
+import datetime
 import socket
 import mimetypes
 import random
@@ -15,17 +16,17 @@ import config
 import getpass
 import sys
 import processing
-from . import ipc
-from .error import print_error
-from .utils import force_decode
 import requests
 import yaml
 from tqdm import tqdm
+from . import ipc
+from .error import print_error
+from .utils import force_decode
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_duration
 from process_video import get_video_start_time_blackvue
-import datetime
 from geo import get_timezone_and_utc_offset
+from camera_support.prepare_blackvue_videos import get_blackvue_info
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
@@ -784,11 +785,65 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     return lines
 
 
-# JOSE consider having api version as string,
-# JOSE consider if we will support master uploads, ie us uploading the videos
-# for user
+def filter_video_before_upload(video):
+    if not get_blackvue_info(video)['is_Blackvue_video']:
+        print("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
+        return True
+    if get_blackvue_info(video)['camera_direction']!='Front':
+        print("ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for Back videos")
+        return True
+    [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
+            video, use_nmea_stream_timestamp=False)
+    video_start_time = get_video_start_time_blackvue(video)
 
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, api_version=1.0, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=0.5):
+    if isStationaryVid:
+        if not gpx_file_path:
+            if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
+                no_gps_folder = os.path.dirname(video) + '/no_gps_data/'
+                if not os.path.exists(no_gps_folder):
+                    os.mkdir(no_gps_folder)
+                os.rename(video, no_gps_folder + os.path.basename(video))
+            print(
+                "Skipping file {} due to file not containing gps data".format(video))
+            return True
+        if os.path.basename(os.path.dirname(video)) != 'stationary':
+            stationary_folder = os.path.dirname(video) + '/stationary/'
+            if not os.path.exists(stationary_folder):
+                os.mkdir(stationary_folder)
+            os.rename(video, stationary_folder + os.path.basename(video))
+            os.rename(gpx_file_path, stationary_folder +
+                        os.path.basename(gpx_file_path))
+        print("Skipping file {} due to camera being stationary".format(video))
+        return True
+
+    if not isStationaryVid:
+        gpx_points = get_points_from_bv(video)
+        gps_video_start_time = gpx_points[0][0]
+
+        # Check if video was taken at night
+        try:
+            _, local_timezone_offset = get_timezone_and_utc_offset(
+                gpx_points[0][1], gpx_points[0][2])
+            local_video_datetime = video_start_time + local_timezone_offset
+            if local_video_datetime.time() < datetime.time(9, 0, 0) or local_video_datetime.time() > datetime.time(18, 0, 0):
+                if os.path.basename(os.path.dirname(video)) != 'nighttime':
+                    night_time_folder = os.path.dirname(
+                        video) + '/nighttime/'
+                if not os.path.exists(night_time_folder):
+                    os.mkdir(night_time_folder)
+                os.rename(video, night_time_folder +
+                            os.path.basename(video))
+                os.rename(gpx_file_path, night_time_folder +
+                            os.path.basename(gpx_file_path))
+                print(
+                    "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
+                return True
+        except Exception as e:
+            print(
+                "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
+        return False
+
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -818,9 +873,6 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         user_items["user_upload_token"] = upload_token
         user_items["user_permission_hash"] = user_permission_hash
         user_items["user_signature_hash"] = user_signature_hash
-        if api_version == 2.0:
-            user_items["upload_url"] = uploader.get_upload_url(
-                user_email, user_password, upload_type)
     else:
         credentials = None
         try:
@@ -831,12 +883,8 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             print("Error, user authentication failed for user " + user_name)
             sys.exit(1)
 
-        # user_upload_token = credentials["user_upload_token"] # JOSE this might be needed maybe for
-        # the backend call
         user_permission_hash = credentials["user_permission_hash"]
         user_signature_hash = credentials["user_signature_hash"]
-        # user_key = credentials["MAPSettingsUserKey"] # JOSE this is not
-        # needed here, but maybe it will be, so i m leaving it
 
     request_url = "https://a.mapillary.com/v3/users/{}/upload_secrets?client_id={}".format(
         credentials["MAPSettingsUserKey"], CLIENT_ID)
@@ -865,77 +913,19 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'nighttime']
 
-    # get the upload specific params
-
-    # JOSE this can be changed so we use same flow as in upload_file_list with threads, for now i m doing it in a loop and only adding
-    # max_attempts
-
-    if number_threads == None:
-        number_threads = NUMBER_THREADS
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
-            video, use_nmea_stream_timestamp=False)
-        video_start_time = get_video_start_time_blackvue(video)
-
-        if isStationaryVid:
-            if not gpx_file_path:
-                if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
-                    no_gps_folder = os.path.dirname(video) + '/no_gps_data/'
-                    if not os.path.exists(no_gps_folder):
-                        os.mkdir(no_gps_folder)
-                    os.rename(video, no_gps_folder + os.path.basename(video))
-                print(
-                    "Skipping file {} due to file not containing gps data".format(video))
-                continue
-            if os.path.basename(os.path.dirname(video)) != 'stationary':
-                stationary_folder = os.path.dirname(video) + '/stationary/'
-                if not os.path.exists(stationary_folder):
-                    os.mkdir(stationary_folder)
-                os.rename(video, stationary_folder + os.path.basename(video))
-                os.rename(gpx_file_path, stationary_folder +
-                          os.path.basename(gpx_file_path))
-            print("Skipping file {} due to camera being stationary".format(video))
-            continue
-
-        if not isStationaryVid:
-            gpx_points = get_points_from_bv(video)
-            gps_video_start_time = gpx_points[0][0]
-
-            # Check if video was taken at night
-            try:
-                _, local_timezone_offset = get_timezone_and_utc_offset(
-                    gpx_points[0][1], gpx_points[0][2])
-                local_video_datetime = video_start_time + local_timezone_offset
-                print("local_timezone_offset: {}".format(local_timezone_offset))
-                print("local_video_time: {}".format(local_video_datetime))
-                if local_video_datetime.time() < datetime.time(9, 0, 0) or local_video_datetime.time() > datetime.time(18, 0, 0):
-                    if os.path.basename(os.path.dirname(video)) != 'nighttime':
-                        night_time_folder = os.path.dirname(
-                            video) + '/nighttime/'
-                    if not os.path.exists(night_time_folder):
-                        os.mkdir(night_time_folder)
-                    os.rename(video, night_time_folder +
-                              os.path.basename(video))
-                    os.rename(gpx_file_path, night_time_folder +
-                              os.path.basename(gpx_file_path))
-                    print(
-                        "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
-                    continue
-            except Exception as e:
-                print(
-                    "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
+        if not filter_video_before_upload(video):
+            video_start_time = get_video_start_time_blackvue(video)
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into
             # account correctly
+            gpx_points = get_points_from_bv(video)
+            gps_video_start_time = gpx_points[0][0]
             delta_t = video_start_time - gps_video_start_time
-            print("delta_t: {}".format(delta_t))
-            print("delta_t in seconds: {}".format(
-                round(delta_t.total_seconds())))
-            print("delta_t.days>0: {}".format(delta_t.days > 0))
             if delta_t.days > 0:
                 hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
             else:
@@ -945,50 +935,13 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             video_start_timestamp = int(
                 (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
 
-            print("video_start_time: {}".format(video_start_time))
-            print("hours_diff_to_utc: {}".format(hours_diff_to_utc))
-            print("video_start_timestamp {}".format(video_start_timestamp))
-            print("gps_video_start_time: {}".format(gps_video_start_time))
-            print("video_start_time_utc: {}".format(video_start_time_utc))
             upload_video_for_processing(
                 video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
 
     print("Upload completed")
 
 
-'''
-    #params = (credentials, user_permission_hash, user_signature_hash, max_attempts,request_params,organization_username,organization_key,private)
-
-    # create upload queue with all files per sequence
-    q = Queue()
-    for filepath in all_videos:
-        q.put((filepath,max_attempts,vars_args,upload_video_for_processing))
-    # create uploader threads
-    uploaders = [UploadThread(q) for i in range (number_threads)]
-
-    #start uploaders as daemon threads that can be stopped
-
-    try:
-        print("Uploading {} folder with {} threads".format(
-            video_import_path, number_threads))
-        for uploader in uploaders:
-            uploader.daemon = True
-            uploader.start()
-
-        while q.unfinished_tasks:
-            time.sleep(1)
-        q.join()
-    except (KeyboardInterrupt, SystemExit):
-        print("\nBREAK: Stopping upload.")
-        sys.exit(1)
-    upload_done_file(**file_params[filepath])
-    flag_finalization(file_list)
-'''
-
-
 def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance):
-    # JOSE need to make sure we dont overwrite the videos, if we upload from several different directories,
-    # local filename might need to be modified for the s3 filename
     filename = os.path.basename(video)
     basename = os.path.splitext(filename)[0]
     gpx_path = "{}/{}.gpx".format(os.path.dirname(video), basename)
@@ -998,12 +951,10 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
 
     with open(video, "rb") as f:
         encoded_string = f.read()
-    dateTimeStamp = time.strftime('%Y_%m_%d')  # in the format YYYYMMDDHHMMSS
     filename_no_ext, file_extension = os.path.splitext(filename)
     path = os.path.dirname(video)
-    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/{}".format(
-        credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
-    print(parameters["fields"]["key"])
+    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/{}".format(
+        credentials["MAPSettingsUserKey"], filename_no_ext, filename)
 
     data = dict(
         parameters=dict(
@@ -1020,7 +971,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
         data['parameters']['user_key'] = master_upload
 
     if not DRY_RUN:
-
+        print("Uploading...")
         for attempt in range(max_attempts):
             # Initialize response before each attempt
             response = None
@@ -1040,14 +991,14 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             finally:
                 if response is not None:
                     response.close()
-
+        # Upload Done file
         with open("{}/DONE".format(path), 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False)
 
             with open("{}/DONE".format(path), "rb") as f:
                 encoded_string = f.read()
-            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}_{}/DONE".format(
-                credentials["MAPSettingsUserKey"], dateTimeStamp, filename_no_ext, filename)
+            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/DONE".format(
+                credentials["MAPSettingsUserKey"], filename_no_ext, filename)
 
             for attempt in range(max_attempts):
                 # Initialize response before each attempt
@@ -1060,7 +1011,7 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                               '/uploaded/' + os.path.basename(video))
                     os.rename(gpx_path, os.path.dirname(video) +
                               '/uploaded/' + os.path.basename(gpx_path))
-
+                    print("Uploaded {} successfully".format(os.path.basename(video)))
                     break
                 except requests.exceptions.HTTPError as e:
                     print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
@@ -1073,4 +1024,3 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                         response.close()
     else:
         print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
-        print("VIDEO START TIME: {}".format(video_start_time))
