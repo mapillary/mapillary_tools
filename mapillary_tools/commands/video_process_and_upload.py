@@ -20,7 +20,9 @@ from mapillary_tools.insert_MAPJson import (
 from mapillary_tools.process_video import (
     add_video_arguments,
     sample_video)
-from mapillary_tools.upload import upload
+from mapillary_tools.upload import (
+    add_upload_arguments,
+    upload)
 from mapillary_tools.post_process import post_process
 
 
@@ -39,11 +41,7 @@ class Command:
         add_geotag_arguments(parser)
         add_sequence_arguments(parser)
         add_EXIF_insert_arguments(parser)
-
-        parser.add_argument(
-            '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
-        parser.add_argument(
-            '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
+        add_upload_arguments(parser)
 
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',

@@ -7,6 +7,19 @@ import json
 from exif_aux import verify_mapillary_tag
 from . import ipc
 
+def add_upload_arguments(parser):
+    parser.add_argument('--number_threads',
+        help='Specify the number of upload threads.',
+        type=int, default=None, required=False)
+    parser.add_argument('--max_attempts',
+        help='Specify the maximum number of attempts to upload.',
+        type=int, default=None, required=False)
+
+def add_dry_run_arguments(parser):
+    parser.add_argument('--dry_run',
+        help='Disable actual upload. Used for debugging only',
+        type=bool, default=False, required=False)
+
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):
     '''
     Upload local images to Mapillary

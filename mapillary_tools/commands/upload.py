@@ -1,5 +1,8 @@
 import inspect
-from mapillary_tools.upload import upload
+from mapillary_tools.upload import (
+    add_upload_arguments,
+    add_dry_run_arguments,
+    upload)
 from mapillary_tools.post_process import post_process
 
 
@@ -11,13 +14,8 @@ class Command:
         pass
 
     def add_advanced_arguments(self, parser):
-        parser.add_argument(
-            '--number_threads', help='Specify the number of upload threads.', type=int, default=None, required=False)
-        parser.add_argument(
-            '--max_attempts', help='Specify the maximum number of attempts to upload.', type=int, default=None, required=False)
-        parser.add_argument(
-            '--dry_run', help='Disable actual upload. Used for debugging only',type=bool, default=False, required=False)
-        
+        add_upload_arguments(parser)
+        add_dry_run_arguments(parser)
 
         # post process
         parser.add_argument('--summarize', help='Summarize import for given import path.',
