@@ -15,8 +15,6 @@ class Command:
     help = "Batch tool : Sample video into images and process image meta data and insert it in image EXIF ImageDescription."
 
     def add_basic_arguments(self, parser):
-        parser.add_argument(
-            '--rerun', help='rerun the processing', action='store_true', required=False)
         # user properties
         # user name for the import
         parser.add_argument("--user_name", help="user name", required=True)
@@ -27,8 +25,7 @@ class Command:
             '--organization_key', help="Specify organization key", default=None, required=False)
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
-        parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
+
         # video specific args
         parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
                             action='store', default=None, required=False)

@@ -66,3 +66,12 @@ def add_general_arguments(parser, command):
     parser.add_argument('--import_path',
         help='Path to your photos, or in case of video, path where the photos from video sampling will be saved.',
         required=required)
+    if command.startswith(("exif_insert", "extract_", "post_process", "process", "sample_video", "send_videos_for_processing", "video_process")):
+        parser.add_argument('--skip_subfolders',
+            help='Skip all subfolders and import only the images in the given directory path.',
+            action='store_true', default=False, required=False)
+
+    if command.startswith(("exif_insert", "extract_", "process", "video_process")):
+        parser.add_argument('--rerun',
+            help='Rerun the processing.',
+            action='store_true', required=False)

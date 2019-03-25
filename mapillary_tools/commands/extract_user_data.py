@@ -7,8 +7,6 @@ class Command:
     help = "Process unit tool : Extract and process user properties."
 
     def add_basic_arguments(self, parser):
-        parser.add_argument(
-            '--rerun', help='rerun the processing', action='store_true', required=False)
         # user name for the import
         parser.add_argument("--user_name", help="user name", required=True)
         # organization level parameters
@@ -18,8 +16,6 @@ class Command:
             '--organization_key', help="Specify organization key", default=None, required=False)
         parser.add_argument('--private',
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
-        parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 
     def add_advanced_arguments(self, parser):
         # master upload

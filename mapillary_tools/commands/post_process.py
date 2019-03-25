@@ -7,9 +7,7 @@ class Command:
     help = 'Post process tool : Post process for a given import path, including import summary and grouping/moving based on import status.'
 
     def add_basic_arguments(self, parser):
-
-        parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
+        pass
 
     def add_advanced_arguments(self, parser):
         # video

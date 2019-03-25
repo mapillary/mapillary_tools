@@ -8,10 +8,7 @@ class Command:
     help = "Main tool : Upload images to Mapillary."
 
     def add_basic_arguments(self, parser):
-
-        # command specific args
-        parser.add_argument(
-            '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
+        pass
 
     def add_advanced_arguments(self, parser):
         parser.add_argument(
