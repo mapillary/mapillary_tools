@@ -1,5 +1,9 @@
 import inspect
-from mapillary_tools.process_user_properties import process_user_properties
+from mapillary_tools.process_user_properties import (
+    add_user_arguments,
+    add_organization_arguments,
+    add_mapillary_arguments,
+    process_user_properties)
 from mapillary_tools.process_import_meta_properties import process_import_meta_properties
 from mapillary_tools.process_geotag_properties import process_geotag_properties
 from mapillary_tools.process_sequence_properties import process_sequence_properties
@@ -15,16 +19,8 @@ class Command:
     help = "Batch tool : Sample video into images and process image meta data and insert it in image EXIF ImageDescription."
 
     def add_basic_arguments(self, parser):
-        # user properties
-        # user name for the import
-        parser.add_argument("--user_name", help="user name", required=True)
-        # organization level parameters
-        parser.add_argument(
-            '--organization_username', help="Specify organization user name", default=None, required=False)
-        parser.add_argument(
-            '--organization_key', help="Specify organization key", default=None, required=False)
-        parser.add_argument('--private',
-                            help="Specify whether the import is private", action='store_true', default=False, required=False)
+        add_user_arguments(parser)
+        add_organization_arguments(parser)
 
         # video specific args
         parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
@@ -37,9 +33,8 @@ class Command:
                             type=int, default=None, required=False)
 
     def add_advanced_arguments(self, parser):
-        # master upload
-        parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
-                            action='store_true', default=False, required=False)
+        add_mapillary_arguments(parser)
+
         #import meta
         parser.add_argument(
             "--device_make", help="Specify device manufacturer. Note this input has precedence over the input read from the import source file.", default=None, required=False)

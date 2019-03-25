@@ -1,4 +1,4 @@
-
+from mapillary_tools.process_user_properties import add_mapillary_arguments
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 
 
@@ -10,9 +10,8 @@ class Command:
         pass
 
     def add_advanced_arguments(self, parser):
-        # master upload
-        parser.add_argument('--master_upload', help='Process images with a master key, note: only used by Mapillary employees',
-                            action='store_true', default=False, required=False)
+        add_mapillary_arguments(parser)
+
         parser.add_argument('--skip_EXIF_insert', help='Skip inserting the extracted data into image EXIF.',
                             action='store_true', default=False, required=False)
         parser.add_argument('--keep_original', help='Do not overwrite original images, instead save the processed images in a new directory called "processed_images" located in .mapillary in the import_path.',

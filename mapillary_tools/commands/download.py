@@ -1,5 +1,6 @@
 import sys
 import inspect
+from mapillary_tools.process_user_properties import add_user_arguments
 from mapillary_tools.download import download
 from mapillary_tools.download_blurred import download as download_blurred
 
@@ -14,9 +15,7 @@ either for a specified import path or by image keys.
         parser.add_argument("--output_folder",
                             help="Output folder for the downloaded images.",
                             required=True)
-        parser.add_argument("--user_name",
-                            help="user name",
-                            required=True)
+        add_user_arguments(parser)
         parser.add_argument("--by_property",
                             help="Image reference, either UUID or KEY",
                             type=str,
