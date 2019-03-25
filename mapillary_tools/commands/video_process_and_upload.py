@@ -9,7 +9,9 @@ from mapillary_tools.process_geotag_properties import process_geotag_properties
 from mapillary_tools.process_sequence_properties import process_sequence_properties
 from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
-from mapillary_tools.process_video import sample_video
+from mapillary_tools.process_video import (
+    add_video_arguments,
+    sample_video)
 from mapillary_tools.upload import upload
 from mapillary_tools.post_process import post_process
 
@@ -21,16 +23,7 @@ class Command:
     def add_basic_arguments(self, parser):
         add_user_arguments(parser)
         add_organization_arguments(parser)
-
-        # video specific args
-        parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
-                            action='store', default=None, required=False)
-        parser.add_argument('--video_sample_interval',
-                            help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
-        parser.add_argument("--video_duration_ratio",
-                            help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
-        parser.add_argument("--video_start_time", help="Video start time in epochs (milliseconds)",
-                            type=int, default=None, required=False)
+        add_video_arguments(parser)
 
     def add_advanced_arguments(self, parser):
         add_mapillary_arguments(parser)
