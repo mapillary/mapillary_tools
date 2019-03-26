@@ -103,7 +103,7 @@
 ### Features and improvements
 * mapillary_tools available to be downloaded and installed as a package
 
-## 0.4.0 (2018-10-01)
+## 0.4.0 (2019-01-10)
 
 ### Features and improvements
 * Improved upload stability
@@ -118,3 +118,15 @@
 
 ### Bug fixes
 * Store username in case authenticating manually
+
+## 0.5.0 (2019-03-27)
+
+### Features and improvements
+* Added command to send Blackvue videos directly to Mapillary
+* EXIF parsing improvements
+* Improve handling of video capture time
+* Allow GPX files without altitude data
+
+### Bug fixes
+
+* Fixed bug where orientation was ignored if it was 0
