@@ -444,7 +444,6 @@ def prompt_user_for_user_items(user_name):
 
     return user_items
 
-
 def authenticate_user(user_name):
     user_items = None
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
@@ -464,6 +463,33 @@ def authenticate_user(user_name):
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
 
+def authenticate_with_email_and_pwd(user_email,user_password):
+    '''
+    Authenticate the user by passing the email and password.
+    This function avoids prompting the command line for user credentials and is useful for calling tools programmatically
+    '''
+    if user_email is None or user_password is None:
+        raise ValueError('Could not authenticate user. Missing username or password')
+    upload_token = uploader.get_upload_token(user_email, user_password)
+    if not upload_token:
+        print("Authentication failed for user name " +
+                user_name + ", please try again.")
+        sys.exit(1)
+    user_key = get_user_key(user_name)
+    if not user_key:
+        print("User name {} does not exist, please try again or contact Mapillary user support.".format(
+            user_name))
+        sys.exit(1)
+    user_permission_hash, user_signature_hash = get_user_hashes(
+        user_key, upload_token)
+
+    user_items["MAPSettingsUsername"] = section
+    user_items["MAPSettingsUserKey"] = user_key
+
+    user_items["user_upload_token"] = upload_token
+    user_items["user_permission_hash"] = user_permission_hash
+    user_items["user_signature_hash"] = user_signature_hash
+    return user_items
 
 def get_master_key():
     master_key = ""
@@ -861,39 +887,17 @@ def filter_video_before_upload(video,filter_night_time=False):
                 print(
                     "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
         return False
-
 def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
             video_import_path))
         sys.exit(1)
-    # get user credentials, function authenticate_user, will prompt user if
-    # config doesnt exist or user is not in config, so first check if user
-    # passed email and password through args, otherwise call the usual
-    # authentication
+    # User Authentication    
+    credentials = None
     if user_email and user_password:
-        upload_token = uploader.get_upload_token(user_email, user_password)
-        if not upload_token:
-            print("Authentication failed for user name " +
-                  user_name + ", please try again.")
-            sys.exit(1)
-        user_key = get_user_key(user_name)
-        if not user_key:
-            print("User name {} does not exist, please try again or contact Mapillary user support.".format(
-                user_name))
-            sys.exit(1)
-        user_permission_hash, user_signature_hash = get_user_hashes(
-            user_key, upload_token)
-
-        user_items["MAPSettingsUsername"] = section
-        user_items["MAPSettingsUserKey"] = user_key
-
-        user_items["user_upload_token"] = upload_token
-        user_items["user_permission_hash"] = user_permission_hash
-        user_items["user_signature_hash"] = user_signature_hash
+        credentials = authenticate_with_email_and_pwd(user_email,user_password)
     else:
-        credentials = None
         try:
             credentials = authenticate_user(user_name)
         except:
@@ -902,8 +906,8 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             print("Error, user authentication failed for user " + user_name)
             sys.exit(1)
 
-        user_permission_hash = credentials["user_permission_hash"]
-        user_signature_hash = credentials["user_signature_hash"]
+    user_permission_hash = credentials["user_permission_hash"]
+    user_signature_hash = credentials["user_signature_hash"]
 
     response = get_upload_url(credentials)
     request_params = response['videos']
@@ -942,7 +946,6 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
                 datetime.timedelta(hours=hours_diff_to_utc)
             video_start_timestamp = int(
                 (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
-
             upload_video_for_processing(
                 video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
 

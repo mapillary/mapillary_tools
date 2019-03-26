@@ -112,7 +112,6 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
                     #After parsing all points, fix timedate issues
                     if use_nmea_stream_timestamp==False:
                         # If we use the camera timestamp, we need to get the timezone offset, since Mapillary backend expects UTC timestamps
-                        # TODO: There seems to be a 1h difference between nmea and camera timestamp even after this.                    
                         first_gps_timestamp = datetime.datetime.combine(first_gps_date, first_gps_time)
                         delta_t = points[0][0]-first_gps_timestamp
                         if delta_t.days>0:
