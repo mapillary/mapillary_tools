@@ -121,6 +121,15 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
         print("All files are downloaded")
         return True
 
+def add_download_basic_arguments(parser):
+    parser.add_argument('--output_folder',
+        help='Output folder for the downloaded images.',
+        required=True)
+
+def add_download_advanced_arguments(parser):
+    parser.add_argument('--number_threads',
+        help='Specify the number of download threads.',
+        type=int, default=10, required=False)
 
 def download(import_path, user_name, output_folder, number_threads=10, verbose=False):
     total_files = uploader.get_total_file_list(import_path)

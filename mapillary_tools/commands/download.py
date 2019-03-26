@@ -1,7 +1,10 @@
 import sys
 import inspect
 from mapillary_tools.process_user_properties import add_user_arguments
-from mapillary_tools.download import download
+from mapillary_tools.download import (
+    add_download_basic_arguments,
+    add_download_advanced_arguments,
+    download)
 from mapillary_tools.download_blurred import download as download_blurred
 
 
@@ -12,10 +15,8 @@ either for a specified import path or by image keys.
 '''
 
     def add_basic_arguments(self, parser):
-        parser.add_argument("--output_folder",
-                            help="Output folder for the downloaded images.",
-                            required=True)
         add_user_arguments(parser)
+        add_download_basic_arguments(parser)
         parser.add_argument("--by_property",
                             help="Image reference, either UUID or KEY",
                             type=str,
@@ -34,12 +35,7 @@ either for a specified import path or by image keys.
                             default='true')
 
     def add_advanced_arguments(self, parser):
-        parser.add_argument(
-            '--number_threads',
-            help='Specify the number of download threads.',
-            type=int,
-            default=10,
-            required=False)
+        add_download_advanced_arguments(parser)
 
     def run(self, args):
 
