@@ -298,7 +298,7 @@ def write_gpx(filename, gps_trace):
 
 
 def get_timezone_and_utc_offset(lat, lon):
-    tz = tzwhere.tzwhere() #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
+    tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
     timezone_str = tz.tzNameAt(lat, lon)
     if timezone_str is not None:
         timezone = pytz.timezone(timezone_str)
@@ -306,4 +306,4 @@ def get_timezone_and_utc_offset(lat, lon):
         return [timezone_str, timezone.utcoffset(dt)]
     else:
         print("ERROR: Could not determine timezone")
-        return None
+        return [None, None]

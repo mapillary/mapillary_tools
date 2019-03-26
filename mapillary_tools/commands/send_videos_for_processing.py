@@ -34,7 +34,9 @@ class Command:
     def add_advanced_arguments(self, parser):
         parser.add_argument(
             "--master_upload", help="Uploading on behalf of someone else. Specify end user account where images must be assigned. Internal user only", default=None, required=False)
-
+        parser.add_argument(
+            '--filter_night_time', help="Unsupported feature. Filter images taken between sunset and sunrise", action='store_true', default=False, required=False)
+        
     def run(self, args):
         vars_args = vars(args)
         send_videos_for_processing(

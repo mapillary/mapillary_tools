@@ -785,7 +785,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     return lines
 
 
-def filter_video_before_upload(video):
+def filter_video_before_upload(video,filter_night_time=False):
     if not get_blackvue_info(video)['is_Blackvue_video']:
         print("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
         return True
@@ -819,31 +819,37 @@ def filter_video_before_upload(video):
     if not isStationaryVid:
         gpx_points = get_points_from_bv(video)
         gps_video_start_time = gpx_points[0][0]
-
-        # Check if video was taken at night
-        try:
-            _, local_timezone_offset = get_timezone_and_utc_offset(
-                gpx_points[0][1], gpx_points[0][2])
-            local_video_datetime = video_start_time + local_timezone_offset
-            if local_video_datetime.time() < datetime.time(9, 0, 0) or local_video_datetime.time() > datetime.time(18, 0, 0):
-                if os.path.basename(os.path.dirname(video)) != 'nighttime':
-                    night_time_folder = os.path.dirname(
-                        video) + '/nighttime/'
-                if not os.path.exists(night_time_folder):
-                    os.mkdir(night_time_folder)
-                os.rename(video, night_time_folder +
-                            os.path.basename(video))
-                os.rename(gpx_file_path, night_time_folder +
-                            os.path.basename(gpx_file_path))
+        if filter_night_time == True:
+            # Unsupported feature: Check if video was taken at night
+            # TODO: Calculate sun incidence angle and decide based on threshold angle
+            sunrise_time = 9
+            sunset_time = 18
+            try:
+                timeZoneName, local_timezone_offset = get_timezone_and_utc_offset(
+                    gpx_points[0][1], gpx_points[0][2])
+                if timeZoneName is None:
+                    print("Could not determine local time. Video will be uploaded")
+                    return False
+                local_video_datetime = video_start_time + local_timezone_offset
+                if local_video_datetime.time() < datetime.time(sunrise_time, 0, 0) or local_video_datetime.time() > datetime.time(sunset_time, 0, 0):
+                    if os.path.basename(os.path.dirname(video)) != 'nighttime':
+                        night_time_folder = os.path.dirname(
+                            video) + '/nighttime/'
+                    if not os.path.exists(night_time_folder):
+                        os.mkdir(night_time_folder)
+                    os.rename(video, night_time_folder +
+                                os.path.basename(video))
+                    os.rename(gpx_file_path, night_time_folder +
+                                os.path.basename(gpx_file_path))
+                    print(
+                        "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
+                    return True
+            except Exception as e:
                 print(
-                    "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
-                return True
-        except Exception as e:
-            print(
-                "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
+                    "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
         return False
 
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -918,7 +924,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        if not filter_video_before_upload(video):
+        if not filter_video_before_upload(video,filter_night_time):
             video_start_time = get_video_start_time_blackvue(video)
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into
