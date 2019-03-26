@@ -216,7 +216,11 @@ or
 ```bash
 mapillary_tools video_process_and_upload --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "gpx" --geotag_source_path "path/to/gpx_file" --overwrite_all_EXIF_tags
 ```
-
+### Direct video upload for Blackvue Images
+ - Upload videos located in `path/to/videos` directly to Mapillary. Videos are moved to `path/to/videos/uploaded` folder after upload. Videos that do not contain valid imagery are not uploaded to save bandwitdh. No sampling is performed locally on the device so no extra disk space is required. This command is currently available only for Blackvue DRS900 front camera video.
+ ```bash
+ mapillary_tools send_videos_for_processing --advanced --video_import_path "path/to/videos" --user_name "username_at_mapillary"
+```
 ### Process csv
  - Insert image capture time and gps data from a csv file, based on filename:
 
