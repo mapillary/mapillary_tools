@@ -53,7 +53,7 @@ To upload images to Mapillary, image `GPS` and `capture time` are minimally requ
 
 ### Videos
 
-To upload videos to Mapillary, videos are sampled into images and tagged with image `GPS` and `capture time`. Use the [`send_videos_for_processing`](Direct-Upload-Recommended) command for Blackvue cameras. For all other models use [Video Sampling and Upload](Video-Sampling-and-Upload)
+To upload videos to Mapillary, videos are sampled into images and tagged with image `GPS` and `capture time`. Use the [`send_videos_for_processing`](#direct-upload-recommended) command for Blackvue cameras. For all other models use [Video Sampling and Upload](Video-Sampling-and-Upload)
 More information [here](https://help.mapillary.com/hc/en-us/articles/115001485045-Video-uploads).
 
 ## Usage
