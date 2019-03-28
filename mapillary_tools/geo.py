@@ -5,7 +5,6 @@ import math
 
 import datetime
 import pytz
-from tzwhere import tzwhere
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
@@ -300,6 +299,9 @@ def write_gpx(filename, gps_trace):
 
 
 def get_timezone_and_utc_offset(lat, lon):
+    #TODO Importing inside function because tzwhere is a temporary solution and dependency fails to install on windows
+    from tzwhere import tzwhere 
+
     tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
     timezone_str = tz.tzNameAt(lat, lon)
     if timezone_str is not None:
