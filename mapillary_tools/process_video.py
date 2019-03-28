@@ -7,6 +7,9 @@ import sys
 import uploader
 from tqdm import tqdm
 import logging
+import io
+import struct
+from pymp4.parser import Box
 
 from exif_write import ExifEdit
 
@@ -184,8 +187,8 @@ def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time
             continue
 
 
-def get_video_start_time(video_file):
-    """Get video start time in seconds"""
+def get_video_end_time(video_file):
+    """Get video end time in seconds"""
     if not os.path.isfile(video_file):
         print("Error, video file {} does not exist".format(video_file))
         return None
@@ -200,3 +203,49 @@ def get_video_start_time(video_file):
     except:
         return None
     return creation_time
+
+
+def get_video_start_time(video_file):
+    """Get start time in seconds"""
+    if not os.path.isfile(video_file):
+        print("Error, video file {} does not exist".format(video_file))
+        return None
+    video_end_time = get_video_end_time(video_file)
+    duration = get_video_duration(video_file)
+    if video_end_time == None or duration == None:
+        return None
+    else:
+        video_start_time = (
+            video_end_time - datetime.timedelta(seconds=duration))
+        return video_start_time
+
+
+def get_video_start_time_blackvue(video_file):
+    fd = open(video_file, 'rb')
+
+    fd.seek(0, io.SEEK_END)
+    eof = fd.tell()
+    fd.seek(0)
+
+    while fd.tell() < eof:
+        box = Box.parse_stream(fd)
+        if box.type.decode('utf-8') == "moov":
+            fd.seek(box.offset + 8, 0)
+
+            size = struct.unpack('>I', fd.read(4))[0]
+            typ = fd.read(4)
+
+            fd.seek(4, os.SEEK_CUR)
+
+            creation_time = struct.unpack('>I', fd.read(4))[0]
+            modification_time = struct.unpack('>I', fd.read(4))[0]
+            time_scale = struct.unpack('>I', fd.read(4))[0]
+            duration = struct.unpack('>I', fd.read(4))[0]
+
+            # from documentation
+            # in seconds since midnight, January 1, 1904
+            video_start_time_epoch = creation_time * 1000 - duration
+            epoch_start = datetime.datetime(year=1904, month=1, day=1)
+            video_start_time = epoch_start + \
+                datetime.timedelta(milliseconds=video_start_time_epoch)
+            return video_start_time

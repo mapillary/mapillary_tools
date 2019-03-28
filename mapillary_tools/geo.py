@@ -2,6 +2,11 @@
 
 import datetime
 import math
+
+import datetime
+import pytz
+from tzwhere import tzwhere
+
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
@@ -41,6 +46,49 @@ def gps_distance(latlon_1, latlon_2):
     dis = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
     return dis
+
+
+def get_max_distance_from_start(latlon_track):
+    '''
+    Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
+    Takes a sequence of points as input
+    '''
+    latlon_list = []
+    # Remove timestamps from list
+    for idx, point in enumerate(latlon_track):
+        lat = latlon_track[idx][1]
+        lon = latlon_track[idx][2]
+        alt = latlon_track[idx][3]
+        latlon_list.append([lat, lon, alt])
+
+    start_position = latlon_list[0]
+    max_distance = 0
+    for position in latlon_list:
+        distance = gps_distance(start_position, position)
+        if distance > max_distance:
+            max_distance = distance
+    return max_distance
+
+
+def get_total_distance_traveled(latlon_track):
+    '''
+    Returns the total distance traveled of a GPS track. Used to calculate whether or not the entire sequence was just stationary video
+    Takes a sequence of points as input
+    '''
+    latlon_list = []
+    # Remove timestamps from list
+    for idx, point in enumerate(latlon_track):
+        lat = latlon_track[idx][1]
+        lon = latlon_track[idx][2]
+        alt = latlon_track[idx][3]
+        latlon_list.append([lat, lon, alt])
+
+    total_distance = 0
+    last_position = latlon_list[0]
+    for position in latlon_list:
+        total_distance += gps_distance(last_position, position)
+        last_position = position
+    return total_distance
 
 
 def gps_speed(distance, delta_t):
@@ -249,3 +297,15 @@ def write_gpx(filename, gps_trace):
     gpx += "</gpx>" + "\n"
     with open(filename, "w") as fout:
         fout.write(gpx)
+
+
+def get_timezone_and_utc_offset(lat, lon):
+    tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
+    timezone_str = tz.tzNameAt(lat, lon)
+    if timezone_str is not None:
+        timezone = pytz.timezone(timezone_str)
+        dt = datetime.datetime.utcnow()
+        return [timezone_str, timezone.utcoffset(dt)]
+    else:
+        print("ERROR: Could not determine timezone")
+        return [None, None]

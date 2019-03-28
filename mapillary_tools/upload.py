@@ -7,7 +7,7 @@ import json
 from exif_aux import verify_mapillary_tag
 from . import ipc
 
-def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False):
+def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):
     '''
     Upload local images to Mapillary
     Args:
@@ -98,7 +98,8 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
 
             print("Uploading {} images with valid mapillary tags (Skipping {})".format(
                 len(upload_file_list), len(total_file_list) - len(upload_file_list)))
-
+            if api_version==2.0:
+                uploder.uploadfile_list
             if len(direct_upload_file_list):
                 uploader.upload_file_list_direct(
                     direct_upload_file_list, number_threads, max_attempts)
