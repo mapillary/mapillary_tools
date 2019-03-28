@@ -128,13 +128,17 @@
 
 ### Features and improvements
  * Enable JWT authentication to support desktop uploader
-## 0.5.0 (2019-03-27)
+
+## 0.5.0 (2019-03-28)
 
 ### Features and improvements
-* Added command to send Blackvue videos directly to Mapillary
-* EXIF parsing improvements
-* Improve handling of video capture time
+* Added command to upload Blackvue DR900S videos directly to Mapillary
+* Added download of images selected by image key
 * Allow GPX files without altitude data
+* More robust support of irregular time formats in EXIF
+* Add argument to skip subfolders to all commands
+* More robust support for filenames including irregular characters on different platforms
+* Improve error information display
 
 ### Bug fixes
 
