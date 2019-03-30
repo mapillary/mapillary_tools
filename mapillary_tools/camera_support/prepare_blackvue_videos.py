@@ -50,13 +50,18 @@ def get_blackvue_info(video_file):
         response['model_info'] = video_details[1]
         response['firmware_version']  = video_details[2]
         response['language'] = video_details[3]
-        if int(video_details[4])==1:
+        #Firmwares before 1.004 don't have a separate field for front and back, just a long string.
+        #Assuming that first byte represents front and back
+        if int(video_details[4][0])==1:
             response['camera_direction'] = 'Front'
-        elif int(video_details[4])==2:
+        elif int(video_details[4][0])==2:
             response['camera_direction'] = 'Back'
-        # Check that string is actually the SN, it could be missing since some firmware don't output it
-        if video_details[5][0:2]==response['model_info'][0:2]:
-            response['serial_number'] = video_details[5]
-        else:
+        try:
+            # Check that string is actually the SN, it could be missing since some firmwares don't output it
+            if video_details[5][0:2]==response['model_info'][0:2]:
+                response['serial_number'] = video_details[5]
+            else:
+                response['serial_number'] = None
+        except:
             response['serial_number'] = None
     return response
