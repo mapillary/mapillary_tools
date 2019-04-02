@@ -67,7 +67,7 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
                         continue
                     if alt is not None and lat is not None and lon is not None and wp_datetime is not None and times[0] <= wp_datetime <= times[-1]:
                         points.append((wp_datetime, lat, lon, alt))
-                vids[vid_id] = (times[0], sorted(points))
+                vids[int(vid_id)] = (times[0], sorted(points))
 
         except ValueError:
             if verbose:
