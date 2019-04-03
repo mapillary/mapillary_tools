@@ -305,11 +305,14 @@ def geotag_from_garmin_fit(process_file_list,
                                    "geotag_process",
                                    "failed",
                                    verbose=verbose)
-        if vid_id != int(image.split(os.sep)[-2][-3:]):
-            vid_id = int(image.split(os.sep)[-2][-3:])
+        if vid_id != image.split(os.sep)[-2][-3:]:
+            vid_id = image.split(os.sep)[-2][-3:]
             start_time = capture_time
         try:
-            gps_trace = videos_gps[vid_id][1]
+            try:
+                gps_trace = videos_gps[int(vid_id)][1]
+            except:
+                gps_trace = video_gps[vid_id][1]
             # create offset using the start camera_event from the fit file to correct the image timestamp
             offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
         except:
