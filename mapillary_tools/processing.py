@@ -309,12 +309,14 @@ def geotag_from_garmin_fit(process_file_list,
             vid_id = image.split(os.sep)[-2][-3:]
             start_time = capture_time
         try:
+            # create offset using the start camera_event from the fit file to correct the image timestamp
             try:
                 gps_trace = videos_gps[int(vid_id)][1]
+                offset_time = (start_time - videos_gps[int(vid_id)][0]).total_seconds()
             except:
                 gps_trace = video_gps[vid_id][1]
-            # create offset using the start camera_event from the fit file to correct the image timestamp
-            offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
+                offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
+
         except:
             print("Warning: Cant' correlate image {} with gps.".format(image))
             continue
