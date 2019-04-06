@@ -153,10 +153,10 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
         return points
 
 def is_video_stationary(max_distance_from_start,total_distance_traveled):
-    radius_treshold = 10
+    radius_threshold = 10
     accumulated_distance_threshold = 20
 
-    if (max_distance_from_start < radius_treshold or accumulated_distance_threshold < accumulated_distance_threshold):
+    if (max_distance_from_start < radius_threshold or accumulated_distance_threshold < accumulated_distance_threshold):
         return True
     else:
         return False
