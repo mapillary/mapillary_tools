@@ -19,7 +19,6 @@ Pulls geo data out of a BlackVue video files
 
 def get_points_from_bv(path,use_nmea_stream_timestamp=False):
     points = []
-
     with open(path, 'rb') as fd:
 
         fd.seek(0, io.SEEK_END)
