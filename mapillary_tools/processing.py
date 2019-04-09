@@ -320,6 +320,7 @@ def geotag_from_gps_trace(process_file_list,
                                    "geotag_process",
                                    "failed",
                                    verbose=verbose)
+            continue
 
         geotag_properties = get_geotag_properties_from_gps_trace(
             image, capture_time, gps_trace, offset_angle, offset_time, verbose)

@@ -232,6 +232,8 @@ class ExifRead:
         gps_time = 0
         if gps_date_field in self.tags and gps_time_field in self.tags:
             date = str(self.tags[gps_date_field].values).split(":")
+            if int(date[0]) == 0 or int(date[1]) == 0 or int(date[2]) == 0:
+                return None
             t = self.tags[gps_time_field]
             gps_time = datetime.datetime(
                 year=int(date[0]),
@@ -325,7 +327,7 @@ class ExifRead:
         '''
         fields = ['Image Software']
         software, _ = self._extract_alternative_fields(
-            fields,default="",field_type=str)
+            fields, default="", field_type=str)
         return software
 
     def extract_orientation(self):
