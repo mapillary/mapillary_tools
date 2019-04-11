@@ -23,7 +23,6 @@ from . import ipc
 from .error import print_error
 from .utils import force_decode
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
-from process_video import get_video_duration
 from process_video import get_video_start_time_blackvue
 from geo import get_timezone_and_utc_offset
 from camera_support.prepare_blackvue_videos import get_blackvue_info
@@ -444,6 +443,7 @@ def prompt_user_for_user_items(user_name):
 
     return user_items
 
+
 def authenticate_user(user_name):
     user_items = None
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
@@ -463,17 +463,19 @@ def authenticate_user(user_name):
         GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
 
-def authenticate_with_email_and_pwd(user_email,user_password):
+
+def authenticate_with_email_and_pwd(user_email, user_password):
     '''
     Authenticate the user by passing the email and password.
     This function avoids prompting the command line for user credentials and is useful for calling tools programmatically
     '''
     if user_email is None or user_password is None:
-        raise ValueError('Could not authenticate user. Missing username or password')
+        raise ValueError(
+            'Could not authenticate user. Missing username or password')
     upload_token = uploader.get_upload_token(user_email, user_password)
     if not upload_token:
         print("Authentication failed for user name " +
-                user_name + ", please try again.")
+              user_name + ", please try again.")
         sys.exit(1)
     user_key = get_user_key(user_name)
     if not user_key:
@@ -490,6 +492,7 @@ def authenticate_with_email_and_pwd(user_email,user_password):
     user_items["user_permission_hash"] = user_permission_hash
     user_items["user_signature_hash"] = user_signature_hash
     return user_items
+
 
 def get_master_key():
     master_key = ""
@@ -830,19 +833,19 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
     return lines
 
 
-def filter_video_before_upload(video,filter_night_time=False):
+def filter_video_before_upload(video, filter_night_time=False):
     try:
         if not get_blackvue_info(video)['is_Blackvue_video']:
             print("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
             return True
-        if get_blackvue_info(video)['camera_direction']!='Front':
+        if get_blackvue_info(video)['camera_direction'] != 'Front':
             print("ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
             return True
     except:
         print("ERROR: Unable to determine video details, skipping video")
         return True
     [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
-            video, use_nmea_stream_timestamp=False)
+        video, use_nmea_stream_timestamp=False)
     video_start_time = get_video_start_time_blackvue(video)
 
     if isStationaryVid:
@@ -861,7 +864,7 @@ def filter_video_before_upload(video,filter_night_time=False):
                 os.mkdir(stationary_folder)
             os.rename(video, stationary_folder + os.path.basename(video))
             os.rename(gpx_file_path, stationary_folder +
-                        os.path.basename(gpx_file_path))
+                      os.path.basename(gpx_file_path))
         print("Skipping file {} due to camera being stationary".format(video))
         return True
 
@@ -870,7 +873,8 @@ def filter_video_before_upload(video,filter_night_time=False):
         gps_video_start_time = gpx_points[0][0]
         if filter_night_time == True:
             # Unsupported feature: Check if video was taken at night
-            # TODO: Calculate sun incidence angle and decide based on threshold angle
+            # TODO: Calculate sun incidence angle and decide based on threshold
+            # angle
             sunrise_time = 9
             sunset_time = 18
             try:
@@ -887,9 +891,9 @@ def filter_video_before_upload(video,filter_night_time=False):
                     if not os.path.exists(night_time_folder):
                         os.mkdir(night_time_folder)
                     os.rename(video, night_time_folder +
-                                os.path.basename(video))
+                              os.path.basename(video))
                     os.rename(gpx_file_path, night_time_folder +
-                                os.path.basename(gpx_file_path))
+                              os.path.basename(gpx_file_path))
                     print(
                         "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
                     return True
@@ -897,6 +901,8 @@ def filter_video_before_upload(video,filter_night_time=False):
                 print(
                     "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
         return False
+
+
 def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
@@ -906,7 +912,8 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     # User Authentication
     credentials = None
     if user_email and user_password:
-        credentials = authenticate_with_email_and_pwd(user_email,user_password)
+        credentials = authenticate_with_email_and_pwd(
+            user_email, user_password)
     else:
         try:
             credentials = authenticate_user(user_name)
@@ -940,7 +947,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        if not filter_video_before_upload(video,filter_night_time):
+        if not filter_video_before_upload(video, filter_night_time):
             video_start_time = get_video_start_time_blackvue(video)
             # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
             # Only hours are corrected, so that second offsets are taken into
@@ -1004,10 +1011,12 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                     create_upload_log(video, "upload_success")
                 break
             except requests.exceptions.HTTPError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
                 time.sleep(5)
             except requests.exceptions.ConnectionError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
+                    e, filename, max_attempts - attempt - 1))
                 time.sleep(5)
             finally:
                 if response is not None:
@@ -1032,13 +1041,16 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
                               '/uploaded/' + os.path.basename(video))
                     os.rename(gpx_path, os.path.dirname(video) +
                               '/uploaded/' + os.path.basename(gpx_path))
-                    print("Uploaded {} successfully".format(os.path.basename(video)))
+                    print("Uploaded {} successfully".format(
+                        os.path.basename(video)))
                     break
                 except requests.exceptions.HTTPError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
+                        e, filename, max_attempts - attempt - 1))
                     time.sleep(5)
                 except requests.exceptions.ConnectionError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
+                        e, filename, max_attempts - attempt - 1))
                     time.sleep(5)
                 finally:
                     if response is not None:
