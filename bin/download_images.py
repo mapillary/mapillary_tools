@@ -10,7 +10,7 @@ BASE_DIR = 'downloaded/'
 # See https://www.mapillary.com/developer/api-documentation/
 MAPILLARY_API_IM_SEARCH_URL = 'https://a.mapillary.com/v3/images?'
 MAPILLARY_API_IM_RETRIEVE_URL = 'https://images.mapillary.com/'
-CLIENT_ID = 'TG1sUUxGQlBiYWx2V05NM0pQNUVMQTo2NTU3NTBiNTk1NzM1Y2U2'
+CLIENT_ID = 'MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh'
 
 
 '''
@@ -77,8 +77,8 @@ def download_images(query, path, size=1024):
             print("Successfully downloaded: {0}".format(filename))
         except KeyboardInterrupt:
             break
-        except:
-            print("Failed to download: {0}".format(filename))
+        except Exception as e:
+            print("Failed to download: {} due to {}".format(filename, e))
 
     return im_list
 
