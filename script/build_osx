@@ -6,3 +6,10 @@ pip install -r requirements.txt
 pyinstaller --onefile --windowed mapillary_tools.spec
 
 deactivate
+
+if [ "$BRANCH_NAME" = "master" ]; then
+    zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README_osx_package.txt
+    aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
+else
+    echo "Will NOT publish branch $BRANCH_NAME. Only master is published to s3"
+fi
