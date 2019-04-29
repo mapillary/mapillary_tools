@@ -69,7 +69,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
         if not len(upload_file_list) and not len(to_finalize_file_list):
             print("No images to upload.")
             print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
-            sys.exit(1)
+            # sys.exit(1)
 
         if len(upload_file_list):
             # get upload params for the manual upload images, group them per sequence
