@@ -395,7 +395,7 @@ Process unit commands are commands executed by the `process` command. Usage of p
 
 #### `authenticate`
 
-`authenticate` will update the user credentials stored in `/.config/mapillary/config`. Mapillary acount `user_name`, `user_email` and `user_passoword` are required and can either be passed as arguments to the command or left unspecified and entered upon prompt.
+`authenticate` will update the user credentials stored in `~/.config/mapillary/config`. Mapillary acount `user_name`, `user_email` and `user_password` are required and can either be passed as arguments to the command or left unspecified and entered upon prompt.
 
 #### `interpolate`
 

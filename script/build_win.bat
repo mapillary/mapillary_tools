@@ -3,9 +3,6 @@ pip install pyinstaller
 pyinstaller --distpath dist\win --onefile --windowed mapillary_tools.spec 
 
 mkdir publisih\win
-
-dir publish\
-
 xcopy dist\win\mapillary_tools.exe publish\win\
 
-dir publish\
+IF "%BRANCH_NAME%" == "master" (aws s3 cp publish/win/mapillary_tools.exe s3://tools.mapillary.com/binary/win/mapillary_tools.exe) ELSE (echo "Will NOT publish branch %BRANCH_NAME%. Only master is published to s3")
