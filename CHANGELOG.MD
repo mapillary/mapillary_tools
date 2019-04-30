@@ -129,7 +129,17 @@
 ### Features and improvements
  * Enable JWT authentication to support desktop uploader
  
- ## 0.4.4 (YYYY-MM-DD)
- 
- ### Features and improvements
- * Add a way to download blurred original which were uploaded privately to an organization (See `download` command documentation)
+## 0.5.0 (2019-03-28)
+
+### Features and improvements
+* Added command to upload Blackvue DR900S videos directly to Mapillary
+* Added download of blurred images uploaded by the authenticated user 
+* Allow GPX files without altitude data
+* More robust support of irregular time formats in EXIF
+* Add argument to skip subfolders to all commands
+* More robust support for filenames including irregular characters on different platforms
+* Improve error information display
+
+### Bug fixes
+
+* Fixed bug where orientation was ignored if it was 0
