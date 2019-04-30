@@ -133,7 +133,7 @@
 
 ### Features and improvements
 * Added command to upload Blackvue DR900S videos directly to Mapillary
-* Added download of images selected by image key
+* Added download of blurred images uploaded by the authenticated user 
 * Allow GPX files without altitude data
 * More robust support of irregular time formats in EXIF
 * Add argument to skip subfolders to all commands
