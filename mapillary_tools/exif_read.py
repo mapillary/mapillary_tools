@@ -137,9 +137,15 @@ class ExifRead:
         '''
         Extract altitude
         '''
+        altitude_ref = {
+            0: 1,
+            1: -1}
         fields = ['GPS GPSAltitude', 'EXIF GPS GPSAltitude']
+        refs = ['GPS GPSAltitudeRef', 'EXIF GPS GPSAltitudeRef']
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
-        return altitude
+        ref = 0 if not any([True for x in refs if x in self.tags]) else [
+            self.tags[x].values for x in refs if x in self.tags][0][0]
+        return altitude * altitude_ref[ref]
 
     def extract_capture_time(self):
         '''
@@ -166,6 +172,7 @@ class ExifRead:
             capture_time = capture_time.replace(":", "_")
             capture_time = capture_time.replace(".", "_")
             capture_time = capture_time.replace("-", "_")
+            capture_time = capture_time.replace(",", "_")
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()])
             capture_time, subseconds = format_time(capture_time)
@@ -225,6 +232,8 @@ class ExifRead:
         gps_time = 0
         if gps_date_field in self.tags and gps_time_field in self.tags:
             date = str(self.tags[gps_date_field].values).split(":")
+            if int(date[0]) == 0 or int(date[1]) == 0 or int(date[2]) == 0:
+                return None
             t = self.tags[gps_time_field]
             gps_time = datetime.datetime(
                 year=int(date[0]),
@@ -311,6 +320,15 @@ class ExifRead:
         model, _ = self._extract_alternative_fields(
             fields, default='none', field_type=str)
         return model
+
+    def extract_firmware(self):
+        '''
+        Extract camera firmware (tag is called 'software' in EXIF)
+        '''
+        fields = ['Image Software']
+        software, _ = self._extract_alternative_fields(
+            fields, default="", field_type=str)
+        return software
 
     def extract_orientation(self):
         '''

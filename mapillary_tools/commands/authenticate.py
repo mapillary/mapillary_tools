@@ -21,6 +21,8 @@ class Command:
             '--user_key', help='Manually specify user key', default=False, required=False)
         parser.add_argument(
             '--force_overwrite', help='Automatically overwrite any existing credentials stored in the config file for the specified user.', action='store_true', default=False, required=False)
+        parser.add_argument(
+            '--api_version', help='Choose which Mapillary API version to use', default=1.0, required=False)
 
     def add_advanced_arguments(self, parser):
         pass

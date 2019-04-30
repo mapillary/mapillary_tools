@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 /usr/local/bin/virtualenv venv
 source venv/bin/activate
@@ -12,3 +13,9 @@ deactivate
 mkdir -p publish/
 mv dist/osx publish
 
+if [ "$BRANCH_NAME" = "master" ]; then
+    zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README_osx_package.txt
+    aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
+else
+    echo "Will NOT publish branch $BRANCH_NAME. Only master is published to s3"
+fi

@@ -9,8 +9,8 @@ import argparse
 BASE_DIR = 'downloaded/'
 # See https://www.mapillary.com/developer/api-documentation/
 MAPILLARY_API_IM_SEARCH_URL = 'https://a.mapillary.com/v3/images?'
-MAPILLARY_API_IM_RETRIEVE_URL = 'https://d1cuyjsrcm0gby.cloudfront.net/'
-CLIENT_ID = 'TG1sUUxGQlBiYWx2V05NM0pQNUVMQTo2NTU3NTBiNTk1NzM1Y2U2'
+MAPILLARY_API_IM_RETRIEVE_URL = 'https://images.mapillary.com/'
+CLIENT_ID = 'MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh'
 
 
 '''
@@ -39,7 +39,7 @@ def query_search_api(min_lat, max_lat, min_lon, max_lon, max_results):
         [CLIENT_ID, ','.join([str(min_lon), str(min_lat), str(
             max_lon), str(max_lat)]), str(max_results)]
     ))
-    print(MAPILLARY_API_IM_SEARCH_URL + params)
+    #print(MAPILLARY_API_IM_SEARCH_URL + params)
 
     # Get data from server, then parse JSON
     query = urllib2.urlopen(MAPILLARY_API_IM_SEARCH_URL + params).read()
@@ -68,7 +68,7 @@ def download_images(query, path, size=1024):
         try:
             # Get image and save to disk
             image = urllib.URLopener()
-            image.retrieve(url, path + filename)
+            image.retrieve(url, os.path.join(path, filename))
 
             # Log filename and GPS location
             coords = ",".join(map(str, im['geometry']['coordinates']))
@@ -77,8 +77,8 @@ def download_images(query, path, size=1024):
             print("Successfully downloaded: {0}".format(filename))
         except KeyboardInterrupt:
             break
-        except:
-            print("Failed to download: {0}".format(filename))
+        except Exception as e:
+            print("Failed to download: {} due to {}".format(filename, e))
 
     return im_list
 
@@ -97,6 +97,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_results', type=int, default=400)
     parser.add_argument('--image_size', type=int,
                         default=1024, choices=[320, 640, 1024, 2048])
+    parser.add_argument('--output_path', default=None, required=False)
     args = parser.parse_args()
 
     # query api
@@ -104,13 +105,16 @@ if __name__ == '__main__':
                              args.min_lon, args.max_lon, args.max_results)
 
     # create directories for saving
-    create_dirs(BASE_DIR)
-
+    if not args.output_path:
+        output_path = BASE_DIR
+        create_dirs(BASE_DIR)
+    else:
+        output_path = args.output_path
     # download
     downloaded_list = download_images(
-        query, path=BASE_DIR, size=args.image_size)
+        query, path=output_path, size=args.image_size)
 
     # save filename with lat, lon
-    with open(BASE_DIR + "downloaded.txt", "w") as f:
+    with open(os.path.join(output_path, "downloaded.txt"), "w") as f:
         for data in downloaded_list:
             f.write(",".join(data) + "\n")

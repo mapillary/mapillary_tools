@@ -187,7 +187,7 @@ def geotag_from_gopro_video(process_file_list,
         except Exception as e:
             print_error("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
                 gopro_video, e))
-            sys.exit(1)
+            continue
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
             gopro_video_filename, gopro_video_filename + "_") in x]
@@ -229,14 +229,16 @@ def geotag_from_blackvue_video(process_file_list,
         blackvue_video_filename = os.path.basename(blackvue_video).replace(
             ".mp4", "").replace(".MP4", "")
         try:
-            gpx_path = gpx_from_blackvue(blackvue_video)
+            [gpx_path, is_stationary_video] = gpx_from_blackvue(
+                blackvue_video, use_nmea_stream_timestamp=False)
             if not gpx_path or not os.path.isfile(gpx_path):
                 raise Exception
         except Exception as e:
             print_error("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
                 blackvue_video, e))
-            sys.exit(1)
-
+        if is_stationary_video:
+            print_error("Warning: Skipping stationary video")
+            continue
         process_file_sublist = [x for x in process_file_list if os.path.join(
             blackvue_video_filename, blackvue_video_filename + "_") in x]
 
@@ -318,6 +320,7 @@ def geotag_from_gps_trace(process_file_list,
                                    "geotag_process",
                                    "failed",
                                    verbose=verbose)
+            continue
 
         geotag_properties = get_geotag_properties_from_gps_trace(
             image, capture_time, gps_trace, offset_angle, offset_time, verbose)
@@ -834,7 +837,7 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
 
     ipc.send(
         process,
-        { 'image': decoded_image, 'status': status, 'description': mapillary_description })
+        {'image': decoded_image, 'status': status, 'description': mapillary_description})
 
 
 def user_properties(user_name,

@@ -7,6 +7,7 @@ from mapillary_tools.process_upload_params import process_upload_params
 from mapillary_tools.insert_MAPJson import insert_MAPJson
 from mapillary_tools.process_video import sample_video
 from mapillary_tools.post_process import post_process
+from mapillary_tools.apply_camera_specific_config import apply_camera_specific_config
 
 
 class Command:
@@ -28,7 +29,6 @@ class Command:
                             help="Specify whether the import is private", action='store_true', default=False, required=False)
         parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
-
         # video specific args
         parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
                             action='store', default=None, required=False)
@@ -140,10 +140,9 @@ class Command:
 
     def run(self, args):
         vars_args = vars(args)
-        if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
-            vars_args["device_make"] = "Blackvue"
-        if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
-            vars_args["duplicate_angle"] = 360
+
+        vars_args = apply_camera_specific_config(vars_args)
+
         sample_video(**({k: v for k, v in vars_args.iteritems()
                          if k in inspect.getargspec(sample_video).args}))
 

@@ -15,6 +15,7 @@ from . import authenticate
 from . import interpolate
 from . import post_process
 from . import download
+from . import send_videos_for_processing
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -30,7 +31,8 @@ mapillary_tools_advanced_commands = [
     authenticate,
     interpolate,
     post_process,
-    download
+    download,
+    send_videos_for_processing
 ]
 
 mapillary_tools_commands = [
@@ -39,7 +41,7 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
-VERSION = "0.4.2"
+VERSION = "0.5.0"
 
 
 def add_general_arguments(parser, command):

@@ -6,6 +6,7 @@ from geo import decimal_to_dms
 
 from .error import print_error
 
+
 class ExifEdit(object):
 
     def __init__(self, filename):
@@ -81,6 +82,17 @@ class ExifEdit(object):
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirection] = (
             int(abs(direction) * precision), precision)
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
+
+    def add_firmware(self,firmware_string):
+        """Add firmware version of camera"""
+        self._ef['0th'][piexif.ImageIFD.Software] = firmware_string
+
+    def add_custom_tag(self, value, main_key, tag_key):
+        try:
+            self._ef[main_key][tag_key] = value
+        except:
+            print("could not set tag {} under {} with value {}".format(
+                tag_key, main_key, value))
 
     def write(self, filename=None):
         """Save exif data to file."""
