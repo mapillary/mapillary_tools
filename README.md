@@ -421,7 +421,7 @@ mapillary_tools download --import_path "path/to/images" --output_folder "path/to
 ```
 
 ##### Downloading by image key
-Downloading blurred originals by image key works **only** for private imagery which belongs to an organization.
+You can download any images which belong to an organization (whether private or public) by using this command. This command download **private images by default**, to download publicly uploaded images from the given organization you need to pass `--private=false` flag. There are some access restrictions when it comes to downloading the data: you have to be authenticated as an organization admin/member to download the imagery. Contributors don't have access to these command. Attempting to download an organization image (whether public/private) as a contributor will yield an `You don't have sufficient organization access to download this image` error.
 
 ```bash
 mapillary_tools download --by_property key \
@@ -433,6 +433,7 @@ mapillary_tools download --by_property key \
 
 The command above specifies will attempt to download all privately blurred images for the organization `org_key`. These are all flags the command supports:
 - `organization_keys` - what are the keys of organizations which own the images
+- `private` - download private/non-private images (default is `--private=true`)
 - `user_name` - the username of the authenticate user (see `authenticate` section)
 - `import_path` - it's ignored in this script
 - `output_folder` - where to download the images to
