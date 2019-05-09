@@ -421,7 +421,7 @@ mapillary_tools download --import_path "path/to/images" --output_folder "path/to
 ```
 
 ##### Downloading by image key
-You can download any images which belong to an organization (whether private or public) by using this command. This command download **private images by default**, to download publicly uploaded images from the given organization you need to pass `--private=false` flag. There are some access restrictions when it comes to downloading the data: you have to be authenticated as an organization admin/member to download the imagery. Contributors don't have access to these command. Attempting to download an organization image (whether public/private) as a contributor will yield an `You don't have sufficient organization access to download this image` error.
+You can download any images which belong to an organization (whether private or public) by using this command. This command downloads **private images by default**, to download publicly uploaded images from the given organization you need to pass `--private=false` flag. There are some access restrictions when it comes to downloading the data: you have to be authenticated as an organization admin/member to download the imagery. Contributors don't have access to this command. Attempting to download an organization image (whether public/private) as a contributor will yield an `You don't have sufficient organization access to download this image` error.
 
 ```bash
 mapillary_tools download --by_property key \
