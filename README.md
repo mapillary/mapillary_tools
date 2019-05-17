@@ -417,14 +417,14 @@ There are few ways to download blurred originals of private images from Mapillar
 `download` (by import path) will download blurred originals of private images on Mapillary for a certain `import_path`. The import path is specified as a folder where you have the images you've uploaded to Mapillary as private imagery. They need to have the Mapillary image description field in EXIF (which gets added during capture with our mobile apps or processing with our command line tools). Matching images will be downloaded to the output folder you specify.
 
 ```bash
-mapillary_tools download --import_path "path/to/images" --output_folder "path/to/output_folder"
+mapillary_tools download --advanced --import_path "path/to/images" --output_folder "path/to/output_folder"
 ```
 
 ##### Downloading by image key
 Downloading blurred originals by image key works **only** for private imagery which belongs to an organization.
 
 ```bash
-mapillary_tools download --by_property key \
+mapillary_tools download --advanced --by_property key \
 --import_path dev/null \
 --output-folder "path/to/output_folder" \
 --organization_keys "org_key1" "org_key2" \
