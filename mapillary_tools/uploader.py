@@ -56,7 +56,7 @@ USER_UPLOAD_URL = API_ENDPOINT + "/v3/users/{}/upload_tokens?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
 GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'),
-                                                                          ".config", "mapillary", 'config'))
+                                                                          ".config", "mapillary", 'configs', CLIENT_ID))
 
 
 class UploadThread(threading.Thread):
@@ -596,7 +596,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
                 if response.getcode() == 204:
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
-                            s3_filename, attempt))
+                            s3_filename, attempt+1))
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
@@ -673,7 +673,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                     create_upload_log(filepath_in, "upload_success")
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
-                            filename, attempt))
+                            filename, attempt+1))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
                 break  # attempts
