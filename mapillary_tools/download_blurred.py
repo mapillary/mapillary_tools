@@ -104,9 +104,11 @@ def query_search_api(headers, **kwargs):
     per_page = int(kwargs['per_page'])
     for k, v in kwargs.iteritems():
         if v is not None:
-            set_params.append((k, str(v)))
+            if k == 'private' and v == 'false':
+                pass
+            else:
+                set_params.append((k, str(v)))
 
-    set_params.append(('private', 'true'))
     set_params.append(('client_id', uploader.CLIENT_ID))
     params = urllib.urlencode(set_params)
 

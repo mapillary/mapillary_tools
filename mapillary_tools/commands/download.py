@@ -28,6 +28,11 @@ either for a specified import path or by image keys.
                             help="Since when to pull the images (YYYY-MM-DD)")
         parser.add_argument('--end_time',
                             help="Until when to pull the images (YYYY-MM-DD)")
+        parser.add_argument('--private',
+                            help="Download private/public organization images",
+                            type=str,
+                            choices=['true', 'false'],
+                            default='true')
 
     def add_advanced_arguments(self, parser):
         parser.add_argument(
