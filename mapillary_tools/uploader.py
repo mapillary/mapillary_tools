@@ -68,7 +68,11 @@ class UploadThread(threading.Thread):
     def run(self):
         while not self.q.empty():
             # fetch file from the queue and upload
-            filepath, max_attempts, params = self.q.get()
+            try:
+                filepath, max_attempts, params = self.q.get(timeout=5)
+            except:
+                #If it can't get a task after 5 seconds, continue and check if task list is empty
+                continue
             progress(self.total_task - self.q.qsize(), self.total_task,
                         '... {} images left.'.format(self.q.qsize()))
             upload_file(filepath, max_attempts, **params)
