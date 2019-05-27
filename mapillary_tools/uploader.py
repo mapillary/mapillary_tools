@@ -66,17 +66,13 @@ class UploadThread(threading.Thread):
         self.total_task = self.q.qsize()
 
     def run(self):
-        while True:
+        while not self.q.empty():
             # fetch file from the queue and upload
             filepath, max_attempts, params = self.q.get()
-            if filepath is None:
-                self.q.task_done()
-                break
-            else:
-                progress(self.total_task - self.q.qsize(), self.total_task,
-                         '... {} images left.'.format(self.q.qsize()))
-                upload_file(filepath, max_attempts, **params)
-                self.q.task_done()
+            progress(self.total_task - self.q.qsize(), self.total_task,
+                        '... {} images left.'.format(self.q.qsize()))
+            upload_file(filepath, max_attempts, **params)
+            self.q.task_done()
 
 
 # TODO note that this is not looked into, but left as out of improvement scope
