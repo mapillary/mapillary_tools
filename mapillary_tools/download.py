@@ -27,6 +27,10 @@ class BlurDownloader(threading.Thread):
         response = requests.get(download_url, stream=True)
 
         if response.status_code != 200:
+            print("Upload status {}".format(response.status_code))
+            print("Upload request.url {}".format(response.request.url))
+            print("Upload response.text {}".format(response.text))
+            print("Upload request.headers {}".format(response.request.headers))
             print(response.json())
             return False
 
