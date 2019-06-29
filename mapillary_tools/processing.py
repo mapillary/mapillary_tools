@@ -52,11 +52,12 @@ def parse_sub_second_time_from_gpx(files, gpx_data):
             m0 = m - datetime.timedelta(seconds=1.0) * i
             smin = max(smin, m0)
             smax = min(smax, m0 + onesecond)
+        break
     if not smin or not smax:
         return None
     if smin > smax:
         # ERROR LOG
-        print('Interval not compatible with EXIF times')
+        print('Interval not compatible with GPX times')
         return None
     else:
         s = smin + (smax - smin) / 2
