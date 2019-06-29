@@ -62,8 +62,7 @@ def parse_sub_second_time_from_gpx(files, gpx_data):
     else:
         s = smin + (smax - smin) / 2
         output = [s + datetime.timedelta(seconds=1.0) * i for i in range(len(files))]
-        final.append(output)
-    return final
+    return output
 
 def estimate_sub_second_time(files, interval=0.0):
     '''
@@ -337,8 +336,10 @@ def geotag_from_gps_trace(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sorted(sub_second_times)
-                        [0] - gps_trace[0][0]).total_seconds()
+            offset_time += (sorted(sub_second_times)
+                            [0] - gps_trace[0][0]).total_seconds()
+
+    idx = 1
     for image, capture_time in tqdm(zip(process_file_list,
                                         sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
@@ -358,14 +359,14 @@ def geotag_from_gps_trace(process_file_list,
                                "success",
                                geotag_properties,
                                verbose)
+        idx += 1
 
 
 def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
     capture_time = capture_time - \
         datetime.timedelta(seconds=offset_time)
     try:
-        lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace,
-                                                           capture_time)
+        lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace, capture_time)
     except Exception as e:
         print("Warning, {}, interpolation of latitude and longitude failed for image {}".format(
             e, image))
