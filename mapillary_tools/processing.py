@@ -39,6 +39,30 @@ def exif_time(filename):
     metadata = ExifRead(filename)
     return metadata.extract_capture_time()
 
+def parse_sub_second_time_from_gpx(files, gpx_data):
+    onesecond = datetime.timedelta(seconds=1.0)
+    final = []
+
+    for i, f in tqdm(enumerate(files), desc="Calculating subsecond time from GPX"):
+        m = gpx_data[i][0]
+        if i == 0:
+            smin = m
+            smax = m + onesecond
+        else:
+            m0 = m - datetime.timedelta(seconds=1.0) * i
+            smin = max(smin, m0)
+            smax = min(smax, m0 + onesecond)
+    if not smin or not smax:
+        return None
+    if smin > smax:
+        # ERROR LOG
+        print('Interval not compatible with EXIF times')
+        return None
+    else:
+        s = smin + (smax - smin) / 2
+        output = [s + datetime.timedelta(seconds=1.0) * i for i in range(len(files))]
+        final.append(output)
+    return final
 
 def estimate_sub_second_time(files, interval=0.0):
     '''
@@ -270,6 +294,7 @@ def geotag_from_gps_trace(process_file_list,
                           local_time=False,
                           sub_second_interval=0.0,
                           use_gps_start_time=False,
+                          use_gpx_sub_second_times=False,
                           verbose=False):
     # print time now to warn in case local_time
     if local_time:
@@ -286,9 +311,11 @@ def geotag_from_gps_trace(process_file_list,
     elif geotag_source == "nmea":
         gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
 
-    # Estimate capture time with sub-second precision, reading from image EXIF
-    sub_second_times = estimate_sub_second_time(process_file_list,
-                                                sub_second_interval)
+    if use_gpx_sub_second_times:
+        sub_second_times = parse_sub_second_time_from_gpx(process_file_list, gps_trace)
+    else:
+        # Estimate capture time with sub-second precision, reading from image EXIF
+        sub_second_times = estimate_sub_second_time(process_file_list, sub_second_interval)
     if not sub_second_times:
         print_error(
             "Error, capture times could not be estimated to sub second precision, images can not be geotagged.")

@@ -71,6 +71,8 @@ class Command:
                             help='offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)', required=False)
         parser.add_argument("--use_gps_start_time",
                             help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
+        parser.add_argument("--use_gpx_sub_second_times", help="Estimating sub second times doesn't always work reliably and is unnecessary when detailed GPX data is available.",
+                            action="store_true", default=False, required=False)
 
         # sequence
         parser.add_argument('--cutoff_distance', default=600., type=float,
