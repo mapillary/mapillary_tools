@@ -31,7 +31,9 @@ class FFProbe:
 
 
             if str(platform.system())=='Windows':
-                cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
+                #if shell=True cmd should be a string
+                #cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
+                cmd = "ffprobe -show_streams {}".format(video_file)
             else:
                 cmd=["ffprobe -show_streams " + '"'+video_file+'"']
 
