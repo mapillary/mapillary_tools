@@ -52,10 +52,28 @@ def estimate_sub_second_time(files, interval=0.0):
 
     onesecond = datetime.timedelta(seconds=1.0)
     T = datetime.timedelta(seconds=interval)
+    t = int(1/interval)
+    sub_second_time = [None] * len(files)
+    
     for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
         m = exif_time(f)
+        nf = int(f.rstrip(".jpg")[-6:])-1
         if not m:
-            pass
+            pass      #?
+        if not nf:      #first file in the folders
+            nf0 = nf
+            m0 = m
+            j = 1
+            sub_second_time[i] = m
+        elif nf == nf0+j:       #and m == m0?
+            sub_second_time[i] = m + T*(j%t)
+            j += 1
+        else:
+            print('Interval not compatible with EXIF times')
+            return None
+    
+    return sub_second_time
+  '''
         if i == 0:
             smin = m
             smax = m + onesecond
@@ -72,7 +90,7 @@ def estimate_sub_second_time(files, interval=0.0):
     else:
         s = smin + (smax - smin) / 2
         return [s + T * i for i in range(len(files))]
-
+'''
 
 def geotag_from_exif(process_file_list,
                      import_path,
