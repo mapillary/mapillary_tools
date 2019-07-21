@@ -24,9 +24,10 @@ def timestamp_from_filename(video_filename,
                             interval=2.0,
                             adjustment=1.0):
 
-    seconds = (int(filename.rstrip(".jpg").replace("{}_".format(
-        video_filename), "").lstrip("0")) - 1) * interval * adjustment
-
+    #seconds = (int(filename.rstrip(".jpg").replace("{}_".format(
+    #    video_filename), "").lstrip("0")) - 1) * interval * adjustment
+    
+    seconds = int(int(filename.rstrip(".jpg")[-6:])-1)*interval)
     return start_time + datetime.timedelta(seconds=seconds)
 
 
@@ -51,7 +52,8 @@ def sample_video(video_import_path,
                  video_start_time=None,
                  video_duration_ratio=1.0,
                  verbose=False,
-                 skip_subfolders=False):
+                 skip_subfolders=False,
+                 video_time_lapse=False):
 
     if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
@@ -90,6 +92,7 @@ def sample_video(video_import_path,
 
         extract_frames(video,
                        per_video_import_path,
+                       video_time_lapse,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
@@ -100,6 +103,7 @@ def sample_video(video_import_path,
 
 def extract_frames(video_file,
                    import_path,
+                   video_time_lapse,
                    video_sample_interval=2.0,
                    video_start_time=None,
                    video_duration_ratio=1.0,
@@ -111,13 +115,21 @@ def extract_frames(video_file,
 
     video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
-    command = [
+    if video_time_lapse:
+        command = [
+        'ffmpeg',
+        '-i', video_file,
+        '-loglevel', 'quiet',
+        '-qscale', '1', '-nostdin'
+        ]
+    else:
+        command = [
         'ffmpeg',
         '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
         '-qscale', '1', '-nostdin'
-    ]
+        ]
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
         import_path, video_filename), ZERO_PADDING))
@@ -137,7 +149,7 @@ def extract_frames(video_file,
         video_start_time = datetime.datetime.utcfromtimestamp(
             video_start_time / 1000.)
     else:
-        video_start_time = get_video_start_time(video_file)
+        video_start_time = get_video_start_time(video_file, video_duration_ratio)
         if not video_start_time:
             # WARNING LOG
             print("Warning, video start time not provided and could not be \
@@ -209,7 +221,7 @@ def get_video_end_time(video_file):
     return creation_time
 
 
-def get_video_start_time(video_file):
+def get_video_start_time(video_file, video_duration_ratio):
     """Get start time in seconds"""
     if not os.path.isfile(video_file):
         print("Error, video file {} does not exist".format(video_file))
@@ -220,7 +232,7 @@ def get_video_start_time(video_file):
         return None
     else:
         video_start_time = (
-            video_end_time - datetime.timedelta(seconds=duration))
+            video_end_time - datetime.timedelta(seconds=duration*video_duration_ratio))
         return video_start_time
 
 
