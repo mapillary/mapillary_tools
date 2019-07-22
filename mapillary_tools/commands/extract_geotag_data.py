@@ -32,7 +32,7 @@ class Command:
                             help="Use GPS trace starting time in case of derivating timestamp from filename.", action="store_true", default=False, required=False)
 
     def run(self, args):
-        vars_args = vars(args)
+        vars_args=vars(args)
         if "geotag_source" in vars_args and vars_args["geotag_source"] == 'blackvue_videos' and ("device_make" not in vars_args or ("device_make" in vars_args and not vars_args["device_make"])):
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":

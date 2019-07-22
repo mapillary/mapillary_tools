@@ -7,6 +7,9 @@ import sys
 import uploader
 from tqdm import tqdm
 import logging
+import io
+import struct
+from pymp4.parser import Box
 
 from exif_write import ExifEdit
 
@@ -48,7 +51,8 @@ def sample_video(video_import_path,
                  video_sample_interval=2.0,
                  video_start_time=None,
                  video_duration_ratio=1.0,
-                 verbose=False):
+                 verbose=False,
+                 skip_subfolders=False):
 
     if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
@@ -68,13 +72,13 @@ def sample_video(video_import_path,
     import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
         os.path.abspath(video_dirname), video_sampling_path)
 
-    video_list = uploader.get_video_file_list(video_import_path) if os.path.isdir(
+    video_list = uploader.get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
         video_import_path) else [video_import_path]
 
     for video in tqdm(video_list, desc="Extracting video frames"):
 
-        per_video_import_path = os.path.join(import_path, os.path.basename(video).replace(
-            ".mp4", "").replace(".MP4", ""))
+        per_video_import_path = os.path.join(
+            import_path, ".".join(os.path.basename(video).split(".")[:-1]))
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
@@ -106,8 +110,7 @@ def extract_frames(video_file,
         # INFO LOG
         print('extracting frames from {}'.format(video_file))
 
-    video_filename = os.path.basename(video_file).replace(
-        ".mp4", "").replace(".MP4", "")
+    video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
     command = [
         'ffmpeg',
@@ -186,8 +189,8 @@ def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time
             continue
 
 
-def get_video_start_time(video_file):
-    """Get video start time in seconds"""
+def get_video_end_time(video_file):
+    """Get video end time in seconds"""
     if not os.path.isfile(video_file):
         print("Error, video file {} does not exist".format(video_file))
         return None
@@ -204,3 +207,49 @@ def get_video_start_time(video_file):
     except:
         return None
     return creation_time
+
+
+def get_video_start_time(video_file):
+    """Get start time in seconds"""
+    if not os.path.isfile(video_file):
+        print("Error, video file {} does not exist".format(video_file))
+        return None
+    video_end_time = get_video_end_time(video_file)
+    duration = get_video_duration(video_file)
+    if video_end_time == None or duration == None:
+        return None
+    else:
+        video_start_time = (
+            video_end_time - datetime.timedelta(seconds=duration))
+        return video_start_time
+
+
+def get_video_start_time_blackvue(video_file):
+    fd = open(video_file, 'rb')
+
+    fd.seek(0, io.SEEK_END)
+    eof = fd.tell()
+    fd.seek(0)
+
+    while fd.tell() < eof:
+        box = Box.parse_stream(fd)
+        if box.type.decode('utf-8') == "moov":
+            fd.seek(box.offset + 8, 0)
+
+            size = struct.unpack('>I', fd.read(4))[0]
+            typ = fd.read(4)
+
+            fd.seek(4, os.SEEK_CUR)
+
+            creation_time = struct.unpack('>I', fd.read(4))[0]
+            modification_time = struct.unpack('>I', fd.read(4))[0]
+            time_scale = struct.unpack('>I', fd.read(4))[0]
+            duration = struct.unpack('>I', fd.read(4))[0]
+
+            # from documentation
+            # in seconds since midnight, January 1, 1904
+            video_start_time_epoch = creation_time * 1000 - duration
+            epoch_start = datetime.datetime(year=1904, month=1, day=1)
+            video_start_time = epoch_start + \
+                datetime.timedelta(milliseconds=video_start_time_epoch)
+            return video_start_time

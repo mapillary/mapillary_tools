@@ -92,10 +92,10 @@
 * Add better progress bars and information output in process
 * Support Blackvue videos with embedded gps data
 * Add a simple `download` command to download all the blurred imaged from Mapillary for a certain `import_path`
-* Support import of multiple videos 
+* Support import of multiple videos
 
 ### Breaking changes
-* Argument `--video_file` was renamed to `--video_import_path` as directories of one or more videos can now be processed and uploaded. Note that even if one video is to be processed and uploaded, the directory of the video should be specified as the video import path and not the video file itself. 
+* Argument `--video_file` was renamed to `--video_import_path` as directories of one or more videos can now be processed and uploaded. Note that even if one video is to be processed and uploaded, the directory of the video should be specified as the video import path and not the video file itself.
 * Only the Image Description EXIF tag is overwritten with the mapillary image description which includes all the data obtained during the `process` command. If one would like the rest of the tags to be overwritten, an additional argument needs to be passed under advanced usage. Single specific tags can also be overwritten by additional specific corresponding arguments.
 
 ## 0.3.1 (2018-12-10)
@@ -103,7 +103,7 @@
 ### Features and improvements
 * mapillary_tools available to be downloaded and installed as a package
 
-## 0.4.0 (2018-01-10)
+## 0.4.0 (2019-01-10)
 
 ### Features and improvements
 * Improved upload stability
@@ -123,8 +123,23 @@
 
 ### Features and improvements
  * Fix ipc exif encoding to support desktop uploader
- 
+
 ## 0.4.2 (2018-01-25)
 
 ### Features and improvements
  * Enable JWT authentication to support desktop uploader
+
+## 0.5.0 (2019-03-28)
+
+### Features and improvements
+* Added command to upload Blackvue DR900S videos directly to Mapillary
+* Added download of images selected by image key
+* Allow GPX files without altitude data
+* More robust support of irregular time formats in EXIF
+* Add argument to skip subfolders to all commands
+* More robust support for filenames including irregular characters on different platforms
+* Improve error information display
+
+### Bug fixes
+
+* Fixed bug where orientation was ignored if it was 0

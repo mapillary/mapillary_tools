@@ -27,12 +27,13 @@ class FFProbe:
         except:
             raise IOError('ffprobe not found.')
         if os.path.isfile(video_file):
-            video_file = self.video_file.replace(" ", "\ ")
+            video_file = self.video_file.replace("\\", "\\\\")
+
 
             if str(platform.system())=='Windows':
-                cmd=["ffprobe", "-show_streams", video_file]
+                cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
             else:
-                cmd=["ffprobe -show_streams " + video_file]
+                cmd=["ffprobe -show_streams " + '"'+video_file+'"']
 
             p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
             self.format=None
@@ -47,7 +48,6 @@ class FFProbe:
             datalines=[]
 
             for a in iter(p.stdout.readline, b''):
-
                 if re.match('\[STREAM\]',a):
                     datalines=[]
                 elif re.match('\[\/STREAM\]',a):
@@ -63,8 +63,6 @@ class FFProbe:
                     datalines=[]
                 else:
                     datalines.append(a)
-            p.stdout.close()
-            p.stderr.close()
             for a in self.streams:
                 if a.isAudio():
                     self.audio.append(a)
