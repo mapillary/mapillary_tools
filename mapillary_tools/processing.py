@@ -670,7 +670,10 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     return sorted(process_file_list)
 
 
-def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+def get_process_status_file_list(import_path, process, status, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = import_path
 
     status_process_file_list = []
     if skip_subfolders:
@@ -692,7 +695,11 @@ def process_status(file_path, process, status):
     return os.path.isfile(process_status)
 
 
-def get_duplicate_file_list(import_path, skip_subfolders=False):
+def get_duplicate_file_list(import_path, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = import_path
+        
     duplicate_file_list = []
     if skip_subfolders:
         duplicate_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
