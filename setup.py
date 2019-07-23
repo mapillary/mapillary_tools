@@ -12,7 +12,7 @@ setup(name='mapillary_tools',
       scripts=['bin/mapillary_tools'],
       install_requires=[
           'exifread==2.1.2',
-          'gpxpy==0.9.8',
+          'gpxpy==1.3.5',
           'Pillow==2.9.0',
           'python-dateutil==2.7.3',
           'pymp4==1.1.0',
