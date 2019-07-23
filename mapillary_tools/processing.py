@@ -47,13 +47,35 @@ def estimate_sub_second_time(files, interval=0.0):
     uses the given interval between shots to estimate the time inside that
     second that each picture was taken.
     '''
-    if interval <= 0.0:
+    if interval <= 0.0 and interval >= 1.0:
         return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     onesecond = datetime.timedelta(seconds=1.0)
     T = datetime.timedelta(seconds=interval)
+    t = int(1/interval)
+    sub_second_time = [None] * len(files)
+
+
     for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
         m = exif_time(f)
+        nf = int(f.rstrip(".jpg")[-6:])-1
+        if not m:
+            pass        #?
+        if not nf:      #first file in the folders
+            nf0 = nf
+            m0 = m
+            j = 1
+            sub_second_time[i] = m
+        elif nf == nf0+j:       #and m == m0
+            sub_second_time[i] = m + T*(j%t)
+            j += 1
+        else:
+            print('Interval not compatible with EXIF times')
+            return None
+    
+    return sub_second_time
+
+    '''
         if not m:
             pass
         if i == 0:
@@ -72,6 +94,7 @@ def estimate_sub_second_time(files, interval=0.0):
     else:
         s = smin + (smax - smin) / 2
         return [s + T * i for i in range(len(files))]
+    '''
 
 
 def geotag_from_exif(process_file_list,
@@ -652,7 +675,10 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
     return sorted(process_file_list)
 
 
-def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+def get_process_status_file_list(import_path, process, status, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = import_path
 
     status_process_file_list = []
     if skip_subfolders:
@@ -674,7 +700,11 @@ def process_status(file_path, process, status):
     return os.path.isfile(process_status)
 
 
-def get_duplicate_file_list(import_path, skip_subfolders=False):
+def get_duplicate_file_list(import_path, skip_subfolders=False, root_dir=None):
+
+    if not root_dir:
+        root_dir = import_path
+        
     duplicate_file_list = []
     if skip_subfolders:
         duplicate_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
