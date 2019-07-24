@@ -51,7 +51,7 @@ def estimate_sub_second_time(files, interval=0.0):
         return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     onesecond = datetime.timedelta(seconds=1.0)
-    T = datetime.timedelta(seconds=interval)
+    T = datetime.timedelta(seconds=onesecond*interval)
     t = int(1/interval)
     sub_second_time = [None] * len(files)
 
@@ -482,7 +482,7 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             if not sub_command_data:
                 if verbose:
                     print(
-                        "Warning, no data read from json file " + json_file)
+                        "Warning, no data read from json file " + sub_command_data_path)    #json_file)
                 return None
 
             final_mapillary_image_description.update(sub_command_data)

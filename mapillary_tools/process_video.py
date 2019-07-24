@@ -54,8 +54,7 @@ def sample_video(video_import_path,
                  video_start_time=None,
                  video_duration_ratio=1.0,
                  verbose=False,
-                 skip_subfolders=False,
-                 video_time_lapse=False):
+                 skip_subfolders=False):
 
     if import_path and not os.path.isdir(import_path):
         print("Error, import directory " + import_path +
