@@ -76,4 +76,8 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
             if verbose:
                 print("Warning: {} is not formatted properly".format(geotag_file))
             pass
+        except StopIteration:
+            if verbose:
+                print("Warning: {} does not have enough iterations".format(geotag_file))
+            pass
     return vids
