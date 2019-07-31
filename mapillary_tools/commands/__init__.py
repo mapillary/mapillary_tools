@@ -15,6 +15,7 @@ from . import authenticate
 from . import interpolate
 from . import post_process
 from . import download
+from . import send_videos_for_processing
 
 mapillary_tools_advanced_commands = [
     sample_video,
@@ -30,7 +31,8 @@ mapillary_tools_advanced_commands = [
     authenticate,
     interpolate,
     post_process,
-    download
+    download,
+    send_videos_for_processing
 ]
 
 mapillary_tools_commands = [
@@ -39,7 +41,7 @@ mapillary_tools_commands = [
     process_and_upload
 ]
 
-VERSION = "0.4.2"
+VERSION = "0.5.0"
 
 
 def add_general_arguments(parser, command):
@@ -55,7 +57,7 @@ def add_general_arguments(parser, command):
         '--verbose', help='print debug info', action='store_true', default=False, required=False)
     #import path
     required = True
-    if command in ["interpolate", "video_process", "video_process_and_upload", "sample_video"]:
+    if command in ["interpolate", "video_process", "video_process_and_upload", "sample_video", "send_videos_for_processing"]:
         required = False
 
     parser.add_argument(

@@ -188,7 +188,7 @@ def geotag_from_gopro_video(process_file_list,
         except Exception as e:
             print_error("Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
                 gopro_video, e))
-            sys.exit(1)
+            continue
 
         process_file_sublist = [x for x in process_file_list if os.path.join(
             gopro_video_filename, gopro_video_filename + "_") in x]
@@ -230,14 +230,16 @@ def geotag_from_blackvue_video(process_file_list,
         blackvue_video_filename = os.path.basename(blackvue_video).replace(
             ".mp4", "").replace(".MP4", "")
         try:
-            gpx_path = gpx_from_blackvue(blackvue_video)
+            [gpx_path, is_stationary_video] = gpx_from_blackvue(
+                blackvue_video, use_nmea_stream_timestamp=False)
             if not gpx_path or not os.path.isfile(gpx_path):
                 raise Exception
         except Exception as e:
             print_error("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
                 blackvue_video, e))
-            sys.exit(1)
-
+        if is_stationary_video:
+            print_error("Warning: Skipping stationary video")
+            continue
         process_file_sublist = [x for x in process_file_list if os.path.join(
             blackvue_video_filename, blackvue_video_filename + "_") in x]
 
@@ -308,21 +310,46 @@ def geotag_from_garmin_fit(process_file_list,
         if vid_id != image.split(os.sep)[-2][-3:]:
             vid_id = image.split(os.sep)[-2][-3:]
             start_time = capture_time
+        gps_trace = None
+        offset_time = None
+        # create offset using the start camera_event from the fit file to correct the image timestamp
         try:
-            gps_trace = videos_gps[vid_id][1]
-            # create offset using the start camera_event from the fit file to correct the image timestamp
-            offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
-        except:
-            print("Warning: Cant' correlate image {} with gps.".format(image))
-            continue
-        geotag_properties = get_geotag_properties_from_gps_trace(
-            image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
+            if type(videos_gps) is dict and vid_id in videos_gps:
+                gps_trace = videos_gps[vid_id][1]
+                offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
+            elif type(videos_gps) is list:
+                gps_trace = videos_gps[int(vid_id)][1]
+                offset_time = (start_time - videos_gps[int(vid_id)][0]).total_seconds()
+            elif type(videos_gps) is dict and vid_id not in videos_gps:
+                initial_time = datetime.datetime(1900, 1, 1)
+                video_id = None
+                for key in videos_gps:
+                    temporary_time = videos_gps[key][0]
+                    if temporary_time > initial_time and temporary_time < capture_time:
+                        initial_time = temporary_time
+                        video_id = key
+                if video_id is not None:
+                    gps_trace = videos_gps[video_id][1]
+                    offset_time = (start_time - videos_gps[video_id][0]).total_seconds()
+                else:
+                    raise IndexError("No valid track found for image {}".format(image))
+            else:
+                raise TypeError("Unexpected videos_gps type: {}".format(type(videos_gps)))
+            geotag_properties = get_geotag_properties_from_gps_trace(
+                image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
 
-        create_and_log_process(image,
-                               "geotag_process",
-                               "success",
-                               geotag_properties,
-                               verbose)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "success",
+                                   geotag_properties,
+                                   verbose)
+        except IndexError as e:
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "failure",
+                                   str(e),
+                                   verbose)
+            pass
 
 
 def geotag_from_gps_trace(process_file_list,
@@ -926,7 +953,7 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
 
     ipc.send(
         process,
-        { 'image': decoded_image, 'status': status, 'description': mapillary_description })
+        {'image': decoded_image, 'status': status, 'description': mapillary_description})
 
 
 def user_properties(user_name,

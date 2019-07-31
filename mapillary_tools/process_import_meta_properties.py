@@ -81,15 +81,15 @@ def finalize_import_properties_process(image,
                                        exclude_import_path=False,
                                        exclude_path=None):
     # always check if there are any command line arguments passed, they will
-    if orientation:
+    if orientation is not None:
         mapillary_description["MAPOrientation"] = orientation
-    if device_make:
+    if device_make is not None:
         mapillary_description['MAPDeviceMake'] = device_make
-    if device_model:
+    if device_model is not None:
         mapillary_description['MAPDeviceModel'] = device_model
-    if GPS_accuracy:
+    if GPS_accuracy is not None:
         mapillary_description['MAPGPSAccuracyMeters'] = float(GPS_accuracy)
-    if camera_uuid:
+    if camera_uuid is not None:
         mapillary_description['MAPCameraUUID'] = camera_uuid
     if add_file_name:
         image_path = image
@@ -113,7 +113,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.4.2")
+                 "0.5.0")
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description,
@@ -211,7 +211,7 @@ def process_import_meta_properties(import_path,
         print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
 
     # map orientation from degrees to tags
-    if orientation:
+    if orientation is not None:
         orientation = processing.format_orientation(orientation)
 
     # read import meta from image EXIF and finalize the import

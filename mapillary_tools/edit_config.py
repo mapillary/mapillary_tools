@@ -10,7 +10,7 @@ GLOBAL_CONFIG_FILEPATH = os.path.join(
     os.path.expanduser('~'), ".config", "mapillary", 'config')
 
 
-def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, jwt=None, force_overwrite=False, user_key=None):
+def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, jwt=None, force_overwrite=False, user_key=None,api_version=1.0, upload_type='Video'):
     config_file_path = config_file if config_file else GLOBAL_CONFIG_FILEPATH
 
     if not os.path.isfile(config_file_path):
@@ -26,7 +26,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         return
 
     user_items = {}
-    if user_key and user_name: #Manually add user_key
+    if user_key and user_name:  # Manually add user_key
         user_items["MAPSettingsUsername"] = "Dummy_MAPSettingsUsername"
         user_items["MAPSettingsUserKey"] = user_key
 
@@ -79,6 +79,9 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_upload_token"] = upload_token
         user_items["user_permission_hash"] = user_permission_hash
         user_items["user_signature_hash"] = user_signature_hash
+        if api_version == 2.0:
+            user_items["upload_url"] = uploader.get_upload_url(
+                user_email, user_password, upload_type)
     else:
         # fill in the items and save
         user_items = uploader.prompt_user_for_user_items(section)

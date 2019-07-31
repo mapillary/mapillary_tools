@@ -2,6 +2,11 @@
 
 import datetime
 import math
+
+import datetime
+import pytz
+from tzwhere import tzwhere
+
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
@@ -42,12 +47,58 @@ def gps_distance(latlon_1, latlon_2):
 
     return dis
 
-def gps_speed(distance,delta_t):
-    #Most timestamps have 1 second resolution so change zeros in delta_t for 0.5 so that we don't divide by zero
-    delta_t_corrected = [0.5 if x==0 else x for x in delta_t]
+
+def get_max_distance_from_start(latlon_track):
+    '''
+    Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
+    Takes a sequence of points as input
+    '''
+    latlon_list = []
+    # Remove timestamps from list
+    for idx, point in enumerate(latlon_track):
+        lat = latlon_track[idx][1]
+        lon = latlon_track[idx][2]
+        alt = latlon_track[idx][3]
+        latlon_list.append([lat, lon, alt])
+
+    start_position = latlon_list[0]
+    max_distance = 0
+    for position in latlon_list:
+        distance = gps_distance(start_position, position)
+        if distance > max_distance:
+            max_distance = distance
+    return max_distance
+
+
+def get_total_distance_traveled(latlon_track):
+    '''
+    Returns the total distance traveled of a GPS track. Used to calculate whether or not the entire sequence was just stationary video
+    Takes a sequence of points as input
+    '''
+    latlon_list = []
+    # Remove timestamps from list
+    for idx, point in enumerate(latlon_track):
+        lat = latlon_track[idx][1]
+        lon = latlon_track[idx][2]
+        alt = latlon_track[idx][3]
+        latlon_list.append([lat, lon, alt])
+
+    total_distance = 0
+    last_position = latlon_list[0]
+    for position in latlon_list:
+        total_distance += gps_distance(last_position, position)
+        last_position = position
+    return total_distance
+
+
+def gps_speed(distance, delta_t):
+    # Most timestamps have 1 second resolution so change zeros in delta_t for
+    # 0.5 so that we don't divide by zero
+    delta_t_corrected = [0.5 if x == 0 else x for x in delta_t]
     speed = [distance / delta_t_corrected
-            for distance,delta_t_corrected in zip(distance,delta_t_corrected)]
+             for distance, delta_t_corrected in zip(distance, delta_t_corrected)]
     return speed
+
 
 def dms_to_decimal(degrees, minutes, seconds, hemisphere):
     '''
@@ -232,8 +283,10 @@ def write_gpx(filename, gps_trace):
     for point in gps_trace:
         lat = point[1]
         lon = point[2]
+        if lat == 0 or lon == 0:
+            continue
         time = datetime.datetime.strftime(point[0], time_format)[:-3]
-        elevation = point[3]
+        elevation = point[3] if len(point) > 3 else 0
         gpx += "<trkpt lat=\"" + \
             str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
         gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
@@ -249,3 +302,14 @@ def write_gpx(filename, gps_trace):
 def semicircle_to_degrees(semicircle):
     decimal = semicircle * (180.0/(2**31))
     return decimal
+
+def get_timezone_and_utc_offset(lat, lon):
+    tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
+    timezone_str = tz.tzNameAt(lat, lon)
+    if timezone_str is not None:
+        timezone = pytz.timezone(timezone_str)
+        dt = datetime.datetime.utcnow()
+        return [timezone_str, timezone.utcoffset(dt)]
+    else:
+        print("ERROR: Could not determine timezone")
+        return [None, None]

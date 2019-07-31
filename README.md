@@ -53,7 +53,8 @@ To upload images to Mapillary, image `GPS` and `capture time` are minimally requ
 
 ### Videos
 
-To upload videos to Mapillary, videos are required to be sampled into images and tagged with image `GPS` and `capture time`. More information [here](https://help.mapillary.com/hc/en-us/articles/115001485045-Video-uploads).
+To upload videos to Mapillary, videos are sampled into images and tagged with image `GPS` and `capture time`. Use the [`send_videos_for_processing`](#direct-upload-recommended) command for Blackvue cameras. For all other models use [Video Sampling and Upload](Video-Sampling-and-Upload)
+More information [here](https://help.mapillary.com/hc/en-us/articles/115001485045-Video-uploads).
 
 ## Usage
 
@@ -418,13 +419,21 @@ mapillary_tools download --import_path "path/to/images" --output_folder "path/to
 
 ## Camera specific
 
-### Blackvue
+### BlackVue 
+#### Direct Upload (Recommended)
+ - Upload videos located in `path/to/videos` directly to Mapillary. Videos are moved to `path/to/videos/uploaded` folder after upload. Videos that do not contain valid imagery are not uploaded to minimize bandwitdh usage. Sampling is performed in the cloud so no extra disk space is required. This command supports the front camera video from the Blackvue DR900s (1-channel and 2-channel) models.
+ ```bash
+ mapillary_tools send_videos_for_processing --advanced --video_import_path "path/to/videos" --user_name "username_at_mapillary"
+```
+
+#### Local sampling (Deprecated)
 
  - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the Blackvue videos in `path/to/videos` and specifying camera make and model, specifying to derive camera direction based on `GPS` and use the `GPS` start time. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient. We encourage users to check and specify camera make and model, since it helps with camera calibration and improves 3D reconstruction. If you want to check the video frame placement on the map before uploading, specify `--overwrite_EXIF_gps_tag`.
  
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "blackvue_videos" --geotag_source_path "path/to/videos" --use_gps_start_time --interpolate_directions --video_sample_interval 0.2 --device_make "Blackvue" --device_model "DR900S-2CH" --overwrite_EXIF_gps_tag
 ```
+
 
 ### GoPro
 
