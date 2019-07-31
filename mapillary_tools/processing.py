@@ -313,33 +313,43 @@ def geotag_from_garmin_fit(process_file_list,
         gps_trace = None
         offset_time = None
         # create offset using the start camera_event from the fit file to correct the image timestamp
-        if type(videos_gps) is dict and vid_id in videos_gps:
-            gps_trace = videos_gps[vid_id][1]
-            offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
-        elif type(videos_gps) is list:
-            gps_trace = videos_gps[int(vid_id)][1]
-            offset_time = (start_time - videos_gps[int(vid_id)][0]).total_seconds()
-        elif type(videos_gps) is dict and vid_id not in videos_gps:
-            initial_time = datetime.datetime(1900, 1, 1)
-            video_id = vid_id
-            for key in videos_gps:
-                temporary_time = videos_gps[key][0]
-                if temporary_time > initial_time and temporary_time < capture_time:
-                    initial_time = temporary_time
-                    video_id = key
-            gps_trace = videos_gps[video_id][1]
-            offset_time = (start_time - videos_gps[video_id][0]).total_seconds()
-        else:
-            raise TypeError("Unexpected videos_gps type: {}".format(type(videos_gps)))
+        try:
+            if type(videos_gps) is dict and vid_id in videos_gps:
+                gps_trace = videos_gps[vid_id][1]
+                offset_time = (start_time - videos_gps[vid_id][0]).total_seconds()
+            elif type(videos_gps) is list:
+                gps_trace = videos_gps[int(vid_id)][1]
+                offset_time = (start_time - videos_gps[int(vid_id)][0]).total_seconds()
+            elif type(videos_gps) is dict and vid_id not in videos_gps:
+                initial_time = datetime.datetime(1900, 1, 1)
+                video_id = None
+                for key in videos_gps:
+                    temporary_time = videos_gps[key][0]
+                    if temporary_time > initial_time and temporary_time < capture_time:
+                        initial_time = temporary_time
+                        video_id = key
+                if video_id is not None:
+                    gps_trace = videos_gps[video_id][1]
+                    offset_time = (start_time - videos_gps[video_id][0]).total_seconds()
+                else:
+                    raise IndexError("No valid track found for image {}".format(image))
+            else:
+                raise TypeError("Unexpected videos_gps type: {}".format(type(videos_gps)))
+            geotag_properties = get_geotag_properties_from_gps_trace(
+                image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
 
-        geotag_properties = get_geotag_properties_from_gps_trace(
-            image, capture_time, gps_trace, offset_angle, offset_time, verbose=True)
-
-        create_and_log_process(image,
-                               "geotag_process",
-                               "success",
-                               geotag_properties,
-                               verbose)
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "success",
+                                   geotag_properties,
+                                   verbose)
+        except IndexError as e:
+            create_and_log_process(image,
+                                   "geotag_process",
+                                   "failure",
+                                   str(e),
+                                   verbose)
+            pass
 
 
 def geotag_from_gps_trace(process_file_list,
