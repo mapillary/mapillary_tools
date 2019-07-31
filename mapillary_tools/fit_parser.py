@@ -41,13 +41,13 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
             offset = datetime.timedelta(seconds=timestamp_correlation['system_timestamp'],
                                          milliseconds=timestamp_correlation['system_timestamp_ms'])
             start_time = timestamp - offset
-            camera_events = (c for c in fit.get_messages(161) if c.get('camera_event_type').value in ['video_start', 'video_end'])
+            camera_events = (c for c in fit.get_messages(161) if c.get('camera_event_type').value in ['video_second_stream_start', 'video_second_stream_end'])
             for start in tqdm(camera_events, desc='Extracting Video data from .FIT file'):
                 vid_id = parse_uuid_string(start.get('camera_file_uuid').value)[-2]
                 end = next(camera_events)
-                start_timedelta = datetime.timedelta(seconds=start.get('timestamp').value,                                          milliseconds=start.get('timestamp_ms').value)
+                start_timedelta = datetime.timedelta(seconds=start.get('timestamp').value, milliseconds=start.get('timestamp_ms').value)
                 start_timestamp = start_time + start_timedelta
-                end_timedelta = datetime.timedelta(seconds=end.get('timestamp').value,                                            milliseconds=end.get('timestamp_ms').value)
+                end_timedelta = datetime.timedelta(seconds=end.get('timestamp').value, milliseconds=end.get('timestamp_ms').value)
                 end_timestamp = start_time + end_timedelta
                 vid_times[vid_id] = (start_timestamp, end_timestamp)
 
@@ -61,7 +61,7 @@ def get_lat_lon_time_from_fit(geotag_file_list, local_time=True, verbose=False):
                         lat = float(lat_in_semicircles) * 180 / 2**31
                         lon_in_semicircles = gps.get('position_long').value
                         lon = float(lon_in_semicircles) * 180 / 2**31
-                        time_delta = datetime.timedelta(seconds=gps.get('timestamp').value,                                milliseconds=gps.get('timestamp_ms').value)
+                        time_delta = datetime.timedelta(seconds=gps.get('timestamp').value, milliseconds=gps.get('timestamp_ms').value)
                         wp_datetime = start_time + time_delta
                     except:
                         continue
