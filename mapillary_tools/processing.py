@@ -47,7 +47,7 @@ def estimate_sub_second_time(files, interval=0.0):
     uses the given interval between shots to estimate the time inside that
     second that each picture was taken.
     '''
-    if interval <= 0.0 and interval >= 1.0:
+    if interval <= 0.0 or interval >= 1.0:
         return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     #onesecond = datetime.timedelta(seconds=1.0)
@@ -329,8 +329,9 @@ def geotag_from_gps_trace(process_file_list,
 
     if use_gps_start_time:
         # update offset time with the gps start time
-        offset_time += (sorted(sub_second_times)
-                        [0] - gps_trace[0][0]).total_seconds()
+        t = gps_trace[0][0]
+        t = t.replace(tzinfo=tzutc())
+        offset_time += (sorted(sub_second_times)[0] - t).total_seconds()
     for image, capture_time in tqdm(zip(process_file_list,
                                         sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
