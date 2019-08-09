@@ -75,24 +75,24 @@ def estimate_sub_second_time(files, interval=0.0):
     
     return sub_second_time
 
-    '''
-        if i == 0:
-            smin = m
-            smax = m + onesecond
-        else:
-            m0 = m - T * i
-            smin = max(smin, m0)
-            smax = min(smax, m0 + onesecond)
-    if not smin or not smax:
-        return None
-    if smin > smax:
-        # ERROR LOG
-        print('Interval not compatible with EXIF times')
-        return None
-    else:
-        s = smin + (smax - smin) / 2
-        return [s + T * i for i in range(len(files))]
-    '''
+    #'''
+    #    if i == 0:
+    #        smin = m
+    #        smax = m + onesecond
+    #    else:
+    #        m0 = m - T * i
+    #        smin = max(smin, m0)
+    #        smax = min(smax, m0 + onesecond)
+    #if not smin or not smax:
+    #    return None
+    #if smin > smax:
+    #    # ERROR LOG
+    #    print('Interval not compatible with EXIF times')
+    #    return None
+    #else:
+    #    s = smin + (smax - smin) / 2
+    #    return [s + T * i for i in range(len(files))]
+    #'''
 
 def geotag_from_exif(process_file_list,
                      import_path,
