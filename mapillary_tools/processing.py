@@ -14,7 +14,7 @@ from exif_aux import verify_exif
 from geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
 import config
 import uploader
-from dateutil.tz import tzlocal
+from dateutil.tz import tzlocal, tzutc
 from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
@@ -330,8 +330,8 @@ def geotag_from_gps_trace(process_file_list,
     if use_gps_start_time:
         # update offset time with the gps start time
         t = gps_trace[0][0]
-        t = t.replace(tzinfo=tzutc())
-        offset_time += (sorted(sub_second_times)[0] - t).total_seconds()
+        #t = t.replace(tzinfo=tzutc())
+        offset_time += ((sorted(sub_second_times)[0]).replace(tzinfo=tzutc()) - t).total_seconds()
     for image, capture_time in tqdm(zip(process_file_list,
                                         sub_second_times), desc="Inserting gps data into image EXIF"):
         if not capture_time:
