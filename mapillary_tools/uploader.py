@@ -836,7 +836,7 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 def filter_video_before_upload(video, filter_night_time=False):
     try:
         if not get_blackvue_info(video)['is_Blackvue_video']:
-            print("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
+            print("ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files")
             return True
         if get_blackvue_info(video)['camera_direction'] != 'Front':
             print("ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
