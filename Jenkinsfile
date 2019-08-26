@@ -3,6 +3,6 @@
 com.mapillary.pipeline.Pipeline.builder(this, steps)
     .withBuildStage()
     .withIntegrationStage()
-    .withBuildApplicationStage(["osx", "windows"])
+    .withBuildApplicationStage(["osx-10-12", "win"])
     .build()
     .execute()
