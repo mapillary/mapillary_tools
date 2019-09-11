@@ -30,6 +30,10 @@ class Command:
             '--private', help="Specify whether the import is private", action='store_true', default=False, required=False)
         parser.add_argument(
             '--sampling_distance', help="Specify distance between images to be used when sampling video", default=2, required=False)
+        parser.add_argument(
+            '--offset_angle', help="offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)", default=0, required=False)
+        parser.add_argument(
+            '--orientation', help='Specify the image orientation in degrees. ', choices=[0, 90, 180, 270], type=int, default=0, required=False)
         
     def add_advanced_arguments(self, parser):
         parser.add_argument(

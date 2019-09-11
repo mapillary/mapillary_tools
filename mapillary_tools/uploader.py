@@ -24,6 +24,7 @@ from .error import print_error
 from .utils import force_decode
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
+from utils import format_orientation
 from geo import get_timezone_and_utc_offset
 from camera_support.prepare_blackvue_videos import get_blackvue_info
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
@@ -848,7 +849,6 @@ def filter_video_before_upload(video, filter_night_time=False):
     [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
         video, use_nmea_stream_timestamp=False)
     video_start_time = get_video_start_time_blackvue(video)
-
     if isStationaryVid:
         if not gpx_file_path:
             if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
@@ -903,7 +903,7 @@ def filter_video_before_upload(video, filter_night_time=False):
                     "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
         return False
 
-def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False):
+def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False, offset_angle=0, orientation=0):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
         print("video import path {} does not exist or is invalid, exiting...".format(
@@ -977,7 +977,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             video_start_timestamp = int(
                 (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
             upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
+                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation)
             progress['uploaded'] += 1 if not DRY_RUN else 0
         else:
             progress['skipped'] += 1
@@ -987,7 +987,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     print("Upload completed")
 
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance):
+def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation):
     filename = os.path.basename(video)
     basename = os.path.splitext(filename)[0]
     gpx_path = "{}/{}.gpx".format(os.path.dirname(video), basename)
@@ -1010,7 +1010,9 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             make='Blackvue',
             model='DR900S-1CH',
             sample_interval_distance=float(sampling_distance),
-            video_start_time=video_start_time
+            video_start_time=video_start_time,
+            camera_angle_offset=float(offset_angle),
+            exif_frame_orientation=format_orientation(orientation)
         )
     )
     if master_upload != None:
