@@ -53,6 +53,7 @@ def sample_video(video_import_path,
                  video_sample_interval=2.0,
                  video_start_time=None,
                  video_duration_ratio=1.0,
+                 img_rotate=None,
                  verbose=False,
                  skip_subfolders=False):
 
@@ -97,6 +98,7 @@ def sample_video(video_import_path,
                        video_sample_interval,
                        video_start_time,
                        video_duration_ratio,
+                       img_rotate,
                        verbose)
 
     processing.create_and_log_video_process(video_import_path, import_path)
@@ -108,29 +110,40 @@ def extract_frames(video_file,
                    video_sample_interval=2.0,
                    video_start_time=None,
                    video_duration_ratio=1.0,
+                   img_rotate=None,
                    verbose=False):
 
     if verbose:
         # INFO LOG
         print('extracting frames from {}'.format(video_file))
 
+    img_rotate_choice = {
+        90: 'PI/2:ow=ih:oh=iw',
+        180: 'PI',
+        270: '-PI/2:ow=ih:oh=iw'
+        }
+
     video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
-    if video_time_lapse:
-        command = [
-        'ffmpeg',
-        '-i', video_file,
-        '-loglevel', 'quiet',
-        '-qscale', '1', '-nostdin'
-        ]
-    else:
-        command = [
+    cmd = [
         'ffmpeg',
         '-i', video_file,
         '-loglevel', 'quiet',
         '-vf', 'fps=1/{}'.format(video_sample_interval),
-        '-qscale', '1', '-nostdin'
+        '-q:v', '1', '-nostdin'
         ]
+
+    if img_rotate:
+        if video_time_lapse:
+            cmd[6] = 'rotate={}'.format(img_rotate_choice[img_rotate])
+        else:
+            cmd[6] += ', rotate={}'.format(img_rotate_choice[img_rotate])
+        command = cmd
+    else:
+        if video_time_lapse:
+            command = cmd[:5] + cmd[7:]
+        else:
+            command = cmd
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
         import_path, video_filename), ZERO_PADDING))
