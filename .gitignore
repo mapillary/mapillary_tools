@@ -13,3 +13,5 @@ build/
 dist/
 venv/
 .DS_Store
+mapillary_tools/gpmf – копія.py
+mapillary_tools/upload – копія.py
