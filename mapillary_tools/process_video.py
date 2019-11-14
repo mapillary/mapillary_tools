@@ -54,6 +54,7 @@ def sample_video(video_import_path,
                  video_start_time=None,
                  video_duration_ratio=1.0,
                  img_rotate=None,
+                 vf=None,
                  verbose=False,
                  skip_subfolders=False):
 
@@ -99,6 +100,7 @@ def sample_video(video_import_path,
                        video_start_time,
                        video_duration_ratio,
                        img_rotate,
+                       vf,
                        verbose)
 
     processing.create_and_log_video_process(video_import_path, import_path)
@@ -111,6 +113,7 @@ def extract_frames(video_file,
                    video_start_time=None,
                    video_duration_ratio=1.0,
                    img_rotate=None,
+                   vf=None,
                    verbose=False):
 
     if verbose:
@@ -133,17 +136,21 @@ def extract_frames(video_file,
         '-q:v', '1', '-nostdin'
         ]
 
-    if img_rotate:
-        if video_time_lapse:
-            cmd[6] = 'rotate={}'.format(img_rotate_choice[img_rotate])
-        else:
-            cmd[6] += ', rotate={}'.format(img_rotate_choice[img_rotate])
+    if vf:
+        cmd[6] = vf
         command = cmd
     else:
-        if video_time_lapse:
-            command = cmd[:5] + cmd[7:]
-        else:
+        if img_rotate:
+            if video_time_lapse:
+                cmd[6] = 'rotate={}'.format(img_rotate_choice[img_rotate])
+            else:
+                cmd[6] += ', rotate={}'.format(img_rotate_choice[img_rotate])
             command = cmd
+        else:
+            if video_time_lapse:
+                command = cmd[:5] + cmd[7:]
+            else:
+                command = cmd
 
     command.append('{}_%0{}d.jpg'.format(os.path.join(
         import_path, video_filename), ZERO_PADDING))

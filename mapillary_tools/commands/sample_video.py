@@ -18,6 +18,7 @@ class Command:
         parser.add_argument("--video_start_time", help="Video start time in epochs (milliseconds)",
                             type=int, default=None, required=False)
         parser.add_argument('--img_rotate', help='Rotate sampled images by 90, 180 or 270 degrees', choices=[90, 180, 270], type=int, default=None, required=False )
+        parser.add_argument('--vf', help='Raw string for ffmpeg -vf filters', default=None, required=False))
         parser.add_argument(
             '--skip_subfolders', help='Skip all subfolders and import only the images in the given directory path.', action='store_true', default=False, required=False)
 

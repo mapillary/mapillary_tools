@@ -661,7 +661,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
         process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(

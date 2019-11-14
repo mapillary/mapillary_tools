@@ -36,6 +36,7 @@ class Command:
         parser.add_argument("--video_duration_ratio",
                             help="Real time video duration ratio of the under or oversampled video duration.", type=float, default=1.0, required=False)
         parser.add_argument('--img_rotate', help='Rotate sampled images by 90, 180 or 270 degrees', choices=[90, 180, 270], type=int, default=None, required=False )
+        parser.add_argument('--vf', help='Raw string for ffmpeg -vf filters', default=None, required=False))
         parser.add_argument("--video_start_time", help="Video start time in epochs (milliseconds)",
                             type=int, default=None, required=False)
         parser.add_argument(
