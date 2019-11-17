@@ -31,36 +31,72 @@ def extract_bin(path):
     basename, _ = os.path.splitext(path)
     bin_path = basename + '.bin'
 
+    handler_name = j_obj['streams'][stream_id]['tags']['handler_name']
     extract_stream(path, bin_path, stream_id)
-
-    return bin_path
+    return bin_path, handler_name
 
 
 def get_points_from_gpmf(path):
-    bin_path = extract_bin(path)
-
-    gpmf_data = parse_bin(bin_path)
-    rows = len(gpmf_data)
+    bin_path, handler_name = extract_bin(path)
     points = []
 
-    for i, frame in enumerate(gpmf_data):
-        t = frame['time']
+    # gopro or azdome m-6p
+    if handler_name == u'\x0bGoPro MET':
+        gpmf_data = parse_bin(bin_path)
+        rows = len(gpmf_data)
 
-        if i < rows - 1:
-            next_ts = gpmf_data[i + 1]['time']
-        else:
-            next_ts = t + datetime.timedelta(seconds=1)
 
-        interpolate_times(frame, next_ts)
+        for i, frame in enumerate(gpmf_data):
+            t = frame['time']
 
-        for point in frame['gps']:
-            points.append((
-                point['time'],
-                point['lat'],
-                point['lon'],
-                point['alt'],
-                frame['gps_fix'],
-            ))
+            if i < rows - 1:
+                next_ts = gpmf_data[i + 1]['time']
+            else:
+                next_ts = t + datetime.timedelta(seconds=1)
+
+            interpolate_times(frame, next_ts)
+
+            for point in frame['gps']:
+                points.append((
+                    point['time'],
+                    point['lat'],
+                    point['lon'],
+                    point['alt'],
+                    frame['gps_fix'],
+                ))
+    elif handler_name == u'\x03gps':
+        pos=0
+        with open(bin_path,'rb') as fi:
+            while len(fi.read(8)) == 8:
+                    
+                gps_data = fi.read(57)
+                gps_text=""
+            
+                #decode azdome gps data
+                for i in range(57):
+                    gps_text += chr(ord(gps_data[i]) ^ ord('\xAA'))
+                    
+                # AZDOME stores coordinates in format:
+                # lat    DDmm.mmmm 
+                # lon   DDDmm.mmmm
+                    
+                lat = float(gps_text[31:33]) + float(gps_text[33:35] + '.' + gps_text[35:39])/60
+                if gps_text[30] == 'S':
+                    lat *= -1
+                lon = float(gps_text[40:43]) + float(gps_text[43:45] + '.' + gps_text[45:49])/60
+                if gps_text[39] == 'W':
+                    lat *= -1
+
+                ele = float(gps_text[49:54])
+    
+                date_time = datetime.datetime.strptime(gps_text[:14],'%Y%m%d%H%M%S')        
+
+                spd = float(gps_text[54:57])/3.6
+
+                points.append((date_time,lat,lon,ele, 0.0, spd))
+    
+                pos += 311
+                fi.seek(pos)
 
     return points
 
