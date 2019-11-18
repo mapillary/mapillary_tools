@@ -25,7 +25,7 @@ def extract_bin(path):
         if ('codec_tag_string' in stream and 'gpmd' in stream['codec_tag_string'].lower()):
             stream_id = stream['index']
 
-    if not stream_id:
+    if stream_id == None:
         raise IOError('No GoPro metadata track found - was GPS turned on?')
 
     basename, _ = os.path.splitext(path)

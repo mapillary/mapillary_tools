@@ -102,9 +102,6 @@ def parse_bin(path):
         num_values = struct.unpack('>h', desc[2:4])[0]
         length = val_size * num_values
 
-        # print "{} {} of size {} and type {}".format(num_values, label,
-        # val_size, desc[0])
-
         if label == 'DVID':
             if len(d['gps']):  # first one is empty
                 output.append(d)

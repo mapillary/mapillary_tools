@@ -87,7 +87,7 @@ def process_geotag_properties(import_path,
                                                              sub_second_interval,
                                                              use_gps_start_time,
                                                              verbose)
-    elif geotag_source == "gopro_videos":
+    elif geotag_source == "gopro_videos" or geotag_source == "m06p_videos":
         geotag_properties = processing.geotag_from_gopro_video(process_file_list,
                                                                import_path,
                                                                geotag_source_path,
