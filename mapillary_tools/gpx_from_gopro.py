@@ -31,7 +31,7 @@ def extract_bin(path):
     basename, _ = os.path.splitext(path)
     bin_path = basename + '.bin'
 
-    handler_name = j_obj['streams'][stream_id]['tags']['handler_name']
+    handler_name = info['streams'][stream_id]['tags']['handler_name']
     extract_stream(path, bin_path, stream_id)
     return bin_path, handler_name
 
