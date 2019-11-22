@@ -66,6 +66,7 @@ def get_points_from_gpmf(path):
                 ))
     elif handler_name == u'\x03gps':
         pos=0
+        old_lat = 0; old_lon = 0
         with open(bin_path,'rb') as fi:
             while len(fi.read(8)) == 8:
                     
@@ -93,7 +94,9 @@ def get_points_from_gpmf(path):
 
                 spd = float(gps_text[54:57])/3.6
 
-                points.append((date_time,lat,lon,ele, 0.0, spd))
+                if (lat and old_lat != lat) or (lon and old_lon != lon):
+                    old_lat = lat; old_lon = lon
+                    points.append((date_time,lat,lon,ele, 0.0, spd))
     
                 pos += 311
                 fi.seek(pos)
