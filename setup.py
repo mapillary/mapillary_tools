@@ -23,5 +23,5 @@ setup(name='mapillary_tools',
           'pyyaml==3.13',
           'requests==2.20.0',
           'pytz',
-          'dateutil'
+          'dateutil==2.7.3'
       ])
