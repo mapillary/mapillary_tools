@@ -463,8 +463,21 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
  - Sample one or more GoPro videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.5 seconds, ie 2 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the GoPro videos in `path/to/videos` and specifying to derive camera direction based on `GPS`. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient. If you want to check the video frame placement on the map before uploading, specify `--overwrite_EXIF_gps_tag`.
 
 ```bash
-mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "gopro_videos" --geotag_source_path "path/to/videos" --interpolate_directions --video_sample_interval 0.5 --overwrite_EXIF_gps_tag
+mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "gopro_videos" --geotag_source_path "path/to/videos" --interpolate_directions --video_sample_interval 0.5 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
 ```
+
+
+### AZDOME M06P
+
+- 
+
+
+
+```bash
+mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "m06p_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.2 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
+```
+
+
 
 ## Custom Installation 
 
