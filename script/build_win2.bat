@@ -1,5 +1,5 @@
 rem pip install -r requirements.txt
-rem pip install pyinstaller
+pip install pyinstaller
 pyinstaller --distpath dist\win --onefile --windowed mapillary_tools.spec 
 
 mkdir publisih\win
