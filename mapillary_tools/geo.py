@@ -279,7 +279,10 @@ def interpolate_lat_lon(points, t, max_dt=1):
 
 def write_gpx(filename, gps_trace):
     time_format = "%Y-%m-%dT%H:%M:%S.%f"
-    gpx = "<gpx>" + "\n"
+    gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    gpx += "<gpx" + "\n"
+    gpx += '  version="1.0"' +"\n"
+    gpx += '  creator="mapillary_tools">' + '\n'
     gpx += "<trk>" + "\n"
     gpx += "<name>Mapillary GPX</name>" + "\n"
     gpx += "<trkseg>" + "\n"
