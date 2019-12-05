@@ -41,7 +41,7 @@ def get_points_from_gpmf(path):
     points = []
 
     # gopro or azdome m-6p
-    if handler_name == u'\x0bGoPro MET':
+    if 'GoPro MET' in handler_name:
         gpmf_data = parse_bin(bin_path)
         rows = len(gpmf_data)
 
@@ -63,6 +63,7 @@ def get_points_from_gpmf(path):
                     point['lon'],
                     point['alt'],
                     frame['gps_fix'],
+                    point['spd'],
                 ))
     elif handler_name == u'\x03gps':
         pos=0

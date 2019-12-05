@@ -293,10 +293,12 @@ def write_gpx(filename, gps_trace):
             continue
         time = datetime.datetime.strftime(point[0], time_format)[:-3]
         elevation = point[3] if len(point) > 3 else 0
+        speed = point[5] if len(point) > 5 else None
         gpx += "<trkpt lat=\"" + \
             str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
         gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
         gpx += "<time>" + time + "</time>" + "\n"
+        if speed != None: gpx += "<speed>" + str(speed) + "</speed>" + "\n"
         gpx += "</trkpt>" + "\n"
     gpx += "</trkseg>" + "\n"
     gpx += "</trk>" + "\n"
