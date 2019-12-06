@@ -9,7 +9,7 @@ from geo import write_gpx
 # author https://github.com/stilldavid
 
 '''
-Pulls data out of a GoPro 5+ recording while GPS was enabled.
+Pulls data out of a GoPro 5+ or AZDOME M06p recording while GPS was enabled.
 '''
 
 
