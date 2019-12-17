@@ -87,7 +87,7 @@ def get_points_from_gpmf(path):
                     lat *= -1
                 lon = float(gps_text[40:43]) + float(gps_text[43:45] + '.' + gps_text[45:49])/60
                 if gps_text[39] == 'W':
-                    lat *= -1
+                    lon *= -1
 
                 ele = float(gps_text[49:54])
     
