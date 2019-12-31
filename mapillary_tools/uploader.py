@@ -579,7 +579,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key,
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     encoded_string = ''
@@ -654,7 +654,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key,
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     with open(filepath, "rb") as f:
