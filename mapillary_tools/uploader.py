@@ -39,7 +39,7 @@ BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
 UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,  # TODO: This URL is dynamic in api 2.0
-                 "signature": SIGNATURE_HASH, "aws_key": "AKIAI2X3BJAT2W75HILA"}
+                 "signature": SIGNATURE_HASH, "aws_key": "AKIAR47SN3BMCP62Z54T"}
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
 DRY_RUN = bool(os.getenv('DRY_RUN', False))
@@ -680,6 +680,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 break  # attempts
 
             except urllib2.HTTPError as e:
+                print(e.read())
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, filename, max_attempts - attempt - 1))
                 displayed_upload_error = True
