@@ -20,7 +20,7 @@ setup(name='mapillary_tools',
           'pytest==3.2.3',
           'tqdm==2.2.4',
           'requests==2.20.0',
-          'pyyaml==3.13',
+          'pyyaml==5.1',
           'requests==2.20.0',
           'pytz'
       ])
