@@ -57,7 +57,7 @@
       "dockerparameters": {
          "command": "script/run process",
          "volumes": ["./tests:/mapillary_source/tests"],
-         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/configs/MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"]
+         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/configs/YWFhYWFhYWFhYWFhYWFhYWFhYWFhYTphcHBfYQ=="]
       },
       "config_vars": [],
       "marathon_name": "",
