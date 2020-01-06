@@ -49,7 +49,7 @@ class ProcessImagesProviderTestCase(TestCase):
         self.user = User(username="mapillary_user")
         self.useFixture(UserFixture([self.user]))
 
-        config_path = "/mapillary_source/tests/.config/mapillary/configs/{}".format(CLIENT_ID)
+        config_path = "/mapillary_source/tests/.config/mapillary/configs/MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 
         config.create_config(config_path)
         config.update_config(config_path,
