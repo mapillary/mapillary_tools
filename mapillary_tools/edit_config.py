@@ -7,8 +7,10 @@ import uploader
 '''
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
-GLOBAL_CONFIG_FILEPATH = os.path.join(
-    os.path.expanduser('~'), ".config", "mapillary", 'configs',CLIENT_ID)
+
+GLOBAL_CONFIG_FILEPATH = os.getenv(
+    "GLOBAL_CONFIG_FILEPATH", 
+    os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
 
 
 def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, jwt=None, force_overwrite=False, user_key=None,api_version=1.0, upload_type='Video'):

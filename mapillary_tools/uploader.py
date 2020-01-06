@@ -422,6 +422,8 @@ def progress(count, total, suffix=''):
 
 def prompt_user_for_user_items(user_name):
     user_items = {}
+    print("CLIENT_ID {}".format(CLIENT_ID))
+    print("GLOBAL_CONFIG_FILEPATH {}".format(GLOBAL_CONFIG_FILEPATH))
     print("Enter user credentials for user " + user_name + " :")
     user_email = raw_input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
@@ -448,6 +450,10 @@ def prompt_user_for_user_items(user_name):
 
 def authenticate_user(user_name):
     user_items = None
+
+    print("CLIENT_ID {}".format(CLIENT_ID))
+    print("GLOBAL_CONFIG_FILEPATH {}".format(GLOBAL_CONFIG_FILEPATH))
+
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
