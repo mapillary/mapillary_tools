@@ -494,7 +494,7 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     user_items["user_permission_hash"] = user_permission_hash
     user_items["user_signature_hash"] = user_signature_hash
     user_items["aws_access_key_id"] = aws_access_key_id
-    
+
     return user_items
 
 

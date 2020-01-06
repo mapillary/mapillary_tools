@@ -77,7 +77,7 @@ class ProcessImagesProviderTestCase(TestCase):
     def _get_user_items(self, user):
         user_items = {}
         upload_token = self._get_upload_token(user)
-        user_permission_hash, user_signature_hash = self._get_user_hashes(user.key, upload_token)
+        user_permission_hash, user_signature_hash, aws_access_key_id = self._get_user_hashes(user.key, upload_token)
 
         user_items["MAPSettingsUsername"] = user.username
         user_items["MAPSettingsUserKey"] = user.key
@@ -85,6 +85,7 @@ class ProcessImagesProviderTestCase(TestCase):
         user_items["user_upload_token"] = upload_token
         user_items["user_permission_hash"] = user_permission_hash
         user_items["user_signature_hash"] = user_signature_hash
+        user_items["aws_access_key_id"] = aws_access_key_id
 
         return user_items
 
@@ -96,4 +97,4 @@ class ProcessImagesProviderTestCase(TestCase):
     def _get_user_hashes(self, user_key, upload_token):
         resp = requests.get(USER_UPLOAD_URL.format(user_key, CLIENT_ID),
                             headers = {"Authorization":"Bearer " + upload_token}).json()
-        return (resp['images_policy'], resp['images_hash'])
+        return (resp['images_policy'], resp['images_hash'], resp['aws_access_key_id'])

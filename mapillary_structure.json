@@ -26,7 +26,8 @@
       "extDependencies": [],
       "dockerparameters": {
          "command": "script/run upload",
-         "volumes": ["./tests:/mapillary_source/tests"]
+         "volumes": ["./tests:/mapillary_source/tests"],
+         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/configs/YWFhYWFhYWFhYWFhYWFhYWFhYWFhYTphcHBfYQ=="]
       },
       "config_vars": [],
       "marathon_name": "",
