@@ -7,8 +7,10 @@ import uploader
 '''
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
-GLOBAL_CONFIG_FILEPATH = os.path.join(
-    os.path.expanduser('~'), ".config", "mapillary", 'configs',CLIENT_ID)
+
+GLOBAL_CONFIG_FILEPATH = os.getenv(
+    "GLOBAL_CONFIG_FILEPATH",
+    os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
 
 
 def edit_config(config_file=None, user_name=None, user_email=None, user_password=None, jwt=None, force_overwrite=False, user_key=None,api_version=1.0, upload_type='Video'):
@@ -34,6 +36,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_upload_token"] = "Dummy_upload_token"
         user_items["user_permission_hash"] = "Dummy_user_permission_hash"
         user_items["user_signature_hash"] = "Dummy_user_signature_hash"
+        user_items["aws_access_key_id"] = "Dummy_aws_access_key_id"
 
         section = user_name
         config.update_config(config_file_path, section, user_items)
@@ -98,7 +101,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
 def edit_config_with_jwt(jwt, config_file_path):
     user = uploader.get_user(jwt)
 
-    user_permission_hash, user_signature_hash = uploader.get_user_hashes(
+    user_permission_hash, user_signature_hash, aws_access_key_id = uploader.get_user_hashes(
         user['key'], jwt)
 
     user_items = {}
@@ -107,5 +110,6 @@ def edit_config_with_jwt(jwt, config_file_path):
     user_items["user_upload_token"] = jwt
     user_items["user_permission_hash"] = user_permission_hash
     user_items["user_signature_hash"] = user_signature_hash
+    user_items["aws_access_key_id"] = aws_access_key_id
 
     config.update_config(config_file_path, user['username'], user_items)
