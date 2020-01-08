@@ -33,9 +33,9 @@ else:
     MAPILLARY_UPLOAD_URL = "{}/{}".format(
         os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
 
-MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
-PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
-SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
+MAPILLARY_DIRECT_UPLOAD_URL = "https://secure-upload.mapillary.com"
+PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wNi0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
+SIGNATURE_HASH = "Td2/WYfCc/+xWzJX7VL691StviI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
@@ -73,10 +73,11 @@ class UploadThread(threading.Thread):
             try:
                 filepath, max_attempts, params = self.q.get(timeout=5)
             except:
-                #If it can't get a task after 5 seconds, continue and check if task list is empty
+                # If it can't get a task after 5 seconds, continue and check if
+                # task list is empty
                 continue
             progress(self.total_task - self.q.qsize(), self.total_task,
-                        '... {} images left.'.format(self.q.qsize()))
+                     '... {} images left.'.format(self.q.qsize()))
             upload_file(filepath, max_attempts, **params)
             self.q.task_done()
 
@@ -604,7 +605,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
                 if response.getcode() == 204:
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
-                            s3_filename, attempt+1))
+                            s3_filename, attempt + 1))
                 break  # attempts
             except urllib2.HTTPError as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
@@ -681,7 +682,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                     create_upload_log(filepath_in, "upload_success")
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
-                            filename, attempt+1))
+                            filename, attempt + 1))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
                 break  # attempts
@@ -848,7 +849,8 @@ def filter_video_before_upload(video, filter_night_time=False):
             print_error("ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files")
             return True
         if get_blackvue_info(video)['camera_direction'] != 'Front':
-            print_error("ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
+            print_error(
+                "ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
             return True
     except:
         print_error("ERROR: Unable to determine video details, skipping video")
@@ -873,7 +875,8 @@ def filter_video_before_upload(video, filter_night_time=False):
             os.rename(video, stationary_folder + os.path.basename(video))
             os.rename(gpx_file_path, stationary_folder +
                       os.path.basename(gpx_file_path))
-        print_error("Skipping file {} due to camera being stationary".format(video))
+        print_error(
+            "Skipping file {} due to camera being stationary".format(video))
         return True
 
     if not isStationaryVid:
@@ -909,6 +912,7 @@ def filter_video_before_upload(video, filter_night_time=False):
                 print(
                     "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(e))
         return False
+
 
 def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False, offset_angle=0, orientation=0):
     # safe checks
@@ -952,7 +956,8 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         os.path.dirname(x)) != 'no_gps_data']
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'nighttime']
-    skipped_videos_count = total_videos_count - uploaded_videos_count - len(all_videos)
+    skipped_videos_count = total_videos_count - \
+        uploaded_videos_count - len(all_videos)
 
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
