@@ -65,7 +65,7 @@ def process_upload_params(import_path,
                                                       "failed",
                                                       verbose)
             sys.exit(1)
-        if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
+        if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials or "aws_access_key_id" not in credentials:
             print_error(
                 "Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(process_file_list,
@@ -77,6 +77,7 @@ def process_upload_params(import_path,
         user_upload_token = credentials["user_upload_token"]
         user_permission_hash = credentials["user_permission_hash"]
         user_signature_hash = credentials["user_signature_hash"]
+        aws_access_key_id = credentials["aws_access_key_id"]
         user_key = credentials["MAPSettingsUserKey"]
 
     for image in tqdm(process_file_list, desc="Processing image upload parameters"):
@@ -101,6 +102,7 @@ def process_upload_params(import_path,
                                                                           user_permission_hash,
                                                                           user_signature_hash,
                                                                           user_key,
+                                                                          aws_access_key_id,
                                                                           verbose)
         processing.create_and_log_process(image,
                                           "upload_params_process",

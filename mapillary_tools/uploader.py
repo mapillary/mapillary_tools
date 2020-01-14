@@ -32,9 +32,9 @@ else:
     MAPILLARY_UPLOAD_URL = "{}/{}".format(
         os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
 
-MAPILLARY_DIRECT_UPLOAD_URL = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.images"
-PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wMS0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
-SIGNATURE_HASH = "f6MHj3JdEq8xQ/CmxOOS7LvMxoI="
+MAPILLARY_DIRECT_UPLOAD_URL = "https://secure-upload.mapillary.com"
+PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wNi0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
+SIGNATURE_HASH = "Td2/WYfCc/+xWzJX7VL691StviI="
 BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
@@ -431,7 +431,7 @@ def prompt_user_for_user_items(user_name):
         user_email, user_password)
     if not upload_token:
         return None
-    user_permission_hash, user_signature_hash = get_user_hashes(
+    user_permission_hash, user_signature_hash, aws_access_key_id = get_user_hashes(
         user_key, upload_token)
 
     user_items["MAPSettingsUsername"] = user_name
@@ -440,6 +440,7 @@ def prompt_user_for_user_items(user_name):
     user_items["user_upload_token"] = upload_token
     user_items["user_permission_hash"] = user_permission_hash
     user_items["user_signature_hash"] = user_signature_hash
+    user_items["aws_access_key_id"] = aws_access_key_id
 
     return user_items
 
@@ -482,7 +483,7 @@ def authenticate_with_email_and_pwd(user_email, user_password):
         print("User name {} does not exist, please try again or contact Mapillary user support.".format(
             user_name))
         sys.exit(1)
-    user_permission_hash, user_signature_hash = get_user_hashes(
+    user_permission_hash, user_signature_hash, aws_access_key_id = get_user_hashes(
         user_key, upload_token)
 
     user_items["MAPSettingsUsername"] = section
@@ -556,12 +557,15 @@ def get_user_hashes(user_key, upload_token):
     req = urllib2.Request(USER_UPLOAD_URL.format(user_key, CLIENT_ID))
     req.add_header('Authorization', 'Bearer {}'.format(upload_token))
     resp = json.loads(urllib2.urlopen(req).read())
+
     if 'images_hash' in resp:
         user_signature_hash = resp['images_hash']
     if 'images_policy' in resp:
         user_permission_hash = resp['images_policy']
+    if 'aws_access_key_id' in resp:
+        aws_access_key_id = resp['aws_access_key_id']
 
-    return (user_permission_hash, user_signature_hash)
+    return (user_permission_hash, user_signature_hash, aws_access_key_id)
 
 
 def get_user(jwt):
@@ -580,7 +584,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, 
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key,  "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     encoded_string = ''
@@ -655,7 +659,7 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
     else:
         s3_key = key + s3_filename
 
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key,
+    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key,  "acl": "private",
                   "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
 
     with open(filepath, "rb") as f:
