@@ -437,7 +437,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         "permission": user_permission_hash,
         "signature": user_signature_hash,
         "key": user_name + "/" + sequence_uuid + "/",
-        "aws_key": os.getenv("AWS_ACCESS_KEY_ID", "AKIAIJJIMLWVT6GBZQIQ")
+        "aws_key": os.getenv("AWS_ACCESS_KEY_ID", "AKIAR47SN3BMCP62Z54T") #commit 9bcb67c
     }
 
     try:
