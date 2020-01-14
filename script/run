@@ -6,6 +6,7 @@ if [ "$1" = "upload" ];
 then
     map_cluster_wait_for_it $S3_WAIT
     map_cluster_wait_for_it $API_WAIT
+    map_cluster_wait_for_it $API_PROXY_WAIT
     sleep 30
     while :
     do
@@ -16,6 +17,7 @@ elif [ $1 = "process" ];
 then
     map_cluster_wait_for_it $S3_WAIT
     map_cluster_wait_for_it $API_WAIT
+    map_cluster_wait_for_it $API_PROXY_WAIT
     sleep 30
     while :
     do
