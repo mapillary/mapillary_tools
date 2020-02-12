@@ -58,7 +58,8 @@
       "dockerparameters": {
          "command": "script/run process",
          "volumes": ["./tests:/mapillary_source/tests"],
-         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/configs/YWFhYWFhYWFhYWFhYWFhYWFhYWFhYTphcHBfYQ=="]      },
+         "environment": ["GLOBAL_CONFIG_FILEPATH=/mapillary_source/tests/.config/mapillary/configs/YWFhYWFhYWFhYWFhYWFhYWFhYWFhYTphcHBfYQ=="]
+      },
       "config_vars": [],
       "marathon_name": "",
       "name": "mapillary_tools_process_images_provider",

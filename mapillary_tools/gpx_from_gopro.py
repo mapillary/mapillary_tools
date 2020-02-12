@@ -72,11 +72,8 @@ def get_points_from_gpmf(path):
             while len(fi.read(8)) == 8:
                     
                 gps_data = fi.read(57)
-                gps_text = ""
-            
                 #decode azdome gps data
-                for i in range(57):
-                    gps_text += chr(ord(gps_data[i]) ^ ord('\xAA'))
+                gps_text = "".join([chr(ord(c)^0xAA) for c in gps_data])
                     
                 # AZDOME stores coordinates in format:
                 # lat    DDmm.mmmm 

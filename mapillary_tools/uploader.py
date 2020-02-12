@@ -24,6 +24,7 @@ from .error import print_error
 from .utils import force_decode
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
+from utils import format_orientation
 from geo import get_timezone_and_utc_offset
 from camera_support.prepare_blackvue_videos import get_blackvue_info
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
@@ -53,6 +54,7 @@ ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations?client_id={}"
 USER_URL = API_ENDPOINT + "/v3/users?usernames={}&client_id={}"
 ME_URL = "{}/v3/me?client_id={}".format(API_ENDPOINT, CLIENT_ID)
 USER_UPLOAD_URL = API_ENDPOINT + "/v3/users/{}/upload_tokens?client_id={}"
+USER_UPLOAD_SECRETS = API_ENDPOINT + "/v3/users/{}/upload_secrets?client_id={}"
 UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
                        "upload_failed": "upload_success"}
 GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'),
@@ -71,7 +73,8 @@ class UploadThread(threading.Thread):
             try:
                 filepath, max_attempts, params = self.q.get(timeout=5)
             except:
-                #If it can't get a task after 5 seconds, continue and check if task list is empty
+                #If it can't get a task after 5 seconds, continue and check if 
+                # task list is empty
                 continue
             progress(self.total_task - self.q.qsize(), self.total_task,
                         '... {} images left.'.format(self.q.qsize()))
@@ -843,18 +846,18 @@ def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, mis
 def filter_video_before_upload(video, filter_night_time=False):
     try:
         if not get_blackvue_info(video)['is_Blackvue_video']:
-            print("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
+            print_error("ERROR: Direct video upload is currently only supported for Blackvue DRS900S camera. Please use video_process command for other camera files")
             return True
         if get_blackvue_info(video)['camera_direction'] != 'Front':
-            print("ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
+            print_error(
+                "ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos")
             return True
     except:
-        print("ERROR: Unable to determine video details, skipping video")
+        print_error("ERROR: Unable to determine video details, skipping video")
         return True
     [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
         video, use_nmea_stream_timestamp=False)
     video_start_time = get_video_start_time_blackvue(video)
-
     if isStationaryVid:
         if not gpx_file_path:
             if os.path.basename(os.path.dirname(video)) != 'no_gps_data':
@@ -862,7 +865,7 @@ def filter_video_before_upload(video, filter_night_time=False):
                 if not os.path.exists(no_gps_folder):
                     os.mkdir(no_gps_folder)
                 os.rename(video, no_gps_folder + os.path.basename(video))
-            print(
+            print_error(
                 "Skipping file {} due to file not containing gps data".format(video))
             return True
         if os.path.basename(os.path.dirname(video)) != 'stationary':
@@ -872,7 +875,8 @@ def filter_video_before_upload(video, filter_night_time=False):
             os.rename(video, stationary_folder + os.path.basename(video))
             os.rename(gpx_file_path, stationary_folder +
                       os.path.basename(gpx_file_path))
-        print("Skipping file {} due to camera being stationary".format(video))
+        print_error(
+            "Skipping file {} due to camera being stationary".format(video))
         return True
 
     if not isStationaryVid:
@@ -901,7 +905,7 @@ def filter_video_before_upload(video, filter_night_time=False):
                               os.path.basename(video))
                     os.rename(gpx_file_path, night_time_folder +
                               os.path.basename(gpx_file_path))
-                    print(
+                    print_error(
                         "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
                     return True
             except Exception as e:
@@ -940,17 +944,31 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     # get a list of all videos first
     all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
         video_import_path) else [video_import_path]
+    total_videos_count = len(all_videos)
+
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'uploaded']  # Filter already uploaded videos
+    uploaded_videos_count = total_videos_count - len(all_videos)
+
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'stationary']
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'no_gps_data']
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'nighttime']
+    skipped_videos_count = total_videos_count - \
+        uploaded_videos_count - len(all_videos)
 
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
+
+    progress = {
+        'total': total_videos_count,
+        'uploaded': uploaded_videos_count,
+        'skipped': skipped_videos_count
+    }
+
+    ipc.send('progress', progress)
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
@@ -972,6 +990,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
                 (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
             upload_video_for_processing(
                 video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance)
+            progress['uploaded'] += 1 if not DRY_RUN else 0
+        else:
+            progress['skipped'] += 1
+
+        ipc.send('progress', progress)
 
     print("Upload completed")
 
@@ -999,7 +1022,9 @@ def upload_video_for_processing(video, video_start_time, max_attempts, credentia
             make='Blackvue',
             model='DR900S-1CH',
             sample_interval_distance=float(sampling_distance),
-            video_start_time=video_start_time
+            video_start_time=video_start_time,
+            camera_angle_offset=float(offset_angle),
+            exif_frame_orientation=format_orientation(orientation)
         )
     )
     if master_upload != None:

@@ -7,6 +7,7 @@ import uploader
 '''
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
                       "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
     os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
@@ -73,7 +74,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
             print("Authentication failed for user name " +
                   section + ", please try again.")
             sys.exit(1)
-        user_permission_hash, user_signature_hash = uploader.get_user_hashes(
+        user_permission_hash, user_signature_hash, aws_access_key_id = uploader.get_user_hashes(
             user_key, upload_token)
 
         user_items["MAPSettingsUsername"] = section
@@ -82,6 +83,7 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_upload_token"] = upload_token
         user_items["user_permission_hash"] = user_permission_hash
         user_items["user_signature_hash"] = user_signature_hash
+        user_items['aws_access_key_id'] = aws_access_key_id
         if api_version == 2.0:
             user_items["upload_url"] = uploader.get_upload_url(
                 user_email, user_password, upload_type)

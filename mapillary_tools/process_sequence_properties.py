@@ -188,8 +188,8 @@ def process_sequence_properties(import_path,
                 else:
                     # dont use bearing difference if no bearings are
                     # available
-                    direction_diff = 360
-                if distance < duplicate_distance or direction_diff < duplicate_angle:
+                    direction_diff = 0              #360
+                if distance < duplicate_distance and direction_diff < duplicate_angle:
                     open(duplicate_flag_path, "w").close()
                     open(sequence_process_success_path, "w").close()
                     open(sequence_process_success_path + "_" +
