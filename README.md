@@ -23,7 +23,7 @@ Now you can download the full Mapillary Tools library in one click.  Once on you
 
 ### Windows Package Installation
 
-https://tools.mapillary.com/binary/win/mapillary_tools.exe
+https://github.com/MSolodzhuk/mapillary_tools/tree/master/publish/win
 
 ### MacOS Package Installation
 
