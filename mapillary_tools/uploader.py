@@ -344,7 +344,7 @@ def get_upload_token(mail, pwd):
     '''
     try:
         params = urllib.urlencode({"email": mail, "password": pwd})
-        response = urllib.urlopen(LOGIN_URL, params)
+        response = urllib2.urlopen(LOGIN_URL, params)
     except:
         return None
     resp = json.loads(response.read())
