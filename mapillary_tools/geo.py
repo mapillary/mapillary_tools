@@ -279,31 +279,34 @@ def interpolate_lat_lon(points, t, max_dt=1):
 
 def write_gpx(filename, gps_trace):
     time_format = "%Y-%m-%dT%H:%M:%S.%f"
-    gpx = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    gpx += "<gpx" + "\n"
-    gpx += '  version="1.0"' +"\n"
-    gpx += '  creator="mapillary_tools">' + '\n'
-    gpx += "<trk>" + "\n"
-    gpx += "<name>Mapillary GPX</name>" + "\n"
-    gpx += "<trkseg>" + "\n"
-    for point in gps_trace:
-        lat = point[1]
-        lon = point[2]
-        if lat == 0 or lon == 0:
-            continue
-        time = datetime.datetime.strftime(point[0], time_format)[:-3]
-        elevation = point[3] if len(point) > 3 else 0
-        speed = point[5] if len(point) > 5 else None
-        gpx += "<trkpt lat=\"" + \
-            str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
-        gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
-        gpx += "<time>" + time + "</time>" + "\n"
-        if speed != None: gpx += "<speed>" + str(speed) + "</speed>" + "\n"
-        gpx += "</trkpt>" + "\n"
-    gpx += "</trkseg>" + "\n"
-    gpx += "</trk>" + "\n"
-    gpx += "</gpx>" + "\n"
+    gpx_header = '''<?xml version="1.0" encoding="UTF-8"?>
+    <gpx
+      version="1.0"
+      creator="mapillary_tools">
+    <trk>
+    <name>Mapillary GPX</name>
+    <trkseg>'''
     with open(filename, "w") as fout:
+        fout.write(gpx_header)
+        for point in gps_trace:
+            lat = point[1]
+            lon = point[2]
+            if lat == 0 or lon == 0:
+                continue
+            time = datetime.datetime.strftime(point[0], time_format)[:-3]
+            elevation = point[3] if len(point) > 3 else 0
+            speed = point[5] if len(point) > 5 else None
+            gpx = "<trkpt lat=\"" + \
+                str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
+            gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
+            gpx += "<time>" + time + "</time>" + "\n"
+            if speed != None: gpx += "<speed>" + str(speed) + "</speed>" + "\n"
+                gpx += "</trkpt>" + "\n"
+            fout.write(gpx)
+        gpx = "</trkseg>" + "\n"
+        gpx += "</trk>" + "\n"
+        gpx += "</gpx>" + "\n"
+    
         fout.write(gpx)
 
 
