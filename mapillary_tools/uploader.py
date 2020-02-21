@@ -344,7 +344,7 @@ def get_upload_token(mail, pwd):
     '''
     try:
         params = urllib.urlencode({"email": mail, "password": pwd})
-        response = urllib.urlopen(LOGIN_URL, params)
+        response = urllib2.urlopen(LOGIN_URL, params)
     except:
         return None
     resp = json.loads(response.read())
@@ -476,7 +476,7 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     if user_email is None or user_password is None:
         raise ValueError(
             'Could not authenticate user. Missing username or password')
-    upload_token = uploader.get_upload_token(user_email, user_password)
+    upload_token = get_upload_token(user_email, user_password)
     if not upload_token:
         print("Authentication failed for user name " +
               user_name + ", please try again.")
