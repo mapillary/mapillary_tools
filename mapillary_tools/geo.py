@@ -300,8 +300,9 @@ def write_gpx(filename, gps_trace):
                 str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
             gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
             gpx += "<time>" + time + "</time>" + "\n"
-            if speed != None: gpx += "<speed>" + str(speed) + "</speed>" + "\n"
-                gpx += "</trkpt>" + "\n"
+            if speed is not None:
+                gpx += "<speed>" + str(speed) + "</speed>" + "\n"
+            gpx += "</trkpt>" + "\n"
             fout.write(gpx)
         gpx = "</trkseg>" + "\n"
         gpx += "</trk>" + "\n"
