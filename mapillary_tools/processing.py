@@ -19,6 +19,7 @@ from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from gpx_from_gopro import gpx_from_gopro
 from gpx_from_blackvue import gpx_from_blackvue
 from gpx_from_exif import gpx_from_exif
+from gpx_from_novatek import gpx_from_novatek
 from tqdm import tqdm
 from . import ipc
 from .error import print_error
