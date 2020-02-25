@@ -47,7 +47,7 @@ def get_gps_atom(atom_pos, atom_size, f):
     # checking for weird Azdome 0xAA XOR "encrypted" GPS data. This portion is a quick fix.
     if ord(data[12]) == 0x05:          #in python27 data - str in python3 bytes
         # XOR decryptor
-        s = ''.join([chr(ord(c)^0xAA) for c in data[26:128]])
+        s = ''.join([chr(ord(c) ^ 0xAA) for c in data[26:128]])
 
         date_time = datetime.strptime(s[:14],'%Y%m%d%H%M%S')
               
@@ -79,10 +79,8 @@ def get_gps_atom(atom_pos, atom_size, f):
         except UnicodeDecodeError as e:
             raise IOError("Skipping: garbage data. Error: %s." % str(e))
 
-
-        #time = fix_time(hour,minute,second,year,month,day)
-        time = "{:4d}{:02d}{:02d}{:02d}{:02d}{:02d}".format((year+2000),month,day,hour,minute,second)
-        date_time = datetime.strptime(time,'%Y%m%d%H%M%S')
+        date_time = datetime(year=int(year+2000), month=int(month), day=int(day),
+                             hour=int(hour),minute=int(minute), second=int(second))
         lat = fix_coordinates(latitude_b,latitude)
         lon = fix_coordinates(longitude_b,longitude)
         speed *= 0.514444
@@ -90,33 +88,28 @@ def get_gps_atom(atom_pos, atom_size, f):
 
         #it seems that A indicate reception
         if active != 'A':
-            print("Skipping: lost GPS satelite reception. Time: %s." % time)
+            print("Skipping: lost GPS satelite reception. Time: %s." % date_time)
             return
 
     return (date_time, lat,lon,ele, 0.0, speed,bearing)
 
+
 def process_file(in_file):
     points = []
-    #print("Processing file '%s'..." % in_file)
     with open(in_file, "rb") as f:
         offset = 0
         while True:
-            atom_pos = f.tell()
             hdr = f.read(HEADER)
             if not hdr:
                 break      
             atom_size, atom_type = struct.unpack('>I4s',hdr)
             
             if atom_type == 'moov':
-                #print("Found moov atom...")
                 sub_offset = offset + HEADER             #sub_offset = f.tell()
-
                 while sub_offset < (offset + atom_size):
                     hdr = f.read(HEADER)
                     sub_atom_size, sub_atom_type = struct.unpack('>I4s',hdr)
-
                     if sub_atom_type == 'gps ':
-                        #print("Found gps chunk descriptor atom...")
                         gps_offset = 16 + sub_offset # +16 = skip headers
                         f.seek(gps_offset,0)
                         while gps_offset < ( sub_offset + sub_atom_size):
@@ -135,6 +128,7 @@ def process_file(in_file):
             f.seek(offset,0)
 
     return points
+
 
 def gpx_from_novatek(novatek_video):
 
