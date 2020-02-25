@@ -85,8 +85,9 @@ def edit_config(config_file=None, user_name=None, user_email=None, user_password
         user_items["user_signature_hash"] = user_signature_hash
         user_items['aws_access_key_id'] = aws_access_key_id
         if api_version == 2.0:
-            user_items["upload_url"] = uploader.get_upload_url(
-                user_email, user_password, upload_type)
+            # user_items["upload_url"] = uploader.get_upload_url(
+            #    user_email, user_password, upload_type)
+            user_items["upload_url"] = uploader.get_upload_url(user_items)
     else:
         # fill in the items and save
         user_items = uploader.prompt_user_for_user_items(section)
