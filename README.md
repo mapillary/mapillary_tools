@@ -458,26 +458,26 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
 ```
 
 
-### GoPro
+### Videos with GPS data (GoPro, Azdome m06p, azdome gs63h, viofo a119 V3)
 
- - Sample one or more GoPro videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.5 seconds, ie 2 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the GoPro videos in `path/to/videos` and specifying to derive camera direction based on `GPS`. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient. If you want to check the video frame placement on the map before uploading, specify `--overwrite_EXIF_gps_tag`.
+ - Sample one or more videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.5 seconds, ie 2 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the videos in `path/to/videos` and specifying to derive camera direction based on `GPS`. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient. If you want to check the video frame placement on the map before uploading, specify `--overwrite_EXIF_gps_tag`.
+
+ ### GoPro
 
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "gopro_videos" --geotag_source_path "path/to/videos" --interpolate_directions --video_sample_interval 0.5 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
 ```
-
-
 ### AZDOME M06P
-
-- 
-
-
 
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "m06p_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.2 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
 ```
 
+### AZDOME GS63H, VIOFO A119 V3
 
+```bash
+mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "novatek_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.2 --video_duration_ratio 1 --overwrite_EXIF_gps_tag
+```
 
 ## Custom Installation 
 
@@ -506,7 +506,7 @@ You will need to have [python=2.7.x](https://www.python.org/downloads/release/py
 
 To install `mapillary_tools` on macOS, Ubuntu, or Windows, run:
 
-	pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+	pip install --upgrade git+https://github.com/MSolodzhuk/mapillary_tools
 
 which will enable processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
