@@ -65,10 +65,11 @@ def get_gps_atom(atom_pos, atom_size, f):
 
     else:
 
-        # Added Bearing as per RetiredTechie contribuition: http://retiredtechie.fitchfamily.org/2018/05/13/dashcam-openstreetmap-mapping/
+        # Added Bearing as per RetiredTechie contribuition: 
+        # http://retiredtechie.fitchfamily.org/2018/05/13/dashcam-openstreetmap-mapping/
         hour, minute, second, year, month, day = struct.unpack_from('<IIIIII',data, 16)
         active, latitude_b, longitude_b, __ = struct.unpack_from('<ssss',data, 40)
-        latitude,longitude,speed,bearing = struct.unpack_from('<IIIIIIssssffff',data, 44)
+        latitude,longitude,speed,bearing = struct.unpack_from('<ffff',data, 44)
 
         try:
             active = active.decode()
@@ -77,7 +78,7 @@ def get_gps_atom(atom_pos, atom_size, f):
 
         except UnicodeDecodeError as e:
             raise IOError("Skipping: garbage data. Error: %s." % str(e))
-            return
+
 
         #time = fix_time(hour,minute,second,year,month,day)
         time = "{:4d}{:02d}{:02d}{:02d}{:02d}{:02d}".format((year+2000),month,day,hour,minute,second)
