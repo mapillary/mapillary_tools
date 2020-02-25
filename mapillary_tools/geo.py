@@ -277,17 +277,20 @@ def interpolate_lat_lon(points, t, max_dt=1):
     return lat, lon, bearing, ele
 
 
+GPX_HEADER = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx
+    version="1.0"
+    creator="mapillary_tools">
+<trk>
+    <name>Mapillary GPX</name>
+<trkseg>
+'''
+
 def write_gpx(filename, gps_trace):
     time_format = "%Y-%m-%dT%H:%M:%S.%f"
-    gpx_header = '''<?xml version="1.0" encoding="UTF-8"?>
-    <gpx
-      version="1.0"
-      creator="mapillary_tools">
-    <trk>
-    <name>Mapillary GPX</name>
-    <trkseg>'''
+
     with open(filename, "w") as fout:
-        fout.write(gpx_header)
+        fout.write(GPX_HEADER)
         for point in gps_trace:
             lat = point[1]
             lon = point[2]
