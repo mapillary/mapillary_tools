@@ -283,6 +283,54 @@ def geotag_from_blackvue_video(process_file_list,
                               verbose)
 
 
+def geotag_from_novatek_video(process_file_list,
+                            import_path,
+                            geotag_source_path,
+                            offset_time,
+                            offset_angle,
+                            local_time,
+                            sub_second_interval,
+                            use_gps_start_time=False,
+                            verbose=False):
+
+    # for each video, create gpx trace and geotag the corresponding video
+    # frames
+    dashcam_videos = uploader.get_video_file_list(geotag_source_path)
+    for dashcam_video in dashcam_videos:
+        dashcam_video_filename = os.path.basename(dashcam_video).replace(
+            ".mp4", "").replace(".MP4", "")
+        try:
+            gpx_path = gpx_from_novatek(dashcam_video)
+            if not gpx_path or not os.path.isfile(gpx_path):
+                raise Exception
+        except Exception as e:
+            print_error("Error, failed extracting data from dashcam geotag source path {} due to {}, exiting...".format(
+                dashcam_video, e))
+            continue
+
+        process_file_sublist = [x for x in process_file_list if os.path.join(
+            dashcam_video_filename, dashcam_video_filename + "_") in x]
+
+        if not len(process_file_sublist):
+            print_error("Error, no video frames extracted for video file {} in import_path {}".format(
+                dashcam_video, import_path))
+            create_and_log_process_in_list(process_file_sublist,
+                                           "geotag_process"
+                                           "failed",
+                                           verbose)
+            continue
+
+        geotag_from_gps_trace(process_file_sublist,
+                              "gpx",
+                              gpx_path,
+                              offset_time,
+                              offset_angle,
+                              local_time,
+                              sub_second_interval,
+                              use_gps_start_time,
+                              verbose)
+
+
 def geotag_from_gps_trace(process_file_list,
                           geotag_source,
                           geotag_source_path,
@@ -662,7 +710,7 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
         process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
     else:
-        for root, _, files in os.walk(import_path):
+        for root, __, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
@@ -684,7 +732,7 @@ def get_process_status_file_list(import_path, process, status, skip_subfolders=F
         status_process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
             ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, __, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
