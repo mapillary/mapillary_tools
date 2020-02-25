@@ -38,29 +38,23 @@ def get_gps_atom(atom_pos, atom_size, f):
         if atom_size != atom_size1 or atom_type != expected_type or magic != expected_magic:
             raise IOError("Error! skipping atom at %x (expected size:%d, actual size:%d, expected type:%s, actual type:%s, expected magic:%s, actual maigc:%s)!" %
                   (int(atom_pos),atom_size,atom_size1,expected_type,atom_type,expected_magic,magic))
-            return
+            
 
     except UnicodeDecodeError as e:
         raise IOError("Skipping: garbage atom type or magic. Error: %s." % str(e))
-        return
+        
 
     # checking for weird Azdome 0xAA XOR "encrypted" GPS data. This portion is a quick fix.
     if ord(data[12]) == 0x05:          #in python27 data - str in python3 bytes
-
-        if atom_size < 254:
-            payload_size = atom_size
-        else:
-            payload_size = 254
-
         # XOR decryptor
         s = ''.join([chr(ord(c)^0xAA) for c in data[26:128]])
 
         date_time = datetime.strptime(s[:14],'%Y%m%d%H%M%S')
               
-        lat = float(s[31:33]) + float(s[33:35]+'.'+ s[35:39]) / 60
+        lat = float(s[31:33]) + float(s[33:35] + '.' + s[35:39]) / 60
         if s[30] == 'S':
             lat *= -1
-        lon = float(s[40:43]) + float(s[43:45]+'.'+s[45:49]) / 60
+        lon = float(s[40:43]) + float(s[43:45] + '.' +s[45:49]) / 60
         if s[39] == 'W':
             lon *= -1
 
@@ -72,7 +66,9 @@ def get_gps_atom(atom_pos, atom_size, f):
     else:
 
         # Added Bearing as per RetiredTechie contribuition: http://retiredtechie.fitchfamily.org/2018/05/13/dashcam-openstreetmap-mapping/
-        hour,minute,second,year,month,day,active,latitude_b,longitude_b,unknown2,latitude,longitude,speed,bearing = struct.unpack_from('<IIIIIIssssffff',data, 16)
+        hour, minute, second, year, month, day = struct.unpack_from('<IIIIII',data, 16)
+        active, latitude_b, longitude_b, __ = struct.unpack_from('<ssss',data, 40)
+        latitude,longitude,speed,bearing = struct.unpack_from('<IIIIIIssssffff',data, 44)
 
         try:
             active = active.decode()
@@ -115,7 +111,6 @@ def process_file(in_file):
                 sub_offset = offset + HEADER             #sub_offset = f.tell()
 
                 while sub_offset < (offset + atom_size):
-                    sub_atom_pos = f.tell()
                     hdr = f.read(HEADER)
                     sub_atom_size, sub_atom_type = struct.unpack('>I4s',hdr)
 
