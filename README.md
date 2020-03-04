@@ -23,7 +23,7 @@ Now you can download the full Mapillary Tools library in one click.  Once on you
 
 ### Windows Package Installation
 
-https://github.com/MSolodzhuk/mapillary_tools/tree/master/publish/win
+https://github.com/MSolodzhuk/mapillary_tools/tree/master/publish/win/mapillary_tools.exe
 
 ### MacOS Package Installation
 
@@ -470,13 +470,13 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
 ### AZDOME M06P
 
 ```bash
-mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "m06p_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.2 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
+mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "m06p_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.5 --video_duration_ratio 0 --overwrite_EXIF_gps_tag
 ```
 
 ### AZDOME GS63H, VIOFO A119 V3
 
 ```bash
-mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "novatek_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.2 --video_duration_ratio 1 --overwrite_EXIF_gps_tag
+mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "novatek_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.5 --video_duration_ratio 1 --overwrite_EXIF_gps_tag
 ```
 
 ## Custom Installation 
