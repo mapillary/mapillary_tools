@@ -253,7 +253,7 @@ def get_video_start_time(video_file, video_duration_ratio):
         return None
     else:
         video_start_time = (
-            video_end_time - datetime.timedelta(seconds=duration*video_duration_ratio))
+            video_end_time - datetime.timedelta(seconds = duration * video_duration_ratio))
         return video_start_time
 
 
