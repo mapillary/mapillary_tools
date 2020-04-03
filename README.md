@@ -45,7 +45,7 @@ To sample images from videos, you will also need to install `ffmpeg`. Review [vi
 
 ### User Authentication
 
-To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When using the tools for the first time, user authentication is required. You will be prompted to enter your account credentials. Only Mapillary account credentials are valid for authentication in mapillary_tools. Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported with mapillary_tools.
+To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When using the tools for the first time, user authentication is required. You will be prompted to enter your account credentials. Only Mapillary account credentials (username and password) are valid for authentication in mapillary_tools. Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported with mapillary_tools. If you signed up using one of those services, you can obtain a Mapillary password by requesting a password reset email through your [profile settings](https://www.mapillary.com/dashboard/profile) or the "Forgot password?" link on the Mapillary sign-in screen.
 
 ### Metadata
 
