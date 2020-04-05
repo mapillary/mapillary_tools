@@ -211,7 +211,8 @@ def interpolate_lat_lon(points, t, max_dt=1):
     Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
     '''
     # find the enclosing points in sorted list
-    t = t.replace(tzinfo=tzutc())
+    if points[0][0].tzinfo:
+        t = t.replace(tzinfo=tzutc())
     
     if (t <= points[0][0]) or (t >= points[-1][0]):
         if t <= points[0][0]:
