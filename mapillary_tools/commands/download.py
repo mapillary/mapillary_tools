@@ -17,22 +17,20 @@ either for a specified import path or by image keys.
     def add_basic_arguments(self, parser):
         add_user_arguments(parser)
         add_download_basic_arguments(parser)
-        parser.add_argument("--by_property",
-                            help="Image reference, either UUID or KEY",
-                            type=str,
-                            choices=['key', 'uuid'],
-                            default='uuid')
+        parser.add_argument('--by_property',
+            help="Image reference, either UUID or KEY.",
+            type=str, default='uuid',
+            choices=['key', 'uuid'])
         parser.add_argument('--organization_keys',
-                            help="Organizations which own the imagery")
+            help="Organizations which own the imagery.")
         parser.add_argument('--start_time',
-                            help="Since when to pull the images (YYYY-MM-DD)")
+            help="Since when to pull the images (YYYY-MM-DD).")
         parser.add_argument('--end_time',
-                            help="Until when to pull the images (YYYY-MM-DD)")
+            help="Until when to pull the images (YYYY-MM-DD).")
         parser.add_argument('--private',
-                            help="Download private/public organization images",
-                            type=str,
-                            choices=['true', 'false'],
-                            default='true')
+            help="Download private/public organization images.",
+            type=str, default='true',
+            choices=['true', 'false'])
 
     def add_advanced_arguments(self, parser):
         add_download_advanced_arguments(parser)
