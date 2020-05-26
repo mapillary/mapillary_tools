@@ -22,11 +22,13 @@ from tqdm import tqdm
 from . import ipc
 from .error import print_error
 from .utils import force_decode
+from camera_support.prepare_blackvue_videos import get_blackvue_info
+from geo import get_timezone_and_utc_offset
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
+from upload_api import create_upload_session, close_upload_session, upload_file
 from utils import format_orientation
-from geo import get_timezone_and_utc_offset
-from camera_support.prepare_blackvue_videos import get_blackvue_info
+
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
@@ -988,8 +990,21 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
                 datetime.timedelta(hours=hours_diff_to_utc)
             video_start_timestamp = int(
                 (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
-            upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation)
+            
+            metadata = {
+                "video_start_timestamp": video_start_timestamp,
+                "camera_angle_offset": offset_angle,
+                "exif_frame_orientation": orientation,
+                "make": "Blackvue"
+                "model": "DR900S-1CH"
+                }
+            options = {
+                "api_endpoint": API_ENDPOINT
+                "token": credentials.user_upload_token
+                "client_id": CLIENT_ID
+            }
+            upload_video(video, metadata, options)    
+            
             progress['uploaded'] += 1 if not DRY_RUN else 0
         else:
             progress['skipped'] += 1
@@ -998,6 +1013,25 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     print("Upload completed")
 
+def upload_video(video, metadata, options):
+    session = create_upload_session("video/blackvue", metadata, options)
+    
+    file_key = f"{session.key_prefix}/{os.path.basename(video)}
+    
+    for attempt in range(max_retries):
+        response = upload_file(session, video, file_key)
+        if response.status_code == 204:
+            break
+        else:
+            print("Upload status {}".format(response.status_code))
+            print("Upload request.url {}".format(response.request.url))
+            print("Upload response.text {}".format(response.text))
+            print("Upload request.headers {}".format(response.request.headers))
+            if attempt > self.settings["number_of_retries"]:
+                print("Max attempts reached. Failed to upload video {}".format(video))
+                return
+    
+    close_upload_session(session, {}, options)
 
 def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation):
     filename = os.path.basename(video)
