@@ -647,11 +647,12 @@ def upload_file(filepath, max_attempts, session):
 
     filename = os.path.basename(filepath)
 
-    s3_filename = filename
     try:
-        s3_filename = ExifRead(filepath).exif_name()
+        _, file_extension = os.path.splitext(filename)
+        exif_name = ExifRead(filepath).exif_name()
+        s3_filename = exif_name + file_extension
     except:
-        pass
+        s3_filename = filename
 
     filepath_keep_original = processing.processed_images_rootpath(filepath)
     filepath_in = filepath
