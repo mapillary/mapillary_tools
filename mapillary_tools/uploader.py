@@ -27,6 +27,7 @@ from geo import get_timezone_and_utc_offset
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
 from upload_api import create_upload_session, close_upload_session, upload_file
+from . import upload_api
 from uploader_utils import set_video_as_uploaded
 from utils import format_orientation
 
@@ -639,7 +640,7 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
         print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
 
 #  FIXME: This breaks upload_file functionality in image upload, need to agree on which upload_file function to use
-def upload_file_deprecated(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
     '''
     Upload file at filepath.
 
@@ -1033,14 +1034,14 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
     print("Upload completed")
 
 def upload_video(video, metadata, options, max_retries=20):
-    session = create_upload_session("videos/blackvue", metadata, options)
+    session = upload_api.create_upload_session("videos/blackvue", metadata, options)
     session = session.json()
 
     file_key = os.path.basename(video)
     
     for attempt in range(max_retries):
         print("Uploading...")
-        response = upload_file(session, video, file_key)
+        response = upload_api.upload_file(session, video, file_key)
         if 200 <= response.status_code <= 300:
             break
         else:
@@ -1048,11 +1049,11 @@ def upload_video(video, metadata, options, max_retries=20):
             print("Upload request.url {}".format(response.request.url))
             print("Upload response.text {}".format(response.text))
             print("Upload request.headers {}".format(response.request.headers))
-            if attempt > self.settings["number_of_retries"]:
+            if attempt >= max_retries - 1:
                 print("Max attempts reached. Failed to upload video {}".format(video))
                 return
 
-    close_session_response = close_upload_session(session, None, options)
+    close_session_response = upload_api.close_upload_session(session, None, options)
     close_session_response.raise_for_status()
 
     set_video_as_uploaded(video)
