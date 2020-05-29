@@ -663,6 +663,12 @@ def upload_file(filepath, max_attempts, session):
         displayed_upload_error = False
         for attempt in range(max_attempts):
             try:
+                session_fields = session["fields"]
+                session_fields["x-amz-meta-latitude"] = ""
+                session_fields["x-amz-meta-longitude"] = ""
+                session_fields["x-amz-meta-compass-angle"] = ""
+                session_fields["x-amz-meta-captured-at"] = ""
+
                 response = upload_api.upload_file(session, filepath, s3_filename)
 
                 if 200 <= response.status_code < 300:
@@ -777,7 +783,7 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
         with open(session_path, "w") as f:
             json.dump(session, f)
 
-    print("Using upload session {}".format(session["key"]))
+    print("\nUsing upload session {}".format(session["key"]))
 
     # create upload queue with all files per sequence
     q = Queue()
@@ -805,7 +811,7 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     close_session_response = upload_api.close_upload_session(session, None, upload_options)
     close_session_response.raise_for_status()
 
-    print("Closed upload session {}".format(session["key"]))
+    print("\nClosed upload session {}".format(session["key"]))
 
     flag_finalization(file_list)
 
