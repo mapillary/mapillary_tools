@@ -19,6 +19,15 @@ def close_upload_session(session, json, options):
     return requests.put(url, params=params, headers=headers, json=json)
 
 
+def get_upload_session(session, options):
+    url = _get_url(options, "/v3/me/uploads")
+    url = "{}/{}".format(url, session["key"])
+    headers = _get_headers(options)
+    params = _get_params(options)
+
+    return requests.get(url, params=params, headers=headers)
+
+
 def upload_file(session, file_path, object_key):
     with open(file_path, 'rb') as f:
         files = {'file': (object_key, f)}

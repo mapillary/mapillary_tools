@@ -98,14 +98,15 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
 
             print("Uploading {} images with valid mapillary tags (Skipping {})".format(
                 len(upload_file_list), len(total_file_list) - len(upload_file_list)))
-            if api_version==2.0:
-                uploder.uploadfile_list
+
             if len(direct_upload_file_list):
                 uploader.upload_file_list_direct(
                     direct_upload_file_list, number_threads, max_attempts)
+
             for idx, sequence in enumerate(list_per_sequence_mapping):
                 uploader.upload_file_list_manual(
                     list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
+
         if len(to_finalize_file_list):
             params = {}
             sequences = []
@@ -121,8 +122,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                         if sequence not in sequences:
                             params[image] = image_params
                             sequences.append(sequence)
-            for image in params:
-                uploader.upload_done_file(**params[image])
+
             uploader.flag_finalization(to_finalize_file_list)
 
     uploader.print_summary(upload_file_list)

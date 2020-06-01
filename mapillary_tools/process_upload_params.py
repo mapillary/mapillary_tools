@@ -104,6 +104,7 @@ def process_upload_params(import_path,
                                                                           user_key,
                                                                           aws_access_key_id,
                                                                           verbose)
+
         processing.create_and_log_process(image,
                                           "upload_params_process",
                                           "success",

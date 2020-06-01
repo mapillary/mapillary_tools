@@ -19,6 +19,7 @@ import processing
 import requests
 import yaml
 from tqdm import tqdm
+from . import upload_api
 from . import ipc
 from .error import print_error
 from .utils import force_decode
@@ -75,14 +76,14 @@ class UploadThread(threading.Thread):
         while not self.q.empty():
             # fetch file from the queue and upload
             try:
-                filepath, max_attempts, params = self.q.get(timeout=5)
+                filepath, max_attempts, session = self.q.get(timeout=5)
             except:
                 # If it can't get a task after 5 seconds, continue and check if
                 # task list is empty
                 continue
             progress(self.total_task - self.q.qsize(), self.total_task,
                      '... {} images left.'.format(self.q.qsize()))
-            upload_file(filepath, max_attempts, **params)
+            upload_file(filepath, max_attempts, session)
             self.q.task_done()
 
 
@@ -639,72 +640,56 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
     else:
         print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
 
-#  FIXME: This breaks upload_file functionality in image upload, need to agree on which upload_file function to use
-def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
+
+def upload_file(filepath, max_attempts, session):
     '''
     Upload file at filepath.
 
     '''
+
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
     filename = os.path.basename(filepath)
 
-    s3_filename = filename
     try:
-        s3_filename = ExifRead(filepath).exif_name()
+        _, file_extension = os.path.splitext(filename)
+        exif_name = ExifRead(filepath).exif_name()
+        s3_filename = exif_name + file_extension
     except:
-        pass
+        s3_filename = filename
 
     filepath_keep_original = processing.processed_images_rootpath(filepath)
     filepath_in = filepath
     if os.path.isfile(filepath_keep_original):
         filepath = filepath_keep_original
 
-    # add S3 'path' if given
-    if key is None:
-        s3_key = s3_filename
-    else:
-        s3_key = key + s3_filename
-
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
-                  "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
-
-    with open(filepath, "rb") as f:
-        encoded_string = f.read()
-
-    data, headers = encode_multipart(
-        parameters, {'file': {'filename': filename, 'content': encoded_string}})
     if (DRY_RUN == False):
         displayed_upload_error = False
         for attempt in range(max_attempts):
-            # Initialize response before each attempt
-            response = None
             try:
-                request = urllib2.Request(url, data=data, headers=headers)
-                response = urllib2.urlopen(request)
-                if response.getcode() == 204:
+                session_fields = session["fields"]
+                session_fields["x-amz-meta-latitude"] = ""
+                session_fields["x-amz-meta-longitude"] = ""
+                session_fields["x-amz-meta-compass-angle"] = ""
+                session_fields["x-amz-meta-captured-at"] = ""
+
+                response = upload_api.upload_file(session, filepath, s3_filename)
+
+                if 200 <= response.status_code < 300:
                     create_upload_log(filepath_in, "upload_success")
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
                             filename, attempt + 1))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
+                    print(response.text)
                 break  # attempts
 
-            except urllib2.HTTPError as e:
-                print(e.read())
+            except requests.RequestException as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, filename, max_attempts - attempt - 1))
                 displayed_upload_error = True
-                time.sleep(5)
-            except urllib2.URLError as e:
-                print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except httplib.HTTPException as e:
-                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
                 time.sleep(5)
             except OSError as e:
                 print("OS error: {} on {}, will attempt upload again for {} more times".format(
@@ -714,15 +699,18 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 # Specific timeout handling for Python 2.7
                 print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
                     filename, max_attempts - attempt - 1))
-            finally:
-                if response is not None:
-                    response.close()
+
     else:
         print('DRY_RUN, Skipping actual image upload. Use this for debug only.')
 
 
 def ascii_encode_dict(data):
-    def ascii_encode(x): return x.encode('ascii')
+    def ascii_encode(x):
+        if isinstance(x, str) or isinstance(x, unicode):
+            return x.encode('ascii')
+
+        return x
+
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
@@ -762,10 +750,51 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
+    first_image = file_params.values()[0]
+
+    user_name = first_image["user_name"]
+    sequence_uuid = first_image["sequence_uuid"]
+    organization_key = first_image.get("organization_key")
+    private = first_image.get("private", False)
+
+    credentials = authenticate_user(user_name)
+
+    upload_options = {
+        "token": credentials["user_upload_token"],
+        "client_id": CLIENT_ID,
+        "endpoint": API_ENDPOINT,
+    }
+
+    session_path = os.path.join(log_folder(file_list[0]), "session_{}.json".format(sequence_uuid))
+
+    if os.path.isfile(session_path):
+        with open(session_path, "r") as f:
+            session = json.load(f)
+    else:
+        upload_metadata = {}
+
+        if organization_key:
+            upload_metadata["organization_key"] = organization_key
+            upload_metadata["private"] = private
+
+        session = upload_api.create_upload_session(
+            "images/sequence",
+            upload_metadata,
+            upload_options
+        )
+        session.raise_for_status()
+        session = session.json()
+
+        with open(session_path, "w") as f:
+            json.dump(session, f)
+
+    print("\nUsing upload session {}".format(session["key"]))
+
     # create upload queue with all files per sequence
     q = Queue()
     for filepath in file_list:
-        q.put((filepath, max_attempts, file_params[filepath]))
+        q.put((filepath, max_attempts, session))
+
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(number_threads)]
 
@@ -783,12 +812,21 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     except (KeyboardInterrupt, SystemExit):
         print("\nBREAK: Stopping upload.")
         sys.exit(1)
-    upload_done_file(**file_params[filepath])
+
+    close_session_response = upload_api.close_upload_session(session, None, upload_options)
+    close_session_response.raise_for_status()
+
+    print("\nClosed upload session {}".format(session["key"]))
+
     flag_finalization(file_list)
 
 
 def log_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.splitext(os.path.basename(filepath))[0])
+
+
+def log_folder(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs")
 
 
 def create_upload_log(filepath, status):
