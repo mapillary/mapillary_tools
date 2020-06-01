@@ -106,12 +106,23 @@ class ExifRead:
         '''
         Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}_{hash}
         '''
+        lat, lon, ca, captured_at = self.exif_properties()
+
+        filename = '{}_{}_{}_{}_{}'.format(
+            lat, lon, ca, captured_at, uuid.uuid4())
+
+        return filename
+
+    def exif_properties(self):
+        '''
+        Gets {lat} {lon} {ca} {captured_at} as a tuple
+        '''
         mapillary_description = json.loads(self.extract_image_description())
 
         lat = None
         lon = None
         ca = None
-        date_time = None
+        captured_at = None
 
         if "MAPLatitude" in mapillary_description:
             lat = mapillary_description["MAPLatitude"]
@@ -121,12 +132,10 @@ class ExifRead:
             if 'TrueHeading' in mapillary_description["MAPCompassHeading"]:
                 ca = mapillary_description["MAPCompassHeading"]['TrueHeading']
         if "MAPCaptureTime" in mapillary_description:
-            date_time = datetime.datetime.strptime(
+            captured_at = datetime.datetime.strptime(
                 mapillary_description["MAPCaptureTime"], "%Y_%m_%d_%H_%M_%S_%f").strftime("%Y-%m-%d-%H-%M-%S-%f")[:-3]
 
-        filename = '{}_{}_{}_{}_{}'.format(
-            lat, lon, ca, date_time, uuid.uuid4())
-        return filename
+        return lat, lon, ca, captured_at
 
     def extract_image_history(self):
         field = ['Image Tag 0x9213']

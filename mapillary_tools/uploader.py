@@ -9,6 +9,7 @@ import socket
 import mimetypes
 import random
 import string
+import copy
 from Queue import Queue
 import threading
 import time
@@ -645,14 +646,32 @@ def upload_file(filepath, max_attempts, session):
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
+    try:
+        exif_read = ExifRead(filepath)
+    except:
+        pass
+
     filename = os.path.basename(filepath)
 
     try:
+        exif_name = exif_read.exif_name()
         _, file_extension = os.path.splitext(filename)
-        exif_name = ExifRead(filepath).exif_name()
         s3_filename = exif_name + file_extension
     except:
         s3_filename = filename
+
+    try:
+        lat, lon, ca, captured_at = exif_read.exif_properties()
+        new_session = copy.deepcopy(session)
+        session_fields = new_session["fields"]
+        session_fields["X-Amz-Meta-Latitude"] = lat
+        session_fields["X-Amz-Meta-Longitude"] = lon
+        session_fields["X-Amz-Meta-Compass-Angle"] = ca
+        session_fields["X-Amz-Meta-Captured-At"] = captured_at
+
+        session = new_session
+    except:
+        pass
 
     filepath_keep_original = processing.processed_images_rootpath(filepath)
     filepath_in = filepath
@@ -663,12 +682,6 @@ def upload_file(filepath, max_attempts, session):
         displayed_upload_error = False
         for attempt in range(max_attempts):
             try:
-                session_fields = session["fields"]
-                session_fields["x-amz-meta-latitude"] = ""
-                session_fields["x-amz-meta-longitude"] = ""
-                session_fields["x-amz-meta-compass-angle"] = ""
-                session_fields["x-amz-meta-captured-at"] = ""
-
                 response = upload_api.upload_file(session, filepath, s3_filename)
 
                 if 200 <= response.status_code < 300:
