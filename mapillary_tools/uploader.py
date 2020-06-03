@@ -1062,7 +1062,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         }
 
         if organization_key != None:
-            metadata["organization_key"] == organization_key
+            metadata["organization_key"] = organization_key
 
         if master_upload != None:
             metadata['user_key'] = master_upload
@@ -1088,7 +1088,7 @@ def upload_video(video, metadata, options, max_retries=20):
     session = upload_api.create_upload_session("videos/blackvue", metadata, options)
     session = session.json()
 
-    file_key = os.path.basename(video)
+    file_key = "uploaded"
     
     for attempt in range(max_retries):
         print("Uploading...")
