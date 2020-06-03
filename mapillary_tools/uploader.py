@@ -24,11 +24,15 @@ from . import upload_api
 from . import ipc
 from .error import print_error
 from .utils import force_decode
+from camera_support.prepare_blackvue_videos import get_blackvue_info
+from geo import get_timezone_and_utc_offset
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
+from upload_api import create_upload_session, close_upload_session, upload_file
+from . import upload_api
+from uploader_utils import set_video_as_uploaded
 from utils import format_orientation
-from geo import get_timezone_and_utc_offset
-from camera_support.prepare_blackvue_videos import get_blackvue_info
+
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
@@ -194,13 +198,14 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 # TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
+    supported_files = ("mp4", "avi", "tavi", "mov", "mkv")
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
+                               for file in os.listdir(video_file) if (file.lower().endswith((supported_files))))
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
+                                for file in files if (file.lower().endswith((supported_files))))
     return sorted(video_file_list)
 
 
@@ -1023,120 +1028,85 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        if not filter_video_before_upload(video, filter_night_time):
-            video_start_time = get_video_start_time_blackvue(video)
-            # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
-            # Only hours are corrected, so that second offsets are taken into
-            # account correctly
-            gpx_points = get_points_from_bv(video)
-            gps_video_start_time = gpx_points[0][0]
-            delta_t = video_start_time - gps_video_start_time
-            if delta_t.days > 0:
-                hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
-            else:
-                hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
-            video_start_time_utc = video_start_time + \
-                datetime.timedelta(hours=hours_diff_to_utc)
-            video_start_timestamp = int(
-                (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
-            upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation)
-            progress['uploaded'] += 1 if not DRY_RUN else 0
-        else:
-            progress['skipped'] += 1
 
-        ipc.send('progress', progress)
+        if filter_video_before_upload(video, filter_night_time):
+            progress['skipped'] += 1
+            continue
+
+        video_start_time = get_video_start_time_blackvue(video)
+        # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
+        # Only hours are corrected, so that second offsets are taken into
+        # account correctly
+        gpx_points = get_points_from_bv(video)
+        gps_video_start_time = gpx_points[0][0]
+        delta_t = video_start_time - gps_video_start_time
+        if delta_t.days > 0:
+            hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
+        else:
+            hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
+        video_start_time_utc = video_start_time + \
+            datetime.timedelta(hours=hours_diff_to_utc)
+        video_start_timestamp = int(
+            (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
+
+        metadata = {
+            "camera_angle_offset": offset_angle,
+            "exif_frame_orientation": orientation,
+            "images_upload_v2": True,
+            "make": "Blackvue",
+            "model": "DR900S-1CH",
+            "private": private,
+            "sample_interval_distance": sampling_distance,
+            "sequence_key": "test_sequence",  # TODO: What is the sequence key?
+            "video_start_time": video_start_timestamp, 
+        }
+
+        if organization_key != None:
+            metadata["organization_key"] = organization_key
+
+        if master_upload != None:
+            metadata['user_key'] = master_upload
+        
+        options = {
+            "api_endpoint": API_ENDPOINT,
+            "token": credentials["user_upload_token"],
+            "client_id": CLIENT_ID
+        }
+
+        if DRY_RUN:
+            continue
+        
+        upload_video(video, metadata, options)    
+        
+        progress['uploaded'] += 1        
+
+    ipc.send('progress', progress)
 
     print("Upload completed")
 
+def upload_video(video, metadata, options, max_retries=20):
+    session = upload_api.create_upload_session("videos/blackvue", metadata, options)
+    session = session.json()
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation):
-    filename = os.path.basename(video)
-    basename = os.path.splitext(filename)[0]
-    gpx_path = "{}/{}.gpx".format(os.path.dirname(video), basename)
-
-    if not os.path.exists(os.path.dirname(video) + '/uploaded/'):
-        os.mkdir(os.path.dirname(video) + '/uploaded/')
-
-    with open(video, "rb") as f:
-        encoded_string = f.read()
-    filename_no_ext, file_extension = os.path.splitext(filename)
-    path = os.path.dirname(video)
-    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/{}".format(
-        credentials["MAPSettingsUserKey"], filename_no_ext, filename)
-
-    data = dict(
-        parameters=dict(
-            organization_key=organization_key,
-            private=private,
-            images_upload_v2=True,
-            make='Blackvue',
-            model='DR900S-1CH',
-            sample_interval_distance=float(sampling_distance),
-            video_start_time=video_start_time,
-            camera_angle_offset=float(offset_angle),
-            exif_frame_orientation=format_orientation(orientation)
-        )
-    )
-    if master_upload != None:
-        data['parameters']['user_key'] = master_upload
-
-    if not DRY_RUN:
+    file_key = "uploaded"
+    
+    for attempt in range(max_retries):
         print("Uploading...")
-        for attempt in range(max_attempts):
-            # Initialize response before each attempt
-            response = None
-            try:
-                files = {"file": encoded_string}
-                response = requests.post(
-                    parameters["url"], data=parameters["fields"], files=files)
-                if response.status_code == '204':
-                    create_upload_log(video, "upload_success")
-                break
-            except requests.exceptions.HTTPError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except requests.exceptions.ConnectionError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            finally:
-                if response is not None:
-                    response.close()
-        # Upload Done file
-        with open("{}/DONE".format(path), 'w') as outfile:
-            yaml.dump(data, outfile, default_flow_style=False)
+        response = upload_api.upload_file(session, video, file_key)
+        if 200 <= response.status_code <= 300:
+            break
+        else:
+            print("Upload status {}".format(response.status_code))
+            print("Upload request.url {}".format(response.request.url))
+            print("Upload response.text {}".format(response.text))
+            print("Upload request.headers {}".format(response.request.headers))
+            if attempt >= max_retries - 1:
+                print("Max attempts reached. Failed to upload video {}".format(video))
+                return
 
-            with open("{}/DONE".format(path), "rb") as f:
-                encoded_string = f.read()
-            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/DONE".format(
-                credentials["MAPSettingsUserKey"], filename_no_ext, filename)
+    close_session_response = upload_api.close_upload_session(session, None, options)
+    close_session_response.raise_for_status()
 
-            for attempt in range(max_attempts):
-                # Initialize response before each attempt
-                response = None
-                try:
-                    files = {"file": encoded_string}
-                    response = requests.post(
-                        parameters["url"], data=parameters["fields"], files=files)
-                    os.rename(video, os.path.dirname(video) +
-                              '/uploaded/' + os.path.basename(video))
-                    os.rename(gpx_path, os.path.dirname(video) +
-                              '/uploaded/' + os.path.basename(gpx_path))
-                    print("Uploaded {} successfully".format(
-                        os.path.basename(video)))
-                    break
-                except requests.exceptions.HTTPError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                        e, filename, max_attempts - attempt - 1))
-                    time.sleep(5)
-                except requests.exceptions.ConnectionError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                        e, filename, max_attempts - attempt - 1))
-                    time.sleep(5)
-                finally:
-                    if response is not None:
-                        response.close()
-    else:
-        print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
+    set_video_as_uploaded(video)
+    create_upload_log(video, "upload_success")
+    print("Uploaded {} successfully".format(file_key))
