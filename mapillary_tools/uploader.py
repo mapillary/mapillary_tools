@@ -1050,13 +1050,13 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
 
         metadata = {
-            "camera_angle_offset": offset_angle,
+            "camera_angle_offset": float(offset_angle),
             "exif_frame_orientation": orientation,
             "images_upload_v2": True,
             "make": "Blackvue",
             "model": "DR900S-1CH",
             "private": private,
-            "sample_interval_distance": sampling_distance,
+            "sample_interval_distance": float(sampling_distance),
             "sequence_key": "test_sequence",  # TODO: What is the sequence key?
             "video_start_time": video_start_timestamp, 
         }
