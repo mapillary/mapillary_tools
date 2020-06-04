@@ -9,6 +9,7 @@ import socket
 import mimetypes
 import random
 import string
+import copy
 from Queue import Queue
 import threading
 import time
@@ -19,14 +20,19 @@ import processing
 import requests
 import yaml
 from tqdm import tqdm
+from . import upload_api
 from . import ipc
 from .error import print_error
 from .utils import force_decode
+from camera_support.prepare_blackvue_videos import get_blackvue_info
+from geo import get_timezone_and_utc_offset
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
+from upload_api import create_upload_session, close_upload_session, upload_file
+from . import upload_api
+from uploader_utils import set_video_as_uploaded
 from utils import format_orientation
-from geo import get_timezone_and_utc_offset
-from camera_support.prepare_blackvue_videos import get_blackvue_info
+
 if os.getenv("AWS_S3_ENDPOINT", None) is None:
     MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
 else:
@@ -71,14 +77,14 @@ class UploadThread(threading.Thread):
         while not self.q.empty():
             # fetch file from the queue and upload
             try:
-                filepath, max_attempts, params = self.q.get(timeout=5)
+                filepath, max_attempts, session = self.q.get(timeout=5)
             except:
                 # If it can't get a task after 5 seconds, continue and check if
                 # task list is empty
                 continue
             progress(self.total_task - self.q.qsize(), self.total_task,
                      '... {} images left.'.format(self.q.qsize()))
-            upload_file(filepath, max_attempts, **params)
+            upload_file(filepath, max_attempts, session)
             self.q.task_done()
 
 
@@ -192,13 +198,14 @@ def get_upload_file_list(import_path, skip_subfolders=False):
 # TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
+    supported_files = ("mp4", "avi", "tavi", "mov", "mkv")
     if skip_subfolders:
         video_file_list.extend(os.path.join(os.path.abspath(video_file), file)
-                               for file in os.listdir(video_file) if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
+                               for file in os.listdir(video_file) if (file.lower().endswith((supported_files))))
     else:
         for root, dir, files in os.walk(video_file):
             video_file_list.extend(os.path.join(os.path.abspath(root), file)
-                                   for file in files if (file.lower().endswith(('mp4')) or file.lower().endswith(('tavi')) or file.lower().endswith(('avi')) or file.lower().endswith(('mov'))))
+                                for file in files if (file.lower().endswith((supported_files))))
     return sorted(video_file_list)
 
 
@@ -635,19 +642,39 @@ def upload_done_file(url, permission, signature, key=None, aws_key=None):
         print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
 
 
-def upload_file(filepath, max_attempts, url, permission, signature, key=None, aws_key=None):
+def upload_file(filepath, max_attempts, session):
     '''
     Upload file at filepath.
 
     '''
+
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
+    try:
+        exif_read = ExifRead(filepath)
+    except:
+        pass
+
     filename = os.path.basename(filepath)
 
-    s3_filename = filename
     try:
-        s3_filename = ExifRead(filepath).exif_name()
+        exif_name = exif_read.exif_name()
+        _, file_extension = os.path.splitext(filename)
+        s3_filename = exif_name + file_extension
+    except:
+        s3_filename = filename
+
+    try:
+        lat, lon, ca, captured_at = exif_read.exif_properties()
+        new_session = copy.deepcopy(session)
+        session_fields = new_session["fields"]
+        session_fields["X-Amz-Meta-Latitude"] = lat
+        session_fields["X-Amz-Meta-Longitude"] = lon
+        session_fields["X-Amz-Meta-Compass-Angle"] = ca
+        session_fields["X-Amz-Meta-Captured-At"] = captured_at
+
+        session = new_session
     except:
         pass
 
@@ -656,50 +683,26 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
     if os.path.isfile(filepath_keep_original):
         filepath = filepath_keep_original
 
-    # add S3 'path' if given
-    if key is None:
-        s3_key = s3_filename
-    else:
-        s3_key = key + s3_filename
-
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
-                  "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
-
-    with open(filepath, "rb") as f:
-        encoded_string = f.read()
-
-    data, headers = encode_multipart(
-        parameters, {'file': {'filename': filename, 'content': encoded_string}})
     if (DRY_RUN == False):
         displayed_upload_error = False
         for attempt in range(max_attempts):
-            # Initialize response before each attempt
-            response = None
             try:
-                request = urllib2.Request(url, data=data, headers=headers)
-                response = urllib2.urlopen(request)
-                if response.getcode() == 204:
+                response = upload_api.upload_file(session, filepath, s3_filename)
+
+                if 200 <= response.status_code < 300:
                     create_upload_log(filepath_in, "upload_success")
                     if displayed_upload_error == True:
                         print("Successful upload of {} on attempt {}".format(
                             filename, attempt + 1))
                 else:
                     create_upload_log(filepath_in, "upload_failed")
+                    print(response.text)
                 break  # attempts
 
-            except urllib2.HTTPError as e:
-                print(e.read())
+            except requests.RequestException as e:
                 print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                     e, filename, max_attempts - attempt - 1))
                 displayed_upload_error = True
-                time.sleep(5)
-            except urllib2.URLError as e:
-                print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except httplib.HTTPException as e:
-                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
                 time.sleep(5)
             except OSError as e:
                 print("OS error: {} on {}, will attempt upload again for {} more times".format(
@@ -709,15 +712,18 @@ def upload_file(filepath, max_attempts, url, permission, signature, key=None, aw
                 # Specific timeout handling for Python 2.7
                 print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
                     filename, max_attempts - attempt - 1))
-            finally:
-                if response is not None:
-                    response.close()
+
     else:
         print('DRY_RUN, Skipping actual image upload. Use this for debug only.')
 
 
 def ascii_encode_dict(data):
-    def ascii_encode(x): return x.encode('ascii')
+    def ascii_encode(x):
+        if isinstance(x, str) or isinstance(x, unicode):
+            return x.encode('ascii')
+
+        return x
+
     return dict(map(ascii_encode, pair) for pair in data.items())
 
 
@@ -757,10 +763,51 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
+    first_image = file_params.values()[0]
+
+    user_name = first_image["user_name"]
+    sequence_uuid = first_image["sequence_uuid"]
+    organization_key = first_image.get("organization_key")
+    private = first_image.get("private", False)
+
+    credentials = authenticate_user(user_name)
+
+    upload_options = {
+        "token": credentials["user_upload_token"],
+        "client_id": CLIENT_ID,
+        "endpoint": API_ENDPOINT,
+    }
+
+    session_path = os.path.join(log_folder(file_list[0]), "session_{}.json".format(sequence_uuid))
+
+    if os.path.isfile(session_path):
+        with open(session_path, "r") as f:
+            session = json.load(f)
+    else:
+        upload_metadata = {}
+
+        if organization_key:
+            upload_metadata["organization_key"] = organization_key
+            upload_metadata["private"] = private
+
+        session = upload_api.create_upload_session(
+            "images/sequence",
+            upload_metadata,
+            upload_options
+        )
+        session.raise_for_status()
+        session = session.json()
+
+        with open(session_path, "w") as f:
+            json.dump(session, f)
+
+    print("\nUsing upload session {}".format(session["key"]))
+
     # create upload queue with all files per sequence
     q = Queue()
     for filepath in file_list:
-        q.put((filepath, max_attempts, file_params[filepath]))
+        q.put((filepath, max_attempts, session))
+
     # create uploader threads
     uploaders = [UploadThread(q) for i in range(number_threads)]
 
@@ -778,12 +825,21 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     except (KeyboardInterrupt, SystemExit):
         print("\nBREAK: Stopping upload.")
         sys.exit(1)
-    upload_done_file(**file_params[filepath])
+
+    close_session_response = upload_api.close_upload_session(session, None, upload_options)
+    close_session_response.raise_for_status()
+
+    print("\nClosed upload session {}".format(session["key"]))
+
     flag_finalization(file_list)
 
 
 def log_rootpath(filepath):
     return os.path.join(os.path.dirname(filepath), ".mapillary", "logs", os.path.splitext(os.path.basename(filepath))[0])
+
+
+def log_folder(filepath):
+    return os.path.join(os.path.dirname(filepath), ".mapillary", "logs")
 
 
 def create_upload_log(filepath, status):
@@ -972,120 +1028,85 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
         print("Preparing video {} for upload".format(os.path.basename(video)))
-        if not filter_video_before_upload(video, filter_night_time):
-            video_start_time = get_video_start_time_blackvue(video)
-            # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
-            # Only hours are corrected, so that second offsets are taken into
-            # account correctly
-            gpx_points = get_points_from_bv(video)
-            gps_video_start_time = gpx_points[0][0]
-            delta_t = video_start_time - gps_video_start_time
-            if delta_t.days > 0:
-                hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
-            else:
-                hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
-            video_start_time_utc = video_start_time + \
-                datetime.timedelta(hours=hours_diff_to_utc)
-            video_start_timestamp = int(
-                (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
-            upload_video_for_processing(
-                video, video_start_timestamp, max_attempts, credentials, user_permission_hash, user_signature_hash, request_params, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation)
-            progress['uploaded'] += 1 if not DRY_RUN else 0
-        else:
-            progress['skipped'] += 1
 
-        ipc.send('progress', progress)
+        if filter_video_before_upload(video, filter_night_time):
+            progress['skipped'] += 1
+            continue
+
+        video_start_time = get_video_start_time_blackvue(video)
+        # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
+        # Only hours are corrected, so that second offsets are taken into
+        # account correctly
+        gpx_points = get_points_from_bv(video)
+        gps_video_start_time = gpx_points[0][0]
+        delta_t = video_start_time - gps_video_start_time
+        if delta_t.days > 0:
+            hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
+        else:
+            hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
+        video_start_time_utc = video_start_time + \
+            datetime.timedelta(hours=hours_diff_to_utc)
+        video_start_timestamp = int(
+            (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())) * 1000)
+
+        metadata = {
+            "camera_angle_offset": float(offset_angle),
+            "exif_frame_orientation": orientation,
+            "images_upload_v2": True,
+            "make": "Blackvue",
+            "model": "DR900S-1CH",
+            "private": private,
+            "sample_interval_distance": float(sampling_distance),
+            "sequence_key": "test_sequence",  # TODO: What is the sequence key?
+            "video_start_time": video_start_timestamp, 
+        }
+
+        if organization_key != None:
+            metadata["organization_key"] = organization_key
+
+        if master_upload != None:
+            metadata['user_key'] = master_upload
+        
+        options = {
+            "api_endpoint": API_ENDPOINT,
+            "token": credentials["user_upload_token"],
+            "client_id": CLIENT_ID
+        }
+
+        if DRY_RUN:
+            continue
+        
+        upload_video(video, metadata, options)    
+        
+        progress['uploaded'] += 1        
+
+    ipc.send('progress', progress)
 
     print("Upload completed")
 
+def upload_video(video, metadata, options, max_retries=20):
+    session = upload_api.create_upload_session("videos/blackvue", metadata, options)
+    session = session.json()
 
-def upload_video_for_processing(video, video_start_time, max_attempts, credentials, permission, signature, parameters, organization_username, organization_key, private, master_upload, sampling_distance, offset_angle, orientation):
-    filename = os.path.basename(video)
-    basename = os.path.splitext(filename)[0]
-    gpx_path = "{}/{}.gpx".format(os.path.dirname(video), basename)
-
-    if not os.path.exists(os.path.dirname(video) + '/uploaded/'):
-        os.mkdir(os.path.dirname(video) + '/uploaded/')
-
-    with open(video, "rb") as f:
-        encoded_string = f.read()
-    filename_no_ext, file_extension = os.path.splitext(filename)
-    path = os.path.dirname(video)
-    parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/{}".format(
-        credentials["MAPSettingsUserKey"], filename_no_ext, filename)
-
-    data = dict(
-        parameters=dict(
-            organization_key=organization_key,
-            private=private,
-            images_upload_v2=True,
-            make='Blackvue',
-            model='DR900S-1CH',
-            sample_interval_distance=float(sampling_distance),
-            video_start_time=video_start_time,
-            camera_angle_offset=float(offset_angle),
-            exif_frame_orientation=format_orientation(orientation)
-        )
-    )
-    if master_upload != None:
-        data['parameters']['user_key'] = master_upload
-
-    if not DRY_RUN:
+    file_key = "uploaded"
+    
+    for attempt in range(max_retries):
         print("Uploading...")
-        for attempt in range(max_attempts):
-            # Initialize response before each attempt
-            response = None
-            try:
-                files = {"file": encoded_string}
-                response = requests.post(
-                    parameters["url"], data=parameters["fields"], files=files)
-                if response.status_code == '204':
-                    create_upload_log(video, "upload_success")
-                break
-            except requests.exceptions.HTTPError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except requests.exceptions.ConnectionError as e:
-                print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            finally:
-                if response is not None:
-                    response.close()
-        # Upload Done file
-        with open("{}/DONE".format(path), 'w') as outfile:
-            yaml.dump(data, outfile, default_flow_style=False)
+        response = upload_api.upload_file(session, video, file_key)
+        if 200 <= response.status_code <= 300:
+            break
+        else:
+            print("Upload status {}".format(response.status_code))
+            print("Upload request.url {}".format(response.request.url))
+            print("Upload response.text {}".format(response.text))
+            print("Upload request.headers {}".format(response.request.headers))
+            if attempt >= max_retries - 1:
+                print("Max attempts reached. Failed to upload video {}".format(video))
+                return
 
-            with open("{}/DONE".format(path), "rb") as f:
-                encoded_string = f.read()
-            parameters["fields"]["key"] = "{}/uploads/videos/blackvue/{}/DONE".format(
-                credentials["MAPSettingsUserKey"], filename_no_ext, filename)
+    close_session_response = upload_api.close_upload_session(session, None, options)
+    close_session_response.raise_for_status()
 
-            for attempt in range(max_attempts):
-                # Initialize response before each attempt
-                response = None
-                try:
-                    files = {"file": encoded_string}
-                    response = requests.post(
-                        parameters["url"], data=parameters["fields"], files=files)
-                    os.rename(video, os.path.dirname(video) +
-                              '/uploaded/' + os.path.basename(video))
-                    os.rename(gpx_path, os.path.dirname(video) +
-                              '/uploaded/' + os.path.basename(gpx_path))
-                    print("Uploaded {} successfully".format(
-                        os.path.basename(video)))
-                    break
-                except requests.exceptions.HTTPError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                        e, filename, max_attempts - attempt - 1))
-                    time.sleep(5)
-                except requests.exceptions.ConnectionError as e:
-                    print("Upload error: {} on {}, will attempt to upload again for {} more times".format(
-                        e, filename, max_attempts - attempt - 1))
-                    time.sleep(5)
-                finally:
-                    if response is not None:
-                        response.close()
-    else:
-        print('DRY_RUN, Skipping actual video upload. Use this for debug only.')
+    set_video_as_uploaded(video)
+    create_upload_log(video, "upload_success")
+    print("Uploaded {} successfully".format(file_key))

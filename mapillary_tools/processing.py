@@ -387,6 +387,26 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
                                                       "upload_params_process_success")
 
     # load the sequence json
+    user_process_json_path = os.path.join(log_root,
+                                              "user_process.json")
+    user_data = {}
+    try:
+        user_data = load_json(user_process_json_path)
+    except:
+        print("Warning, user data not read for image " + image +
+              ", therefore it will not be included in the upload params processing.")
+        return None
+
+    if "MAPSettingsUserKey" not in user_data:
+        print("Warning, user key not in user data for image " + image +
+              ", therefore it will not be included in the upload params processing.")
+        return None
+
+    user_key = user_data["MAPSettingsUserKey"]
+    organization_key = user_data.get("MAPOrganizationKey")
+    private = user_data.get("MAPPrivate", False)
+
+    # load the sequence json
     sequence_process_json_path = os.path.join(log_root,
                                               "sequence_process.json")
     sequence_data = ""
@@ -405,18 +425,13 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
 
     sequence_uuid = sequence_data["MAPSequenceUUID"]
 
-    if os.getenv("AWS_S3_ENDPOINT", None) is None:
-        url = "https://s3-eu-west-1.amazonaws.com/mapillary.uploads.manual.images"
-    else:
-        url = "{}/{}".format(os.getenv("AWS_S3_ENDPOINT"),
-                             "mtf-manual-uploads-images")
-
     upload_params = {
-        "url": url,
-        "permission": user_permission_hash,
-        "signature": user_signature_hash,
-        "key": user_name + "/" + sequence_uuid + "/",
-        "aws_key": aws_access_key_id
+        "key": sequence_uuid,
+        "sequence_uuid": sequence_uuid,
+        "user_key": user_key,
+        "user_name": user_name,
+        "organization_key": organization_key,
+        "private": private,
     }
 
     try:
