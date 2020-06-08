@@ -28,8 +28,6 @@ from camera_support.prepare_blackvue_videos import get_blackvue_info
 from geo import get_timezone_and_utc_offset
 from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from process_video import get_video_start_time_blackvue
-from upload_api import create_upload_session, close_upload_session, upload_file
-from . import upload_api
 from uploader_utils import set_video_as_uploaded
 from utils import format_orientation
 
