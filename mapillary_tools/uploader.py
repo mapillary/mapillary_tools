@@ -754,7 +754,7 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None, a
         sys.exit(1)
 
 
-def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads=None, max_attempts=None):
+def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx, number_threads=None, max_attempts=None):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
@@ -764,7 +764,6 @@ def upload_file_list_manual(file_list, file_params, sequence_idx, number_threads
     first_image = file_params.values()[0]
 
     user_name = first_image["user_name"]
-    sequence_uuid = first_image["sequence_uuid"]
     organization_key = first_image.get("organization_key")
     private = first_image.get("private", False)
 
