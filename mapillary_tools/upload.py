@@ -103,9 +103,11 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                 uploader.upload_file_list_direct(
                     direct_upload_file_list, number_threads, max_attempts)
 
-            for idx, sequence in enumerate(list_per_sequence_mapping):
+            for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                 uploader.upload_file_list_manual(
-                    list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
+                    list_per_sequence_mapping[sequence_uuid],
+                    sequence_uuid,
+                    params, idx, number_threads, max_attempts)
 
         if len(to_finalize_file_list):
             params = {}
