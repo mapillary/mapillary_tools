@@ -1050,17 +1050,16 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         metadata = {
             "camera_angle_offset": float(offset_angle),
             "exif_frame_orientation": orientation,
-            "images_upload_v2": True,
             "make": "Blackvue",
             "model": "DR900S-1CH",
-            "private": private,
             "sample_interval_distance": float(sampling_distance),
-            "sequence_key": "test_sequence",  # TODO: What is the sequence key?
             "video_start_time": video_start_timestamp, 
         }
 
         if organization_key != None:
             metadata["organization_key"] = organization_key
+            metadata["private"] = private
+
 
         if master_upload != None:
             metadata['user_key'] = master_upload
@@ -1085,14 +1084,18 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 def upload_video(video, metadata, options, max_retries=20):
     session = upload_api.create_upload_session("videos/blackvue", metadata, options)
     session = session.json()
-
     file_key = "uploaded"
     
     for attempt in range(max_retries):
         print("Uploading...")
         response = upload_api.upload_file(session, video, file_key)
-        if 200 <= response.status_code <= 300:
+        if 200 <= response.status_code < 300:
             break
+
+        elif 400 <= response.status_code < 500:
+            print("Error while uploading: {}".format(response.content))
+            response.raise_for_status()
+
         else:
             print("Upload status {}".format(response.status_code))
             print("Upload request.url {}".format(response.request.url))
