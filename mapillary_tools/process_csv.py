@@ -1,12 +1,13 @@
-import processing
-import uploader
 import os
 import sys
 import datetime
-import process_import_meta_properties
-from exif_write import ExifEdit
 import csv
 from tqdm import tqdm
+
+from . import processing
+from . import uploader
+from . import process_import_meta_properties
+from .exif_write import ExifEdit
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
 

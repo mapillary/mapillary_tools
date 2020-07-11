@@ -1,4 +1,4 @@
-import processing
+from . import processing
 import os
 import sys
 from .error import print_error

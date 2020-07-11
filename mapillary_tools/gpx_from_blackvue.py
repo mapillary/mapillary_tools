@@ -6,9 +6,9 @@ import io
 import sys
 import re
 import pynmea2
-from geo import write_gpx
-from geo import get_max_distance_from_start
-from geo import get_total_distance_traveled
+from .geo import write_gpx
+from .geo import get_max_distance_from_start
+from .geo import get_total_distance_traveled
 
 from pymp4.parser import Box
 from construct.core import RangeError, ConstError

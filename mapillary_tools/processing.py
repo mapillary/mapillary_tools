@@ -4,49 +4,44 @@ import os
 import json
 import time
 import sys
-import shutil
 import hashlib
 import base64
-from collections import OrderedDict
-from exif_read import ExifRead
-from exif_write import ExifEdit
-from exif_aux import verify_exif
-from geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
-import config
-import uploader
-from dateutil.tz import tzlocal
-from gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
-from gpx_from_gopro import gpx_from_gopro
-from gpx_from_blackvue import gpx_from_blackvue
-from gpx_from_exif import gpx_from_exif
 from tqdm import tqdm
+from collections import OrderedDict
+from dateutil.tz import tzlocal
+
+from .exif_read import ExifRead
+from .exif_write import ExifEdit
+from .geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
+from . import uploader
+from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
+from .gpx_from_gopro import gpx_from_gopro
+from .gpx_from_blackvue import gpx_from_blackvue
+from .gpx_from_exif import gpx_from_exif
 from . import ipc
 from .error import print_error
 from .utils import force_decode
 
-STATUS_PAIRS = {"success": "failed",
-                "failed": "success"
-                }
 '''
 auxillary processing functions
 '''
 
 
 def exif_time(filename):
-    '''
+    """
     Get image capture time from exif
-    '''
+    """
     metadata = ExifRead(filename)
     return metadata.extract_capture_time()
 
 
 def estimate_sub_second_time(files, interval=0.0):
-    '''
+    """
     Estimate the capture time of a sequence with sub-second precision
     EXIF times are only given up to a second of precision. This function
     uses the given interval between shots to estimate the time inside that
     second that each picture was taken.
-    '''
+    """
     if interval <= 0.0:
         return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
@@ -850,9 +845,7 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
 
     decoded_image = force_decode(image)
 
-    ipc.send(
-        process,
-        {'image': decoded_image, 'status': status, 'description': mapillary_description})
+    ipc.send(process, {'image': decoded_image, 'status': status, 'description': mapillary_description})
 
 
 def user_properties(user_name,
@@ -895,13 +888,7 @@ def user_properties(user_name,
     return user_properties
 
 
-def user_properties_master(user_name,
-                           import_path,
-                           process_file_list,
-                           organization_key=None,
-                           private=False,
-                           verbose=False):
-
+def user_properties_master(user_name, import_path, process_file_list, organization_key=None, private=False, verbose=False):
     try:
         master_key = uploader.get_master_key()
     except:

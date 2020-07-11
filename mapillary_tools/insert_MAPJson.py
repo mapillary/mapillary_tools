@@ -1,9 +1,7 @@
 import os
-import time
-import uuid
 import sys
-import processing
-import uploader
+from . import processing
+from . import uploader
 from tqdm import tqdm
 
 from .error import print_error

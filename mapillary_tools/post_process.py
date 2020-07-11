@@ -1,13 +1,13 @@
 import os
 import sys
-import processing
-import uploader
 import json
-import shutil
 from tqdm import tqdm
 import csv
-import exif_read
 from . import ipc
+
+from . import processing
+from . import uploader
+from . import exif_read
 
 
 def map_images_to_sequences(destination_mapping, total_files):

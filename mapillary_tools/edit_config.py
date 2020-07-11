@@ -1,7 +1,9 @@
 import mapillary_tools.config as config
 import os
 import sys
-import uploader
+
+from . import uploader
+
 '''
 (re)authenticate
 '''

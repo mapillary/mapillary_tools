@@ -1,5 +1,9 @@
 import os
-import ConfigParser
+try:
+    # python2
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
 
 
 def load_config(config_path):

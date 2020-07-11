@@ -1,5 +1,5 @@
-import exif_read
-from geo import write_gpx
+from . import exif_read
+from .geo import write_gpx
 
 
 def get_points_from_exif(file_list, verbose=False):

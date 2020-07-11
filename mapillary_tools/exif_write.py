@@ -2,7 +2,7 @@ import sys
 import json
 import piexif
 
-from geo import decimal_to_dms
+from .geo import decimal_to_dms
 
 from .error import print_error
 

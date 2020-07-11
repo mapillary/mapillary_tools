@@ -3,10 +3,9 @@ import uuid
 import datetime
 import time
 import sys
-from exif_read import ExifRead
-from geo import compute_bearing, gps_distance, diff_bearing, gps_speed
-import processing
-import uploader
+from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
+from . import processing
+from . import uploader
 from tqdm import tqdm
 from .error import print_error
 

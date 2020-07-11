@@ -1,17 +1,16 @@
-from ffprobe import FFProbe
+from .ffprobe import FFProbe
 import datetime
 import os
-import processing
+from . import processing
 import subprocess
 import sys
-import uploader
+from . import uploader
 from tqdm import tqdm
-import logging
 import io
 import struct
 from pymp4.parser import Box
 
-from exif_write import ExifEdit
+from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"

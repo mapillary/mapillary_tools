@@ -79,7 +79,7 @@ class FFStream:
     def __init__(self,datalines):
         for a in datalines:
             if re.match(r'^.+=.+$', a) is None:
-                print "Warning: detected incorrect stream metadata line format: %s" % a
+                print("Warning: detected incorrect stream metadata line format: %s" % a)
             else:
                 (key,val)=a.strip().split('=')
                 key = key.lstrip("TAG:")
@@ -126,7 +126,7 @@ class FFStream:
                 try:
                     size=(int(self.__dict__['width']),int(self.__dict__['height']))
                 except Exception as e:
-                    print "None integer size %s:%s" %(str(self.__dict__['width']),str(+self.__dict__['height']))
+                    print("None integer size %s:%s" %(str(self.__dict__['width']),str(+self.__dict__['height'])))
                     size=(0,0)
         return size
 
@@ -151,7 +151,7 @@ class FFStream:
                 try:
                     f=int(self.__dict__['nb_frames'])
                 except Exception as e:
-                    print "None integer frame count"
+                    print("None integer frame count")
         return f
 
     def durationSeconds(self):
@@ -165,7 +165,7 @@ class FFStream:
                 try:
                     f=float(self.__dict__['duration'])
                 except Exception as e:
-                    print "None numeric duration"
+                    print("None numeric duration")
         return f
 
     def language(self):
@@ -213,8 +213,8 @@ class FFStream:
             try:
                 b=int(self.__dict__['bit_rate'])
             except Exception as e:
-                print "None integer bitrate"
+                print("None integer bitrate")
         return b
 
 if __name__ == '__main__':
-    print "Module ffprobe"
+    print("Module ffprobe")

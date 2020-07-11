@@ -3,11 +3,15 @@ import os
 import requests
 import sys
 import threading
-import uploader
 import urllib
-from Queue import Queue
+try:
+    from Queue import Queue
+except ImportError:
+    from queue import Queue
 import time
 import signal
+
+from . import uploader
 
 
 MAPILLARY_ENDPOINT = 'https://a.mapillary.com/'
@@ -341,8 +345,7 @@ class BlurredOriginalsDownloader(threading.Thread):
             image_key,
             self.client_id)
 
-        response = requests.get(
-            download_url, stream=True, headers=self.headers)
+        response = requests.get(download_url, stream=True, headers=self.headers)
 
         if response.status_code != 200:
             print(response.json())

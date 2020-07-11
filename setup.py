@@ -7,7 +7,7 @@ setup(name='mapillary_tools',
       url='https://github.com/mapillary/mapillary_tools',
       author='Mapillary',
       license='BSD',
-      python_requires='>=2.7.0,<3.0.0',
+      python_requires='>=3',
       packages=['mapillary_tools', 'mapillary_tools.commands','mapillary_tools.camera_support'],
       scripts=['bin/mapillary_tools'],
       install_requires=[

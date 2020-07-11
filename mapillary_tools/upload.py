@@ -2,10 +2,11 @@
 
 import sys
 import os
-import uploader
 import json
-from exif_aux import verify_mapillary_tag
+
 from . import ipc
+from .exif_aux import verify_mapillary_tag
+from . import uploader
 
 
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):

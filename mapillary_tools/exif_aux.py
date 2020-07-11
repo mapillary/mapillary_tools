@@ -1,6 +1,6 @@
-from exif_read import ExifRead
+from .exif_read import ExifRead
 import os
-import processing
+from . import processing
 
 
 def exif_gps_fields():

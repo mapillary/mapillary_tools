@@ -1,7 +1,5 @@
-import processing
-import uploader
-from post_process import save_local_mapping
-from tqdm import tqdm
+from . import uploader
+from .post_process import save_local_mapping
 import os
 import signal
 import sys

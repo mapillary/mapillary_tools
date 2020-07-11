@@ -2,9 +2,9 @@
 
 import datetime
 import os
-from ffmpeg import extract_stream, get_ffprobe
-from gpmf import parse_bin, interpolate_times
-from geo import write_gpx
+from .ffmpeg import extract_stream, get_ffprobe
+from .gpmf import parse_bin, interpolate_times
+from .geo import write_gpx
 
 # author https://github.com/stilldavid
 
