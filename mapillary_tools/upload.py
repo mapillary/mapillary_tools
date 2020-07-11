@@ -7,6 +7,7 @@ import json
 from exif_aux import verify_mapillary_tag
 from . import ipc
 
+
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):
     '''
     Upload local images to Mapillary
@@ -20,8 +21,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
     '''
     # sanity check if video file is passed
     if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
-        print("Error, video path " + video_import_path +
-              " does not exist, exiting...")
+        print("Error, video path " + video_import_path + " does not exist, exiting...")
         sys.exit(1)
 
     # in case of video processing, adjust the import path
@@ -35,21 +35,15 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print("Error, import directory " + import_path + " does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process
-    total_file_list = uploader.get_total_file_list(
-        import_path, skip_subfolders)
-    upload_file_list = uploader.get_upload_file_list(
-        import_path, skip_subfolders)
-    failed_file_list = uploader.get_failed_upload_file_list(
-        import_path, skip_subfolders)
-    success_file_list = uploader.get_success_upload_file_list(
-        import_path, skip_subfolders)
-    to_finalize_file_list = uploader.get_finalize_file_list(
-        import_path, skip_subfolders)
+    total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
+    upload_file_list = uploader.get_upload_file_list(import_path, skip_subfolders)
+    failed_file_list = uploader.get_failed_upload_file_list(import_path, skip_subfolders)
+    success_file_list = uploader.get_success_upload_file_list(import_path, skip_subfolders)
+    to_finalize_file_list = uploader.get_finalize_file_list(import_path, skip_subfolders)
 
     if len(success_file_list) == len(total_file_list):
         print("All images have already been uploaded")
@@ -79,12 +73,10 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
             direct_upload_file_list = []
             for image in upload_file_list:
                 log_root = uploader.log_rootpath(image)
-                upload_params_path = os.path.join(
-                    log_root, "upload_params_process.json")
+                upload_params_path = os.path.join(log_root, "upload_params_process.json")
                 if os.path.isfile(upload_params_path):
                     with open(upload_params_path, "rb") as jf:
-                        params[image] = json.load(
-                            jf, object_hook=uploader.ascii_encode_dict)
+                        params[image] = json.load(jf, object_hook=uploader.ascii_encode_dict)
                         sequence = params[image]["key"]
                         if sequence in list_per_sequence_mapping:
                             list_per_sequence_mapping[sequence].append(image)
@@ -100,8 +92,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                 len(upload_file_list), len(total_file_list) - len(upload_file_list)))
 
             if len(direct_upload_file_list):
-                uploader.upload_file_list_direct(
-                    direct_upload_file_list, number_threads, max_attempts)
+                uploader.upload_file_list_direct(direct_upload_file_list, number_threads, max_attempts)
 
             for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                 uploader.upload_file_list_manual(

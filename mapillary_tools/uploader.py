@@ -1,52 +1,35 @@
-from exif_read import ExifRead
 import json
 import os
-import urllib2
-import urllib
-import httplib
+import sys
 import datetime
 import socket
-import mimetypes
-import random
-import string
 import copy
+import urllib2
+import urllib
 from Queue import Queue
 import threading
 import time
-import config
 import getpass
-import sys
-import processing
-import requests
-import yaml
+
 from tqdm import tqdm
+import requests
+
+from . import processing
+from . import config
+from .exif_read import ExifRead
 from . import upload_api
 from . import ipc
 from .error import print_error
 from .utils import force_decode
-from camera_support.prepare_blackvue_videos import get_blackvue_info
-from geo import get_timezone_and_utc_offset
-from gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
-from process_video import get_video_start_time_blackvue
-from uploader_utils import set_video_as_uploaded
-from utils import format_orientation
+from .camera_support.prepare_blackvue_videos import get_blackvue_info
+from .geo import get_timezone_and_utc_offset
+from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
+from .process_video import get_video_start_time_blackvue
+from .uploader_utils import set_video_as_uploaded
 
-if os.getenv("AWS_S3_ENDPOINT", None) is None:
-    MAPILLARY_UPLOAD_URL = "https://secure-upload.mapillary.com"
-else:
-    MAPILLARY_UPLOAD_URL = "{}/{}".format(
-        os.getenv("AWS_S3_ENDPOINT"), "mtf-upload-images")
-
-MAPILLARY_DIRECT_UPLOAD_URL = "https://secure-upload.mapillary.com"
-PERMISSION_HASH = "eyJleHBpcmF0aW9uIjoiMjAyMC0wNi0wMVQwMDowMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJtYXBpbGxhcnkudXBsb2Fkcy5pbWFnZXMifSxbInN0YXJ0cy13aXRoIiwiJGtleSIsIiJdLHsiYWNsIjoicHJpdmF0ZSJ9LFsic3RhcnRzLXdpdGgiLCIkQ29udGVudC1UeXBlIiwiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwyMDQ4NTc2MF1dfQ=="
-SIGNATURE_HASH = "Td2/WYfCc/+xWzJX7VL691StviI="
-BOUNDARY_CHARS = string.digits + string.ascii_letters
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
-UPLOAD_PARAMS = {"url": MAPILLARY_UPLOAD_URL, "permission": PERMISSION_HASH,  # TODO: This URL is dynamic in api 2.0
-                 "signature": SIGNATURE_HASH, "aws_key": "AKIAR47SN3BMCP62Z54T"}
-CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID",
-                      "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
+CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
 DRY_RUN = bool(os.getenv('DRY_RUN', False))
 
 if os.getenv("API_PROXY_HOST", None) is None:
@@ -57,12 +40,7 @@ LOGIN_URL = "{}/v2/ua/login?client_id={}".format(API_ENDPOINT, CLIENT_ID)
 ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations?client_id={}"
 USER_URL = API_ENDPOINT + "/v3/users?usernames={}&client_id={}"
 ME_URL = "{}/v3/me?client_id={}".format(API_ENDPOINT, CLIENT_ID)
-USER_UPLOAD_URL = API_ENDPOINT + "/v3/users/{}/upload_tokens?client_id={}"
-USER_UPLOAD_SECRETS = API_ENDPOINT + "/v3/users/{}/upload_secrets?client_id={}"
-UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed",
-                       "upload_failed": "upload_success"}
-GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'),
-                                                                          ".config", "mapillary", 'configs', CLIENT_ID))
+GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
 
 
 class UploadThread(threading.Thread):
@@ -86,96 +64,10 @@ class UploadThread(threading.Thread):
             self.q.task_done()
 
 
-# TODO note that this is not looked into, but left as out of improvement scope
-def encode_multipart(fields, files, boundary=None):
-    """
-    Encode dict of form fields and dict of files as multipart/form-data.
-    Return tuple of (body_string, headers_dict). Each value in files is a dict
-    with required keys 'filename' and 'content', and optional 'mimetype' (if
-    not specified, tries to guess mime type or uses 'application/octet-stream').
-
-    From MIT licensed recipe at
-    http://code.activestate.com/recipes/578668-encode-multipart-form-data-for-uploading-files-via/
-    """
-    def escape_quote(s):
-        return s.replace('"', '\\"')
-
-    if boundary is None:
-        boundary = ''.join(random.choice(BOUNDARY_CHARS) for i in range(30))
-    lines = []
-
-    for name, value in fields.items():
-        lines.extend((
-            '--{0}'.format(boundary),
-            'Content-Disposition: form-data; name="{0}"'.format(
-                escape_quote(name)),
-            '',
-            str(value),
-        ))
-
-    for name, value in files.items():
-        filename = value['filename']
-        if 'mimetype' in value:
-            mimetype = value['mimetype']
-        else:
-            mimetype = mimetypes.guess_type(
-                filename)[0] or 'application/octet-stream'
-        lines.extend((
-            '--{0}'.format(boundary),
-            'Content-Disposition: form-data; name="{0}"; filename="{1}"'.format(
-                escape_quote(name), escape_quote(filename)),
-            'Content-Type: {0}'.format(mimetype),
-            '',
-            value['content'],
-        ))
-
-    lines.extend((
-        '--{0}--'.format(boundary),
-        '',
-    ))
-    body = '\r\n'.join(lines)
-
-    headers = {
-        'Content-Type': 'multipart/form-data; boundary={0}'.format(boundary),
-        'Content-Length': str(len(body)),
-    }
-    return (body, headers)
-
-
-def prompt_to_finalize(subcommand):
-    for i in range(3):
-        finalize = raw_input(
-            "Finalize all {} in this import? [y/n]: ".format(subcommand))
-        if finalize in ["y", "Y", "yes", "Yes"]:
-            return 1
-        elif finalize in ["n", "N", "no", "No"]:
-            return 0
-        else:
-            print('Please answer y or n. Try again.')
-    return 0
-
-
 def flag_finalization(finalize_file_list):
     for file in finalize_file_list:
         finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
         open(finalize_flag, 'a').close()
-
-
-def get_upload_url(credentials):
-    '''
-    Returns upload URL using new upload API
-    '''
-    request_url = USER_UPLOAD_SECRETS.format(
-        credentials["MAPSettingsUserKey"], CLIENT_ID)
-    request = urllib2.Request(request_url)
-    request.add_header('Authorization', 'Bearer {}'.format(
-        credentials["user_upload_token"]))
-    try:
-        response = json.loads(urllib2.urlopen(request).read())
-    except requests.exceptions.HTTPError as e:
-        print("Error getting upload parameters, upload could not start")
-        sys.exit(1)
-    return response
 
 
 def get_upload_file_list(import_path, skip_subfolders=False):
@@ -359,7 +251,6 @@ def get_upload_token(mail, pwd):
 
 
 def get_organization_key(user_key, organization_username, upload_token):
-
     organization_key = None
     call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
     req = urllib2.Request(call)
@@ -373,8 +264,7 @@ def get_organization_key(user_key, organization_username, upload_token):
             organization_key = org['key']
 
     if not organization_key:
-        print("No valid organization key found for organization user name " +
-              organization_username)
+        print("No valid organization key found for organization user name " + organization_username)
         print("Available organization user names for current user are : ")
         print(organization_usernames)
         sys.exit(1)
@@ -382,7 +272,6 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-
     call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
     req = urllib2.Request(call)
     req.add_header('Authorization', 'Bearer {}'.format(upload_token))
@@ -395,22 +284,17 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-
     call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
     req = urllib2.Request(call)
     req.add_header('Authorization', 'Bearer {}'.format(upload_token))
     resp = json.loads(urllib2.urlopen(req).read())
-
     for org in resp:
         if org['key'] == organization_key:
             if (private and (('private_repository' not in org) or not org['private_repository'])) or (not private and (('public_repository' not in org) or not org['public_repository'])):
-                print(
-                    "Organization privacy does not match provided privacy settings.")
-                privacy = "private" if 'private_repository' in org and org[
-                    'private_repository'] else "public"
+                print("Organization privacy does not match provided privacy settings.")
+                privacy = "private" if 'private_repository' in org and org['private_repository'] else "public"
                 privacy_provided = "private" if private else "public"
-                print("Organization " +
-                      org['name'] + " with key " + org['key'] + " is " + privacy + " while your import privacy settings state " + privacy_provided)
+                print("Organization " + org['name'] + " with key " + org['key'] + " is " + privacy + " while your import privacy settings state " + privacy_provided)
                 sys.exit(1)
 
 
@@ -435,26 +319,18 @@ def prompt_user_for_user_items(user_name):
     user_key = get_user_key(user_name)
     if not user_key:
         return None
-    upload_token = get_upload_token(
-        user_email, user_password)
+    upload_token = get_upload_token(user_email, user_password)
     if not upload_token:
         return None
-    user_permission_hash, user_signature_hash, aws_access_key_id = get_user_hashes(
-        user_key, upload_token)
 
     user_items["MAPSettingsUsername"] = user_name
     user_items["MAPSettingsUserKey"] = user_key
-
     user_items["user_upload_token"] = upload_token
-    user_items["user_permission_hash"] = user_permission_hash
-    user_items["user_signature_hash"] = user_signature_hash
-    user_items["aws_access_key_id"] = aws_access_key_id
 
     return user_items
 
 
 def authenticate_user(user_name):
-    user_items = None
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
@@ -468,8 +344,7 @@ def authenticate_user(user_name):
     except Exception as e:
         print("Failed to create authentication config file due to {}".format(e))
         sys.exit(1)
-    config.update_config(
-        GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+    config.update_config(GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
 
 
@@ -479,28 +354,19 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     This function avoids prompting the command line for user credentials and is useful for calling tools programmatically
     '''
     if user_email is None or user_password is None:
-        raise ValueError(
-            'Could not authenticate user. Missing username or password')
-    upload_token = uploader.get_upload_token(user_email, user_password)
+        raise ValueError('Could not authenticate user. Missing username or password')
+    upload_token = get_upload_token(user_email, user_password)
     if not upload_token:
-        print("Authentication failed for user name " +
-              user_name + ", please try again.")
+        print("Authentication failed for user name " + user_name + ", please try again.")
         sys.exit(1)
     user_key = get_user_key(user_name)
     if not user_key:
-        print("User name {} does not exist, please try again or contact Mapillary user support.".format(
-            user_name))
+        print("User name {} does not exist, please try again or contact Mapillary user support.".format(user_name))
         sys.exit(1)
-    user_permission_hash, user_signature_hash, aws_access_key_id = get_user_hashes(
-        user_key, upload_token)
 
     user_items["MAPSettingsUsername"] = section
     user_items["MAPSettingsUserKey"] = user_key
-
     user_items["user_upload_token"] = upload_token
-    user_items["user_permission_hash"] = user_permission_hash
-    user_items["user_signature_hash"] = user_signature_hash
-    user_items["aws_access_key_id"] = aws_access_key_id
 
     return user_items
 
@@ -548,8 +414,7 @@ def set_master_key():
 
 def get_user_key(user_name):
     try:
-        req = urllib2.Request(USER_URL.format(
-            urllib2.quote(user_name), CLIENT_ID))
+        req = urllib2.Request(USER_URL.format(urllib2.quote(user_name), CLIENT_ID))
         resp = json.loads(urllib2.urlopen(req).read())
     except:
         return None
@@ -559,91 +424,15 @@ def get_user_key(user_name):
     return resp[0]['key']
 
 
-def get_user_hashes(user_key, upload_token):
-    user_permission_hash = ""
-    user_signature_hash = ""
-    req = urllib2.Request(USER_UPLOAD_URL.format(user_key, CLIENT_ID))
-    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
-    resp = json.loads(urllib2.urlopen(req).read())
-
-    if 'images_hash' in resp:
-        user_signature_hash = resp['images_hash']
-    if 'images_policy' in resp:
-        user_permission_hash = resp['images_policy']
-    if 'aws_access_key_id' in resp:
-        aws_access_key_id = resp['aws_access_key_id']
-
-    return (user_permission_hash, user_signature_hash, aws_access_key_id)
-
-
 def get_user(jwt):
     req = urllib2.Request(ME_URL)
     req.add_header('Authorization', 'Bearer {}'.format(jwt))
     return json.loads(urllib2.urlopen(req).read())
 
 
-def upload_done_file(url, permission, signature, key=None, aws_key=None):
-
-    # upload with many attempts to avoid issues
-    max_attempts = 100
-    s3_filename = "DONE"
-    if key is None:
-        s3_key = s3_filename
-    else:
-        s3_key = key + s3_filename
-
-    parameters = {"key": s3_key, "AWSAccessKeyId": aws_key, "acl": "private",
-                  "policy": permission, "signature": signature, "Content-Type": "image/jpeg"}
-
-    encoded_string = ''
-
-    data, headers = encode_multipart(
-        parameters, {'file': {'filename': s3_filename, 'content': encoded_string}})
-    if DRY_RUN == False:
-        displayed_upload_error = False
-        for attempt in range(max_attempts):
-            # Initialize response before each attempt
-            response = None
-            try:
-                request = urllib2.Request(url, data=data, headers=headers)
-                response = urllib2.urlopen(request)
-                if response.getcode() == 204:
-                    if displayed_upload_error == True:
-                        print("Successful upload of {} on attempt {}".format(
-                            s3_filename, attempt + 1))
-                break  # attempts
-            except urllib2.HTTPError as e:
-                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                    e, s3_filename, max_attempts - attempt - 1))
-                displayed_upload_error = True
-                time.sleep(5)
-            except urllib2.URLError as e:
-                print("URL error: {} on {}, will attempt upload again for {} more times".format(
-                    e, s3_filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except httplib.HTTPException as e:
-                print("HTTP exception: {} on {}, will attempt upload again for {} more times".format(
-                    e, s3_filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except OSError as e:
-                print("OS error: {} on {}, will attempt upload again for {} more times".format(
-                    e, s3_filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except socket.timeout as e:
-                # Specific timeout handling for Python 2.7
-                print("Timeout error: {0}, will attempt upload again for {} more times".format(
-                    s3_filename, max_attempts - attempt - 1))
-            finally:
-                if response is not None:
-                    response.close()
-    else:
-        print('DRY_RUN, Skipping actual DONE file upload. Use this for debug only')
-
-
 def upload_file(filepath, max_attempts, session):
     '''
     Upload file at filepath.
-
     '''
 
     if max_attempts == None:
@@ -681,38 +470,34 @@ def upload_file(filepath, max_attempts, session):
     if os.path.isfile(filepath_keep_original):
         filepath = filepath_keep_original
 
-    if (DRY_RUN == False):
-        displayed_upload_error = False
-        for attempt in range(max_attempts):
-            try:
-                response = upload_api.upload_file(session, filepath, s3_filename)
-
-                if 200 <= response.status_code < 300:
-                    create_upload_log(filepath_in, "upload_success")
-                    if displayed_upload_error == True:
-                        print("Successful upload of {} on attempt {}".format(
-                            filename, attempt + 1))
-                else:
-                    create_upload_log(filepath_in, "upload_failed")
-                    print(response.text)
-                break  # attempts
-
-            except requests.RequestException as e:
-                print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                displayed_upload_error = True
-                time.sleep(5)
-            except OSError as e:
-                print("OS error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1))
-                time.sleep(5)
-            except socket.timeout as e:
-                # Specific timeout handling for Python 2.7
-                print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(
-                    filename, max_attempts - attempt - 1))
-
-    else:
+    if DRY_RUN:
         print('DRY_RUN, Skipping actual image upload. Use this for debug only.')
+        return
+
+    displayed_upload_error = False
+    for attempt in range(max_attempts):
+        try:
+            response = upload_api.upload_file(session, filepath, s3_filename)
+            if 200 <= response.status_code < 300:
+                create_upload_log(filepath_in, "upload_success")
+                if displayed_upload_error == True:
+                    print("Successful upload of {} on attempt {}".format(filename, attempt + 1))
+            else:
+                create_upload_log(filepath_in, "upload_failed")
+                print(response.text)
+            break  # attempts
+
+        except requests.RequestException as e:
+            print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
+                e, filename, max_attempts - attempt - 1))
+            displayed_upload_error = True
+            time.sleep(5)
+        except OSError as e:
+            print("OS error: {} on {}, will attempt upload again for {} more times".format(e, filename, max_attempts - attempt - 1))
+            time.sleep(5)
+        except socket.timeout as e:
+            # Specific timeout handling for Python 2.7
+            print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(filename, max_attempts - attempt - 1))
 
 
 def ascii_encode_dict(data):
@@ -737,7 +522,7 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None, a
     for filepath in file_list:
         q.put((filepath, max_attempts, UPLOAD_PARAMS))
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(number_threads)]
+    uploaders = [UploadThread(q) for _ in range(number_threads)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
@@ -842,8 +627,8 @@ def log_folder(filepath):
 def create_upload_log(filepath, status):
     upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
-    upload_opposite_log_filepath = os.path.join(
-        upload_log_root, UPLOAD_STATUS_PAIRS[status])
+    UPLOAD_STATUS_PAIRS = {"upload_success": "upload_failed", "upload_failed": "upload_success"}
+    upload_opposite_log_filepath = os.path.join(upload_log_root, UPLOAD_STATUS_PAIRS[status])
     if not os.path.isdir(upload_log_root):
         os.makedirs(upload_log_root)
         open(upload_log_filepath, "w").close()
@@ -865,35 +650,6 @@ def create_upload_log(filepath, status):
             'image': decoded_filepath,
             'status': 'success' if status == 'upload_success' else 'failed',
         })
-
-
-# TODO change this, to summarize the upload.log and the processing.log
-# maybe, now only used in upload_wth_preprocessing
-def upload_summary(file_list, total_uploads, split_groups, duplicate_groups, missing_groups):
-    total_success = len([f for f in file_list if 'success' in f])
-    total_failed = len([f for f in file_list if 'failed' in f])
-    lines = []
-    if duplicate_groups:
-        lines.append('Duplicates (skipping):')
-        lines.append('  groups:       {}'.format(len(duplicate_groups)))
-        lines.append('  total:        {}'.format(
-            sum([len(g) for g in duplicate_groups])))
-    if missing_groups:
-        lines.append('Missing Required EXIF (skipping):')
-        lines.append('  total:        {}'.format(
-            sum([len(g) for g in missing_groups])))
-
-    lines.append('Sequences:')
-    lines.append('  groups:       {}'.format(len(split_groups)))
-    lines.append('  total:        {}'.format(
-        sum([len(g) for g in split_groups])))
-    lines.append('Uploads:')
-    lines.append('  total uploads this run: {}'.format(total_uploads))
-    lines.append('  total:        {}'.format(total_success + total_failed))
-    lines.append('  success:      {}'.format(total_success))
-    lines.append('  failed:       {}'.format(total_failed))
-    lines = '\n'.join(lines)
-    return lines
 
 
 def filter_video_before_upload(video, filter_night_time=False):
@@ -950,14 +706,11 @@ def filter_video_before_upload(video, filter_night_time=False):
                 local_video_datetime = video_start_time + local_timezone_offset
                 if local_video_datetime.time() < datetime.time(sunrise_time, 0, 0) or local_video_datetime.time() > datetime.time(sunset_time, 0, 0):
                     if os.path.basename(os.path.dirname(video)) != 'nighttime':
-                        night_time_folder = os.path.dirname(
-                            video) + '/nighttime/'
+                        night_time_folder = os.path.dirname(video) + '/nighttime/'
                     if not os.path.exists(night_time_folder):
                         os.mkdir(night_time_folder)
-                    os.rename(video, night_time_folder +
-                              os.path.basename(video))
-                    os.rename(gpx_file_path, night_time_folder +
-                              os.path.basename(gpx_file_path))
+                    os.rename(video, night_time_folder + os.path.basename(video))
+                    os.rename(gpx_file_path, night_time_folder + os.path.basename(gpx_file_path))
                     print_error(
                         "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(video))
                     return True
@@ -970,14 +723,12 @@ def filter_video_before_upload(video, filter_night_time=False):
 def send_videos_for_processing(video_import_path, user_name, user_email=None, user_password=None, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, organization_username=None, organization_key=None, private=False, master_upload=False, sampling_distance=2, filter_night_time=False, offset_angle=0, orientation=0):
     # safe checks
     if not os.path.isdir(video_import_path) and not (os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")):
-        print("video import path {} does not exist or is invalid, exiting...".format(
-            video_import_path))
+        print("video import path {} does not exist or is invalid, exiting...".format(video_import_path))
         sys.exit(1)
     # User Authentication
     credentials = None
     if user_email and user_password:
-        credentials = authenticate_with_email_and_pwd(
-            user_email, user_password)
+        credentials = authenticate_with_email_and_pwd(user_email, user_password)
     else:
         try:
             credentials = authenticate_user(user_name)
@@ -986,12 +737,6 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
             print("Error, user authentication failed for user " + user_name)
             sys.exit(1)
-
-    user_permission_hash = credentials["user_permission_hash"]
-    user_signature_hash = credentials["user_signature_hash"]
-
-    response = get_upload_url(credentials)
-    request_params = response['videos']
 
     # upload all videos in the import path
     # get a list of all videos first
@@ -1009,11 +754,7 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         os.path.dirname(x)) != 'no_gps_data']
     all_videos = [x for x in all_videos if os.path.basename(
         os.path.dirname(x)) != 'nighttime']
-    skipped_videos_count = total_videos_count - \
-        uploaded_videos_count - len(all_videos)
-
-    if max_attempts == None:
-        max_attempts = MAX_ATTEMPTS
+    skipped_videos_count = total_videos_count - uploaded_videos_count - len(all_videos)
 
     progress = {
         'total': total_videos_count,
@@ -1070,16 +811,15 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             "client_id": CLIENT_ID
         }
 
-        if DRY_RUN:
-            continue
-        
-        upload_video(video, metadata, options)    
-        
+        if not DRY_RUN:
+            upload_video(video, metadata, options)
+
         progress['uploaded'] += 1        
 
     ipc.send('progress', progress)
 
     print("Upload completed")
+
 
 def upload_video(video, metadata, options, max_retries=20):
     session = upload_api.create_upload_session("videos/blackvue", metadata, options)
