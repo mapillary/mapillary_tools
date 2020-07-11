@@ -4,9 +4,10 @@ import sys
 import datetime
 import socket
 import copy
-import urllib2
-import urllib
-from Queue import Queue
+try:
+    from Queue import Queue
+except ImportError:
+    from queue import Queue
 import threading
 import time
 import getpass
@@ -21,9 +22,7 @@ from . import upload_api
 from . import ipc
 from .error import print_error
 from .utils import force_decode
-from .camera_support.prepare_blackvue_videos import get_blackvue_info
 from .geo import get_timezone_and_utc_offset
-from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 from .process_video import get_video_start_time_blackvue
 from .uploader_utils import set_video_as_uploaded
 
@@ -36,10 +35,6 @@ if os.getenv("API_PROXY_HOST", None) is None:
     API_ENDPOINT = "https://a.mapillary.com"
 else:
     API_ENDPOINT = "http://{}".format(os.getenv("API_PROXY_HOST"))
-LOGIN_URL = "{}/v2/ua/login?client_id={}".format(API_ENDPOINT, CLIENT_ID)
-ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations?client_id={}"
-USER_URL = API_ENDPOINT + "/v3/users?usernames={}&client_id={}"
-ME_URL = "{}/v3/me?client_id={}".format(API_ENDPOINT, CLIENT_ID)
 GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
 
 
@@ -236,29 +231,30 @@ def print_summary(file_list):
 
 
 def get_upload_token(mail, pwd):
-    '''
+    """
     Get upload token
-    '''
-    try:
-        params = urllib.urlencode({"email": mail, "password": pwd})
-        response = urllib2.urlopen(LOGIN_URL, params)
-    except:
-        return None
-    resp = json.loads(response.read())
-    if not resp or 'token' not in resp:
-        return None
-    return resp['token']
+    """
+    payload = {"email": mail, "password": pwd}
+    LOGIN_URL = "{}/v2/ua/login".format(API_ENDPOINT)
+    resp = requests.post(LOGIN_URL, params={'client_id': CLIENT_ID}, json=payload)
+    resp.raise_for_status()
+    return resp.json().get('token')
+
+
+def fetch_user_organizations(user_key, auth_token):
+    headers = {'Authorization': 'Bearer {}'.format(auth_token)}
+    ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations"
+    resp = requests.get(ORGANIZATIONS_URL.format(user_key), params={'client_id': CLIENT_ID}, headers=headers)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def get_organization_key(user_key, organization_username, upload_token):
     organization_key = None
-    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
-    req = urllib2.Request(call)
-    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
-    resp = json.loads(urllib2.urlopen(req).read())
 
     organization_usernames = []
-    for org in resp:
+    orgs = fetch_user_organizations(user_key, upload_token)
+    for org in orgs:
         organization_usernames.append(org['name'])
         if org['name'] == organization_username:
             organization_key = org['key']
@@ -272,11 +268,8 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
-    req = urllib2.Request(call)
-    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
-    resp = json.loads(urllib2.urlopen(req).read())
-    for org in resp:
+    orgs = fetch_user_organizations(user_key, upload_token)
+    for org in orgs:
         if org['key'] == organization_key:
             return
     print("Organization key does not exist.")
@@ -284,11 +277,8 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    call = ORGANIZATIONS_URL.format(user_key, CLIENT_ID)
-    req = urllib2.Request(call)
-    req.add_header('Authorization', 'Bearer {}'.format(upload_token))
-    resp = json.loads(urllib2.urlopen(req).read())
-    for org in resp:
+    orgs = fetch_user_organizations(user_key, upload_token)
+    for org in orgs:
         if org['key'] == organization_key:
             if (private and (('private_repository' not in org) or not org['private_repository'])) or (not private and (('public_repository' not in org) or not org['public_repository'])):
                 print("Organization privacy does not match provided privacy settings.")
@@ -299,10 +289,10 @@ def validate_organization_privacy(user_key, organization_key, private, upload_to
 
 
 def progress(count, total, suffix=''):
-    '''
+    """
     Display progress bar
     sources: https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
-    '''
+    """
     bar_len = 60
     filled_len = int(round(bar_len * count / float(total)))
     percents = round(100.0 * count / float(total), 1)
@@ -349,10 +339,10 @@ def authenticate_user(user_name):
 
 
 def authenticate_with_email_and_pwd(user_email, user_password):
-    '''
+    """
     Authenticate the user by passing the email and password.
     This function avoids prompting the command line for user credentials and is useful for calling tools programmatically
-    '''
+    """
     if user_email is None or user_password is None:
         raise ValueError('Could not authenticate user. Missing username or password')
     upload_token = get_upload_token(user_email, user_password)
@@ -413,11 +403,10 @@ def set_master_key():
 
 
 def get_user_key(user_name):
-    try:
-        req = urllib2.Request(USER_URL.format(urllib2.quote(user_name), CLIENT_ID))
-        resp = json.loads(urllib2.urlopen(req).read())
-    except:
-        return None
+    USER_URL = API_ENDPOINT + "/v3/users"
+    resp = requests.get(USER_URL, params={'client_id': CLIENT_ID, 'usernames': user_name})
+    resp.raise_for_status()
+    resp = resp.json()
     if not resp or 'key' not in resp[0]:
         print_error("Error, user name {} does not exist...".format(user_name))
         return None
@@ -425,9 +414,11 @@ def get_user_key(user_name):
 
 
 def get_user(jwt):
-    req = urllib2.Request(ME_URL)
-    req.add_header('Authorization', 'Bearer {}'.format(jwt))
-    return json.loads(urllib2.urlopen(req).read())
+    ME_URL = "{}/v3/me".format(API_ENDPOINT)
+    headers = {'Authorization': 'Bearer {}'.format(jwt)}
+    resp = requests.get(ME_URL, params={'client_id': CLIENT_ID}, headers=headers)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def upload_file(filepath, max_attempts, session):
@@ -653,6 +644,8 @@ def create_upload_log(filepath, status):
 
 
 def filter_video_before_upload(video, filter_night_time=False):
+    from .camera_support.prepare_blackvue_videos import get_blackvue_info
+    from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
     try:
         if not get_blackvue_info(video)['is_Blackvue_video']:
             print_error("ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files")
@@ -664,8 +657,7 @@ def filter_video_before_upload(video, filter_night_time=False):
     except:
         print_error("ERROR: Unable to determine video details, skipping video")
         return True
-    [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
-        video, use_nmea_stream_timestamp=False)
+    [gpx_file_path, isStationaryVid] = gpx_from_blackvue(video, use_nmea_stream_timestamp=False)
     video_start_time = get_video_start_time_blackvue(video)
     if isStationaryVid:
         if not gpx_file_path:
