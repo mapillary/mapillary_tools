@@ -3,7 +3,6 @@
 import os
 import json
 import struct
-import time
 
 NODE_CHANNEL_FD = int(os.getenv('NODE_CHANNEL_FD', -1))
 
@@ -13,8 +12,7 @@ if NODE_CHANNEL_FD == -1:
 
 elif os.name == 'nt':
     def __write(obj):
-        data = json.dumps(obj, separators=(',', ':')
-                          ).encode('utf-8') + os.linesep
+        data = json.dumps(obj, separators=(',', ':')).encode('utf-8') + os.linesep
         # On windows, using node v8.11.4, this assertion fails
         # without sending the header
         # Assertion failed: ipc_frame.header.flags <= (UV_IPC_TCP_SERVER |
@@ -25,12 +23,13 @@ elif os.name == 'nt':
 
 else:
     def __write(obj):
-        data = json.dumps(obj, separators=(',', ':')
-                          ).encode('utf-8') + os.linesep
+        data = json.dumps(obj, separators=(',', ':')).encode('utf-8') + os.linesep
         os.write(NODE_CHANNEL_FD, data)
+
 
 def is_enabled():
     return NODE_CHANNEL_FD != -1
+
 
 def send(type, payload):
     obj = {
@@ -43,7 +42,7 @@ def send(type, payload):
         print('IPC error for: %s' % obj)
         print('Error: %s' % e)
 
+
 def send_error(message):
     send('error', {'message': message})
-
 

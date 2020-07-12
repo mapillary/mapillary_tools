@@ -1,4 +1,3 @@
-
 from mapillary_tools.process_import_meta_properties import process_import_meta_properties
 
 
@@ -39,5 +38,4 @@ class Command:
                             default=None, required=False)
 
     def run(self, args):
-
         process_import_meta_properties(**vars(args))

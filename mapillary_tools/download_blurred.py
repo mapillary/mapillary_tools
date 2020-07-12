@@ -33,7 +33,6 @@ class WorkerMonitor(threading.Thread):
 
     def run(self):
         while not self.shutdown_flag.is_set():
-            stats = []
             message = ''
             total = 0
             for index, worker in enumerate(self.threads):
@@ -106,7 +105,7 @@ def query_search_api(headers, **kwargs):
     """
     set_params = []
     per_page = int(kwargs['per_page'])
-    for k, v in kwargs.iteritems():
+    for k, v in kwargs.items():
         if v is not None:
             if k == 'private' and v == 'false':
                 pass

@@ -135,25 +135,25 @@ class Command:
             vars_args["device_make"] = "Blackvue"
         if "device_make" in vars_args and vars_args["device_make"] and vars_args["device_make"].lower() == "blackvue":
             vars_args["duplicate_angle"] = 360
-        process_user_properties(**({k: v for k, v in vars_args.iteritems()
+        process_user_properties(**({k: v for k, v in vars_args.items()
                                     if k in inspect.getargspec(process_user_properties).args}))
 
         process_import_meta_properties(
-            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_import_meta_properties).args}))
+            **({k: v for k, v in vars_args.items() if k in inspect.getargspec(process_import_meta_properties).args}))
 
         process_geotag_properties(
-            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_geotag_properties).args}))
+            **({k: v for k, v in vars_args.items() if k in inspect.getargspec(process_geotag_properties).args}))
 
         process_sequence_properties(
-            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(process_sequence_properties).args}))
+            **({k: v for k, v in vars_args.items() if k in inspect.getargspec(process_sequence_properties).args}))
 
-        process_upload_params(**({k: v for k, v in vars_args.iteritems()
+        process_upload_params(**({k: v for k, v in vars_args.items()
                                   if k in inspect.getargspec(process_upload_params).args}))
 
-        insert_MAPJson(**({k: v for k, v in vars_args.iteritems()
+        insert_MAPJson(**({k: v for k, v in vars_args.items()
                            if k in inspect.getargspec(insert_MAPJson).args}))
 
         print("Process done.")
 
-        post_process(**({k: v for k, v in vars_args.iteritems()
+        post_process(**({k: v for k, v in vars_args.items()
                          if k in inspect.getargspec(post_process).args}))

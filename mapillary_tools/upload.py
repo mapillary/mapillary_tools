@@ -10,7 +10,7 @@ from . import uploader
 
 
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):
-    '''
+    """
     Upload local images to Mapillary
     Args:
         import_path: Directory path to where the images are stored.
@@ -19,7 +19,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
 
     Returns:
         Images are uploaded to Mapillary and flagged locally as uploaded.
-    '''
+    """
     # sanity check if video file is passed
     if video_import_path and (not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)):
         print("Error, video path " + video_import_path + " does not exist, exiting...")
@@ -29,8 +29,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
     if video_import_path:
         # set sampling path
         video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = video_import_path if os.path.isdir(
-            video_import_path) else os.path.dirname(video_import_path)
+        video_dirname = video_import_path if os.path.isdir(video_import_path) else os.path.dirname(video_import_path)
         import_path = os.path.join(os.path.abspath(import_path), video_sampling_path) if import_path else os.path.join(
             os.path.abspath(video_dirname), video_sampling_path)
 
@@ -50,7 +49,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
         print("All images have already been uploaded")
     else:
         if len(failed_file_list):
-            upload_failed = raw_input(
+            upload_failed = input(
                 "Retry uploading previously failed image uploads? [y/n]: ") if not ipc.is_enabled() else 'y'
             # if yes, add images to the upload list
             if upload_failed in ["y", "Y", "yes", "Yes"]:
@@ -77,7 +76,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                 upload_params_path = os.path.join(log_root, "upload_params_process.json")
                 if os.path.isfile(upload_params_path):
                     with open(upload_params_path, "rb") as jf:
-                        params[image] = json.load(jf, object_hook=uploader.ascii_encode_dict)
+                        params[image] = json.load(jf)
                         sequence = params[image]["key"]
                         if sequence in list_per_sequence_mapping:
                             list_per_sequence_mapping[sequence].append(image)
@@ -110,8 +109,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                     log_root, "upload_params_process.json")
                 if os.path.isfile(upload_params_path):
                     with open(upload_params_path, "rb") as jf:
-                        image_params = json.load(
-                            jf, object_hook=uploader.ascii_encode_dict)
+                        image_params = json.load(jf)
                         sequence = image_params["key"]
                         if sequence not in sequences:
                             params[image] = image_params

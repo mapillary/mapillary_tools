@@ -75,12 +75,14 @@ def finalize_import_properties_process(image,
                                        add_file_name=False,
                                        add_import_date=False,
                                        verbose=False,
-                                       mapillary_description={},
+                                       mapillary_description=None,
                                        custom_meta_data=None,
                                        camera_uuid=None,
                                        windows_path=False,
                                        exclude_import_path=False,
                                        exclude_path=None):
+    if mapillary_description is None:
+        mapillary_description = {}
     # always check if there are any command line arguments passed, they will
     if orientation is not None:
         mapillary_description["MAPOrientation"] = orientation
@@ -137,26 +139,22 @@ def get_import_meta_properties_exif(image, verbose=False):
                   image + ", import properties not read.")
         return None
     try:
-        import_meta_data_properties["MAPOrientation"] = exif.extract_orientation(
-        )
+        import_meta_data_properties["MAPOrientation"] = exif.extract_orientation()
     except:
         if verbose:
             print("Warning, image orientation tag not in EXIF.")
     try:
-        import_meta_data_properties["MAPDeviceMake"] = exif.extract_make(
-        )
+        import_meta_data_properties["MAPDeviceMake"] = exif.extract_make()
     except:
         if verbose:
             print("Warning, camera make tag not in EXIF.")
     try:
-        import_meta_data_properties["MAPDeviceModel"] = exif.extract_model(
-        )
+        import_meta_data_properties["MAPDeviceModel"] = exif.extract_model()
     except:
         if verbose:
             print("Warning, camera model tag not in EXIF.")
     try:
-        import_meta_data_properties["MAPMetaTags"] = eval(exif.extract_image_history(
-        ))
+        import_meta_data_properties["MAPMetaTags"] = eval(exif.extract_image_history())
     except:
         pass
 

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import datetime
 import math
 
 import datetime
@@ -11,14 +10,14 @@ WGS84_b = 6356752.314245
 
 
 def ecef_from_lla(lat, lon, alt):
-    '''
+    """
     Compute ECEF XYZ from latitude, longitude and altitude.
 
     All using the WGS94 model.
     Altitude is the distance to the WGS94 ellipsoid.
     Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
 
-    '''
+    """
     a2 = WGS84_a ** 2
     b2 = WGS84_b ** 2
     lat = math.radians(lat)
@@ -31,14 +30,14 @@ def ecef_from_lla(lat, lon, alt):
 
 
 def gps_distance(latlon_1, latlon_2):
-    '''
+    """
     Distance between two (lat,lon) pairs.
 
     >>> p1 = (42.1, -11.1)
     >>> p2 = (42.2, -11.3)
     >>> 19000 < gps_distance(p1, p2) < 20000
     True
-    '''
+    """
     x1, y1, z1 = ecef_from_lla(latlon_1[0], latlon_1[1], 0.)
     x2, y2, z2 = ecef_from_lla(latlon_2[0], latlon_2[1], 0.)
 
@@ -48,10 +47,10 @@ def gps_distance(latlon_1, latlon_2):
 
 
 def get_max_distance_from_start(latlon_track):
-    '''
+    """
     Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
     Takes a sequence of points as input
-    '''
+    """
     latlon_list = []
     # Remove timestamps from list
     for idx, point in enumerate(latlon_track):
@@ -70,10 +69,10 @@ def get_max_distance_from_start(latlon_track):
 
 
 def get_total_distance_traveled(latlon_track):
-    '''
+    """
     Returns the total distance traveled of a GPS track. Used to calculate whether or not the entire sequence was just stationary video
     Takes a sequence of points as input
-    '''
+    """
     latlon_list = []
     # Remove timestamps from list
     for idx, point in enumerate(latlon_track):
@@ -100,10 +99,10 @@ def gps_speed(distance, delta_t):
 
 
 def dms_to_decimal(degrees, minutes, seconds, hemisphere):
-    '''
+    """
     Convert from degrees, minutes, seconds to decimal degrees.
     @author: mprins
-    '''
+    """
     dms = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
     if hemisphere in "WwSs":
         dms = -1 * dms
@@ -112,9 +111,9 @@ def dms_to_decimal(degrees, minutes, seconds, hemisphere):
 
 
 def decimal_to_dms(value, precision):
-    '''
+    """
     Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
-    '''
+    """
     deg = math.floor(value)
     min = math.floor((value - deg) * 60)
     sec = math.floor((value - deg - min / 60) * 3600 * precision)
@@ -123,11 +122,11 @@ def decimal_to_dms(value, precision):
 
 
 def gpgga_to_dms(gpgga):
-    '''
+    """
     Convert GPS coordinate in GPGGA format to degree/minute/second
 
     Reference: http://us.cactii.net/~bb/gps.py
-    '''
+    """
     deg_min, dmin = gpgga.split('.')
     degrees = int(deg_min[:-2])
     minutes = float('%s.%s' % (deg_min[-2:], dmin))
@@ -141,12 +140,12 @@ def utc_to_localtime(utc_time):
 
 
 def compute_bearing(start_lat, start_lon, end_lat, end_lon):
-    '''
+    """
     Get the compass bearing from start to end.
 
     Formula from
     http://www.movable-type.co.uk/scripts/latlong.html
-    '''
+    """
     # make sure everything is in radians
     start_lat = math.radians(start_lat)
     start_lon = math.radians(start_lon)
@@ -172,26 +171,26 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon):
 
 
 def diff_bearing(b1, b2):
-    '''
+    """
     Compute difference between two bearings
-    '''
+    """
     d = abs(b2 - b1)
     d = 360 - d if d > 180 else d
     return d
 
 
 def offset_bearing(bearing, offset):
-    '''
+    """
     Add offset to bearing
-    '''
+    """
     bearing = (bearing + offset) % 360
     return bearing
 
 
 def normalize_bearing(bearing, check_hex=False):
-    '''
+    """
     Normalize bearing and convert from hex if
-    '''
+    """
     if bearing > 360 and check_hex:
         # fix negative value wrongly parsed in exifread
         # -360 degree -> 4294966935 when converting from hex
@@ -203,11 +202,11 @@ def normalize_bearing(bearing, check_hex=False):
 
 
 def interpolate_lat_lon(points, t, max_dt=1):
-    '''
+    """
     Return interpolated lat, lon and compass bearing for time t.
 
     Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
-    '''
+    """
     # find the enclosing points in sorted list
     if (t <= points[0][0]) or (t >= points[-1][0]):
         if t <= points[0][0]:

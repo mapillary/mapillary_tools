@@ -1,5 +1,3 @@
-
-from mapillary_tools import process_video
 from mapillary_tools.process_geotag_properties import process_geotag_properties
 
 

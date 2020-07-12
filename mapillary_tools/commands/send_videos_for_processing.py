@@ -44,4 +44,4 @@ class Command:
     def run(self, args):
         vars_args = vars(args)
         send_videos_for_processing(
-            **({k: v for k, v in vars_args.iteritems() if k in inspect.getargspec(send_videos_for_processing).args}))
+            **({k: v for k, v in vars_args.items() if k in inspect.getargspec(send_videos_for_processing).args}))

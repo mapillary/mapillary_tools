@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-import os
-import sys
-import exifread
 import datetime
-from .geo import normalize_bearing
+import os
 import uuid
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")))
 import json
+
+import exifread
+
+from .geo import normalize_bearing
 
 
 def eval_frac(value):
@@ -18,12 +17,12 @@ def eval_frac(value):
 
 
 def format_time(time_string):
-    '''
+    """
     Format time string with invalid time elements in hours/minutes/seconds
     Format for the timestring needs to be "%Y_%m_%d_%H_%M_%S"
 
     e.g. 2014_03_31_24_10_11 => 2014_04_01_00_10_11
-    '''
+    """
     subseconds = False
     data = time_string.split("_")
     hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
@@ -143,9 +142,9 @@ class ExifRead:
         return user_comment
 
     def extract_altitude(self):
-        '''
+        """
         Extract altitude
-        '''
+        """
         altitude_ref = {
             0: 1,
             1: -1}
@@ -157,11 +156,11 @@ class ExifRead:
         return altitude * altitude_ref[ref]
 
     def extract_capture_time(self):
-        '''
+        """
         Extract capture time from EXIF
         return a datetime object
         TODO: handle GPS DateTime
-        '''
+        """
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(
             time_string, 0, str)
@@ -194,9 +193,9 @@ class ExifRead:
         return capture_time
 
     def extract_direction(self):
-        '''
+        """
         Extract image direction (i.e. compass, heading, bearing)
-        '''
+        """
         fields = ['GPS GPSImgDirection',
                   'EXIF GPS GPSImgDirection',
                   'GPS GPSTrack',

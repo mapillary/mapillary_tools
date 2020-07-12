@@ -1,9 +1,10 @@
+import copy
+import datetime
 import json
 import os
-import sys
-import datetime
 import socket
-import copy
+import sys
+
 try:
     from Queue import Queue
 except ImportError:
@@ -25,6 +26,8 @@ from .utils import force_decode
 from .geo import get_timezone_and_utc_offset
 from .process_video import get_video_start_time_blackvue
 from .uploader_utils import set_video_as_uploaded
+from .camera_support.prepare_blackvue_videos import get_blackvue_info
+from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 
 NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
@@ -219,15 +222,13 @@ def preform_finalize(root, file):
     upload_succes = os.path.join(log_root, "upload_success")
     upload_finalized = os.path.join(log_root, "upload_finalized")
     manual_upload = os.path.join(log_root, "manual_upload")
-    finalize = os.path.isfile(
-        upload_succes) and not os.path.isfile(upload_finalized) and os.path.isfile(manual_upload)
+    finalize = os.path.isfile(upload_succes) and not os.path.isfile(upload_finalized) and os.path.isfile(manual_upload)
     return finalize
 
 
 def print_summary(file_list):
     # inform upload has finished and print out the summary
-    print("Done uploading {} images.".format(
-        len(file_list)))  # improve upload summary
+    print("Done uploading {} images.".format(len(file_list)))  # improve upload summary
 
 
 def get_upload_token(mail, pwd):
@@ -272,8 +273,7 @@ def validate_organization_key(user_key, organization_key, upload_token):
     for org in orgs:
         if org['key'] == organization_key:
             return
-    print("Organization key does not exist.")
-    sys.exit(1)
+    raise Exception("Organization key does not exist.")
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
@@ -304,7 +304,7 @@ def progress(count, total, suffix=''):
 def prompt_user_for_user_items(user_name):
     user_items = {}
     print("Enter user credentials for user " + user_name + " :")
-    user_email = raw_input("Enter email : ")
+    user_email = input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
     user_key = get_user_key(user_name)
     if not user_key:
@@ -329,11 +329,7 @@ def authenticate_user(user_name):
     user_items = prompt_user_for_user_items(user_name)
     if not user_items:
         return None
-    try:
-        config.create_config(GLOBAL_CONFIG_FILEPATH)
-    except Exception as e:
-        print("Failed to create authentication config file due to {}".format(e))
-        sys.exit(1)
+    config.create_config(GLOBAL_CONFIG_FILEPATH)
     config.update_config(GLOBAL_CONFIG_FILEPATH, user_name, user_items)
     return user_items
 
@@ -370,17 +366,17 @@ def get_master_key():
             if "MAPILLARY_SECRET_HASH" in admin_items:
                 master_key = admin_items["MAPILLARY_SECRET_HASH"]
             else:
-                create_config = raw_input(
+                create_config = input(
                     "Master upload key does not exist in your global Mapillary config file, set it now?")
                 if create_config in ["y", "Y", "yes", "Yes"]:
                     master_key = set_master_key()
         else:
-            create_config = raw_input(
+            create_config = input(
                 "MAPAdmin section not in your global Mapillary config file, set it now?")
             if create_config in ["y", "Y", "yes", "Yes"]:
                 master_key = set_master_key()
     else:
-        create_config = raw_input(
+        create_config = input(
             "Master upload key needs to be saved in the global Mapillary config file, which does not exist, create one now?")
         if create_config in ["y", "Y", "yes", "Yes"]:
             config.create_config(GLOBAL_CONFIG_FILEPATH)
@@ -394,7 +390,7 @@ def set_master_key():
     section = "MAPAdmin"
     if section not in config_object.sections():
         config_object.add_section(section)
-    master_key = raw_input("Enter the master key : ")
+    master_key = input("Enter the master key : ")
     if master_key != "":
         config_object = config.set_user_items(
             config_object, section, {"MAPILLARY_SECRET_HASH": master_key})
@@ -422,9 +418,9 @@ def get_user(jwt):
 
 
 def upload_file(filepath, max_attempts, session):
-    '''
+    """
     Upload file at filepath.
-    '''
+    """
 
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
@@ -471,13 +467,12 @@ def upload_file(filepath, max_attempts, session):
             response = upload_api.upload_file(session, filepath, s3_filename)
             if 200 <= response.status_code < 300:
                 create_upload_log(filepath_in, "upload_success")
-                if displayed_upload_error == True:
+                if displayed_upload_error:
                     print("Successful upload of {} on attempt {}".format(filename, attempt + 1))
             else:
                 create_upload_log(filepath_in, "upload_failed")
                 print(response.text)
             break  # attempts
-
         except requests.RequestException as e:
             print("HTTP error: {} on {}, will attempt upload again for {} more times".format(
                 e, filename, max_attempts - attempt - 1))
@@ -491,17 +486,7 @@ def upload_file(filepath, max_attempts, session):
             print("Timeout error: {} (retrying), will attempt upload again for {} more times".format(filename, max_attempts - attempt - 1))
 
 
-def ascii_encode_dict(data):
-    def ascii_encode(x):
-        if isinstance(x, str) or isinstance(x, unicode):
-            return x.encode('ascii')
-
-        return x
-
-    return dict(map(ascii_encode, pair) for pair in data.items())
-
-
-def upload_file_list_direct(file_list, number_threads=None, max_attempts=None, api_version=1.0):
+def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
@@ -537,7 +522,7 @@ def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx,
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
-    first_image = file_params.values()[0]
+    first_image = list(file_params.values())[0]
 
     user_name = first_image["user_name"]
     organization_key = first_image.get("organization_key")
@@ -644,8 +629,6 @@ def create_upload_log(filepath, status):
 
 
 def filter_video_before_upload(video, filter_night_time=False):
-    from .camera_support.prepare_blackvue_videos import get_blackvue_info
-    from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
     try:
         if not get_blackvue_info(video)['is_Blackvue_video']:
             print_error("ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files")
@@ -718,22 +701,17 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
         print("video import path {} does not exist or is invalid, exiting...".format(video_import_path))
         sys.exit(1)
     # User Authentication
-    credentials = None
     if user_email and user_password:
         credentials = authenticate_with_email_and_pwd(user_email, user_password)
     else:
-        try:
-            credentials = authenticate_user(user_name)
-        except:
-            pass
-        if credentials == None or "user_upload_token" not in credentials or "user_permission_hash" not in credentials or "user_signature_hash" not in credentials:
-            print("Error, user authentication failed for user " + user_name)
-            sys.exit(1)
+        credentials = authenticate_user(user_name)
+    if credentials is None:
+        print("Error, user authentication failed for user " + user_name)
+        sys.exit(1)
 
     # upload all videos in the import path
     # get a list of all videos first
-    all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(
-        video_import_path) else [video_import_path]
+    all_videos = get_video_file_list(video_import_path, skip_subfolders) if os.path.isdir(video_import_path) else [video_import_path]
     total_videos_count = len(all_videos)
 
     all_videos = [x for x in all_videos if os.path.basename(

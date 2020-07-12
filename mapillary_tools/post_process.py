@@ -111,8 +111,7 @@ def post_process(import_path,
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " does not exist, exiting...")
+        print("Error, import directory " + import_path + " does not exist, exiting...")
         sys.exit(1)
     if save_local_mapping:
         local_mapping = save_local_mapping(import_path)
@@ -130,8 +129,7 @@ def post_process(import_path,
                 log_root, "upload_params_process.json")
             if os.path.isfile(upload_params_path):
                 with open(upload_params_path, "rb") as jf:
-                    params[image] = json.load(
-                        jf, object_hook=uploader.ascii_encode_dict)
+                    params[image] = json.load(jf)
 
         # get the s3 locations of the sequences
         finalize_params = uploader.process_upload_finalization(
@@ -249,13 +247,10 @@ def post_process(import_path,
             else:
                 destination_mapping[image] = {"basic": ["to_be_uploaded"]}
     if move_sequences:
-        destination_mapping = map_images_to_sequences(
-            destination_mapping, total_files)
+        destination_mapping = map_images_to_sequences(destination_mapping, total_files)
     for image in destination_mapping:
-        basic_destination = destination_mapping[image]["basic"] if "basic" in destination_mapping[image] else [
-        ]
-        sequence_destination = destination_mapping[image][
-            "sequence"] if "sequence" in destination_mapping[image] else ""
+        basic_destination = destination_mapping[image]["basic"] if "basic" in destination_mapping[image] else []
+        sequence_destination = destination_mapping[image]["sequence"] if "sequence" in destination_mapping[image] else ""
         image_destination_path = os.path.join(*([split_import_path] + basic_destination + [
                                               os.path.dirname(image[len(os.path.abspath(import_path)) + 1:])] + [sequence_destination, os.path.basename(image)]))
         if not os.path.isdir(os.path.dirname(image_destination_path)):

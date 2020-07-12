@@ -1,25 +1,25 @@
-import datetime
-import uuid
-import os
-import json
-import time
-import sys
-import hashlib
 import base64
-from tqdm import tqdm
+import datetime
+import hashlib
+import json
+import os
+import time
+import uuid
 from collections import OrderedDict
-from dateutil.tz import tzlocal
 
+from dateutil.tz import tzlocal
+from tqdm import tqdm
+
+from . import ipc
+from . import uploader
+from .error import print_error
 from .exif_read import ExifRead
 from .exif_write import ExifEdit
-from .geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
-from . import uploader
+from .geo import normalize_bearing, interpolate_lat_lon, gps_distance
 from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
-from .gpx_from_gopro import gpx_from_gopro
 from .gpx_from_blackvue import gpx_from_blackvue
 from .gpx_from_exif import gpx_from_exif
-from . import ipc
-from .error import print_error
+from .gpx_from_gopro import gpx_from_gopro
 from .utils import force_decode
 
 '''
@@ -69,11 +69,7 @@ def estimate_sub_second_time(files, interval=0.0):
         return [s + T * i for i in range(len(files))]
 
 
-def geotag_from_exif(process_file_list,
-                     import_path,
-                     offset_time=0.0,
-                     offset_angle=0.0,
-                     verbose=False):
+def geotag_from_exif(process_file_list, import_path, offset_time=0.0, offset_angle=0.0, verbose=False):
     if offset_time == 0:
         for image in tqdm(process_file_list, desc="Extracting gps data from image EXIF"):
             geotag_properties = get_geotag_properties_from_exif(
@@ -86,14 +82,12 @@ def geotag_from_exif(process_file_list,
                                    verbose)
     else:
         try:
-            geotag_source_path = gpx_from_exif(
-                process_file_list, import_path, verbose)
+            geotag_source_path = gpx_from_exif(process_file_list, import_path, verbose)
             if not geotag_source_path or not os.path.isfile(geotag_source_path):
                 raise Exception
         except Exception as e:
-            print_error(
-                "Error, failed extracting data from exif due to {}, exiting...".format(e))
-            sys.exit(1)
+            print_error("Error, failed extracting data from exif due to {}, exiting...".format(e))
+            raise e
 
         geotag_from_gps_trace(process_file_list,
                               "gpx",
@@ -132,10 +126,11 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
         return None
 
     try:
-        geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
-            timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+        geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(timestamp, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
     except:
-        print_error("Error, {} image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.".format(image))
+        print_error(
+            "Error, {} image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.".format(
+                image))
         return None
 
     # optional fields
@@ -168,7 +163,6 @@ def geotag_from_gopro_video(process_file_list,
                             sub_second_interval,
                             use_gps_start_time=False,
                             verbose=False):
-
     # for each video, create gpx trace and geotag the corresponding video
     # frames
     gopro_videos = uploader.get_video_file_list(geotag_source_path)
@@ -216,7 +210,6 @@ def geotag_from_blackvue_video(process_file_list,
                                sub_second_interval,
                                use_gps_start_time=False,
                                verbose=False):
-
     # for each video, create gpx trace and geotag the corresponding video
     # frames
     blackvue_videos = uploader.get_video_file_list(geotag_source_path)
@@ -229,8 +222,9 @@ def geotag_from_blackvue_video(process_file_list,
             if not gpx_path or not os.path.isfile(gpx_path):
                 raise Exception
         except Exception as e:
-            print_error("Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
-                blackvue_video, e))
+            print_error(
+                "Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
+                    blackvue_video, e))
         if is_stationary_video:
             print_error("Warning: Skipping stationary video")
             continue
@@ -327,9 +321,10 @@ def geotag_from_gps_trace(process_file_list,
                                verbose)
 
 
-def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False):
+def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0,
+                                         verbose=False):
     capture_time = capture_time - \
-        datetime.timedelta(seconds=offset_time)
+                   datetime.timedelta(seconds=offset_time)
     try:
         lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace,
                                                            capture_time)
@@ -363,8 +358,7 @@ def get_geotag_properties_from_gps_trace(image, capture_time, gps_trace, offset_
     return geotag_properties
 
 
-def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_permission_hash, user_signature_hash, user_key, aws_access_key_id, verbose=False):
-
+def get_upload_param_properties(log_root, image, user_name, user_upload_token, user_key, verbose=False):
     if not os.path.isdir(log_root):
         print("Warning, sequence process has not been done for image " + image +
               ", therefore it will not be included in the upload params processing.")
@@ -383,7 +377,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
 
     # load the sequence json
     user_process_json_path = os.path.join(log_root,
-                                              "user_process.json")
+                                          "user_process.json")
     user_data = {}
     try:
         user_data = load_json(user_process_json_path)
@@ -402,9 +396,7 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
     private = user_data.get("MAPPrivate", False)
 
     # load the sequence json
-    sequence_process_json_path = os.path.join(log_root,
-                                              "sequence_process.json")
-    sequence_data = ""
+    sequence_process_json_path = os.path.join(log_root, "sequence_process.json")
     try:
         sequence_data = load_json(
             sequence_process_json_path)
@@ -429,35 +421,29 @@ def get_upload_param_properties(log_root, image, user_name, user_upload_token, u
         "private": private,
     }
 
-    try:
-        settings_upload_hash = hashlib.sha256("%s%s%s" % (user_upload_token,
-                                                          user_key,
-                                                          base64.b64encode(image))).hexdigest()
-        save_json({"MAPSettingsUploadHash": settings_upload_hash},
-                  os.path.join(log_root, "settings_upload_hash.json"))
-    except:
-        print("Warning, settings upload hash not set for image " + image +
-              ", therefore it will not be uploaded.")
-        return None
+    x = base64.b64encode(image.encode('utf-8')).decode('utf-8')
+    s = "%s%s%s" % (user_upload_token, user_key, x)
+    settings_upload_hash = hashlib.sha256(s.encode('utf-8')).hexdigest()
+    save_json({"MAPSettingsUploadHash": settings_upload_hash}, os.path.join(log_root, "settings_upload_hash.json"))
     return upload_params
 
 
-def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False, keep_original=False, overwrite_all_EXIF_tags=False, overwrite_EXIF_time_tag=False, overwrite_EXIF_gps_tag=False, overwrite_EXIF_direction_tag=False, overwrite_EXIF_orientation_tag=False):
+def get_final_mapillary_image_description(log_root, image, master_upload=False, verbose=False, skip_EXIF_insert=False,
+                                          keep_original=False, overwrite_all_EXIF_tags=False,
+                                          overwrite_EXIF_time_tag=False, overwrite_EXIF_gps_tag=False,
+                                          overwrite_EXIF_direction_tag=False, overwrite_EXIF_orientation_tag=False):
     sub_commands = ["user_process", "geotag_process", "sequence_process",
                     "upload_params_process", "settings_upload_hash", "import_meta_data_process"]
 
     final_mapillary_image_description = {}
     for sub_command in sub_commands:
-        sub_command_status = os.path.join(
-            log_root, sub_command + "_failed")
+        sub_command_status = os.path.join(log_root, sub_command + "_failed")
 
         if os.path.isfile(sub_command_status) and sub_command != "import_meta_data_process":
-            print("Warning, required {} failed for image ".format(sub_command) +
-                  image)
+            print("Warning, required {} failed for image ".format(sub_command) + image)
             return None
 
-        sub_command_data_path = os.path.join(
-            log_root, sub_command + ".json")
+        sub_command_data_path = os.path.join(log_root, sub_command + ".json")
         if not os.path.isfile(sub_command_data_path) and sub_command != "import_meta_data_process":
             if (sub_command == "settings_upload_hash" or sub_command == "upload_params_process") and master_upload:
                 continue
@@ -471,21 +457,18 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
             sub_command_data = load_json(sub_command_data_path)
             if not sub_command_data:
                 if verbose:
-                    print(
-                        "Warning, no data read from json file " + json_file)
+                    print("Warning, no data read from json file " + json_file)
                 return None
 
             final_mapillary_image_description.update(sub_command_data)
         except:
             if sub_command == "import_meta_data_process":
                 if verbose:
-                    print("Warning, could not load json file " +
-                          sub_command_data_path)
+                    print("Warning, could not load json file " + sub_command_data_path)
                 continue
             else:
                 if verbose:
-                    print("Warning, could not load json file " +
-                          sub_command_data_path)
+                    print("Warning, could not load json file " + sub_command_data_path)
                 return None
 
     # a unique photo ID to check for duplicates in the backend in case the
@@ -631,7 +614,7 @@ def load_json(file_path):
 
 def save_json(data, file_path):
     with open(file_path, "wb") as f:
-        f.write(json.dumps(data, indent=4))
+        f.write(json.dumps(data, indent=4).encode('utf-8'))
 
 
 def update_json(data, file_path, process):
@@ -641,20 +624,22 @@ def update_json(data, file_path, process):
 
 
 def get_process_file_list(import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None):
-
     if not root_dir:
         root_dir = import_path
 
     process_file_list = []
     if skip_subfolders:
-        process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file), process, rerun))
+        process_file_list.extend(
+            os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and preform_process(os.path.join(root_dir, file),
+                                                                                         process, rerun))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if preform_process(
-                os.path.join(root, file), process, rerun) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+                os.path.join(root, file), process, rerun) and file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     inform_processing_start(root_dir,
                             len(process_file_list),
@@ -663,17 +648,20 @@ def get_process_file_list(import_path, process, rerun=False, verbose=False, skip
 
 
 def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
-
     status_process_file_list = []
     if skip_subfolders:
-        status_process_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file), process, status))
+        status_process_file_list.extend(
+            os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and process_status(os.path.join(root_dir, file),
+                                                                                        process, status))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
-            status_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if process_status(
-                os.path.join(root, file), process, status) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            status_process_file_list.extend(
+                os.path.join(os.path.abspath(root), file) for file in files if process_status(
+                    os.path.join(root, file), process, status) and file.lower().endswith(
+                    ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(status_process_file_list)
 
@@ -687,14 +675,16 @@ def process_status(file_path, process, status):
 def get_duplicate_file_list(import_path, skip_subfolders=False):
     duplicate_file_list = []
     if skip_subfolders:
-        duplicate_file_list.extend(os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
-            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
+        duplicate_file_list.extend(
+            os.path.join(os.path.abspath(root_dir), file) for file in os.listdir(root_dir) if file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')) and is_duplicate(os.path.join(root_dir, file)))
     else:
         for root, dir, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             duplicate_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if is_duplicate(
-                os.path.join(root, file)) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+                os.path.join(root, file)) and file.lower().endswith(
+                ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(duplicate_file_list)
 
@@ -710,18 +700,18 @@ def preform_process(file_path, process, rerun=False):
     process_succes = os.path.join(log_root, process + "_success")
     upload_succes = os.path.join(log_root, "upload_success")
     preform = not os.path.isfile(upload_succes) and (
-        not os.path.isfile(process_succes) or rerun)
+            not os.path.isfile(process_succes) or rerun)
     return preform
 
 
 def get_failed_process_file_list(import_path, process):
-
     failed_process_file_list = []
     for root, dir, files in os.walk(import_path):
         if os.path.join(".mapillary", "logs") in root:
             continue
         failed_process_file_list.extend(os.path.join(os.path.abspath(root), file) for file in files if failed_process(
-            os.path.join(root, file), process) and file.lower().endswith(('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
+            os.path.join(root, file), process) and file.lower().endswith(
+            ('jpg', 'jpeg', 'tif', 'tiff', 'pgm', 'pnm', 'gif')))
 
     return sorted(failed_process_file_list)
 
@@ -745,7 +735,9 @@ def video_upload(video_file, import_path, verbose=False):
     if import_path not in import_paths:
         import_paths.append(import_path)
     else:
-        print("Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(video_file, import_path))
+        print(
+            "Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(
+                video_file, import_path))
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
             if len(uploader.get_success_upload_file_list(video_import_path)):
@@ -817,17 +809,16 @@ def create_and_log_process(image, process, status, mapillary_description={}, ver
         try:
             save_json(mapillary_description, log_MAPJson)
             open(log_process_succes, "w").close()
-            open(log_process_succes + "_" +
-                 str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
+            open(log_process_succes + "_" + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())), "w").close()
             # if there is a failed log from before, remove it
             if os.path.isfile(log_process_failed):
                 os.remove(log_process_failed)
-        except:
+        except Exception as exc:
             # if the image description could not have been written to the
             # filesystem, log failed
-            print_error("Error, " + process +
-                        " logging failed for image " + image)
+            print_error("Error, " + process + " logging failed for image " + image)
             status = "failed"
+            raise exc
 
     if status == "failed":
         open(log_process_failed, "w").close()
@@ -856,12 +847,7 @@ def user_properties(user_name,
                     private=False,
                     verbose=False):
     # basic
-    try:
-        user_properties = uploader.authenticate_user(user_name)
-    except:
-        print_error("Error, user authentication failed for user " + user_name)
-        print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
-        return None
+    user_properties = uploader.authenticate_user(user_name)
     if not user_properties:
         print_error("Error, user authentication failed for user " + user_name)
         print("Make sure your user credentials are correct, user authentication is required for images to be uploaded to Mapillary.")
@@ -878,22 +864,18 @@ def user_properties(user_name,
     # remove uneeded credentials
     if "user_upload_token" in user_properties:
         del user_properties["user_upload_token"]
-    if "user_permission_hash" in user_properties:
-        del user_properties["user_permission_hash"]
-    if "user_signature_hash" in user_properties:
-        del user_properties["user_signature_hash"]
-    if "aws_access_key_id" in user_properties:
-        del user_properties["aws_access_key_id"]
 
     return user_properties
 
 
-def user_properties_master(user_name, import_path, process_file_list, organization_key=None, private=False, verbose=False):
+def user_properties_master(user_name, import_path, process_file_list, organization_key=None, private=False,
+                           verbose=False):
     try:
         master_key = uploader.get_master_key()
     except:
         print_error("Error, no master key found.")
-        print("If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
+        print(
+            "If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file.")
         return None
 
     user_properties = {"MAPVideoSecure": master_key}
@@ -921,53 +903,26 @@ def user_properties_master(user_name, import_path, process_file_list, organizati
 
 def process_organization(user_properties, organization_username=None, organization_key=None, private=False):
     if not "user_upload_token" in user_properties or not "MAPSettingsUserKey" in user_properties:
-        print_error(
-            "Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
-        sys.exit(1)
+        raise Exception("Error, can not authenticate to validate organization import, upload token or user key missing in the config.")
     user_key = user_properties["MAPSettingsUserKey"]
     user_upload_token = user_properties["user_upload_token"]
     if not organization_key and organization_username:
-        try:
-            organization_key = uploader.get_organization_key(user_key,
-                                                             organization_username,
-                                                             user_upload_token)
-        except:
-            print_error("Error, could not obtain organization key, exiting...")
-            sys.exit(1)
+        organization_key = uploader.get_organization_key(user_key, organization_username, user_upload_token)
 
-    # validate key
-    try:
-        uploader.validate_organization_key(user_key,
-                                           organization_key,
-                                           user_upload_token)
-    except:
-        print_error("Error, organization key validation failed, exiting...")
-        sys.exit(1)
-
-    # validate privacy
-    try:
-        uploader.validate_organization_privacy(user_key,
-                                               organization_key,
-                                               private,
-                                               user_upload_token)
-    except:
-        print_error("Error, organization privacy validation failed, exiting...")
-        sys.exit(1)
+    uploader.validate_organization_key(user_key, organization_key, user_upload_token)
+    uploader.validate_organization_privacy(user_key, organization_key, private, user_upload_token)
 
     return organization_key
 
 
 def inform_processing_start(import_path, len_process_file_list, process, skip_subfolders=False):
-
-    total_file_list = uploader.get_total_file_list(
-        import_path, skip_subfolders)
+    total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
     print("Running {} for {} images, skipping {} images.".format(process,
                                                                  len_process_file_list,
                                                                  len(total_file_list) - len_process_file_list))
 
 
 def load_geotag_points(process_file_list, verbose=False):
-
     file_list = []
     capture_times = []
     lats = []
@@ -976,14 +931,9 @@ def load_geotag_points(process_file_list, verbose=False):
 
     for image in tqdm(process_file_list, desc="Loading geotag points"):
         log_root = uploader.log_rootpath(image)
-        geotag_data = get_geotag_data(log_root,
-                                      image,
-                                      verbose)
+        geotag_data = get_geotag_data(log_root, image, verbose)
         if not geotag_data:
-            create_and_log_process(image,
-                                   "sequence_process",
-                                   "failed",
-                                   verbose=verbose)
+            create_and_log_process(image, "sequence_process", "failed", verbose=verbose)
             continue
         # assume all data needed available from this point on
         file_list.append(image)
@@ -991,12 +941,11 @@ def load_geotag_points(process_file_list, verbose=False):
                                                         '%Y_%m_%d_%H_%M_%S_%f'))
         lats.append(geotag_data["MAPLatitude"])
         lons.append(geotag_data["MAPLongitude"])
-        directions.append(geotag_data["MAPCompassHeading"]["TrueHeading"]
-                          ) if "MAPCompassHeading" in geotag_data else directions.append(0.0)
+        directions.append(geotag_data["MAPCompassHeading"][
+                              "TrueHeading"]) if "MAPCompassHeading" in geotag_data else directions.append(0.0)
 
         # remove previously created duplicate flags
-        duplicate_flag_path = os.path.join(log_root,
-                                           "duplicate")
+        duplicate_flag_path = os.path.join(log_root, "duplicate")
         if os.path.isfile(duplicate_flag_path):
             os.remove(duplicate_flag_path)
 
@@ -1004,19 +953,12 @@ def load_geotag_points(process_file_list, verbose=False):
 
 
 def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_time, cutoff_distance, verbose=False):
-
     sequences = []
     # sort based on time
-    sort_by_time = zip(capture_times,
-                       file_list,
-                       lats,
-                       lons,
-                       directions)
+    sort_by_time = list(zip(capture_times, file_list, lats, lons, directions))
     sort_by_time.sort()
-    capture_times, file_list, lats, lons, directions = [
-        list(x) for x in zip(*sort_by_time)]
-    latlons = zip(lats,
-                  lons)
+    capture_times, file_list, lats, lons, directions = [list(x) for x in zip(*sort_by_time)]
+    latlons = list(zip(lats, lons))
 
     # initialize first sequence
     sequence_index = 0
@@ -1055,11 +997,13 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
                 # delta too big, start new sequence
                 sequence_index += 1
                 sequences.append({"file_list": [
-                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]], "capture_times": [capture_times[1:][i]]})
+                    filepath], "directions": [directions[1:][i]], "latlons": [latlons[1:][i]],
+                    "capture_times": [capture_times[1:][i]]})
                 if verbose:
                     if cut_distance:
-                        print('Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
-                            cut, distances[i], cutoff_distance, file_list[i + 1]))
+                        print(
+                            'Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}'.format(
+                                cut, distances[i], cutoff_distance, file_list[i + 1]))
                     elif cut_time:
                         print('Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}'.format(
                             cut, capture_deltas[i].total_seconds(), cutoff_time, file_list[i + 1]))
@@ -1105,14 +1049,13 @@ def interpolate_timestamp(capture_times):
 
         time_dict[t]["count"] += 1
 
-    if len(time_dict) >= 2:
+    keys = list(time_dict.keys())
+    if len(keys) >= 2:
         # set time interval as the last available time interval
-        time_dict[time_dict.keys()[-1]
-                  ]["interval"] = time_dict[time_dict.keys()[-2]]["interval"]
+        time_dict[keys[-1]]["interval"] = time_dict[keys[-2]]["interval"]
     else:
         # set time interval assuming capture interval is 1 second
-        time_dict[time_dict.keys()[0]]["interval"] = time_dict[time_dict.keys()[
-            0]]["count"] * 1.
+        time_dict[keys[0]]["interval"] = time_dict[keys[0]]["count"] * 1.
 
     # interpolate timestamps
     for t in capture_times:

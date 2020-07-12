@@ -1,11 +1,12 @@
-from . import uploader
-from .post_process import save_local_mapping
 import os
 import signal
 import sys
 import threading
 import time
 import requests
+
+from . import uploader
+from .post_process import save_local_mapping
 
 
 class BlurDownloader(threading.Thread):
@@ -121,9 +122,6 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
 
 
 def download(import_path, user_name, output_folder, number_threads=10, verbose=False):
-    total_files = uploader.get_total_file_list(import_path)
-    rows = []
-
     local_mapping = save_local_mapping(import_path)
 
     signal.signal(signal.SIGTERM, service_shutdown)
