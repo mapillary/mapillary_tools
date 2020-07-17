@@ -987,11 +987,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
             print("Error, user authentication failed for user " + user_name)
             sys.exit(1)
 
-    user_permission_hash = credentials["user_permission_hash"]
-    user_signature_hash = credentials["user_signature_hash"]
+    # user_permission_hash = credentials["user_permission_hash"]
+    # user_signature_hash = credentials["user_signature_hash"]
 
-    response = get_upload_url(credentials)
-    request_params = response['videos']
+    # response = get_upload_url(credentials)
+    # request_params = response['videos']
 
     # upload all videos in the import path
     # get a list of all videos first
@@ -1081,9 +1081,11 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
     print("Upload completed")
 
+
 def upload_video(video, metadata, options, max_retries=20):
-    session = upload_api.create_upload_session("videos/blackvue", metadata, options)
-    session = session.json()
+    resp = upload_api.create_upload_session("videos/blackvue", metadata, options)
+    resp.raise_for_status()
+    session = resp.json()
 
     file_key = "uploaded"
     
@@ -1101,8 +1103,8 @@ def upload_video(video, metadata, options, max_retries=20):
                 print("Max attempts reached. Failed to upload video {}".format(video))
                 return
 
-    close_session_response = upload_api.close_upload_session(session, None, options)
-    close_session_response.raise_for_status()
+    resp = upload_api.close_upload_session(session, None, options)
+    resp.raise_for_status()
 
     set_video_as_uploaded(video)
     create_upload_log(video, "upload_success")
