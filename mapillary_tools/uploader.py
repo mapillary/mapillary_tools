@@ -792,8 +792,9 @@ def send_videos_for_processing(video_import_path, user_name, user_email=None, us
 
 
 def upload_video(video, metadata, options, max_retries=20):
-    session = upload_api.create_upload_session("videos/blackvue", metadata, options)
-    session = session.json()
+    resp = upload_api.create_upload_session("videos/blackvue", metadata, options)
+    resp.raise_for_status()
+    session = resp.json()
 
     file_key = "uploaded"
     
@@ -811,8 +812,8 @@ def upload_video(video, metadata, options, max_retries=20):
                 print("Max attempts reached. Failed to upload video {}".format(video))
                 return
 
-    close_session_response = upload_api.close_upload_session(session, None, options)
-    close_session_response.raise_for_status()
+    resp = upload_api.close_upload_session(session, None, options)
+    resp.raise_for_status()
 
     set_video_as_uploaded(video)
     create_upload_log(video, "upload_success")

@@ -25,4 +25,4 @@
 # import apply_camera_specific_config
 # import camera_support
 
-VERSION = "0.5.0"
+VERSION = "0.5.2"
