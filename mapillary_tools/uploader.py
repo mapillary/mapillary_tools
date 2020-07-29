@@ -538,24 +538,33 @@ def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx,
 
     session_path = os.path.join(log_folder(file_list[0]), "session_{}.json".format(sequence_uuid))
 
+    # read session from file
     if os.path.isfile(session_path):
-        with open(session_path, "r") as f:
-            session = json.load(f)
+        print('Read session from {}'.format(session_path))
+        with open(session_path, "r") as fp:
+            session = json.load(fp)
+        # if session not found, delete the file
+        resp = upload_api.get_upload_session(session, upload_options)
+        if resp.status_code == 404:
+            print('Invalid session so deleting {}'.format(session_path))
+            with open(session_path, "r") as fp:
+                os.remove(session_path)
+            session = None
     else:
-        upload_metadata = {}
+        session = None
 
+    if not session:
+        upload_metadata = {}
         if organization_key:
             upload_metadata["organization_key"] = organization_key
             upload_metadata["private"] = private
-
-        session = upload_api.create_upload_session(
+        resp = upload_api.create_upload_session(
             "images/sequence",
             upload_metadata,
             upload_options
         )
-        session.raise_for_status()
-        session = session.json()
-
+        resp.raise_for_status()
+        session = resp.json()
         with open(session_path, "w") as f:
             json.dump(session, f)
 
@@ -584,10 +593,11 @@ def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx,
         print("\nBREAK: Stopping upload.")
         sys.exit(1)
 
-    close_session_response = upload_api.close_upload_session(session, None, upload_options)
-    close_session_response.raise_for_status()
+    resp = upload_api.close_upload_session(session, None, upload_options)
+    resp.raise_for_status()
 
-    print("\nClosed upload session {}".format(session["key"]))
+    print("\nClosed upload session {} so deleting {}".format(session["key"], session_path))
+    os.remove(session_path)
 
     flag_finalization(file_list)
 
