@@ -113,7 +113,7 @@ def finalize_import_properties_process(image,
     add_meta_tag(mapillary_description,
                  "strings",
                  "mapillary_tools_version",
-                 "0.5.2")
+                 "0.5.3")
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description,
