@@ -786,8 +786,7 @@ def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx,
         resp = upload_api.get_upload_session(session, upload_options)
         if resp.status_code == 404:
             print('Invalid session so deleting {}'.format(session_path))
-            with open(session_path, "r") as fp:
-                os.remove(session_path)
+            os.remove(session_path)
             session = None
     else:
         session = None
