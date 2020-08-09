@@ -18,7 +18,6 @@ import getpass
 import sys
 import processing
 import requests
-import yaml
 from tqdm import tqdm
 from . import upload_api
 from . import ipc
