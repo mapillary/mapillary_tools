@@ -2,8 +2,8 @@ import os
 import time
 import uuid
 import sys
-import processing
-import uploader
+from . import processing
+from . import uploader
 from tqdm import tqdm
 
 from .error import print_error
@@ -25,8 +25,7 @@ def insert_MAPJson(import_path,
 
     # sanity check if video file is passed
     if video_import_path and not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
-        print("Error, video path " + video_import_path +
-              " does not exist, exiting...")
+        print(f"Error, video path {video_import_path} does not exist, exiting...")
         sys.exit(1)
 
     # in case of video processing, adjust the import path

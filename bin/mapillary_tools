@@ -2,6 +2,11 @@
 
 import argparse
 import sys
+import platform
+import os
+
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
 
 from mapillary_tools import commands
 
@@ -55,7 +60,7 @@ if full_help:
         action, argparse._SubParsersAction)]
     for subparsers_action in subparsers_actions:
         for choice, subparser in subparsers_action.choices.items():
-            print("Subcommand '{}'".format(choice))
+            print(f"Subcommand '{choice}'")
             print(subparser.format_help())
 
 args = parser.parse_args()

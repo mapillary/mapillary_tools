@@ -15,8 +15,8 @@ TEST_EXIF_FILE = os.path.join(data_dir, "test_exif.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
-EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in ExifTags.TAGS.iteritems()}
-EXIF_GPS_TAGS_DICT = {y: x for x, y in ExifTags.GPSTAGS.iteritems()}
+EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in list(ExifTags.TAGS.items())}
+EXIF_GPS_TAGS_DICT = {y: x for x, y in list(ExifTags.GPSTAGS.items())}
 
 
 def gps_to_decimal(value, ref):

@@ -2,9 +2,9 @@
 
 import datetime
 import os
-from ffmpeg import extract_stream, get_ffprobe
-from gpmf import parse_bin, interpolate_times
-from geo import write_gpx
+from .ffmpeg import extract_stream, get_ffprobe
+from .gpmf import parse_bin, interpolate_times
+from .geo import write_gpx
 
 # author https://github.com/stilldavid
 
@@ -25,7 +25,7 @@ def extract_bin(path):
         if ('codec_tag_string' in stream and 'gpmd' in stream['codec_tag_string'].lower()):
             stream_id = stream['index']
 
-    if stream_id == None:
+    if stream_id is None:
         raise IOError('No GoPro metadata track found - was GPS turned on?')
 
     basename, _ = os.path.splitext(path)
@@ -44,7 +44,6 @@ def get_points_from_gpmf(path):
     if 'GoPro MET' in handler_name:
         gpmf_data = parse_bin(bin_path)
         rows = len(gpmf_data)
-
 
         for i, frame in enumerate(gpmf_data):
             t = frame['time']
@@ -65,7 +64,7 @@ def get_points_from_gpmf(path):
                     frame['gps_fix'],
                     point['spd'],
                 ))
-    elif handler_name == u'\x03gps':
+    elif handler_name == '\x03gps':
         pos = 0
         old_lat, old_lon = 0, 0
         with open(bin_path,'rb') as fi:
@@ -73,7 +72,7 @@ def get_points_from_gpmf(path):
                     
                 gps_data = fi.read(57)
                 #decode azdome gps data
-                gps_text = "".join([chr(ord(c)^0xAA) for c in gps_data])
+                gps_text = "".join([chr(c ^ 0xAA) for c in gps_data])
                     
                 # AZDOME stores coordinates in format:
                 # lat    DDmm.mmmm 

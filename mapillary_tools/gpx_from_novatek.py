@@ -8,7 +8,7 @@ import os
 import struct
 import sys
 from datetime import datetime
-from geo import write_gpx
+from .geo import write_gpx
 
 HEADER = 8
 
@@ -36,18 +36,19 @@ def get_gps_atom(atom_pos, atom_size, f):
         magic = magic.decode()
         #sanity:
         if atom_size != atom_size1 or atom_type != expected_type or magic != expected_magic:
-            raise IOError("Error! skipping atom at %x (expected size:%d, actual size:%d, expected type:%s, actual type:%s, expected magic:%s, actual maigc:%s)!" %
-                  (int(atom_pos),atom_size,atom_size1,expected_type,atom_type,expected_magic,magic))
-            
-
+            raise IOError(
+                          f"Error! skipping atom at {hex(atom_pos)} (expected size: {atom_size}, actual size: {atom_size1}, "
+                          f"expected type: {expected_type}, actual type:{atom_type}, "
+                          f"expected magic:{expected_magic}, actual maigc: {magic})!"
+                          )
     except UnicodeDecodeError as e:
         raise IOError("Skipping: garbage atom type or magic. Error: %s." % str(e))
         
 
     # checking for weird Azdome 0xAA XOR "encrypted" GPS data. This portion is a quick fix.
-    if ord(data[12]) == 0x05:          #in python27 data - str in python3 bytes
+    if data[12] == 0x05:          #in python27 data - str in python3 bytes
         # XOR decryptor
-        s = ''.join([chr(ord(c) ^ 0xAA) for c in data[26:128]])
+        s = ''.join([chr(c ^ 0xAA) for c in data[26:128]])
 
         date_time = datetime.strptime(s[:14],'%Y%m%d%H%M%S')
               
@@ -59,7 +60,7 @@ def get_gps_atom(atom_pos, atom_size, f):
             lon *= -1
 
         speed = float(s[49:57])/3.6
-        #no bearing data
+        # no bearing data
         bearing = 0
         ele = 0
 
@@ -77,7 +78,7 @@ def get_gps_atom(atom_pos, atom_size, f):
             longitude_b = longitude_b.decode()
 
         except UnicodeDecodeError as e:
-            raise IOError("Skipping: garbage data. Error: %s." % str(e))
+            raise IOError(f"Skipping: garbage data. Error: {e}")
 
         date_time = datetime(year=int(year+2000), month=int(month), day=int(day),
                              hour=int(hour),minute=int(minute), second=int(second))
@@ -88,7 +89,7 @@ def get_gps_atom(atom_pos, atom_size, f):
 
         #it seems that A indicate reception
         if active != 'A':
-            print("Skipping: lost GPS satelite reception. Time: %s." % date_time)
+            print(f"Skipping: lost GPS satelite reception. Time: {date_time}")
             return
 
     return (date_time, lat,lon,ele, 0.0, speed,bearing)
@@ -103,13 +104,13 @@ def process_file(in_file):
             if not hdr:
                 break      
             atom_size, atom_type = struct.unpack('>I4s',hdr)
-            
-            if atom_type == 'moov':
-                sub_offset = offset + HEADER             #sub_offset = f.tell()
+            print(atom_size, atom_type)
+            if atom_type == b'moov':
+                sub_offset = offset + HEADER             # sub_offset = f.tell()
                 while sub_offset < (offset + atom_size):
                     hdr = f.read(HEADER)
                     sub_atom_size, sub_atom_type = struct.unpack('>I4s',hdr)
-                    if sub_atom_type == 'gps ':
+                    if sub_atom_type == b'gps ':
                         gps_offset = 16 + sub_offset # +16 = skip headers
                         f.seek(gps_offset,0)
                         while gps_offset < ( sub_offset + sub_atom_size):

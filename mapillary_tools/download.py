@@ -1,6 +1,6 @@
-import processing
-import uploader
-from post_process import save_local_mapping_
+from . import processing
+from . import uploader
+from .post_process import save_local_mapping_
 from tqdm import tqdm
 import os
 import signal
@@ -27,10 +27,10 @@ class BlurDownloader(threading.Thread):
         response = requests.get(download_url, stream=True)
 
         if response.status_code != 200:
-            print("Upload status {}".format(response.status_code))
-            print("Upload request.url {}".format(response.request.url))
-            print("Upload response.text {}".format(response.text))
-            print("Upload request.headers {}".format(response.request.headers))
+            print(f"Upload status {response.status_code}")
+            print(f"Upload request.url {response.request.url}")
+            print(f"Upload response.text {response.text}")
+            print(f"Upload request.headers {response.request.headers}")
             print(response.json())
             return False
 
@@ -42,7 +42,7 @@ class BlurDownloader(threading.Thread):
             for data in response.iter_content(chunk_size=4096):
                 dl += len(data)
                 f.write(data)
-                done = int(50 * dl / total_length)
+                # done = int(50 * dl / total_length)
 
         return True
 
@@ -111,7 +111,7 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
             not_downloaded += 1
 
     if not_downloaded > 0:
-        print("Trying to download {} not yet downloaded files".format(not_downloaded))
+        print(f"Trying to download {not_downloaded} not yet downloaded files")
         if do_sleep:
             print("Waiting 10 seconds before next try")
             time.sleep(10)
@@ -123,8 +123,8 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
 
 
 def download(import_path, user_name, output_folder, number_threads=10, verbose=False):
-    total_files = uploader.get_total_file_list(import_path)
-    rows = []
+    # total_files = uploader.get_total_file_list(import_path)
+    # rows = []
 
     local_mapping = save_local_mapping_(import_path)
 
@@ -134,7 +134,7 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
     try:
         user_properties = uploader.authenticate_user(user_name)
     except:
-        print("Error, user authentication failed for user " + user_name)
+        print(f"Error, user authentication failed for user  {user_name}")
         print("Make sure your user credentials are correct, user authentication is required for images to be downloaded from Mapillary.")
         return None
     if "user_upload_token" in user_properties:
@@ -156,7 +156,7 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
 
         threads = []
         try:
-            for i in range(number_threads):
+            for _ in range(number_threads):
                 t = BlurDownloader(lock, downloaded_images,
                                    local_mapping, output_folder, token)
                 threads.append(t)

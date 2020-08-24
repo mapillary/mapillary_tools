@@ -1,11 +1,11 @@
 import os
-import ConfigParser
+from configparser import ConfigParser
 
 
 def load_config(config_path):
     config = None
     if os.path.isfile(config_path):
-        config = ConfigParser.ConfigParser()
+        config = ConfigParser()
         try:
             config.optionxform = str
             config.read(config_path)
@@ -38,19 +38,21 @@ def add_user(config, user_name, config_path):
         try:
             config.add_section(user_name)
         except:
-            print("Error adding new user section, for user_name " + user_name)
+            print(f"Error adding new user section, for user_name {user_name}")
     else:
-        print("Error, user " + user_name + " already exists")
+        print(f"Error, user {user_name} already exists")
     save_config(config, config_path)
 
 
 def set_user_items(config, user_name, user_items):
-    for key in user_items.keys():
+    for key in list(user_items.keys()):
         try:
             config.set(user_name, key, user_items[key])
         except:
-            print("Error setting config key " + key + " with value " +
-                  str(user_items[key]) + " for user_name " + user_name)
+            print(f"Error setting config key {key} "
+                  f"with value {user_items[key]} "
+                  f"for user_name {user_name}"
+                  )
     return config
 
 

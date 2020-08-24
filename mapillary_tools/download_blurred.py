@@ -3,15 +3,15 @@ import os
 import requests
 import sys
 import threading
-import uploader
-import urllib
-from Queue import Queue
+from . import uploader
+import urllib.request, urllib.parse, urllib.error
+from queue import Queue
 import time
 import signal
 
 
 MAPILLARY_ENDPOINT = 'https://a.mapillary.com/'
-MAPILLARY_API_IM_SEARCH_URL = "{}/v3/images?".format(MAPILLARY_ENDPOINT)
+MAPILLARY_API_IM_SEARCH_URL = f"{MAPILLARY_ENDPOINT}/v3/images?"
 
 
 class WorkerMonitor(threading.Thread):
@@ -35,15 +35,14 @@ class WorkerMonitor(threading.Thread):
             for index, worker in enumerate(self.threads):
                 stats = worker.worker_stats
                 total += stats
-                message += 'T{}: {}/{} '.format(index, stats, self.q.maxsize)
+                message += f'T{index}: {stats}/{self.q.maxsize} '
 
-            output = message + 'Total: {}/{}\r'.format(total, self.q.maxsize)
+            output = message + f'Total: {total}/{self.q.maxsize}\r'
             sys.stdout.write(output)
             sys.stdout.flush()
 
-            if (self.q.empty()):
-                sys.stdout.write(
-                    '\nTotal: {}\n'.format(self.q.maxsize))
+            if self.q.empty():
+                sys.stdout.write(f'\nTotal: {self.q.maxsize}\n')
                 self.shutdown_flag.set()
 
 
@@ -67,7 +66,7 @@ def get_token(user_name):
     try:
         user_properties = uploader.authenticate_user(user_name)
     except Exception:
-        print("Error, user authentication failed for user " + user_name)
+        print(f"Error, user authentication failed for user {user_name}")
         print("Make sure your user credentials are correct, user authentication is required for images to be downloaded from Mapillary.")
         return None
     if "user_upload_token" in user_properties:
@@ -83,7 +82,7 @@ def get_headers_for_username(user_name):
     :rtype { 'Authrization': string } or Exception/None
     """
     token = get_token(user_name)
-    return {'Authorization': 'Bearer {}'.format(token)}
+    return {'Authorization': f'Bearer {token}'}
 
 
 def query_search_api(headers, **kwargs):
@@ -102,7 +101,7 @@ def query_search_api(headers, **kwargs):
     """
     set_params = []
     per_page = int(kwargs['per_page'])
-    for k, v in kwargs.iteritems():
+    for k, v in list(kwargs.items()):
         if v is not None:
             if k == 'private' and v == 'false':
                 pass
@@ -110,20 +109,20 @@ def query_search_api(headers, **kwargs):
                 set_params.append((k, str(v)))
 
     set_params.append(('client_id', uploader.CLIENT_ID))
-    params = urllib.urlencode(set_params)
+    params = urllib.parse.urlencode(set_params)
 
     # Get data from server, then parse JSON
     keys = []
     pages = 0
     r = requests.get(MAPILLARY_API_IM_SEARCH_URL + params, headers=headers)
 
-    get_keys = (lambda xs: map(lambda x: x['properties']['key'], xs))
+    get_keys = (lambda xs: [x['properties']['key'] for x in xs])
     m = get_keys(r.json()['features'])
 
     last_page_len = len(m)
 
     keys = keys + m
-    print("Found: {} images".format(len(keys)))
+    print(f"Found: {len(keys)} images")
 
     has_next_link = last_page_len == per_page
     while has_next_link:
@@ -132,7 +131,7 @@ def query_search_api(headers, **kwargs):
         r = requests.get(link, headers=headers)
         mm = get_keys(r.json()['features'])
         keys = keys + mm
-        print("Found: {} images".format(len(keys)))
+        print(f"Found: {len(keys)} images")
         last_page_len = len(mm)
         has_next_link = last_page_len == per_page
 
@@ -187,15 +186,15 @@ def download(organization_keys,
     save_path = download_id
 
     # create most of the bookkeeping files
-    all_file = '{}_all.txt'.format(save_path)
+    all_file = f'{save_path}_all.txt'
     all_file_exists = os.path.isfile(all_file)
     all_file_obj = open(
         all_file, 'r') if all_file_exists is True else open(all_file, 'a+')
 
-    done_file = '{}_done.txt'.format(save_path)
+    done_file = f'{save_path}_done.txt'
     done_file_exists = os.path.isfile(done_file)
 
-    err_file = '{}_err.txt'.format(save_path)
+    err_file = f'{save_path}_err.txt'
     err_file_exists = os.path.isfile(err_file)
 
     # fetch image keys and store basic state for downloads from bookkeeping
@@ -217,8 +216,7 @@ def download(organization_keys,
         set_err = set(err_keys)
 
         diff = list(set_all.difference(set_done).difference(set_err))
-        print("Download {} continued: {}/{}".format(download_id,
-                                                    len(diff), len(all_keys)))
+        print(f"Download {download_id} continued: {len(diff)}/{len(all_keys)}")
 
         image_keys = diff
         done_file_obj.close()
@@ -244,7 +242,7 @@ def download(organization_keys,
     # download begins here
 
     if len(image_keys) == 0:
-        print('All images downloaded for this query. Remove the {}/all/err files to re-download.'.format(download_id))
+        print(f'All images downloaded for this query. Remove the {download_id}/all/err files to re-download.')
         return
 
     lock = threading.Lock()
@@ -299,10 +297,10 @@ def download(organization_keys,
 
         for t in threads:
             t.join()
-            print('INFO: Thread stopped {}'.format(t))
+            print(f'INFO: Thread stopped {t}')
 
         monitor.join()
-        print('INFO: Thread stopped {}'.format(monitor))
+        print(f'INFO: Thread stopped {monitor}')
 
         all_file_obj.close()
         done_file_obj.close()

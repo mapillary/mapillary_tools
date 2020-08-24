@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-import urllib2
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import json
 import os
 import shutil
@@ -34,18 +33,18 @@ def query_search_api(min_lat, max_lat, min_lon, max_lon, max_results):
     '''
 
     # Create URL
-    params = urllib.urlencode(zip(
+    params = urllib.parse.urlencode(list(zip(
         ['client_id', 'bbox', 'per_page'],
         [CLIENT_ID, ','.join([str(min_lon), str(min_lat), str(
             max_lon), str(max_lat)]), str(max_results)]
-    ))
+    )))
     #print(MAPILLARY_API_IM_SEARCH_URL + params)
 
     # Get data from server, then parse JSON
-    query = urllib2.urlopen(MAPILLARY_API_IM_SEARCH_URL + params).read()
+    query = urllib.request.urlopen(MAPILLARY_API_IM_SEARCH_URL + params).read()
     query = json.loads(query)['features']
 
-    print("Result: {0} images in area.".format(len(query)))
+    print(f"Result: {len(query)} images in area.")
     return query
 
 
@@ -56,7 +55,7 @@ def download_images(query, path, size=1024):
     Return list of downloaded images with lat,lon.
     There are four sizes available: 320, 640, 1024 (default), or 2048.
     '''
-    im_size = "thumb-{0}.jpg".format(size)
+    im_size = f"thumb-{size}.jpg"
     im_list = []
 
     for im in query:
@@ -67,18 +66,18 @@ def download_images(query, path, size=1024):
 
         try:
             # Get image and save to disk
-            image = urllib.URLopener()
+            image = urllib.request.URLopener()
             image.retrieve(url, os.path.join(path, filename))
 
             # Log filename and GPS location
             coords = ",".join(map(str, im['geometry']['coordinates']))
             im_list.append([filename, coords])
 
-            print("Successfully downloaded: {0}".format(filename))
+            print(f"Successfully downloaded: {filename}")
         except KeyboardInterrupt:
             break
         except Exception as e:
-            print("Failed to download: {} due to {}".format(filename, e))
+            print(f"Failed to download: {filename} due to {e}")
 
     return im_list
 

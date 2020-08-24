@@ -33,9 +33,9 @@ class FFProbe:
             if str(platform.system())=='Windows':
                 #if shell=True cmd should be a string
                 #cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
-                cmd = "ffprobe -show_streams {}".format(video_file)
+                cmd = f'ffprobe -show_streams "{video_file}"'
             else:
-                cmd=["ffprobe -show_streams " + '"'+video_file+'"']
+                cmd=[f'ffprobe -show_streams "{video_file}"']
 
             p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
             self.format=None
@@ -50,6 +50,7 @@ class FFProbe:
             datalines=[]
 
             for a in iter(p.stdout.readline, b''):
+                a = a.decode('utf-8','ignore')
                 if re.match('\[STREAM\]',a):
                     datalines=[]
                 elif re.match('\[\/STREAM\]',a):
@@ -57,7 +58,9 @@ class FFProbe:
                     datalines=[]
                 else:
                     datalines.append(a)
+            
             for a in iter(p.stderr.readline, b''):
+                a = a.decode('utf-8','ignore')
                 if re.match('\[STREAM\]',a):
                     datalines=[]
                 elif re.match('\[\/STREAM\]',a):
@@ -71,7 +74,7 @@ class FFProbe:
                 if a.isVideo():
                     self.video.append(a)
         else:
-            raise IOError('No such media file ' + video_file)
+            raise IOError(f'No such media file {video_file}')
 
 
 class FFStream:
@@ -81,7 +84,7 @@ class FFStream:
     def __init__(self,datalines):
         for a in datalines:
             if re.match(r'^.+=.+$', a) is None:
-                print "Warning: detected incorrect stream metadata line format: %s" % a
+                print(f"Warning: detected incorrect stream metadata line format: {a}")
             else:
                 (key,val)=a.strip().split('=')
                 key = key.lstrip("TAG:")
@@ -103,7 +106,7 @@ class FFStream:
         """
         val=False
         if self.__dict__['codec_type']:
-            if self.codec_type == 'video':
+            if self.__dict__['codec_type'] == 'video':
                 val=True
         return val
 
@@ -113,7 +116,7 @@ class FFStream:
         """
         val=False
         if self.__dict__['codec_type']:
-            if str(self.codec_type)=='subtitle':
+            if str(self.__dict__['codec_type'])=='subtitle':
                 val=True
         return val
 
@@ -128,7 +131,7 @@ class FFStream:
                 try:
                     size=(int(self.__dict__['width']),int(self.__dict__['height']))
                 except Exception as e:
-                    print "None integer size %s:%s" %(str(self.__dict__['width']),str(+self.__dict__['height']))
+                    print("None integer size %s:%s" %(str(self.__dict__['width']),str(+self.__dict__['height'])))
                     size=(0,0)
         return size
 
@@ -153,7 +156,7 @@ class FFStream:
                 try:
                     f=int(self.__dict__['nb_frames'])
                 except Exception as e:
-                    print "None integer frame count"
+                    print("None integer frame count")
         return f
 
     def durationSeconds(self):
@@ -167,7 +170,7 @@ class FFStream:
                 try:
                     f=float(self.__dict__['duration'])
                 except Exception as e:
-                    print "None numeric duration"
+                    print("None numeric duration")
         return f
 
     def language(self):
@@ -215,8 +218,8 @@ class FFStream:
             try:
                 b=int(self.__dict__['bit_rate'])
             except Exception as e:
-                print "None integer bitrate"
+                print("None integer bitrate")
         return b
 
 if __name__ == '__main__':
-    print "Module ffprobe"
+    print("Module ffprobe")

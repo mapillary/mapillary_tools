@@ -6,9 +6,9 @@ import io
 import sys
 import re
 import pynmea2
-from geo import write_gpx
-from geo import get_max_distance_from_start
-from geo import get_total_distance_traveled
+from .geo import write_gpx
+from .geo import get_max_distance_from_start
+from .geo import get_total_distance_traveled
 
 from pymp4.parser import Box
 from construct.core import RangeError, ConstError
@@ -103,7 +103,7 @@ def get_points_from_bv(path,use_nmea_stream_timestamp=False):
 
                                     except Exception as e:
                                         print(
-                                            "Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {}".format(e))
+                                            f"Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {e}")
                         
                         #If there are no points after parsing just return empty vector
                         if points == []:
@@ -166,14 +166,13 @@ def gpx_from_blackvue(bv_video,use_nmea_stream_timestamp=False):
     try:
         bv_data = get_points_from_bv(bv_video,use_nmea_stream_timestamp)
     except Exception as e:
-        print(
-            "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(bv_video, e))
+        print(f"Warning, could not extract gps from video {bv_video} due to {e}, video will be skipped...")
     if bv_data != []:
         is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data),get_total_distance_traveled(bv_data))
     else:
         is_stationary_video = True
         return [],is_stationary_video
-    basename, extension = os.path.splitext(bv_video)
+    basename, _ = os.path.splitext(bv_video)
     gpx_path = basename + '.gpx'
 
     bv_data.sort(key=lambda x: x[0])

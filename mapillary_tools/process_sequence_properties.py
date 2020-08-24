@@ -3,10 +3,10 @@ import uuid
 import datetime
 import time
 import sys
-from exif_read import ExifRead
-from geo import compute_bearing, gps_distance, diff_bearing, gps_speed
-import processing
-import uploader
+from .exif_read import ExifRead
+from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
+from . import processing
+from . import uploader
 from tqdm import tqdm
 from .error import print_error
 
@@ -20,8 +20,8 @@ def finalize_sequence_processing(sequence,
                                  final_capture_times,
                                  import_path,
                                  verbose=False):
-    for image, direction, capture_time in tqdm(zip(final_file_list,
-                                                   final_directions, final_capture_times), desc="Finalizing sequence process"):
+    for image, direction, capture_time in tqdm(list(zip(final_file_list,
+                                                   final_directions, final_capture_times)), desc="Finalizing sequence process"):
         mapillary_description = {
             'MAPSequenceUUID': sequence,
             'MAPCompassHeading': {
@@ -98,7 +98,7 @@ def process_sequence_properties(import_path,
         # ---------------------------------------
     else:
         # sequence limited to the root of the files
-        for root, dirs, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             if len(files):
@@ -125,8 +125,11 @@ def process_sequence_properties(import_path,
                 # ---------------------------------------
     if not keep_duplicates:
         if verbose:
-            print("Flagging images as duplicates if consecutive distance difference less than {} and angle difference less than {}".format(
-                duplicate_distance, duplicate_angle))
+            print(
+                f"Flagging images as duplicates "
+                f"if consecutive distance difference less than {duplicate_distance} "
+                f"and angle difference less than {duplicate_angle}"
+                )
 
     # process for each sequence
     for sequence in sequences:
@@ -157,8 +160,12 @@ def process_sequence_properties(import_path,
         computed_speed = gps_speed(
             computed_distances, computed_delta_ts)  # in meters/second
         if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED]) > 0:
-            print("Warning: The distance in sequence including images\n{}\nto\n{}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?".format(
-                file_list[0], file_list[-1]))
+            print(
+                f"Warning: The distance in sequence including images\n"
+                f"{file_list[0]}\nto\n{file_list[-1]}\n"
+                f"is too large for the time difference (very high apparent capture speed). "
+                f"Are you sure timestamps and locations are correct?"
+                )
 
         # INTERPOLATE TIMESTAMPS, in case of identical timestamps
         capture_times = processing.interpolate_timestamp(capture_times)
@@ -189,6 +196,7 @@ def process_sequence_properties(import_path,
                     # dont use bearing difference if no bearings are
                     # available
                     direction_diff = 0              #360
+
                 if distance < duplicate_distance and direction_diff < duplicate_angle:
                     open(duplicate_flag_path, "w").close()
                     open(sequence_process_success_path, "w").close()

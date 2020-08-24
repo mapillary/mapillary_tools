@@ -25,7 +25,7 @@ def parse_gps(toparse, data, scale):
 
 def parse_time(toparse, data, scale):
     datetime_object = datetime.datetime.strptime(
-        str(toparse), '%y%m%d%H%M%S.%f')
+        toparse.decode('ascii'), '%y%m%d%H%M%S.%f')
     data['time'] = datetime_object
 
 
@@ -88,18 +88,20 @@ def parse_bin(path):
     d = {'gps': []}  # up to date dictionary, iterate and fill then flush
 
     while True:
-        label = f.read(4)
+        label = f.read(4).decode('utf8')
+
         if not label:  # eof
             break
 
         desc = f.read(4)
 
         # null length
-        if '00' == binascii.hexlify(desc[0]):
+        # if '00' == binascii.hexlify(desc[0]):
+        if not desc[0]:
             continue
 
-        val_size = struct.unpack('>b', desc[1])[0]
-        num_values = struct.unpack('>h', desc[2:4])[0]
+        val_size = struct.unpack_from('>b', desc, 1)[0]
+        num_values = struct.unpack_from('>h', desc, 2)[0]
         length = val_size * num_values
 
         if label == 'DVID':

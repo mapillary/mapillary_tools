@@ -1,4 +1,4 @@
-import processing
+from . import processing
 import os
 import sys
 from .error import print_error
@@ -80,6 +80,7 @@ def process_user_properties(import_path,
                                                             private,
                                                             verbose)
     # write data and logs
+
     processing.create_and_log_process_in_list(process_file_list,
                                               "user_process",
                                               "success",

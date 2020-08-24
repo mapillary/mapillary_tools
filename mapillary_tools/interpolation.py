@@ -1,12 +1,12 @@
-import processing
-import uploader
+from . import processing
+from . import uploader
 import os
 import sys
-from geo import interpolate_lat_lon
-from exif_write import ExifEdit
-from exif_read import ExifRead
-from process_import_meta_properties import add_meta_tag
-import process_csv
+from .geo import interpolate_lat_lon
+from .exif_write import ExifEdit
+from .exif_read import ExifRead
+from .process_import_meta_properties import add_meta_tag
+from . import process_csv
 import csv
 import datetime
 from tqdm import tqdm
@@ -30,8 +30,7 @@ def format_datetime(timestamps_interpolated, time_utc=False, time_format="%Y-%m-
             timestamps_formated = [datetime_timestamp.strftime(
                 time_format) for datetime_timestamp in timestamps_interpolated]
         except:
-            print("Formating timestamps from datetime to time format {} failed...".format(
-                time_format))
+            print(f"Formating timestamps from datetime to time format {time_format} failed...")
             sys.exit(1)
     return timestamps_formated
 
@@ -104,7 +103,7 @@ def interpolation(data,
         # get list of files to process
         process_file_list = uploader.get_total_file_list(import_path)
         if not len(process_file_list):
-            print("No images found in the import path " + import_path)
+            print(f"No images found in the import path {import_path}")
             sys.exit(1)
 
         if data == "missing_gps":
@@ -113,15 +112,13 @@ def interpolation(data,
             geotags, missing_geotags = processing.get_images_geotags(
                 process_file_list)
             if not len(missing_geotags):
-                print("No images in directory {} missing geotags, exiting...".format(
-                    import_path))
+                print(f"No images in directory {import_path} missing geotags, exiting...")
                 sys.exit(1)
             if not len(geotags):
-                print("No images in directory {} with geotags.".format(import_path))
+                print(f"No images in directory {import_path} with geotags.")
                 sys.exit(1)
 
-            sys.stdout.write("Interpolating gps for {} images missing geotags.".format(
-                len(missing_geotags)))
+            sys.stdout.write(f"Interpolating gps for {len(missing_geotags)} images missing geotags.")
 
             for image, timestamp in tqdm(missing_geotags, desc="Interpolating missing gps"):
                 # interpolate
@@ -137,20 +134,17 @@ def interpolation(data,
                 if lat and lon:
                     exif_edit.add_lat_lon(lat, lon)
                 else:
-                    print_error(
-                        "Error, lat and lon not interpolated for image {}.".format(image))
+                    print_error(f"Error, lat and lon not interpolated for {image=}.")
                 if bearing:
                     exif_edit.add_direction(bearing)
                 else:
                     if verbose:
-                        print(
-                            "Warning, bearing not interpolated for image {}.".format(image))
+                        print(f"Warning, bearing not interpolated for {image=}.")
                 if elevation:
                     exif_edit.add_altitude(elevation)
                 else:
                     if verbose:
-                        print(
-                            "Warning, altitude not interpolated for image {}.".format(image))
+                        print(f"Warning, altitude not interpolated for {image=}.")
 
                 meta = {}
 
@@ -176,7 +170,7 @@ def interpolation(data,
                 if timestamp:
                     timestamps.append(timestamp)
                 else:
-                    print("Capture could not be extracted for image {}.".format(image))
+                    print(f"Capture could not be extracted for {image=}.")
 
             # interpolate
             timestamps_interpolated = processing.interpolate_timestamp(
@@ -187,7 +181,7 @@ def interpolation(data,
             counter = 0
 
             # write back
-            for image, timestamp in tqdm(zip(process_file_list, timestamps_interpolated), desc="Writing capture time in image EXIF"):
+            for image, timestamp in tqdm(list(zip(process_file_list, timestamps_interpolated)), desc="Writing capture time in image EXIF"):
 
                 # print progress
                 counter += 1

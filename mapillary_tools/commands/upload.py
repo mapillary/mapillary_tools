@@ -46,8 +46,8 @@ class Command:
 
         vars_args = vars(args)
 
-        upload(**({k: v for k, v in vars_args.iteritems()
+        upload(**({k: v for k, v in list(vars_args.items())
                    if k in inspect.getargspec(upload).args}))
 
-        post_process(**({k: v for k, v in vars_args.iteritems()
+        post_process(**({k: v for k, v in list(vars_args.items())
                          if k in inspect.getargspec(post_process).args}))

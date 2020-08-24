@@ -1,6 +1,6 @@
-from exif_read import ExifRead
+from .exif_read import ExifRead
 import os
-import processing
+# import processing
 
 
 def exif_gps_fields():
@@ -45,7 +45,7 @@ def verify_exif(filename):
 
 
 def verify_mapillary_tag(filepath):
-    filepath_keep_original = processing.processed_images_rootpath(filepath)
+    filepath_keep_original = os.path.join(os.path.dirname(filepath), ".mapillary", "processed_images", os.path.basename(filepath)) # processing.processed_images_rootpath(filepath) 
     if os.path.isfile(filepath_keep_original):
         filepath = filepath_keep_original
     '''

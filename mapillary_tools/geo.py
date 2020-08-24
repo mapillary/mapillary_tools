@@ -221,10 +221,11 @@ def interpolate_lat_lon(points, t, max_dt=1):
             dt = (t - points[-1][0]).total_seconds()
         if dt > max_dt:
             raise ValueError(
-                "time t not in scope of gpx file by {} seconds, {} not in {}-{}".format(dt,t,points[0][0],points[-1][0]))
+                f"time t not in scope of gpx file by {dt} seconds, "
+                f"{t} not in {points[0][0]}-{points[-1][0]}"
+                )
         else:
-            print(
-                "time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
+            print(f"time t not in scope of gpx file by {dt} seconds, extrapolating...")
 
         if t < points[0][0]:
             before = points[0]
@@ -287,6 +288,11 @@ GPX_HEADER = '''<?xml version="1.0" encoding="UTF-8"?>
 <trkseg>
 '''
 
+GPX_TAIL = '''</trkseg>
+</trk>
+</gpx>
+'''
+
 def write_gpx(filename, gps_trace):
     time_format = "%Y-%m-%dT%H:%M:%S.%f"
 
@@ -300,19 +306,17 @@ def write_gpx(filename, gps_trace):
             time = datetime.datetime.strftime(point[0], time_format)[:-3]
             elevation = point[3] if len(point) > 3 else 0
             speed = point[5] if len(point) > 5 else None
-            gpx = "<trkpt lat=\"" + \
-                str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
-            gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
-            gpx += "<time>" + time + "</time>" + "\n"
+            gpx = (
+                f'<trkpt lat="{lat:.6f}" lon="{lon:.6f}">\n'
+                f'<ele>{elevation}</ele>\n'
+                f'<time>{time}</time>\n'
+            )
             if speed is not None:
-                gpx += "<speed>" + str(speed) + "</speed>" + "\n"
-            gpx += "</trkpt>" + "\n"
+                gpx += f'<speed>{speed:.2f}</speed>\n'
+            gpx += f'</trkpt>\n'
             fout.write(gpx)
-        gpx = "</trkseg>" + "\n"
-        gpx += "</trk>" + "\n"
-        gpx += "</gpx>" + "\n"
     
-        fout.write(gpx)
+        fout.write(GPX_TAIL)
 
 
 def get_timezone_and_utc_offset(lat, lon):

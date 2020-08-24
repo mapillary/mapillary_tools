@@ -22,8 +22,8 @@ FIXED_EXIF_FILE_2 = os.path.join(data_dir, "fixed_exif_2.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
-EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in ExifTags.TAGS.iteritems()}
-EXIF_GPS_TAGS_DICT = {y: x for x, y in ExifTags.GPSTAGS.iteritems()}
+EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in list(ExifTags.TAGS.items())}
+EXIF_GPS_TAGS_DICT = {y: x for x, y in list(ExifTags.GPSTAGS.items())}
 
 
 def load_exif(filename=EMPTY_EXIF_FILE_TEST):

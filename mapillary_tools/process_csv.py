@@ -1,10 +1,10 @@
-import processing
-import uploader
+from . import processing
+from . import uploader
 import os
 import sys
 import datetime
-import process_import_meta_properties
-from exif_write import ExifEdit
+from . import process_import_meta_properties
+from .exif_write import ExifEdit
 import csv
 from tqdm import tqdm
 
@@ -168,7 +168,7 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
                 process_import_meta_properties.add_meta_tag(
                     meta, tag_type, tag_key, tag_value)
             except:
-                print("Error, meta data {} could not be extracted.".format(tag_key))
+                print(f"Error, meta data {tag_key} could not be extracted.")
     return meta
 
 
@@ -180,7 +180,7 @@ def read_csv(csv_path, delimiter=",", header=False):
         if header:
             next(csvreader, None)
 
-        csv_data = zip(*csvreader)
+        csv_data = list(zip(*csvreader))
     return csv_data
 
 
@@ -235,7 +235,7 @@ def process_csv(import_path,
         print("Error, csv column numbers start with 1, one of the columns specified is 0.")
         sys.exit(1)
 
-    column_indexes = map(lambda x: x - 1 if x else None, column_indexes)
+    column_indexes = [x - 1 if x else None for x in column_indexes]
 
     # checks for meta arguments if any
     meta_columns, meta_names, meta_types = validate_meta_data(
@@ -261,7 +261,7 @@ def process_csv(import_path,
         # get image entry index
         image_index = get_image_index(image, file_names) if file_names else idx
         if image_index == None:
-            print("Warning, no entry found in csv file for image " + image)
+            print(f"Warning, no entry found in csv file for {image=}")
             continue
 
         # get required data
@@ -299,5 +299,5 @@ def process_csv(import_path,
         try:
             exif_edit.write(filename=filename)
         except:
-            print("Error, image EXIF could not be written back for image " + image)
+            print(f"Error, image EXIF could not be written back for {image=}")
             return None

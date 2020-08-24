@@ -45,7 +45,7 @@ def add_user(config, user_name, config_path):
 
 
 def set_user_items(config, user_name, user_items):
-    for key in user_items.keys():
+    for key in list(user_items.keys()):
         try:
             config.set(user_name, key, user_items[key])
         except:

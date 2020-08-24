@@ -1,15 +1,15 @@
 import time
 import os
 import sys
-import processing
-import uploader
-from exif_read import ExifRead
+from . import processing
+from . import uploader
+from .exif_read import ExifRead
 from tqdm import tqdm
 from .error import print_error
 
 META_DATA_TYPES = {"strings": str,
                    "doubles": float,
-                   "longs": long,
+                   "longs": int,
                    "dates": int,
                    "booleans": bool}
 

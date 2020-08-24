@@ -2,9 +2,9 @@
 
 import sys
 import os
-import uploader
+from . import uploader
 import json
-from exif_aux import verify_mapillary_tag
+from .exif_aux import verify_mapillary_tag
 from . import ipc
 
 def upload(import_path, verbose=False, skip_subfolders=False, number_threads=None, max_attempts=None, video_import_path=None, dry_run=False,api_version=1.0):
@@ -55,7 +55,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
         print("All images have already been uploaded")
     else:
         if len(failed_file_list):
-            upload_failed = raw_input(
+            upload_failed = input(
                 "Retry uploading previously failed image uploads? [y/n]: ") if not ipc.is_enabled() else 'y'
             # if yes, add images to the upload list
             if upload_failed in ["y", "Y", "yes", "Yes"]:
@@ -68,7 +68,10 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
 
         if not len(upload_file_list) and not len(to_finalize_file_list):
             print("No images to upload.")
-            print('Please check if all images contain the required Mapillary metadata. If not, you can use "mapillary_tools process" to add them')
+            print(
+                  f'Please check if all images contain the required Mapillary metadata. '
+                  f'If not, you can use "mapillary_tools process" to add them'
+                  )
             sys.exit(1)
 
         if len(upload_file_list):
@@ -96,16 +99,21 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
             # inform how many images are to be uploaded and how many are being skipped
             # from upload
 
-            print("Uploading {} images with valid mapillary tags (Skipping {})".format(
-                len(upload_file_list), len(total_file_list) - len(upload_file_list)))
-            if api_version==2.0:
-                uploder.uploadfile_list
+            print(
+                f"Uploading {len(upload_file_list)} images with valid mapillary tags "
+                f"(Skipping {len(total_file_list) - len(upload_file_list)})"
+                )
+
             if len(direct_upload_file_list):
                 uploader.upload_file_list_direct(
                     direct_upload_file_list, number_threads, max_attempts)
-            for idx, sequence in enumerate(list_per_sequence_mapping):
+
+            for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                 uploader.upload_file_list_manual(
-                    list_per_sequence_mapping[sequence], params, idx, number_threads, max_attempts)
+                    list_per_sequence_mapping[sequence_uuid],
+                    sequence_uuid,
+                    params, idx, number_threads, max_attempts)
+
         if len(to_finalize_file_list):
             params = {}
             sequences = []
@@ -121,8 +129,7 @@ def upload(import_path, verbose=False, skip_subfolders=False, number_threads=Non
                         if sequence not in sequences:
                             params[image] = image_params
                             sequences.append(sequence)
-            for image in params:
-                uploader.upload_done_file(**params[image])
+
             uploader.flag_finalization(to_finalize_file_list)
 
     uploader.print_summary(upload_file_list)

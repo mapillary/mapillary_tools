@@ -1,17 +1,17 @@
-from ffprobe import FFProbe
+from .ffprobe import FFProbe
 import datetime
 import os
-import processing
+from . import processing
 import subprocess
 import sys
-import uploader
+from . import uploader
 from tqdm import tqdm
 import logging
 import io
 import struct
 from pymp4.parser import Box
 
-from exif_write import ExifEdit
+from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -86,12 +86,12 @@ def sample_video(video_import_path,
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
-        print("Video sampling path set to {}".format(per_video_import_path))
+        print(f"Video sampling path set to {per_video_import_path}")
         # check video logs
         video_upload = processing.video_upload(
             video_import_path, per_video_import_path, verbose)
         if video_upload:
-            print("Video {} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.".format(video))
+            print(f"Video {video} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.")
 
         extract_frames(video,
                        per_video_import_path,
@@ -118,7 +118,7 @@ def extract_frames(video_file,
 
     if verbose:
         # INFO LOG
-        print('extracting frames from {}'.format(video_file))
+        print(f'extracting frames from {video_file}')
 
     img_rotate_choice = {
         90: 'PI/2:ow=ih:oh=iw',
@@ -132,7 +132,7 @@ def extract_frames(video_file,
         'ffmpeg',
         '-i', video_file,
         '-loglevel', 'quiet',
-        '-vf', 'fps=1/{}'.format(video_sample_interval),
+        '-vf', f'fps=1/{video_sample_interval}',
         '-q:v', '1', '-nostdin'
         ]
 
@@ -142,9 +142,9 @@ def extract_frames(video_file,
     else:
         if img_rotate:
             if video_time_lapse:
-                cmd[6] = 'rotate={}'.format(img_rotate_choice[img_rotate])
+                cmd[6] = f'rotate={img_rotate_choice[img_rotate]}'
             else:
-                cmd[6] += ', rotate={}'.format(img_rotate_choice[img_rotate])
+                cmd[6] += f', rotate={img_rotate_choice[img_rotate]}'
             command = cmd
         else:
             if video_time_lapse:
@@ -152,8 +152,7 @@ def extract_frames(video_file,
             else:
                 command = cmd
 
-    command.append('{}_%0{}d.jpg'.format(os.path.join(
-        import_path, video_filename), ZERO_PADDING))
+    command.append(f'{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg')
     try:
         subprocess.call(command)
     except OSError as e:
@@ -162,8 +161,7 @@ def extract_frames(video_file,
         sys.exit(1)
     except Exception as e:
         # ERROR LOG
-        print("Error, could not extract frames from video {} due to {}".format(
-            video_file, e))
+        print(f"Error, could not extract frames from video {video_file} due to {e}")
         sys.exit(1)
 
     if video_start_time:
@@ -191,7 +189,7 @@ def get_video_duration(video_file):
     try:
         return float(FFProbe(video_file).video[0].duration)
     except Exception as e:
-        print("could not extract duration from video {} due to {}".format(video_file, e))
+        print(f"could not extract duration from video {video_file} due to {e}")
         return None
 
 
@@ -211,23 +209,22 @@ def insert_video_frame_timestamp(video_filename, video_sampling_path, start_time
                                                       sample_interval,
                                                       duration_ratio)
 
-    for image, timestamp in tqdm(zip(frame_list,
-                                     video_frame_timestamps), desc="Inserting frame capture time"):
+    for image, timestamp in tqdm(list(zip(frame_list,
+                                     video_frame_timestamps)), desc="Inserting frame capture time"):
         try:
             exif_edit = ExifEdit(image)
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
         except:
             # ERROR LOG
-            print("Could not insert timestamp into video frame " +
-                  os.path.basename(image)[:-4])
+            print(f"Could not insert timestamp into video frame {os.path.basename(image)[:-4]}")
             continue
 
 
 def get_video_end_time(video_file):
     """Get video end time in seconds"""
     if not os.path.isfile(video_file):
-        print("Error, video file {} does not exist".format(video_file))
+        print(f"Error, video file {video_file} does not exist")
         return None
     try:
         time_string = FFProbe(video_file).video[0].creation_time
@@ -245,7 +242,7 @@ def get_video_end_time(video_file):
 def get_video_start_time(video_file, video_duration_ratio):
     """Get start time in seconds"""
     if not os.path.isfile(video_file):
-        print("Error, video file {} does not exist".format(video_file))
+        print(f"Error, video file {video_file} does not exist")
         return None
     video_end_time = get_video_end_time(video_file)
     duration = get_video_duration(video_file)

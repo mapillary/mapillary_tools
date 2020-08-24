@@ -16,7 +16,7 @@ def get_ffprobe(path):
         with open(os.devnull, 'w') as tempf:
             subprocess.check_call(
                 ['ffprobe', '-h'], stdout=tempf, stderr=tempf)
-    except Exception as e:
+    except Exception:
         raise IOError('ffprobe not found.')
 
     if not os.path.isfile(path):

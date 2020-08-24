@@ -2,7 +2,7 @@ import sys
 import json
 import piexif
 
-from geo import decimal_to_dms
+from .geo import decimal_to_dms
 
 from .error import print_error
 
@@ -16,11 +16,11 @@ class ExifEdit(object):
         try:
             self._ef = piexif.load(filename)
         except IOError:
-            etype, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error opening file:", value
+            value = sys.exc_info()[1]
+            print("Error opening file:", value, file=sys.stderr)
         except ValueError:
-            etype, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error opening file:", value
+            value = sys.exc_info()[1]
+            print("Error opening file:", value, file=sys.stderr)
 
     def add_image_description(self, dict):
         """Add a dict to image description."""
@@ -91,8 +91,7 @@ class ExifEdit(object):
         try:
             self._ef[main_key][tag_key] = value
         except:
-            print("could not set tag {} under {} with value {}".format(
-                tag_key, main_key, value))
+            print(f"could not set tag {tag_key} under {main_key} with value {value}")
 
     def write(self, filename=None):
         """Save exif data to file."""
@@ -107,5 +106,5 @@ class ExifEdit(object):
             piexif.insert(exif_bytes, img, filename)
 
         except IOError:
-            type, value, traceback = sys.exc_info()
-            print >> sys.stderr, "Error saving file:", value
+            value = sys.exc_info()[1]       # type, value, traceback = sys.exc_info()
+            print("Error saving file:", value, file=sys.stderr)

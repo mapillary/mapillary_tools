@@ -10,6 +10,7 @@ def force_decode(string, codecs=['utf8', 'cp1252']):
 def format_orientation(orientation):
     '''
     Convert orientation from clockwise degrees to exif tag
+
     # see http://sylvana.net/jpegcrop/exif_orientation.html
     '''
     mapping = {
@@ -20,4 +21,5 @@ def format_orientation(orientation):
     }
     if orientation not in mapping:
         raise ValueError("Orientation value has to be 0, 90, 180, or 270")
+
     return mapping[orientation]
