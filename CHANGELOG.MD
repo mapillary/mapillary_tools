@@ -113,7 +113,7 @@
 * Improved and added features for post_process command
 
 ### Breaking changes
-* Argument `--video_import_path` can be single video or a directory of videos  
+* Argument `--video_import_path` can be single video or a directory of videos
 * Duplicate flagging is now done automatically with the default duplicate thresholds. To keep duplicates, argument `--keep_duplicates` must be passed.
 
 ### Bug fixes
@@ -133,7 +133,7 @@
 
 ### Features and improvements
 * Added command to upload Blackvue DR900S videos directly to Mapillary
-* Added download of blurred images uploaded by the authenticated user 
+* Added download of blurred images uploaded by the authenticated user
 * Allow GPX files without altitude data
 * More robust support of irregular time formats in EXIF
 * Add argument to skip subfolders to all commands
@@ -143,3 +143,15 @@
 ### Bug fixes
 
 * Fixed bug where orientation was ignored if it was 0
+
+## 0.5.1
+
+### Features and improvements
+* Added support for AZDOME m06p, AZDOME GS 3G, VIOFO A119 V3
+* fixed some bugs
+
+## 0.5.1p3 (2020-08-24)
+
+### Features and improvements
+* move to python3
+

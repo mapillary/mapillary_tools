@@ -1,3 +1,5 @@
 {
-    "python.pythonPath": "C:\\Python27\\python.exe"
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
 }
