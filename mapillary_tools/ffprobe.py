@@ -31,8 +31,8 @@ class FFProbe:
 
 
             if str(platform.system())=='Windows':
-                #if shell=True cmd should be a string
-                #cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
+                # if shell=True cmd should be a string
+                # cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
                 cmd = f'ffprobe -show_streams "{video_file}"'
             else:
                 cmd=[f'ffprobe -show_streams "{video_file}"']
@@ -58,7 +58,7 @@ class FFProbe:
                     datalines=[]
                 else:
                     datalines.append(a)
-            
+
             for a in iter(p.stderr.readline, b''):
                 a = a.decode('utf-8','ignore')
                 if re.match('\[STREAM\]',a):

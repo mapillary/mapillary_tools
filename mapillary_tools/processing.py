@@ -23,7 +23,7 @@ from .gpx_from_novatek import gpx_from_novatek
 from tqdm import tqdm
 from . import ipc
 from .error import print_error
-from .utils import force_decode
+# from .utils import force_decode
 
 STATUS_PAIRS = {"success": "failed",
                 "failed": "success"

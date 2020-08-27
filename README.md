@@ -5,7 +5,7 @@
 Mapillary Tools is a library for processing and uploading images to [Mapillary](https://www.mapillary.com/).
 
 <!--ts-->
-   
+
    * [Package Installation](#package-installation)
    * [Requirements](#requirements)
    * [Usage](#usage)
@@ -14,7 +14,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
    * [Custom Installation](#custom-installation)
    * [Dependencies](#dependencies)
    * [Misc](#misc)
-   
+
 <!--te-->
 
 ## Package Installation
@@ -24,6 +24,7 @@ Now you can download the full Mapillary Tools library in one click.  Once on you
 ### Windows Package Installation
 
 https://github.com/MSolodzhuk/mapillary_tools/tree/master/publish/win/mapillary_tools.exe
+
 
 ### MacOS Package Installation
 
@@ -35,7 +36,7 @@ Utilize [Custom Installation](#custom-installation) to process and upload images
 
 ### Package Support
 
-View additional tips in the [Mapillary Help Center](https://help.mapillary.com) or contact [Mapillary Support](mailto:support@mapillary.com?subject=[Mapillary]%20Help%20with%20Mapillary%20Tools%20on%20GitHub). 
+View additional tips in the [Mapillary Help Center](https://help.mapillary.com) or contact [Mapillary Support](mailto:support@mapillary.com?subject=[Mapillary]%20Help%20with%20Mapillary%20Tools%20on%20GitHub).
 
 ### Video Support Package
 
@@ -58,7 +59,7 @@ More information [here](https://help.mapillary.com/hc/en-us/articles/11500148504
 
 ## Usage
 
-All commands are executed with `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`. 
+All commands are executed with `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
 
 ### Available commands
 
@@ -166,7 +167,7 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
 ### Keep original images intact and Upload
 
  - To prevent data loss or control versions, the original images can be left intact by specifying the flag `--keep_original`. This will result in the edited image being saved in a copy of the original image, instead of the original image itself. Copies are saved in `{$import_path/$image_path/}.mapillary/process_images}` and are deleted at the start of every processing run.
- 
+
 ```bash
 mapillary_tools process --advanced --import_path "path/to/images" --user_name username_at_mapillary --keep_original
 
@@ -199,7 +200,7 @@ mapillary_tools process_and_upload --advanced --import_path "path/to/images" --u
  - Sample the video(s) located in `path/to/videos` into the directory `path/to/images`, at a sample interval of 0.5 seconds and tag the sampled images with `capture time`. Note that the video frames will always be sampled into sub directory `.mapillary/sampled_video_frames/"video_import_path"`, whether import path is specified or not. In case `import_path` is specified the final path for the sampled video frames will be `"import path"/.mapillary/sampled_video_frames/"video_import_path"` and in case `import_path` is not specified, the final path for the sampled video frames will be `path/to/.mapillary/sampled_video_frames/"video_import_path"`.
 
  ```bash
-mapillary_tools sample_video --import_path "path/to/images" --video_import_path "path/to/videos" --video_sample_interval 0.5 --advanced 
+mapillary_tools sample_video --import_path "path/to/images" --video_import_path "path/to/videos" --video_sample_interval 0.5 --advanced
 ```
 
  - Sample the video(s) located in `path/to/videos`, at a sample interval of 2 seconds (default value) and tag the resulting images with `capture time`. And then process and upload the resulting images for user `username_at_mapillary`, specifying a gpx track to be the source of geotag data. Additionally pass the `--overwrite_all_EXIF_tags` so the extracted frames have all the tags set beside the Image Description tag.
@@ -226,7 +227,7 @@ mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/c
 ```
 
  - Insert image capture time and meta data from a csv file based on the order of image file names (in case filename column is missing):
- 
+
 ```bash
 mapillary_tools process_csv --import_path "path/to/images" --csv_path "path/to/csv_file" --timestamp_column 1 --meta_columns "6,7" --meta_names "random_name1,random_name2" --meta_types "double,string" --advanced
 ```
@@ -442,7 +443,7 @@ The command above specifies will attempt to download all privately blurred image
 
 ## Camera specific
 
-### BlackVue 
+### BlackVue
 #### Direct Upload (Recommended)
  - Upload videos located in `path/to/videos` directly to Mapillary. Videos are moved to `path/to/videos/uploaded` folder after upload. Videos that do not contain valid imagery are not uploaded to minimize bandwitdh usage. Sampling is performed in the cloud so no extra disk space is required. This command supports the front camera video from the Blackvue DR900s (1-channel and 2-channel) models.
  ```bash
@@ -452,7 +453,7 @@ The command above specifies will attempt to download all privately blurred image
 #### Local sampling (Deprecated)
 
  - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate 0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag data from the Blackvue videos in `path/to/videos` and specifying camera make and model, specifying to derive camera direction based on `GPS` and use the `GPS` start time. Note that video frames will be sampled into `path/to/images/.mapillary/sampled_video_frames/"video_import_path"`. Video frames will be geotagged after all the videos in the specified `video_import_path` have been sampled. In case video frames geotagging requires `rerun`, there is no need to rerun the entire `video_process` command, in case video frame extraction was successful, rerunning only the `process` command for the given `import_path` is sufficient. We encourage users to check and specify camera make and model, since it helps with camera calibration and improves 3D reconstruction. If you want to check the video frame placement on the map before uploading, specify `--overwrite_EXIF_gps_tag`.
- 
+
 ```bash
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "blackvue_videos" --geotag_source_path "path/to/videos" --use_gps_start_time --interpolate_directions --video_sample_interval 0.2 --device_make "Blackvue" --device_model "DR900S-2CH" --overwrite_EXIF_gps_tag
 ```
@@ -479,7 +480,7 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
 mapillary_tools video_process --import_path "path/to/images" --video_import_path "path/to/videos" --user_name "mapillary_user" --advanced --geotag_source "novatek_videos" --geotag_source_path "path/to/videos" --video_sample_interval 0.5 --video_duration_ratio 1 --overwrite_EXIF_gps_tag
 ```
 
-## Custom Installation 
+## Custom Installation
 
 ### Dependencies
 
@@ -495,7 +496,7 @@ Note that we're using a fork of the original [Piexif](https://github.com/hMatoba
 
 ### Custom Setup
 
-You will need to have [python=2.7.x](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
+You will need to have [python=2.7.x](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to
 
 #### Install Piexif
 `mapillary_tools` uses a fork of the original Piexif which needs to be installed by running:
@@ -538,16 +539,16 @@ sudo apt-get install ffmpeg
 ### Execution
 Running the executable `mapillary_tools` is slightly different on Unix and Windows OS.
 
-#### Windows 
+#### Windows
 On Windows, the executable `mapillary_tools` is installed under the python's `Scripts` and needs to be inserted in the PATH manually.
-At the same time, the interpreter program `python` needs to be specified, as the interpreter directive in the executable is specified for Unix OS. Path to the interpreter program `python` needs to be available in the PATH. Example of usage, in case `python` and `mapillary_tools` are available in the PATH: 
+At the same time, the interpreter program `python` needs to be specified, as the interpreter directive in the executable is specified for Unix OS. Path to the interpreter program `python` needs to be available in the PATH. Example of usage, in case `python` and `mapillary_tools` are available in the PATH:
 
 	python mapillary_tools
 
 in case of issues with editing PATH, both `python` and `mapillary_tools` can be specified with the absolute path:
 
 	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
-	
+
 note that the location of the `python` interpreter program and scripts installed as `python` scripts can be different depending on the Windows and Python versions. Therefore users need to check the exact paths locally before running.
 
 #### Unix
@@ -569,9 +570,9 @@ In case of any issues with the installation and usage of `mapillary_tools`, chec
  - Windows users sometimes have trouble with the bare execution of `mapillary_tools`, since it is not inserted in the PATH automatically.
  If you are trying to execute `mapillary_tools` on Windows and dont have its path inserted in the PATH, make sure you execute the installed executable under Pythons scripts, for example `C:\python27\Scripts`. Due to the Python package naming convention, the package and the directory with the modules are also called `mapillary_tools`, so users often mistakenly try to run those instead of the executable called `mapillary_tools`, located in `mapillary_tools/mapillary_tools/bin`.
  - Execution issues can occur in case the executable is saved with additional characters, like for example `\r`, which results in error message `env: python\r: No such file or directory`. In that case the executable needs to be edited to remove additional characters as suggested [here](https://stackoverflow.com/questions/19425857/env-python-r-no-such-file-or-directory), one example:
- 
+
  in terminal:
- 
+
  ```
  sudo vim /usr/local/bin/mapillary_tools
  ```
@@ -581,17 +582,17 @@ then in vim editor:
  :set ff=unix
  :wq
  ```
- 
+
 #### Run time issues
 
  - HTTP Errors can occur due to poor network connection or high load on the import pipeline. In most cases the images eventually get uploaded regardless. But in some cases HTTP Errors can occur due to authentication issues, which can be resolved by either removing the config file with the users credentials, located in `~/.config/mapillary/config` or running the `authenticate` command available under advanced usage of `mapillary_tools`.
- 
+
  - Windows users sometimes have issues with the prompt not functioning. This usually results in mapillary_tools just hanging without printing anything or creating any logs in `{image_path}/.mapillary/logs/{image_name}`. In such cases authentication should be run separately with the `authentication` command, while passing `user_name`, `user_email` and `user_password` as command line arguments. This will avoid the prompt and will authenticate the user for all further usage of the `process` command.
- 
+
  - Missing required data is often the reason for failed uploads, especially if the processing included parsing external data like a gps trace. Images are aligned with a gps trace based on the image capture time and gps time, where the default assumption is that both are in UTC. Check the begin and end date of your capture and the begin and end date of the gps trace to make sure that the image capture time is in the scope of the gps trace. To correct any offset between the two capture times, you can specify `--offset_time "offset time"`. Timezone differences can result in such issues, if you know that the image capture time was stored in your current local timezone, while the gps trace is stored in UTC, specify `--local_time`. If images do not contain capture time or the capture time is unreliable, while gps time is accurate, specify `use_gps_start_time`.
 
  - In cases where the `import_path` is located on an external mount, images can potentially get overwritten, if breaking the script with Ctrl+c. To keep the images intact, you can specify `--keep_original` and all the processed data will be inserted in a copy of the original image. We are still in progress of improving this step of data import and will make sure that no image gets overwritten at any point.
- 
+
  - GIS users on Windows using Custom Installation, particularly ArcMap users, who have Python 2.7 version with pip already installed, should add these paths in the system PATH, to avoid compatibility issues:
   - executing `python` : `C:\Python27\ArcGIS10.x`
   - executing `pip` ; `C:\Python27\ArcGIS10.x\Scripts`
@@ -600,11 +601,11 @@ then in vim editor:
 
  - Some devices do not store the camera direction properly, often storing only 0. Camera direction will get derived based on latitide and longitude only if the camera direction is not set or `--interpolate_directions` is specified. Before processing and uploading images, make sure that the camera direction is either correct or missing and in case it is present but incorrect, you specify `-interpolate_directions`.
  - Timestamp interpolation is required in case the latitude and longitude are stored in an external gps trace with a higher capture frequency then the image capture frequency which results in identical image capture times. Command `interpolate` can be used to interpolate image capture time:
- 
+
 ```bash
-mapillary_tools interpolate --data "identical_timestamps" --import_path "path/to/images --advanced 
+mapillary_tools interpolate --data "identical_timestamps" --import_path "path/to/images --advanced
  ```
- 
+
  - If `process` includes correction of existing EXIF tag values or extraction of missing EXIF tag values from external sources and you want to test the placement on the map before uploading the images, make sure you pass `--advanced --overwrite_all_EXIF_tags` so that the rest of tags beside Image Description tag will get updated with the values obtained during `process`.
 
 ## Misc
@@ -633,4 +634,3 @@ python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_re
 [tqdm]: https://github.com/tqdm/tqdm
 
 [requests]: https://github.com/requests/requests
-
