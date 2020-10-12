@@ -126,8 +126,8 @@ def interpolation(data,
                     lat, lon, bearing, elevation = interpolate_lat_lon(
                         geotags, timestamp, max_time_delta)
                 except Exception as e:
-                    print_error("Error, {}, interpolation of latitude and longitude failed for image {}".format(
-                        e, image))
+                    print_error(f"Error, {e}, "
+                                f"interpolation of latitude and longitude failed for image {image}")
                     continue
                 # insert into exif
                 exif_edit = ExifEdit(image)

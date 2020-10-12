@@ -30,7 +30,7 @@ class Command:
         # video specific args
         parser.add_argument('--video_import_path', help='Path to a video or a directory with one or more video files.',
                             action='store', default=None, required=False)
-        parser.add_argument('--video_time_lapse', help='Allow use timelapse in video', action='store_true', default=False, required=False)  
+        parser.add_argument('--video_time_lapse', help='Allow use timelapse in video', action='store_true', default=False, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
         parser.add_argument("--video_duration_ratio",
@@ -70,7 +70,7 @@ class Command:
 
         # geotagging
         parser.add_argument('--geotag_source', help='Provide the source of date/time and gps information needed for geotagging.', action='store',
-                            choices=['exif', 'gpx', 'gopro_videos', 'nmea', 'blackvue_videos', 'm06p_videos', 'novatek_videos'], default="exif", required=False)
+                            choices=['exif', 'gpx', 'gopro_videos', 'nmea', 'blackvue_videos', 'm06p_videos', 'novatek_videos', 'a800'], default="exif", required=False)
         parser.add_argument(
             '--geotag_source_path', help='Provide the path to the file source of date/time and gps information needed for geotagging.', action='store',
             default=None, required=False)

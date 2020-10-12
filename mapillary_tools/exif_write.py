@@ -15,12 +15,10 @@ class ExifEdit(object):
         self._ef = None
         try:
             self._ef = piexif.load(filename)
-        except IOError:
+        except (IOError, ValueError):
             value = sys.exc_info()[1]
             print("Error opening file:", value, file=sys.stderr)
-        except ValueError:
-            value = sys.exc_info()[1]
-            print("Error opening file:", value, file=sys.stderr)
+
 
     def add_image_description(self, dict):
         """Add a dict to image description."""

@@ -82,3 +82,19 @@ def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
 
     points.sort()
     return points
+
+
+    def get_lat_lon_time_from_a800(a800_file, local_time=True):
+        points = []
+        with open(a800_file, 'r') as f:
+            for req in f:
+                s = req.split(',')
+                tm = s[0].split()
+                lat = s[4]
+                lon = s[5].strip()
+                alt = s[6]
+                timestamp = f'{tm[0]}T{tm[1]}Z'
+                speed = f'{float(s[3][:3])/3.6:.2f}'
+                points.append((timestamp, lat, lon, alt, speed))
+        points.sort()
+        return points

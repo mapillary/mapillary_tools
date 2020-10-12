@@ -15,7 +15,7 @@ from .geo import normalize_bearing, interpolate_lat_lon, gps_distance, gps_speed
 from . import config
 from . import uploader
 from dateutil.tz import tzlocal, tzutc
-from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
+from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea, get_lat_lon_time_from_a800
 from .gpx_from_gopro import gpx_from_gopro
 from .gpx_from_blackvue import gpx_from_blackvue
 from .gpx_from_exif import gpx_from_exif
@@ -130,6 +130,7 @@ def geotag_from_exif(process_file_list,
 
 
 def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
+    # sourcery skip: merge-dict-assign
     try:
         exif = ExifRead(image)
     except:
@@ -347,13 +348,16 @@ def geotag_from_gps_trace(process_file_list,
         #      .format(now.strftime('%Y-%m-%d %H:%M:%S %Z'))))
     else:
         # if not local time to be used, warn UTC will be used
-        print("It is assumed that the image timestamps are in UTC. If not, try using the option --local_time.")
+        print("It is assumed that the image timestamps are in UTC. "
+              "If not, try using the option --local_time.")
 
     # read gps file to get track locations
     if geotag_source == "gpx":
         gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
     elif geotag_source == "nmea":
         gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
+    elif geotag_source == 'a800':
+        gps_trace = get_lat_lon_time_from_a800(geotag_source_path, local_time)
 
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list,
@@ -536,12 +540,12 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
         sub_command_data_path = os.path.join(
             log_root, sub_command + ".json")
         if not os.path.isfile(sub_command_data_path) and sub_command != "import_meta_data_process":
-            if (sub_command == "settings_upload_hash" or sub_command == "upload_params_process") and master_upload:
+            if (sub_command in ("settings_upload_hash", "upload_params_process")) and master_upload:
                 continue
             else:
                 print(f"Warning, required {sub_command} did not result in a valid json file for image {image}")
                 return None
-        if sub_command == "settings_upload_hash" or sub_command == "upload_params_process":
+        if sub_command in ("settings_upload_hash", "upload_params_process"):
             continue
         try:
             sub_command_data = load_json(sub_command_data_path)
@@ -552,15 +556,12 @@ def get_final_mapillary_image_description(log_root, image, master_upload=False, 
 
             final_mapillary_image_description.update(sub_command_data)
         except:
-            if sub_command == "import_meta_data_process":
-                if verbose:
+            if verbose:
                     print("Warning, could not load json file " +
                           sub_command_data_path)
+            if sub_command == "import_meta_data_process":
                 continue
             else:
-                if verbose:
-                    print("Warning, could not load json file " +
-                          sub_command_data_path)
                 return None
 
     # a unique photo ID to check for duplicates in the backend in case the
@@ -670,8 +671,8 @@ def get_geotag_data(log_root, image, verbose=False):
     geotag_process_json_path = os.path.join(log_root,
                                             "geotag_process.json")
     try:
-        geotag_data = load_json(geotag_process_json_path)
-        return geotag_data
+        return load_json(geotag_process_json_path)
+        # return geotag_data
     except:
         if verbose:
             print(
@@ -702,8 +703,8 @@ def format_orientation(orientation):
 def load_json(file_path):
     try:
         with open(file_path, "r") as f:
-            dict = json.load(f)
-        return dict
+            dict_ = json.load(f)
+        return dict_
     except:
         return {}
 
@@ -815,8 +816,7 @@ def get_failed_process_file_list(import_path, process):
 def failed_process(file_path, process):
     log_root = uploader.log_rootpath(file_path)
     process_failed = os.path.join(log_root, process + "_failed")
-    process_failed_true = os.path.isfile(process_failed)
-    return process_failed_true
+    return os.path.isfile(process_failed)
 
 
 def processed_images_rootpath(filepath):
@@ -1116,8 +1116,7 @@ def split_sequences(capture_times, lats, lons, file_list, directions, cutoff_tim
     sort_by_time.sort()
     capture_times, file_list, lats, lons, directions = [
         list(x) for x in zip(*sort_by_time)]
-    latlons = list(zip(lats,
-                  lons))
+    latlons = list(zip(lats, lons))
 
     # initialize first sequence
     sequence_index = 0

@@ -50,7 +50,7 @@ def process_geotag_properties(import_path,
         print("If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun")
 
     # sanity checks
-    if geotag_source_path == None and geotag_source != "exif":
+    if geotag_source_path is None and geotag_source != "exif":
         # if geotagging from external log file, path to the external log file
         # needs to be provided, if not, exit
         print_error(
@@ -77,7 +77,7 @@ def process_geotag_properties(import_path,
                                     offset_angle,
                                     verbose)
 
-    elif geotag_source == "gpx" or geotag_source == "nmea":
+    elif geotag_source in ("gpx", "nmea", "a800"):
         processing.geotag_from_gps_trace(process_file_list,
                                          geotag_source,
                                          geotag_source_path,
@@ -87,7 +87,7 @@ def process_geotag_properties(import_path,
                                          sub_second_interval,
                                          use_gps_start_time,
                                          verbose)
-    elif geotag_source == "gopro_videos" or geotag_source == "m06p_videos":
+    elif geotag_source in ("gopro_videos", "m06p_videos"):
         processing.geotag_from_gopro_video(process_file_list,
                                            import_path,
                                            geotag_source_path,

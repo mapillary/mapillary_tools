@@ -186,8 +186,7 @@ def offset_bearing(bearing, offset):
     '''
     Add offset to bearing
     '''
-    bearing = (bearing + offset) % 360
-    return bearing
+    return (bearing + offset) % 360
 
 
 def normalize_bearing(bearing, check_hex=False):
@@ -213,7 +212,7 @@ def interpolate_lat_lon(points, t, max_dt=1):
     # find the enclosing points in sorted list
     if points[0][0].tzinfo:
         t = t.replace(tzinfo=tzutc())
-    
+
     if (t <= points[0][0]) or (t >= points[-1][0]):
         if t <= points[0][0]:
             dt = abs((points[0][0] - t).total_seconds())
@@ -245,10 +244,7 @@ def interpolate_lat_lon(points, t, max_dt=1):
     else:
         for i, point in enumerate(points):
             if t < point[0]:
-                if i > 0:
-                    before = points[i - 1]
-                else:
-                    before = points[i]
+                before = points[i - 1] if i > 0 else points[i]
                 after = points[i]
                 break
 
@@ -315,13 +311,13 @@ def write_gpx(filename, gps_trace):
                 gpx += f'<speed>{speed:.2f}</speed>\n'
             gpx += f'</trkpt>\n'
             fout.write(gpx)
-    
+
         fout.write(GPX_TAIL)
 
 
 def get_timezone_and_utc_offset(lat, lon):
     #TODO Importing inside function because tzwhere is a temporary solution and dependency fails to install on windows
-    from tzwhere import tzwhere 
+    from tzwhere import tzwhere
 
     tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
     timezone_str = tz.tzNameAt(lat, lon)

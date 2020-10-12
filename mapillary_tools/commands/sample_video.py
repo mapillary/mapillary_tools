@@ -10,7 +10,7 @@ class Command:
         # video specific args
         parser.add_argument('--video_import_path', help='Path to a video or directory with one or more video files.',
                             action='store', required=True)
-        parser.add_argument('--video_time_lapse', help='Allow use timelapse in video', action='store_true', default=False, required=False)  
+        parser.add_argument('--video_time_lapse', help='Allow use timelapse in video', action='store_true', default=False, required=False)
         parser.add_argument('--video_sample_interval',
                             help='Time interval for sampled video frames in seconds', default=2, type=float, required=False)
         parser.add_argument("--video_duration_ratio",
