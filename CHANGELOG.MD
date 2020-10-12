@@ -155,3 +155,5 @@
 ### Features and improvements
 * move to python3
 
+### Features and improvements
+* Added support for 70mai a800
