@@ -52,23 +52,23 @@ def estimate_sub_second_time(files, interval=0.0):
         return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
 
     # onesecond = datetime.timedelta(seconds=1.0)
-    T = datetime.timedelta(seconds=interval)
-    t = int(1/interval)
+    # T = datetime.timedelta(seconds=interval)
+    # t = int(1/interval)
     sub_second_time = [None] * len(files)
-
+    # m = exif_time(files[0])
 
     for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
-        m = exif_time(f)
+        # m = exif_time(f)
         nf = int(f.rstrip(".jpg")[-6:]) - 1
-        if not m:
-            pass        # ?
+
         if not nf:      # first file in the folders
-            nf0 = nf
-            m0 = m
+            m = exif_time(f)
+            if not m:
+                pass
             j = 1
             sub_second_time[i] = m
-        elif nf == nf0 + j:       # and m == m0
-            sub_second_time[i] = m + T * (j % t)
+        elif nf ==  j:       # and m == m0
+            sub_second_time[i] = m + datetime.timedelta(seconds = interval*j)
             j += 1
         else:
             print('Interval not compatible with EXIF times')
