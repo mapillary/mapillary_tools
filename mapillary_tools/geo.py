@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import datetime
 import math
 
-import datetime
 import pytz
 
 WGS84_a = 6378137.0
@@ -38,8 +38,8 @@ def gps_distance(latlon_1, latlon_2):
     >>> 19000 < gps_distance(p1, p2) < 20000
     True
     """
-    x1, y1, z1 = ecef_from_lla(latlon_1[0], latlon_1[1], 0.)
-    x2, y2, z2 = ecef_from_lla(latlon_2[0], latlon_2[1], 0.)
+    x1, y1, z1 = ecef_from_lla(latlon_1[0], latlon_1[1], 0.0)
+    x2, y2, z2 = ecef_from_lla(latlon_2[0], latlon_2[1], 0.0)
 
     dis = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
@@ -93,8 +93,10 @@ def gps_speed(distance, delta_t):
     # Most timestamps have 1 second resolution so change zeros in delta_t for
     # 0.5 so that we don't divide by zero
     delta_t_corrected = [0.5 if x == 0 else x for x in delta_t]
-    speed = [distance / delta_t_corrected
-             for distance, delta_t_corrected in zip(distance, delta_t_corrected)]
+    speed = [
+        distance / delta_t_corrected
+        for distance, delta_t_corrected in zip(distance, delta_t_corrected)
+    ]
     return speed
 
 
@@ -127,9 +129,9 @@ def gpgga_to_dms(gpgga):
 
     Reference: http://us.cactii.net/~bb/gps.py
     """
-    deg_min, dmin = gpgga.split('.')
+    deg_min, dmin = gpgga.split(".")
     degrees = int(deg_min[:-2])
-    minutes = float('%s.%s' % (deg_min[-2:], dmin))
+    minutes = float("%s.%s" % (deg_min[-2:], dmin))
     decimal = degrees + (minutes / 60)
     return decimal
 
@@ -154,17 +156,16 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon):
 
     dLong = end_lon - start_lon
 
-    dPhi = math.log(math.tan(end_lat / 2.0 + math.pi / 4.0) /
-                    math.tan(start_lat / 2.0 + math.pi / 4.0))
     if abs(dLong) > math.pi:
         if dLong > 0.0:
             dLong = -(2.0 * math.pi - dLong)
         else:
-            dLong = (2.0 * math.pi + dLong)
+            dLong = 2.0 * math.pi + dLong
 
     y = math.sin(dLong) * math.cos(end_lat)
-    x = math.cos(start_lat) * math.sin(end_lat) - \
-        math.sin(start_lat) * math.cos(end_lat) * math.cos(dLong)
+    x = math.cos(start_lat) * math.sin(end_lat) - math.sin(start_lat) * math.cos(
+        end_lat
+    ) * math.cos(dLong)
     bearing = (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
 
     return bearing
@@ -195,7 +196,7 @@ def normalize_bearing(bearing, check_hex=False):
         # fix negative value wrongly parsed in exifread
         # -360 degree -> 4294966935 when converting from hex
         bearing = bin(int(bearing))[2:]
-        bearing = ''.join([str(int(int(a) == 0)) for a in bearing])
+        bearing = "".join([str(int(int(a) == 0)) for a in bearing])
         bearing = -float(int(bearing, 2))
     bearing %= 360
     return bearing
@@ -214,11 +215,13 @@ def interpolate_lat_lon(points, t, max_dt=1):
         else:
             dt = (t - points[-1][0]).total_seconds()
         if dt > max_dt:
-            raise ValueError(
-                "time t not in scope of gpx file by {} seconds".format(dt))
+            raise ValueError("time t not in scope of gpx file by {} seconds".format(dt))
         else:
             print(
-                "time t not in scope of gpx file by {} seconds, extrapolating...".format(dt))
+                "time t not in scope of gpx file by {} seconds, extrapolating...".format(
+                    dt
+                )
+            )
 
         if t < points[0][0]:
             before = points[0]
@@ -246,8 +249,7 @@ def interpolate_lat_lon(points, t, max_dt=1):
                 break
 
     # weight based on time
-    weight = (t - before[0]).total_seconds() / \
-        (after[0] - before[0]).total_seconds()
+    weight = (t - before[0]).total_seconds() / (after[0] - before[0]).total_seconds()
 
     # simple linear interpolation in case points are not the same
     if before[1] == after[1]:
@@ -285,8 +287,7 @@ def write_gpx(filename, gps_trace):
             continue
         time = datetime.datetime.strftime(point[0], time_format)[:-3]
         elevation = point[3] if len(point) > 3 else 0
-        gpx += "<trkpt lat=\"" + \
-            str(lat) + "\" lon=\"" + str(lon) + "\">" + "\n"
+        gpx += '<trkpt lat="' + str(lat) + '" lon="' + str(lon) + '">' + "\n"
         gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
         gpx += "<time>" + time + "</time>" + "\n"
         gpx += "</trkpt>" + "\n"
@@ -298,10 +299,12 @@ def write_gpx(filename, gps_trace):
 
 
 def get_timezone_and_utc_offset(lat, lon):
-    #TODO Importing inside function because tzwhere is a temporary solution and dependency fails to install on windows
-    from tzwhere import tzwhere 
+    # TODO Importing inside function because tzwhere is a temporary solution and dependency fails to install on windows
+    from tzwhere import tzwhere
 
-    tz = tzwhere.tzwhere(forceTZ=True) #TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
+    tz = tzwhere.tzwhere(
+        forceTZ=True
+    )  # TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
     timezone_str = tz.tzNameAt(lat, lon)
     if timezone_str is not None:
         timezone = pytz.timezone(timezone_str)

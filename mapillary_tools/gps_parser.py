@@ -1,7 +1,8 @@
 #!/usr/bin/python
 
 import datetime
-from .geo import gpgga_to_dms, utc_to_localtime
+
+from .geo import utc_to_localtime
 
 try:
     import gpxpy
@@ -9,21 +10,21 @@ try:
 except ImportError as error:
     print(error)
 
-'''
+"""
 Methods for parsing gps data from various file format e.g. GPX, NMEA, SRT.
-'''
+"""
 
 
 def get_lat_lon_time_from_gpx(gpx_file, local_time=True):
-    '''
+    """
     Read location and time stamps from a track in a GPX file.
 
     Returns a list of tuples (time, lat, lon).
 
     GPX stores time in UTC, by default we assume your camera used the local time
     and convert accordingly.
-    '''
-    with open(gpx_file, 'r') as f:
+    """
+    with open(gpx_file, "r") as f:
         gpx = gpxpy.parse(f)
 
     points = []
@@ -45,14 +46,14 @@ def get_lat_lon_time_from_gpx(gpx_file, local_time=True):
 
 
 def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
-    '''
+    """
     Read location and time stamps from a track in a NMEA file.
 
     Returns a list of tuples (time, lat, lon).
 
     GPX stores time in UTC, by default we assume your camera used the local time
     and convert accordingly.
-    '''
+    """
     with open(nmea_file, "r") as f:
         lines = f.readlines()
         lines = [l.rstrip("\n\r") for l in lines]

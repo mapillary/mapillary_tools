@@ -1,12 +1,13 @@
+import csv
+import datetime
 import os
 import sys
-import datetime
-import csv
+
 from tqdm import tqdm
 
+from . import process_import_meta_properties
 from . import processing
 from . import uploader
-from . import process_import_meta_properties
 from .exif_write import ExifEdit
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
@@ -18,25 +19,23 @@ GPS_START = datetime.datetime(1980, 1, 6)
 SECS_IN_WEEK = 604800
 
 
-def format_time(timestamp, time_utc=False, time_format='%Y-%m-%dT%H:%M:%SZ'):
+def format_time(timestamp, time_utc=False, time_format="%Y-%m-%dT%H:%M:%SZ"):
     if time_utc:
-        division = 1.0 if float(
-            timestamp) < MILLISECONDS_PRECISION_CUT_OFF else 1000.0
-        t_datetime = datetime.datetime.utcfromtimestamp(
-            float(timestamp) / division)
+        division = 1.0 if float(timestamp) < MILLISECONDS_PRECISION_CUT_OFF else 1000.0
+        t_datetime = datetime.datetime.utcfromtimestamp(float(timestamp) / division)
     else:
         t_datetime = datetime.datetime.strptime(timestamp, time_format)
     return t_datetime
 
 
 def validate_meta_data(meta_columns, meta_names, meta_types):
-
     if any([x for x in [meta_columns, meta_names, meta_types]]):
 
         # if any of the meta data arguments are passed all must be
-        if any([not(x) for x in [meta_columns, meta_names, meta_types]]):
+        if any([not x for x in [meta_columns, meta_names, meta_types]]):
             print(
-                "Error, if extracting meta data you need to specify meta_columns, meta_names and meta_types.")
+                "Error, if extracting meta data you need to specify meta_columns, meta_names and meta_types."
+            )
             sys.exit(1)
 
         # get meta data column numbers
@@ -44,7 +43,9 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
         try:
             meta_columns = [int(field) - 1 for field in meta_columns]
         except:
-            print('Error, meta column numbers could not be extracted. Meta column numbers need to be separated with commas, example "7,9,10"')
+            print(
+                'Error, meta column numbers could not be extracted. Meta column numbers need to be separated with commas, example "7,9,10"'
+            )
             sys.exit(1)
 
         # get meta data names and types
@@ -54,14 +55,17 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
         # exit if they are not all of same length
         if len(meta_columns) != len(meta_names) or len(meta_types) != len(meta_names):
             print(
-                "Error, number of meta data column numbers, types and names must be the same.")
+                "Error, number of meta data column numbers, types and names must be the same."
+            )
             sys.exit(1)
 
         # check if types are valid
         for meta_type in meta_types:
             if meta_type not in META_DATA_TYPES:
-                print("Error, invalid meta data type, valid types are " +
-                      str(META_DATA_TYPES))
+                print(
+                    "Error, invalid meta data type, valid types are "
+                    + str(META_DATA_TYPES)
+                )
                 sys.exit(1)
     return meta_columns, meta_names, meta_types
 
@@ -75,34 +79,31 @@ def convert_from_gps_time(gps_time, gps_week=None):
     if gps_week != None:
 
         # image date
-        converted_gps_time = GPS_START + datetime.timedelta(seconds=int(gps_week) *
-                                                            SECS_IN_WEEK + gps_timestamp)
+        converted_gps_time = GPS_START + datetime.timedelta(
+            seconds=int(gps_week) * SECS_IN_WEEK + gps_timestamp
+        )
 
     else:
         # TAI scale with 1970-01-01 00:00:10 (TAI) epoch
-        os.environ['TZ'] = 'right/UTC'
+        os.environ["TZ"] = "right/UTC"
 
         # by definition
-        gps_time_as_gps = GPS_START + \
-            datetime.timedelta(seconds=gps_timestamp)
+        gps_time_as_gps = GPS_START + datetime.timedelta(seconds=gps_timestamp)
 
         # constant offset
-        gps_time_as_tai = gps_time_as_gps + \
-            datetime.timedelta(seconds=19)
+        gps_time_as_tai = gps_time_as_gps + datetime.timedelta(seconds=19)
         tai_epoch_as_tai = datetime.datetime(1970, 1, 1, 0, 0, 10)
 
         # by definition
         tai_timestamp = (gps_time_as_tai - tai_epoch_as_tai).total_seconds()
 
-        converted_gps_time = (
-            datetime.datetime.utcfromtimestamp(tai_timestamp))
+        converted_gps_time = datetime.datetime.utcfromtimestamp(tai_timestamp)
 
     # "right" timezone is in effect
     return converted_gps_time
 
 
 def get_image_index(image, file_names):
-
     image_index = None
     try:
         image_index = file_names.index(image)
@@ -112,19 +113,31 @@ def get_image_index(image, file_names):
             image_index = file_names.index(os.path.basename(image))
         except:
             try:
-                image_index = [idx for idx, file_name in enumerate(
-                    file_names) if file_name in image][0]
+                image_index = [
+                    idx
+                    for idx, file_name in enumerate(file_names)
+                    if file_name in image
+                ][0]
             except:
                 try:
-                    image_index = [idx for idx, file_name in enumerate(
-                        file_names) if ".".join(file_name.split(".")[:-1]) in image][0]
+                    image_index = [
+                        idx
+                        for idx, file_name in enumerate(file_names)
+                        if ".".join(file_name.split(".")[:-1]) in image
+                    ][0]
                 except:
                     pass
     return image_index
 
 
-def parse_csv_geotag_data(csv_data, image_index, column_indexes, convert_gps_time=False, convert_utc_time=False, time_format="%Y:%m:%d %H:%M:%S.%f"):
-
+def parse_csv_geotag_data(
+    csv_data,
+    image_index,
+    column_indexes,
+    convert_gps_time=False,
+    convert_utc_time=False,
+    time_format="%Y:%m:%d %H:%M:%S.%f",
+):
     timestamp = None
     lat = None
     lon = None
@@ -138,21 +151,24 @@ def parse_csv_geotag_data(csv_data, image_index, column_indexes, convert_gps_tim
     altitude_column = column_indexes[5]
     gps_week_column = column_indexes[6]
 
-    if timestamp_column != None:
+    if timestamp_column is not None:
         timestamp = csv_data[timestamp_column][image_index]
         gps_week = None
-        if gps_week_column != None:
+        if gps_week_column is not None:
             gps_week = csv_data[gps_week_column][image_index]
-        timestamp = convert_from_gps_time(
-            timestamp, gps_week) if convert_gps_time else format_time(timestamp, convert_utc_time, time_format)
+        timestamp = (
+            convert_from_gps_time(timestamp, gps_week)
+            if convert_gps_time
+            else format_time(timestamp, convert_utc_time, time_format)
+        )
 
-    if latitude_column != None:
+    if latitude_column is not None:
         lat = float(csv_data[latitude_column][image_index])
-    if longitude_column != None:
+    if longitude_column is not None:
         lon = float(csv_data[longitude_column][image_index])
-    if heading_column != None:
+    if heading_column is not None:
         heading = float(csv_data[heading_column][image_index])
-    if altitude_column != None:
+    if altitude_column is not None:
         altitude = float(csv_data[altitude_column][image_index])
 
     return timestamp, lat, lon, heading, altitude
@@ -167,16 +183,15 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
                 tag_value = csv_data[meta_field][image_index]
                 tag_key = meta_names[field]
                 process_import_meta_properties.add_meta_tag(
-                    meta, tag_type, tag_key, tag_value)
+                    meta, tag_type, tag_key, tag_value
+                )
             except:
                 print("Error, meta data {} could not be extracted.".format(tag_key))
     return meta
 
 
 def read_csv(csv_path, delimiter=",", header=False):
-    csv_data = []
-
-    with open(csv_path, 'r') as csvfile:
+    with open(csv_path, "r") as csvfile:
         csvreader = csv.reader(csvfile, delimiter=delimiter)
         if header:
             next(csvreader, None)
@@ -185,34 +200,38 @@ def read_csv(csv_path, delimiter=",", header=False):
     return csv_data
 
 
-def process_csv(import_path,
-                csv_path,
-                filename_column=None,
-                timestamp_column=None,
-                latitude_column=None,
-                longitude_column=None,
-                heading_column=None,
-                altitude_column=None,
-                gps_week_column=None,
-                time_format="%Y:%m:%d %H:%M:%S.%f",
-                convert_gps_time=False,
-                convert_utc_time=False,
-                delimiter=",",
-                header=False,
-                meta_columns=None,
-                meta_names=None,
-                meta_types=None,
-                verbose=False,
-                keep_original=False):
-
+def process_csv(
+    import_path,
+    csv_path,
+    filename_column=None,
+    timestamp_column=None,
+    latitude_column=None,
+    longitude_column=None,
+    heading_column=None,
+    altitude_column=None,
+    gps_week_column=None,
+    time_format="%Y:%m:%d %H:%M:%S.%f",
+    convert_gps_time=False,
+    convert_utc_time=False,
+    delimiter=",",
+    header=False,
+    meta_columns=None,
+    meta_names=None,
+    meta_types=None,
+    verbose=False,
+    keep_original=False,
+):
     # sanity checks
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path +
-              " doesnt not exist, exiting...")
+        print(
+            "Error, import directory " + import_path + " doesnt not exist, exiting..."
+        )
         sys.exit(1)
 
     if not csv_path or not os.path.isfile(csv_path):
-        print("Error, csv file not provided or does not exist. Please specify a valid path to a csv file.")
+        print(
+            "Error, csv file not provided or does not exist. Please specify a valid path to a csv file."
+        )
         sys.exit(1)
 
     # get list of file to process
@@ -222,30 +241,44 @@ def process_csv(import_path,
         sys.exit(1)
 
     if gps_week_column != None and convert_gps_time == False:
-        print("Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting...")
+        print(
+            "Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting..."
+        )
         sys.exit(1)
 
-    if (convert_gps_time != False or convert_utc_time != False) and timestamp_column == None:
-        print("Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting...")
+    if (
+        convert_gps_time != False or convert_utc_time != False
+    ) and timestamp_column is None:
+        print(
+            "Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting..."
+        )
         sys.exit(1)
 
-    column_indexes = [filename_column, timestamp_column,
-                      latitude_column, longitude_column, heading_column, altitude_column, gps_week_column]
+    column_indexes = [
+        filename_column,
+        timestamp_column,
+        latitude_column,
+        longitude_column,
+        heading_column,
+        altitude_column,
+        gps_week_column,
+    ]
 
     if any([column == 0 for column in column_indexes]):
-        print("Error, csv column numbers start with 1, one of the columns specified is 0.")
+        print(
+            "Error, csv column numbers start with 1, one of the columns specified is 0."
+        )
         sys.exit(1)
 
     column_indexes = map(lambda x: x - 1 if x else None, column_indexes)
 
     # checks for meta arguments if any
     meta_columns, meta_names, meta_types = validate_meta_data(
-        meta_columns, meta_names, meta_types)
+        meta_columns, meta_names, meta_types
+    )
 
     # open and process csv
-    csv_data = read_csv(csv_path,
-                        delimiter=delimiter,
-                        header=header)
+    csv_data = read_csv(csv_path, delimiter=delimiter, header=header)
 
     # align by filename column if provided, otherwise align in order of image
     # names
@@ -254,10 +287,14 @@ def process_csv(import_path,
         file_names = csv_data[filename_column - 1]
     else:
         if verbose:
-            print("Warning, filename column not provided, images will be aligned with the csv data in order of the image filenames.")
+            print(
+                "Warning, filename column not provided, images will be aligned with the csv data in order of the image filenames."
+            )
 
     # process each image
-    for idx, image in tqdm(enumerate(process_file_list), desc="Inserting csv data in image EXIF"):
+    for idx, image in tqdm(
+        enumerate(process_file_list), desc="Inserting csv data in image EXIF"
+    ):
 
         # get image entry index
         image_index = get_image_index(image, file_names) if file_names else idx
@@ -267,11 +304,18 @@ def process_csv(import_path,
 
         # get required data
         timestamp, lat, lon, heading, altitude = parse_csv_geotag_data(
-            csv_data, image_index, column_indexes, convert_gps_time, convert_utc_time, time_format)
+            csv_data,
+            image_index,
+            column_indexes,
+            convert_gps_time,
+            convert_utc_time,
+            time_format,
+        )
 
         # get meta data
         meta = parse_csv_meta_data(
-            csv_data, image_index, meta_columns, meta_types, meta_names)
+            csv_data, image_index, meta_columns, meta_types, meta_names
+        )
 
         # insert in image EXIF
         exif_edit = ExifEdit(image)

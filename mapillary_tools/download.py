@@ -3,6 +3,7 @@ import signal
 import sys
 import threading
 import time
+
 import requests
 
 from . import uploader
@@ -22,7 +23,8 @@ class BlurDownloader(threading.Thread):
 
     def download_file(self, image_key, filename):
         download_url = "https://a.mapillary.com/v3/images/{}/download_original_uuid?client_id={}&token={}".format(
-            image_key, uploader.CLIENT_ID, self.token)
+            image_key, uploader.CLIENT_ID, self.token
+        )
         response = requests.get(download_url, stream=True)
 
         if response.status_code != 200:
@@ -34,21 +36,17 @@ class BlurDownloader(threading.Thread):
             return False
 
         with open(filename, "wb") as f:
-            total_length = response.headers.get('content-length')
-
             dl = 0
-            total_length = int(total_length)
             for data in response.iter_content(chunk_size=4096):
                 dl += len(data)
                 f.write(data)
-                done = int(50 * dl / total_length)
 
         return True
 
     def run(self):
         while not self.shutdown_flag.is_set():
             self.lock.acquire()
-            if (self.downloaded_images["nbr"] >= len(self.rows)):
+            if self.downloaded_images["nbr"] >= len(self.rows):
                 self.lock.release()
                 break
             row_entry = self.rows[self.downloaded_images["nbr"]]
@@ -88,8 +86,8 @@ class BlurDownloader(threading.Thread):
             bar_len = 60
             filled_len = int(round(bar_len * count / float(total)))
             percents = round(100.0 * count / float(total), 1)
-            bar = '=' * filled_len + '-' * (bar_len - filled_len)
-            sys.stdout.write('[%s] %s%s %s\r' % (bar, percents, '%', suffix))
+            bar = "=" * filled_len + "-" * (bar_len - filled_len)
+            sys.stdout.write("[%s] %s%s %s\r" % (bar, percents, "%", suffix))
             sys.stdout.flush()
             self.lock.release()
 
@@ -131,7 +129,9 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
         user_properties = uploader.authenticate_user(user_name)
     except:
         print("Error, user authentication failed for user " + user_name)
-        print("Make sure your user credentials are correct, user authentication is required for images to be downloaded from Mapillary.")
+        print(
+            "Make sure your user credentials are correct, user authentication is required for images to be downloaded from Mapillary."
+        )
         return None
     if "user_upload_token" in user_properties:
         token = user_properties["user_upload_token"]
@@ -153,14 +153,15 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
         threads = []
         try:
             for i in range(number_threads):
-                t = BlurDownloader(lock, downloaded_images,
-                                   local_mapping, output_folder, token)
+                t = BlurDownloader(
+                    lock, downloaded_images, local_mapping, output_folder, token
+                )
                 threads.append(t)
                 t.start()
             while True:
                 any_alive = False
                 for t in threads:
-                    any_alive = (any_alive or t.is_alive())
+                    any_alive = any_alive or t.is_alive()
 
                 if not any_alive:
                     break

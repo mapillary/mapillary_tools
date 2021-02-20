@@ -29,11 +29,11 @@ def get_upload_session(session, options):
 
 
 def upload_file(session, file_path, object_key):
-    with open(file_path, 'rb') as f:
-        files = {'file': (object_key, f)}
-        data = session['fields'].copy()
-        data['key'] = session['key_prefix'] + object_key
-        resp = requests.post(session['url'], data=data, files=files)
+    with open(file_path, "rb") as f:
+        files = {"file": (object_key, f)}
+        data = session["fields"].copy()
+        data["key"] = session["key_prefix"] + object_key
+        resp = requests.post(session["url"], data=data, files=files)
 
     return resp
 

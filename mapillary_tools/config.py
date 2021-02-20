@@ -1,9 +1,5 @@
+import configparser as ConfigParser
 import os
-try:
-    # python2
-    import ConfigParser
-except ImportError:
-    import configparser as ConfigParser
 
 
 def load_config(config_path):
@@ -53,8 +49,14 @@ def set_user_items(config, user_name, user_items):
         try:
             config.set(user_name, key, user_items[key])
         except:
-            print("Error setting config key " + key + " with value " +
-                  str(user_items[key]) + " for user_name " + user_name)
+            print(
+                "Error setting config key "
+                + key
+                + " with value "
+                + str(user_items[key])
+                + " for user_name "
+                + user_name
+            )
     return config
 
 
@@ -69,4 +71,4 @@ def update_config(config_path, user_name, user_items):
 def create_config(config_path):
     if not os.path.isdir(os.path.dirname(config_path)):
         os.makedirs(os.path.dirname(config_path))
-    open(config_path, 'a').close()
+    open(config_path, "a").close()
