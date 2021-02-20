@@ -33,11 +33,7 @@ NUMBER_THREADS = int(os.getenv('NUMBER_THREADS', '5'))
 MAX_ATTEMPTS = int(os.getenv('MAX_ATTEMPTS', '50'))
 CLIENT_ID = os.getenv("MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh")
 DRY_RUN = bool(os.getenv('DRY_RUN', False))
-
-if os.getenv("API_PROXY_HOST", None) is None:
-    API_ENDPOINT = "https://a.mapillary.com"
-else:
-    API_ENDPOINT = "http://{}".format(os.getenv("API_PROXY_HOST"))
+API_ENDPOINT = os.getenv("API_PROXY_HOST", "https://a.mapillary.com")
 GLOBAL_CONFIG_FILEPATH = os.getenv("GLOBAL_CONFIG_FILEPATH", os.path.join(os.path.expanduser('~'), ".config", "mapillary", 'configs', CLIENT_ID))
 
 
@@ -236,7 +232,7 @@ def get_upload_token(mail, pwd):
     Get upload token
     """
     payload = {"email": mail, "password": pwd}
-    LOGIN_URL = "{}/v2/ua/login".format(API_ENDPOINT)
+    LOGIN_URL = f"{API_ENDPOINT}/v2/ua/login"
     resp = requests.post(LOGIN_URL, params={'client_id': CLIENT_ID}, json=payload)
     resp.raise_for_status()
     return resp.json().get('token')
@@ -547,8 +543,7 @@ def upload_file_list_manual(file_list, sequence_uuid, file_params, sequence_idx,
         resp = upload_api.get_upload_session(session, upload_options)
         if resp.status_code == 404:
             print('Invalid session so deleting {}'.format(session_path))
-            with open(session_path, "r") as fp:
-                os.remove(session_path)
+            os.remove(session_path)
             session = None
     else:
         session = None
