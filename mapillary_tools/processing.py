@@ -575,7 +575,9 @@ def get_final_mapillary_image_description(
             sub_command_data = load_json(sub_command_data_path)
             if not sub_command_data:
                 if verbose:
-                    print("Warning, no data read from json file " + json_file)
+                    print(
+                        "Warning, no data read from json file " + sub_command_data_path
+                    )
                 return None
 
             final_mapillary_image_description.update(sub_command_data)
@@ -762,7 +764,7 @@ def update_json(data, file_path, process):
 
 
 def get_process_file_list(
-    import_path, process, rerun=False, skip_subfolders=False, root_dir=None
+    import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None
 ):
     if not root_dir:
         root_dir = import_path
@@ -794,7 +796,12 @@ def get_process_file_list(
     return sorted(process_file_list)
 
 
-def get_process_status_file_list(import_path, process, status, skip_subfolders=False):
+def get_process_status_file_list(
+    import_path, process, status, skip_subfolders=False, root_dir=None
+):
+    if root_dir is None:
+        root_dir = import_path
+
     status_process_file_list = []
     if skip_subfolders:
         status_process_file_list.extend(

@@ -5,10 +5,7 @@ import os
 import socket
 import sys
 
-try:
-    from Queue import Queue
-except ImportError:
-    from queue import Queue
+from queue import Queue
 import threading
 import time
 import getpass
@@ -462,23 +459,23 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     upload_token = get_upload_token(user_email, user_password)
     if not upload_token:
         print(
-            "Authentication failed for user name " + user_name + ", please try again."
+            "Authentication failed for user email " + user_email + ", please try again."
         )
         sys.exit(1)
-    user_key = get_user_key(user_name)
+    user_key = get_user_key(user_email)
     if not user_key:
         print(
-            "User name {} does not exist, please try again or contact Mapillary user support.".format(
-                user_name
+            "User email {} does not exist, please try again or contact Mapillary user support.".format(
+                user_email
             )
         )
         sys.exit(1)
 
-    user_items["MAPSettingsUsername"] = section
-    user_items["MAPSettingsUserKey"] = user_key
-    user_items["user_upload_token"] = upload_token
-
-    return user_items
+    return {
+        "MAPSettingsUsername": user_email,
+        "MAPSettingsUserKey": user_key,
+        "user_upload_token": upload_token,
+    }
 
 
 def get_master_key():
@@ -635,13 +632,15 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
     # set some uploader params first
     if number_threads == None:
         number_threads = NUMBER_THREADS
+
     if max_attempts == None:
         max_attempts = MAX_ATTEMPTS
 
     # create upload queue with all files per sequence
     q = Queue()
     for filepath in file_list:
-        q.put((filepath, max_attempts, UPLOAD_PARAMS))
+        # FIXME: the third param should be session
+        q.put((filepath, max_attempts, None))
     # create uploader threads
     uploaders = [UploadThread(q) for _ in range(number_threads)]
 

@@ -26,15 +26,18 @@ def upload(
     Returns:
         Images are uploaded to Mapillary and flagged locally as uploaded.
     """
-    # sanity check if video file is passed
-    if video_import_path and (
-        not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path)
-    ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
 
     # in case of video processing, adjust the import path
     if video_import_path:
+        # sanity check if video file is passed
+        if not os.path.isdir(video_import_path) and not os.path.isfile(
+            video_import_path
+        ):
+            print(
+                "Error, video path " + video_import_path + " does not exist, exiting..."
+            )
+            sys.exit(1)
+
         # set sampling path
         video_sampling_path = "mapillary_sampled_video_frames"
         video_dirname = (
@@ -121,7 +124,7 @@ def upload(
                 )
             )
 
-            if len(direct_upload_file_list):
+            if direct_upload_file_list:
                 uploader.upload_file_list_direct(
                     direct_upload_file_list, number_threads, max_attempts
                 )
@@ -136,7 +139,7 @@ def upload(
                     max_attempts,
                 )
 
-        if len(to_finalize_file_list):
+        if to_finalize_file_list:
             params = {}
             sequences = []
             for image in to_finalize_file_list:

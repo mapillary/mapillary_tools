@@ -6,10 +6,7 @@ import urllib
 
 import requests
 
-try:
-    from Queue import Queue
-except ImportError:
-    from queue import Queue
+from queue import Queue
 import time
 import signal
 

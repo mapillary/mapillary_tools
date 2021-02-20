@@ -28,7 +28,7 @@ class ExifEdit(object):
 
     def add_orientation(self, orientation):
         """Add image orientation to image."""
-        if not orientation in range(1, 9):
+        if orientation not in range(1, 9):
             print_error(
                 "Error value for orientation, value must be in range(1,9), setting to default 1"
             )

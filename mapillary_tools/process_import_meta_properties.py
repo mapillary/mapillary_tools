@@ -34,7 +34,7 @@ def validate_type(tag_type, tag_value):
 
 def add_meta_tag(mapillary_description, tag_type, key, value):
     value = validate_type(tag_type, value)
-    if value == None:
+    if value is None:
         return
     meta_tag = {"key": key, "value": value}
     if "MAPMetaTags" in mapillary_description:

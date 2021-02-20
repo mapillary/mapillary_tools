@@ -59,7 +59,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                             #     utcdate = match.group(1)
 
                             # By default, use camera timestamp. Only use GPS Timestamp if camera was not set up correctly and date/time is wrong
-                            if use_nmea_stream_timestamp == False:
+                            if not use_nmea_stream_timestamp:
                                 if "$GPGGA" in m:
                                     match = re.search("\[([0-9]+)\]", l)
                                     if match:
@@ -81,7 +81,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                                         points.append((camera_date, lat, lon, alt))
 
                             if (
-                                use_nmea_stream_timestamp == True
+                                use_nmea_stream_timestamp
                                 or found_first_gps_date == False
                             ):
                                 if "GPRMC" in m:
@@ -98,7 +98,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                                         print(
                                             "Warning: Error in parsing gps trace to extract date information, nmea parsing failed"
                                         )
-                            if use_nmea_stream_timestamp == True:
+                            if use_nmea_stream_timestamp:
                                 if "$GPGGA" in m:
                                     try:
                                         data = pynmea2.parse(m)
@@ -124,10 +124,11 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                                         )
 
                         # If there are no points after parsing just return empty vector
-                        if points == []:
+                        if not points:
                             return []
+
                         # After parsing all points, fix timedate issues
-                        if use_nmea_stream_timestamp == False:
+                        if not use_nmea_stream_timestamp:
                             # If we use the camera timestamp, we need to get the timezone offset, since Mapillary backend expects UTC timestamps
                             first_gps_timestamp = datetime.datetime.combine(
                                 first_gps_date, first_gps_time
