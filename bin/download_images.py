@@ -1,7 +1,6 @@
-#!/usr/bin/env python
-import urllib2
-import urllib
-import json
+#!/usr/bin/env python3
+
+import requests
 import os
 import shutil
 import argparse
@@ -9,7 +8,7 @@ import argparse
 BASE_DIR = "downloaded/"
 # See https://www.mapillary.com/developer/api-documentation/
 MAPILLARY_API_IM_SEARCH_URL = "https://a.mapillary.com/v3/images?"
-MAPILLARY_API_IM_RETRIEVE_URL = "https://images.mapillary.com/"
+MAPILLARY_API_IM_RETRIEVE_URL = "https://images.mapillary.com"
 CLIENT_ID = "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
 
 
@@ -33,22 +32,16 @@ def query_search_api(min_lat, max_lat, min_lon, max_lon, max_results):
     Send query to the search API and get dict with image data.
     """
 
-    # Create URL
-    params = urllib.urlencode(
-        zip(
-            ["client_id", "bbox", "per_page"],
-            [
-                CLIENT_ID,
-                ",".join([str(min_lon), str(min_lat), str(max_lon), str(max_lat)]),
-                str(max_results),
-            ],
-        )
+    resp = requests.get(
+        MAPILLARY_API_IM_SEARCH_URL,
+        params={
+            "client_id": CLIENT_ID,
+            "bbox": ",".join([str(min_lon), str(min_lat), str(max_lon), str(max_lat)]),
+            "per_page": max_results,
+        },
     )
-    # print(MAPILLARY_API_IM_SEARCH_URL + params)
-
-    # Get data from server, then parse JSON
-    query = urllib2.urlopen(MAPILLARY_API_IM_SEARCH_URL + params).read()
-    query = json.loads(query)["features"]
+    resp.raise_for_status()
+    query = resp.json()["features"]
 
     print("Result: {0} images in area.".format(len(query)))
     return query
@@ -67,23 +60,23 @@ def download_images(query, path, size=1024):
     for im in query:
         # Use key to create url to download from and filename to save into
         key = im["properties"]["key"]
-        url = MAPILLARY_API_IM_RETRIEVE_URL + key + "/" + im_size
-        filename = key + ".jpg"
-
+        url = f"{MAPILLARY_API_IM_RETRIEVE_URL}/{key}/{im_size}"
+        filename = os.path.join(BASE_DIR, f"{key}.jpg")
         try:
             # Get image and save to disk
-            image = urllib.URLopener()
-            image.retrieve(url, os.path.join(path, filename))
-
+            resp = requests.get(url)
+            resp.raise_for_status()
+            with open(filename, "wb") as fp:
+                fp.write(resp.content)
             # Log filename and GPS location
             coords = ",".join(map(str, im["geometry"]["coordinates"]))
             im_list.append([filename, coords])
-
-            print("Successfully downloaded: {0}".format(filename))
         except KeyboardInterrupt:
             break
-        except Exception as e:
+        except requests.RequestException as e:
             print("Failed to download: {} due to {}".format(filename, e))
+
+        print("Successfully downloaded: {0}".format(filename))
 
     return im_list
 
