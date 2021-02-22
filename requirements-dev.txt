@@ -1,0 +1,5 @@
+pytest
+black
+monkeytype
+mypy
+pyinstaller

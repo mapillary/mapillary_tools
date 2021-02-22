@@ -1,25 +1,28 @@
 #!/usr/bin/env python
+import os
 from setuptools import setup
 
+here = os.path.abspath(os.path.dirname(__file__))
+
+
+def read_requirements():
+    with open('requirements.txt') as fp:
+        return [row.strip() for row in fp if row.strip()]
+
+
+about = {}
+with open(os.path.join(here, 'mapillary_tools', '__init__.py'), 'r') as f:
+    exec(f.read(), about)
+
+
 setup(name='mapillary_tools',
-      version='0.5.3',
+      version=about['VERSION'],
       description='Mapillary Image/Video Import Pipeline',
       url='https://github.com/mapillary/mapillary_tools',
       author='Mapillary',
       license='BSD',
-      python_requires='>=3',
+      python_requires='>=3.6',
       packages=['mapillary_tools', 'mapillary_tools.commands','mapillary_tools.camera_support'],
       scripts=['bin/mapillary_tools'],
-      install_requires=[
-          'exifread==2.1.2',
-          'gpxpy==0.9.8',
-          'Pillow==2.9.0',
-          'python-dateutil==2.7.3',
-          'pymp4==1.1.0',
-          'pynmea2==1.12.0',
-          'pytest==3.2.3',
-          'tqdm==2.2.4',
-          'requests==2.20.0',
-          'requests==2.20.0',
-          'pytz'
-      ])
+      install_requires=read_requirements(),
+)
