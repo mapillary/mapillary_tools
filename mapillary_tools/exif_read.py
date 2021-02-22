@@ -171,7 +171,7 @@ class ExifRead:
             capture_time = self.extract_gps_time()
             return capture_time
 
-        if capture_time is 0:
+        if capture_time == 0:
             # try interpret the filename
             try:
                 capture_time = datetime.datetime.strptime(

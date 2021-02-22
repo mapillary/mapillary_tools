@@ -100,18 +100,6 @@ def gps_speed(distance, delta_t):
     return speed
 
 
-def dms_to_decimal(degrees, minutes, seconds, hemisphere):
-    """
-    Convert from degrees, minutes, seconds to decimal degrees.
-    @author: mprins
-    """
-    dms = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
-    if hemisphere in "WwSs":
-        dms = -1 * dms
-
-    return dms
-
-
 def decimal_to_dms(value, precision):
     """
     Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF

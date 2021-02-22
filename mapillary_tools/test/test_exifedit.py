@@ -1,6 +1,6 @@
 import os
 import unittest
-from PIL import Image, ExifTags
+from PIL import Image, ExifTags, TiffImagePlugin
 from mapillary_tools.exif_write import ExifEdit
 from mapillary_tools.geo import decimal_to_dms
 import datetime
@@ -22,17 +22,22 @@ FIXED_EXIF_FILE_2 = os.path.join(data_dir, "fixed_exif_2.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
-EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in ExifTags.TAGS.iteritems()}
-EXIF_GPS_TAGS_DICT = {y: x for x, y in ExifTags.GPSTAGS.iteritems()}
+EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in ExifTags.TAGS.items()}
+EXIF_GPS_TAGS_DICT = {y: x for x, y in ExifTags.GPSTAGS.items()}
 
 
 def load_exif(filename=EMPTY_EXIF_FILE_TEST):
-
     test_image = Image.open(filename)
+    return test_image.getexif()
 
-    exif_data = test_image._getexif()
 
-    return exif_data
+def rational_to_tuple(rational):
+    if isinstance(rational, TiffImagePlugin.IFDRational):
+        return (rational.numerator, rational.denominator)
+    elif isinstance(rational, tuple):
+        return tuple(rational_to_tuple(x) for x in rational)
+    elif isinstance(rational, list):
+        return list(rational_to_tuple(x) for x in rational)
 
 
 def add_image_description_general(test_obj, filename):
@@ -99,6 +104,8 @@ def add_lat_lon_general(test_obj, filename):
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = load_exif()
+    exif_gps_info = exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]]
+
     test_obj.assertEqual(
         (
             decimal_to_dms(abs(test_latitude), precision),
@@ -107,18 +114,10 @@ def add_lat_lon_general(test_obj, filename):
             "E",
         ),
         (
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                EXIF_GPS_TAGS_DICT["GPSLatitude"]
-            ],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                EXIF_GPS_TAGS_DICT["GPSLongitude"]
-            ],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]
-            ],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]
-            ],
+            rational_to_tuple(exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitude"]]),
+            rational_to_tuple(exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitude"]]),
+            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]],
+            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]],
         ),
     )
 
@@ -156,7 +155,9 @@ def add_dop_general(test_obj, filename):
     exif_data = load_exif()
     test_obj.assertEqual(
         (test_dop * test_dop_precision, test_dop_precision),
-        exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][EXIF_GPS_TAGS_DICT["GPSDOP"]],
+        rational_to_tuple(
+            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][EXIF_GPS_TAGS_DICT["GPSDOP"]]
+        ),
     )
 
 
@@ -173,7 +174,11 @@ def add_altitude_general(test_obj, filename):
     exif_data = load_exif()
     test_obj.assertEqual(
         (test_altitude * test_altitude_precision, test_altitude_precision),
-        exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][EXIF_GPS_TAGS_DICT["GPSAltitude"]],
+        rational_to_tuple(
+            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+                EXIF_GPS_TAGS_DICT["GPSAltitude"]
+            ]
+        ),
     )
 
 
@@ -216,9 +221,11 @@ def add_direction_general(test_obj, filename):
     exif_data = load_exif()
     test_obj.assertEqual(
         (test_direction * test_direction_precision, test_direction_precision),
-        exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-            EXIF_GPS_TAGS_DICT["GPSImgDirection"]
-        ],
+        rational_to_tuple(
+            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+                EXIF_GPS_TAGS_DICT["GPSImgDirection"]
+            ]
+        ),
     )
 
 
@@ -302,15 +309,15 @@ class ExifEditTests(unittest.TestCase):
         not_empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
         exif_data = load_exif()
+
         self.assertEqual(
-            (test_altitude * test_altitude_precision, test_altitude_precision),
+            test_altitude,
             exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
                 EXIF_GPS_TAGS_DICT["GPSAltitude"]
             ],
         )
 
     def test_add_negative_lat_lon(self):
-
         test_latitude = -50.5
         test_longitude = -15.5
         precision = 1e7
@@ -321,28 +328,16 @@ class ExifEditTests(unittest.TestCase):
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
         exif_data = load_exif()
-        self.assertEqual(
-            (
-                decimal_to_dms(abs(test_latitude), precision),
-                decimal_to_dms(abs(test_longitude), precision),
-                "S",
-                "W",
-            ),
-            (
-                exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                    EXIF_GPS_TAGS_DICT["GPSLatitude"]
-                ],
-                exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                    EXIF_GPS_TAGS_DICT["GPSLongitude"]
-                ],
-                exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                    EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]
-                ],
-                exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
-                    EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]
-                ],
-            ),
+        exif_gps_info = exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]]
+
+        assert decimal_to_dms(abs(test_latitude), precision) == rational_to_tuple(
+            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitude"]]
         )
+        assert decimal_to_dms(abs(test_longitude), precision) == rational_to_tuple(
+            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitude"]]
+        )
+        assert "S" == exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]]
+        assert "W" == exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]]
 
     # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
