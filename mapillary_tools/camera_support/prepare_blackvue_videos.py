@@ -1,6 +1,5 @@
 from pymp4.parser import Box
 import io
-import sys
 
 
 def find_camera_model(videos_folder):
@@ -14,15 +13,7 @@ def find_camera_model(videos_folder):
     eof = fd.tell()
     fd.seek(0)
     while fd.tell() < eof:
-        try:
-            box = Box.parse_stream(fd)
-        except RangeError:
-            print("error parsing blackvue GPS information, exiting")
-            sys.exit(1)
-        except ConstError:
-            print("error parsing blackvue GPS information, exiting")
-            sys.exit(1)
-
+        box = Box.parse_stream(fd)
         if box.type.decode("utf-8") == "free":  # or 'ftyp':
             return box.data[29:39]
 
@@ -36,17 +27,18 @@ def apply_config_blackvue(vars_args):
 
 
 def get_blackvue_info(video_file):
+    response = {
+        "is_Blackvue_video": False,
+    }
     with open(video_file, "rb") as f:
-        response = {}
-        response["is_Blackvue_video"] = False
         first_bytes = f.read(150)
-        video_details = first_bytes.split(";")
+        video_details = first_bytes.split(b";")
         # Check if file is Blackvue video
         for idx, detail in enumerate(video_details):
-            if "Pittasoft" in detail:
+            if b"Pittasoft" in detail:
                 response["is_Blackvue_video"] = True
                 details_start = idx
-        if response["is_Blackvue_video"] == False:
+        if not response["is_Blackvue_video"]:
             return response
         response["header"] = video_details[details_start + 0]
         response["model_info"] = video_details[details_start + 1]

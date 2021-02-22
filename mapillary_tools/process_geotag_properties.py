@@ -62,7 +62,7 @@ def process_geotag_properties(
         )
 
     # sanity checks
-    if geotag_source_path == None and geotag_source != "exif":
+    if geotag_source_path is None and geotag_source != "exif":
         # if geotagging from external log file, path to the external log file
         # needs to be provided, if not, exit
         print_error(

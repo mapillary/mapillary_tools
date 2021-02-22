@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import binascii
 import datetime
 import struct

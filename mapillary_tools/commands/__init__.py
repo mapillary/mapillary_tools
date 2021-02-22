@@ -37,8 +37,6 @@ mapillary_tools_advanced_commands = [
 
 mapillary_tools_commands = [process, upload, process_and_upload]
 
-VERSION = "0.6.0"
-
 
 def add_general_arguments(parser, command):
     parser.add_argument(
@@ -58,6 +56,7 @@ def add_general_arguments(parser, command):
 
     if command == "authenticate":
         return
+
     # print out warnings
     parser.add_argument(
         "--verbose",
@@ -66,6 +65,7 @@ def add_general_arguments(parser, command):
         default=False,
         required=False,
     )
+
     # import path
     required = True
     if command in [

@@ -2,7 +2,6 @@ import hashlib
 import os
 import sys
 import threading
-import urllib
 
 import requests
 
@@ -48,10 +47,6 @@ class WorkerMonitor(threading.Thread):
 
 
 def maybe_create_dirs(image_path):
-    """
-    :param path: path to an image
-    :type path: string
-    """
     if not os.path.exists(os.path.dirname(image_path)):
         os.makedirs(os.path.dirname(image_path))
 
@@ -88,56 +83,20 @@ def get_headers_for_username(user_name):
     return {"Authorization": "Bearer {}".format(token)}
 
 
-def query_search_api(headers, **kwargs):
-    """
-    :param arg['organization_keys']: organization keys to filter results by
-    :type  arg['organization_keys']: List<string>, required
+def query_search_api(headers, **params):
+    def get_keys(resp):
+        return [f["properties"]["key"] for f in resp["features"]]
 
-    :param arg['start_time']: beginning of time range to filter results by
-    :type  arg['start_time']: string (YYYY-MM-DD), optional
-
-    :param arg['end_time']: end of time range to filter results by
-    :type arg['end_time']: string (YYYY-MM-DD), optional
-
-    :return image keys to attempt download of
-    :rtype List<string>
-    """
-    set_params = []
-    per_page = int(kwargs["per_page"])
-    for k, v in kwargs.items():
-        if v is not None:
-            if k == "private" and v == "false":
-                pass
-            else:
-                set_params.append((k, str(v)))
-
-    set_params.append(("client_id", uploader.CLIENT_ID))
-    params = urllib.urlencode(set_params)
-
+    params["client_id"] = uploader.CLIENT_ID
     # Get data from server, then parse JSON
-    keys = []
-    pages = 0
-    r = requests.get(MAPILLARY_API_IM_SEARCH_URL + params, headers=headers)
-
-    get_keys = lambda xs: map(lambda x: x["properties"]["key"], xs)
-    m = get_keys(r.json()["features"])
-
-    last_page_len = len(m)
-
-    keys = keys + m
-    print("Found: {} images".format(len(keys)))
-
-    has_next_link = last_page_len == per_page
-    while has_next_link:
-        pages += 1
-        link = r.links["next"]["url"]
-        r = requests.get(link, headers=headers)
-        mm = get_keys(r.json()["features"])
-        keys = keys + mm
-        print("Found: {} images".format(len(keys)))
-        last_page_len = len(mm)
-        has_next_link = last_page_len == per_page
-
+    r = requests.get(MAPILLARY_API_IM_SEARCH_URL, params=params, headers=headers)
+    keys = get_keys(r.json())
+    print(f"Found: {len(keys)} images")
+    while r.links.has("next"):
+        next_link = r.links["next"]["url"]
+        r = requests.get(next_link, headers=headers)
+        keys.extend(get_keys(r.json()))
+        print(f"Found: {len(keys)} images")
     return keys
 
 
@@ -203,7 +162,6 @@ def download(
 
     # fetch image keys and store basic state for downloads from bookkeeping
     # files
-    image_keys = []
     if all_file_exists:
         all_keys = all_file_obj.read().split("\n")
 
@@ -341,10 +299,7 @@ class BlurredOriginalsDownloader(threading.Thread):
             return False
 
         with open(filename, "wb") as f:
-            total_length = response.headers.get("content-length")
-
             dl = 0
-            total_length = int(total_length)
             for data in response.iter_content(chunk_size=4096):
                 dl += len(data)
                 f.write(data)

@@ -764,7 +764,12 @@ def update_json(data, file_path, process):
 
 
 def get_process_file_list(
-    import_path, process, rerun=False, verbose=False, skip_subfolders=False, root_dir=None
+    import_path,
+    process,
+    rerun=False,
+    verbose=False,
+    skip_subfolders=False,
+    root_dir=None,
 ):
     if not root_dir:
         root_dir = import_path
@@ -830,11 +835,13 @@ def get_process_status_file_list(
 
 def process_status(file_path, process, status):
     log_root = uploader.log_rootpath(file_path)
-    process_status = os.path.join(log_root, process + "_" + status)
-    return os.path.isfile(process_status)
+    status_file = os.path.join(log_root, process + "_" + status)
+    return os.path.isfile(status_file)
 
 
-def get_duplicate_file_list(import_path, skip_subfolders=False):
+def get_duplicate_file_list(import_path, skip_subfolders=False, root_dir=None):
+    if root_dir is None:
+        root_dir = import_path
     duplicate_file_list = []
     if skip_subfolders:
         duplicate_file_list.extend(
@@ -1090,8 +1097,11 @@ def user_properties_master(
         )
         return None
 
-    user_properties = {"MAPVideoSecure": master_key}
-    user_properties["MAPSettingsUsername"] = user_name
+    user_properties = {
+        "MAPVideoSecure": master_key,
+        "MAPSettingsUsername": user_name,
+    }
+
     try:
         user_key = uploader.get_user_key(user_name)
     except:
@@ -1282,8 +1292,6 @@ def interpolate_timestamp(capture_times):
     """
     timestamps = []
     num_file = len(capture_times)
-
-    time_dict = OrderedDict()
 
     if num_file < 2:
         return capture_times

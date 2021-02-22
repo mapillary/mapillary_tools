@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import datetime
 import json
 import os
@@ -97,10 +95,12 @@ class ExifRead:
             if field in self.tags:
                 if field_type is float:
                     value = eval_frac(self.tags[field].values[0])
-                if field_type is str:
+                elif field_type is str:
                     value = str(self.tags[field].values)
-                if field_type is int:
+                elif field_type is int:
                     value = int(self.tags[field].values[0])
+                else:
+                    value = None
                 return value, field
         return default, None
 

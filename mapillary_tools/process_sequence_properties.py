@@ -20,7 +20,6 @@ def finalize_sequence_processing(
     final_file_list,
     final_directions,
     final_capture_times,
-    import_path,
     verbose=False,
 ):
     for image, direction, capture_time in tqdm(
@@ -267,7 +266,6 @@ def process_sequence_properties(
                 final_file_list[i : i + MAX_SEQUENCE_LENGTH],
                 final_directions[i : i + MAX_SEQUENCE_LENGTH],
                 final_capture_times[i : i + MAX_SEQUENCE_LENGTH],
-                import_path,
                 verbose,
             )
     print("Sub process ended")

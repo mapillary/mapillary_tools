@@ -73,11 +73,9 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
 def convert_from_gps_time(gps_time, gps_week=None):
     """ Convert gps time in ticks to standard time. """
 
-    converted_gps_time = None
     gps_timestamp = float(gps_time)
 
-    if gps_week != None:
-
+    if gps_week is not None:
         # image date
         converted_gps_time = GPS_START + datetime.timedelta(
             seconds=int(gps_week) * SECS_IN_WEEK + gps_timestamp
@@ -240,15 +238,13 @@ def process_csv(
         print("No images found in the import path " + import_path)
         sys.exit(1)
 
-    if gps_week_column != None and convert_gps_time == False:
+    if gps_week_column is not None and not convert_gps_time:
         print(
             "Error, in order to parse timestamp provided as a combination of GPS week and GPS seconds, you must specify timestamp column and flag --convert_gps_time, exiting..."
         )
         sys.exit(1)
 
-    if (
-        convert_gps_time != False or convert_utc_time != False
-    ) and timestamp_column is None:
+    if (not convert_gps_time or not convert_utc_time) and timestamp_column is None:
         print(
             "Error, if specifying a flag to convert timestamp, timestamp column must be provided, exiting..."
         )
@@ -298,7 +294,7 @@ def process_csv(
 
         # get image entry index
         image_index = get_image_index(image, file_names) if file_names else idx
-        if image_index == None:
+        if image_index is None:
             print("Warning, no entry found in csv file for image " + image)
             continue
 

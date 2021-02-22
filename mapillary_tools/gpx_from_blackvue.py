@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import datetime
 import io
 import os
@@ -50,8 +48,8 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                         lines = newb.data
 
                         # Parse GPS trace
-                        for l in lines.splitlines():
-                            m = l.lstrip("[]0123456789")
+                        for line in lines.splitlines():
+                            m = line.lstrip("[]0123456789")
                             # this utc millisecond timestamp seems to be the camera's
                             # todo: unused?
                             # match = re.search('\[([0-9]+)\]', l)
@@ -61,7 +59,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                             # By default, use camera timestamp. Only use GPS Timestamp if camera was not set up correctly and date/time is wrong
                             if not use_nmea_stream_timestamp:
                                 if "$GPGGA" in m:
-                                    match = re.search("\[([0-9]+)\]", l)
+                                    match = re.search("\[([0-9]+)\]", line)
                                     if match:
                                         epoch_in_local_time = match.group(1)
 
@@ -70,7 +68,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                                     )
                                     data = pynmea2.parse(m)
                                     if data.is_valid:
-                                        if found_first_gps_time == False:
+                                        if not found_first_gps_time:
                                             first_gps_time = data.timestamp
                                             found_first_gps_time = True
                                         lat, lon, alt = (
@@ -80,21 +78,18 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                                         )
                                         points.append((camera_date, lat, lon, alt))
 
-                            if (
-                                use_nmea_stream_timestamp
-                                or found_first_gps_date == False
-                            ):
+                            if use_nmea_stream_timestamp or not found_first_gps_date:
                                 if "GPRMC" in m:
                                     try:
                                         data = pynmea2.parse(m)
                                         if data.is_valid:
                                             date = data.datetime.date()
-                                            if found_first_gps_date == False:
+                                            if not found_first_gps_date:
                                                 first_gps_date = date
-                                    except pynmea2.ChecksumError as e:
+                                    except pynmea2.ChecksumError:
                                         # There are often Checksum errors in the GPS stream, better not to show errors to user
                                         pass
-                                    except Exception as e:
+                                    except Exception:
                                         print(
                                             "Warning: Error in parsing gps trace to extract date information, nmea parsing failed"
                                         )

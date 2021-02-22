@@ -38,12 +38,7 @@ def map_images_to_sequences(destination_mapping, total_files):
     return destination_mapping
 
 
-def save_local_mapping(import_path):
-    local_mapping_filepath = os.path.join(
-        os.path.dirname(import_path),
-        import_path + "_mapillary_image_uuid_to_local_path_mapping.csv",
-    )
-
+def store_local_mapping(import_path):
     total_files = uploader.get_total_file_list(import_path)
 
     local_mapping = []
@@ -141,12 +136,18 @@ def post_process(
     if not import_path or not os.path.isdir(import_path):
         print("Error, import directory " + import_path + " does not exist, exiting...")
         sys.exit(1)
+
     if save_local_mapping:
-        local_mapping = save_local_mapping(import_path)
+        local_mapping = store_local_mapping(import_path)
+        local_mapping_filepath = os.path.join(
+            os.path.dirname(import_path),
+            import_path + "_mapillary_image_uuid_to_local_path_mapping.csv",
+        )
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
             for row in local_mapping:
                 csvwriter.writerow(row)
+
     if push_images:
         to_be_pushed_files = uploader.get_success_only_manual_upload_file_list(
             import_path, skip_subfolders
@@ -183,24 +184,28 @@ def post_process(
             import_path, skip_subfolders
         )
         to_be_uploaded_files_count = len(to_be_uploaded_files)
+
     if any([summarize, move_sequences]):
         total_files = uploader.get_total_file_list(import_path)
         total_files_count = len(total_files)
+
     if any([summarize, move_duplicates, list_file_status]):
         duplicates_file_list = processing.get_duplicate_file_list(
             import_path, skip_subfolders
         )
         duplicates_file_list_count = len(duplicates_file_list)
+
     if summarize:
-        summary_dict = {}
-        summary_dict["total images"] = total_files_count
-        summary_dict["upload summary"] = {
-            "successfully uploaded": uploaded_files_count,
-            "failed uploads": failed_upload_files_count,
-            "uploaded to be finalized": to_be_finalized_files_count,
+        summary_dict = {
+            "total images": total_files_count,
+            "upload summary": {
+                "successfully uploaded": uploaded_files_count,
+                "failed uploads": failed_upload_files_count,
+                "uploaded to be finalized": to_be_finalized_files_count,
+            },
+            "process summary": {},
         }
         # process logs
-        summary_dict["process summary"] = {}
         process_steps = [
             "user_process",
             "import_meta_process",
@@ -209,7 +214,6 @@ def post_process(
             "upload_params_process",
             "mapillary_image_description",
         ]
-        process_status = ["success", "failed"]
         for step in process_steps:
             process_success = len(
                 processing.get_process_status_file_list(
@@ -246,13 +250,15 @@ def post_process(
                         os.path.join(import_path, "mapillary_import_summary.json"), e
                     )
                 )
+
     if list_file_status:
-        status_list_dict = {}
-        status_list_dict["successfully uploaded"] = uploaded_files
-        status_list_dict["failed uploads"] = failed_upload_files
-        status_list_dict["uploaded to be finalized"] = to_be_finalized_files
-        status_list_dict["duplicates"] = duplicates_file_list
-        status_list_dict["processed_not_yet_uploaded"] = to_be_uploaded_files
+        status_list_dict = {
+            "successfully uploaded": uploaded_files,
+            "failed uploads": failed_upload_files,
+            "uploaded to be finalized": to_be_finalized_files,
+            "duplicates": duplicates_file_list,
+            "processed_not_yet_uploaded": to_be_uploaded_files,
+        }
         print("")
         print("List of file status for import path {} :".format(import_path))
         print(json.dumps(status_list_dict, indent=4))
@@ -304,8 +310,10 @@ def post_process(
                 destination_mapping[image]["basic"].append("to_be_uploaded")
             else:
                 destination_mapping[image] = {"basic": ["to_be_uploaded"]}
+
     if move_sequences:
         destination_mapping = map_images_to_sequences(destination_mapping, total_files)
+
     for image in destination_mapping:
         basic_destination = (
             destination_mapping[image]["basic"]

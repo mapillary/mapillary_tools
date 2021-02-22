@@ -120,7 +120,7 @@ def decimal_to_dms(value, precision):
     min = math.floor((value - deg) * 60)
     sec = math.floor((value - deg - min / 60) * 3600 * precision)
 
-    return ((deg, 1), (min, 1), (sec, precision))
+    return (deg, 1), (min, 1), (sec, precision)
 
 
 def gpgga_to_dms(gpgga):
@@ -233,11 +233,11 @@ def interpolate_lat_lon(points, t, max_dt=1):
 
         if t == points[0][0]:
             x = points[0]
-            return (x[1], x[2], bearing, x[3])
+            return x[1], x[2], bearing, x[3]
 
         if t == points[-1][0]:
             x = points[-1]
-            return (x[1], x[2], bearing, x[3])
+            return x[1], x[2], bearing, x[3]
     else:
         for i, point in enumerate(points):
             if t < point[0]:

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import json
 import os
 import struct
@@ -15,21 +13,22 @@ if NODE_CHANNEL_FD == -1:
 elif os.name == "nt":
 
     def __write(obj):
-        data = json.dumps(obj, separators=(",", ":")).encode("utf-8") + os.linesep
+        data = json.dumps(obj, separators=(",", ":")) + os.linesep
+        buf = data.encode("utf-8")
         # On windows, using node v8.11.4, this assertion fails
         # without sending the header
         # Assertion failed: ipc_frame.header.flags <= (UV_IPC_TCP_SERVER |
         # UV_IPC_RAW_DATA | UV_IPC_TCP_CONNECTION),
         # file src\win\pipe.c, line 1607
-        header = struct.pack("<Q", 1) + struct.pack("<Q", len(data))
-        os.write(NODE_CHANNEL_FD, header + data)
+        header = struct.pack("<Q", 1) + struct.pack("<Q", len(buf))
+        os.write(NODE_CHANNEL_FD, header + buf)
 
 
 else:
 
     def __write(obj):
-        data = json.dumps(obj, separators=(",", ":")).encode("utf-8") + os.linesep
-        os.write(NODE_CHANNEL_FD, data)
+        data = json.dumps(obj, separators=(",", ":")) + os.linesep
+        os.write(NODE_CHANNEL_FD, data.encode("utf-8"))
 
 
 def is_enabled():

@@ -4,11 +4,8 @@ import datetime
 
 from .geo import utc_to_localtime
 
-try:
-    import gpxpy
-    import pynmea2
-except ImportError as error:
-    print(error)
+import gpxpy
+import pynmea2
 
 """
 Methods for parsing gps data from various file format e.g. GPX, NMEA, SRT.

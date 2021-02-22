@@ -40,8 +40,11 @@ GLOBAL_CONFIG_FILEPATH = os.getenv(
 
 
 class UploadThread(threading.Thread):
+    q: Queue
+    total_task: int
+
     def __init__(self, queue):
-        threading.Thread.__init__(self)
+        super().__init__()
         self.q = queue
         self.total_task = self.q.qsize()
 
@@ -81,7 +84,7 @@ def get_upload_file_list(import_path, skip_subfolders=False):
             and preform_upload(import_path, file)
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             upload_file_list.extend(
@@ -104,14 +107,14 @@ def get_video_file_list(video_file, skip_subfolders=False):
         video_file_list.extend(
             os.path.join(os.path.abspath(video_file), file)
             for file in os.listdir(video_file)
-            if (file.lower().endswith((supported_files)))
+            if (file.lower().endswith(supported_files))
         )
     else:
-        for root, dir, files in os.walk(video_file):
+        for root, _, files in os.walk(video_file):
             video_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if (file.lower().endswith((supported_files)))
+                if (file.lower().endswith(supported_files))
             )
     return sorted(video_file_list)
 
@@ -127,7 +130,7 @@ def get_total_file_list(import_path, skip_subfolders=False):
             )
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             total_file_list.extend(
@@ -152,7 +155,7 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
             and failed_upload(import_path, file)
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             failed_upload_file_list.extend(
@@ -179,7 +182,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
             and success_upload(import_path, file)
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             success_upload_file_list.extend(
@@ -222,7 +225,7 @@ def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False)
             and success_only_manual_upload(import_path, file)
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             success_only_manual_upload_file_list.extend(
@@ -286,7 +289,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
             and preform_finalize(import_path, file)
         )
     else:
-        for root, dir, files in os.walk(import_path):
+        for root, _, files in os.walk(import_path):
             if os.path.join(".mapillary", "logs") in root:
                 continue
             finalize_file_list.extend(
@@ -325,8 +328,9 @@ def get_upload_token(mail, pwd):
     Get upload token
     """
     payload = {"email": mail, "password": pwd}
-    LOGIN_URL = f"{API_ENDPOINT}/v2/ua/login"
-    resp = requests.post(LOGIN_URL, params={"client_id": CLIENT_ID}, json=payload)
+    resp = requests.post(
+        f"{API_ENDPOINT}/v2/ua/login", params={"client_id": CLIENT_ID}, json=payload
+    )
     resp.raise_for_status()
     return resp.json().get("token")
 
@@ -417,8 +421,7 @@ def progress(count, total, suffix=""):
 
 
 def prompt_user_for_user_items(user_name):
-    user_items = {}
-    print("Enter user credentials for user " + user_name + " :")
+    print(f"Enter user credentials for user {user_name}:")
     user_email = input("Enter email : ")
     user_password = getpass.getpass("Enter user password : ")
     user_key = get_user_key(user_name)
@@ -428,11 +431,11 @@ def prompt_user_for_user_items(user_name):
     if not upload_token:
         return None
 
-    user_items["MAPSettingsUsername"] = user_name
-    user_items["MAPSettingsUserKey"] = user_key
-    user_items["user_upload_token"] = upload_token
-
-    return user_items
+    return {
+        "MAPSettingsUsername": user_name,
+        "MAPSettingsUserKey": user_key,
+        "user_upload_token": upload_token,
+    }
 
 
 def authenticate_user(user_name):
@@ -548,14 +551,10 @@ def upload_file(filepath, max_attempts, session):
     """
     Upload file at filepath.
     """
-
-    if max_attempts == None:
+    if max_attempts is None:
         max_attempts = MAX_ATTEMPTS
 
-    try:
-        exif_read = ExifRead(filepath)
-    except:
-        pass
+    exif_read = ExifRead(filepath)
 
     filename = os.path.basename(filepath)
 
@@ -574,7 +573,6 @@ def upload_file(filepath, max_attempts, session):
         session_fields["X-Amz-Meta-Longitude"] = lon
         session_fields["X-Amz-Meta-Compass-Angle"] = ca
         session_fields["X-Amz-Meta-Captured-At"] = captured_at
-
         session = new_session
     except:
         pass
@@ -612,6 +610,13 @@ def upload_file(filepath, max_attempts, session):
             )
             displayed_upload_error = True
             time.sleep(5)
+        except socket.timeout:
+            # Specific timeout handling for Python 2.7
+            print(
+                "Timeout error: {} (retrying), will attempt upload again for {} more times".format(
+                    filename, max_attempts - attempt - 1
+                )
+            )
         except OSError as e:
             print(
                 "OS error: {} on {}, will attempt upload again for {} more times".format(
@@ -619,21 +624,14 @@ def upload_file(filepath, max_attempts, session):
                 )
             )
             time.sleep(5)
-        except socket.timeout as e:
-            # Specific timeout handling for Python 2.7
-            print(
-                "Timeout error: {} (retrying), will attempt upload again for {} more times".format(
-                    filename, max_attempts - attempt - 1
-                )
-            )
 
 
 def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
     # set some uploader params first
-    if number_threads == None:
+    if number_threads is None:
         number_threads = NUMBER_THREADS
 
-    if max_attempts == None:
+    if max_attempts is None:
         max_attempts = MAX_ATTEMPTS
 
     # create upload queue with all files per sequence
@@ -668,9 +666,9 @@ def upload_file_list_manual(
     max_attempts=None,
 ):
     # set some uploader params first
-    if number_threads == None:
+    if number_threads is None:
         number_threads = NUMBER_THREADS
-    if max_attempts == None:
+    if max_attempts is None:
         max_attempts = MAX_ATTEMPTS
 
     first_image = list(file_params.values())[0]
@@ -726,15 +724,11 @@ def upload_file_list_manual(
         q.put((filepath, max_attempts, session))
 
     # create uploader threads
-    uploaders = [UploadThread(q) for i in range(number_threads)]
+    uploaders = [UploadThread(q) for _ in range(number_threads)]
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
-        print(
-            "Uploading {}. sequence with {} threads".format(
-                sequence_idx + 1, number_threads
-            )
-        )
+        print(f"Uploading {sequence_idx + 1}. sequence with {number_threads} threads")
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
@@ -855,8 +849,7 @@ def filter_video_before_upload(video, filter_night_time=False):
 
     if not isStationaryVid:
         gpx_points = get_points_from_bv(video)
-        gps_video_start_time = gpx_points[0][0]
-        if filter_night_time == True:
+        if filter_night_time:
             # Unsupported feature: Check if video was taken at night
             # TODO: Calculate sun incidence angle and decide based on threshold
             # angle
@@ -985,7 +978,7 @@ def send_videos_for_processing(
             hours=hours_diff_to_utc
         )
         video_start_timestamp = int(
-            (((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds()))
+            ((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())
             * 1000
         )
 
@@ -1001,10 +994,10 @@ def send_videos_for_processing(
             "video_start_time": video_start_timestamp,
         }
 
-        if organization_key != None:
+        if organization_key is not None:
             metadata["organization_key"] = organization_key
 
-        if master_upload != None:
+        if master_upload is not None:
             metadata["user_key"] = master_upload
 
         options = {
