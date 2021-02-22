@@ -25,7 +25,6 @@ UPLOAD_BUCKET = os.getenv("AWS_S3_UPLOAD_BUCKET")
 
 
 class ProcessImagesProviderTestCase(TestCase):
-
     def setUp(self):
         for file in os.listdir(images_dir):
             file_path = os.path.join(images_dir, file)
@@ -41,17 +40,20 @@ class ProcessImagesProviderTestCase(TestCase):
         self.user = User(username="mapillary_user")
         self.useFixture(UserFixture([self.user]))
 
-        config_path = "/mapillary_source/tests/.config/mapillary/configs/{}".format(CLIENT_ID)
+        config_path = "/mapillary_source/tests/.config/mapillary/configs/{}".format(
+            CLIENT_ID
+        )
 
         config.create_config(config_path)
-        config.update_config(config_path,
-                             self.user.username, self._get_user_items(self.user))
+        config.update_config(
+            config_path, self.user.username, self._get_user_items(self.user)
+        )
 
         super(ProcessImagesProviderTestCase, self).setUp()
 
     def test_images_are_uploaded(self):
-        image1_path = os.path.join(data_dir, 'data/{}'.format("DSC00497.JPG"))
-        image2_path = os.path.join(data_dir, 'data/{}'.format("DSC00001.JPG"))
+        image1_path = os.path.join(data_dir, "data/{}".format("DSC00497.JPG"))
+        image2_path = os.path.join(data_dir, "data/{}".format("DSC00001.JPG"))
 
         new_image1_path = "{}/data/images/{}".format(data_dir, "DSC00497.JPG")
         new_image2_path = "{}/data/images/{}".format(data_dir, "DSC00001.JPG")
@@ -68,10 +70,7 @@ class ProcessImagesProviderTestCase(TestCase):
 
             return any(filter(lambda f: f.key.endswith("DONE"), keys))
 
-        self.assertThat(
-            lambda: has_done_file(),
-            Eventually(Equals(True), timeout=180)
-        )
+        self.assertThat(lambda: has_done_file(), Eventually(Equals(True), timeout=180))
 
         def get_image_files():
             keys = bucket.get_all_keys(prefix=prefix)
@@ -79,14 +78,17 @@ class ProcessImagesProviderTestCase(TestCase):
             return filter(lambda f: f.key.endswith("JPG"), keys)
 
         self.assertThat(
-            lambda: len(list(get_image_files())),
-            Eventually(Equals(2), timeout=180)
+            lambda: len(list(get_image_files())), Eventually(Equals(2), timeout=180)
         )
 
     def _get_user_items(self, user):
         user_items = {}
         upload_token = self._get_upload_token(user)
-        user_permission_hash, user_signature_hash, aws_access_key_id = self._get_user_hashes(user.key, upload_token)
+        (
+            user_permission_hash,
+            user_signature_hash,
+            aws_access_key_id,
+        ) = self._get_user_hashes(user.key, upload_token)
 
         user_items["MAPSettingsUsername"] = user.username
         user_items["MAPSettingsUserKey"] = user.key
@@ -104,6 +106,8 @@ class ProcessImagesProviderTestCase(TestCase):
         return response.json()["token"]
 
     def _get_user_hashes(self, user_key, upload_token):
-        resp = requests.get(USER_UPLOAD_URL.format(user_key, CLIENT_ID),
-                            headers = {"Authorization":"Bearer " + upload_token}).json()
-        return (resp['images_policy'], resp['images_hash'], resp['aws_access_key_id'])
+        resp = requests.get(
+            USER_UPLOAD_URL.format(user_key, CLIENT_ID),
+            headers={"Authorization": "Bearer " + upload_token},
+        ).json()
+        return (resp["images_policy"], resp["images_hash"], resp["aws_access_key_id"])

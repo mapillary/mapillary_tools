@@ -1,5 +1,5 @@
 pytest
 black
-monkeytype
 mypy
 pyinstaller
+flake8

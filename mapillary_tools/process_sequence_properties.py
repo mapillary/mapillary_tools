@@ -89,7 +89,12 @@ def process_sequence_properties(
     sequences = []
     if skip_subfolders:
         process_file_list = processing.get_process_file_list(
-            import_path, "sequence_process", rerun, verbose, True, import_path
+            import_path,
+            "sequence_process",
+            rerun=rerun,
+            verbose=verbose,
+            skip_subfolders=True,
+            root_dir=import_path,
         )
         if not len(process_file_list):
             if verbose:
@@ -130,7 +135,12 @@ def process_sequence_properties(
                 continue
             if len(files):
                 process_file_list = processing.get_process_file_list(
-                    import_path, "sequence_process", rerun, verbose, True, root
+                    import_path,
+                    "sequence_process",
+                    rerun=rerun,
+                    verbose=verbose,
+                    skip_subfolders=True,
+                    root_dir=root,
                 )
                 if not len(process_file_list):
                     if verbose:

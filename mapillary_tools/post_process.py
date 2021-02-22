@@ -168,7 +168,7 @@ def post_process(
         # flag finalization for each file
         uploader.flag_finalization(to_be_pushed_files)
 
-    if any([summarize, list_file_status, move_uploaded]):
+    if summarize or list_file_status or move_uploaded:
         # upload logs
         uploaded_files = uploader.get_success_upload_file_list(
             import_path, skip_subfolders
@@ -185,11 +185,11 @@ def post_process(
         )
         to_be_uploaded_files_count = len(to_be_uploaded_files)
 
-    if any([summarize, move_sequences]):
+    if summarize or move_sequences:
         total_files = uploader.get_total_file_list(import_path)
         total_files_count = len(total_files)
 
-    if any([summarize, move_duplicates, list_file_status]):
+    if summarize or move_duplicates or list_file_status:
         duplicates_file_list = processing.get_duplicate_file_list(
             import_path, skip_subfolders
         )
@@ -280,7 +280,7 @@ def post_process(
                     )
                 )
     split_import_path = split_import_path if split_import_path else import_path
-    if any([move_sequences, move_duplicates, move_uploaded]):
+    if move_sequences or move_duplicates or move_uploaded:
         if not os.path.isdir(split_import_path):
             print("Split import path {} does not exist.".format(split_import_path))
             sys.exit(1)
