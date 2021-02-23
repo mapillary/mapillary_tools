@@ -15,6 +15,7 @@ import requests
 
 from . import processing
 from . import config
+from . import api_v3
 from .exif_read import ExifRead
 from . import upload_api
 from . import ipc
@@ -28,14 +29,12 @@ from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
-CLIENT_ID = os.getenv(
-    "MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
-)
 DRY_RUN = bool(os.getenv("DRY_RUN", False))
-API_ENDPOINT = os.getenv("API_PROXY_HOST", "https://a.mapillary.com")
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
-    os.path.join(os.path.expanduser("~"), ".config", "mapillary", "configs", CLIENT_ID),
+    os.path.join(
+        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
+    ),
 )
 
 
@@ -323,37 +322,11 @@ def print_summary(file_list):
     print("Done uploading {} images.".format(len(file_list)))  # improve upload summary
 
 
-def get_upload_token(mail, pwd):
-    """
-    Get upload token
-    """
-    payload = {"email": mail, "password": pwd}
-    resp = requests.post(
-        f"{API_ENDPOINT}/v2/ua/login", params={"client_id": CLIENT_ID}, json=payload
-    )
-    if resp.status_code == 401:
-        return None
-    resp.raise_for_status()
-    return resp.json().get("token")
-
-
-def fetch_user_organizations(user_key, auth_token):
-    headers = {"Authorization": "Bearer {}".format(auth_token)}
-    ORGANIZATIONS_URL = API_ENDPOINT + "/v3/users/{}/organizations"
-    resp = requests.get(
-        ORGANIZATIONS_URL.format(user_key),
-        params={"client_id": CLIENT_ID},
-        headers=headers,
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-
 def get_organization_key(user_key, organization_username, upload_token):
     organization_key = None
 
     organization_usernames = []
-    orgs = fetch_user_organizations(user_key, upload_token)
+    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
     for org in orgs:
         organization_usernames.append(org["name"])
         if org["name"] == organization_username:
@@ -371,7 +344,7 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    orgs = fetch_user_organizations(user_key, upload_token)
+    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
     for org in orgs:
         if org["key"] == organization_key:
             return
@@ -379,7 +352,7 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    orgs = fetch_user_organizations(user_key, upload_token)
+    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
     for org in orgs:
         if org["key"] == organization_key:
             if (
@@ -426,10 +399,10 @@ def prompt_user_for_user_items(user_name):
     print(f"Enter user credentials for user {user_name}:")
     user_email = input("Enter email: ")
     user_password = getpass.getpass("Enter user password: ")
-    user_key = get_user_key(user_name)
+    user_key = api_v3.get_user_key(user_name)
     if not user_key:
         return None
-    upload_token = get_upload_token(user_email, user_password)
+    upload_token = api_v3.get_upload_token(user_email, user_password)
     if not upload_token:
         return None
     return {
@@ -460,13 +433,13 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     """
     if user_email is None or user_password is None:
         raise ValueError("Could not authenticate user. Missing username or password")
-    upload_token = get_upload_token(user_email, user_password)
+    upload_token = api_v3.get_upload_token(user_email, user_password)
     if not upload_token:
         print(
             "Authentication failed for user email " + user_email + ", please try again."
         )
         sys.exit(1)
-    user_key = get_user_key(user_email)
+    user_key = api_v3.get_user_key(user_email)
     if not user_key:
         print(
             "User email {} does not exist, please try again or contact Mapillary user support.".format(
@@ -525,26 +498,6 @@ def set_master_key():
         )
         config.save_config(config_object, GLOBAL_CONFIG_FILEPATH)
     return master_key
-
-
-def get_user_key(user_name):
-    resp = requests.get(
-        f"{API_ENDPOINT}/v3/users", params={"client_id": CLIENT_ID, "usernames": user_name}
-    )
-    resp.raise_for_status()
-    resp = resp.json()
-    if not resp or "key" not in resp[0]:
-        print_error("Error, user name {} does not exist...".format(user_name))
-        return None
-    return resp[0]["key"]
-
-
-def get_user(jwt):
-    ME_URL = "{}/v3/me".format(API_ENDPOINT)
-    headers = {"Authorization": "Bearer {}".format(jwt)}
-    resp = requests.get(ME_URL, params={"client_id": CLIENT_ID}, headers=headers)
-    resp.raise_for_status()
-    return resp.json()
 
 
 def upload_file(filepath, max_attempts, session):
@@ -681,8 +634,6 @@ def upload_file_list_manual(
 
     upload_options = {
         "token": credentials["user_upload_token"],
-        "client_id": CLIENT_ID,
-        "endpoint": API_ENDPOINT,
     }
 
     session_path = os.path.join(
@@ -1001,9 +952,7 @@ def send_videos_for_processing(
             metadata["user_key"] = master_upload
 
         options = {
-            "api_endpoint": API_ENDPOINT,
             "token": credentials["user_upload_token"],
-            "client_id": CLIENT_ID,
         }
 
         if not DRY_RUN:

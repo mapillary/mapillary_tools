@@ -10,6 +10,7 @@ from collections import OrderedDict
 from dateutil.tz import tzlocal
 from tqdm import tqdm
 
+from . import api_v3
 from . import ipc
 from . import uploader
 from .error import print_error
@@ -1103,7 +1104,7 @@ def user_properties_master(
     }
 
     try:
-        user_key = uploader.get_user_key(user_name)
+        user_key = api_v3.get_user_key(user_name)
     except:
         print_error(
             "Error, no user key obtained for the user name "
@@ -1111,10 +1112,11 @@ def user_properties_master(
             + ", check if the user name is spelled correctly and if the master key is correct"
         )
         return None
-    if user_key:
-        user_properties["MAPSettingsUserKey"] = user_key
-    else:
+
+    if user_key is None:
         return None
+
+    user_properties["MAPSettingsUserKey"] = user_key
 
     if organization_key:
         user_properties.update({"MAPOrganizationKey": organization_key})

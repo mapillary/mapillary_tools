@@ -1,19 +1,18 @@
 import os
 import sys
 
-import mapillary_tools.config as config
+from . import api_v3
+from . import config
 from . import uploader
 
 """
 (re)authenticate
 """
-CLIENT_ID = os.getenv(
-    "MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
-)
-
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
-    os.path.join(os.path.expanduser("~"), ".config", "mapillary", "configs", CLIENT_ID),
+    os.path.join(
+        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
+    ),
 )
 
 
@@ -33,7 +32,7 @@ def edit_config(
         config.create_config(config_file)
 
     if jwt:
-        user = uploader.get_user(jwt)
+        user = api_v3.get_user(jwt)
         user_items = {
             "MAPSettingsUsername": user["username"],
             "MAPSettingsUserKey": user["key"],
@@ -77,13 +76,13 @@ def edit_config(
         config_object.add_section(user_name)
 
     if user_email and user_password:
-        user_key = uploader.get_user_key(user_name)
+        user_key = api_v3.get_user_key(user_name)
         if not user_key:
             print(
                 f"User name {user_name} does not exist, please try again or contact Mapillary user support."
             )
             sys.exit(1)
-        upload_token = uploader.get_upload_token(user_email, user_password)
+        upload_token = api_v3.get_upload_token(user_email, user_password)
         if not upload_token:
             print(f"Authentication failed for user name {user_name}, please try again.")
             sys.exit(1)

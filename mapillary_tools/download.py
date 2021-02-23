@@ -7,6 +7,7 @@ import time
 import requests
 
 from . import uploader
+from . import api_v3
 from .post_process import store_local_mapping
 
 
@@ -22,10 +23,12 @@ class BlurDownloader(threading.Thread):
         self.shutdown_flag = threading.Event()
 
     def download_file(self, image_key, filename):
-        download_url = "https://a.mapillary.com/v3/images/{}/download_original_uuid?client_id={}&token={}".format(
-            image_key, uploader.CLIENT_ID, self.token
+        response = requests.get(
+            f"{api_v3.API_ENDPOINT}/v3/images/{image_key}/download_original_uuid",
+            params={"client_id": api_v3.CLIENT_ID},
+            headers={"Authorization": f"Bearer {self.token}"},
+            stream=True,
         )
-        response = requests.get(download_url, stream=True)
 
         if response.status_code != 200:
             print("Upload status {}".format(response.status_code))

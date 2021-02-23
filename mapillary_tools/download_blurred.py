@@ -10,9 +10,7 @@ import time
 import signal
 
 from . import uploader
-
-MAPILLARY_ENDPOINT = "https://a.mapillary.com/"
-MAPILLARY_API_IM_SEARCH_URL = "{}/v3/images?".format(MAPILLARY_ENDPOINT)
+from . import api_v3
 
 
 class WorkerMonitor(threading.Thread):
@@ -87,9 +85,9 @@ def query_search_api(headers, **params):
     def get_keys(resp):
         return [f["properties"]["key"] for f in resp["features"]]
 
-    params["client_id"] = uploader.CLIENT_ID
+    params["client_id"] = api_v3.CLIENT_ID
     # Get data from server, then parse JSON
-    r = requests.get(MAPILLARY_API_IM_SEARCH_URL, params=params, headers=headers)
+    r = requests.get(f"{api_v3.API_ENDPOINT}/v3/images", params=params, headers=headers)
     keys = get_keys(r.json())
     print(f"Found: {len(keys)} images")
     while r.links.has("next"):
@@ -285,14 +283,15 @@ class BlurredOriginalsDownloader(threading.Thread):
         self.output_folder = output_folder
         self.shutdown_flag = threading.Event()
         self.worker_stats = 0
-        self.client_id = uploader.CLIENT_ID
+        self.client_id = api_v3.CLIENT_ID
 
     def download_file(self, image_key, filename):
-        download_url = "{}/v3/images/{}/download_original?client_id={}".format(
-            MAPILLARY_ENDPOINT, image_key, self.client_id
+        response = requests.get(
+            f"{api_v3.API_ENDPOINT}/v3/images/{image_key}/download_original",
+            params={"client_id": self.client_id},
+            stream=True,
+            headers=self.headers,
         )
-
-        response = requests.get(download_url, stream=True, headers=self.headers)
 
         if response.status_code != 200:
             print(response.json())
