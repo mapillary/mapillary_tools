@@ -99,14 +99,4 @@ class Command:
         )
 
     def run(self, args):
-        vars_args = vars(args)
-
-        post_process(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getargspec(post_process).args
-                }
-            )
-        )
+        post_process(**vars(args))

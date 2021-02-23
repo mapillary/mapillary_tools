@@ -395,7 +395,6 @@ class Command:
         )
 
     def run(self, args):
-
         vars_args = vars(args)
         if (
             "geotag_source" in vars_args

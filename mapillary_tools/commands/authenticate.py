@@ -43,12 +43,6 @@ class Command:
             default=False,
             required=False,
         )
-        parser.add_argument(
-            "--api_version",
-            help="Choose which Mapillary API version to use",
-            default=1.0,
-            required=False,
-        )
 
     def add_advanced_arguments(self, parser):
         pass

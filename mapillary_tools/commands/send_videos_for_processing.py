@@ -27,12 +27,6 @@ class Command:
             default=False,
             required=False,
         )
-        parser.add_argument(
-            "--api_version",
-            help="Choose which Mapillary API version to use",
-            default=1.0,
-            required=False,
-        )
         # consider having api version as string
         parser.add_argument(
             "--skip_subfolders",
@@ -103,13 +97,4 @@ class Command:
         )
 
     def run(self, args):
-        vars_args = vars(args)
-        send_videos_for_processing(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getargspec(send_videos_for_processing).args
-                }
-            )
-        )
+        send_videos_for_processing(**(vars(args)))
