@@ -23,6 +23,9 @@ setup(name='mapillary_tools',
       license='BSD',
       python_requires='>=3.6',
       packages=['mapillary_tools', 'mapillary_tools.commands','mapillary_tools.camera_support'],
-      scripts=['bin/mapillary_tools'],
+      entry_points='''
+      [console_scripts]
+      mapillary_tools=mapillary_tools.__main__:main
+      ''',
       install_requires=read_requirements(),
 )
