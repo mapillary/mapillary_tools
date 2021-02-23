@@ -36,7 +36,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Lint with black
       run: |
-        black --check mapillary_tools bin tests
+        black --check mapillary_tools tests
     - name: Test with pytest
       run: |
         pytest tests
