@@ -1,4 +1,4 @@
-from mapillary_tools.insert_MAPJson import insert_MAPJson
+from ..insert_MAPJson import insert_MAPJson
 
 
 class Command:

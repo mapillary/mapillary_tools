@@ -1,4 +1,4 @@
-from mapillary_tools.process_sequence_properties import process_sequence_properties
+from ..process_sequence_properties import process_sequence_properties
 
 
 class Command:

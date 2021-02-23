@@ -1,6 +1,6 @@
 import inspect
 
-from mapillary_tools.uploader import send_videos_for_processing
+from ..uploader import send_videos_for_processing
 
 
 class Command:

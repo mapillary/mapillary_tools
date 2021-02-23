@@ -1,7 +1,7 @@
 import inspect
 
-from mapillary_tools.post_process import post_process
-from mapillary_tools.upload import upload
+from ..post_process import post_process
+from ..upload import upload
 
 
 class Command:

@@ -1,8 +1,8 @@
 import inspect
 import sys
 
-from mapillary_tools.download import download
-from mapillary_tools.download_blurred import download as download_blurred
+from ..download import download
+from ..download_blurred import download as download_blurred
 
 
 class Command:

@@ -1,4 +1,4 @@
-from mapillary_tools.process_user_properties import process_user_properties
+from ..process_user_properties import process_user_properties
 
 
 class Command:

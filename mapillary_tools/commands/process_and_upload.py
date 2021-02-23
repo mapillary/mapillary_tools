@@ -1,15 +1,15 @@
 import inspect
 
-from mapillary_tools.insert_MAPJson import insert_MAPJson
-from mapillary_tools.post_process import post_process
-from mapillary_tools.process_geotag_properties import process_geotag_properties
-from mapillary_tools.process_import_meta_properties import (
+from ..insert_MAPJson import insert_MAPJson
+from ..post_process import post_process
+from ..process_geotag_properties import process_geotag_properties
+from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
-from mapillary_tools.process_sequence_properties import process_sequence_properties
-from mapillary_tools.process_upload_params import process_upload_params
-from mapillary_tools.process_user_properties import process_user_properties
-from mapillary_tools.upload import upload
+from ..process_sequence_properties import process_sequence_properties
+from ..process_upload_params import process_upload_params
+from ..process_user_properties import process_user_properties
+from ..upload import upload
 
 
 class Command:

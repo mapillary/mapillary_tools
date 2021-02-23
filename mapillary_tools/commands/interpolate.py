@@ -1,4 +1,4 @@
-from mapillary_tools.interpolation import interpolation
+from ..interpolation import interpolation
 
 
 class Command:

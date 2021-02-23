@@ -1,4 +1,4 @@
-from mapillary_tools.process_video import sample_video
+from ..process_video import sample_video
 
 
 class Command:

@@ -1,4 +1,4 @@
-from mapillary_tools.process_geotag_properties import process_geotag_properties
+from ..process_geotag_properties import process_geotag_properties
 
 
 class Command:

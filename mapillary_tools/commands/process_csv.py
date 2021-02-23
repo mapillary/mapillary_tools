@@ -1,4 +1,4 @@
-from mapillary_tools.process_csv import process_csv
+from ..process_csv import process_csv
 
 
 class Command:

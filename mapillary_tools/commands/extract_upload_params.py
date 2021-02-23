@@ -1,4 +1,4 @@
-from mapillary_tools.process_upload_params import process_upload_params
+from ..process_upload_params import process_upload_params
 
 
 class Command:

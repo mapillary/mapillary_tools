@@ -1,4 +1,4 @@
-from mapillary_tools.process_import_meta_properties import (
+from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
 
