@@ -331,6 +331,8 @@ def get_upload_token(mail, pwd):
     resp = requests.post(
         f"{API_ENDPOINT}/v2/ua/login", params={"client_id": CLIENT_ID}, json=payload
     )
+    if resp.status_code == 401:
+        return None
     resp.raise_for_status()
     return resp.json().get("token")
 
@@ -422,15 +424,14 @@ def progress(count, total, suffix=""):
 
 def prompt_user_for_user_items(user_name):
     print(f"Enter user credentials for user {user_name}:")
-    user_email = input("Enter email : ")
-    user_password = getpass.getpass("Enter user password : ")
+    user_email = input("Enter email: ")
+    user_password = getpass.getpass("Enter user password: ")
     user_key = get_user_key(user_name)
     if not user_key:
         return None
     upload_token = get_upload_token(user_email, user_password)
     if not upload_token:
         return None
-
     return {
         "MAPSettingsUsername": user_name,
         "MAPSettingsUserKey": user_key,
@@ -497,13 +498,13 @@ def get_master_key():
                     master_key = set_master_key()
         else:
             create_config = input(
-                "MAPAdmin section not in your global Mapillary config file, set it now?"
+                "MAPAdmin section not in your global Mapillary config file, set it now? "
             )
             if create_config in ["y", "Y", "yes", "Yes"]:
                 master_key = set_master_key()
     else:
         create_config = input(
-            "Master upload key needs to be saved in the global Mapillary config file, which does not exist, create one now?"
+            "Master upload key needs to be saved in the global Mapillary config file, which does not exist, create one now? "
         )
         if create_config in ["y", "Y", "yes", "Yes"]:
             config.create_config(GLOBAL_CONFIG_FILEPATH)
@@ -517,7 +518,7 @@ def set_master_key():
     section = "MAPAdmin"
     if section not in config_object.sections():
         config_object.add_section(section)
-    master_key = input("Enter the master key : ")
+    master_key = input("Enter the master key: ")
     if master_key != "":
         config_object = config.set_user_items(
             config_object, section, {"MAPILLARY_SECRET_HASH": master_key}
@@ -527,9 +528,8 @@ def set_master_key():
 
 
 def get_user_key(user_name):
-    USER_URL = API_ENDPOINT + "/v3/users"
     resp = requests.get(
-        USER_URL, params={"client_id": CLIENT_ID, "usernames": user_name}
+        f"{API_ENDPOINT}/v3/users", params={"client_id": CLIENT_ID, "usernames": user_name}
     )
     resp.raise_for_status()
     resp = resp.json()

@@ -1,11 +1,11 @@
-import configparser as ConfigParser
+import configparser
 import os
 
 
 def load_config(config_path):
     config = None
     if os.path.isfile(config_path):
-        config = ConfigParser.ConfigParser()
+        config = configparser.ConfigParser()
         try:
             config.optionxform = str
             config.read(config_path)
