@@ -68,7 +68,7 @@ def store_local_mapping(import_path):
             description_string = image_exif.extract_image_description()
             try:
                 image_description = json.loads(description_string)
-            except json.JSONDecoder:
+            except json.JSONDecodeError:
                 raise RuntimeError(
                     f"Error JSON decoding image description {description_string} from {file}"
                 )
