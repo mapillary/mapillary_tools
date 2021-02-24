@@ -1,6 +1,4 @@
-pip install -r requirements.txt
-pip install pyinstaller==3.6
-pyinstaller --distpath dist\win --onefile --windowed mapillary_tools.spec 
+pyinstaller --noconfirm --distpath dist\win --onefile --windowed mapillary_tools.spec
 
 mkdir publish\win
 xcopy dist\win\mapillary_tools.exe publish\win\

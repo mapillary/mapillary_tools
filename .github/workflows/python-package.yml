@@ -40,3 +40,15 @@ jobs:
     - name: Test with pytest
       run: |
         pytest tests
+    - name: Build with Pyinstaller on MacOS
+      run: |
+        ./script/build_osx
+      if: matrix.os == 'macos-latest'
+    - name: Build with Pyinstaller on Ubuntu
+      run: |
+        ./script/build
+      if: matrix.os == 'ubuntu-latest'
+    - name: Build with Pyinstaller on Windows
+      run: |
+        ./script/build_win.bat
+      if: matrix.os == 'windows-latest'
