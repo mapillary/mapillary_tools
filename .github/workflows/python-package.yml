@@ -43,12 +43,12 @@ jobs:
     - name: Build with Pyinstaller on MacOS
       run: |
         ./script/build_osx
-      if: matrix.os == 'macos-latest'
+      if: matrix.platform == 'macos-latest'
     - name: Build with Pyinstaller on Ubuntu
       run: |
         ./script/build
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.platform == 'ubuntu-latest'
     - name: Build with Pyinstaller on Windows
       run: |
         ./script/build_win.bat
-      if: matrix.os == 'windows-latest'
+      if: matrix.platform == 'windows-latest'
