@@ -19,12 +19,17 @@ def map_images_to_sequences(destination_mapping, total_files):
     ):
         log_root = uploader.log_rootpath(image)
         sequence_data_path = os.path.join(log_root, "sequence_process.json")
-        sequence_uuid = ""
-        sequence_data = None
+
         if os.path.isfile(sequence_data_path):
             sequence_data = processing.load_json(sequence_data_path)
+        else:
+            sequence_data = None
+
         if sequence_data and "MAPSequenceUUID" in sequence_data:
             sequence_uuid = sequence_data["MAPSequenceUUID"]
+        else:
+            sequence_uuid = ""
+
         if sequence_uuid:
             if sequence_uuid not in unique_sequence_uuids:
                 sequence_counter += 1
@@ -35,6 +40,7 @@ def map_images_to_sequences(destination_mapping, total_files):
                 destination_mapping[image] = {"sequence": str(sequence_counter)}
         else:
             print(f"MAPSequenceUUID could not be read for image {image}")
+
     return destination_mapping
 
 
@@ -59,7 +65,13 @@ def store_local_mapping(import_path):
                 )
         else:
             image_exif = exif_read.ExifRead(file)
-            image_description = json.loads(image_exif.extract_image_description())
+            description_string = image_exif.extract_image_description()
+            try:
+                image_description = json.loads(description_string)
+            except json.JSONDecoder:
+                raise RuntimeError(
+                    f"Error JSON decoding image description {description_string} from {file}"
+                )
             if "MAPPhotoUUID" in image_description:
                 image_file_uuid = str(image_description["MAPPhotoUUID"])
             else:
@@ -139,7 +151,8 @@ def post_process(
         local_mapping = store_local_mapping(import_path)
         local_mapping_filepath = os.path.join(
             os.path.dirname(import_path),
-            import_path + "_mapillary_image_uuid_to_local_path_mapping.csv",
+            os.path.basename(import_path)
+            + "_mapillary_image_uuid_to_local_path_mapping.csv",
         )
         with open(local_mapping_filepath, "w") as csvfile:
             csvwriter = csv.writer(csvfile, delimiter=",")
