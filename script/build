@@ -1,14 +1,7 @@
 #!/bin/bash
 set -e
 
-/usr/local/bin/virtualenv venv
-source venv/bin/activate
-pip install pyinstaller 
-pip install -r requirements.txt
-
-pyinstaller --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
-
-deactivate
+pyinstaller --noconfirm --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
 
 mkdir -p publish/
 mv dist/osx publish

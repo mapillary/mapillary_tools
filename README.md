@@ -1,12 +1,12 @@
-[![Build Status](https://travis-ci.org/mapillary/mapillary_tools.svg?branch=master)](https://travis-ci.org/mapillary/mapillary_tools)
-
 ## Mapillary Tools
 
 Mapillary Tools is a library for processing and uploading images to [Mapillary](https://www.mapillary.com/).
 
 <!--ts-->
-   
-   * [Package Installation](#package-installation)
+
+   * [Package Installation (Python3)](#package-installation-python3)
+   * [Development (Python3)](#development-python3)
+   * [Package Installation (Python2)](#package-installation-python2)
    * [Requirements](#requirements)
    * [Usage](#usage)
    * [Advanced Usage](#advanced-usage)
@@ -17,7 +17,51 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
    
 <!--te-->
 
-## Package Installation
+## Package Installation (Python3)
+Python 3 (3.6 and above) and git are required:
+
+```bash
+python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools@fix-upload
+```
+
+## Development (Python3)
+
+Clone the repository:
+```bash
+git clone --branch=fix-upload git@github.com:mapillary/mapillary_tools.git
+cd mapillary_tools
+```
+
+Set up the virtual environment. It is optional but recommended:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+# verify if the venv is activated
+which python3
+```
+
+Install dependencies:
+```
+python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements-dev.txt
+```
+
+Run the code from the repository:
+```
+python3 -m mapillary_tools --version
+```
+
+Run tests:
+```
+pytest tests
+```
+
+Run linting:
+```
+black mapillary_tools tests
+```
+
+## Package Installation (Python2)
 
 Now you can download the full Mapillary Tools library in one click.  Once on your system, start the command prompt or terminal and refer to the location where the mapillary_tools package is located.
 
@@ -467,34 +511,17 @@ mapillary_tools video_process --import_path "path/to/images" --video_import_path
 
 ## Custom Installation 
 
-### Dependencies
-
-* [exifread]
-* [gpxpy]
-* [PIL]
-* [pymp4]
-* [tqdm]
-* [requests]
-* [Piexif]
-
 Note that we're using a fork of the original [Piexif](https://github.com/hMatoba/Piexif), which needs to be installed separately. The rest of dependencies are installed along with the tools.
 
 ### Custom Setup
 
-You will need to have [python=2.7.x](https://www.python.org/downloads/release/python-2715/), [pip>=10.0.1](https://pip.pypa.io/en/stable/installing/) and [git](https://git-scm.com/downloads) installed. Then you need to 
-
-#### Install Piexif
-`mapillary_tools` uses a fork of the original Piexif which needs to be installed by running:
-
-	pip install git+https://github.com/mapillary/Piexif
+You will need to have [python>=3.6](https://www.python.org/downloads/), and [git](https://git-scm.com/downloads) installed. Then you need to
 
 #### Install Mapillary Tools
 
 To install `mapillary_tools` on macOS, Ubuntu, or Windows, run:
 
 	pip install --upgrade git+https://github.com/mapillary/mapillary_tools
-
-which will enable processing and uploading of images. Note that the commands should either be run in [`virtualenv`](https://virtualenv.pypa.io/en/stable/installation/) or as `sudo`.
 
 ### Video Support
 
@@ -518,7 +545,7 @@ brew install ffmpeg
 To install `ffmpeg` on Ubuntu:
 
 ```bash
-sudo apt-get install ffmpeg
+sudo apt install ffmpeg
 ```
 
 ### Execution
@@ -619,4 +646,3 @@ python download_images.py min_lat max_lat min_lon max_lon [--max_results=(max_re
 [tqdm]: https://github.com/tqdm/tqdm
 
 [requests]: https://github.com/requests/requests
-

@@ -1,11 +1,7 @@
-/usr/local/bin/virtualenv venv
-source venv/bin/activate
-pip install pyinstaller 
-pip install -r requirements.txt
+#!/bin/bash
+set -e
 
-pyinstaller --onefile --windowed mapillary_tools.spec
-
-deactivate
+pyinstaller --noconfirm --onefile --windowed mapillary_tools.spec
 
 if [ "$BRANCH_NAME" = "master" ]; then
     zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README_osx_package.txt
