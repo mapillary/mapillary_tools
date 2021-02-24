@@ -163,7 +163,9 @@ def test_authenticate():
     pass
 
 
-@pytest.mark.skip("skip because no images in the data directory missing geotags, exiting...")
+@pytest.mark.skip(
+    "skip because no images in the data directory missing geotags, exiting..."
+)
 def test_interpolate_missing_gps(setup_config, setup_data):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
     x = subprocess.run(
