@@ -1,5 +1,3 @@
-import inspect
-
 from ..post_process import post_process
 
 
@@ -17,16 +15,6 @@ class Command:
         )
 
     def add_advanced_arguments(self, parser):
-        # video file
-        parser.add_argument(
-            "--video_file",
-            help="Provide the path to a video file or a directory containing a set of Blackvue video files.",
-            action="store",
-            required=False,
-            default=None,
-        )
-
-        # post process
         parser.add_argument(
             "--summarize",
             help="Summarize import for given import path.",
