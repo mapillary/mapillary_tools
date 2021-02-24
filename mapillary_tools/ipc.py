@@ -43,8 +43,8 @@ def send(type, payload):
     try:
         __write(obj)
     except Exception as e:
-        print("IPC error for: %s" % obj)
-        print("Error: %s" % e)
+        print(f"IPC error for: {obj}")
+        print(f"Error: {e}")
 
 
 def send_error(message):

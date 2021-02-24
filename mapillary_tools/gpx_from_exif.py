@@ -10,23 +10,19 @@ def get_points_from_exif(file_list, verbose=False):
             exif = exif_read.ExifRead(file)
         except:
             if verbose:
-                print("Warning, EXIF could not be read for image {}.".format(file))
+                print(f"Warning, EXIF could not be read for image {file}.")
             continue
         try:
             lon, lat = exif.extract_lon_lat()
         except:
             if verbose:
-                print(
-                    "Warning {} image latitude or longitude tag not in EXIF.".format(
-                        file
-                    )
-                )
+                print(f"Warning {file} image latitude or longitude tag not in EXIF.")
             continue
         try:
             timestamp = exif.extract_capture_time()
         except:
             if verbose:
-                print("Warning {} image capture time tag not in EXIF.".format(file))
+                print(f"Warning {file} image capture time tag not in EXIF.")
             continue
         if lon is not None and lat is not None and timestamp is not None:
             point = point + (timestamp, lat, lon)

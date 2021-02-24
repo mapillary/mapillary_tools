@@ -22,14 +22,7 @@ def timestamp_from_filename(
     video_filename, filename, start_time, interval=2.0, adjustment=1.0
 ):
     seconds = (
-        (
-            int(
-                filename.rstrip(".jpg")
-                .replace("{}_".format(video_filename), "")
-                .lstrip("0")
-            )
-            - 1
-        )
+        (int(filename.rstrip(".jpg").replace(f"{video_filename}_", "").lstrip("0")) - 1)
         * interval
         * adjustment
     )
@@ -101,16 +94,14 @@ def sample_video(
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
-        print("Video sampling path set to {}".format(per_video_import_path))
+        print(f"Video sampling path set to {per_video_import_path}")
         # check video logs
         video_upload = processing.video_upload(
             video_import_path, per_video_import_path, verbose
         )
         if video_upload:
             print(
-                "Video {} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary.".format(
-                    video
-                )
+                f"Video {video} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary."
             )
 
         extract_frames(
@@ -135,7 +126,7 @@ def extract_frames(
 ):
     if verbose:
         # INFO LOG
-        print("extracting frames from {}".format(video_file))
+        print(f"extracting frames from {video_file}")
 
     video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
@@ -146,15 +137,13 @@ def extract_frames(
         "-loglevel",
         "quiet",
         "-vf",
-        "fps=1/{}".format(video_sample_interval),
+        f"fps=1/{video_sample_interval}",
         "-qscale",
         "1",
         "-nostdin",
     ]
 
-    command.append(
-        "{}_%0{}d.jpg".format(os.path.join(import_path, video_filename), ZERO_PADDING)
-    )
+    command.append(f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg")
     try:
         subprocess.call(command)
     except OSError as e:
@@ -163,11 +152,7 @@ def extract_frames(
         sys.exit(1)
     except Exception as e:
         # ERROR LOG
-        print(
-            "Error, could not extract frames from video {} due to {}".format(
-                video_file, e
-            )
-        )
+        print(f"Error, could not extract frames from video {video_file} due to {e}")
         sys.exit(1)
 
     if video_start_time:
@@ -198,9 +183,7 @@ def get_video_duration(video_file):
     try:
         return float(FFProbe(video_file).video[0].duration)
     except Exception as e:
-        print(
-            "could not extract duration from video {} due to {}".format(video_file, e)
-        )
+        print(f"could not extract duration from video {video_file} due to {e}")
         return None
 
 
@@ -243,7 +226,7 @@ def insert_video_frame_timestamp(
 def get_video_end_time(video_file):
     """Get video end time in seconds"""
     if not os.path.isfile(video_file):
-        print("Error, video file {} does not exist".format(video_file))
+        print(f"Error, video file {video_file} does not exist")
         return None
     try:
         time_string = FFProbe(video_file).video[0].creation_time
@@ -259,7 +242,7 @@ def get_video_end_time(video_file):
 def get_video_start_time(video_file):
     """Get start time in seconds"""
     if not os.path.isfile(video_file):
-        print("Error, video file {} does not exist".format(video_file))
+        print(f"Error, video file {video_file} does not exist")
         return None
     video_end_time = get_video_end_time(video_file)
     duration = get_video_duration(video_file)

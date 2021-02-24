@@ -15,7 +15,7 @@ def set_video_as_uploaded(video):
     # Move GPX file
     basename = os.path.basename(video)
     video_key = os.path.splitext(basename)[0]
-    gpx_filename = "{}.gpx".format(video_key)
+    gpx_filename = f"{video_key}.gpx"
     gpx_path = os.path.join(current_base_path, gpx_filename)
     new_gpx_path = os.path.join(new_base_path, gpx_filename)
     os.rename(gpx_path, new_gpx_path)

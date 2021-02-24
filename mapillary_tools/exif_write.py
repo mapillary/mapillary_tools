@@ -95,11 +95,7 @@ class ExifEdit(object):
         try:
             self._ef[main_key][tag_key] = value
         except:
-            print(
-                "could not set tag {} under {} with value {}".format(
-                    tag_key, main_key, value
-                )
-            )
+            print(f"could not set tag {tag_key} under {main_key} with value {value}")
 
     def write(self, filename=None):
         """Save exif data to file."""

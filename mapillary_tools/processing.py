@@ -91,9 +91,7 @@ def geotag_from_exif(
                 raise Exception
         except Exception as e:
             print_error(
-                "Error, failed extracting data from exif due to {}, exiting...".format(
-                    e
-                )
+                f"Error, failed extracting data from exif due to {e}, exiting..."
             )
             raise e
 
@@ -155,9 +153,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
         )[:-3]
     except:
         print_error(
-            "Error, {} image capture time tag incorrect format. Geotagging process failed for this image, since this is required information.".format(
-                image
-            )
+            f"Error, {image} image capture time tag incorrect format. Geotagging process failed for this image, since this is required information."
         )
         return None
 
@@ -208,9 +204,7 @@ def geotag_from_gopro_video(
                 raise Exception
         except Exception as e:
             print_error(
-                "Error, failed extracting data from gopro geotag source path {} due to {}, exiting...".format(
-                    gopro_video, e
-                )
+                f"Error, failed extracting data from gopro geotag source path {gopro_video} due to {e}, exiting..."
             )
             continue
 
@@ -222,9 +216,7 @@ def geotag_from_gopro_video(
 
         if not len(process_file_sublist):
             print_error(
-                "Error, no video frames extracted for video file {} in import_path {}".format(
-                    gopro_video, import_path
-                )
+                f"Error, no video frames extracted for video file {gopro_video} in import_path {import_path}"
             )
             create_and_log_process_in_list(
                 process_file_sublist, "geotag_process" "failed", verbose
@@ -270,9 +262,7 @@ def geotag_from_blackvue_video(
                 raise Exception
         except Exception as e:
             print_error(
-                "Error, failed extracting data from blackvue geotag source path {} due to {}, exiting...".format(
-                    blackvue_video, e
-                )
+                f"Error, failed extracting data from blackvue geotag source path {blackvue_video} due to {e}, exiting..."
             )
         if is_stationary_video:
             print_error("Warning: Skipping stationary video")
@@ -285,9 +275,7 @@ def geotag_from_blackvue_video(
 
         if not len(process_file_sublist):
             print_error(
-                "Error, no video frames extracted for video file {} in import_path {}".format(
-                    blackvue_video, import_path
-                )
+                f"Error, no video frames extracted for video file {blackvue_video} in import_path {import_path}"
             )
             create_and_log_process_in_list(
                 process_file_sublist, "geotag_process" "failed", verbose
@@ -322,9 +310,7 @@ def geotag_from_gps_trace(
     if local_time:
         now = datetime.datetime.now(tzlocal())
         print(
-            "Your local timezone is {0}. If not, the geotags will be wrong.".format(
-                now.strftime("%Y-%m-%d %H:%M:%S %Z")
-            )
+            f"Your local timezone is {now.strftime('%Y-%m-%d %H:%M:%S %Z')}. If not, the geotags will be wrong."
         )
     else:
         # if not local time to be used, warn UTC will be used
@@ -351,9 +337,7 @@ def geotag_from_gps_trace(
 
     if not gps_trace:
         print_error(
-            "Error, gps trace file {} was not read, images can not be geotagged.".format(
-                geotag_source_path
-            )
+            f"Error, gps trace file {geotag_source_path} was not read, images can not be geotagged."
         )
         create_and_log_process_in_list(
             process_file_list, "geotag_process", "failed", verbose
@@ -389,9 +373,7 @@ def get_geotag_properties_from_gps_trace(
         lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace, capture_time)
     except Exception as e:
         print(
-            "Warning, {}, interpolation of latitude and longitude failed for image {}".format(
-                e, image
-            )
+            f"Warning, {e}, interpolation of latitude and longitude failed for image {image}"
         )
         return None
 
@@ -403,7 +385,7 @@ def get_geotag_properties_from_gps_trace(
             "MAPLongitude": lon,
         }
     else:
-        print("Warning, invalid latitude and longitude for image {}".format(image))
+        print(f"Warning, invalid latitude and longitude for image {image}")
         return None
 
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
@@ -507,7 +489,7 @@ def get_upload_param_properties(
     }
 
     x = base64.b64encode(image.encode("utf-8")).decode("utf-8")
-    s = "%s%s%s" % (user_upload_token, user_key, x)
+    s = f"{user_upload_token}{user_key}{x}"
     settings_upload_hash = hashlib.sha256(s.encode("utf-8")).hexdigest()
     save_json(
         {"MAPSettingsUploadHash": settings_upload_hash},
@@ -546,7 +528,7 @@ def get_final_mapillary_image_description(
             os.path.isfile(sub_command_status)
             and sub_command != "import_meta_data_process"
         ):
-            print("Warning, required {} failed for image ".format(sub_command) + image)
+            print(f"Warning, required {sub_command} failed for image " + image)
             return None
 
         sub_command_data_path = os.path.join(log_root, sub_command + ".json")
@@ -561,9 +543,7 @@ def get_final_mapillary_image_description(
                 continue
             else:
                 print(
-                    "Warning, required {} did not result in a valid json file for image ".format(
-                        sub_command
-                    )
+                    f"Warning, required {sub_command} did not result in a valid json file for image "
                     + image
                 )
                 return None
@@ -927,9 +907,7 @@ def video_upload(video_file, import_path, verbose=False):
         import_paths.append(import_path)
     else:
         print(
-            "Warning, {} has already been sampled into {}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect".format(
-                video_file, import_path
-            )
+            f"Warning, {video_file} has already been sampled into {import_path}, please make sure all the previously sampled frames are deleted, otherwise the alignment might be incorrect"
         )
     for video_import_path in import_paths:
         if os.path.isdir(video_import_path):
@@ -1030,9 +1008,7 @@ def create_and_log_process(
         if os.path.isfile(log_MAPJson):
             if verbose:
                 print(
-                    "Warning, {} in this run has failed, previously generated properties will be removed.".format(
-                        process
-                    )
+                    f"Warning, {process} in this run has failed, previously generated properties will be removed."
                 )
             os.remove(log_MAPJson)
 
@@ -1156,9 +1132,7 @@ def inform_processing_start(
 ):
     total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
     print(
-        "Running {} for {} images, skipping {} images.".format(
-            process, len_process_file_list, len(total_file_list) - len_process_file_list
-        )
+        f"Running {process} for {len_process_file_list} images, skipping {len(total_file_list) - len_process_file_list} images."
     )
 
 
@@ -1265,18 +1239,11 @@ def split_sequences(
                 if verbose:
                     if cut_distance:
                         print(
-                            "Cut {}: Delta in distance {} meters is bigger than cutoff_distance {} meters at {}".format(
-                                cut, distances[i], cutoff_distance, file_list[i + 1]
-                            )
+                            f"Cut {cut}: Delta in distance {distances[i]} meters is bigger than cutoff_distance {cutoff_distance} meters at {file_list[i + 1]}"
                         )
                     elif cut_time:
                         print(
-                            "Cut {}: Delta in time {} seconds is bigger then cutoff_time {} seconds at {}".format(
-                                cut,
-                                capture_deltas[i].total_seconds(),
-                                cutoff_time,
-                                file_list[i + 1],
-                            )
+                            f"Cut {cut}: Delta in time {capture_deltas[i].total_seconds()} seconds is bigger then cutoff_time {cutoff_time} seconds at {file_list[i + 1]}"
                         )
             else:
                 # delta not too big, continue with current
@@ -1343,5 +1310,5 @@ def get_images_geotags(process_file_list):
         if timestamp and (not lon or not lat):
             missing_geotags.append((image, timestamp))
         else:
-            print_error("Error image {} does not have captured time.".format(image))
+            print_error(f"Error image {image} does not have captured time.")
     return geotags, missing_geotags

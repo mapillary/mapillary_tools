@@ -24,9 +24,7 @@ def validate_type(tag_type, tag_value):
             tag_value = META_DATA_TYPES[tag_type](tag_value)
         except:
             print_error(
-                "Error, meta value {} can not be casted to the specified type {} and will therefore not be added.".format(
-                    tag_type, tag_value
-                )
+                f"Error, meta value {tag_type} can not be casted to the specified type {tag_value} and will therefore not be added."
             )
             return None
     return tag_value

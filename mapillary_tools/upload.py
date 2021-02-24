@@ -117,9 +117,7 @@ def upload(
             # from upload
 
             print(
-                "Uploading {} images with valid mapillary tags (Skipping {})".format(
-                    len(upload_file_list), len(total_file_list) - len(upload_file_list)
-                )
+                f"Uploading {len(upload_file_list)} images with valid mapillary tags (Skipping {len(total_file_list) - len(upload_file_list)})"
             )
 
             if direct_upload_file_list:

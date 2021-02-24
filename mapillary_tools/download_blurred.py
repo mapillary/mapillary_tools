@@ -33,14 +33,14 @@ class WorkerMonitor(threading.Thread):
             for index, worker in enumerate(self.threads):
                 stats = worker.worker_stats
                 total += stats
-                message += "T{}: {}/{} ".format(index, stats, self.q.maxsize)
+                message += f"T{index}: {stats}/{self.q.maxsize} "
 
-            output = message + "Total: {}/{}\r".format(total, self.q.maxsize)
+            output = message + f"Total: {total}/{self.q.maxsize}\r"
             sys.stdout.write(output)
             sys.stdout.flush()
 
             if self.q.empty():
-                sys.stdout.write("\nTotal: {}\n".format(self.q.maxsize))
+                sys.stdout.write(f"\nTotal: {self.q.maxsize}\n")
                 self.shutdown_flag.set()
 
 
@@ -78,7 +78,7 @@ def get_headers_for_username(user_name):
     :rtype { 'Authrization': string } or Exception/None
     """
     token = get_token(user_name)
-    return {"Authorization": "Bearer {}".format(token)}
+    return {"Authorization": f"Bearer {token}"}
 
 
 def query_search_api(headers, **params):
@@ -146,16 +146,16 @@ def download(
     save_path = download_id
 
     # create most of the bookkeeping files
-    all_file = "{}_all.txt".format(save_path)
+    all_file = f"{save_path}_all.txt"
     all_file_exists = os.path.isfile(all_file)
     all_file_obj = (
         open(all_file, "r") if all_file_exists is True else open(all_file, "a+")
     )
 
-    done_file = "{}_done.txt".format(save_path)
+    done_file = f"{save_path}_done.txt"
     done_file_exists = os.path.isfile(done_file)
 
-    err_file = "{}_err.txt".format(save_path)
+    err_file = f"{save_path}_err.txt"
     err_file_exists = os.path.isfile(err_file)
 
     # fetch image keys and store basic state for downloads from bookkeeping
@@ -178,9 +178,7 @@ def download(
         set_err = set(err_keys)
 
         diff = list(set_all.difference(set_done).difference(set_err))
-        print(
-            "Download {} continued: {}/{}".format(download_id, len(diff), len(all_keys))
-        )
+        print(f"Download {download_id} continued: {len(diff)}/{len(all_keys)}")
 
         image_keys = diff
         done_file_obj.close()
@@ -209,9 +207,7 @@ def download(
 
     if len(image_keys) == 0:
         print(
-            "All images downloaded for this query. Remove the {}/all/err files to re-download.".format(
-                download_id
-            )
+            f"All images downloaded for this query. Remove the {download_id}/all/err files to re-download."
         )
         return
 
@@ -257,10 +253,10 @@ def download(
 
         for t in threads:
             t.join()
-            print("INFO: Thread stopped {}".format(t))
+            print(f"INFO: Thread stopped {t}")
 
         monitor.join()
-        print("INFO: Thread stopped {}".format(monitor))
+        print(f"INFO: Thread stopped {monitor}")
 
         all_file_obj.close()
         done_file_obj.close()
@@ -313,9 +309,7 @@ class BlurredOriginalsDownloader(threading.Thread):
 
             current_image_key = self.queue.get_nowait()
 
-            image_path = os.path.join(
-                self.output_folder, "{}.jpg".format(current_image_key)
-            )
+            image_path = os.path.join(self.output_folder, f"{current_image_key}.jpg")
 
             maybe_create_dirs(image_path)
 

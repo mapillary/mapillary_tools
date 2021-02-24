@@ -184,7 +184,7 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
                     meta, tag_type, tag_key, tag_value
                 )
             except:
-                print("Error, meta data {} could not be extracted.".format(tag_key))
+                print(f"Error, meta data {tag_key} could not be extracted.")
     return meta
 
 

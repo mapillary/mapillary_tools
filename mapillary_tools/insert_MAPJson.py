@@ -29,7 +29,7 @@ def insert_MAPJson(
         and not os.path.isdir(video_import_path)
         and not os.path.isfile(video_import_path)
     ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
+        print(f"Error, video path {video_import_path} does not exist, exiting...")
         sys.exit(1)
 
     # in case of video processing, adjust the import path
@@ -49,9 +49,7 @@ def insert_MAPJson(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print_error(
-            "Error, import directory " + import_path + " does not exist, exiting..."
-        )
+        print_error(f"Error, import directory {import_path} does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process

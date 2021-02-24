@@ -119,7 +119,7 @@ def gpgga_to_dms(gpgga):
     """
     deg_min, dmin = gpgga.split(".")
     degrees = int(deg_min[:-2])
-    minutes = float("%s.%s" % (deg_min[-2:], dmin))
+    minutes = float(f"{deg_min[-2:]}.{dmin}")
     decimal = degrees + (minutes / 60)
     return decimal
 
@@ -203,13 +203,9 @@ def interpolate_lat_lon(points, t, max_dt=1):
         else:
             dt = (t - points[-1][0]).total_seconds()
         if dt > max_dt:
-            raise ValueError("time t not in scope of gpx file by {} seconds".format(dt))
+            raise ValueError(f"time t not in scope of gpx file by {dt} seconds")
         else:
-            print(
-                "time t not in scope of gpx file by {} seconds, extrapolating...".format(
-                    dt
-                )
-            )
+            print(f"time t not in scope of gpx file by {dt} seconds, extrapolating...")
 
         if t < points[0][0]:
             before = points[0]

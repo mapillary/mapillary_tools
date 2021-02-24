@@ -110,7 +110,7 @@ class ExifRead:
         """
         lat, lon, ca, captured_at = self.exif_properties()
 
-        filename = "{}_{}_{}_{}_{}".format(lat, lon, ca, captured_at, uuid.uuid4())
+        filename = f"{lat}_{lon}_{ca}_{captured_at}_{uuid.uuid4()}"
 
         return filename
 
@@ -403,9 +403,7 @@ class ExifRead:
                     vflag = True
             if not vflag:
                 print(
-                    "Missing required EXIF tag: {0} for image {1}".format(
-                        rexif[0], self.filename
-                    )
+                    f"Missing required EXIF tag: {rexif[0]} for image {self.filename}"
                 )
                 return False
         return True

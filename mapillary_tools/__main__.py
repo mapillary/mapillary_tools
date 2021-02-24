@@ -72,7 +72,7 @@ def main():
         ]
         for subparsers_action in subparsers_actions:
             for choice, subparser in subparsers_action.choices.items():
-                print("Subcommand '{}'".format(choice))
+                print(f"Subcommand '{choice}'")
                 print(subparser.format_help())
 
     args = parser.parse_args()

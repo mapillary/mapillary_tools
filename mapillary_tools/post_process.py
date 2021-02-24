@@ -34,7 +34,7 @@ def map_images_to_sequences(destination_mapping, total_files):
             else:
                 destination_mapping[image] = {"sequence": str(sequence_counter)}
         else:
-            print("MAPSequenceUUID could not be read for image {}".format(image))
+            print(f"MAPSequenceUUID could not be read for image {image}")
     return destination_mapping
 
 
@@ -64,9 +64,7 @@ def store_local_mapping(import_path):
                 image_file_uuid = str(image_description["MAPPhotoUUID"])
             else:
                 print(
-                    "Warning, image {} EXIF does not contain mapillary image description and mapillary_image_description.json log file does not exist. Try to process the image using mapillary_tools.".format(
-                        file
-                    )
+                    f"Warning, image {file} EXIF does not contain mapillary image description and mapillary_image_description.json log file does not exist. Try to process the image using mapillary_tools."
                 )
         if image_file_uuid:
             local_mapping.append((relative_path, image_file_uuid))
@@ -233,7 +231,7 @@ def post_process(
         summary_dict["process summary"][
             "processed_not_yet_uploaded"
         ] = to_be_uploaded_files_count
-        print("Import summary for import path {} :".format(import_path))
+        print(f"Import summary for import path {import_path} :")
         print(json.dumps(summary_dict, indent=4))
 
         ipc.send("summary", summary_dict)
@@ -246,9 +244,7 @@ def post_process(
                 )
             except Exception as e:
                 print(
-                    "Could not save summary into json at {}, due to {}".format(
-                        os.path.join(import_path, "mapillary_import_summary.json"), e
-                    )
+                    f"Could not save summary into json at {os.path.join(import_path, 'mapillary_import_summary.json')}, due to {e}"
                 )
 
     if list_file_status:
@@ -260,7 +256,7 @@ def post_process(
             "processed_not_yet_uploaded": to_be_uploaded_files,
         }
         print("")
-        print("List of file status for import path {} :".format(import_path))
+        print(f"List of file status for import path {import_path} :")
         print(json.dumps(status_list_dict, indent=4))
         if save_as_json:
             try:
@@ -272,17 +268,12 @@ def post_process(
                 )
             except Exception as e:
                 print(
-                    "Could not save image status list into json at {}, due to {}".format(
-                        os.path.join(
-                            import_path, "mapillary_import_image_status_list.json"
-                        ),
-                        e,
-                    )
+                    f"Could not save image status list into json at {os.path.join(import_path, 'mapillary_import_image_status_list.json')}, due to {e}"
                 )
     split_import_path = split_import_path if split_import_path else import_path
     if move_sequences or move_duplicates or move_uploaded:
         if not os.path.isdir(split_import_path):
-            print("Split import path {} does not exist.".format(split_import_path))
+            print(f"Split import path {split_import_path} does not exist.")
             sys.exit(1)
 
     destination_mapping = {}

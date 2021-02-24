@@ -31,10 +31,10 @@ class BlurDownloader(threading.Thread):
         )
 
         if response.status_code != 200:
-            print("Upload status {}".format(response.status_code))
-            print("Upload request.url {}".format(response.request.url))
-            print("Upload response.text {}".format(response.text))
-            print("Upload request.headers {}".format(response.request.headers))
+            print(f"Upload status {response.status_code}")
+            print(f"Upload request.url {response.request.url}")
+            print(f"Upload response.text {response.text}")
+            print(f"Upload request.headers {response.request.headers}")
             print(response.json())
             return False
 
@@ -79,18 +79,13 @@ class BlurDownloader(threading.Thread):
             total = len(self.rows)
             count = self.downloaded_images["nbr"]
 
-            suffix = "({}/{} DOWNLOADED, {}/{} STILL PROCESSING)".format(
-                self.downloaded_images["success"],
-                total,
-                self.downloaded_images["failed"],
-                total,
-            )
+            suffix = f"({self.downloaded_images['success']}/{total} DOWNLOADED, {self.downloaded_images['failed']}/{total} STILL PROCESSING)"
 
             bar_len = 60
             filled_len = int(round(bar_len * count / float(total)))
             percents = round(100.0 * count / float(total), 1)
             bar = "=" * filled_len + "-" * (bar_len - filled_len)
-            sys.stdout.write("[%s] %s%s %s\r" % (bar, percents, "%", suffix))
+            sys.stdout.write(f"[{bar}] {percents}% {suffix}\r")
             sys.stdout.flush()
             self.lock.release()
 
@@ -111,7 +106,7 @@ def check_files_downloaded(local_mapping, output_folder, do_sleep):
             not_downloaded += 1
 
     if not_downloaded > 0:
-        print("Trying to download {} not yet downloaded files".format(not_downloaded))
+        print(f"Trying to download {not_downloaded} not yet downloaded files")
         if do_sleep:
             print("Waiting 10 seconds before next try")
             time.sleep(10)

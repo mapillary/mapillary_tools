@@ -37,9 +37,7 @@ def format_datetime(
             ]
         except:
             print(
-                "Formating timestamps from datetime to time format {} failed...".format(
-                    time_format
-                )
+                f"Formating timestamps from datetime to time format {time_format} failed..."
             )
             sys.exit(1)
     return timestamps_formated
@@ -136,19 +134,15 @@ def interpolation(
             geotags, missing_geotags = processing.get_images_geotags(process_file_list)
             if not len(missing_geotags):
                 print(
-                    "No images in directory {} missing geotags, exiting...".format(
-                        import_path
-                    )
+                    f"No images in directory {import_path} missing geotags, exiting..."
                 )
                 sys.exit(1)
             if not len(geotags):
-                print("No images in directory {} with geotags.".format(import_path))
+                print(f"No images in directory {import_path} with geotags.")
                 sys.exit(1)
 
             sys.stdout.write(
-                "Interpolating gps for {} images missing geotags.".format(
-                    len(missing_geotags)
-                )
+                f"Interpolating gps for {len(missing_geotags)} images missing geotags."
             )
 
             for image, timestamp in tqdm(
@@ -161,9 +155,7 @@ def interpolation(
                     )
                 except Exception as e:
                     print_error(
-                        "Error, {}, interpolation of latitude and longitude failed for image {}".format(
-                            e, image
-                        )
+                        f"Error, {e}, interpolation of latitude and longitude failed for image {image}"
                     )
                     continue
                 # insert into exif
@@ -172,28 +164,18 @@ def interpolation(
                     exif_edit.add_lat_lon(lat, lon)
                 else:
                     print_error(
-                        "Error, lat and lon not interpolated for image {}.".format(
-                            image
-                        )
+                        f"Error, lat and lon not interpolated for image {image}."
                     )
                 if bearing:
                     exif_edit.add_direction(bearing)
                 else:
                     if verbose:
-                        print(
-                            "Warning, bearing not interpolated for image {}.".format(
-                                image
-                            )
-                        )
+                        print(f"Warning, bearing not interpolated for image {image}.")
                 if elevation:
                     exif_edit.add_altitude(elevation)
                 else:
                     if verbose:
-                        print(
-                            "Warning, altitude not interpolated for image {}.".format(
-                                image
-                            )
-                        )
+                        print(f"Warning, altitude not interpolated for image {image}.")
 
                 meta = {}
 
@@ -220,7 +202,7 @@ def interpolation(
                 if timestamp:
                     timestamps.append(timestamp)
                 else:
-                    print("Capture could not be extracted for image {}.".format(image))
+                    print(f"Capture could not be extracted for image {image}.")
 
             # interpolate
             timestamps_interpolated = processing.interpolate_timestamp(timestamps)

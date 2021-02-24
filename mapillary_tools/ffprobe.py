@@ -82,7 +82,7 @@ class FFStream:
     def __init__(self, datalines):
         for a in datalines:
             if re.match(r"^.+=.+$", a) is None:
-                print("Warning: detected incorrect stream metadata line format: %s" % a)
+                print(f"Warning: detected incorrect stream metadata line format: {a}")
             else:
                 (key, val) = a.strip().split("=")
                 key = key.lstrip("TAG:")
@@ -130,8 +130,7 @@ class FFStream:
                     size = (int(self.__dict__["width"]), int(self.__dict__["height"]))
                 except Exception as e:
                     print(
-                        "None integer size %s:%s"
-                        % (str(self.__dict__["width"]), str(+self.__dict__["height"]))
+                        f"None integer size {str(self.__dict__['width'])}:{str(+self.__dict__['height'])}"
                     )
                     size = (0, 0)
         return size

@@ -113,9 +113,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
 
                                     except Exception as e:
                                         print(
-                                            "Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {}".format(
-                                                e
-                                            )
+                                            f"Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {e}"
                                         )
 
                         # If there are no points after parsing just return empty vector
@@ -201,9 +199,7 @@ def gpx_from_blackvue(bv_video, use_nmea_stream_timestamp=False):
         bv_data = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
     except Exception as e:
         print(
-            "Warning, could not extract gps from video {} due to {}, video will be skipped...".format(
-                bv_video, e
-            )
+            f"Warning, could not extract gps from video {bv_video} due to {e}, video will be skipped..."
         )
     if not bv_data:
         is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data))

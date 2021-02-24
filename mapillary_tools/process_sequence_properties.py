@@ -176,9 +176,7 @@ def process_sequence_properties(
     if not keep_duplicates:
         if verbose:
             print(
-                "Flagging images as duplicates if consecutive distance difference less than {} and angle difference less than {}".format(
-                    duplicate_distance, duplicate_angle
-                )
+                f"Flagging images as duplicates if consecutive distance difference less than {duplicate_distance} and angle difference less than {duplicate_angle}"
             )
 
     # process for each sequence
@@ -220,9 +218,7 @@ def process_sequence_properties(
         )  # in meters/second
         if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED]) > 0:
             print(
-                "Warning: The distance in sequence including images\n{}\nto\n{}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?".format(
-                    file_list[0], file_list[-1]
-                )
+                f"Warning: The distance in sequence including images\n{file_list[0]}\nto\n{file_list[-1]}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?"
             )
 
         # INTERPOLATE TIMESTAMPS, in case of identical timestamps

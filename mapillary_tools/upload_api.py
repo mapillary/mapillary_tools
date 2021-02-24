@@ -14,7 +14,7 @@ def create_upload_session(upload_type, metadata, options):
 
 def close_upload_session(session, json, options):
     url = _get_url(options, "/v3/me/uploads")
-    url = "{}/{}/closed".format(url, session["key"])
+    url = f"{url}/{session['key']}/closed"
     headers = _get_headers(options)
     params = _get_params(options)
 
@@ -23,7 +23,7 @@ def close_upload_session(session, json, options):
 
 def get_upload_session(session, options):
     url = _get_url(options, "/v3/me/uploads")
-    url = "{}/{}".format(url, session["key"])
+    url = f"{url}/{session['key']}"
     headers = _get_headers(options)
     params = _get_params(options)
 

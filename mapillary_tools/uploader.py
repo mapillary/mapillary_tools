@@ -59,7 +59,7 @@ class UploadThread(threading.Thread):
             progress(
                 self.total_task - self.q.qsize(),
                 self.total_task,
-                "... {} images left.".format(self.q.qsize()),
+                f"... {self.q.qsize()} images left.",
             )
             upload_file(filepath, max_attempts, session)
             self.q.task_done()
@@ -319,7 +319,7 @@ def preform_finalize(root, file):
 
 def print_summary(file_list):
     # inform upload has finished and print out the summary
-    print("Done uploading {} images.".format(len(file_list)))  # improve upload summary
+    print(f"Done uploading {len(file_list)} images.")  # improve upload summary
 
 
 def get_organization_key(user_key, organization_username, upload_token):
@@ -334,8 +334,7 @@ def get_organization_key(user_key, organization_username, upload_token):
 
     if not organization_key:
         print(
-            "No valid organization key found for organization user name "
-            + organization_username
+            f"No valid organization key found for organization user name {organization_username}"
         )
         print("Available organization user names for current user are : ")
         print(organization_usernames)
@@ -370,14 +369,7 @@ def validate_organization_privacy(user_key, organization_key, private, upload_to
                 )
                 privacy_provided = "private" if private else "public"
                 print(
-                    "Organization "
-                    + org["name"]
-                    + " with key "
-                    + org["key"]
-                    + " is "
-                    + privacy
-                    + " while your import privacy settings state "
-                    + privacy_provided
+                    f"Organization {org['name']} with key {org['key']} is {privacy} while your import privacy settings state {privacy_provided}"
                 )
                 sys.exit(1)
 
@@ -391,7 +383,7 @@ def progress(count, total, suffix=""):
     filled_len = int(round(bar_len * count / float(total)))
     percents = round(100.0 * count / float(total), 1)
     bar = "=" * filled_len + "-" * (bar_len - filled_len)
-    sys.stdout.write("[%s] %s%s %s\r" % (bar, percents, "%", suffix))
+    sys.stdout.write(f"[{bar}] {percents}% {suffix}\r")
     sys.stdout.flush()
 
 
@@ -442,9 +434,7 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     user_key = api_v3.get_user_key(user_email)
     if not user_key:
         print(
-            "User email {} does not exist, please try again or contact Mapillary user support.".format(
-                user_email
-            )
+            f"User email {user_email} does not exist, please try again or contact Mapillary user support."
         )
         sys.exit(1)
 
@@ -546,35 +536,25 @@ def upload_file(filepath, max_attempts, session):
             if 200 <= response.status_code < 300:
                 create_upload_log(filepath_in, "upload_success")
                 if displayed_upload_error:
-                    print(
-                        "Successful upload of {} on attempt {}".format(
-                            filename, attempt + 1
-                        )
-                    )
+                    print(f"Successful upload of {filename} on attempt {attempt + 1}")
             else:
                 create_upload_log(filepath_in, "upload_failed")
                 print(response.text)
             break  # attempts
         except requests.RequestException as e:
             print(
-                "HTTP error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1
-                )
+                f"HTTP error: {e} on {filename}, will attempt upload again for {max_attempts - attempt - 1} more times"
             )
             displayed_upload_error = True
             time.sleep(5)
         except socket.timeout:
             # Specific timeout handling for Python 2.7
             print(
-                "Timeout error: {} (retrying), will attempt upload again for {} more times".format(
-                    filename, max_attempts - attempt - 1
-                )
+                f"Timeout error: {filename} (retrying), will attempt upload again for {max_attempts - attempt - 1} more times"
             )
         except OSError as e:
             print(
-                "OS error: {} on {}, will attempt upload again for {} more times".format(
-                    e, filename, max_attempts - attempt - 1
-                )
+                f"OS error: {e} on {filename}, will attempt upload again for {max_attempts - attempt - 1} more times"
             )
             time.sleep(5)
 
@@ -597,7 +577,7 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
 
     # start uploaders as daemon threads that can be stopped (ctrl-c)
     try:
-        print("Uploading with {} threads".format(number_threads))
+        print(f"Uploading with {number_threads} threads")
         for uploader in uploaders:
             uploader.daemon = True
             uploader.start()
@@ -637,18 +617,18 @@ def upload_file_list_manual(
     }
 
     session_path = os.path.join(
-        log_folder(file_list[0]), "session_{}.json".format(sequence_uuid)
+        log_folder(file_list[0]), f"session_{sequence_uuid}.json"
     )
 
     # read session from file
     if os.path.isfile(session_path):
-        print("Read session from {}".format(session_path))
+        print(f"Read session from {session_path}")
         with open(session_path, "r") as fp:
             session = json.load(fp)
         # if session not found, delete the file
         resp = upload_api.get_upload_session(session, upload_options)
         if resp.status_code == 404:
-            print("Invalid session so deleting {}".format(session_path))
+            print(f"Invalid session so deleting {session_path}")
             os.remove(session_path)
             session = None
     else:
@@ -667,7 +647,7 @@ def upload_file_list_manual(
         with open(session_path, "w") as f:
             json.dump(session, f)
 
-    print("\nUsing upload session {}".format(session["key"]))
+    print(f"\nUsing upload session {session['key']}")
 
     # create upload queue with all files per sequence
     q = Queue()
@@ -694,9 +674,7 @@ def upload_file_list_manual(
     resp = upload_api.close_upload_session(session, None, upload_options)
     resp.raise_for_status()
 
-    print(
-        "\nClosed upload session {} so deleting {}".format(session["key"], session_path)
-    )
+    print(f"\nClosed upload session {session['key']} so deleting {session_path}")
     os.remove(session_path)
 
     flag_finalization(file_list)
@@ -783,9 +761,7 @@ def filter_video_before_upload(video, filter_night_time=False):
                 if not os.path.exists(no_gps_folder):
                     os.mkdir(no_gps_folder)
                 os.rename(video, no_gps_folder + os.path.basename(video))
-            print_error(
-                "Skipping file {} due to file not containing gps data".format(video)
-            )
+            print_error(f"Skipping file {video} due to file not containing gps data")
             return True
         if os.path.basename(os.path.dirname(video)) != "stationary":
             stationary_folder = os.path.dirname(video) + "/stationary/"
@@ -795,7 +771,7 @@ def filter_video_before_upload(video, filter_night_time=False):
             os.rename(
                 gpx_file_path, stationary_folder + os.path.basename(gpx_file_path)
             )
-        print_error("Skipping file {} due to camera being stationary".format(video))
+        print_error(f"Skipping file {video} due to camera being stationary")
         return True
 
     if not isStationaryVid:
@@ -827,16 +803,12 @@ def filter_video_before_upload(video, filter_night_time=False):
                         night_time_folder + os.path.basename(gpx_file_path),
                     )
                     print_error(
-                        "Skipping file {} due to video being recorded at night (Before 9am or after 6pm)".format(
-                            video
-                        )
+                        f"Skipping file {video} due to video being recorded at night (Before 9am or after 6pm)"
                     )
                     return True
             except Exception as e:
                 print(
-                    "Unable to determine time of day. Exception raised: {} \n Video will be uploaded".format(
-                        e
-                    )
+                    f"Unable to determine time of day. Exception raised: {e} \n Video will be uploaded"
                 )
         return False
 
@@ -860,9 +832,7 @@ def send_videos_for_processing(
         os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")
     ):
         print(
-            "video import path {} does not exist or is invalid, exiting...".format(
-                video_import_path
-            )
+            f"video import path {video_import_path} does not exist or is invalid, exiting..."
         )
         sys.exit(1)
     # User Authentication
@@ -871,7 +841,7 @@ def send_videos_for_processing(
     else:
         credentials = authenticate_user(user_name)
     if credentials is None:
-        print("Error, user authentication failed for user " + user_name)
+        print(f"Error, user authentication failed for user {user_name}")
         sys.exit(1)
 
     # upload all videos in the import path
@@ -908,7 +878,7 @@ def send_videos_for_processing(
     ipc.send("progress", progress)
 
     for video in tqdm(all_videos, desc="Uploading videos for processing"):
-        print("Preparing video {} for upload".format(os.path.basename(video)))
+        print(f"Preparing video {os.path.basename(video)} for upload")
 
         if filter_video_before_upload(video, filter_night_time):
             progress["skipped"] += 1
@@ -978,12 +948,12 @@ def upload_video(video, metadata, options, max_retries=20):
         if 200 <= response.status_code <= 300:
             break
         else:
-            print("Upload status {}".format(response.status_code))
-            print("Upload request.url {}".format(response.request.url))
-            print("Upload response.text {}".format(response.text))
-            print("Upload request.headers {}".format(response.request.headers))
+            print(f"Upload status {response.status_code}")
+            print(f"Upload request.url {response.request.url}")
+            print(f"Upload response.text {response.text}")
+            print(f"Upload request.headers {response.request.headers}")
             if attempt >= max_retries - 1:
-                print("Max attempts reached. Failed to upload video {}".format(video))
+                print(f"Max attempts reached. Failed to upload video {video}")
                 return
 
     resp = upload_api.close_upload_session(session, None, options)
@@ -991,4 +961,4 @@ def upload_video(video, metadata, options, max_retries=20):
 
     set_video_as_uploaded(video)
     create_upload_log(video, "upload_success")
-    print("Uploaded {} successfully".format(file_key))
+    print(f"Uploaded {file_key} successfully")
