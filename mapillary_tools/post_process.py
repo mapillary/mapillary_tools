@@ -69,10 +69,14 @@ def store_local_mapping(import_path):
             try:
                 image_description = json.loads(description_string)
             except json.JSONDecodeError:
-                raise RuntimeError(
-                    f"Error JSON decoding image description {description_string} from {file}"
+                print(
+                    f"Warning, failed to JSON decoding image description {description_string} from {file}",
                 )
-            if "MAPPhotoUUID" in image_description:
+                image_description = {}
+            if (
+                isinstance(image_description, dict)
+                and "MAPPhotoUUID" in image_description
+            ):
                 image_file_uuid = str(image_description["MAPPhotoUUID"])
             else:
                 print(
