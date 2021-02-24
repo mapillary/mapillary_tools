@@ -17,7 +17,7 @@ from . import processing
 from . import config
 from . import api_v3
 from .exif_read import ExifRead
-from . import upload_api
+from . import upload_api_v3
 from . import ipc
 from .error import print_error
 from .utils import force_decode
@@ -532,7 +532,7 @@ def upload_file(filepath, max_attempts, session):
     displayed_upload_error = False
     for attempt in range(max_attempts):
         try:
-            response = upload_api.upload_file(session, filepath, s3_filename)
+            response = upload_api_v3.upload_file(session, filepath, s3_filename)
             if 200 <= response.status_code < 300:
                 create_upload_log(filepath_in, "upload_success")
                 if displayed_upload_error:
@@ -626,7 +626,7 @@ def upload_file_list_manual(
         with open(session_path, "r") as fp:
             session = json.load(fp)
         # if session not found, delete the file
-        resp = upload_api.get_upload_session(session, upload_options)
+        resp = upload_api_v3.get_upload_session(session, upload_options)
         if resp.status_code == 404:
             print(f"Invalid session so deleting {session_path}")
             os.remove(session_path)
@@ -639,7 +639,7 @@ def upload_file_list_manual(
         if organization_key:
             upload_metadata["organization_key"] = organization_key
             upload_metadata["private"] = private
-        resp = upload_api.create_upload_session(
+        resp = upload_api_v3.create_upload_session(
             "images/sequence", upload_metadata, upload_options
         )
         resp.raise_for_status()
@@ -671,7 +671,7 @@ def upload_file_list_manual(
         print("\nBREAK: Stopping upload.")
         sys.exit(1)
 
-    resp = upload_api.close_upload_session(session, None, upload_options)
+    resp = upload_api_v3.close_upload_session(session, None, upload_options)
     resp.raise_for_status()
 
     print(f"\nClosed upload session {session['key']} so deleting {session_path}")
@@ -936,7 +936,7 @@ def send_videos_for_processing(
 
 
 def upload_video(video, metadata, options, max_retries=20):
-    resp = upload_api.create_upload_session("videos/blackvue", metadata, options)
+    resp = upload_api_v3.create_upload_session("videos/blackvue", metadata, options)
     resp.raise_for_status()
     session = resp.json()
 
@@ -944,7 +944,7 @@ def upload_video(video, metadata, options, max_retries=20):
 
     for attempt in range(max_retries):
         print("Uploading...")
-        response = upload_api.upload_file(session, video, file_key)
+        response = upload_api_v3.upload_file(session, video, file_key)
         if 200 <= response.status_code <= 300:
             break
         else:
@@ -956,7 +956,7 @@ def upload_video(video, metadata, options, max_retries=20):
                 print(f"Max attempts reached. Failed to upload video {video}")
                 return
 
-    resp = upload_api.close_upload_session(session, None, options)
+    resp = upload_api_v3.close_upload_session(session, None, options)
     resp.raise_for_status()
 
     set_video_as_uploaded(video)
