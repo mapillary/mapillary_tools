@@ -7,7 +7,7 @@ from .error import print_error
 from .geo import decimal_to_dms
 
 
-class ExifEdit(object):
+class ExifEdit:
     def __init__(self, filename):
         """Initialize the object"""
         self._filename = filename
