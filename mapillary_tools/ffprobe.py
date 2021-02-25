@@ -49,7 +49,8 @@ class FFProbe:
             self.audio = []
             datalines = []
 
-            for a in iter(p.stdout.readline, b""):
+            for b in iter(p.stdout.readline, b""):
+                a = b.decode("utf-8")
                 if re.match("\[STREAM\]", a):
                     datalines = []
                 elif re.match("\[\/STREAM\]", a):
@@ -57,7 +58,8 @@ class FFProbe:
                     datalines = []
                 else:
                     datalines.append(a)
-            for a in iter(p.stderr.readline, b""):
+            for b in iter(p.stderr.readline, b""):
+                a = b.decode("utf-8")
                 if re.match("\[STREAM\]", a):
                     datalines = []
                 elif re.match("\[\/STREAM\]", a):

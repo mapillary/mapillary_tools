@@ -170,13 +170,15 @@ def get_video_duration(video_file):
     """Get video duration in seconds"""
     probe = FFProbe(video_file)
     if not probe.video:
-        print(f'No video found in {video_file}')
+        print(f"No video found in {video_file}")
         return None
     duration = probe.video[0].duration
     try:
         return float(duration)
     except (TypeError, ValueError) as e:
-        print(f"could not parse {duration} as duration from video {video_file} due to {e}")
+        print(
+            f"could not parse {duration} as duration from video {video_file} due to {e}"
+        )
         return None
 
 
