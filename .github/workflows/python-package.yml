@@ -42,13 +42,18 @@ jobs:
         pytest tests
     - name: Build with Pyinstaller on MacOS
       run: |
-        ./script/build_osx
+        ./script/build
+        ./publish/osx/mapillary_tools --version
+        # Could run full integration tests with below but the binary is too slow to start up
+        # MAPILLARY_TOOLS_EXECUTABLE=./publish/osx/mapillary_tools pytest tests/integration
       if: matrix.platform == 'macos-latest'
     - name: Build with Pyinstaller on Ubuntu
       run: |
         ./script/build
+        ./publish/osx/mapillary_tools --version
       if: matrix.platform == 'ubuntu-latest'
     - name: Build with Pyinstaller on Windows
       run: |
         ./script/build_win.bat
+        ./publish/win/mapillary_tools.exe --version
       if: matrix.platform == 'windows-latest'

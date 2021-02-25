@@ -5,7 +5,7 @@ block_cipher = None
 options = [("u", None, "OPTION")]
 
 a = Analysis(
-    ["mapillary_tools/__main__.py"],
+    ["./pyinstaller/main.py"],
     pathex=[SPECPATH],
     binaries=[],
     datas=[],
