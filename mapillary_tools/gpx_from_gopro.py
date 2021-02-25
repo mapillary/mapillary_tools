@@ -27,7 +27,7 @@ def extract_bin(path):
         ):
             stream_id = stream["index"]
 
-    if not stream_id:
+    if stream_id is None:
         raise IOError("No GoPro metadata track found - was GPS turned on?")
 
     basename, extension = os.path.splitext(path)
