@@ -1,5 +1,0 @@
-pep8
-boto
-requests
-redis
-bcrypt
