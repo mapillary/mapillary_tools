@@ -1,19 +1,3 @@
-FROM ubuntu:16.04
-
-# SETUP
-RUN \
-    apt-get -qq update && \
-    apt-get -yqq install \
-        git \
-        python-pip && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN \
-    pip install --upgrade pip
-
-COPY . /source/mapillary_tools
-
-WORKDIR /source/mapillary_tools
-
-RUN pip install -r requirements.txt
+FROM ubuntu:20.04
+RUN apt update -y && apt install -y python3 python3-pip git
+RUN python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
