@@ -20,6 +20,7 @@ from .uploader import (
 
 
 def send_videos_for_processing(
+    import_path,
     video_import_path,
     user_name,
     user_email=None,
@@ -32,6 +33,7 @@ def send_videos_for_processing(
     filter_night_time=False,
     offset_angle=0,
     orientation=0,
+    verbose=False,
 ):
     # safe checks
     if not os.path.isdir(video_import_path) and not (
@@ -127,11 +129,10 @@ def send_videos_for_processing(
         if master_upload is not None:
             metadata["user_key"] = master_upload
 
-        options = {
-            "token": credentials["user_upload_token"],
-        }
-
         if not DRY_RUN:
+            options = {
+                "token": credentials["user_upload_token"],
+            }
             upload_video(video, metadata, options)
 
         progress["uploaded"] += 1
@@ -171,20 +172,19 @@ def upload_video(video, metadata, options, max_retries=20):
 
 
 def filter_video_before_upload(video, filter_night_time=False):
-    try:
-        if not get_blackvue_info(video)["is_Blackvue_video"]:
-            print_error(
-                "ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files"
-            )
-            return True
-        if get_blackvue_info(video)["camera_direction"] != "Front":
-            print_error(
-                "ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos"
-            )
-            return True
-    except:
-        print_error("ERROR: Unable to determine video details, skipping video")
+    blackvue_info = get_blackvue_info(video)
+
+    if not blackvue_info["is_Blackvue_video"]:
+        print_error(
+            "ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files"
+        )
         return True
+    if blackvue_info.get("camera_direction") != "Front":
+        print_error(
+            "ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos"
+        )
+        return True
+
     [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
         video, use_nmea_stream_timestamp=False
     )

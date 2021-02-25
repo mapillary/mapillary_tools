@@ -19,12 +19,6 @@ class Command:
             default=None,
             required=False,
         )
-        parser.add_argument(
-            "--user_key",
-            help="Manually specify user key",
-            default=False,
-            required=False,
-        )
         # consider having api version as string
         parser.add_argument(
             "--skip_subfolders",
@@ -38,12 +32,6 @@ class Command:
             help="Path to a video or a directory with one or more video files.",
             action="store",
             required=True,
-        )
-        parser.add_argument(
-            "--organization_username",
-            help="Specify organization user name",
-            default=None,
-            required=False,
         )
         parser.add_argument(
             "--organization_key",

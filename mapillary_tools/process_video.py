@@ -144,27 +144,15 @@ def extract_frames(
     ]
 
     command.append(f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg")
-    try:
-        subprocess.call(command)
-    except OSError as e:
-        # ERROR LOG
-        print("Error, ffmpeg is not installed or set in the OS system path.")
-        sys.exit(1)
-    except Exception as e:
-        # ERROR LOG
-        print(f"Error, could not extract frames from video {video_file} due to {e}")
-        sys.exit(1)
+    subprocess.call(command)
 
     if video_start_time:
         video_start_time = datetime.datetime.utcfromtimestamp(video_start_time / 1000.0)
     else:
         video_start_time = get_video_start_time(video_file)
         if not video_start_time:
-            # WARNING LOG
             print(
-                "Warning, video start time not provided and could not be \
-                   extracted from the video file, default video start time set \
-                   to 0 milliseconds since UNIX epoch."
+                "Warning, video start time not provided and could not be extracted from the video file, default video start time set to 0 milliseconds since UNIX epoch."
             )
             video_start_time = datetime.datetime.utcfromtimestamp(0)
 
@@ -180,10 +168,15 @@ def extract_frames(
 
 def get_video_duration(video_file):
     """Get video duration in seconds"""
+    probe = FFProbe(video_file)
+    if not probe.video:
+        print(f'No video found in {video_file}')
+        return None
+    duration = probe.video[0].duration
     try:
-        return float(FFProbe(video_file).video[0].duration)
-    except Exception as e:
-        print(f"could not extract duration from video {video_file} due to {e}")
+        return float(duration)
+    except (TypeError, ValueError) as e:
+        print(f"could not parse {duration} as duration from video {video_file} due to {e}")
         return None
 
 
