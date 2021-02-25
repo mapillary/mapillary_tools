@@ -44,7 +44,7 @@ def map_images_to_sequences(destination_mapping, total_files):
     return destination_mapping
 
 
-def store_local_mapping(import_path):
+def get_local_mapping(import_path):
     total_files = uploader.get_total_file_list(import_path)
 
     local_mapping = []
@@ -152,7 +152,7 @@ def post_process(
         sys.exit(1)
 
     if save_local_mapping:
-        local_mapping = store_local_mapping(import_path)
+        local_mapping = get_local_mapping(import_path)
         local_mapping_filepath = os.path.join(
             os.path.dirname(import_path),
             os.path.basename(import_path)
