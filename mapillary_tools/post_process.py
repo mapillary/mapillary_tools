@@ -43,7 +43,7 @@ def map_images_to_sequences(destination_mapping, total_files):
 
     return destination_mapping
 
-  
+
 def get_local_mapping(import_path):
     total_files = uploader.get_total_file_list(import_path)
 
