@@ -960,47 +960,34 @@ def create_and_log_process(
 ):
     if mapillary_description is None:
         mapillary_description = {}
+
     # set log path
     log_root = uploader.log_rootpath(image)
     # make all the dirs if not there
     if not os.path.isdir(log_root):
         os.makedirs(log_root)
+
     # set the log flags for process
     log_process = os.path.join(log_root, process)
-    log_process_succes = log_process + "_success"
-    log_process_failed = log_process + "_failed"
+    log_process_succes = f"{log_process}_success"
+    log_process_failed = f"{log_process}_failed"
     log_MAPJson = os.path.join(log_root, process + ".json")
 
-    if status == "success" and not mapillary_description:
+    if not mapillary_description:
         status = "failed"
-    elif status == "success":
-        try:
-            save_json(mapillary_description, log_MAPJson)
-            open(log_process_succes, "w").close()
-            open(
-                log_process_succes
-                + "_"
-                + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-                "w",
-            ).close()
-            # if there is a failed log from before, remove it
-            if os.path.isfile(log_process_failed):
-                os.remove(log_process_failed)
-        except Exception as exc:
-            # if the image description could not have been written to the
-            # filesystem, log failed
-            print_error("Error, " + process + " logging failed for image " + image)
-            status = "failed"
-            raise exc
 
-    if status == "failed":
+    if status == "success":
+        suffix = str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime()))
+        save_json(mapillary_description, log_MAPJson)
+        open(log_process_succes, "w").close()
+        open(f"{log_process_succes}_{suffix}", "w").close()
+        # if there is a failed log from before, remove it
+        if os.path.isfile(log_process_failed):
+            os.remove(log_process_failed)
+    else:
         open(log_process_failed, "w").close()
-        open(
-            log_process_failed
-            + "_"
-            + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-            "w",
-        ).close()
+        suffix = str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime()))
+        open(f"{log_process_failed}_{suffix}", "w").close()
         # if there is a success log from before, remove it
         if os.path.isfile(log_process_succes):
             os.remove(log_process_succes)
@@ -1083,9 +1070,7 @@ def user_properties_master(
         user_key = api_v3.get_user_key(user_name)
     except:
         print_error(
-            "Error, no user key obtained for the user name "
-            + user_name
-            + ", check if the user name is spelled correctly and if the master key is correct"
+            f"Error, no user key obtained for the user name {user_name}, check if the user name is spelled correctly and if the master key is correct",
         )
         return None
 

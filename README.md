@@ -26,7 +26,7 @@ python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tool
 Upload imagery with `mapillary_tools`:
 
 ```bash
-mapillary_tools process_and_upload "path/to/images" --user_name "mapillary_username"
+mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_username"
 ```
 
 ## Requirements
@@ -626,7 +626,7 @@ an `You don't have sufficient organization access to download this image` error.
 
 ```bash
 mapillary_tools download --advanced --by_property key \
-    --import_path dev/null \
+    --import_path /dev/null \
     --output_folder "path/to/output_folder" \
     --organization_keys "org_key1" "org_key2" \
     --user_name "mapillary_username"
@@ -827,7 +827,7 @@ been addressed, otherwise, open an issue on Github.
   Command `interpolate` can be used to interpolate image capture time:
 
 ```bash
-mapillary_tools interpolate --data "identical_timestamps" --import_path "path/to/images --advanced 
+mapillary_tools interpolate --data "identical_timestamps" --import_path "path/to/images" --advanced 
  ```
 
 - If `process` includes correction of existing EXIF tag values or extraction of missing EXIF tag values from external

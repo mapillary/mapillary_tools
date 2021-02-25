@@ -1,6 +1,16 @@
 import configparser
 import os
 
+from mapillary_tools import api_v3
+
+
+GLOBAL_CONFIG_FILEPATH = os.getenv(
+    "GLOBAL_CONFIG_FILEPATH",
+    os.path.join(
+        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
+    ),
+)
+
 
 def load_config(config_path):
     config = None

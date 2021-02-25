@@ -5,16 +5,6 @@ from . import api_v3
 from . import config
 from . import uploader
 
-"""
-(re)authenticate
-"""
-GLOBAL_CONFIG_FILEPATH = os.getenv(
-    "GLOBAL_CONFIG_FILEPATH",
-    os.path.join(
-        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
-    ),
-)
-
 
 def edit_config(
     config_file=None,
@@ -26,7 +16,7 @@ def edit_config(
     user_key=None,
 ):
     if config_file is None:
-        config_file = GLOBAL_CONFIG_FILEPATH
+        config_file = config.GLOBAL_CONFIG_FILEPATH
 
     if not os.path.isfile(config_file):
         config.create_config(config_file)

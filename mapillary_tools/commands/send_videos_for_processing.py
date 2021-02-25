@@ -1,6 +1,4 @@
-import inspect
-
-from ..uploader import send_videos_for_processing
+from ..send_videos_for_processing import send_videos_for_processing
 
 
 class Command:

@@ -1,5 +1,4 @@
 import copy
-import datetime
 import json
 import os
 import socket
@@ -10,32 +9,20 @@ import threading
 import time
 import getpass
 
-from tqdm import tqdm
 import requests
 
 from . import processing
 from . import config
 from . import api_v3
+from .config import GLOBAL_CONFIG_FILEPATH
 from .exif_read import ExifRead
 from . import upload_api_v3
 from . import ipc
-from .error import print_error
 from .utils import force_decode
-from .geo import get_timezone_and_utc_offset
-from .process_video import get_video_start_time_blackvue
-from .uploader_utils import set_video_as_uploaded
-from .camera_support.prepare_blackvue_videos import get_blackvue_info
-from .gpx_from_blackvue import gpx_from_blackvue, get_points_from_bv
 
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
 DRY_RUN = bool(os.getenv("DRY_RUN", False))
-GLOBAL_CONFIG_FILEPATH = os.getenv(
-    "GLOBAL_CONFIG_FILEPATH",
-    os.path.join(
-        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
-    ),
-)
 
 
 class UploadThread(threading.Thread):
@@ -696,31 +683,22 @@ def log_folder(filepath):
 def create_upload_log(filepath, status):
     upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
-    UPLOAD_STATUS_PAIRS = {
+    opposite_status = {
         "upload_success": "upload_failed",
         "upload_failed": "upload_success",
     }
     upload_opposite_log_filepath = os.path.join(
-        upload_log_root, UPLOAD_STATUS_PAIRS[status]
+        upload_log_root, opposite_status[status]
     )
+    suffix = str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime()))
     if not os.path.isdir(upload_log_root):
         os.makedirs(upload_log_root)
         open(upload_log_filepath, "w").close()
-        open(
-            upload_log_filepath
-            + "_"
-            + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-            "w",
-        ).close()
+        open(f"{upload_log_filepath}_{suffix}", "w").close()
     else:
         if not os.path.isfile(upload_log_filepath):
             open(upload_log_filepath, "w").close()
-            open(
-                upload_log_filepath
-                + "_"
-                + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-                "w",
-            ).close()
+            open(f"{upload_log_filepath}_{suffix}", "w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
 
@@ -733,232 +711,3 @@ def create_upload_log(filepath, status):
             "status": "success" if status == "upload_success" else "failed",
         },
     )
-
-
-def filter_video_before_upload(video, filter_night_time=False):
-    try:
-        if not get_blackvue_info(video)["is_Blackvue_video"]:
-            print_error(
-                "ERROR: Direct video upload is currently only supported for BlackVue DRS900S and BlackVue DR900M cameras. Please use video_process command for other camera files"
-            )
-            return True
-        if get_blackvue_info(video)["camera_direction"] != "Front":
-            print_error(
-                "ERROR: Currently, only front Blackvue videos are supported on this command. Please use video_process command for backwards camera videos"
-            )
-            return True
-    except:
-        print_error("ERROR: Unable to determine video details, skipping video")
-        return True
-    [gpx_file_path, isStationaryVid] = gpx_from_blackvue(
-        video, use_nmea_stream_timestamp=False
-    )
-    video_start_time = get_video_start_time_blackvue(video)
-    if isStationaryVid:
-        if not gpx_file_path:
-            if os.path.basename(os.path.dirname(video)) != "no_gps_data":
-                no_gps_folder = os.path.dirname(video) + "/no_gps_data/"
-                if not os.path.exists(no_gps_folder):
-                    os.mkdir(no_gps_folder)
-                os.rename(video, no_gps_folder + os.path.basename(video))
-            print_error(f"Skipping file {video} due to file not containing gps data")
-            return True
-        if os.path.basename(os.path.dirname(video)) != "stationary":
-            stationary_folder = os.path.dirname(video) + "/stationary/"
-            if not os.path.exists(stationary_folder):
-                os.mkdir(stationary_folder)
-            os.rename(video, stationary_folder + os.path.basename(video))
-            os.rename(
-                gpx_file_path, stationary_folder + os.path.basename(gpx_file_path)
-            )
-        print_error(f"Skipping file {video} due to camera being stationary")
-        return True
-
-    if not isStationaryVid:
-        gpx_points = get_points_from_bv(video)
-        if filter_night_time:
-            # Unsupported feature: Check if video was taken at night
-            # TODO: Calculate sun incidence angle and decide based on threshold
-            # angle
-            sunrise_time = 9
-            sunset_time = 18
-            try:
-                timeZoneName, local_timezone_offset = get_timezone_and_utc_offset(
-                    gpx_points[0][1], gpx_points[0][2]
-                )
-                if timeZoneName is None:
-                    print("Could not determine local time. Video will be uploaded")
-                    return False
-                local_video_datetime = video_start_time + local_timezone_offset
-                if local_video_datetime.time() < datetime.time(
-                    sunrise_time, 0, 0
-                ) or local_video_datetime.time() > datetime.time(sunset_time, 0, 0):
-                    if os.path.basename(os.path.dirname(video)) != "nighttime":
-                        night_time_folder = os.path.dirname(video) + "/nighttime/"
-                    if not os.path.exists(night_time_folder):
-                        os.mkdir(night_time_folder)
-                    os.rename(video, night_time_folder + os.path.basename(video))
-                    os.rename(
-                        gpx_file_path,
-                        night_time_folder + os.path.basename(gpx_file_path),
-                    )
-                    print_error(
-                        f"Skipping file {video} due to video being recorded at night (Before 9am or after 6pm)"
-                    )
-                    return True
-            except Exception as e:
-                print(
-                    f"Unable to determine time of day. Exception raised: {e} \n Video will be uploaded"
-                )
-        return False
-
-
-def send_videos_for_processing(
-    video_import_path,
-    user_name,
-    user_email=None,
-    user_password=None,
-    skip_subfolders=False,
-    organization_key=None,
-    private=False,
-    master_upload=False,
-    sampling_distance=2,
-    filter_night_time=False,
-    offset_angle=0,
-    orientation=0,
-):
-    # safe checks
-    if not os.path.isdir(video_import_path) and not (
-        os.path.isfile(video_import_path) and video_import_path.lower().endswith("mp4")
-    ):
-        print(
-            f"video import path {video_import_path} does not exist or is invalid, exiting..."
-        )
-        sys.exit(1)
-    # User Authentication
-    if user_email and user_password:
-        credentials = authenticate_with_email_and_pwd(user_email, user_password)
-    else:
-        credentials = authenticate_user(user_name)
-    if credentials is None:
-        print(f"Error, user authentication failed for user {user_name}")
-        sys.exit(1)
-
-    # upload all videos in the import path
-    # get a list of all videos first
-    all_videos = (
-        get_video_file_list(video_import_path, skip_subfolders)
-        if os.path.isdir(video_import_path)
-        else [video_import_path]
-    )
-    total_videos_count = len(all_videos)
-
-    all_videos = [
-        x for x in all_videos if os.path.basename(os.path.dirname(x)) != "uploaded"
-    ]  # Filter already uploaded videos
-    uploaded_videos_count = total_videos_count - len(all_videos)
-
-    all_videos = [
-        x for x in all_videos if os.path.basename(os.path.dirname(x)) != "stationary"
-    ]
-    all_videos = [
-        x for x in all_videos if os.path.basename(os.path.dirname(x)) != "no_gps_data"
-    ]
-    all_videos = [
-        x for x in all_videos if os.path.basename(os.path.dirname(x)) != "nighttime"
-    ]
-    skipped_videos_count = total_videos_count - uploaded_videos_count - len(all_videos)
-
-    progress = {
-        "total": total_videos_count,
-        "uploaded": uploaded_videos_count,
-        "skipped": skipped_videos_count,
-    }
-
-    ipc.send("progress", progress)
-
-    for video in tqdm(all_videos, desc="Uploading videos for processing"):
-        print(f"Preparing video {os.path.basename(video)} for upload")
-
-        if filter_video_before_upload(video, filter_night_time):
-            progress["skipped"] += 1
-            continue
-
-        video_start_time = get_video_start_time_blackvue(video)
-        # Correct timestamp in case camera time zone is not set correctly. If timestamp is not UTC, sync with GPS track will fail.
-        # Only hours are corrected, so that second offsets are taken into
-        # account correctly
-        gpx_points = get_points_from_bv(video)
-        gps_video_start_time = gpx_points[0][0]
-        delta_t = video_start_time - gps_video_start_time
-        if delta_t.days > 0:
-            hours_diff_to_utc = round(delta_t.total_seconds() / 3600)
-        else:
-            hours_diff_to_utc = round(delta_t.total_seconds() / 3600) * -1
-        video_start_time_utc = video_start_time + datetime.timedelta(
-            hours=hours_diff_to_utc
-        )
-        video_start_timestamp = int(
-            ((video_start_time_utc - datetime.datetime(1970, 1, 1)).total_seconds())
-            * 1000
-        )
-
-        metadata = {
-            "camera_angle_offset": float(offset_angle),
-            "exif_frame_orientation": orientation,
-            "images_upload_v2": True,
-            "make": "Blackvue",
-            "model": "DR900S-1CH",
-            "private": private,
-            "sample_interval_distance": float(sampling_distance),
-            "sequence_key": "test_sequence",  # TODO: What is the sequence key?
-            "video_start_time": video_start_timestamp,
-        }
-
-        if organization_key is not None:
-            metadata["organization_key"] = organization_key
-
-        if master_upload is not None:
-            metadata["user_key"] = master_upload
-
-        options = {
-            "token": credentials["user_upload_token"],
-        }
-
-        if not DRY_RUN:
-            upload_video(video, metadata, options)
-
-        progress["uploaded"] += 1
-
-    ipc.send("progress", progress)
-
-    print("Upload completed")
-
-
-def upload_video(video, metadata, options, max_retries=20):
-    resp = upload_api_v3.create_upload_session("videos/blackvue", metadata, options)
-    resp.raise_for_status()
-    session = resp.json()
-
-    file_key = "uploaded"
-
-    for attempt in range(max_retries):
-        print("Uploading...")
-        response = upload_api_v3.upload_file(session, video, file_key)
-        if 200 <= response.status_code <= 300:
-            break
-        else:
-            print(f"Upload status {response.status_code}")
-            print(f"Upload request.url {response.request.url}")
-            print(f"Upload response.text {response.text}")
-            print(f"Upload request.headers {response.request.headers}")
-            if attempt >= max_retries - 1:
-                print(f"Max attempts reached. Failed to upload video {video}")
-                return
-
-    resp = upload_api_v3.close_upload_session(session, None, options)
-    resp.raise_for_status()
-
-    set_video_as_uploaded(video)
-    create_upload_log(video, "upload_success")
-    print(f"Uploaded {file_key} successfully")
