@@ -4,7 +4,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 
 <!--ts-->
 
-* [Quickstart](#requirements)
+* [Quickstart](#quickstart)
 * [Requirements](#requirements)
 * [Installation](#installation)
 * [Usage](#usage)
@@ -17,13 +17,13 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 
 ## Quickstart
 
-Install mapillary_tools:
+Install `mapillary_tools`:
 
 ```bash
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
-Run mapillary_tools:
+Upload imagery with `mapillary_tools`:
 
 ```bash
 mapillary_tools process_and_upload "path/to/images" --user_name "mapillary_username"
@@ -35,11 +35,11 @@ mapillary_tools process_and_upload "path/to/images" --user_name "mapillary_usern
 
 To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When
 using the tools for the first time, user authentication is required. You will be prompted to enter your account
-credentials. Only Mapillary account credentials (username and password) are valid for authentication in mapillary_tools.
-Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported with mapillary_tools. If
-you signed up using one of those services, you can obtain a Mapillary password by requesting a password reset email
-through your [profile settings](https://www.mapillary.com/dashboard/profile) or the "Forgot password?" link on the
-Mapillary sign-in screen.
+credentials. Only Mapillary account credentials (username and password) are valid for authentication
+in `mapillary_tools`. Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported
+with `mapillary_tools`. If you signed up using one of those services, you can obtain a Mapillary password by requesting
+a password reset email through your [profile settings](https://www.mapillary.com/dashboard/profile) or the "Forgot
+password?" link on the Mapillary sign-in screen.
 
 ### Metadata
 
@@ -70,15 +70,15 @@ Python 2 is no longer supported since 0.6.0. If you have to, you can install ver
 - MacOS: https://tools.mapillary.com/binary/osx/mapillary_tools.zip
 - Pip install: follow [this issue](https://github.com/mapillary/mapillary_tools/issues/374#issuecomment-720152479)
 
+### Video Support Package
+
+To sample images from videos, you will also need to install `ffmpeg`. Review [video support](#video-support).
+
 ### Package Support
 
 View additional tips in the [Mapillary Help Center](https://help.mapillary.com) or
 contact [Mapillary Support](mailto:support@mapillary.com?subject=[Mapillary]%20Help%20with%20Mapillary%20Tools%20on%20GitHub)
 .
-
-### Video Support Package
-
-To sample images from videos, you will also need to install `ffmpeg`. Review [video support](#video-support).
 
 ## Usage
 
