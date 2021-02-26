@@ -143,3 +143,21 @@
 ### Bug fixes
 
 * Fixed bug where orientation was ignored if it was 0
+
+## 0.5.3 (2020-07-30)
+
+Fixes:
+- fixed 404 errors on upload session closing
+
+## 0.6.0 (2021-02-26)
+
+Major changes:
+- Upgrade to Python3 and drop the support for Python 2 #377
+
+Fixes:
+- Fix the `--save_local_mapping` support #334
+- Fix the `stream_id` in gpx_from_gopro.py #356
+
+Breaking changes:
+- Remove option `--api_version`
+- Remove the standalone script `bin/download_images.py`
