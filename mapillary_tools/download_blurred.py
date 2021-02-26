@@ -21,7 +21,7 @@ class WorkerMonitor(threading.Thread):
     """
 
     def __init__(self, threads, q):
-        threading.Thread.__init__(self)
+        super().__init__()
         self.threads = threads
         self.q = q
         self.shutdown_flag = threading.Event()
@@ -268,8 +268,7 @@ class BlurredOriginalsDownloader(threading.Thread):
     """"""
 
     def __init__(self, lock, q, output_folder, headers, counter, done_file, err_file):
-        threading.Thread.__init__(self)
-
+        super().__init__()
         self.counter = counter
         self.done_file = done_file
         self.err_file = err_file
