@@ -1,3 +1,4 @@
+from typing import Any, Dict, List, Optional
 import copy
 import json
 import os
@@ -58,8 +59,8 @@ def flag_finalization(finalize_file_list):
         open(finalize_flag, "a").close()
 
 
-def get_upload_file_list(import_path, skip_subfolders=False):
-    upload_file_list = []
+def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
+    upload_file_list: List[str] = []
     if skip_subfolders:
         upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
@@ -105,8 +106,8 @@ def get_video_file_list(video_file, skip_subfolders=False):
     return sorted(video_file_list)
 
 
-def get_total_file_list(import_path, skip_subfolders=False):
-    total_file_list = []
+def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
+    total_file_list: List[str] = []
     if skip_subfolders:
         total_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
@@ -129,8 +130,10 @@ def get_total_file_list(import_path, skip_subfolders=False):
     return sorted(total_file_list)
 
 
-def get_failed_upload_file_list(import_path, skip_subfolders=False):
-    failed_upload_file_list = []
+def get_failed_upload_file_list(
+    import_path: str, skip_subfolders: bool = False
+) -> List[str]:
+    failed_upload_file_list: List[str] = []
     if skip_subfolders:
         failed_upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
@@ -156,8 +159,10 @@ def get_failed_upload_file_list(import_path, skip_subfolders=False):
     return sorted(failed_upload_file_list)
 
 
-def get_success_upload_file_list(import_path, skip_subfolders=False):
-    success_upload_file_list = []
+def get_success_upload_file_list(
+    import_path: str, skip_subfolders: bool = False
+) -> List[str]:
+    success_upload_file_list: List[str] = []
     if skip_subfolders:
         success_upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
@@ -183,7 +188,7 @@ def get_success_upload_file_list(import_path, skip_subfolders=False):
     return sorted(success_upload_file_list)
 
 
-def success_upload(root, file):
+def success_upload(root: str, file: str) -> bool:
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     upload_success = os.path.join(log_root, "upload_success")
@@ -235,7 +240,7 @@ def success_only_manual_upload(root, file):
     return success
 
 
-def preform_upload(root, file):
+def preform_upload(root: str, file: str) -> bool:
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     process_success = os.path.join(log_root, "mapillary_image_description_success")
@@ -249,7 +254,7 @@ def preform_upload(root, file):
     return upload
 
 
-def failed_upload(root, file):
+def failed_upload(root: str, file: str) -> bool:
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     process_failed = os.path.join(log_root, "mapillary_image_description_failed")
@@ -263,8 +268,10 @@ def failed_upload(root, file):
     return failed
 
 
-def get_finalize_file_list(import_path, skip_subfolders=False):
-    finalize_file_list = []
+def get_finalize_file_list(
+    import_path: str, skip_subfolders: bool = False
+) -> List[str]:
+    finalize_file_list: List[str] = []
     if skip_subfolders:
         finalize_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
@@ -290,7 +297,7 @@ def get_finalize_file_list(import_path, skip_subfolders=False):
     return sorted(finalize_file_list)
 
 
-def preform_finalize(root, file):
+def preform_finalize(root: str, file: str) -> bool:
     file_path = os.path.join(root, file)
     log_root = log_rootpath(file_path)
     upload_succes = os.path.join(log_root, "upload_success")
@@ -391,7 +398,7 @@ def prompt_user_for_user_items(user_name):
     }
 
 
-def authenticate_user(user_name):
+def authenticate_user(user_name: str) -> Optional[Dict]:
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
@@ -667,7 +674,7 @@ def upload_file_list_manual(
     flag_finalization(file_list)
 
 
-def log_rootpath(filepath):
+def log_rootpath(filepath: str) -> str:
     return os.path.join(
         os.path.dirname(filepath),
         ".mapillary",
