@@ -134,7 +134,7 @@ def get_geotag_properties_from_exif(
         )
         return None
     if lat is not None and lon is not None:
-        geotag_properties = {
+        geotag_properties: Dict = {
             "MAPLatitude": lat,
             "MAPLongitude": lon,
         }
@@ -147,6 +147,8 @@ def get_geotag_properties_from_exif(
         return None
     try:
         timestamp = exif.extract_capture_time()
+        if timestamp is None:
+            raise Exception
     except:
         print_error(
             "Error, "

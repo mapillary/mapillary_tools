@@ -1,3 +1,4 @@
+from typing import List, Optional, Tuple, Type, Union, Any
 import datetime
 import json
 import os
@@ -6,15 +7,16 @@ import uuid
 import exifread
 
 from .geo import normalize_bearing
+from exifread.utils import Ratio
 
 
-def eval_frac(value):
+def eval_frac(value: Ratio) -> float:
     if value.den == 0:
         return -1.0
     return float(value.num) / float(value.den)
 
 
-def format_time(time_string):
+def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
     """
     Format time string with invalid time elements in hours/minutes/seconds
     Format for the timestring needs to be "%Y_%m_%d_%H_%M_%S"
@@ -36,7 +38,7 @@ def format_time(time_string):
     return date_time, subseconds
 
 
-def gps_to_decimal(values, reference):
+def gps_to_decimal(values: List[Ratio], reference: str) -> float:
     sign = 1 if reference in "NE" else -1
     degrees = eval_frac(values[0])
     minutes = eval_frac(values[1])
@@ -44,7 +46,7 @@ def gps_to_decimal(values, reference):
     return sign * (degrees + minutes / 60 + seconds / 3600)
 
 
-def exif_datetime_fields():
+def exif_datetime_fields() -> List[List[str]]:
     """
     Date time fields in EXIF
     """
@@ -63,7 +65,7 @@ def exif_datetime_fields():
     ]
 
 
-def exif_gps_date_fields():
+def exif_gps_date_fields() -> List[List[str]]:
     """
     Date fields in EXIF GPS
     """
@@ -75,7 +77,7 @@ class ExifRead:
     EXIF class for reading exif from an image
     """
 
-    def __init__(self, filename, details=False):
+    def __init__(self, filename: str, details: bool = False) -> None:
         """
         Initialize EXIF object with FILE as filename or fileobj
         """
@@ -86,7 +88,12 @@ class ExifRead:
         else:
             self.tags = exifread.process_file(filename, details=details)
 
-    def _extract_alternative_fields(self, fields, default=None, field_type=float):
+    def _extract_alternative_fields(
+        self,
+        fields: List[str],
+        default: Optional[Union[str, int]] = None,
+        field_type: Union[Type[float], Type[str], Type[int]] = float,
+    ) -> Union[Tuple[Any, Any]]:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -94,14 +101,13 @@ class ExifRead:
         for field in fields:
             if field in self.tags:
                 if field_type is float:
-                    value = eval_frac(self.tags[field].values[0])
+                    return eval_frac(self.tags[field].values[0]), field
                 elif field_type is str:
-                    value = str(self.tags[field].values)
+                    return str(self.tags[field].values), field
                 elif field_type is int:
-                    value = int(self.tags[field].values[0])
+                    return int(self.tags[field].values[0]), field
                 else:
-                    value = None
-                return value, field
+                    return None, field
         return default, None
 
     def exif_name(self):
@@ -139,18 +145,18 @@ class ExifRead:
 
         return lat, lon, ca, captured_at
 
-    def extract_image_history(self):
+    def extract_image_history(self) -> str:
         field = ["Image Tag 0x9213"]
         user_comment, _ = self._extract_alternative_fields(field, "{}", str)
         return user_comment
 
-    def extract_altitude(self):
+    def extract_altitude(self) -> float:
         """
         Extract altitude
         """
         altitude_ref = {0: 1, 1: -1}
-        fields = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
-        refs = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
+        fields: List[str] = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
+        refs: List[str] = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
         ref = (
             0
@@ -159,7 +165,7 @@ class ExifRead:
         )
         return altitude * altitude_ref[ref]
 
-    def extract_capture_time(self):
+    def extract_capture_time(self) -> Optional[datetime.datetime]:
         """
         Extract capture time from EXIF
         return a datetime object
@@ -198,7 +204,7 @@ class ExifRead:
 
         return capture_time
 
-    def extract_direction(self):
+    def extract_direction(self) -> float:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
@@ -299,7 +305,7 @@ class ExifRead:
         )
         return width, height
 
-    def extract_image_description(self):
+    def extract_image_description(self) -> str:
         """
         Extract image description
         """
@@ -308,13 +314,13 @@ class ExifRead:
         )
         return description
 
-    def extract_lon_lat(self):
+    def extract_lon_lat(self) -> Tuple[Optional[float], Optional[float]]:
         if "GPS GPSLatitude" in self.tags and "GPS GPSLatitude" in self.tags:
-            lat = gps_to_decimal(
+            lat: Optional[float] = gps_to_decimal(
                 self.tags["GPS GPSLatitude"].values,
                 self.tags["GPS GPSLatitudeRef"].values,
             )
-            lon = gps_to_decimal(
+            lon: Optional[float] = gps_to_decimal(
                 self.tags["GPS GPSLongitude"].values,
                 self.tags["GPS GPSLongitudeRef"].values,
             )
@@ -333,7 +339,7 @@ class ExifRead:
             lon, lat = None, None
         return lon, lat
 
-    def extract_make(self):
+    def extract_make(self) -> str:
         """
         Extract camera make
         """
@@ -343,7 +349,7 @@ class ExifRead:
         )
         return make
 
-    def extract_model(self):
+    def extract_model(self) -> str:
         """
         Extract camera model
         """
@@ -363,7 +369,7 @@ class ExifRead:
         )
         return software
 
-    def extract_orientation(self):
+    def extract_orientation(self) -> int:
         """
         Extract image orientation
         """
@@ -375,7 +381,7 @@ class ExifRead:
             return 1
         return orientation
 
-    def extract_subsec(self):
+    def extract_subsec(self) -> str:
         """
         Extract microseconds
         """
