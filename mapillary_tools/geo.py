@@ -4,12 +4,13 @@ import datetime
 import math
 
 import pytz
+from typing import Any, List, Tuple
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
 
-def ecef_from_lla(lat, lon, alt):
+def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, float]:
     """
     Compute ECEF XYZ from latitude, longitude and altitude.
 
@@ -29,7 +30,7 @@ def ecef_from_lla(lat, lon, alt):
     return x, y, z
 
 
-def gps_distance(latlon_1, latlon_2):
+def gps_distance(latlon_1: Tuple[float, float], latlon_2: Tuple[float, float]) -> float:
     """
     Distance between two (lat,lon) pairs.
 
@@ -89,7 +90,7 @@ def get_total_distance_traveled(latlon_track):
     return total_distance
 
 
-def gps_speed(distance, delta_t):
+def gps_speed(distance: List[Any], delta_t: List[Any]) -> List[Any]:
     # Most timestamps have 1 second resolution so change zeros in delta_t for
     # 0.5 so that we don't divide by zero
     delta_t_corrected = [0.5 if x == 0 else x for x in delta_t]
@@ -176,16 +177,16 @@ def offset_bearing(bearing, offset):
     return bearing
 
 
-def normalize_bearing(bearing, check_hex=False):
+def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
     """
     Normalize bearing and convert from hex if
     """
     if bearing > 360 and check_hex:
         # fix negative value wrongly parsed in exifread
         # -360 degree -> 4294966935 when converting from hex
-        bearing = bin(int(bearing))[2:]
-        bearing = "".join([str(int(int(a) == 0)) for a in bearing])
-        bearing = -float(int(bearing, 2))
+        bearing1 = bin(int(bearing))[2:]
+        bearing2 = "".join([str(int(int(a) == 0)) for a in bearing1])
+        bearing = -float(int(bearing2, 2))
     bearing %= 360
     return bearing
 

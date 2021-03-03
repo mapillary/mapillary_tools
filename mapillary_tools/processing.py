@@ -1,4 +1,6 @@
 import base64
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import datetime
 import hashlib
 import json
@@ -71,8 +73,12 @@ def estimate_sub_second_time(files, interval=0.0):
 
 
 def geotag_from_exif(
-    process_file_list, import_path, offset_time=0.0, offset_angle=0.0, verbose=False
-):
+    process_file_list: List[str],
+    import_path: str,
+    offset_time: float = 0.0,
+    offset_angle: float = 0.0,
+    verbose: bool = False,
+) -> None:
     if offset_time == 0:
         for image in tqdm(
             process_file_list, desc="Extracting gps data from image EXIF"
@@ -105,7 +111,9 @@ def geotag_from_exif(
         )
 
 
-def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
+def get_geotag_properties_from_exif(
+    image: str, offset_angle: float = 0.0, verbose: bool = False
+) -> Optional[Dict]:
     try:
         exif = ExifRead(image)
     except:
@@ -126,7 +134,7 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
         )
         return None
     if lat is not None and lon is not None:
-        geotag_properties = {
+        geotag_properties: Dict = {
             "MAPLatitude": lat,
             "MAPLongitude": lon,
         }
@@ -139,6 +147,8 @@ def get_geotag_properties_from_exif(image, offset_angle=0.0, verbose=False):
         return None
     try:
         timestamp = exif.extract_capture_time()
+        if timestamp is None:
+            raise Exception
     except:
         print_error(
             "Error, "
@@ -408,8 +418,13 @@ def get_geotag_properties_from_gps_trace(
 
 
 def get_upload_param_properties(
-    log_root, image, user_name, user_upload_token, user_key, verbose=False
-):
+    log_root: str,
+    image: str,
+    user_name: str,
+    user_upload_token: str,
+    user_key: str,
+    verbose: bool = False,
+) -> Optional[Dict]:
     if not os.path.isdir(log_root):
         print(
             "Warning, sequence process has not been done for image "
@@ -499,18 +514,18 @@ def get_upload_param_properties(
 
 
 def get_final_mapillary_image_description(
-    log_root,
-    image,
-    master_upload=False,
-    verbose=False,
-    skip_EXIF_insert=False,
-    keep_original=False,
-    overwrite_all_EXIF_tags=False,
-    overwrite_EXIF_time_tag=False,
-    overwrite_EXIF_gps_tag=False,
-    overwrite_EXIF_direction_tag=False,
-    overwrite_EXIF_orientation_tag=False,
-):
+    log_root: str,
+    image: str,
+    master_upload: bool = False,
+    verbose: bool = False,
+    skip_EXIF_insert: bool = False,
+    keep_original: bool = False,
+    overwrite_all_EXIF_tags: bool = False,
+    overwrite_EXIF_time_tag: bool = False,
+    overwrite_EXIF_gps_tag: bool = False,
+    overwrite_EXIF_direction_tag: bool = False,
+    overwrite_EXIF_orientation_tag: bool = False,
+) -> Optional[Dict]:
     sub_commands = [
         "user_process",
         "geotag_process",
@@ -678,7 +693,7 @@ def get_final_mapillary_image_description(
     return final_mapillary_image_description
 
 
-def get_geotag_data(log_root, image, verbose=False):
+def get_geotag_data(log_root: str, image: str, verbose: bool = False) -> Optional[Dict]:
     if not os.path.isdir(log_root):
         if verbose:
             print("Warning, no logs for image " + image)
@@ -725,7 +740,7 @@ def format_orientation(orientation):
     return mapping[orientation]
 
 
-def load_json(file_path):
+def load_json(file_path: str):
     try:
         with open(file_path, "rb") as f:
             return json.load(f)
@@ -733,7 +748,7 @@ def load_json(file_path):
         return {}
 
 
-def save_json(data, file_path):
+def save_json(data: Dict[str, Any], file_path: str) -> None:
     with open(file_path, "wb") as f:
         f.write(json.dumps(data, indent=4).encode("utf-8"))
 
@@ -745,17 +760,17 @@ def update_json(data, file_path, process):
 
 
 def get_process_file_list(
-    import_path,
-    process,
-    rerun=False,
-    verbose=False,
-    skip_subfolders=False,
-    root_dir=None,
-):
+    import_path: str,
+    process: str,
+    rerun: bool = False,
+    verbose: bool = False,
+    skip_subfolders: bool = False,
+    root_dir: Optional[str] = None,
+) -> List[str]:
     if not root_dir:
         root_dir = import_path
 
-    process_file_list = []
+    process_file_list: List[str] = []
     if skip_subfolders:
         process_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
@@ -783,12 +798,16 @@ def get_process_file_list(
 
 
 def get_process_status_file_list(
-    import_path, process, status, skip_subfolders=False, root_dir=None
-):
+    import_path: str,
+    process: str,
+    status: str,
+    skip_subfolders: bool = False,
+    root_dir: Optional[str] = None,
+) -> List[str]:
     if root_dir is None:
         root_dir = import_path
 
-    status_process_file_list = []
+    status_process_file_list: List[str] = []
     if skip_subfolders:
         status_process_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
@@ -814,16 +833,18 @@ def get_process_status_file_list(
     return sorted(status_process_file_list)
 
 
-def process_status(file_path, process, status):
+def process_status(file_path: str, process: str, status: str) -> bool:
     log_root = uploader.log_rootpath(file_path)
     status_file = os.path.join(log_root, process + "_" + status)
     return os.path.isfile(status_file)
 
 
-def get_duplicate_file_list(import_path, skip_subfolders=False, root_dir=None):
+def get_duplicate_file_list(
+    import_path: str, skip_subfolders: bool = False, root_dir: Optional[str] = None
+) -> List[str]:
     if root_dir is None:
         root_dir = import_path
-    duplicate_file_list = []
+    duplicate_file_list: List[str] = []
     if skip_subfolders:
         duplicate_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
@@ -849,13 +870,13 @@ def get_duplicate_file_list(import_path, skip_subfolders=False, root_dir=None):
     return sorted(duplicate_file_list)
 
 
-def is_duplicate(file_path):
+def is_duplicate(file_path: str) -> bool:
     log_root = uploader.log_rootpath(file_path)
     duplicate_flag_path = os.path.join(log_root, "duplicate")
     return os.path.isfile(duplicate_flag_path)
 
 
-def preform_process(file_path, process, rerun=False):
+def preform_process(file_path: str, process: str, rerun: bool = False) -> bool:
     log_root = uploader.log_rootpath(file_path)
     process_succes = os.path.join(log_root, process + "_success")
     upload_succes = os.path.join(log_root, "upload_success")
@@ -889,7 +910,7 @@ def failed_process(file_path, process):
     return process_failed_true
 
 
-def processed_images_rootpath(filepath):
+def processed_images_rootpath(filepath: str) -> str:
     return os.path.join(
         os.path.dirname(filepath),
         ".mapillary",
@@ -947,8 +968,12 @@ def video_import_paths(video_file):
 
 
 def create_and_log_process_in_list(
-    process_file_list, process, status, verbose=False, mapillary_description=None
-):
+    process_file_list: List[str],
+    process: str,
+    status: str,
+    verbose: bool = False,
+    mapillary_description: Optional[Dict[str, str]] = None,
+) -> None:
     if mapillary_description is None:
         mapillary_description = {}
     for image in tqdm(process_file_list, desc="Logging"):
@@ -956,8 +981,12 @@ def create_and_log_process_in_list(
 
 
 def create_and_log_process(
-    image, process, status, mapillary_description=None, verbose=False
-):
+    image: str,
+    process: str,
+    status: str,
+    mapillary_description: Optional[Any] = None,
+    verbose: bool = False,
+) -> None:
     if mapillary_description is None:
         mapillary_description = {}
 
@@ -1012,14 +1041,14 @@ def create_and_log_process(
 
 
 def user_properties(
-    user_name,
-    import_path,
-    process_file_list,
-    organization_username=None,
-    organization_key=None,
-    private=False,
-    verbose=False,
-):
+    user_name: str,
+    import_path: str,
+    process_file_list: List[str],
+    organization_username: None = None,
+    organization_key: None = None,
+    private: bool = False,
+    verbose: bool = False,
+) -> Optional[Dict]:
     # basic
     user_properties = uploader.authenticate_user(user_name)
     if not user_properties:
@@ -1113,15 +1142,20 @@ def process_organization(
 
 
 def inform_processing_start(
-    import_path, len_process_file_list, process, skip_subfolders=False
-):
+    import_path: str,
+    len_process_file_list: int,
+    process: str,
+    skip_subfolders: bool = False,
+) -> None:
     total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
     print(
         f"Running {process} for {len_process_file_list} images, skipping {len(total_file_list) - len_process_file_list} images."
     )
 
 
-def load_geotag_points(process_file_list, verbose=False):
+def load_geotag_points(
+    process_file_list: List[str], verbose: bool = False
+) -> Tuple[List[str], List[datetime.datetime], List[float], List[float], List[float]]:
     file_list = []
     capture_times = []
     lats = []
@@ -1156,16 +1190,16 @@ def load_geotag_points(process_file_list, verbose=False):
 
 
 def split_sequences(
-    capture_times,
-    lats,
-    lons,
-    file_list,
-    directions,
-    cutoff_time,
-    cutoff_distance,
-    verbose=False,
-):
-    sequences = []
+    capture_times: List[datetime.datetime],
+    lats: List[float],
+    lons: List[float],
+    file_list: List[str],
+    directions: List[float],
+    cutoff_time: float,
+    cutoff_distance: float,
+    verbose: bool = False,
+) -> List[Dict]:
+    sequences: List[Dict] = []
     # sort based on time
     sort_by_time = list(zip(capture_times, file_list, lats, lons, directions))
     sort_by_time.sort()
@@ -1240,23 +1274,23 @@ def split_sequences(
     return sequences
 
 
-def interpolate_timestamp(capture_times):
+def interpolate_timestamp(
+    capture_times: List[datetime.datetime],
+) -> List[datetime.datetime]:
     """
     Interpolate time stamps in case of identical timestamps
     """
-    timestamps = []
-    num_file = len(capture_times)
 
-    if num_file < 2:
+    if len(capture_times) < 2:
         return capture_times
 
     # trace identical timestamps (always assume capture_times is sorted)
-    time_dict = OrderedDict()
+    time_dict: OrderedDict[datetime.datetime, Dict] = OrderedDict()
     for i, t in enumerate(capture_times):
         if t not in time_dict:
             time_dict[t] = {"count": 0, "pointer": 0}
 
-            if i != 0:
+            if 0 < i:
                 interval = (t - capture_times[i - 1]).total_seconds()
                 time_dict[capture_times[i - 1]]["interval"] = interval
 
@@ -1269,6 +1303,8 @@ def interpolate_timestamp(capture_times):
     else:
         # set time interval assuming capture interval is 1 second
         time_dict[keys[0]]["interval"] = time_dict[keys[0]]["count"] * 1.0
+
+    timestamps = []
 
     # interpolate timestamps
     for t in capture_times:
