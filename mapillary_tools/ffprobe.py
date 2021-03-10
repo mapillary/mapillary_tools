@@ -31,13 +31,14 @@ class FFProbe:
 
 
             if str(platform.system())=='Windows':
-                # if shell=True cmd should be a string
+                # If shell is True, it is recommended to pass args as a string rather than as a sequence.
                 # cmd=["ffprobe", "-show_streams", '"'+video_file+'"']
                 cmd = f'ffprobe -show_streams "{video_file}"'
             else:
                 cmd=[f'ffprobe -show_streams "{video_file}"']
 
             p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=True)
+            stdout, stderr = p.communicate()
             self.format=None
             self.created=None
             self.duration=None
@@ -49,7 +50,8 @@ class FFProbe:
             self.audio=[]
             datalines=[]
 
-            for a in iter(p.stdout.readline, b''):
+            # for a in iter(p.stdout.readline, b''):
+            for a in stdout.splitlines():
                 a = a.decode('utf-8','ignore')
                 if re.match('\[STREAM\]',a):
                     datalines=[]
@@ -59,7 +61,8 @@ class FFProbe:
                 else:
                     datalines.append(a)
 
-            for a in iter(p.stderr.readline, b''):
+            # for a in iter(p.stderr.readline, b''):
+            for a in stderr.splitlines():
                 a = a.decode('utf-8','ignore')
                 if re.match('\[STREAM\]',a):
                     datalines=[]
