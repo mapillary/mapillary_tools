@@ -71,7 +71,7 @@ def validate_meta_data(meta_columns, meta_names, meta_types):
 
 
 def convert_from_gps_time(gps_time, gps_week=None):
-    """ Convert gps time in ticks to standard time. """
+    """Convert gps time in ticks to standard time."""
 
     gps_timestamp = float(gps_time)
 

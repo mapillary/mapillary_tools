@@ -51,7 +51,7 @@ def upload(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path + " does not exist, exiting...")
+        print(f"Error, import directory {import_path} does not exist, exiting...")
         sys.exit(1)
 
     # get list of file to process
@@ -91,7 +91,7 @@ def upload(
             )
             sys.exit(1)
 
-        if len(upload_file_list):
+        if upload_file_list:
             # get upload params for the manual upload images, group them per sequence
             # and separate direct upload images
             params = {}
@@ -106,10 +106,7 @@ def upload(
                     with open(upload_params_path, "rb") as jf:
                         params[image] = json.load(jf)
                         sequence = params[image]["key"]
-                        if sequence in list_per_sequence_mapping:
-                            list_per_sequence_mapping[sequence].append(image)
-                        else:
-                            list_per_sequence_mapping[sequence] = [image]
+                        list_per_sequence_mapping.setdefault(sequence, []).append(image)
                 else:
                     direct_upload_file_list.append(image)
 

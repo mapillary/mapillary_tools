@@ -265,7 +265,7 @@ def download(
 
 
 class BlurredOriginalsDownloader(threading.Thread):
-    """"""
+    """ """
 
     def __init__(self, lock, q, output_folder, headers, counter, done_file, err_file):
         super().__init__()

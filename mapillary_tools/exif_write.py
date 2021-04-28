@@ -60,7 +60,7 @@ class ExifEdit:
         self._ef["0th"][piexif.ImageIFD.ImageHistory] = json.dumps(data)
 
     def add_camera_make_model(self, make, model):
-        """ Add camera make and model."""
+        """Add camera make and model."""
         self._ef["0th"][piexif.ImageIFD.Make] = make
         self._ef["0th"][piexif.ImageIFD.Model] = model
 
