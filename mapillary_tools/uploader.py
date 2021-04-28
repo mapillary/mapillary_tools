@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+import queue
+from typing import Any, Dict, List, Optional, Iterable
 import copy
 import json
 import os
@@ -9,6 +10,7 @@ from queue import Queue
 import threading
 import time
 import getpass
+import zipfile
 
 import requests
 
@@ -18,6 +20,7 @@ from . import api_v3
 from .config import GLOBAL_CONFIG_FILEPATH
 from .exif_read import ExifRead
 from . import upload_api_v3
+from . import upload_api_v4
 from . import ipc
 from .utils import force_decode
 
@@ -584,13 +587,79 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
         sys.exit(1)
 
 
+def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
+    """
+    find the common root path
+    """
+    dirs = set()
+    for path in file_list:
+        dirs.add(os.path.dirname(path))
+    if len(dirs) == 0:
+        return None
+    elif len(dirs) == 1:
+        return list(dirs)[0]
+    else:
+        return find_root_dir(dirs)
+
+
+def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
+    first_image = list(file_params.values())[0]
+    user_name = first_image["user_name"]
+
+    root_dir = find_root_dir(file_list)
+    if root_dir is None:
+        raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
+    sequence_zip_path = os.path.join(root_dir, f"sequence_{sequence_uuid}.zip")
+
+    if not os.path.isfile(sequence_zip_path):
+        print(f"Compressing {len(file_list)} image files to {sequence_zip_path}")
+        # compress files
+        ziph = zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED)
+        for fullpath in file_list:
+            relpath = os.path.relpath(fullpath, root_dir)
+            print(f"Writing {fullpath} to {sequence_zip_path}/{relpath}")
+            ziph.write(fullpath, relpath)
+        ziph.close()
+    else:
+        print(f"Found the compressed sequence file {sequence_zip_path}")
+
+    credentials = authenticate_user(user_name)
+    if credentials is None:
+        raise RuntimeError(f"Unable to find credentials for user {user_name}")
+
+    service = upload_api_v4.UploadService(credentials["user_upload_token"])
+
+    data_size = os.path.getsize(sequence_zip_path)
+    print(f"Uploading {sequence_zip_path} ({data_size} bytes) ...")
+    with open(sequence_zip_path, "rb") as fp:
+        upload_resp = service.upload(sequence_uuid, data_size, fp)
+    try:
+        upload_resp.raise_for_status()
+    except requests.RequestException as ex:
+        raise RuntimeError(f"Upload server error: {ex.response.text}")
+
+    file_handle = upload_resp.json()["h"]
+
+    print(f"Finishing uploading {sequence_zip_path}")
+    finish_resp = service.finish(file_handle)
+    try:
+        finish_resp.raise_for_status()
+    except requests.RequestException as ex:
+        raise RuntimeError(f"Upload server error: {ex.response.text}")
+
+    flag_finalization(file_list)
+
+    print(f"Deleting {sequence_zip_path}...")
+    os.remove(sequence_zip_path)
+
+
 def upload_file_list_manual(
-    file_list,
-    sequence_uuid,
+    file_list: list,
+    sequence_uuid: str,
     file_params,
-    sequence_idx,
-    number_threads=None,
-    max_attempts=None,
+    sequence_idx: int,
+    number_threads: int = None,
+    max_attempts: int = None,
 ):
     # set some uploader params first
     if number_threads is None:
@@ -605,6 +674,8 @@ def upload_file_list_manual(
     private = first_image.get("private", False)
 
     credentials = authenticate_user(user_name)
+    if credentials is None:
+        raise RuntimeError(f"Unable to find credentials for user {user_name}")
 
     upload_options = {
         "token": credentials["user_upload_token"],
@@ -644,7 +715,7 @@ def upload_file_list_manual(
     print(f"\nUsing upload session {session['key']}")
 
     # create upload queue with all files per sequence
-    q = Queue()
+    q: queue.Queue = Queue()
     for filepath in file_list:
         q.put((filepath, max_attempts, session))
 

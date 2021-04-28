@@ -1,0 +1,39 @@
+import requests
+import os
+
+MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
+    "MAPILLARY_UPLOAD_ENDPOINT", "https://a.mapillary.com/v4"
+)
+MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
+    "MAPILLARY_GRAPH_API_ENDPOINT", "https://a.mapillary.com/v4"
+)
+
+
+class UploadService:
+    access_token: str
+
+    def __init__(self, access_token: str):
+        self.access_token = access_token
+
+    def upload(self, session_key: str, data_size: int, data) -> requests.Response:
+        headers = {
+            "Authorization": f"OAuth {self.access_token}",
+            "Offset": "0",
+            "X-Entity-Type": "text/image",
+            "X-Entity-Length": str(data_size),
+            "X-Entity-Name": session_key,
+        }
+        return requests.post(
+            f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}", headers=headers, data=data
+        )
+
+    def finish(self, file_handle: str) -> requests.Response:
+        headers = {
+            "Authorization": f"OAuth {self.access_token}",
+        }
+        json = {
+            "file_handle": file_handle,
+        }
+        return requests.post(
+            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload", headers=headers, json=json
+        )

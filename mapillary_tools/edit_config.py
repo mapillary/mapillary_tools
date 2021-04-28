@@ -22,13 +22,16 @@ def edit_config(
         config.create_config(config_file)
 
     if jwt:
-        user = api_v3.get_user(jwt)
+        if user_name is None or user_key is None:
+            user = api_v3.get_user(jwt)
+            user_name = user["username"]
+            user_key = user["key"]
         user_items = {
-            "MAPSettingsUsername": user["username"],
-            "MAPSettingsUserKey": user["key"],
+            "MAPSettingsUsername": user_name,
+            "MAPSettingsUserKey": user_key,
             "user_upload_token": jwt,
         }
-        config.update_config(config_file, user["username"], user_items)
+        config.update_config(config_file, user_name, user_items)
         return
 
     if user_key and user_name:  # Manually add user_key

@@ -122,15 +122,24 @@ def upload(
                     direct_upload_file_list, number_threads, max_attempts
                 )
 
+            api_version = os.getenv("MAPILLARY_API_VERSION", "v3")
+
             for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
-                uploader.upload_file_list_manual(
-                    list_per_sequence_mapping[sequence_uuid],
-                    sequence_uuid,
-                    params,
-                    idx,
-                    number_threads,
-                    max_attempts,
-                )
+                if api_version == "v3":
+                    uploader.upload_file_list_manual(
+                        list_per_sequence_mapping[sequence_uuid],
+                        sequence_uuid,
+                        params,
+                        idx,
+                        number_threads,
+                        max_attempts,
+                    )
+                elif api_version == "v4":
+                    uploader.upload_sequence_v4(
+                        list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
+                    )
+                else:
+                    raise ValueError("MAPILLARY_API_VERSION must be either v3 or v4")
 
         if to_finalize_file_list:
             params = {}
