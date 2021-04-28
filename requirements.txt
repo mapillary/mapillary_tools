@@ -1,4 +1,4 @@
-Pillow
+Pillow==8.1.2
 exifread==2.1.2
 Piexif @ git+https://github.com/mapillary/Piexif
 gpxpy==0.9.8
