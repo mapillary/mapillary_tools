@@ -198,6 +198,8 @@ class ExifRead:
             sub_sec = "0"
             if not subseconds:
                 sub_sec = self.extract_subsec()
+                if isinstance(sub_sec, str):
+                    sub_sec = sub_sec.strip()
             capture_time = capture_time + datetime.timedelta(
                 seconds=float("0." + sub_sec)
             )
