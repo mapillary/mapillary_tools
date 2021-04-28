@@ -421,17 +421,20 @@ class ExifRead:
         Check existence of required Mapillary tags
         """
         description_tag = "Image ImageDescription"
-        if description_tag not in self.tags:
+        description = self.tags.get(description_tag)
+        if description is None:
             return False
+        description_values = json.loads(description.values)
         for requirement in [
             "MAPSequenceUUID",
-            "MAPSettingsUserKey",
             "MAPCaptureTime",
             "MAPLongitude",
             "MAPLatitude",
         ]:
-            if requirement not in self.tags[description_tag].values or json.loads(
-                self.tags[description_tag].values
-            )[requirement] in ["", None, " "]:
+            val = description_values.get(requirement)
+            if val is None:
                 return False
+            elif isinstance(val, str):
+                if not val.strip():
+                    return False
         return True
