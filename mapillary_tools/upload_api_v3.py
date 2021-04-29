@@ -55,7 +55,7 @@ def _get_headers(options):
 
 
 def _get_params(options):
-    client_id = options.get("client_id", api_v3.CLIENT_ID)
+    client_id = options.get("client_id", api_v3.MAPILLARY_WEB_CLIENT_ID)
     params = {"client_id": client_id}
 
     return params

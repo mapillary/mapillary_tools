@@ -17,12 +17,14 @@ import requests
 from . import processing
 from . import config
 from . import api_v3
+from . import api_v4
 from .config import GLOBAL_CONFIG_FILEPATH
 from .exif_read import ExifRead
 from . import upload_api_v3
 from . import upload_api_v4
 from . import ipc
 from .utils import force_decode
+from . import MAPILLARY_API_VERSION
 
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
@@ -323,7 +325,11 @@ def get_organization_key(user_key, organization_username, upload_token):
     organization_key = None
 
     organization_usernames = []
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         organization_usernames.append(org["name"])
         if org["name"] == organization_username:
@@ -340,7 +346,11 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         if org["key"] == organization_key:
             return
@@ -348,7 +358,11 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         if org["key"] == organization_key:
             if (
@@ -388,12 +402,21 @@ def prompt_user_for_user_items(user_name):
     print(f"Enter user credentials for user {user_name}:")
     user_email = input("Enter email: ")
     user_password = getpass.getpass("Enter user password: ")
-    user_key = api_v3.get_user_key(user_name)
-    if not user_key:
-        return None
-    upload_token = api_v3.get_upload_token(user_email, user_password)
+
+    if MAPILLARY_API_VERSION == "v3":
+        user_key = api_v3.get_user_key(user_name)
+        if not user_key:
+            return None
+        upload_token = api_v3.get_upload_token(user_email, user_password)
+    else:
+        assert MAPILLARY_API_VERSION == "v4"
+        data = api_v4.get_upload_token(user_email, user_password)
+        upload_token = data.get("access_token")
+        user_key = data.get("user_id")
+
     if not upload_token:
         return None
+
     return {
         "MAPSettingsUsername": user_name,
         "MAPSettingsUserKey": user_key,
@@ -422,16 +445,24 @@ def authenticate_with_email_and_pwd(user_email, user_password):
     """
     if user_email is None or user_password is None:
         raise ValueError("Could not authenticate user. Missing username or password")
-    upload_token = api_v3.get_upload_token(user_email, user_password)
+
+    if MAPILLARY_API_VERSION == "v3":
+        upload_token = api_v3.get_upload_token(user_email, user_password)
+        user_key = api_v3.get_user_key(user_email)
+        if not user_key:
+            print(
+                f"User email {user_email} does not exist, please try again or contact Mapillary user support."
+            )
+            sys.exit(1)
+    else:
+        assert MAPILLARY_API_VERSION == "v4"
+        data = api_v4.get_upload_token(user_email, user_password)
+        upload_token = data.get("access_token")
+        user_key = data.get("user_id")
+
     if not upload_token:
         print(
             "Authentication failed for user email " + user_email + ", please try again."
-        )
-        sys.exit(1)
-    user_key = api_v3.get_user_key(user_email)
-    if not user_key:
-        print(
-            f"User email {user_email} does not exist, please try again or contact Mapillary user support."
         )
         sys.exit(1)
 

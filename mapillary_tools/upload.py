@@ -5,9 +5,7 @@ import sys
 from . import ipc
 from . import uploader
 from .exif_aux import verify_mapillary_tag
-
-
-API_VERSION = os.getenv("MAPILLARY_API_VERSION", "v3")
+from . import MAPILLARY_API_VERSION
 
 
 def upload(
@@ -120,7 +118,7 @@ def upload(
                 f"Uploading {len(upload_file_list)} images with valid mapillary tags (Skipping {len(total_file_list) - len(upload_file_list)})"
             )
 
-            if API_VERSION == "v3":
+            if MAPILLARY_API_VERSION == "v3":
                 if direct_upload_file_list:
                     uploader.upload_file_list_direct(
                         direct_upload_file_list, number_threads, max_attempts
@@ -134,7 +132,7 @@ def upload(
                         number_threads,
                         max_attempts,
                     )
-            elif API_VERSION == "v4":
+            elif MAPILLARY_API_VERSION == "v4":
                 if direct_upload_file_list:
                     raise RuntimeError(
                         f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"

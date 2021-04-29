@@ -1,11 +1,10 @@
 import requests
 import os
 
+from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
+
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://a.mapillary.com/v4"
-)
-MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
-    "MAPILLARY_GRAPH_API_ENDPOINT", "https://a.mapillary.com/v4"
 )
 
 

@@ -25,7 +25,7 @@ class BlurDownloader(threading.Thread):
     def download_file(self, image_key, filename):
         response = requests.get(
             f"{api_v3.API_ENDPOINT}/v3/images/{image_key}/download_original_uuid",
-            params={"client_id": api_v3.CLIENT_ID},
+            params={"client_id": api_v3.MAPILLARY_WEB_CLIENT_ID},
             headers={"Authorization": f"Bearer {self.token}"},
             stream=True,
         )

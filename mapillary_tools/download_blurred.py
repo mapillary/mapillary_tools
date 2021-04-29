@@ -85,7 +85,7 @@ def query_search_api(headers, **params):
     def get_keys(resp):
         return [f["properties"]["key"] for f in resp["features"]]
 
-    params["client_id"] = api_v3.CLIENT_ID
+    params["client_id"] = api_v3.MAPILLARY_WEB_CLIENT_ID
     # Get data from server, then parse JSON
     r = requests.get(f"{api_v3.API_ENDPOINT}/v3/images", params=params, headers=headers)
     keys = get_keys(r.json())
@@ -278,7 +278,7 @@ class BlurredOriginalsDownloader(threading.Thread):
         self.output_folder = output_folder
         self.shutdown_flag = threading.Event()
         self.worker_stats = 0
-        self.client_id = api_v3.CLIENT_ID
+        self.client_id = api_v3.MAPILLARY_WEB_CLIENT_ID
 
     def download_file(self, image_key, filename):
         response = requests.get(

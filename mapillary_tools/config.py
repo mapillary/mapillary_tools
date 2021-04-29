@@ -1,13 +1,16 @@
 import configparser
 import os
 
-from mapillary_tools import api_v3
+from . import api_v3, api_v4, MAPILLARY_API_VERSION
 
 
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
     os.path.join(
-        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
+        "~/.config/mapillary/configs",
+        api_v3.MAPILLARY_WEB_CLIENT_ID
+        if MAPILLARY_API_VERSION == "v3"
+        else api_v4.MAPILLARY_WEB_CLIENT_ID,
     ),
 )
 
