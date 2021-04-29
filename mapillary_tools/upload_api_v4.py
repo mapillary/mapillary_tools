@@ -19,7 +19,7 @@ class UploadService:
         headers = {
             "Authorization": f"OAuth {self.access_token}",
             "Offset": "0",
-            "X-Entity-Type": "text/image",
+            "X-Entity-Type": "application/zip",
             "X-Entity-Length": str(data_size),
             "X-Entity-Name": session_key,
         }
