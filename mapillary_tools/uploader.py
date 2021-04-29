@@ -606,6 +606,9 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
     first_image = list(file_params.values())[0]
     user_name = first_image["user_name"]
 
+    # Sorting images by captured_at
+    file_list.sort(key=lambda path: ExifRead(path).exif_properties()[3])
+
     root_dir = find_root_dir(file_list)
     if root_dir is None:
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
@@ -614,12 +617,11 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
     if not os.path.isfile(sequence_zip_path):
         print(f"Compressing {len(file_list)} image files to {sequence_zip_path}")
         # compress files
-        ziph = zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED)
-        for fullpath in file_list:
-            relpath = os.path.relpath(fullpath, root_dir)
-            print(f"Writing {fullpath} to {sequence_zip_path}/{relpath}")
-            ziph.write(fullpath, relpath)
-        ziph.close()
+        with zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED) as ziph:
+            for fullpath in file_list:
+                relpath = os.path.relpath(fullpath, root_dir)
+                print(f"Writing {fullpath} to {sequence_zip_path}/{relpath}")
+                ziph.write(fullpath, relpath)
     else:
         print(f"Found the compressed sequence file {sequence_zip_path}")
 
@@ -648,7 +650,7 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
             f"File handle not found in the upload response {upload_resp.text}"
         )
 
-    print(f"Finishing uploading {sequence_zip_path}")
+    print(f"Finishing uploading {sequence_zip_path} with file handle {file_handle}")
     finish_resp = service.finish(file_handle)
     try:
         finish_resp.raise_for_status()
