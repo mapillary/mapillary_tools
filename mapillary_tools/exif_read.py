@@ -426,10 +426,11 @@ class ExifRead:
             return False
         description_values = json.loads(description.values)
         for requirement in [
-            "MAPSequenceUUID",
             "MAPCaptureTime",
-            "MAPLongitude",
             "MAPLatitude",
+            "MAPLongitude",
+            "MAPSequenceUUID",
+            "MAPSettingsUserKey",
         ]:
             val = description_values.get(requirement)
             if val is None:

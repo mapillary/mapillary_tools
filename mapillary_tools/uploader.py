@@ -636,16 +636,29 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
     try:
         upload_resp.raise_for_status()
     except requests.RequestException as ex:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
         raise RuntimeError(f"Upload server error: {ex.response.text}")
 
-    file_handle = upload_resp.json()["h"]
+    upload_resp_json = upload_resp.json()
+    try:
+        file_handle = upload_resp_json["h"]
+    except KeyError:
+        raise RuntimeError(
+            f"File handle not found in the upload response {upload_resp.text}"
+        )
 
     print(f"Finishing uploading {sequence_zip_path}")
     finish_resp = service.finish(file_handle)
     try:
         finish_resp.raise_for_status()
     except requests.RequestException as ex:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
         raise RuntimeError(f"Upload server error: {ex.response.text}")
+
+    for path in file_list:
+        create_upload_log(path, "upload_success")
 
     flag_finalization(file_list)
 
@@ -754,11 +767,12 @@ def log_rootpath(filepath: str) -> str:
     )
 
 
-def log_folder(filepath):
+def log_folder(filepath: str) -> str:
     return os.path.join(os.path.dirname(filepath), ".mapillary", "logs")
 
 
-def create_upload_log(filepath, status):
+def create_upload_log(filepath: str, status: str) -> None:
+    assert status in ["upload_success", "upload_failed"], f"invalid status {status}"
     upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
     opposite_status = {
