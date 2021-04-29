@@ -7,6 +7,9 @@ from . import uploader
 from .exif_aux import verify_mapillary_tag
 
 
+API_VERSION = os.getenv("MAPILLARY_API_VERSION", "v3")
+
+
 def upload(
     import_path,
     skip_subfolders=False,
@@ -117,15 +120,12 @@ def upload(
                 f"Uploading {len(upload_file_list)} images with valid mapillary tags (Skipping {len(total_file_list) - len(upload_file_list)})"
             )
 
-            if direct_upload_file_list:
-                uploader.upload_file_list_direct(
-                    direct_upload_file_list, number_threads, max_attempts
-                )
-
-            api_version = os.getenv("MAPILLARY_API_VERSION", "v3")
-
-            for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
-                if api_version == "v3":
+            if API_VERSION == "v3":
+                if direct_upload_file_list:
+                    uploader.upload_file_list_direct(
+                        direct_upload_file_list, number_threads, max_attempts
+                    )
+                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                     uploader.upload_file_list_manual(
                         list_per_sequence_mapping[sequence_uuid],
                         sequence_uuid,
@@ -134,12 +134,18 @@ def upload(
                         number_threads,
                         max_attempts,
                     )
-                elif api_version == "v4":
+            elif API_VERSION == "v4":
+                if direct_upload_file_list:
+                    raise RuntimeError(
+                        f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"
+                    )
+
+                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                     uploader.upload_sequence_v4(
                         list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
                     )
-                else:
-                    raise ValueError("MAPILLARY_API_VERSION must be either v3 or v4")
+            else:
+                raise ValueError("MAPILLARY_API_VERSION must be either v3 or v4")
 
         if to_finalize_file_list:
             params = {}
