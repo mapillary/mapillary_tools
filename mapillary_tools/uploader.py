@@ -690,6 +690,15 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
             create_upload_log(path, "upload_failed")
         raise RuntimeError(f"Upload server error: {ex.response.text}")
 
+    finish_data = finish_resp.json()
+    cluster_id = finish_data.get("cluster_id")
+    if cluster_id is None:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
+        raise RuntimeError(f"Upload server error: failed to create the cluster {finish_resp.text}")
+    else:
+        print(f"Cluster {cluster_id} created")
+
     for path in file_list:
         create_upload_log(path, "upload_success")
 
