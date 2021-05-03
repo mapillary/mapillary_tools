@@ -4,6 +4,14 @@ import os
 from . import api_v3, api_v4, MAPILLARY_API_VERSION
 
 
+_CLIENT_ID = (
+    api_v3.MAPILLARY_WEB_CLIENT_ID
+    if MAPILLARY_API_VERSION == "v3"
+    else api_v4.MAPILLARY_WEB_CLIENT_ID
+)
+# Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
+_CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
+
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
     os.path.join(
@@ -11,9 +19,7 @@ GLOBAL_CONFIG_FILEPATH = os.getenv(
         ".config",
         "mapillary",
         "configs",
-        api_v3.MAPILLARY_WEB_CLIENT_ID
-        if MAPILLARY_API_VERSION == "v3"
-        else api_v4.MAPILLARY_WEB_CLIENT_ID,
+        _CLIENT_ID,
     ),
 )
 
