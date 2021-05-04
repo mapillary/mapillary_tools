@@ -633,12 +633,15 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
         return find_root_dir(dirs)
 
 
-def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
+def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
     first_image = list(file_params.values())[0]
     user_name = first_image["user_name"]
 
+    def _read_captured_at(path):
+        return file_params.get(path, {}).get("MAPCaptureTime", "")
+
     # Sorting images by captured_at
-    file_list.sort(key=lambda path: ExifRead(path).exif_properties()[3])
+    file_list.sort(key=_read_captured_at)
 
     root_dir = find_root_dir(file_list)
     if root_dir is None:
@@ -651,7 +654,9 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params):
         with zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED) as ziph:
             for fullpath in file_list:
                 relpath = os.path.relpath(fullpath, root_dir)
-                print(f"Writing {fullpath} to {sequence_zip_path}/{relpath}")
+                print(
+                    f"Writing {fullpath} to {sequence_zip_path}/{relpath} captured at {_read_captured_at(fullpath)}"
+                )
                 ziph.write(fullpath, relpath)
     else:
         print(f"Found the compressed sequence file {sequence_zip_path}")
