@@ -62,6 +62,31 @@ Python 3 (3.6 and above), pip3 and git are required:
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
+### Python 3 (Android Devices)
+
+A command line program such as Termux is required. Installation can be done without root privileges.  The following commands will install Python 3, pip3, git, and all required libraries for mapillary_tools on Termux:
+
+```bash
+pkg install python git build-essential libgeos openssl libjpeg-turbo
+
+pip install --upgrade pip wheel
+
+pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+```
+
+Termux must access the device's internal storage to process and upload images. To do this, use the following command:
+
+```bash
+termux-setup-storage
+```
+
+Finally, on devices running Android 11, using a command line program, mapillary_tools will process images very slowly if they are in shared internal storage during processing. It is advisable to first move images to the command line program’s native directory before running mapillary_tools.
+For an example using Termux, if imagery is stored in the folder “Internal storage/DCIM/mapillaryimages" the following command will move that folder from shared storage to Termux:
+
+```bash
+mv -v storage/dcim/mapillaryimages mapillaryimages
+```
+
 ### Python 2 (Deprecated)
 
 Python 2 is no longer supported since 0.6.0. If you have to, you can install version 0.5.x from:
