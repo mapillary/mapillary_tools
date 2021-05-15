@@ -6,6 +6,8 @@ def find_camera_model(videos_folder):
     from mapillary_tools.uploader import get_video_file_list
 
     file_list = get_video_file_list(videos_folder)
+    if not file_list:
+        raise RuntimeError(f"No video found in {videos_folder}")
 
     fd = open(file_list[0], "rb")
 
