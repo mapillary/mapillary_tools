@@ -2,7 +2,7 @@ import os
 
 VERSION = "0.6.0"
 
-MAPILLARY_API_VERSION = os.getenv("MAPILLARY_API_VERSION", "v3")
+MAPILLARY_API_VERSION = os.getenv("MAPILLARY_API_VERSION", "v4")
 assert MAPILLARY_API_VERSION in [
     "v3",
     "v4",
