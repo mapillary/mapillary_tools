@@ -9,7 +9,7 @@ from queue import Queue
 import time
 import signal
 
-from . import uploader
+from . import login
 from . import api_v3
 
 
@@ -58,7 +58,7 @@ def get_token(user_name):
     :rtype string or Exception/None
     """
     try:
-        user_properties = uploader.authenticate_user(user_name)
+        user_properties = login.authenticate_user(user_name)
     except Exception:
         print("Error, user authentication failed for user " + user_name)
         print(

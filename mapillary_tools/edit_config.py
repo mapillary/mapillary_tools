@@ -1,9 +1,9 @@
 import os
 import sys
 
+from . import login
 from . import api_v3, api_v4
 from . import config
-from . import uploader
 from . import MAPILLARY_API_VERSION
 
 
@@ -96,7 +96,7 @@ def edit_config(
         }
     else:
         # fill in the items and save
-        user_items = uploader.prompt_user_for_user_items(user_name)
+        user_items = login.prompt_user_for_user_items(user_name)
         if not user_items:
             print(f"Authentication failed for user name {user_name}, please try again.")
             sys.exit(1)

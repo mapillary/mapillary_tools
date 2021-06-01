@@ -12,6 +12,7 @@ from collections import OrderedDict
 from dateutil.tz import tzlocal
 from tqdm import tqdm
 
+from . import login
 from . import api_v3
 from . import ipc
 from . import uploader
@@ -1050,7 +1051,7 @@ def user_properties(
     verbose: bool = False,
 ) -> Optional[Dict]:
     # basic
-    user_properties = uploader.authenticate_user(user_name)
+    user_properties = login.authenticate_user(user_name)
     if not user_properties:
         print_error("Error, user authentication failed for user " + user_name)
         print(
@@ -1082,7 +1083,7 @@ def user_properties_master(
     verbose=False,
 ):
     try:
-        master_key = uploader.get_master_key()
+        master_key = login.get_master_key()
     except:
         print_error("Error, no master key found.")
         print(

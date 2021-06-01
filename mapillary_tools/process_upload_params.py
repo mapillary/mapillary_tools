@@ -3,6 +3,7 @@ import sys
 
 from tqdm import tqdm
 
+from . import login
 from . import processing
 from . import uploader
 from .error import print_error
@@ -68,7 +69,7 @@ def process_upload_params(
 
     if not master_upload:
         try:
-            credentials = uploader.authenticate_user(user_name)
+            credentials = login.authenticate_user(user_name)
         except:
             print_error("Error, user authentication failed for user " + user_name)
             processing.create_and_log_process_in_list(

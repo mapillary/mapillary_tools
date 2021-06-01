@@ -6,7 +6,7 @@ import time
 
 import requests
 
-from . import uploader
+from . import login
 from . import api_v3
 from .post_process import get_local_mapping
 
@@ -124,7 +124,7 @@ def download(import_path, user_name, output_folder, number_threads=10, verbose=F
     signal.signal(signal.SIGINT, service_shutdown)
 
     try:
-        user_properties = uploader.authenticate_user(user_name)
+        user_properties = login.authenticate_user(user_name)
     except:
         print("Error, user authentication failed for user " + user_name)
         print(

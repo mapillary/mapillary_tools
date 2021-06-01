@@ -11,12 +11,11 @@ from .geo import get_timezone_and_utc_offset
 from .gpx_from_blackvue import get_points_from_bv, gpx_from_blackvue
 from .process_video import get_video_start_time_blackvue
 from .uploader import (
-    authenticate_with_email_and_pwd,
-    authenticate_user,
     get_video_file_list,
     DRY_RUN,
     create_upload_log,
 )
+from .login import authenticate_user, authenticate_with_email_and_pwd
 
 
 def send_videos_for_processing(
