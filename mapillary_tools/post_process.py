@@ -248,7 +248,7 @@ def post_process(
         summary_dict["process summary"][
             "processed_not_yet_uploaded"
         ] = to_be_uploaded_files_count
-        print(f"Import summary for import path {import_path} :")
+        print(f"Import summary for import path {import_path}:")
         print(json.dumps(summary_dict, indent=4))
 
         ipc.send("summary", summary_dict)

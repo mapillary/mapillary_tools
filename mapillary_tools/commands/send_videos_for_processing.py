@@ -7,18 +7,6 @@ class Command:
 
     def add_basic_arguments(self, parser):
         parser.add_argument("--user_name", help="Mapillary user name", required=True)
-        parser.add_argument(
-            "--user_email",
-            help="user email, used to create Mapillary account",
-            default=None,
-            required=False,
-        )
-        parser.add_argument(
-            "--user_password",
-            help="password associated with the Mapillary user account",
-            default=None,
-            required=False,
-        )
         # consider having api version as string
         parser.add_argument(
             "--skip_subfolders",

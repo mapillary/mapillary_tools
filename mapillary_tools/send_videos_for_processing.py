@@ -15,15 +15,13 @@ from .uploader import (
     DRY_RUN,
     create_upload_log,
 )
-from .login import authenticate_user, authenticate_with_email_and_pwd
+from .login import authenticate_user
 
 
 def send_videos_for_processing(
     import_path,
     video_import_path,
     user_name,
-    user_email=None,
-    user_password=None,
     skip_subfolders=False,
     organization_key=None,
     private=False,
@@ -42,11 +40,7 @@ def send_videos_for_processing(
             f"video import path {video_import_path} does not exist or is invalid, exiting..."
         )
         sys.exit(1)
-    # User Authentication
-    if user_email and user_password:
-        credentials = authenticate_with_email_and_pwd(user_email, user_password)
-    else:
-        credentials = authenticate_user(user_name)
+    credentials = authenticate_user(user_name)
     if credentials is None:
         print(f"Error, user authentication failed for user {user_name}")
         sys.exit(1)
