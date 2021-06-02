@@ -188,13 +188,13 @@ def parse_csv_meta_data(csv_data, image_index, meta_columns, meta_types, meta_na
     return meta
 
 
-def read_csv(csv_path, delimiter=",", header=False):
+def read_csv(csv_path: str, delimiter=",", header=False) -> list:
     with open(csv_path, "r") as csvfile:
         csvreader = csv.reader(csvfile, delimiter=delimiter)
         if header:
             next(csvreader, None)
 
-        csv_data = zip(*csvreader)
+        csv_data = list(zip(*csvreader))
     return csv_data
 
 
