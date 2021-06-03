@@ -229,7 +229,7 @@ def geotag_from_gopro_video(
                 f"Error, no video frames extracted for video file {gopro_video} in import_path {import_path}"
             )
             create_and_log_process_in_list(
-                process_file_sublist, "geotag_process" "failed", verbose
+                process_file_sublist, "geotag_process", "failed", verbose=verbose
             )
             continue
 
@@ -264,19 +264,17 @@ def geotag_from_blackvue_video(
         blackvue_video_filename = (
             os.path.basename(blackvue_video).replace(".mp4", "").replace(".MP4", "")
         )
-        try:
-            [gpx_path, is_stationary_video] = gpx_from_blackvue(
-                blackvue_video, use_nmea_stream_timestamp=False
-            )
-            if not gpx_path or not os.path.isfile(gpx_path):
-                raise Exception
-        except Exception as e:
-            print_error(
-                f"Error, failed extracting data from blackvue geotag source path {blackvue_video} due to {e}, exiting..."
-            )
+        [gpx_path, is_stationary_video] = gpx_from_blackvue(
+            blackvue_video, use_nmea_stream_timestamp=False
+        )
+
+        if not gpx_path or not os.path.isfile(gpx_path):
+            raise RuntimeError(f"Error, GPX path {gpx_path} not found")
+
         if is_stationary_video:
             print_error("Warning: Skipping stationary video")
             continue
+
         process_file_sublist = [
             x
             for x in process_file_list
@@ -288,7 +286,7 @@ def geotag_from_blackvue_video(
                 f"Error, no video frames extracted for video file {blackvue_video} in import_path {import_path}"
             )
             create_and_log_process_in_list(
-                process_file_sublist, "geotag_process" "failed", verbose
+                process_file_sublist, "geotag_process", "failed", verbose=verbose
             )
             continue
 
@@ -333,6 +331,8 @@ def geotag_from_gps_trace(
         gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)
     elif geotag_source == "nmea":
         gps_trace = get_lat_lon_time_from_nmea(geotag_source_path, local_time)
+    else:
+        raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
     # Estimate capture time with sub-second precision, reading from image EXIF
     sub_second_times = estimate_sub_second_time(process_file_list, sub_second_interval)
@@ -341,7 +341,7 @@ def geotag_from_gps_trace(
             "Error, capture times could not be estimated to sub second precision, images can not be geotagged."
         )
         create_and_log_process_in_list(
-            process_file_list, "geotag_process" "failed", verbose
+            process_file_list, "geotag_process", "failed", verbose=verbose
         )
         return
 
@@ -350,7 +350,7 @@ def geotag_from_gps_trace(
             f"Error, gps trace file {geotag_source_path} was not read, images can not be geotagged."
         )
         create_and_log_process_in_list(
-            process_file_list, "geotag_process", "failed", verbose
+            process_file_list, "geotag_process", "failed", verbose=verbose
         )
         return
 
@@ -449,22 +449,17 @@ def get_upload_param_properties(
 
     # load the sequence json
     user_process_json_path = os.path.join(log_root, "user_process.json")
-    user_data = {}
     try:
         user_data = load_json(user_process_json_path)
     except:
         print(
-            "Warning, user data not read for image "
-            + image
-            + ", therefore it will not be included in the upload params processing."
+            f"Warning, user data not read for image {image}, therefore it will not be included in the upload params processing."
         )
         return None
 
     if "MAPSettingsUserKey" not in user_data:
         print(
-            "Warning, user key not in user data for image "
-            + image
-            + ", therefore it will not be included in the upload params processing."
+            "Warning, user key not in user data for image {image}, therefore it will not be included in the upload params processing."
         )
         return None
 
@@ -749,8 +744,12 @@ def load_json(file_path: str):
 
 
 def save_json(data: Dict[str, Any], file_path: str) -> None:
-    with open(file_path, "wb") as f:
-        f.write(json.dumps(data, indent=4).encode("utf-8"))
+    try:
+        buf = json.dumps(data, indent=4)
+    except Exception:
+        raise RuntimeError(f"Error JSON serializing {data}")
+    with open(file_path, "w") as f:
+        f.write(buf)
 
 
 def update_json(data, file_path, process):

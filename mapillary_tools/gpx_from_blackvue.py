@@ -1,3 +1,4 @@
+from typing import Tuple
 import datetime
 import io
 import os
@@ -48,7 +49,8 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                         lines = newb.data
 
                         # Parse GPS trace
-                        for line in lines.splitlines():
+                        for line_bytes in lines.splitlines():
+                            line = line_bytes.decode("utf-8")
                             m = line.lstrip("[]0123456789")
                             # this utc millisecond timestamp seems to be the camera's
                             # todo: unused?
@@ -180,37 +182,21 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
         return points
 
 
-def is_video_stationary(max_distance_from_start):
-    radius_treshold = 10
+def is_video_stationary(max_distance_from_start) -> bool:
+    radius_threshold = 10
     accumulated_distance_threshold = 20
-
-    if (
-        max_distance_from_start < radius_treshold
+    return (
+        max_distance_from_start < radius_threshold
         or accumulated_distance_threshold < accumulated_distance_threshold
-    ):
-        return True
-    else:
-        return False
+    )
 
 
-def gpx_from_blackvue(bv_video, use_nmea_stream_timestamp=False):
-    bv_data = []
-    try:
-        bv_data = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
-    except Exception as e:
-        print(
-            f"Warning, could not extract gps from video {bv_video} due to {e}, video will be skipped..."
-        )
+def gpx_from_blackvue(bv_video, use_nmea_stream_timestamp=False) -> Tuple[str, bool]:
+    bv_data = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
     if not bv_data:
-        is_stationary_video = is_video_stationary(get_max_distance_from_start(bv_data))
-    else:
-        is_stationary_video = True
-        return [], is_stationary_video
+        return "", True
     basename, extension = os.path.splitext(bv_video)
     gpx_path = basename + ".gpx"
-
     bv_data.sort(key=lambda x: x[0])
-
     write_gpx(gpx_path, bv_data)
-
-    return gpx_path, is_stationary_video
+    return gpx_path, is_video_stationary(get_max_distance_from_start(bv_data))
