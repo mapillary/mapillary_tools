@@ -400,22 +400,6 @@ class ExifRead:
         )
         return sub_sec
 
-    def fields_exist(self, fields):
-        """
-        Check existence of a list fields in exif
-        """
-        for rexif in fields:
-            vflag = False
-            for subrexif in rexif:
-                if subrexif in self.tags:
-                    vflag = True
-            if not vflag:
-                print(
-                    f"Missing required EXIF tag: {rexif[0]} for image {self.filename}"
-                )
-                return False
-        return True
-
     def mapillary_tag_exists(self):
         """
         Check existence of required Mapillary tags

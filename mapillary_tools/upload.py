@@ -4,7 +4,18 @@ import sys
 
 from . import ipc
 from . import uploader
-from .exif_aux import verify_mapillary_tag
+from . import processing
+from . import exif_read
+
+
+def verify_mapillary_tag(filepath):
+    filepath_keep_original = processing.processed_images_rootpath(filepath)
+    if os.path.isfile(filepath_keep_original):
+        filepath = filepath_keep_original
+    """
+    Check that image file has the required Mapillary tag
+    """
+    return exif_read.ExifRead(filepath).mapillary_tag_exists()
 
 
 def upload(

@@ -122,45 +122,6 @@ def add_lat_lon_general(test_obj, filename):
     )
 
 
-def add_camera_make_model_general(test_obj, filename):
-
-    test_make = "test_make"
-    test_model = "test_model"
-
-    empty_exifedit = ExifEdit(filename)
-
-    empty_exifedit.add_camera_make_model(test_make, test_model)
-    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-    exif_data = load_exif()
-    test_obj.assertEqual(
-        (test_make, test_model),
-        (
-            exif_data[EXIF_PRIMARY_TAGS_DICT["Make"]],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["Model"]],
-        ),
-    )
-
-
-def add_dop_general(test_obj, filename):
-
-    test_dop = 10.5
-    test_dop_precision = 100
-
-    empty_exifedit = ExifEdit(filename)
-
-    empty_exifedit.add_dop(test_dop, test_dop_precision)
-    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-    exif_data = load_exif()
-    test_obj.assertEqual(
-        (test_dop * test_dop_precision, test_dop_precision),
-        rational_to_tuple(
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][EXIF_GPS_TAGS_DICT["GPSDOP"]]
-        ),
-    )
-
-
 def add_altitude_general(test_obj, filename):
 
     test_altitude = 15.5
@@ -255,14 +216,6 @@ class ExifEditTests(unittest.TestCase):
     def test_add_lat_lon(self):
 
         add_lat_lon_general(self, EMPTY_EXIF_FILE_TEST)
-
-    def test_add_camera_make_model(self):
-
-        add_camera_make_model_general(self, EMPTY_EXIF_FILE_TEST)
-
-    def test_add_dop(self):
-
-        add_dop_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_altitude(self):
 
@@ -393,22 +346,6 @@ class ExifEditTests(unittest.TestCase):
     def test_add_lat_lon_corrupt_exif_2(self):
 
         add_lat_lon_general(self, CORRUPT_EXIF_FILE_2)
-
-    def test_add_camera_make_model_corrupt_exif(self):
-
-        add_camera_make_model_general(self, CORRUPT_EXIF_FILE)
-
-    def test_add_camera_make_model_corrupt_exif_2(self):
-
-        add_camera_make_model_general(self, CORRUPT_EXIF_FILE_2)
-
-    def test_add_dop_corrupt_exif(self):
-
-        add_dop_general(self, CORRUPT_EXIF_FILE)
-
-    def test_add_dop_corrupt_exif_2(self):
-
-        add_dop_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_altitude_corrupt_exif(self):
 

@@ -1,5 +1,4 @@
 import json
-import sys
 
 import piexif
 
@@ -8,25 +7,18 @@ from .geo import decimal_to_dms
 
 
 class ExifEdit:
-    def __init__(self, filename):
+    _filename: str
+
+    def __init__(self, filename: str):
         """Initialize the object"""
         self._filename = filename
-        self._ef = None
-        try:
-            self._ef = piexif.load(filename)
-        except IOError:
-            etype, value, traceback = sys.exc_info()
-            print("Error opening file:", value, file=sys.stderr)
-        except ValueError:
-            etype, value, traceback = sys.exc_info()
-            print("Error opening file:", value, file=sys.stderr)
+        self._ef = piexif.load(filename)
 
-    def add_image_description(self, dict):
+    def add_image_description(self, data: dict) -> None:
         """Add a dict to image description."""
-        if self._ef is not None:
-            self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(dict)
+        self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 
-    def add_orientation(self, orientation):
+    def add_orientation(self, orientation: int) -> None:
         """Add image orientation to image."""
         if orientation not in range(1, 9):
             print_error(
@@ -36,7 +28,9 @@ class ExifEdit:
         else:
             self._ef["0th"][piexif.ImageIFD.Orientation] = orientation
 
-    def add_date_time_original(self, date_time, time_format="%Y:%m:%d %H:%M:%S.%f"):
+    def add_date_time_original(
+        self, date_time, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
+    ):
         """Add date time original."""
         try:
             DateTimeOriginal = date_time.strftime(time_format)[:-3]
@@ -44,7 +38,7 @@ class ExifEdit:
         except Exception as e:
             print_error("Error writing DateTimeOriginal, due to " + str(e))
 
-    def add_lat_lon(self, lat, lon, precision=1e7):
+    def add_lat_lon(self, lat: float, lon: float, precision: float = 1e7):
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
@@ -55,20 +49,11 @@ class ExifEdit:
             abs(lat), int(precision)
         )
 
-    def add_image_history(self, data):
+    def add_image_history(self, data: dict) -> None:
         """Add arbitrary string to ImageHistory tag."""
         self._ef["0th"][piexif.ImageIFD.ImageHistory] = json.dumps(data)
 
-    def add_camera_make_model(self, make, model):
-        """Add camera make and model."""
-        self._ef["0th"][piexif.ImageIFD.Make] = make
-        self._ef["0th"][piexif.ImageIFD.Model] = model
-
-    def add_dop(self, dop, precision=100):
-        """Add GPSDOP (float)."""
-        self._ef["GPS"][piexif.GPSIFD.GPSDOP] = (int(abs(dop) * precision), precision)
-
-    def add_altitude(self, altitude, precision=100):
+    def add_altitude(self, altitude: float, precision: int = 100) -> None:
         """Add altitude (pre is the precision)."""
         ref = 0 if altitude > 0 else 1
         self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (
@@ -87,28 +72,11 @@ class ExifEdit:
         )
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
-    def add_firmware(self, firmware_string):
-        """Add firmware version of camera"""
-        self._ef["0th"][piexif.ImageIFD.Software] = firmware_string
-
-    def add_custom_tag(self, value, main_key, tag_key):
-        try:
-            self._ef[main_key][tag_key] = value
-        except:
-            print(f"could not set tag {tag_key} under {main_key} with value {value}")
-
     def write(self, filename=None):
         """Save exif data to file."""
         if filename is None:
             filename = self._filename
-
         exif_bytes = piexif.dump(self._ef)
-
         with open(self._filename, "rb") as fin:
             img = fin.read()
-        try:
             piexif.insert(exif_bytes, img, filename)
-
-        except IOError:
-            type, value, traceback = sys.exc_info()
-            print("Error saving file:", value, file=sys.stderr)
