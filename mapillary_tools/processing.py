@@ -264,17 +264,12 @@ def geotag_from_blackvue_video(
         blackvue_video_filename = (
             os.path.basename(blackvue_video).replace(".mp4", "").replace(".MP4", "")
         )
-        try:
-            [gpx_path, is_stationary_video] = gpx_from_blackvue(
-                blackvue_video, use_nmea_stream_timestamp=False
-            )
-        except Exception as e:
-            raise RuntimeError(
-                f"Error, failed extracting data from blackvue geotag source path {blackvue_video} due to {e}, exiting..."
-            )
+        [gpx_path, is_stationary_video] = gpx_from_blackvue(
+            blackvue_video, use_nmea_stream_timestamp=False
+        )
 
         if not gpx_path or not os.path.isfile(gpx_path):
-            raise RuntimeError("Error, GPX path {gpx_path} not found")
+            raise RuntimeError(f"Error, GPX path {gpx_path} not found")
 
         if is_stationary_video:
             print_error("Warning: Skipping stationary video")
