@@ -45,10 +45,9 @@ def process_geotag_properties(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print_error(
-            "Error, import directory " + import_path + " does not exist, exiting..."
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
         )
-        sys.exit(1)
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
@@ -69,7 +68,10 @@ def process_geotag_properties(
             "Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file."
         )
         processing.create_and_log_process_in_list(
-            process_file_list, "geotag_process" "failed", verbose
+            process_file_list,
+            "geotag_process",
+            "failed",
+            verbose=verbose,
         )
         sys.exit(1)
     elif (
@@ -83,7 +85,7 @@ def process_geotag_properties(
             + " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file."
         )
         processing.create_and_log_process_in_list(
-            process_file_list, "geotag_process" "failed", verbose
+            process_file_list, "geotag_process", "failed", verbose=verbose
         )
         sys.exit(1)
 
