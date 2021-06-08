@@ -12,7 +12,6 @@ from . import process
 from . import process_and_upload
 from . import process_csv
 from . import sample_video
-from . import send_videos_for_processing
 from . import upload
 from . import video_process
 from . import video_process_and_upload
@@ -32,7 +31,6 @@ mapillary_tools_advanced_commands = [
     interpolate,
     post_process,
     download,
-    send_videos_for_processing,
 ]
 
 mapillary_tools_commands = [process, upload, process_and_upload]
@@ -73,7 +71,6 @@ def add_general_arguments(parser, command):
         "video_process",
         "video_process_and_upload",
         "sample_video",
-        "send_videos_for_processing",
     ]:
         required = False
 
