@@ -1,5 +1,4 @@
 from . import authenticate
-from . import download
 from . import exif_insert
 from . import extract_geotag_data
 from . import extract_import_meta_data
@@ -30,7 +29,6 @@ mapillary_tools_advanced_commands = [
     authenticate,
     interpolate,
     post_process,
-    download,
 ]
 
 mapillary_tools_commands = [process, upload, process_and_upload]
