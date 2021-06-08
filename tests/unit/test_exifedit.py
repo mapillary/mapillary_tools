@@ -33,7 +33,7 @@ def load_exif(filename=EMPTY_EXIF_FILE_TEST):
 
 def rational_to_tuple(rational):
     if isinstance(rational, TiffImagePlugin.IFDRational):
-        return (rational.numerator, rational.denominator)
+        return rational.numerator, rational.denominator
     elif isinstance(rational, tuple):
         return tuple(rational_to_tuple(x) for x in rational)
     elif isinstance(rational, list):
@@ -305,7 +305,6 @@ class ExifEditTests(unittest.TestCase):
         self.assertFalse(error_raised, "EXIF load and dump back failed")
 
     def test_load_and_dump_corrupt_exif_2(self):
-
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
 
         error_raised = False
@@ -316,59 +315,45 @@ class ExifEditTests(unittest.TestCase):
         self.assertFalse(error_raised, "EXIF load and dump back failed")
 
     def test_add_image_description_corrupt_exif(self):
-
         add_image_description_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_image_description_corrupt_exif_2(self):
-
         add_image_description_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_orientation_corrupt_exif(self):
-
         add_orientation_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_orientation_corrupt_exif_2(self):
-
         add_orientation_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_date_time_original_corrupt_exif(self):
-
         add_date_time_original_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_date_time_original_corrupt_exif_2(self):
-
         add_date_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_lat_lon_corrupt_exif(self):
-
         add_lat_lon_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_lat_lon_corrupt_exif_2(self):
-
         add_lat_lon_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_altitude_corrupt_exif(self):
-
         add_altitude_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_altitude_corrupt_exif_2(self):
-
         add_altitude_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_direction_corrupt_exif(self):
-
         add_direction_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_direction_corrupt_exif_2(self):
-
         add_direction_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_repeatedly_time_original_corrupt_exif(self):
-
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_repeatedly_time_original_corrupt_exif_2(self):
-
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
 
