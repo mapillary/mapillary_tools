@@ -33,7 +33,7 @@ def load_exif(filename=EMPTY_EXIF_FILE_TEST):
 
 def rational_to_tuple(rational):
     if isinstance(rational, TiffImagePlugin.IFDRational):
-        return (rational.numerator, rational.denominator)
+        return rational.numerator, rational.denominator
     elif isinstance(rational, tuple):
         return tuple(rational_to_tuple(x) for x in rational)
     elif isinstance(rational, list):
@@ -118,45 +118,6 @@ def add_lat_lon_general(test_obj, filename):
             rational_to_tuple(exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitude"]]),
             exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]],
             exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]],
-        ),
-    )
-
-
-def add_camera_make_model_general(test_obj, filename):
-
-    test_make = "test_make"
-    test_model = "test_model"
-
-    empty_exifedit = ExifEdit(filename)
-
-    empty_exifedit.add_camera_make_model(test_make, test_model)
-    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-    exif_data = load_exif()
-    test_obj.assertEqual(
-        (test_make, test_model),
-        (
-            exif_data[EXIF_PRIMARY_TAGS_DICT["Make"]],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["Model"]],
-        ),
-    )
-
-
-def add_dop_general(test_obj, filename):
-
-    test_dop = 10.5
-    test_dop_precision = 100
-
-    empty_exifedit = ExifEdit(filename)
-
-    empty_exifedit.add_dop(test_dop, test_dop_precision)
-    empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
-
-    exif_data = load_exif()
-    test_obj.assertEqual(
-        (test_dop * test_dop_precision, test_dop_precision),
-        rational_to_tuple(
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][EXIF_GPS_TAGS_DICT["GPSDOP"]]
         ),
     )
 
@@ -256,14 +217,6 @@ class ExifEditTests(unittest.TestCase):
 
         add_lat_lon_general(self, EMPTY_EXIF_FILE_TEST)
 
-    def test_add_camera_make_model(self):
-
-        add_camera_make_model_general(self, EMPTY_EXIF_FILE_TEST)
-
-    def test_add_dop(self):
-
-        add_dop_general(self, EMPTY_EXIF_FILE_TEST)
-
     def test_add_altitude(self):
 
         add_altitude_general(self, EMPTY_EXIF_FILE_TEST)
@@ -352,7 +305,6 @@ class ExifEditTests(unittest.TestCase):
         self.assertFalse(error_raised, "EXIF load and dump back failed")
 
     def test_load_and_dump_corrupt_exif_2(self):
-
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
 
         error_raised = False
@@ -363,75 +315,45 @@ class ExifEditTests(unittest.TestCase):
         self.assertFalse(error_raised, "EXIF load and dump back failed")
 
     def test_add_image_description_corrupt_exif(self):
-
         add_image_description_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_image_description_corrupt_exif_2(self):
-
         add_image_description_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_orientation_corrupt_exif(self):
-
         add_orientation_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_orientation_corrupt_exif_2(self):
-
         add_orientation_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_date_time_original_corrupt_exif(self):
-
         add_date_time_original_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_date_time_original_corrupt_exif_2(self):
-
         add_date_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_lat_lon_corrupt_exif(self):
-
         add_lat_lon_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_lat_lon_corrupt_exif_2(self):
-
         add_lat_lon_general(self, CORRUPT_EXIF_FILE_2)
 
-    def test_add_camera_make_model_corrupt_exif(self):
-
-        add_camera_make_model_general(self, CORRUPT_EXIF_FILE)
-
-    def test_add_camera_make_model_corrupt_exif_2(self):
-
-        add_camera_make_model_general(self, CORRUPT_EXIF_FILE_2)
-
-    def test_add_dop_corrupt_exif(self):
-
-        add_dop_general(self, CORRUPT_EXIF_FILE)
-
-    def test_add_dop_corrupt_exif_2(self):
-
-        add_dop_general(self, CORRUPT_EXIF_FILE_2)
-
     def test_add_altitude_corrupt_exif(self):
-
         add_altitude_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_altitude_corrupt_exif_2(self):
-
         add_altitude_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_direction_corrupt_exif(self):
-
         add_direction_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_direction_corrupt_exif_2(self):
-
         add_direction_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_add_repeatedly_time_original_corrupt_exif(self):
-
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE)
 
     def test_add_repeatedly_time_original_corrupt_exif_2(self):
-
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
 
