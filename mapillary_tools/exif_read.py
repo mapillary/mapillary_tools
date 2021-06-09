@@ -361,16 +361,6 @@ class ExifRead:
         )
         return model
 
-    def extract_firmware(self):
-        """
-        Extract camera firmware (tag is called 'software' in EXIF)
-        """
-        fields = ["Image Software"]
-        software, _ = self._extract_alternative_fields(
-            fields, default="", field_type=str
-        )
-        return software
-
     def extract_orientation(self) -> int:
         """
         Extract image orientation
@@ -399,22 +389,6 @@ class ExifRead:
             fields, default="", field_type=str
         )
         return sub_sec
-
-    def fields_exist(self, fields):
-        """
-        Check existence of a list fields in exif
-        """
-        for rexif in fields:
-            vflag = False
-            for subrexif in rexif:
-                if subrexif in self.tags:
-                    vflag = True
-            if not vflag:
-                print(
-                    f"Missing required EXIF tag: {rexif[0]} for image {self.filename}"
-                )
-                return False
-        return True
 
     def mapillary_tag_exists(self):
         """
