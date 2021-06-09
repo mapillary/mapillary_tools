@@ -4,3 +4,6 @@ black
 mypy
 pyinstaller
 flake8
+types-python-dateutil
+types-pytz
+types-requests
