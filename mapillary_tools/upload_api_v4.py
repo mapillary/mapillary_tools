@@ -4,7 +4,7 @@ import os
 from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
-    "MAPILLARY_UPLOAD_ENDPOINT", "https://a.mapillary.com/v4"
+    "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
 
 

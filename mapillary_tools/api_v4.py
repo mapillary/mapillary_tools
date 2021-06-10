@@ -2,10 +2,10 @@ import os
 import requests
 
 MAPILLARY_WEB_CLIENT_ID = os.getenv(
-    "MAPILLARY_WEB_CLIENT_ID", "MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh"
+    "MAPILLARY_WEB_CLIENT_ID", "MLY|5675152195860640|6b02c72e6e3c801e5603ab0495623282"
 )
 MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
-    "MAPILLARY_GRAPH_API_ENDPOINT", "https://a.mapillary.com/v4"
+    "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
 )
 
 
