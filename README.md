@@ -46,12 +46,6 @@ password?" link on the Mapillary sign-in screen.
 To upload images to Mapillary, image `GPS` and `capture time` are minimally required. More
 information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images).
 
-### Videos
-
-To upload videos to Mapillary, videos are sampled into images and tagged with image `GPS` and `capture time`. Use
-the [`send_videos_for_processing`](#direct-upload-recommended) command for Blackvue cameras. For all other models
-use [Video Sampling and Upload](#video-sampling-and-upload)
-
 ## Installation
 
 ### Python 3
@@ -204,7 +198,6 @@ Available commands for advanced usage:
     - interpolate
     - authenticate
     - post_process
-    - download
 
 ### Geotag and Upload
 
@@ -625,66 +618,10 @@ gps data in a set of otherwise geotagged images.
 `post_process` provides functionalities to help summarize and organize the results of the `process` and/or `upload`
 commands.
 
-#### `download`
-
-There are few ways to download blurred originals of private images from Mapillary: by import path or by image key.
-
-##### Downloading by import path
-
-`download` (by import path) will download blurred originals of private images on Mapillary for a certain `import_path`.
-The import path is specified as a folder where you have the images you've uploaded to Mapillary as private imagery. They
-need to have the Mapillary image description field in EXIF (which gets added during capture with our mobile apps or
-processing with our command line tools). Matching images will be downloaded to the output folder you specify.
-
-```bash
-mapillary_tools download --advanced --import_path "path/to/images" --output_folder "path/to/output_folder"
-```
-
-##### Downloading by image key
-
-You can download any images which belong to an organization (whether private or public) by using this command. This
-command downloads **private images by default**, to download publicly uploaded images from the given organization you
-need to pass `--private=false` flag. There are some access restrictions when it comes to downloading the data: you have
-to be authenticated as an organization admin/member to download the imagery. Contributors don't have access to this
-command. Attempting to download an organization image (whether public/private) as a contributor will yield
-an `You don't have sufficient organization access to download this image` error.
-
-```bash
-mapillary_tools download --advanced --by_property key \
-    --import_path /dev/null \
-    --output_folder "path/to/output_folder" \
-    --organization_keys "org_key1" "org_key2" \
-    --user_name "mapillary_username"
-```
-
-The command above specifies will attempt to download all privately blurred images for the organization `org_key`. These
-are all flags the command supports:
-
-- `organization_keys` - what are the keys of organizations which own the images
-- `private` - download private/non-private images (default is `--private=true`)
-- `user_name` - the username of the authenticate user (see `authenticate` section)
-- `import_path` - it's ignored in this script
-- `output_folder` - where to download the images to
-- `start_time` - the beginning of the time range, `YYYY-MM-DD`
-- `end_time` - the end of the time range, `YYYY-MM-DD`
-
 ## Camera specific
 
 ### BlackVue
-
-#### Direct Upload (Recommended)
-
-- Upload videos located in `path/to/videos` directly to Mapillary. Videos are moved to `path/to/videos/uploaded` folder
-  after upload. Videos that do not contain valid imagery are not uploaded to minimize bandwitdh usage. Sampling is
-  performed in the cloud so no extra disk space is required. This command supports the front camera video from the
-  Blackvue DR900s (1-channel and 2-channel) models.
-
- ```bash
- mapillary_tools send_videos_for_processing --advanced --video_import_path "path/to/videos" \
-     --user_name "mapillary_username"
-```
-
-#### Local sampling (Deprecated)
+#### Local sampling
 
 - Sample one or more Blackvue videos in directory `path/to/videos` into import path `path/to/images` at a sampling rate
   0.2 seconds, ie 5 frames every second and process resulting video frames for user `mapillary_user`, reading geotag

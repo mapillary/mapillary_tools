@@ -8,7 +8,7 @@ class Command:
     def add_basic_arguments(self, parser):
         parser.add_argument(
             "--config_file",
-            help="Full path to the config file to be edited. Default is ~/.config/mapillary/configs/MkJKbDA0bnZuZlcxeTJHTmFqN3g1dzo1YTM0NjRkM2EyZGU5MzBh",
+            help="Full path to the config file to be edited. Default is ~/.config/mapillary/configs/MLY_CLIENT_ID",
             default=None,
             required=False,
         )

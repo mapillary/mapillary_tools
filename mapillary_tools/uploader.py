@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+import queue
+from typing import List, Optional, Iterable
 import copy
 import json
 import os
@@ -8,18 +9,19 @@ import sys
 from queue import Queue
 import threading
 import time
-import getpass
+import zipfile
 
 import requests
 
 from . import processing
-from . import config
 from . import api_v3
-from .config import GLOBAL_CONFIG_FILEPATH
 from .exif_read import ExifRead
 from . import upload_api_v3
+from . import upload_api_v4
 from . import ipc
+from .login import authenticate_user
 from .utils import force_decode
+from . import MAPILLARY_API_VERSION
 
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
@@ -320,7 +322,11 @@ def get_organization_key(user_key, organization_username, upload_token):
     organization_key = None
 
     organization_usernames = []
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         organization_usernames.append(org["name"])
         if org["name"] == organization_username:
@@ -337,7 +343,11 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         if org["key"] == organization_key:
             return
@@ -345,7 +355,11 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    orgs = api_v3.fetch_user_organizations(user_key, upload_token)
+    orgs = (
+        api_v3.fetch_user_organizations(user_key, upload_token)
+        if MAPILLARY_API_VERSION == "v3"
+        else []
+    )
     for org in orgs:
         if org["key"] == organization_key:
             if (
@@ -379,109 +393,6 @@ def progress(count, total, suffix=""):
     bar = "=" * filled_len + "-" * (bar_len - filled_len)
     sys.stdout.write(f"[{bar}] {percents}% {suffix}\r")
     sys.stdout.flush()
-
-
-def prompt_user_for_user_items(user_name):
-    print(f"Enter user credentials for user {user_name}:")
-    user_email = input("Enter email: ")
-    user_password = getpass.getpass("Enter user password: ")
-    user_key = api_v3.get_user_key(user_name)
-    if not user_key:
-        return None
-    upload_token = api_v3.get_upload_token(user_email, user_password)
-    if not upload_token:
-        return None
-    return {
-        "MAPSettingsUsername": user_name,
-        "MAPSettingsUserKey": user_key,
-        "user_upload_token": upload_token,
-    }
-
-
-def authenticate_user(user_name: str) -> Optional[Dict]:
-    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
-        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
-        if user_name in global_config_object.sections():
-            user_items = config.load_user(global_config_object, user_name)
-            return user_items
-    user_items = prompt_user_for_user_items(user_name)
-    if not user_items:
-        return None
-    config.create_config(GLOBAL_CONFIG_FILEPATH)
-    config.update_config(GLOBAL_CONFIG_FILEPATH, user_name, user_items)
-    return user_items
-
-
-def authenticate_with_email_and_pwd(user_email, user_password):
-    """
-    Authenticate the user by passing the email and password.
-    This function avoids prompting the command line for user credentials and is useful for calling tools programmatically
-    """
-    if user_email is None or user_password is None:
-        raise ValueError("Could not authenticate user. Missing username or password")
-    upload_token = api_v3.get_upload_token(user_email, user_password)
-    if not upload_token:
-        print(
-            "Authentication failed for user email " + user_email + ", please try again."
-        )
-        sys.exit(1)
-    user_key = api_v3.get_user_key(user_email)
-    if not user_key:
-        print(
-            f"User email {user_email} does not exist, please try again or contact Mapillary user support."
-        )
-        sys.exit(1)
-
-    return {
-        "MAPSettingsUsername": user_email,
-        "MAPSettingsUserKey": user_key,
-        "user_upload_token": upload_token,
-    }
-
-
-def get_master_key():
-    master_key = ""
-    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
-        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
-        if "MAPAdmin" in global_config_object.sections():
-            admin_items = config.load_user(global_config_object, "MAPAdmin")
-            if "MAPILLARY_SECRET_HASH" in admin_items:
-                master_key = admin_items["MAPILLARY_SECRET_HASH"]
-            else:
-                create_config = input(
-                    "Master upload key does not exist in your global Mapillary config file, set it now?"
-                )
-                if create_config in ["y", "Y", "yes", "Yes"]:
-                    master_key = set_master_key()
-        else:
-            create_config = input(
-                "MAPAdmin section not in your global Mapillary config file, set it now? "
-            )
-            if create_config in ["y", "Y", "yes", "Yes"]:
-                master_key = set_master_key()
-    else:
-        create_config = input(
-            "Master upload key needs to be saved in the global Mapillary config file, which does not exist, create one now? "
-        )
-        if create_config in ["y", "Y", "yes", "Yes"]:
-            config.create_config(GLOBAL_CONFIG_FILEPATH)
-            master_key = set_master_key()
-
-    return master_key
-
-
-def set_master_key():
-    config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
-    section = "MAPAdmin"
-    if section not in config_object.sections():
-        config_object.add_section(section)
-    master_key = input("Enter the master key: ")
-    if master_key != "":
-        config_object = config.set_user_items(
-            config_object, section, {"MAPILLARY_SECRET_HASH": master_key}
-        )
-        config.save_config(config_object, GLOBAL_CONFIG_FILEPATH)
-    return master_key
 
 
 def upload_file(filepath, max_attempts, session):
@@ -584,13 +495,110 @@ def upload_file_list_direct(file_list, number_threads=None, max_attempts=None):
         sys.exit(1)
 
 
+def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
+    """
+    find the common root path
+    """
+    dirs = set()
+    for path in file_list:
+        dirs.add(os.path.dirname(path))
+    if len(dirs) == 0:
+        return None
+    elif len(dirs) == 1:
+        return list(dirs)[0]
+    else:
+        return find_root_dir(dirs)
+
+
+def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
+    first_image = list(file_params.values())[0]
+    user_name = first_image["user_name"]
+
+    def _read_captured_at(path):
+        return file_params.get(path, {}).get("MAPCaptureTime", "")
+
+    # Sorting images by captured_at
+    file_list.sort(key=_read_captured_at)
+
+    root_dir = find_root_dir(file_list)
+    if root_dir is None:
+        raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
+    sequence_zip_path = os.path.join(root_dir, f"sequence_{sequence_uuid}.zip")
+
+    if not os.path.isfile(sequence_zip_path):
+        print(f"Compressing {len(file_list)} image files to {sequence_zip_path}")
+        # compress files
+        with zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED) as ziph:
+            for fullpath in file_list:
+                relpath = os.path.relpath(fullpath, root_dir)
+                print(
+                    f"Writing {fullpath} to {sequence_zip_path}/{relpath} captured at {_read_captured_at(fullpath)}"
+                )
+                ziph.write(fullpath, relpath)
+    else:
+        print(f"Found the compressed sequence file {sequence_zip_path}")
+
+    credentials = authenticate_user(user_name)
+    if credentials is None:
+        raise RuntimeError(f"Unable to find credentials for user {user_name}")
+
+    service = upload_api_v4.UploadService(credentials["user_upload_token"])
+
+    data_size = os.path.getsize(sequence_zip_path)
+    print(f"Uploading {sequence_zip_path} ({data_size} bytes) ...")
+    with open(sequence_zip_path, "rb") as fp:
+        upload_resp = service.upload(sequence_uuid, data_size, fp)
+    try:
+        upload_resp.raise_for_status()
+    except requests.RequestException as ex:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
+        raise RuntimeError(f"Upload server error: {ex.response.text}")
+
+    upload_resp_json = upload_resp.json()
+    try:
+        file_handle = upload_resp_json["h"]
+    except KeyError:
+        raise RuntimeError(
+            f"File handle not found in the upload response {upload_resp.text}"
+        )
+
+    print(f"Finishing uploading {sequence_zip_path} with file handle {file_handle}")
+    finish_resp = service.finish(file_handle)
+    try:
+        finish_resp.raise_for_status()
+    except requests.RequestException as ex:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
+        raise RuntimeError(f"Upload server error: {ex.response.text}")
+
+    finish_data = finish_resp.json()
+    cluster_id = finish_data.get("cluster_id")
+    if cluster_id is None:
+        for path in file_list:
+            create_upload_log(path, "upload_failed")
+        raise RuntimeError(
+            f"Upload server error: failed to create the cluster {finish_resp.text}"
+        )
+    else:
+        print(f"Cluster {cluster_id} created")
+
+    for path in file_list:
+        create_upload_log(path, "upload_success")
+
+    flag_finalization(file_list)
+
+    print(f"Deleting {sequence_zip_path}...")
+    os.remove(sequence_zip_path)
+
+
 def upload_file_list_manual(
-    file_list,
-    sequence_uuid,
+    file_list: list,
+    sequence_uuid: str,
     file_params,
-    sequence_idx,
-    number_threads=None,
-    max_attempts=None,
+    sequence_idx: int,
+    number_threads: int = None,
+    max_attempts: int = None,
 ):
     # set some uploader params first
     if number_threads is None:
@@ -605,6 +613,8 @@ def upload_file_list_manual(
     private = first_image.get("private", False)
 
     credentials = authenticate_user(user_name)
+    if credentials is None:
+        raise RuntimeError(f"Unable to find credentials for user {user_name}")
 
     upload_options = {
         "token": credentials["user_upload_token"],
@@ -644,7 +654,7 @@ def upload_file_list_manual(
     print(f"\nUsing upload session {session['key']}")
 
     # create upload queue with all files per sequence
-    q = Queue()
+    q: queue.Queue = Queue()
     for filepath in file_list:
         q.put((filepath, max_attempts, session))
 
@@ -683,11 +693,12 @@ def log_rootpath(filepath: str) -> str:
     )
 
 
-def log_folder(filepath):
+def log_folder(filepath: str) -> str:
     return os.path.join(os.path.dirname(filepath), ".mapillary", "logs")
 
 
-def create_upload_log(filepath, status):
+def create_upload_log(filepath: str, status: str) -> None:
+    assert status in ["upload_success", "upload_failed"], f"invalid status {status}"
     upload_log_root = log_rootpath(filepath)
     upload_log_filepath = os.path.join(upload_log_root, status)
     opposite_status = {

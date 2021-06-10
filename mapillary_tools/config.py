@@ -1,76 +1,67 @@
 import configparser
 import os
 
-from mapillary_tools import api_v3
+from . import api_v3, api_v4, MAPILLARY_API_VERSION
 
+
+_CLIENT_ID = (
+    api_v3.MAPILLARY_WEB_CLIENT_ID
+    if MAPILLARY_API_VERSION == "v3"
+    else api_v4.MAPILLARY_WEB_CLIENT_ID
+)
+# Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
+_CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
 
 GLOBAL_CONFIG_FILEPATH = os.getenv(
     "GLOBAL_CONFIG_FILEPATH",
     os.path.join(
-        os.path.expanduser("~"), ".config", "mapillary", "configs", api_v3.CLIENT_ID
+        os.path.expanduser("~"),
+        ".config",
+        "mapillary",
+        "configs",
+        _CLIENT_ID,
     ),
 )
 
 
-def load_config(config_path):
-    config = None
-    if os.path.isfile(config_path):
-        config = configparser.ConfigParser()
-        try:
-            config.optionxform = str
-            config.read(config_path)
-        except:
-            print("Error reading config file")
-    else:
-        print("Error, config file does not exist")
+def load_config(config_path: str) -> configparser.ConfigParser:
+    if not os.path.isfile(config_path):
+        raise RuntimeError(f"config {config_path} does not exist")
+    config = configparser.ConfigParser()
+    config.optionxform = str  # type: ignore
+    config.read(config_path)
     return config
 
 
-def save_config(config, config_path):
+def save_config(config: configparser.ConfigParser, config_path: str) -> None:
     with open(config_path, "w") as cfg:
-        try:
-            config.write(cfg)
-        except:
-            print("Error writing config file")
+        config.write(cfg)
 
 
-def load_user(config, user_name):
-    user_items = None
-    try:
-        user_items = dict(config.items(user_name))
-    except:
-        print("Error loading user credentials")
+def load_user(config: configparser.ConfigParser, user_name: str) -> dict:
+    user_items = dict(config.items(user_name))
     return user_items
 
 
-def add_user(config, user_name, config_path):
+def add_user(
+    config: configparser.ConfigParser, user_name: str, config_path: str
+) -> None:
     if user_name not in config.sections():
-        try:
-            config.add_section(user_name)
-        except:
-            print("Error adding new user section, for user_name " + user_name)
+        config.add_section(user_name)
     else:
-        print("Error, user " + user_name + " already exists")
+        print(f"Error, user {user_name} already exists")
     save_config(config, config_path)
 
 
-def set_user_items(config, user_name, user_items):
+def set_user_items(
+    config: configparser.ConfigParser, user_name: str, user_items: dict
+) -> configparser.ConfigParser:
     for key in user_items.keys():
-        try:
-            config.set(user_name, key, user_items[key])
-        except:
-            print(
-                "Error setting config key "
-                + key
-                + " with value "
-                + str(user_items[key])
-                + " for user_name "
-                + user_name
-            )
+        config.set(user_name, key, user_items[key])
     return config
 
 
-def update_config(config_path, user_name, user_items):
+def update_config(config_path: str, user_name: str, user_items) -> None:
     config = load_config(config_path)
     if user_name not in config.sections():
         add_user(config, user_name, config_path)
@@ -78,7 +69,7 @@ def update_config(config_path, user_name, user_items):
     save_config(config, config_path)
 
 
-def create_config(config_path):
+def create_config(config_path: str) -> None:
     if not os.path.isdir(os.path.dirname(config_path)):
         os.makedirs(os.path.dirname(config_path))
     open(config_path, "a").close()

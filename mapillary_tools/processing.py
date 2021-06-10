@@ -12,6 +12,7 @@ from collections import OrderedDict
 from dateutil.tz import tzlocal
 from tqdm import tqdm
 
+from . import login
 from . import api_v3
 from . import ipc
 from . import uploader
@@ -1049,7 +1050,7 @@ def user_properties(
     verbose: bool = False,
 ) -> Optional[Dict]:
     # basic
-    user_properties = uploader.authenticate_user(user_name)
+    user_properties = login.authenticate_user(user_name)
     if not user_properties:
         print_error("Error, user authentication failed for user " + user_name)
         print(
@@ -1068,49 +1069,6 @@ def user_properties(
     # remove uneeded credentials
     if "user_upload_token" in user_properties:
         del user_properties["user_upload_token"]
-
-    return user_properties
-
-
-def user_properties_master(
-    user_name,
-    import_path,
-    process_file_list,
-    organization_key=None,
-    private=False,
-    verbose=False,
-):
-    try:
-        master_key = uploader.get_master_key()
-    except:
-        print_error("Error, no master key found.")
-        print(
-            "If you are a user, run the process script without the --master_upload, if you are a Mapillary employee, make sure you have the master key in your config file."
-        )
-        return None
-
-    user_properties = {
-        "MAPVideoSecure": master_key,
-        "MAPSettingsUsername": user_name,
-    }
-
-    try:
-        user_key = api_v3.get_user_key(user_name)
-    except:
-        print_error(
-            f"Error, no user key obtained for the user name {user_name}, check if the user name is spelled correctly and if the master key is correct",
-        )
-        return None
-
-    if user_key is None:
-        return None
-
-    user_properties["MAPSettingsUserKey"] = user_key
-
-    if organization_key:
-        user_properties.update({"MAPOrganizationKey": organization_key})
-        if private:
-            user_properties.update({"MAPPrivate": private})
 
     return user_properties
 

@@ -4,6 +4,7 @@ import sys
 
 from . import ipc
 from . import uploader
+from . import MAPILLARY_API_VERSION
 from . import processing
 from . import exif_read
 
@@ -110,16 +111,33 @@ def upload(
             direct_upload_file_list = []
             for image in upload_file_list:
                 log_root = uploader.log_rootpath(image)
+
+                # read upload params
                 upload_params_path = os.path.join(
                     log_root, "upload_params_process.json"
                 )
                 if os.path.isfile(upload_params_path):
-                    with open(upload_params_path, "rb") as jf:
-                        params[image] = json.load(jf)
-                        sequence = params[image]["key"]
-                        list_per_sequence_mapping.setdefault(sequence, []).append(image)
+                    with open(upload_params_path, "r") as fp:
+                        params[image] = json.load(fp)
+                    sequence = params[image]["key"]
+                    list_per_sequence_mapping.setdefault(sequence, []).append(image)
                 else:
                     direct_upload_file_list.append(image)
+
+                # read image descriptions
+                description_path = os.path.join(
+                    log_root, "mapillary_image_description.json"
+                )
+                if not os.path.isfile(description_path):
+                    raise RuntimeError(
+                        f"Please run process first because {description_path} is not generated"
+                    )
+                with open(description_path, "r") as fp:
+                    description = json.load(fp)
+                assert not set(description).intersection(
+                    params.get(image, {})
+                ), f"Parameter conflicting {description} and {params.get(image, {})}"
+                params.setdefault(image, {}).update(description)
 
             # inform how many images are to be uploaded and how many are being skipped
             # from upload
@@ -128,20 +146,32 @@ def upload(
                 f"Uploading {len(upload_file_list)} images with valid mapillary tags (Skipping {len(total_file_list) - len(upload_file_list)})"
             )
 
-            if direct_upload_file_list:
-                uploader.upload_file_list_direct(
-                    direct_upload_file_list, number_threads, max_attempts
-                )
+            if MAPILLARY_API_VERSION == "v3":
+                if direct_upload_file_list:
+                    uploader.upload_file_list_direct(
+                        direct_upload_file_list, number_threads, max_attempts
+                    )
+                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
+                    uploader.upload_file_list_manual(
+                        list_per_sequence_mapping[sequence_uuid],
+                        sequence_uuid,
+                        params,
+                        idx,
+                        number_threads,
+                        max_attempts,
+                    )
+            elif MAPILLARY_API_VERSION == "v4":
+                if direct_upload_file_list:
+                    raise RuntimeError(
+                        f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"
+                    )
 
-            for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
-                uploader.upload_file_list_manual(
-                    list_per_sequence_mapping[sequence_uuid],
-                    sequence_uuid,
-                    params,
-                    idx,
-                    number_threads,
-                    max_attempts,
-                )
+                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
+                    uploader.upload_sequence_v4(
+                        list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
+                    )
+            else:
+                raise ValueError("MAPILLARY_API_VERSION must be either v3 or v4")
 
         if to_finalize_file_list:
             params = {}

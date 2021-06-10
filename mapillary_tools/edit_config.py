@@ -1,9 +1,9 @@
 import os
-import sys
 
-from . import api_v3
+from . import login
+from . import api_v3, api_v4
 from . import config
-from . import uploader
+from . import MAPILLARY_API_VERSION
 
 
 def edit_config(
@@ -22,13 +22,22 @@ def edit_config(
         config.create_config(config_file)
 
     if jwt:
-        user = api_v3.get_user(jwt)
+        if user_name is None or user_key is None:
+            if MAPILLARY_API_VERSION == "v3":
+                user = api_v3.get_user(jwt)
+                user_name = user["username"]
+                user_key = user["key"]
+            else:
+                # FIXME: v4 support here
+                pass
+
         user_items = {
-            "MAPSettingsUsername": user["username"],
-            "MAPSettingsUserKey": user["key"],
+            "MAPSettingsUsername": user_name,
+            "MAPSettingsUserKey": user_key,
             "user_upload_token": jwt,
         }
-        config.update_config(config_file, user["username"], user_items)
+
+        config.update_config(config_file, user_name, user_items)
         return
 
     if user_key and user_name:  # Manually add user_key
@@ -40,42 +49,49 @@ def edit_config(
         config.update_config(config_file, user_name, user_items)
         return
 
-    # config file must exist at this step
-    # load
-    config_object = config.load_config(config_file)
-
     if not user_name:
         user_name = input(
-            "Enter the Mapillary user name you would like to (re)authenticate: "
+            "Enter the Mapillary username you would like to (re)authenticate: "
         )
+
+    # config file must exist at this step
+    config_object = config.load_config(config_file)
 
     # safety check if section exists, otherwise add it
     if user_name in config_object.sections():
         if not force_overwrite:
-            print("Warning, user name exists with the following items : ")
+            print("Warning, username exists with the following items : ")
             print(config.load_user(config_object, user_name))
             sure = input(
                 "Are you sure you would like to re-authenticate (current parameters will be overwritten) [y,Y,yes,Yes]? "
             )
             if sure not in ["y", "Y", "yes", "Yes"]:
                 print(
-                    f"Aborting re-authentication. If you would like to re-authenticate user name {user_name}, rerun this command and confirm re-authentication."
+                    f"Aborting re-authentication. If you would like to re-authenticate username {user_name}, rerun this command and confirm re-authentication."
                 )
                 return
     else:
         config_object.add_section(user_name)
 
     if user_email and user_password:
-        user_key = api_v3.get_user_key(user_name)
-        if not user_key:
-            print(
-                f"User name {user_name} does not exist, please try again or contact Mapillary user support."
-            )
-            sys.exit(1)
-        upload_token = api_v3.get_upload_token(user_email, user_password)
+        if MAPILLARY_API_VERSION == "v3":
+            user_key = api_v3.get_user_key(user_name)
+            if not user_key:
+                raise RuntimeError(
+                    f"User name {user_name} does not exist, please try again or contact Mapillary user support."
+                )
+            upload_token = api_v3.get_upload_token(user_email, user_password)
+        else:
+            assert MAPILLARY_API_VERSION == "v4"
+            data = api_v4.get_upload_token(user_email, user_password)
+            upload_token = data["access_token"]
+            user_key = data["user_id"]
+
         if not upload_token:
-            print(f"Authentication failed for user name {user_name}, please try again.")
-            sys.exit(1)
+            raise RuntimeError(
+                f"Authentication failed for username {user_name}, please try again."
+            )
+
         user_items = {
             "MAPSettingsUsername": user_name,
             "MAPSettingsUserKey": user_key,
@@ -83,9 +99,10 @@ def edit_config(
         }
     else:
         # fill in the items and save
-        user_items = uploader.prompt_user_for_user_items(user_name)
+        user_items = login.prompt_user_for_user_items(user_name)
         if not user_items:
-            print(f"Authentication failed for user name {user_name}, please try again.")
-            sys.exit(1)
+            raise RuntimeError(
+                f"Authentication failed for username {user_name}, please try again."
+            )
 
     config.update_config(config_file, user_name, user_items)

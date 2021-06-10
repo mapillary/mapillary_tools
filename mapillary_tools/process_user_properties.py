@@ -75,26 +75,16 @@ def process_user_properties(
         )
         sys.exit(1)
 
-    # function calls
-    if not master_upload:
-        user_properties = processing.user_properties(
-            user_name,
-            import_path,
-            process_file_list,
-            organization_username,
-            organization_key,
-            private,
-            verbose,
-        )
-    else:
-        user_properties = processing.user_properties_master(
-            user_name,
-            import_path,
-            process_file_list,
-            organization_key,
-            private,
-            verbose,
-        )
+    user_properties = processing.user_properties(
+        user_name,
+        import_path,
+        process_file_list,
+        organization_username,
+        organization_key,
+        private,
+        verbose,
+    )
+
     # write data and logs
     processing.create_and_log_process_in_list(
         process_file_list, "user_process", "success", verbose, user_properties
