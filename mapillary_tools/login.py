@@ -1,29 +1,54 @@
 import getpass
 import os
-from typing import Optional, Dict
+
+import requests
 
 from . import MAPILLARY_API_VERSION, api_v3, api_v4, config
 from .config import GLOBAL_CONFIG_FILEPATH
+from .error import print_error
 
 
-def prompt_user_for_user_items(user_name: str) -> Optional[dict]:
-    print(f"Enter user credentials for user {user_name}:")
-    user_email = input("Enter email: ")
-    user_password = getpass.getpass("Enter user password: ")
+class HTTPError(Exception):
+    pass
 
-    if MAPILLARY_API_VERSION == "v3":
-        user_key = api_v3.get_user_key(user_name)
-        if not user_key:
-            return None
-        upload_token = api_v3.get_upload_token(user_email, user_password)
-    else:
-        assert MAPILLARY_API_VERSION == "v4"
-        data = api_v4.get_upload_token(user_email, user_password)
-        upload_token = data.get("access_token")
-        user_key = data.get("user_id")
 
-    if not upload_token:
-        return None
+def wrap_http_exception(ex: requests.HTTPError):
+    resp = ex.response
+    lines = [
+        f"{ex.request.method} {resp.url}",
+        f"> HTTP Status: {ex.response.status_code}",
+        f"{ex.response.text}",
+    ]
+    return HTTPError("\n".join(lines))
+
+
+def prompt_user_for_user_items(user_name: str) -> dict:
+    print(f"Sign in for user {user_name}")
+    user_email = input("Enter your Mapillary user email: ")
+    user_password = getpass.getpass("Enter Mapillary user password: ")
+
+    try:
+        if MAPILLARY_API_VERSION == "v3":
+            user_key = api_v3.get_user_key(user_name)
+            upload_token = api_v3.get_upload_token(user_email, user_password)
+        else:
+            assert MAPILLARY_API_VERSION == "v4"
+            data = api_v4.get_upload_token(user_email, user_password)
+            upload_token = data.get("access_token")
+            user_key = data.get("user_id")
+    except requests.HTTPError as ex:
+        if 400 <= ex.response.status_code < 500:
+            resp = ex.response.json()
+            subcode = resp.get("error", {}).get("error_subcode")
+            if subcode in [1348028, 1348092, 3404005]:
+                title = resp.get("error", {}).get("error_user_title")
+                message = resp.get("error", {}).get("error_user_msg")
+                print_error(f"{title}: {message}")
+                return prompt_user_for_user_items(user_name)
+            else:
+                raise wrap_http_exception(ex)
+        else:
+            raise wrap_http_exception(ex)
 
     return {
         "MAPSettingsUsername": user_name,
@@ -32,15 +57,13 @@ def prompt_user_for_user_items(user_name: str) -> Optional[dict]:
     }
 
 
-def authenticate_user(user_name: str) -> Optional[Dict]:
+def authenticate_user(user_name: str) -> dict:
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():
             return config.load_user(global_config_object, user_name)
 
     user_items = prompt_user_for_user_items(user_name)
-    if not user_items:
-        return None
 
     config.create_config(GLOBAL_CONFIG_FILEPATH)
     config.update_config(GLOBAL_CONFIG_FILEPATH, user_name, user_items)
