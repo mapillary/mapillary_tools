@@ -68,21 +68,7 @@ def process_upload_params(
         sys.exit(1)
 
     if not master_upload:
-        try:
-            credentials = login.authenticate_user(user_name)
-        except:
-            print_error("Error, user authentication failed for user " + user_name)
-            processing.create_and_log_process_in_list(
-                process_file_list, "upload_params_process" "failed", verbose
-            )
-            sys.exit(1)
-        if credentials is None:
-            print_error("Error, user authentication failed for user " + user_name)
-            processing.create_and_log_process_in_list(
-                process_file_list, "upload_params_process" "failed", verbose
-            )
-            sys.exit(1)
-
+        credentials = login.authenticate_user(user_name)
         user_upload_token = credentials["user_upload_token"]
         user_key = credentials["MAPSettingsUserKey"]
 

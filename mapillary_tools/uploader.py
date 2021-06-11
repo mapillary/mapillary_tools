@@ -19,7 +19,7 @@ from .exif_read import ExifRead
 from . import upload_api_v3
 from . import upload_api_v4
 from . import ipc
-from .login import authenticate_user
+from .login import authenticate_user, wrap_http_exception
 from .utils import force_decode
 from . import MAPILLARY_API_VERSION
 
@@ -339,6 +339,7 @@ def get_organization_key(user_key, organization_username, upload_token):
         print("Available organization user names for current user are : ")
         print(organization_usernames)
         sys.exit(1)
+
     return organization_key
 
 
@@ -539,8 +540,6 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
         print(f"Found the compressed sequence file {sequence_zip_path}")
 
     credentials = authenticate_user(user_name)
-    if credentials is None:
-        raise RuntimeError(f"Unable to find credentials for user {user_name}")
 
     service = upload_api_v4.UploadService(credentials["user_upload_token"])
 
@@ -550,10 +549,10 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
         upload_resp = service.upload(sequence_uuid, data_size, fp)
     try:
         upload_resp.raise_for_status()
-    except requests.RequestException as ex:
+    except requests.HTTPError as ex:
         for path in file_list:
             create_upload_log(path, "upload_failed")
-        raise RuntimeError(f"Upload server error: {ex.response.text}")
+        raise wrap_http_exception(ex)
 
     upload_resp_json = upload_resp.json()
     try:
@@ -567,10 +566,10 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
     finish_resp = service.finish(file_handle)
     try:
         finish_resp.raise_for_status()
-    except requests.RequestException as ex:
+    except requests.HTTPError as ex:
         for path in file_list:
             create_upload_log(path, "upload_failed")
-        raise RuntimeError(f"Upload server error: {ex.response.text}")
+        raise wrap_http_exception(ex)
 
     finish_data = finish_resp.json()
     cluster_id = finish_data.get("cluster_id")
@@ -613,8 +612,6 @@ def upload_file_list_manual(
     private = first_image.get("private", False)
 
     credentials = authenticate_user(user_name)
-    if credentials is None:
-        raise RuntimeError(f"Unable to find credentials for user {user_name}")
 
     upload_options = {
         "token": credentials["user_upload_token"],

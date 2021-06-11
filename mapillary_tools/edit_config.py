@@ -100,9 +100,5 @@ def edit_config(
     else:
         # fill in the items and save
         user_items = login.prompt_user_for_user_items(user_name)
-        if not user_items:
-            raise RuntimeError(
-                f"Authentication failed for username {user_name}, please try again."
-            )
 
     config.update_config(config_file, user_name, user_items)
