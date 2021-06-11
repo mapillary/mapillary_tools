@@ -161,3 +161,22 @@ Fixes:
 Breaking changes:
 - Remove option `--api_version`
 - Remove the standalone script `bin/download_images.py`
+
+## 0.7.0 (2021-06-11)
+
+Major changes:
+- Upgrade upload APIs to the new platform #393
+
+Fixes:
+- Fix process_csv #400
+- Fix video_process for blackvue videos #397
+- Fix sub_sec field https://github.com/mapillary/mapillary_tools/issues/388
+
+Improvement:
+- Remove PIL as a dependency #401
+- Improve login error handling #404
+
+Breaking changes:
+- Remove subcommand `send_videos_for_processing` because it is not supported in the new system yet #393
+- Remove subcommand `download` and `download_blurred` for the same reason #393
+- Remove master key (was used for employee) #393
