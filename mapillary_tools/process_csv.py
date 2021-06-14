@@ -255,7 +255,7 @@ def process_csv(
             "Error, csv column numbers start with 1, one of the columns specified is 0."
         )
 
-    column_indexes = [col - 1 for col in column_indexes]
+    column_indexes = [col - 1 if col is not None else None for col in column_indexes]
 
     # checks for meta arguments if any
     meta_columns, meta_names, meta_types = validate_meta_data(
