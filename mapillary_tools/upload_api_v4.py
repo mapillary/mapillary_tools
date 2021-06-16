@@ -18,7 +18,9 @@ class UploadService:
         headers = {
             "Authorization": f"OAuth {self.access_token}",
         }
-        resp = requests.get(f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}", headers=headers)
+        resp = requests.get(
+            f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}", headers=headers
+        )
         resp.raise_for_status()
         data = resp.json()
         return data["offset"]
