@@ -5,6 +5,8 @@ import json
 import os
 import socket
 import sys
+import uuid
+import tempfile
 
 from queue import Queue
 import threading
@@ -524,35 +526,40 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
     root_dir = find_root_dir(file_list)
     if root_dir is None:
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
-    sequence_zip_path = os.path.join(root_dir, f"sequence_{sequence_uuid}.zip")
 
-    if not os.path.isfile(sequence_zip_path):
-        print(f"Compressing {len(file_list)} image files to {sequence_zip_path}")
-        # compress files
-        with zipfile.ZipFile(sequence_zip_path, "w", zipfile.ZIP_DEFLATED) as ziph:
+    credentials = authenticate_user(user_name)
+    service = upload_api_v4.UploadService(credentials["user_upload_token"])
+
+    while True:
+        upload_session_key = str(uuid.uuid4())
+        try:
+            offset = service.fetch_offset(upload_session_key)
+        except requests.HTTPError as ex:
+            raise wrap_http_exception(ex)
+        if offset == 0:
+            break
+
+    session_name = f"{sequence_uuid}/{upload_session_key}"
+
+    with tempfile.TemporaryFile() as fp:
+        with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
             for fullpath in file_list:
                 relpath = os.path.relpath(fullpath, root_dir)
                 print(
-                    f"Writing {fullpath} to {sequence_zip_path}/{relpath} captured at {_read_captured_at(fullpath)}"
+                    f"Writing {fullpath} to /{relpath} captured at {_read_captured_at(fullpath)}"
                 )
                 ziph.write(fullpath, relpath)
-    else:
-        print(f"Found the compressed sequence file {sequence_zip_path}")
-
-    credentials = authenticate_user(user_name)
-
-    service = upload_api_v4.UploadService(credentials["user_upload_token"])
-
-    data_size = os.path.getsize(sequence_zip_path)
-    print(f"Uploading {sequence_zip_path} ({data_size} bytes) ...")
-    with open(sequence_zip_path, "rb") as fp:
-        upload_resp = service.upload(sequence_uuid, data_size, fp)
-    try:
-        upload_resp.raise_for_status()
-    except requests.HTTPError as ex:
-        for path in file_list:
-            create_upload_log(path, "upload_failed")
-        raise wrap_http_exception(ex)
+        fp.seek(0, os.SEEK_END)
+        data_size = fp.tell()
+        print(f"Uploading {session_name} ({data_size} bytes) ...")
+        fp.seek(0)
+        try:
+            upload_resp = service.upload(upload_session_key, data_size, fp)
+            upload_resp.raise_for_status()
+        except requests.HTTPError as ex:
+            for path in file_list:
+                create_upload_log(path, "upload_failed")
+            raise wrap_http_exception(ex)
 
     upload_resp_json = upload_resp.json()
     try:
@@ -562,7 +569,7 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
             f"File handle not found in the upload response {upload_resp.text}"
         )
 
-    print(f"Finishing uploading {sequence_zip_path} with file handle {file_handle}")
+    print(f"Finishing uploading {session_name} with file handle {file_handle}")
     finish_resp = service.finish(file_handle)
     try:
         finish_resp.raise_for_status()
@@ -586,9 +593,6 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
         create_upload_log(path, "upload_success")
 
     flag_finalization(file_list)
-
-    print(f"Deleting {sequence_zip_path}...")
-    os.remove(sequence_zip_path)
 
 
 def upload_file_list_manual(
