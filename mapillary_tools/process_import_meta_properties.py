@@ -7,6 +7,7 @@ from tqdm import tqdm
 from . import processing
 from .error import print_error
 from .exif_read import ExifRead
+from . import VERSION
 
 META_DATA_TYPES = {
     "strings": str,
@@ -109,7 +110,7 @@ def finalize_import_properties_process(
             int(round(time.time() * 1000)),
         )
 
-    add_meta_tag(mapillary_description, "strings", "mapillary_tools_version", "0.6.0")
+    add_meta_tag(mapillary_description, "strings", "mapillary_tools_version", VERSION)
 
     if custom_meta_data:
         parse_and_add_custom_meta_tags(mapillary_description, custom_meta_data)
