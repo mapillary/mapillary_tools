@@ -14,6 +14,17 @@ class UploadService:
     def __init__(self, access_token: str):
         self.access_token = access_token
 
+    def fetch_offset(self, session_key: str) -> int:
+        headers = {
+            "Authorization": f"OAuth {self.access_token}",
+        }
+        resp = requests.get(
+            f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}", headers=headers
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["offset"]
+
     def upload(self, session_key: str, data_size: int, data) -> requests.Response:
         headers = {
             "Authorization": f"OAuth {self.access_token}",

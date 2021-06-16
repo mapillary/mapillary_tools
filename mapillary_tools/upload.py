@@ -69,9 +69,6 @@ def upload(
     # get list of file to process
     total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
     upload_file_list = uploader.get_upload_file_list(import_path, skip_subfolders)
-    failed_file_list = uploader.get_failed_upload_file_list(
-        import_path, skip_subfolders
-    )
     success_file_list = uploader.get_success_upload_file_list(
         import_path, skip_subfolders
     )
@@ -82,16 +79,6 @@ def upload(
     if len(success_file_list) == len(total_file_list):
         print("All images have already been uploaded")
     else:
-        if len(failed_file_list):
-            upload_failed = (
-                input("Retry uploading previously failed image uploads? [y/n]: ")
-                if not ipc.is_enabled()
-                else "y"
-            )
-            # if yes, add images to the upload list
-            if upload_failed in ["y", "Y", "yes", "Yes"]:
-                upload_file_list.extend(failed_file_list)
-
         # verify the images in the upload list, they need to have the image
         # description and certain MAP properties
         upload_file_list = [f for f in upload_file_list if verify_mapillary_tag(f)]
