@@ -1,22 +1,24 @@
-from typing import List, Optional, Iterable
+import io
+from typing import List, Optional, Iterable, IO, Callable
 import os
 import sys
-import uuid
 import tempfile
+import hashlib
 
 import time
 import zipfile
 
 import requests
+from tqdm import tqdm
 
 from . import upload_api_v4
 from . import ipc
 from .login import authenticate_user, wrap_http_exception
 from .utils import force_decode
 
-NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
-MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
-DRY_RUN = bool(os.getenv("DRY_RUN", False))
+
+MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
+MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
 
 
 def flag_finalization(finalize_file_list):
@@ -363,7 +365,9 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
         return find_root_dir(dirs)
 
 
-def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
+def upload_sequence_v4(
+    file_list: list, sequence_uuid: str, file_params: dict, dry_run=False
+):
     first_image = list(file_params.values())[0]
     user_name = first_image["user_name"]
 
@@ -378,38 +382,56 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
     credentials = authenticate_user(user_name)
-    service = upload_api_v4.UploadService(credentials["user_upload_token"])
+    user_access_token = credentials["user_upload_token"]
 
-    while True:
-        upload_session_key = str(uuid.uuid4())
-        try:
-            offset = service.fetch_offset(upload_session_key)
-        except requests.HTTPError as ex:
-            raise wrap_http_exception(ex)
-        if offset == 0:
-            break
-
-    session_name = f"{sequence_uuid}/{upload_session_key}"
-
-    with tempfile.TemporaryFile() as fp:
+    with tempfile.NamedTemporaryFile() as fp:
+        # compressing
         with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-            for fullpath in file_list:
-                relpath = os.path.relpath(fullpath, root_dir)
-                print(
-                    f"Writing {fullpath} to /{relpath} captured at {_read_captured_at(fullpath)}"
+            with tqdm(total=len(file_list), desc="Compressing") as pbar:
+                for fullpath in file_list:
+                    relpath = os.path.relpath(fullpath, root_dir)
+                    ziph.write(fullpath, relpath)
+                    pbar.update(1)
+        fp.seek(0, io.SEEK_END)
+        entity_size = fp.tell()
+
+        # chunk size
+        avg_image_size = int(entity_size / len(file_list))
+        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
+
+        service = upload_api_v4.UploadService(user_access_token, chunk_size=chunk_size)
+
+        # md5sum
+        fp.seek(0, io.SEEK_SET)
+        md5 = hashlib.md5()
+        while True:
+            buf = fp.read(MAX_CHUNK_SIZE)
+            if not buf:
+                break
+            md5.update(buf)
+        md5sum = md5.hexdigest()
+
+        # uploading
+        fp.seek(0, io.SEEK_SET)
+        session_key = f"mly_tools_{md5sum}"
+        initial_offset = service.fetch_offset(session_key)
+        with tqdm(
+            total=entity_size,
+            initial=initial_offset,
+            desc="Uploading",
+        ) as pbar:
+            try:
+                upload_resp = service.upload(
+                    session_key,
+                    fp,
+                    entity_size,
+                    callback=lambda chunk, _: pbar.update(len(chunk)),
                 )
-                ziph.write(fullpath, relpath)
-        fp.seek(0, os.SEEK_END)
-        data_size = fp.tell()
-        print(f"Uploading {session_name} ({data_size} bytes) ...")
-        fp.seek(0)
-        try:
-            upload_resp = service.upload(upload_session_key, data_size, fp)
-            upload_resp.raise_for_status()
-        except requests.HTTPError as ex:
-            for path in file_list:
-                create_upload_log(path, "upload_failed")
-            raise wrap_http_exception(ex)
+            except requests.HTTPError as ex:
+                if not dry_run:
+                    for path in file_list:
+                        create_upload_log(path, "upload_failed")
+                raise wrap_http_exception(ex)
 
     upload_resp_json = upload_resp.json()
     try:
@@ -419,7 +441,10 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
             f"File handle not found in the upload response {upload_resp.text}"
         )
 
-    print(f"Finishing uploading {session_name} with file handle {file_handle}")
+    if dry_run:
+        return
+
+    print(f"Finishing upload {sequence_uuid}")
     finish_resp = service.finish(file_handle)
     try:
         finish_resp.raise_for_status()
@@ -428,6 +453,7 @@ def upload_sequence_v4(file_list: list, sequence_uuid: str, file_params: dict):
             create_upload_log(path, "upload_failed")
         raise wrap_http_exception(ex)
 
+    # check cluster id
     finish_data = finish_resp.json()
     cluster_id = finish_data.get("cluster_id")
     if cluster_id is None:

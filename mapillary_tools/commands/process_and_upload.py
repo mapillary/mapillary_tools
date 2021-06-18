@@ -44,6 +44,13 @@ class Command:
             required=False,
         )
         parser.add_argument(
+            "--dry_run",
+            help="Disable actual upload. Used for debugging only",
+            type=bool,
+            default=False,
+            required=False,
+        )
+        parser.add_argument(
             "--skip_subfolders",
             help="Skip all subfolders and import only the images in the given directory path.",
             action="store_true",

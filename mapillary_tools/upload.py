@@ -23,6 +23,7 @@ def upload(
     number_threads=None,
     max_attempts=None,
     video_import_path=None,
+    dry_run=False,
 ):
     """
     Upload local images to Mapillary
@@ -138,7 +139,10 @@ def upload(
 
             for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
                 uploader.upload_sequence_v4(
-                    list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
+                    list_per_sequence_mapping[sequence_uuid],
+                    sequence_uuid,
+                    params,
+                    dry_run=dry_run,
                 )
 
         if to_finalize_file_list:
