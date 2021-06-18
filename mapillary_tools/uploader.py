@@ -4,8 +4,6 @@ import sys
 import uuid
 import tempfile
 
-from queue import Queue
-import threading
 import time
 import zipfile
 
@@ -19,33 +17,6 @@ from .utils import force_decode
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
 DRY_RUN = bool(os.getenv("DRY_RUN", False))
-
-
-class UploadThread(threading.Thread):
-    q: Queue
-    total_task: int
-
-    def __init__(self, queue):
-        super().__init__()
-        self.q = queue
-        self.total_task = self.q.qsize()
-
-    def run(self):
-        while not self.q.empty():
-            # fetch file from the queue and upload
-            try:
-                filepath, max_attempts, session = self.q.get(timeout=5)
-            except:
-                # If it can't get a task after 5 seconds, continue and check if
-                # task list is empty
-                continue
-            progress(
-                self.total_task - self.q.qsize(),
-                self.total_task,
-                f"... {self.q.qsize()} images left.",
-            )
-            upload_file(filepath, max_attempts, session)
-            self.q.task_done()
 
 
 def flag_finalization(finalize_file_list):
