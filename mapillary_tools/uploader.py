@@ -11,12 +11,10 @@ import zipfile
 
 import requests
 
-from . import api_v3
 from . import upload_api_v4
 from . import ipc
 from .login import authenticate_user, wrap_http_exception
 from .utils import force_decode
-from . import MAPILLARY_API_VERSION
 
 NUMBER_THREADS = int(os.getenv("NUMBER_THREADS", "5"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "50"))
@@ -317,11 +315,7 @@ def get_organization_key(user_key, organization_username, upload_token):
     organization_key = None
 
     organization_usernames = []
-    orgs = (
-        api_v3.fetch_user_organizations(user_key, upload_token)
-        if MAPILLARY_API_VERSION == "v3"
-        else []
-    )
+    orgs = []
     for org in orgs:
         organization_usernames.append(org["name"])
         if org["name"] == organization_username:
@@ -339,11 +333,7 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    orgs = (
-        api_v3.fetch_user_organizations(user_key, upload_token)
-        if MAPILLARY_API_VERSION == "v3"
-        else []
-    )
+    orgs = []
     for org in orgs:
         if org["key"] == organization_key:
             return
@@ -351,11 +341,7 @@ def validate_organization_key(user_key, organization_key, upload_token):
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    orgs = (
-        api_v3.fetch_user_organizations(user_key, upload_token)
-        if MAPILLARY_API_VERSION == "v3"
-        else []
-    )
+    orgs = []
     for org in orgs:
         if org["key"] == organization_key:
             if (
