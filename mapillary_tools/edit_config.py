@@ -1,9 +1,8 @@
 import os
 
 from . import login
-from . import api_v3, api_v4
+from . import api_v4
 from . import config
-from . import MAPILLARY_API_VERSION
 
 
 def edit_config(
@@ -23,13 +22,11 @@ def edit_config(
 
     if jwt:
         if user_name is None or user_key is None:
-            if MAPILLARY_API_VERSION == "v3":
-                user = api_v3.get_user(jwt)
-                user_name = user["username"]
-                user_key = user["key"]
-            else:
-                # FIXME: v4 support here
-                pass
+            # FIXME: v4 support here
+            # user = api_v3.get_user(jwt)
+            # user_name = user["username"]
+            # user_key = user["key"]
+            pass
 
         user_items = {
             "MAPSettingsUsername": user_name,
@@ -74,18 +71,9 @@ def edit_config(
         config_object.add_section(user_name)
 
     if user_email and user_password:
-        if MAPILLARY_API_VERSION == "v3":
-            user_key = api_v3.get_user_key(user_name)
-            if not user_key:
-                raise RuntimeError(
-                    f"User name {user_name} does not exist, please try again or contact Mapillary user support."
-                )
-            upload_token = api_v3.get_upload_token(user_email, user_password)
-        else:
-            assert MAPILLARY_API_VERSION == "v4"
-            data = api_v4.get_upload_token(user_email, user_password)
-            upload_token = data["access_token"]
-            user_key = data["user_id"]
+        data = api_v4.get_upload_token(user_email, user_password)
+        upload_token = data["access_token"]
+        user_key = data["user_id"]
 
         if not upload_token:
             raise RuntimeError(

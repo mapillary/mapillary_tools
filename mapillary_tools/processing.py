@@ -13,7 +13,6 @@ from dateutil.tz import tzlocal
 from tqdm import tqdm
 
 from . import login
-from . import api_v3
 from . import ipc
 from . import uploader
 from .error import print_error

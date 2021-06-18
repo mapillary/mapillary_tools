@@ -175,11 +175,6 @@ def post_process(
                 with open(upload_params_path, "rb") as jf:
                     params[image] = json.load(jf)
 
-        # get the s3 locations of the sequences
-        finalize_params = uploader.process_upload_finalization(
-            to_be_pushed_files, params
-        )
-        uploader.finalize_upload(finalize_params)
         # flag finalization for each file
         uploader.flag_finalization(to_be_pushed_files)
 

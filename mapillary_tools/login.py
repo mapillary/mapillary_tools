@@ -3,7 +3,7 @@ import os
 
 import requests
 
-from . import MAPILLARY_API_VERSION, api_v3, api_v4, config
+from . import api_v4, config
 from .config import GLOBAL_CONFIG_FILEPATH
 from .error import print_error
 
@@ -28,14 +28,9 @@ def prompt_user_for_user_items(user_name: str) -> dict:
     user_password = getpass.getpass("Enter Mapillary user password: ")
 
     try:
-        if MAPILLARY_API_VERSION == "v3":
-            user_key = api_v3.get_user_key(user_name)
-            upload_token = api_v3.get_upload_token(user_email, user_password)
-        else:
-            assert MAPILLARY_API_VERSION == "v4"
-            data = api_v4.get_upload_token(user_email, user_password)
-            upload_token = data.get("access_token")
-            user_key = data.get("user_id")
+        data = api_v4.get_upload_token(user_email, user_password)
+        upload_token = data.get("access_token")
+        user_key = data.get("user_id")
     except requests.HTTPError as ex:
         if 400 <= ex.response.status_code < 500:
             resp = ex.response.json()
