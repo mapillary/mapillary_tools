@@ -2,9 +2,7 @@ import json
 import os
 import sys
 
-from . import ipc
 from . import uploader
-from . import MAPILLARY_API_VERSION
 from . import processing
 from . import exif_read
 
@@ -133,32 +131,15 @@ def upload(
                 f"Uploading {len(upload_file_list)} images with valid mapillary tags (Skipping {len(total_file_list) - len(upload_file_list)})"
             )
 
-            if MAPILLARY_API_VERSION == "v3":
-                if direct_upload_file_list:
-                    uploader.upload_file_list_direct(
-                        direct_upload_file_list, number_threads, max_attempts
-                    )
-                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
-                    uploader.upload_file_list_manual(
-                        list_per_sequence_mapping[sequence_uuid],
-                        sequence_uuid,
-                        params,
-                        idx,
-                        number_threads,
-                        max_attempts,
-                    )
-            elif MAPILLARY_API_VERSION == "v4":
-                if direct_upload_file_list:
-                    raise RuntimeError(
-                        f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"
-                    )
+            if direct_upload_file_list:
+                raise RuntimeError(
+                    f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"
+                )
 
-                for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
-                    uploader.upload_sequence_v4(
-                        list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
-                    )
-            else:
-                raise ValueError("MAPILLARY_API_VERSION must be either v3 or v4")
+            for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
+                uploader.upload_sequence_v4(
+                    list_per_sequence_mapping[sequence_uuid], sequence_uuid, params
+                )
 
         if to_finalize_file_list:
             params = {}
