@@ -304,11 +304,13 @@ def get_organization_key(user_key, organization_username, upload_token):
 
 
 def validate_organization_key(user_key, organization_key, upload_token):
-    orgs = []
-    for org in orgs:
-        if org["key"] == organization_key:
-            return
-    raise Exception("Organization key does not exist.")
+    return
+    # FIXME: add back
+    # orgs = []
+    # for org in orgs:
+    #     if org["key"] == organization_key:
+    #         return
+    # raise Exception("Organization key does not exist.")
 
 
 def validate_organization_privacy(user_key, organization_key, private, upload_token):
