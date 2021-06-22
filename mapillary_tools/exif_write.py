@@ -83,7 +83,8 @@ class ExifEdit:
             if self._ef.get("thumbnail") == b"":
                 # workaround https://github.com/hMatoba/Piexif/issues/30
                 del self._ef["thumbnail"]
-                del self._ef["1st"]
+                if "1st" in self._ef:
+                    del self._ef["1st"]
                 exif_bytes = piexif.dump(self._ef)
             else:
                 raise
