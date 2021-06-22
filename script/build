@@ -1,14 +1,10 @@
 #!/bin/bash
 set -e
 
+SOURCE=dist/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools
+TARGET=dist/mapillary_tools_osx.zip
+
+mkdir -p dist
+rm -rf dist/osx
 pyinstaller --noconfirm --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
-
-mkdir -p publish/
-mv dist/osx publish
-
-if [ "$BRANCH_NAME" = "master" ]; then
-    zip -j mapillary_tools.zip publish/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools README_osx_package.txt
-    aws s3 cp mapillary_tools.zip s3://tools.mapillary.com/binary/osx/mapillary_tools.zip
-else
-    echo "Will NOT publish branch $BRANCH_NAME. Only master is published to s3"
-fi
+zip -j "$TARGET" "$SOURCE" README_osx_package.txt
