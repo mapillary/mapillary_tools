@@ -180,3 +180,20 @@ Breaking changes:
 - Remove subcommand `send_videos_for_processing` because it is not supported in the new system yet #393
 - Remove subcommand `download` and `download_blurred` for the same reason #393
 - Remove master key (was used for employee) #393
+
+## 0.7.1 (2021-06-22)
+
+Major changes:
+- Support resumable upload #414
+- Add back the progress bar for uploading #414
+
+Fixes:
+- Fix processing JPEG that has invalid thumbnail data in EXIF #415
+- Fix Mapillary Tools version in EXIF #409
+- Fix None columns when processing CSV #406
+
+Improvement:
+- Improve the reliability for large file uploading #414 #408
+
+Breaking changes:
+- Remove API v3 support #411
