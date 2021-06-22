@@ -76,7 +76,19 @@ class ExifEdit:
         """Save exif data to file."""
         if filename is None:
             filename = self._filename
-        exif_bytes = piexif.dump(self._ef)
-        with open(self._filename, "rb") as fin:
-            img = fin.read()
-            piexif.insert(exif_bytes, img, filename)
+
+        try:
+            exif_bytes = piexif.dump(self._ef)
+        except piexif._exceptions.InvalidImageDataError:
+            if self._ef.get("thumbnail") == b"":
+                # workaround https://github.com/hMatoba/Piexif/issues/30
+                del self._ef["thumbnail"]
+                del self._ef["1st"]
+                exif_bytes = piexif.dump(self._ef)
+            else:
+                raise
+
+        with open(self._filename, "rb") as fp:
+            img = fp.read()
+
+        piexif.insert(exif_bytes, img, filename)
