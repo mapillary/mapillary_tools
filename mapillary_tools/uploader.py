@@ -420,10 +420,9 @@ def upload_sequence_v4(
             initial=initial_offset,
             desc="Uploading",
         ) as pbar:
-
             uploaded_bytes = 0
             def _notify_progress(chunk: bytes, _):
-                global uploaded_bytes
+                nonlocal uploaded_bytes
                 uploaded_bytes += len(chunk)
                 assert uploaded_bytes <= entity_size
                 ipc.send(
