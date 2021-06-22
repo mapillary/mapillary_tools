@@ -420,12 +420,29 @@ def upload_sequence_v4(
             initial=initial_offset,
             desc="Uploading",
         ) as pbar:
+
+            uploaded_bytes = 0
+            def _notify_progress(chunk: bytes, _):
+                global uploaded_bytes
+                uploaded_bytes += len(chunk)
+                assert uploaded_bytes <= entity_size
+                ipc.send(
+                    "upload",
+                    {
+                        "sequence_path": root_dir,
+                        "sequence_uuid": sequence_uuid,
+                        "total_bytes": entity_size,
+                        "uploaded_bytes": uploaded_bytes,
+                    },
+                )
+                pbar.update(len(chunk))
+
             try:
                 upload_resp = service.upload(
                     session_key,
                     fp,
                     entity_size,
-                    callback=lambda chunk, _: pbar.update(len(chunk)),
+                    callback=_notify_progress,
                 )
             except requests.HTTPError as ex:
                 if not dry_run:
@@ -506,13 +523,3 @@ def create_upload_log(filepath: str, status: str) -> None:
             open(f"{upload_log_filepath}_{suffix}", "w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)
-
-    decoded_filepath = force_decode(filepath)
-
-    ipc.send(
-        "upload",
-        {
-            "image": decoded_filepath,
-            "status": "success" if status == "upload_success" else "failed",
-        },
-    )
