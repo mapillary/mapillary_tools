@@ -8,6 +8,7 @@ import os
 import time
 import uuid
 from collections import OrderedDict
+import logging
 
 from dateutil.tz import tzlocal
 from tqdm import tqdm
@@ -28,6 +29,9 @@ from .utils import force_decode
 """
 auxillary processing functions
 """
+
+
+LOG = logging.getLogger()
 
 
 def exif_time(filename):
@@ -529,8 +533,8 @@ def get_final_mapillary_image_description(
         "settings_upload_hash",
         "import_meta_data_process",
     ]
-
     final_mapillary_image_description = {}
+
     for sub_command in sub_commands:
         sub_command_status = os.path.join(log_root, sub_command + "_failed")
 
@@ -538,7 +542,10 @@ def get_final_mapillary_image_description(
             os.path.isfile(sub_command_status)
             and sub_command != "import_meta_data_process"
         ):
-            print(f"Warning, required {sub_command} failed for image " + image)
+            LOG.warning(
+                f"Warning, required {sub_command} failed for image {image}",
+                exc_info=True,
+            )
             return None
 
         sub_command_data_path = os.path.join(log_root, sub_command + ".json")
@@ -552,9 +559,9 @@ def get_final_mapillary_image_description(
             ) and master_upload:
                 continue
             else:
-                print(
-                    f"Warning, required {sub_command} did not result in a valid json file for image "
-                    + image
+                LOG.warning(
+                    f"Warning, required {sub_command} did not result in a valid json file for image {image}",
+                    exc_info=True,
                 )
                 return None
         if (
@@ -566,20 +573,25 @@ def get_final_mapillary_image_description(
             sub_command_data = load_json(sub_command_data_path)
             if not sub_command_data:
                 if verbose:
-                    print(
-                        "Warning, no data read from json file " + sub_command_data_path
+                    LOG.warning(
+                        f"Warning, no data read from json file {sub_command_data_path}",
+                        exc_info=True,
                     )
                 return None
 
             final_mapillary_image_description.update(sub_command_data)
-        except:
+        except Exception:
             if sub_command == "import_meta_data_process":
-                if verbose:
-                    print("Warning, could not load json file " + sub_command_data_path)
+                LOG.warning(
+                    "Warning, could not load json file " + sub_command_data_path,
+                    exc_info=True,
+                )
                 continue
             else:
-                if verbose:
-                    print("Warning, could not load json file " + sub_command_data_path)
+                LOG.warning(
+                    "Warning, could not load json file " + sub_command_data_path,
+                    exc_info=True,
+                )
                 return None
 
     # a unique photo ID to check for duplicates in the backend in case the
@@ -589,101 +601,52 @@ def get_final_mapillary_image_description(
     if skip_EXIF_insert:
         return final_mapillary_image_description
 
-    # insert in the EXIF image description
-    try:
-        image_exif = ExifEdit(image)
-    except:
-        print_error("Error, image EXIF could not be loaded for image " + image)
-        return None
-    try:
-        image_exif.add_image_description(final_mapillary_image_description)
-    except:
-        print_error(
-            "Error, image EXIF tag Image Description could not be edited for image "
-            + image
-        )
-        return None
+    image_exif = ExifEdit(image)
+
+    image_exif.add_image_description(final_mapillary_image_description)
+
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
-    if overwrite_all_EXIF_tags:
-        try:
+    try:
+        if overwrite_all_EXIF_tags or overwrite_EXIF_time_tag:
             image_exif.add_date_time_original(
                 datetime.datetime.strptime(
                     final_mapillary_image_description["MAPCaptureTime"],
                     "%Y_%m_%d_%H_%M_%S_%f",
                 )
             )
-        except:
-            pass
-        try:
+
+        if overwrite_all_EXIF_tags or overwrite_EXIF_gps_tag:
             image_exif.add_lat_lon(
                 final_mapillary_image_description["MAPLatitude"],
                 final_mapillary_image_description["MAPLongitude"],
             )
-        except:
-            pass
-        try:
+
+        if overwrite_all_EXIF_tags or overwrite_EXIF_direction_tag:
             image_exif.add_direction(
                 final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"]
             )
-        except:
-            pass
-        try:
+
+        if overwrite_all_EXIF_tags or overwrite_EXIF_orientation_tag:
             if "MAPOrientation" in final_mapillary_image_description:
                 image_exif.add_orientation(
                     final_mapillary_image_description["MAPOrientation"]
                 )
-        except:
-            pass
-    else:
-        if overwrite_EXIF_time_tag:
-            try:
-                image_exif.add_date_time_original(
-                    datetime.datetime.strptime(
-                        final_mapillary_image_description["MAPCaptureTime"],
-                        "%Y_%m_%d_%H_%M_%S_%f",
-                    )
-                )
-            except:
-                pass
-        if overwrite_EXIF_gps_tag:
-            try:
-                image_exif.add_lat_lon(
-                    final_mapillary_image_description["MAPLatitude"],
-                    final_mapillary_image_description["MAPLongitude"],
-                )
-            except:
-                pass
-        if overwrite_EXIF_direction_tag:
-            try:
-                image_exif.add_direction(
-                    final_mapillary_image_description["MAPCompassHeading"][
-                        "TrueHeading"
-                    ]
-                )
-            except:
-                pass
-        if overwrite_EXIF_orientation_tag:
-            try:
-                if "MAPOrientation" in final_mapillary_image_description:
-                    image_exif.add_orientation(
-                        final_mapillary_image_description["MAPOrientation"]
-                    )
-            except:
-                pass
-    filename = image
+    except Exception:
+        LOG.warning("Error overwriting EXIF", exc_info=True)
+
     filename_keep_original = processed_images_rootpath(image)
     if os.path.isfile(filename_keep_original):
         os.remove(filename_keep_original)
+
     if keep_original:
-        filename = filename_keep_original
         if not os.path.isdir(os.path.dirname(filename_keep_original)):
             os.makedirs(os.path.dirname(filename_keep_original))
-    try:
-        image_exif.write(filename=filename)
-    except:
-        print_error("Error, image EXIF could not be written back for image " + image)
-        return None
+        target = filename_keep_original
+    else:
+        target = image
+
+    image_exif.write(filename=target)
 
     return final_mapillary_image_description
 
