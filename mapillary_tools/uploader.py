@@ -421,7 +421,7 @@ def upload_sequence_v4(
             initial=initial_offset,
             desc="Uploading",
         ) as pbar:
-            uploaded_bytes = 0
+            uploaded_bytes = initial_offset
 
             def _notify_progress(chunk: bytes, _):
                 nonlocal uploaded_bytes
@@ -430,6 +430,7 @@ def upload_sequence_v4(
                 ipc.send(
                     "upload",
                     {
+                        "chunk_size": len(chunk),
                         "sequence_path": root_dir,
                         "sequence_uuid": sequence_uuid,
                         "total_bytes": entity_size,
