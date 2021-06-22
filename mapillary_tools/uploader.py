@@ -421,6 +421,7 @@ def upload_sequence_v4(
             desc="Uploading",
         ) as pbar:
             uploaded_bytes = 0
+
             def _notify_progress(chunk: bytes, _):
                 nonlocal uploaded_bytes
                 uploaded_bytes += len(chunk)
