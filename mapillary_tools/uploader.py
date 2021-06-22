@@ -14,7 +14,6 @@ from tqdm import tqdm
 from . import upload_api_v4
 from . import ipc
 from .login import authenticate_user, wrap_http_exception
-from .utils import force_decode
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
