@@ -2,7 +2,6 @@ import os
 import sys
 
 from . import processing
-from .error import print_error
 
 
 def process_geotag_properties(
@@ -102,4 +101,3 @@ def process_geotag_properties(
             use_gps_start_time,
             verbose,
         )
-    print("Sub process ended")

@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -8,14 +9,14 @@ from . import uploader
 from .error import print_error
 
 
+LOG = logging.getLogger()
+
+
 def insert_MAPJson(
     import_path,
-    master_upload=False,
     verbose=False,
     rerun=False,
     skip_subfolders=False,
-    skip_EXIF_insert=False,
-    keep_original=False,
     video_import_path=None,
     overwrite_all_EXIF_tags=False,
     overwrite_EXIF_time_tag=False,
@@ -68,29 +69,30 @@ def insert_MAPJson(
     for image in tqdm(
         process_file_list, desc="Inserting mapillary image description in image EXIF"
     ):
-        # check the processing logs
-        log_root = uploader.log_rootpath(image)
-
-        duplicate_path = os.path.join(log_root, "duplicate")
-
-        if os.path.isfile(duplicate_path):
+        if processing.is_duplicate(image):
             continue
 
         final_mapillary_image_description = (
             processing.get_final_mapillary_image_description(
-                log_root,
                 image,
-                master_upload,
-                verbose,
-                skip_EXIF_insert,
-                keep_original,
+            )
+        )
+
+        if final_mapillary_image_description is None:
+            continue
+
+        try:
+            _overwritten = processing.overwrite_exif_tags(
+                image,
+                final_mapillary_image_description,
                 overwrite_all_EXIF_tags,
                 overwrite_EXIF_time_tag,
                 overwrite_EXIF_gps_tag,
                 overwrite_EXIF_direction_tag,
                 overwrite_EXIF_orientation_tag,
             )
-        )
+        except Exception:
+            LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
 
         processing.create_and_log_process(
             image,
@@ -99,5 +101,3 @@ def insert_MAPJson(
             final_mapillary_image_description,
             verbose=verbose,
         )
-
-    print("Sub process ended")

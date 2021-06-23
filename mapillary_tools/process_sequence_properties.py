@@ -1,12 +1,11 @@
 import typing as T
 import datetime
 import os
-import time
 import uuid
 
 from tqdm import tqdm
 
-from . import processing
+from . import processing, types
 from . import uploader
 from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
 
@@ -25,7 +24,7 @@ def finalize_sequence_processing(
         zip(final_file_list, final_directions, final_capture_times),
         desc="Finalizing sequence process",
     ):
-        mapillary_description = {
+        mapillary_description: types.Sequence = {
             "MAPSequenceUUID": sequence,
             "MAPCompassHeading": {
                 "TrueHeading": direction,
@@ -38,6 +37,12 @@ def finalize_sequence_processing(
         processing.create_and_log_process(
             image, "sequence_process", "success", mapillary_description, verbose=verbose
         )
+
+
+def mark_as_duplicated(image: str) -> None:
+    log_root = uploader.log_rootpath(image)
+    duplicate_flag_path = os.path.join(log_root, "duplicate")
+    open(duplicate_flag_path, "w").close()
 
 
 def process_sequence_properties(
@@ -144,11 +149,6 @@ def process_sequence_properties(
             prev_latlon = latlons[0]
             prev_direction = directions[0]
             for i, filename in enumerate(file_list[1:]):
-                log_root = uploader.log_rootpath(filename)
-                duplicate_flag_path = os.path.join(log_root, "duplicate")
-                sequence_process_success_path = os.path.join(
-                    log_root, "sequence_process_success"
-                )
                 k = i + 1
                 distance = gps_distance(latlons[k], prev_latlon)
                 if directions[k] is not None and prev_direction is not None:
@@ -157,15 +157,21 @@ def process_sequence_properties(
                     # dont use bearing difference if no bearings are
                     # available
                     direction_diff = 360
+
                 if distance < duplicate_distance and direction_diff < duplicate_angle:
-                    open(duplicate_flag_path, "w").close()
-                    open(sequence_process_success_path, "w").close()
-                    open(
-                        sequence_process_success_path
-                        + "_"
-                        + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-                        "w",
-                    ).close()
+                    mark_as_duplicated(filename)
+                    # FIXME: understand why
+                    # log_root = uploader.log_rootpath(filename)
+                    # sequence_process_success_path = os.path.join(
+                    #     log_root, "sequence_process_success"
+                    # )
+                    # open(sequence_process_success_path, "w").close()
+                    # open(
+                    #     sequence_process_success_path
+                    #     + "_"
+                    #     + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
+                    #     "w",
+                    # ).close()
                 else:
                     prev_latlon = latlons[k]
                     prev_direction = directions[k]

@@ -40,14 +40,7 @@ class Command:
         )
 
     def add_advanced_arguments(self, parser):
-        # master upload
-        parser.add_argument(
-            "--master_upload",
-            help="Process images with a master key, note: only used by Mapillary employees",
-            action="store_true",
-            default=False,
-            required=False,
-        )
+        pass
 
     def run(self, args):
         process_user_properties(**vars(args))

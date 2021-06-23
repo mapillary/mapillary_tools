@@ -2,42 +2,29 @@ import csv
 import json
 import os
 import sys
+import typing as T
 
 from tqdm import tqdm
 
-from . import exif_read
+from . import exif_read, types, processing
 from . import ipc
-from . import processing
 from . import uploader
 
 
 def map_images_to_sequences(destination_mapping, total_files):
-    unique_sequence_uuids = []
+    unique_sequence_uuids = set()
     sequence_counter = 0
     for image in tqdm(
         total_files, desc="Reading sequence information stored in log files"
     ):
-        log_root = uploader.log_rootpath(image)
-        sequence_data_path = os.path.join(log_root, "sequence_process.json")
-
-        if os.path.isfile(sequence_data_path):
-            sequence_data = processing.load_json(sequence_data_path)
-        else:
-            sequence_data = None
-
-        if sequence_data and "MAPSequenceUUID" in sequence_data:
+        sequence_data = processing.read_sequence_process_data(image)
+        if sequence_data is not None:
             sequence_uuid = sequence_data["MAPSequenceUUID"]
-        else:
-            sequence_uuid = ""
-
-        if sequence_uuid:
             if sequence_uuid not in unique_sequence_uuids:
                 sequence_counter += 1
-                unique_sequence_uuids.append(sequence_uuid)
-            if image in destination_mapping:
-                destination_mapping[image]["sequence"] = str(sequence_counter)
-            else:
-                destination_mapping[image] = {"sequence": str(sequence_counter)}
+                unique_sequence_uuids.add(sequence_uuid)
+            mapping = destination_mapping.setdefault(image, {})
+            mapping["sequence"] = str(sequence_counter)
         else:
             print(f"MAPSequenceUUID could not be read for image {image}")
 
@@ -52,6 +39,7 @@ def get_local_mapping(import_path):
         image_file_uuid = None
         relative_path = file.lstrip(os.path.abspath(import_path))
         log_rootpath = uploader.log_rootpath(file)
+        # FIXME: remove it
         image_description_json_path = os.path.join(
             log_rootpath, "mapillary_image_description.json"
         )
@@ -102,25 +90,8 @@ def post_process(
     list_file_status=False,
     push_images=False,
     skip_subfolders=False,
-    verbose=False,
     save_local_mapping=False,
 ):
-    # return if nothing specified
-    if not any(
-        [
-            summarize,
-            move_all_images,
-            list_file_status,
-            push_images,
-            move_duplicates,
-            move_uploaded,
-            save_local_mapping,
-            move_sequences,
-        ]
-    ):
-        print("No post processing action specified.")
-        return
-
     # sanity check if video file is passed
     if (
         video_import_path
@@ -129,10 +100,7 @@ def post_process(
     ):
         print("Error, video path " + video_import_path + " does not exist, exiting...")
         sys.exit(1)
-    if move_all_images:
-        move_sequences = True
-        move_duplicates = True
-        move_uploaded = True
+
     # in case of video processing, adjust the import path
     if video_import_path:
         # set sampling path
@@ -147,6 +115,11 @@ def post_process(
             if import_path
             else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
         )
+
+    if move_all_images:
+        move_sequences = True
+        move_duplicates = True
+        move_uploaded = True
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
@@ -165,47 +138,24 @@ def post_process(
             for row in local_mapping:
                 csvwriter.writerow(row)
 
-    if push_images:
-        to_be_pushed_files = uploader.get_success_only_manual_upload_file_list(
-            import_path, skip_subfolders
-        )
-        params = {}
-        for image in tqdm(to_be_pushed_files, desc="Pushing images"):
-            log_root = uploader.log_rootpath(image)
-            upload_params_path = os.path.join(log_root, "upload_params_process.json")
-            if os.path.isfile(upload_params_path):
-                with open(upload_params_path, "rb") as jf:
-                    params[image] = json.load(jf)
+    total_files = uploader.get_total_file_list(import_path)
+    total_files_count = len(total_files)
 
-        # flag finalization for each file
-        uploader.flag_finalization(to_be_pushed_files)
+    uploaded_files = uploader.get_success_upload_file_list(import_path, skip_subfolders)
+    uploaded_files_count = len(uploaded_files)
 
-    if summarize or list_file_status or move_uploaded:
-        # upload logs
-        uploaded_files = uploader.get_success_upload_file_list(
-            import_path, skip_subfolders
-        )
-        uploaded_files_count = len(uploaded_files)
-        failed_upload_files = uploader.get_failed_upload_file_list(
-            import_path, skip_subfolders
-        )
-        failed_upload_files_count = len(failed_upload_files)
-        to_be_finalized_files = uploader.get_finalize_file_list(import_path)
-        to_be_finalized_files_count = len(to_be_finalized_files)
-        to_be_uploaded_files = uploader.get_upload_file_list(
-            import_path, skip_subfolders
-        )
-        to_be_uploaded_files_count = len(to_be_uploaded_files)
+    failed_upload_files = uploader.get_failed_upload_file_list(
+        import_path, skip_subfolders
+    )
+    failed_upload_files_count = len(failed_upload_files)
 
-    if summarize or move_sequences:
-        total_files = uploader.get_total_file_list(import_path)
-        total_files_count = len(total_files)
+    duplicates_file_list = processing.get_duplicate_file_list(
+        import_path, skip_subfolders
+    )
+    duplicates_file_list_count = len(duplicates_file_list)
 
-    if summarize or move_duplicates or list_file_status:
-        duplicates_file_list = processing.get_duplicate_file_list(
-            import_path, skip_subfolders
-        )
-        duplicates_file_list_count = len(duplicates_file_list)
+    to_be_uploaded_files = uploader.get_upload_file_list(import_path, skip_subfolders)
+    to_be_uploaded_files_count = len(to_be_uploaded_files)
 
     if summarize:
         summary_dict = {
@@ -213,19 +163,18 @@ def post_process(
             "upload summary": {
                 "successfully uploaded": uploaded_files_count,
                 "failed uploads": failed_upload_files_count,
-                "uploaded to be finalized": to_be_finalized_files_count,
             },
             "process summary": {},
         }
+
         # process logs
-        process_steps = [
+        process_steps: T.List[types.Process] = [
             "user_process",
-            "import_meta_process",
+            "import_meta_data_process",
             "geotag_process",
             "sequence_process",
-            "upload_params_process",
-            "mapillary_image_description",
         ]
+
         for step in process_steps:
             process_success = len(
                 processing.get_process_status_file_list(
@@ -251,21 +200,15 @@ def post_process(
         ipc.send("summary", summary_dict)
 
         if save_as_json:
-            try:
-                processing.save_json(
-                    summary_dict,
-                    os.path.join(import_path, "mapillary_import_summary.json"),
-                )
-            except Exception as e:
-                print(
-                    f"Could not save summary into json at {os.path.join(import_path, 'mapillary_import_summary.json')}, due to {e}"
-                )
+            processing.save_json(
+                summary_dict,
+                os.path.join(import_path, "mapillary_import_summary.json"),
+            )
 
     if list_file_status:
         status_list_dict = {
             "successfully uploaded": uploaded_files,
             "failed uploads": failed_upload_files,
-            "uploaded to be finalized": to_be_finalized_files,
             "duplicates": duplicates_file_list,
             "processed_not_yet_uploaded": to_be_uploaded_files,
         }
@@ -273,17 +216,11 @@ def post_process(
         print(f"List of file status for import path {import_path} :")
         print(json.dumps(status_list_dict, indent=4))
         if save_as_json:
-            try:
-                processing.save_json(
-                    status_list_dict,
-                    os.path.join(
-                        import_path, "mapillary_import_image_status_list.json"
-                    ),
-                )
-            except Exception as e:
-                print(
-                    f"Could not save image status list into json at {os.path.join(import_path, 'mapillary_import_image_status_list.json')}, due to {e}"
-                )
+            processing.save_json(
+                status_list_dict,
+                os.path.join(import_path, "mapillary_import_image_status_list.json"),
+            )
+
     split_import_path = split_import_path if split_import_path else import_path
     if move_sequences or move_duplicates or move_uploaded:
         if not os.path.isdir(split_import_path):
@@ -291,9 +228,11 @@ def post_process(
             sys.exit(1)
 
     destination_mapping = {}
+
     if move_duplicates:
         for image in duplicates_file_list:
             destination_mapping[image] = {"basic": ["duplicates"]}
+
     if move_uploaded:
         for image in uploaded_files:
             if image in destination_mapping:
@@ -305,11 +244,6 @@ def post_process(
                 destination_mapping[image]["basic"].append("failed_upload")
             else:
                 destination_mapping[image] = {"basic": ["failed_upload"]}
-        for image in to_be_finalized_files:
-            if image in destination_mapping:
-                destination_mapping[image]["basic"].append("uploaded_not_finalized")
-            else:
-                destination_mapping[image] = {"basic": ["uploaded_not_finalized"]}
         for image in to_be_uploaded_files:
             if image in destination_mapping:
                 destination_mapping[image]["basic"].append("to_be_uploaded")

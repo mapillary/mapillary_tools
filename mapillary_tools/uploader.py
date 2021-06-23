@@ -1,7 +1,7 @@
 import io
 from typing import List, Optional, Iterable, Generator
+import typing as T
 import os
-import sys
 import tempfile
 import hashlib
 import logging
@@ -12,8 +12,7 @@ import zipfile
 import requests
 from tqdm import tqdm
 
-from . import upload_api_v4
-from . import ipc
+from . import upload_api_v4, types, ipc
 from .login import authenticate_user, wrap_http_exception
 
 
@@ -30,12 +29,6 @@ def is_image_file(path: str) -> bool:
 def is_video_file(path: str) -> bool:
     basename, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
-
-
-def flag_finalization(finalize_file_list):
-    for file in finalize_file_list:
-        finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
-        open(finalize_flag, "a").close()
 
 
 def iterate_files(root: str, recursive=False) -> Generator[str, None, None]:
@@ -56,7 +49,7 @@ def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> Lis
 
 
 # get a list of video files in a video_file
-def get_video_file_list(video_file, skip_subfolders=False):
+def get_video_file_list(video_file, skip_subfolders=False) -> T.List[str]:
     files = iterate_files(video_file, not skip_subfolders)
     return sorted(file for file in files if is_video_file(file))
 
@@ -85,32 +78,7 @@ def get_success_upload_file_list(
 def success_upload(file_path: str) -> bool:
     log_root = log_rootpath(file_path)
     upload_success = os.path.join(log_root, "upload_success")
-    upload_finalization = os.path.join(log_root, "upload_finalized")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    success = (
-        os.path.isfile(upload_success) and not os.path.isfile(manual_upload)
-    ) or (
-        os.path.isfile(upload_success)
-        and os.path.isfile(manual_upload)
-        and os.path.isfile(upload_finalization)
-    )
-    return success
-
-
-def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False):
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file
-        for file in files
-        if is_image_file(file) and success_only_manual_upload(file)
-    )
-
-
-def success_only_manual_upload(file_path: str):
-    log_root = log_rootpath(file_path)
-    upload_success = os.path.join(log_root, "upload_success")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    success = os.path.isfile(upload_success) and os.path.isfile(manual_upload)
+    success = os.path.isfile(upload_success)
     return success
 
 
@@ -140,33 +108,6 @@ def failed_upload(file_path: str) -> bool:
     return failed
 
 
-def get_finalize_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and preform_finalize(file)
-    )
-
-
-def preform_finalize(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload_finalized = os.path.join(log_root, "upload_finalized")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    finalize = (
-        os.path.isfile(upload_succes)
-        and not os.path.isfile(upload_finalized)
-        and os.path.isfile(manual_upload)
-    )
-    return finalize
-
-
-def print_summary(file_list):
-    # inform upload has finished and print out the summary
-    print(f"Done uploading {len(file_list)} images.")  # improve upload summary
-
-
 def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     """
     find the common root path
@@ -182,24 +123,39 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
         return find_root_dir(dirs)
 
 
-def upload_sequence_v4(
-    file_list: list,
-    sequence_uuid: str,
-    file_params: dict,
-    metadata: Optional[dict] = None,
+def upload_images(
+    image_descriptions: T.Dict[str, types.FinalImageDescription],
     dry_run=False,
 ):
-    if metadata is None:
-        metadata = {}
+    sequences: T.Dict[str, T.Dict[str, types.FinalImageDescription]] = {}
+    for path, desc in image_descriptions.items():
+        sequence = sequences.setdefault(desc["MAPSequenceUUID"], {})
+        sequence[path] = desc
 
-    first_image = list(file_params.values())[0]
-    user_name = first_image["user_name"]
+    for sequence_idx, (seq_uuid, images) in enumerate(sequences.items()):
+        upload_single_sequence(
+            images, seq_uuid, sequence_idx, len(sequences), dry_run=dry_run
+        )
+        if not dry_run:
+            for path in images:
+                create_upload_log(path, "upload_success")
 
-    def _read_captured_at(path):
-        return file_params.get(path, {}).get("MAPCaptureTime", "")
+
+def upload_single_sequence(
+    sequences: T.Dict[str, types.FinalImageDescription],
+    sequence_uuid: str,
+    sequence_idx: int,
+    total_sequences: int,
+    dry_run=False,
+) -> None:
+    first_image = list(sequences.values())[0]
+
+    user_name = first_image["MAPSettingsUsername"]
+
+    file_list = list(sequences.keys())
 
     # Sorting images by captured_at
-    file_list.sort(key=_read_captured_at)
+    file_list.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
 
     root_dir = find_root_dir(file_list)
     if root_dir is None:
@@ -219,23 +175,15 @@ def upload_sequence_v4(
                 "sequence_uuid": sequence_uuid,
                 "total_bytes": entity_size,
                 "uploaded_bytes": uploaded_bytes,
+                "sequence_idx": sequence_idx,
+                "total_sequences": total_sequences,
             }
-            if metadata:
-                payload.update(metadata)
             ipc.send("upload", payload)
 
         return _notify_progress
 
     def _build_desc(desc: str) -> str:
-        if metadata is not None:
-            total = metadata.get("total_sequences")
-            idx = metadata.get("sequence_idx")
-            if total is not None and idx is not None:
-                return f"{desc} {idx + 1}/{total}"
-            else:
-                return desc
-        else:
-            return desc
+        return f"{desc} {sequence_idx + 1}/{total_sequences}"
 
     with tempfile.NamedTemporaryFile() as fp:
         # compressing
@@ -312,9 +260,6 @@ def upload_sequence_v4(
                         )
                         time.sleep(sleep_for)
                     else:
-                        if not dry_run:
-                            for path in file_list:
-                                create_upload_log(path, "upload_failed")
                         raise wrap_http_exception(ex) if isinstance(
                             ex, requests.HTTPError
                         ) else ex
@@ -344,26 +289,17 @@ def upload_sequence_v4(
     try:
         finish_resp.raise_for_status()
     except requests.HTTPError as ex:
-        for path in file_list:
-            create_upload_log(path, "upload_failed")
         raise wrap_http_exception(ex)
 
     # check cluster id
     finish_data = finish_resp.json()
     cluster_id = finish_data.get("cluster_id")
     if cluster_id is None:
-        for path in file_list:
-            create_upload_log(path, "upload_failed")
         raise RuntimeError(
             f"Upload server error: failed to create the cluster {finish_resp.text}"
         )
     else:
         print(f"Cluster {cluster_id} created")
-
-    for path in file_list:
-        create_upload_log(path, "upload_success")
-
-    flag_finalization(file_list)
 
 
 def log_rootpath(filepath: str) -> str:

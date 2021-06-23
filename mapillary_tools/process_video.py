@@ -1,10 +1,7 @@
 import datetime
-import io
 import os
-import struct
 import subprocess
 
-from pymp4.parser import Box
 from tqdm import tqdm
 
 from . import processing
@@ -117,6 +114,7 @@ def extract_frames(
     video_duration_ratio=1.0,
     verbose=False,
 ):
+    video_filename, ext = os.path.splitext(os.path.basename(video_file))
     command = [
         "ffmpeg",
         "-i",
@@ -128,11 +126,9 @@ def extract_frames(
         "-qscale",
         "1",
         "-nostdin",
+        f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg",
     ]
 
-    video_filename, ext = os.path.splitext(os.path.basename(video_file))
-
-    command.append(f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg")
     try:
         subprocess.call(command)
     except FileNotFoundError:

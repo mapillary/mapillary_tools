@@ -1,9 +1,10 @@
 import getpass
 import os
+import typing as T
 
 import requests
 
-from . import api_v4, config
+from . import api_v4, config, types
 from .config import GLOBAL_CONFIG_FILEPATH
 from .error import print_error
 
@@ -22,15 +23,13 @@ def wrap_http_exception(ex: requests.HTTPError):
     return HTTPError("\n".join(lines))
 
 
-def prompt_user_for_user_items(user_name: str) -> dict:
+def prompt_user_for_user_items(user_name: str) -> types.User:
     print(f"Sign in for user {user_name}")
     user_email = input("Enter your Mapillary user email: ")
     user_password = getpass.getpass("Enter Mapillary user password: ")
 
     try:
         data = api_v4.get_upload_token(user_email, user_password)
-        upload_token = data.get("access_token")
-        user_key = data.get("user_id")
     except requests.HTTPError as ex:
         if 400 <= ex.response.status_code < 500:
             resp = ex.response.json()
@@ -45,6 +44,16 @@ def prompt_user_for_user_items(user_name: str) -> dict:
         else:
             raise wrap_http_exception(ex)
 
+    upload_token = T.cast(str, data.get("access_token"))
+    user_key = T.cast(str, data.get("user_id"))
+    if not isinstance(upload_token, str) or not isinstance(user_key, (str, int)):
+        raise RuntimeError(
+            f"Error extracting user_key or token from the login response: {data}"
+        )
+
+    if isinstance(user_key, int):
+        user_key = str(user_key)
+
     return {
         "MAPSettingsUsername": user_name,
         "MAPSettingsUserKey": user_key,
@@ -52,7 +61,7 @@ def prompt_user_for_user_items(user_name: str) -> dict:
     }
 
 
-def authenticate_user(user_name: str) -> dict:
+def authenticate_user(user_name: str) -> types.User:
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
         if user_name in global_config_object.sections():

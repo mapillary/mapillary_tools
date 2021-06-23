@@ -175,7 +175,7 @@ class ExifRead:
             )
             return capture_time_obj
 
-    def extract_direction(self) -> float:
+    def extract_direction(self) -> Optional[float]:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """

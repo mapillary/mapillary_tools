@@ -1,13 +1,3 @@
-#!/usr/bin/python
-# Filename: ffprobe.py
-"""
-Based on Python wrapper for ffprobe command line tool. ffprobe must exist in the path.
-Author: Simon Hargreaves
-
-"""
-
-version = "0.5"
-
 import typing as T
 import json
 import subprocess
@@ -28,6 +18,7 @@ class FFProbe:
             "json",
             self.video_file,
         ]
+        print(f"Running: {' '.join(cmd)}")
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         except FileNotFoundError:

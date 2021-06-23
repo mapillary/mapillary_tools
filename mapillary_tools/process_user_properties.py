@@ -3,15 +3,14 @@ import typing as T
 
 import requests
 
-from . import processing, api_v4
-from . import login
+from . import processing, api_v4, types, login
 
 
 def get_user_properties(
     user_name: str,
     organization_key: T.Optional[str] = None,
     private: bool = False,
-) -> T.Optional[T.Dict]:
+) -> T.Optional[types.User]:
     # basic
     user_items = login.authenticate_user(user_name)
 
@@ -31,9 +30,7 @@ def get_user_properties(
         print(f"Organization name: {org['name']}")
         print(f"Organization description: {org['description']}")
 
-        user_items.update(
-            {"MAPOrganizationKey": organization_key, "MAPPrivate": private}
-        )
+        user_items.update({"MAPOrganizationKey": organization_key})
 
     del user_items["user_upload_token"]
 
@@ -46,7 +43,6 @@ def process_user_properties(
     organization_username=None,
     organization_key=None,
     private=False,
-    master_upload=False,
     verbose=False,
     rerun=False,
     skip_subfolders=False,
@@ -109,7 +105,9 @@ def process_user_properties(
     )
 
     # write data and logs
-    processing.create_and_log_process_in_list(
-        process_file_list, "user_process", "success", verbose, user_properties
-    )
+    for image in process_file_list:
+        processing.create_and_log_process(
+            image, "user_process", "success", user_properties, verbose=verbose
+        )
+
     print("Sub process ended")

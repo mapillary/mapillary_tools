@@ -28,16 +28,16 @@ def get_lat_lon_time_from_gpx(
         gpx = gpxpy.parse(f)
 
     points = []
-    if len(gpx.tracks) > 0:
-        for track in gpx.tracks:
-            for segment in track.segments:
-                for point in segment.points:
-                    t = utc_to_localtime(point.time) if local_time else point.time
-                    points.append((t, point.latitude, point.longitude, point.elevation))
-    if len(gpx.waypoints) > 0:
-        for point in gpx.waypoints:
-            t = utc_to_localtime(point.time) if local_time else point.time
-            points.append((t, point.latitude, point.longitude, point.elevation))
+
+    for track in gpx.tracks:
+        for segment in track.segments:
+            for point in segment.points:
+                t = utc_to_localtime(point.time) if local_time else point.time
+                points.append((t, point.latitude, point.longitude, point.elevation))
+
+    for point in gpx.waypoints:
+        t = utc_to_localtime(point.time) if local_time else point.time
+        points.append((t, point.latitude, point.longitude, point.elevation))
 
     # sort by time just in case
     points.sort()

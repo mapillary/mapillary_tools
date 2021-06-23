@@ -22,11 +22,10 @@ class Command:
         parser.add_argument(
             "--dry_run",
             help="Disable actual upload. Used for debugging only",
-            type=bool,
+            action="store_true",
             default=False,
             required=False,
         )
-
         # post process
         parser.add_argument(
             "--summarize",

@@ -8,7 +8,6 @@ from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
 from ..process_sequence_properties import process_sequence_properties
-from ..process_upload_params import process_upload_params
 from ..process_user_properties import process_user_properties
 from ..process_video import sample_video
 
@@ -82,14 +81,6 @@ class Command:
         )
 
     def add_advanced_arguments(self, parser):
-        # master upload
-        parser.add_argument(
-            "--master_upload",
-            help="Process images with a master key, note: only used by Mapillary employees",
-            action="store_true",
-            default=False,
-            required=False,
-        )
         # import meta
         parser.add_argument(
             "--device_make",
@@ -246,14 +237,6 @@ class Command:
             help="max angle for two images to be considered duplicates in degrees",
             type=float,
             default=5,
-            required=False,
-        )
-        # EXIF insert
-        parser.add_argument(
-            "--skip_EXIF_insert",
-            help="Skip inserting the extracted data into image EXIF.",
-            action="store_true",
-            default=False,
             required=False,
         )
         parser.add_argument(
@@ -429,16 +412,6 @@ class Command:
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getargspec(process_sequence_properties).args
-                }
-            )
-        )
-
-        process_upload_params(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_upload_params).args
                 }
             )
         )
