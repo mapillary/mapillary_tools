@@ -1002,58 +1002,6 @@ def create_and_log_process(
     )
 
 
-def user_properties(
-    user_name: str,
-    import_path: str,
-    process_file_list: List[str],
-    organization_username: None = None,
-    organization_key: None = None,
-    private: bool = False,
-    verbose: bool = False,
-) -> Optional[Dict]:
-    # basic
-    user_items = login.authenticate_user(user_name)
-    # organization validation
-    if organization_username or organization_key:
-        organization_key = process_organization(
-            user_items, organization_username, organization_key, private
-        )
-        user_items.update(
-            {"MAPOrganizationKey": organization_key, "MAPPrivate": private}
-        )
-
-    # remove uneeded credentials
-    if "user_upload_token" in user_items:
-        del user_items["user_upload_token"]
-
-    return user_items
-
-
-def process_organization(
-    user_properties, organization_username=None, organization_key=None, private=False
-):
-    if (
-        not "user_upload_token" in user_properties
-        or not "MAPSettingsUserKey" in user_properties
-    ):
-        raise Exception(
-            "Error, can not authenticate to validate organization import, upload token or user key missing in the config."
-        )
-    user_key = user_properties["MAPSettingsUserKey"]
-    user_upload_token = user_properties["user_upload_token"]
-    if not organization_key and organization_username:
-        organization_key = uploader.get_organization_key(
-            user_key, organization_username, user_upload_token
-        )
-
-    uploader.validate_organization_key(user_key, organization_key, user_upload_token)
-    uploader.validate_organization_privacy(
-        user_key, organization_key, private, user_upload_token
-    )
-
-    return organization_key
-
-
 def inform_processing_start(
     import_path: str,
     len_process_file_list: int,

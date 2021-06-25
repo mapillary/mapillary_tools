@@ -1,8 +1,37 @@
 import os
-import sys
+import typing as T
 
-from . import processing
-from .error import print_error
+import requests
+
+from . import processing, api_v4
+from . import login
+
+
+def get_user_properties(
+    user_name: str,
+    organization_key: T.Optional[str] = None,
+    private: bool = False,
+) -> T.Optional[T.Dict]:
+    # basic
+    user_items = login.authenticate_user(user_name)
+
+    if organization_key:
+        resp = api_v4.fetch_organization(
+            user_items["user_upload_token"], organization_key
+        )
+
+        try:
+            resp.raise_for_status()
+        except requests.RequestException:
+            raise RuntimeError(f"Invalid organization {resp.content}")
+
+        user_items.update(
+            {"MAPOrganizationKey": organization_key, "MAPPrivate": private}
+        )
+
+    del user_items["user_upload_token"]
+
+    return user_items
 
 
 def process_user_properties(
@@ -23,8 +52,9 @@ def process_user_properties(
         and not os.path.isdir(video_import_path)
         and not os.path.isfile(video_import_path)
     ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, video path {video_import_path} does not exist, exiting..."
+        )
 
     # in case of video processing, adjust the import path
     if video_import_path:
@@ -43,16 +73,15 @@ def process_user_properties(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print_error(
-            "Error, import directory " + import_path + " does not exist, exiting..."
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
         )
-        sys.exit(1)
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
         import_path, "user_process", rerun, verbose, skip_subfolders
     )
-    if not len(process_file_list):
+    if not process_file_list:
         print("No images to run user process")
         print(
             "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
@@ -60,29 +89,17 @@ def process_user_properties(
 
     # sanity checks
     if not user_name:
-        print_error("Error, must provide a valid user name, exiting...")
-        processing.create_and_log_process_in_list(
-            process_file_list, "user_process", "failed", verbose
-        )
-        sys.exit(1)
+        raise RuntimeError("Error, must provide a valid user name, exiting...")
 
     if private and not organization_username and not organization_key:
-        print_error(
+        raise RuntimeError(
             "Error, if the import belongs to a private repository, you need to provide a valid organization user name or key to which the private repository belongs to, exiting..."
         )
-        processing.create_and_log_process_in_list(
-            process_file_list, "user_process", "failed", verbose
-        )
-        sys.exit(1)
 
-    user_properties = processing.user_properties(
+    user_properties = get_user_properties(
         user_name,
-        import_path,
-        process_file_list,
-        organization_username,
         organization_key,
         private,
-        verbose,
     )
 
     # write data and logs

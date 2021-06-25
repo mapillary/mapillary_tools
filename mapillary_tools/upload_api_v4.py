@@ -78,15 +78,20 @@ class UploadService:
 
         return resp
 
-    def finish(self, file_handle: str) -> requests.Response:
+    def finish(
+        self, file_handle: str, organization_id: T.Optional[int] = None
+    ) -> requests.Response:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
-        json = {
+        data = {
             "file_handle": file_handle,
         }
+        if organization_id is not None:
+            data["organization_id"] = organization_id
+
         return requests.post(
-            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload", headers=headers, json=json
+            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload", headers=headers, json=data
         )
 
 
