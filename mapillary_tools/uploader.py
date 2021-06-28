@@ -408,8 +408,13 @@ def upload_sequence_v4(
     if dry_run:
         return
 
-    print(f"Finishing upload {sequence_uuid}")
     organization_id = first_image.get("MAPOrganizationKey")
+
+    if organization_id is None:
+        print(f"Finishing upload {sequence_uuid}")
+    else:
+        print(f"Finishing upload {sequence_uuid} for organization {organization_id}")
+
     finish_resp = service.finish(file_handle, organization_id=organization_id)
     try:
         finish_resp.raise_for_status()
