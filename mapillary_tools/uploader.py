@@ -283,61 +283,6 @@ def print_summary(file_list):
     print(f"Done uploading {len(file_list)} images.")  # improve upload summary
 
 
-def get_organization_key(user_key, organization_username, upload_token):
-    organization_key = None
-
-    organization_usernames = []
-    orgs = []
-    for org in orgs:
-        organization_usernames.append(org["name"])
-        if org["name"] == organization_username:
-            organization_key = org["key"]
-
-    if not organization_key:
-        print(
-            f"No valid organization key found for organization user name {organization_username}"
-        )
-        print("Available organization user names for current user are : ")
-        print(organization_usernames)
-        sys.exit(1)
-
-    return organization_key
-
-
-def validate_organization_key(user_key, organization_key, upload_token):
-    return
-    # FIXME: add back
-    # orgs = []
-    # for org in orgs:
-    #     if org["key"] == organization_key:
-    #         return
-    # raise Exception("Organization key does not exist.")
-
-
-def validate_organization_privacy(user_key, organization_key, private, upload_token):
-    orgs = []
-    for org in orgs:
-        if org["key"] == organization_key:
-            if (
-                private
-                and (("private_repository" not in org) or not org["private_repository"])
-            ) or (
-                not private
-                and (("public_repository" not in org) or not org["public_repository"])
-            ):
-                print("Organization privacy does not match provided privacy settings.")
-                privacy = (
-                    "private"
-                    if "private_repository" in org and org["private_repository"]
-                    else "public"
-                )
-                privacy_provided = "private" if private else "public"
-                print(
-                    f"Organization {org['name']} with key {org['key']} is {privacy} while your import privacy settings state {privacy_provided}"
-                )
-                sys.exit(1)
-
-
 def progress(count, total, suffix=""):
     """
     Display progress bar
@@ -463,8 +408,14 @@ def upload_sequence_v4(
     if dry_run:
         return
 
-    print(f"Finishing upload {sequence_uuid}")
-    finish_resp = service.finish(file_handle)
+    organization_id = first_image.get("MAPOrganizationKey")
+
+    if organization_id is None:
+        print(f"Finishing upload {sequence_uuid}")
+    else:
+        print(f"Finishing upload {sequence_uuid} for organization {organization_id}")
+
+    finish_resp = service.finish(file_handle, organization_id=organization_id)
     try:
         finish_resp.raise_for_status()
     except requests.HTTPError as ex:
