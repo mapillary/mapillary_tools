@@ -197,3 +197,8 @@ Improvement:
 
 Breaking changes:
 - Remove API v3 support #411
+
+## 0.7.2 (2021-06-28)
+
+Major changes:
+- Support upload for organization #418
