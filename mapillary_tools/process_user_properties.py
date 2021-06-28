@@ -23,7 +23,7 @@ def get_user_properties(
         try:
             resp.raise_for_status()
         except requests.RequestException:
-            raise RuntimeError(f"Invalid organization {resp.content}")
+            raise RuntimeError(f"Invalid organization {resp.text}")
 
         org = resp.json()
 

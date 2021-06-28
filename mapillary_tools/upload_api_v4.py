@@ -79,12 +79,12 @@ class UploadService:
         return resp
 
     def finish(
-        self, file_handle: str, organization_id: T.Optional[int] = None
+        self, file_handle: str, organization_id: T.Optional[T.Union[str, int]] = None
     ) -> requests.Response:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
-        data = {
+        data: T.Dict[str, T.Union[str, int]] = {
             "file_handle": file_handle,
         }
         if organization_id is not None:
