@@ -14,20 +14,24 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024 * 64
 class UploadService:
     user_access_token: str
     # This amount of data that will be loaded to memory
-    chunk_size: int
+    entity_size: int
+    session_key: str
+    callbacks: T.List[T.Callable]
 
-    def __init__(self, user_access_token: str, chunk_size: int = DEFAULT_CHUNK_SIZE):
-        if chunk_size <= 0:
-            raise ValueError("Expect positive chunk size")
+    def __init__(self, user_access_token: str, session_key: str, entity_size: int):
+        if entity_size <= 0:
+            raise ValueError(f"Expect positive entity size but got {entity_size}")
         self.user_access_token = user_access_token
-        self.chunk_size = chunk_size
+        self.session_key = session_key
+        self.entity_size = entity_size
+        self.callbacks = []
 
-    def fetch_offset(self, session_key: str) -> int:
+    def fetch_offset(self) -> int:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
         resp = requests.get(
-            f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}", headers=headers
+            f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}", headers=headers
         )
         resp.raise_for_status()
         data = resp.json()
@@ -35,36 +39,34 @@ class UploadService:
 
     def upload(
         self,
-        session_key: str,
         data: T.IO[bytes],
-        entity_size: int,
-        callback: T.Optional[T.Callable] = None,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> requests.Response:
-        if entity_size <= 0:
-            raise ValueError(f"Expect positive entity size but got {entity_size}")
+        if chunk_size <= 0:
+            raise ValueError("Expect positive chunk size")
 
-        offset = self.fetch_offset(session_key)
+        offset = self.fetch_offset()
         data.seek(offset, io.SEEK_CUR)
 
         while True:
-            chunk = data.read(self.chunk_size)
+            chunk = data.read(chunk_size)
             # it is possible to upload an empty chunk here
             # in order to return the handle
             headers = {
                 "Authorization": f"OAuth {self.user_access_token}",
                 "Offset": f"{offset}",
-                "X-Entity-Length": str(entity_size),
-                "X-Entity-Name": session_key,
+                "X-Entity-Length": str(self.entity_size),
+                "X-Entity-Name": self.session_key,
                 "X-Entity-Type": "application/zip",
             }
             resp = requests.post(
-                f"{MAPILLARY_UPLOAD_ENDPOINT}/{session_key}",
+                f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
                 headers=headers,
                 data=chunk,
             )
             resp.raise_for_status()
             offset += len(chunk)
-            if callback:
+            for callback in self.callbacks:
                 callback(chunk, resp)
             # we can assert that offset == self.fetch_offset(session_key)
             # otherwise, server will throw
@@ -73,8 +75,8 @@ class UploadService:
                 break
 
         assert (
-            offset == entity_size
-        ), f"offset ends at {offset} but the entity size is {entity_size}"
+            offset == self.entity_size
+        ), f"offset ends at {offset} but the entity size is {self.entity_size}"
 
         return resp
 
@@ -119,23 +121,17 @@ if __name__ == "__main__":
     with open(path, "rb") as fp:
         md5sum, entity_size = _file_stats(fp)
     session_key = sys.argv[2] if sys.argv[2:] else f"mly_tools_test_{md5sum}"
-    service = UploadService(user_access_token)
+    service = UploadService(user_access_token, session_key, entity_size)
 
     print(f"session key: {session_key}")
     print(f"entity size: {entity_size}")
-    print(f"initial offset: {service.fetch_offset(session_key)}")
+    print(f"initial offset: {service.fetch_offset()}")
 
     with open(path, "rb") as fp:
-        with tqdm.tqdm(
-            total=entity_size, initial=service.fetch_offset(session_key)
-        ) as pbar:
+        with tqdm.tqdm(total=entity_size, initial=service.fetch_offset()) as pbar:
+            service.callbacks.append(lambda chunk, _: pbar.update(len(chunk)))
             try:
-                resp = service.upload(
-                    session_key,
-                    fp,
-                    entity_size,
-                    callback=lambda chunk, _: pbar.update(len(chunk)),
-                )
+                resp = service.upload(fp)
             except requests.HTTPError as ex:
                 raise wrap_http_exception(ex)
     print(resp.json())

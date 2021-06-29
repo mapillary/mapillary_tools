@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import hashlib
+import logging
 
 import time
 import zipfile
@@ -18,6 +19,7 @@ from .login import authenticate_user, wrap_http_exception
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
 MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
+LOG = logging.getLogger()
 
 
 def flag_finalization(finalize_file_list):
@@ -330,6 +332,24 @@ def upload_sequence_v4(
     credentials = authenticate_user(user_name)
     user_access_token = credentials["user_upload_token"]
 
+    def _gen_notify_progress(uploaded_bytes: int):
+        def _notify_progress(chunk: bytes, _):
+            nonlocal uploaded_bytes
+            uploaded_bytes += len(chunk)
+            assert uploaded_bytes <= entity_size
+            ipc.send(
+                "upload",
+                {
+                    "chunk_size": len(chunk),
+                    "sequence_path": root_dir,
+                    "sequence_uuid": sequence_uuid,
+                    "total_bytes": entity_size,
+                    "uploaded_bytes": uploaded_bytes,
+                },
+            )
+
+        return _notify_progress
+
     with tempfile.NamedTemporaryFile() as fp:
         # compressing
         with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
@@ -345,8 +365,6 @@ def upload_sequence_v4(
         avg_image_size = int(entity_size / len(file_list))
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
-        service = upload_api_v4.UploadService(user_access_token, chunk_size=chunk_size)
-
         # md5sum
         fp.seek(0, io.SEEK_SET)
         md5 = hashlib.md5()
@@ -358,44 +376,55 @@ def upload_sequence_v4(
         md5sum = md5.hexdigest()
 
         # uploading
-        fp.seek(0, io.SEEK_SET)
-        session_key = f"mly_tools_{md5sum}"
-        initial_offset = service.fetch_offset(session_key)
-        with tqdm(
-            total=entity_size,
-            initial=initial_offset,
-            desc="Uploading",
-        ) as pbar:
-            uploaded_bytes = initial_offset
+        service = upload_api_v4.UploadService(
+            user_access_token,
+            session_key=f"mly_tools_{md5sum}",
+            entity_size=entity_size,
+        )
 
-            def _notify_progress(chunk: bytes, _):
-                nonlocal uploaded_bytes
-                uploaded_bytes += len(chunk)
-                assert uploaded_bytes <= entity_size
-                ipc.send(
-                    "upload",
-                    {
-                        "chunk_size": len(chunk),
-                        "sequence_path": root_dir,
-                        "sequence_uuid": sequence_uuid,
-                        "total_bytes": entity_size,
-                        "uploaded_bytes": uploaded_bytes,
-                    },
-                )
-                pbar.update(len(chunk))
+        retryable_errors = (
+            requests.HTTPError,
+            requests.ConnectionError,
+            requests.Timeout,
+        )
 
-            try:
-                upload_resp = service.upload(
-                    session_key,
-                    fp,
-                    entity_size,
-                    callback=_notify_progress,
-                )
-            except requests.HTTPError as ex:
-                if not dry_run:
-                    for path in file_list:
-                        create_upload_log(path, "upload_failed")
-                raise wrap_http_exception(ex)
+        retries = 0
+
+        # when it progresses, we reset retries
+        def _reset_retries(_, __):
+            nonlocal retries
+            retries = 0
+
+        while True:
+            initial_offset = service.fetch_offset()
+            notify_progress = _gen_notify_progress(initial_offset)
+            with tqdm(
+                total=entity_size,
+                initial=initial_offset,
+                desc="Uploading",
+            ) as pbar:
+                update_pbar = lambda chunk, _: pbar.update(len(chunk))
+                service.callbacks = [notify_progress, update_pbar, _reset_retries]
+                fp.seek(0, io.SEEK_SET)
+                try:
+                    upload_resp = service.upload(fp, chunk_size=chunk_size)
+                except Exception as ex:
+                    if retries < 10 and isinstance(ex, retryable_errors):
+                        retries += 1
+                        LOG.warning(
+                            f"Error uploading, retrying in {2 ** retries} seconds",
+                            exc_info=True,
+                        )
+                        time.sleep(2 ** retries)
+                    else:
+                        if not dry_run:
+                            for path in file_list:
+                                create_upload_log(path, "upload_failed")
+                        raise wrap_http_exception(ex) if isinstance(
+                            ex, requests.HTTPError
+                        ) else ex
+                else:
+                    break
 
     upload_resp_json = upload_resp.json()
     try:
