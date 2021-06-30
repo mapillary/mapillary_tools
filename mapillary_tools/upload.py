@@ -137,11 +137,17 @@ def upload(
                     f"Found {len(direct_upload_file_list)} files for direct upload which is not supported in v4"
                 )
 
+            total_sequences = len(list_per_sequence_mapping)
             for idx, sequence_uuid in enumerate(list_per_sequence_mapping):
+                metadata = {
+                    "total_sequences": total_sequences,
+                    "sequence_idx": idx,
+                }
                 uploader.upload_sequence_v4(
                     list_per_sequence_mapping[sequence_uuid],
                     sequence_uuid,
                     params,
+                    metadata=metadata,
                     dry_run=dry_run,
                 )
 
