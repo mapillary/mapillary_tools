@@ -81,14 +81,6 @@ For an example using Termux, if imagery is stored in the folder “Internal stor
 mv -v storage/dcim/mapillaryimages mapillaryimages
 ```
 
-### Python 2 (Deprecated)
-
-Python 2 is no longer supported since 0.6.0. If you have to, you can install version 0.5.x from:
-
-- Windows: https://tools.mapillary.com/binary/win/mapillary_tools.exe
-- MacOS: https://tools.mapillary.com/binary/osx/mapillary_tools.zip
-- Pip install: follow [this issue](https://github.com/mapillary/mapillary_tools/issues/374#issuecomment-720152479)
-
 ### Video Support Package
 
 To sample images from videos, you will also need to install `ffmpeg`. Review [video support](#video-support).
@@ -810,7 +802,7 @@ Set up the virtual environment. It is optional but recommended:
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate # For Windows, run: .\venv\Scripts\activate
 # verify if the venv is activated
 which python3
 ```
