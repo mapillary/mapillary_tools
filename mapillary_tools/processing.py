@@ -330,6 +330,11 @@ def geotag_from_gps_trace(
             "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time."
         )
 
+    if not os.path.isfile(geotag_source_path):
+        raise RuntimeError(
+            f"The path specified in geotag_source_path {geotag_source_path} is is not a file"
+        )
+
     # read gps file to get track locations
     if geotag_source == "gpx":
         gps_trace = get_lat_lon_time_from_gpx(geotag_source_path, local_time)

@@ -12,31 +12,33 @@ def get_ffprobe(path):
     TODO: use the class in ffprobe.py - why doesn't it use json output?
     """
     try:
-        with open(os.devnull, "w") as tempf:
-            subprocess.check_call(["ffprobe", "-h"], stdout=tempf, stderr=tempf)
-    except Exception as e:
-        raise IOError("ffprobe not found.")
+        with open(os.devnull, "w") as fp:
+            subprocess.check_call(["ffprobe", "-h"], stdout=fp, stderr=fp)
+    except FileNotFoundError:
+        raise RuntimeError(
+            "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+        )
 
     if not os.path.isfile(path):
-        raise IOError("No such file: " + path)
+        raise RuntimeError(f"No such file: {path}")
 
-    j_str = ""
+    j_str = subprocess.check_output(
+        [
+            "ffprobe",
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            path,
+        ]
+    )
+
     try:
-        j_str = subprocess.check_output(
-            [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
-                path,
-            ]
-        )
-    except subprocess.CalledProcessError:
-        pass
-    j_obj = json.loads(j_str)
+        j_obj = json.loads(j_str)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"Error JSON decoding {j_str}")
 
     return j_obj
 
@@ -47,7 +49,7 @@ def extract_stream(source, dest, stream_id):
     @param filename: mp4 filename
     """
     if not os.path.isfile(source):
-        raise IOError("No such file: " + source)
+        raise RuntimeError(f"No such file: {source}")
 
     subprocess.check_output(
         [
