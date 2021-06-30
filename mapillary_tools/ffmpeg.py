@@ -6,7 +6,7 @@ import subprocess
 # author https://github.com/stilldavid
 
 
-def get_ffprobe(path):
+def get_ffprobe(path: str) -> dict:
     """
     Gets information about a media file
     TODO: use the class in ffprobe.py - why doesn't it use json output?
@@ -38,7 +38,7 @@ def get_ffprobe(path):
     try:
         j_obj = json.loads(j_str)
     except json.JSONDecodeError:
-        raise RuntimeError(f"Error JSON decoding {j_str}")
+        raise RuntimeError(f"Error JSON decoding {j_str.decode('utf-8')}")
 
     return j_obj
 

@@ -9,7 +9,7 @@ does the heavy lifting of parsing the GPMF format from a binary file
 """
 
 
-def parse_gps(toparse, data, scale):
+def parse_gps(toparse: bytes, data: dict, scale):
     gps = struct.unpack(">lllll", toparse)
 
     data["gps"].append(
@@ -23,28 +23,28 @@ def parse_gps(toparse, data, scale):
     )
 
 
-def parse_time(toparse, data, scale):
+def parse_time(toparse: bytes, data: dict, scale):
     datetime_object = datetime.datetime.strptime(str(toparse), "%y%m%d%H%M%S.%f")
     data["time"] = datetime_object
 
 
-def parse_accl(toparse, data, scale):
+def parse_accl(toparse: bytes, data: dict, scale):
     # todo: fusion
     if 6 == len(toparse):
         data["accl"] = struct.unpack(">hhh", toparse)
 
 
-def parse_gyro(toparse, data, scale):
+def parse_gyro(toparse: bytes, data: dict, scale):
     # todo: fusion
     if 6 == len(toparse):
         data["gyro"] = struct.unpack(">hhh", toparse)
 
 
-def parse_fix(toparse, data, scale):
+def parse_fix(toparse: bytes, data: dict, scale):
     data["gps_fix"] = struct.unpack(">I", toparse)[0]
 
 
-def parse_precision(toparse, data, scale):
+def parse_precision(toparse: bytes, data: dict, scale):
     data["gps_precision"] = struct.unpack(">H", toparse)[0]
 
 
@@ -68,62 +68,65 @@ def interpolate_times(frame, until):
         frame["gps"][i]["time"] = frame["time"] + toadd
 
 
-def parse_bin(path):
-    f = open(path, "rb")
+def parse_bin(path: str) -> list:
+    # f = open(path, "rb")
 
-    s = {}  # the current Scale data to apply to next requester
+    s: dict = {}  # the current Scale data to apply to next requester
     output = []
 
     # handlers for various fourCC codes
     methods = {
-        "GPS5": parse_gps,
-        "GPSU": parse_time,
-        "GPSF": parse_fix,
-        "GPSP": parse_precision,
-        "ACCL": parse_accl,
-        "GYRO": parse_gyro,
+        b"GPS5": parse_gps,
+        b"GPSU": parse_time,
+        b"GPSF": parse_fix,
+        b"GPSP": parse_precision,
+        b"ACCL": parse_accl,
+        b"GYRO": parse_gyro,
     }
 
-    d = {"gps": []}  # up to date dictionary, iterate and fill then flush
+    d: dict = {"gps": []}  # up to date dictionary, iterate and fill then flush
 
-    while True:
-        label = f.read(4)
-        if not label:  # eof
-            break
+    with open(path, "rb") as f:
+        while True:
+            label: bytes = f.read(4)
+            if not label:  # eof
+                break
 
-        desc = f.read(4)
+            desc: bytes = f.read(4)
+            if not desc:  # eof
+                break
 
-        # null length
-        if "00" == binascii.hexlify(desc[0]):
-            continue
+            # null length
+            if b"00" == binascii.hexlify(desc[:1]):
+                continue
 
-        val_size = struct.unpack(">b", desc[1])[0]
-        num_values = struct.unpack(">h", desc[2:4])[0]
-        length = val_size * num_values
+            val_size: int = struct.unpack(">b", desc[:1])[0]
+            num_values: int = struct.unpack(">h", desc[2:4])[0]
+            length = val_size * num_values
 
-        if label == "DVID":
-            if len(d["gps"]):  # first one is empty
-                output.append(d)
-            d = {"gps": []}  # reset
+            if label == b"DVID":
+                if len(d["gps"]):  # first one is empty
+                    output.append(d)
+                d = {"gps": []}  # reset
 
-        for i in range(num_values):
-            data = f.read(val_size)
+            for i in range(num_values):
+                data: bytes = f.read(val_size)
 
-            if label in methods:
-                methods[label](data, d, s)
+                if label in methods:
+                    methods[label](data, d, s)
 
-            if label == "SCAL":
-                if 2 == val_size:
-                    s[i] = struct.unpack(">h", data)[0]
-                elif 4 == val_size:
-                    s[i] = struct.unpack(">i", data)[0]
-                else:
-                    raise Exception("unknown scal size")
+                if label == b"SCAL":
+                    if 2 == val_size:
+                        s[i] = struct.unpack(">h", data)[0]
+                    elif 4 == val_size:
+                        s[i] = struct.unpack(">i", data)[0]
+                    else:
+                        raise Exception("unknown scal size")
 
-        # pack
-        mod = length % 4
-        if mod != 0:
-            seek = 4 - mod
-            f.read(seek)  # discarded
+            # pack
+            mod = length % 4
+            if mod != 0:
+                seek = 4 - mod
+                f.read(seek)  # discarded
 
     return output
