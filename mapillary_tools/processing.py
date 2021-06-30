@@ -212,15 +212,7 @@ def geotag_from_gopro_video(
         gopro_video_filename = (
             os.path.basename(gopro_video).replace(".mp4", "").replace(".MP4", "")
         )
-        try:
-            gpx_path = gpx_from_gopro(gopro_video)
-            if not gpx_path or not os.path.isfile(gpx_path):
-                raise Exception
-        except Exception as e:
-            print_error(
-                f"Error, failed extracting data from gopro geotag source path {gopro_video} due to {e}, exiting..."
-            )
-            continue
+        gpx_path = gpx_from_gopro(gopro_video)
 
         process_file_sublist = [
             x

@@ -12,7 +12,7 @@ Pulls data out of a GoPro 5+ recording while GPS was enabled.
 """
 
 
-def extract_bin(path):
+def extract_bin(path: str) -> str:
     info = get_ffprobe(path)
 
     format_name = info["format"]["format_name"].lower()
@@ -38,13 +38,13 @@ def extract_bin(path):
     return bin_path
 
 
-def get_points_from_gpmf(path):
+def get_points_from_gpmf(path: str) -> list:
     bin_path = extract_bin(path)
 
     gpmf_data = parse_bin(bin_path)
     rows = len(gpmf_data)
-    points = []
 
+    points = []
     for i, frame in enumerate(gpmf_data):
         t = frame["time"]
 
