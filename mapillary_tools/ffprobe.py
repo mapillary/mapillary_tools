@@ -25,8 +25,10 @@ class FFProbe:
         try:
             with open(os.devnull, "w") as tempf:
                 subprocess.check_call(["ffprobe", "-h"], stdout=tempf, stderr=tempf)
-        except:
-            raise IOError("ffprobe not found.")
+        except FileNotFoundError:
+            raise RuntimeError(
+                "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+            )
         if os.path.isfile(video_file):
             video_file = self.video_file.replace("\\", "\\\\")
 
