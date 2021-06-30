@@ -314,8 +314,15 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
 
 
 def upload_sequence_v4(
-    file_list: list, sequence_uuid: str, file_params: dict, dry_run=False
+    file_list: list,
+    sequence_uuid: str,
+    file_params: dict,
+    metadata: Optional[dict] = None,
+    dry_run=False,
 ):
+    if metadata is None:
+        metadata = {}
+
     first_image = list(file_params.values())[0]
     user_name = first_image["user_name"]
 
@@ -337,16 +344,16 @@ def upload_sequence_v4(
             nonlocal uploaded_bytes
             uploaded_bytes += len(chunk)
             assert uploaded_bytes <= entity_size
-            ipc.send(
-                "upload",
-                {
-                    "chunk_size": len(chunk),
-                    "sequence_path": root_dir,
-                    "sequence_uuid": sequence_uuid,
-                    "total_bytes": entity_size,
-                    "uploaded_bytes": uploaded_bytes,
-                },
-            )
+            payload = {
+                "chunk_size": len(chunk),
+                "sequence_path": root_dir,
+                "sequence_uuid": sequence_uuid,
+                "total_bytes": entity_size,
+                "uploaded_bytes": uploaded_bytes,
+            }
+            if metadata:
+                payload.update(metadata)
+            ipc.send("upload", payload)
 
         return _notify_progress
 
