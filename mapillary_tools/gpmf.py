@@ -24,7 +24,7 @@ def parse_gps(toparse: bytes, data: dict, scale):
 
 
 def parse_time(toparse: bytes, data: dict, scale):
-    datetime_object = datetime.datetime.strptime(str(toparse), "%y%m%d%H%M%S.%f")
+    datetime_object = datetime.datetime.strptime(toparse.decode("utf-8"), "%y%m%d%H%M%S.%f")
     data["time"] = datetime_object
 
 
