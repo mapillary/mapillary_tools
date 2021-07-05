@@ -100,7 +100,7 @@ def parse_bin(path: str) -> list:
             if b"00" == binascii.hexlify(desc[:1]):
                 continue
 
-            val_size: int = struct.unpack(">b", desc[:1])[0]
+            val_size: int = struct.unpack(">b", desc[1:2])[0]
             num_values: int = struct.unpack(">h", desc[2:4])[0]
             length = val_size * num_values
 
