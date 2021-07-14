@@ -51,7 +51,7 @@ def process_upload_params(
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
-        import_path, "upload_params_process", rerun, verbose, skip_subfolders
+        import_path, "upload_params_process", rerun, skip_subfolders=skip_subfolders
     )
     if not len(process_file_list):
         print("No images to run upload params process")
@@ -63,7 +63,7 @@ def process_upload_params(
     if not user_name:
         print_error("Error, must provide a valid user name, exiting...")
         processing.create_and_log_process_in_list(
-            process_file_list, "upload_params_process" "failed", verbose
+            process_file_list, "upload_params_process", "failed", verbose
         )
         sys.exit(1)
 

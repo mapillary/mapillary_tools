@@ -1,6 +1,6 @@
+import typing as T
 import datetime
 import os
-import sys
 import time
 import uuid
 
@@ -8,7 +8,6 @@ from tqdm import tqdm
 
 from . import processing
 from . import uploader
-from .error import print_error
 from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
 
 MAX_SEQUENCE_LENGTH = 500
@@ -61,8 +60,9 @@ def process_sequence_properties(
         and not os.path.isdir(video_import_path)
         and not os.path.isfile(video_import_path)
     ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, video path {video_import_path} does not exist, exiting..."
+        )
 
     # in case of video processing, adjust the import path
     if video_import_path:
@@ -81,103 +81,11 @@ def process_sequence_properties(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print_error(
-            "Error, import directory " + import_path + " does not exist, exiting..."
-        )
-        sys.exit(1)
+        raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
-    sequences = []
-    if skip_subfolders:
-        process_file_list = processing.get_process_file_list(
-            import_path,
-            "sequence_process",
-            rerun=rerun,
-            verbose=verbose,
-            skip_subfolders=True,
-            root_dir=import_path,
-        )
-        if not len(process_file_list):
-            if verbose:
-                print("No images to run sequence process in root " + import_path)
-                print(
-                    "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
-                )
-        else:
-            # LOAD TIME AND GPS POINTS ------------------------------------
-            (
-                file_list,
-                capture_times,
-                lats,
-                lons,
-                directions,
-            ) = processing.load_geotag_points(process_file_list, verbose)
-            # ---------------------------------------
-
-            # SPLIT SEQUENCES --------------------------------------
-            if len(capture_times) and len(lats) and len(lons):
-                sequences.extend(
-                    processing.split_sequences(
-                        capture_times,
-                        lats,
-                        lons,
-                        file_list,
-                        directions,
-                        cutoff_time,
-                        cutoff_distance,
-                        verbose,
-                    )
-                )
-        # ---------------------------------------
-    else:
-        # sequence limited to the root of the files
-        for root, dirs, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            if len(files):
-                process_file_list = processing.get_process_file_list(
-                    import_path,
-                    "sequence_process",
-                    rerun=rerun,
-                    verbose=verbose,
-                    skip_subfolders=True,
-                    root_dir=root,
-                )
-                if not len(process_file_list):
-                    if verbose:
-                        print("No images to run sequence process in root " + root)
-                        print(
-                            "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
-                        )
-                    continue
-                # LOAD TIME AND GPS POINTS ------------------------------------
-                (
-                    file_list,
-                    capture_times,
-                    lats,
-                    lons,
-                    directions,
-                ) = processing.load_geotag_points(process_file_list, verbose)
-                # ---------------------------------------
-                # SPLIT SEQUENCES --------------------------------------
-                if len(capture_times) and len(lats) and len(lons):
-                    sequences.extend(
-                        processing.split_sequences(
-                            capture_times,
-                            lats,
-                            lons,
-                            file_list,
-                            directions,
-                            cutoff_time,
-                            cutoff_distance,
-                            verbose,
-                        )
-                    )
-                # ---------------------------------------
-    if not keep_duplicates:
-        if verbose:
-            print(
-                f"Flagging images as duplicates if consecutive distance difference less than {duplicate_distance} and angle difference less than {duplicate_angle}"
-            )
+    sequences = find_sequences(
+        cutoff_distance, cutoff_time, import_path, rerun, skip_subfolders, verbose
+    )
 
     # process for each sequence
     for sequence in sequences:
@@ -227,6 +135,7 @@ def process_sequence_properties(
         final_file_list = file_list[:]
         final_directions = directions[:]
         final_capture_times = capture_times[:]
+
         # FLAG DUPLICATES --------------------------------------
         if not keep_duplicates:
             final_file_list = [file_list[0]]
@@ -275,3 +184,57 @@ def process_sequence_properties(
                 verbose,
             )
     print("Sub process ended")
+
+
+def find_sequences(
+    cutoff_distance, cutoff_time, import_path, rerun, skip_subfolders, verbose
+) -> T.List[T.Dict]:
+    def _split(process_file_list: T.List[str]) -> T.List[T.Dict]:
+        if not process_file_list:
+            return []
+
+        (
+            file_list,
+            capture_times,
+            lats,
+            lons,
+            directions,
+        ) = processing.load_geotag_points(process_file_list, verbose)
+
+        if capture_times and lats and lons:
+            return processing.split_sequences(
+                capture_times,
+                lats,
+                lons,
+                file_list,
+                directions,
+                cutoff_time,
+                cutoff_distance,
+                verbose,
+            )
+        else:
+            return []
+
+    if skip_subfolders:
+        process_file_list = processing.get_process_file_list(
+            import_path,
+            "sequence_process",
+            rerun=rerun,
+            skip_subfolders=True,
+        )
+        return _split(process_file_list)
+    else:
+        sequences = []
+
+        # sequence limited to the root of the files
+        for root, dirs, files in os.walk(import_path, topdown=True):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            process_file_list = processing.get_process_file_list(
+                root,
+                "sequence_process",
+                rerun=rerun,
+                skip_subfolders=True,
+            )
+            sequences.extend(_split(process_file_list))
+
+        return sequences

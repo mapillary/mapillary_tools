@@ -1,5 +1,5 @@
 import base64
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import datetime
 import hashlib
@@ -171,9 +171,7 @@ def geotag_from_gopro_video(
     # frames
     gopro_videos = uploader.get_video_file_list(geotag_source_path)
     for gopro_video in gopro_videos:
-        gopro_video_filename = (
-            os.path.basename(gopro_video).replace(".mp4", "").replace(".MP4", "")
-        )
+        gopro_video_filename, _ = os.path.splitext(os.path.basename(gopro_video))
         gpx_path = gpx_from_gopro(gopro_video)
 
         process_file_sublist = [
@@ -682,38 +680,15 @@ def get_process_file_list(
     import_path: str,
     process: str,
     rerun: bool = False,
-    verbose: bool = False,
     skip_subfolders: bool = False,
-    root_dir: Optional[str] = None,
 ) -> List[str]:
-    if not root_dir:
-        root_dir = import_path
-
-    process_file_list: List[str] = []
-    if skip_subfolders:
-        process_file_list.extend(
-            os.path.join(os.path.abspath(root_dir), file)
-            for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and preform_process(os.path.join(root_dir, file), process, rerun)
-        )
-    else:
-        for root, dir, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            process_file_list.extend(
-                os.path.join(os.path.abspath(root), file)
-                for file in files
-                if preform_process(os.path.join(root, file), process, rerun)
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-            )
-
-    inform_processing_start(root_dir, len(process_file_list), process)
-    return sorted(process_file_list)
+    files = uploader.iterate_files(import_path, not skip_subfolders)
+    sorted_files = sorted(
+        file
+        for file in files
+        if uploader.is_image_file(file) and preform_process(file, process, rerun)
+    )
+    return sorted_files
 
 
 def get_process_status_file_list(
@@ -721,35 +696,13 @@ def get_process_status_file_list(
     process: str,
     status: str,
     skip_subfolders: bool = False,
-    root_dir: Optional[str] = None,
 ) -> List[str]:
-    if root_dir is None:
-        root_dir = import_path
-
-    status_process_file_list: List[str] = []
-    if skip_subfolders:
-        status_process_file_list.extend(
-            os.path.join(os.path.abspath(root_dir), file)
-            for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and process_status(os.path.join(root_dir, file), process, status)
-        )
-    else:
-        for root, dir, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            status_process_file_list.extend(
-                os.path.join(os.path.abspath(root), file)
-                for file in files
-                if process_status(os.path.join(root, file), process, status)
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-            )
-
-    return sorted(status_process_file_list)
+    files = uploader.iterate_files(import_path, not skip_subfolders)
+    return sorted(
+        file
+        for file in files
+        if uploader.is_image_file(file) and process_status(file, process, status)
+    )
 
 
 def process_status(file_path: str, process: str, status: str) -> bool:
@@ -759,34 +712,12 @@ def process_status(file_path: str, process: str, status: str) -> bool:
 
 
 def get_duplicate_file_list(
-    import_path: str, skip_subfolders: bool = False, root_dir: Optional[str] = None
+    import_path: str, skip_subfolders: bool = False
 ) -> List[str]:
-    if root_dir is None:
-        root_dir = import_path
-    duplicate_file_list: List[str] = []
-    if skip_subfolders:
-        duplicate_file_list.extend(
-            os.path.join(os.path.abspath(root_dir), file)
-            for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and is_duplicate(os.path.join(root_dir, file))
-        )
-    else:
-        for root, dir, files in os.walk(import_path):
-            if os.path.join(".mapillary", "logs") in root:
-                continue
-            duplicate_file_list.extend(
-                os.path.join(os.path.abspath(root), file)
-                for file in files
-                if is_duplicate(os.path.join(root, file))
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-            )
-
-    return sorted(duplicate_file_list)
+    files = uploader.iterate_files(import_path, not skip_subfolders)
+    return sorted(
+        file for file in files if uploader.is_image_file(file) and is_duplicate(file)
+    )
 
 
 def is_duplicate(file_path: str) -> bool:
@@ -805,30 +736,6 @@ def preform_process(file_path: str, process: str, rerun: bool = False) -> bool:
     return preform
 
 
-def get_failed_process_file_list(import_path, process):
-    failed_process_file_list = []
-    for root, dir, files in os.walk(import_path):
-        if os.path.join(".mapillary", "logs") in root:
-            continue
-        failed_process_file_list.extend(
-            os.path.join(os.path.abspath(root), file)
-            for file in files
-            if failed_process(os.path.join(root, file), process)
-            and file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-        )
-
-    return sorted(failed_process_file_list)
-
-
-def failed_process(file_path, process):
-    log_root = uploader.log_rootpath(file_path)
-    process_failed = os.path.join(log_root, process + "_failed")
-    process_failed_true = os.path.isfile(process_failed)
-    return process_failed_true
-
-
 def processed_images_rootpath(filepath: str) -> str:
     return os.path.join(
         os.path.dirname(filepath),
@@ -839,7 +746,6 @@ def processed_images_rootpath(filepath: str) -> str:
 
 
 def video_upload(video_file, import_path, verbose=False):
-    log_root = uploader.log_rootpath(video_file)
     import_paths = video_import_paths(video_file)
     if not os.path.isdir(import_path):
         os.makedirs(import_path)
@@ -959,18 +865,6 @@ def create_and_log_process(
     )
 
 
-def inform_processing_start(
-    import_path: str,
-    len_process_file_list: int,
-    process: str,
-    skip_subfolders: bool = False,
-) -> None:
-    total_file_list = uploader.get_total_file_list(import_path, skip_subfolders)
-    print(
-        f"Running {process} for {len_process_file_list} images, skipping {len(total_file_list) - len_process_file_list} images."
-    )
-
-
 def load_geotag_points(
     process_file_list: List[str], verbose: bool = False
 ) -> Tuple[List[str], List[datetime.datetime], List[float], List[float], List[float]]:
@@ -986,6 +880,7 @@ def load_geotag_points(
         if not geotag_data:
             create_and_log_process(image, "sequence_process", "failed", verbose=verbose)
             continue
+
         # assume all data needed available from this point on
         file_list.append(image)
         capture_times.append(
