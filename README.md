@@ -7,26 +7,26 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 * [Quickstart](#quickstart)
 * [Requirements](#requirements)
 * [Installation](#installation)
+* [Video Support](#video-support)
 * [Usage](#usage)
 * [Advanced Usage](#advanced-usage)
 * [Command Specifications](#command-specifications)
-* [Custom Installation](#custom-installation)
+* [Camera Specific](#camera-specific)
+* [Troubleshooting](#troubleshooting)
 * [Development](#development)
 
 <!--te-->
 
 ## Quickstart
 
-Install `mapillary_tools`:
+Download the latest `mapillary_tools` binaries for your platform here: https://github.com/mapillary/mapillary_tools/releases/tag/v0.7.2
+
+See [more installation instructions](#installation) below.
+
+Upload imagery:
 
 ```bash
-python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
-```
-
-Upload imagery with `mapillary_tools`:
-
-```bash
-mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_username"
+./mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_username"
 ```
 
 ## Requirements
@@ -35,11 +35,9 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When
 using the tools for the first time, user authentication is required. You will be prompted to enter your account
-credentials. Only Mapillary account credentials (username and password) are valid for authentication
+credentials. Only Mapillary account credentials (email and password) are valid for authentication
 in `mapillary_tools`. Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported
-with `mapillary_tools`. If you signed up using one of those services, you can obtain a Mapillary password by requesting
-a password reset email through your [profile settings](https://www.mapillary.com/dashboard/profile) or the "Forgot
-password?" link on the Mapillary sign-in screen.
+with `mapillary_tools`.
 
 ### Metadata
 
@@ -48,24 +46,24 @@ information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geo
 
 ## Installation
 
-### Python 3
+### Installing via Pip
 
-Python 3 (3.6 and above), pip3 and git are required:
+Python (3.6 and above) and git are required:
 
 ```bash
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
-### Python 3 (Android Devices)
+If you see "Permission Denied" error, try run the command above with `sudo`, or install it in your local [virtualenv](#development) (recommended).
+
+### Installing on Android Devices
 
 A command line program such as Termux is required. Installation can be done without root privileges.  The following commands will install Python 3, pip3, git, and all required libraries for mapillary_tools on Termux:
 
 ```bash
 pkg install python git build-essential libgeos openssl libjpeg-turbo
-
-pip install --upgrade pip wheel
-
-pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+python3 -m pip install --upgrade pip wheel
+python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
 Termux must access the device's internal storage to process and upload images. To do this, use the following command:
@@ -81,15 +79,31 @@ For an example using Termux, if imagery is stored in the folder “Internal stor
 mv -v storage/dcim/mapillaryimages mapillaryimages
 ```
 
-### Video Support Package
+## Video Support
 
-To sample images from videos, you will also need to install `ffmpeg`. Review [video support](#video-support).
+To sample images from videos, you will also need to install `ffmpeg`.
 
-### Package Support
+### Windows
 
-View additional tips in the [Mapillary Help Center](https://help.mapillary.com) or
-contact [Mapillary Support](mailto:support@mapillary.com?subject=[Mapillary]%20Help%20with%20Mapillary%20Tools%20on%20GitHub)
-.
+To install `ffmpeg` on Windows, follow
+these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
+
+### macOS
+
+To install `ffmpeg` on macOS use [Homebrew](https://brew.sh). Once you have Homebrew installed, you can install `ffmpeg`
+by running:
+
+```bash
+brew install ffmpeg
+```
+
+### Ubuntu
+
+To install `ffmpeg` on Ubuntu:
+
+```bash
+sudo apt install ffmpeg
+```
 
 ## Usage
 
@@ -664,81 +678,22 @@ mapillary_tools video_process --import_path "path/to/images" \
     --overwrite_EXIF_gps_tag
 ```
 
-## Custom Installation
-
-### Video Support
-
-To sample images from videos, you will also need to install `ffmpeg`.
-
-#### Windows
-
-To install `ffmpeg` on Windows, follow
-these [instructions](http://adaptivesamples.com/how-to-install-ffmpeg-on-windows/).
-
-#### macOS
-
-To install `ffmpeg` on macOS use [Homebrew](https://brew.sh). Once you have Homebrew installed, you can install `ffmpeg`
-by running:
-
-```bash
-brew install ffmpeg
-```
-
-#### Ubuntu
-
-To install `ffmpeg` on Ubuntu:
-
-```bash
-sudo apt install ffmpeg
-```
-
-### Execution
-
-Running the executable `mapillary_tools` is slightly different on Unix and Windows OS.
-
-#### Windows
-
-On Windows, the executable `mapillary_tools` is installed under the python's `Scripts` and needs to be inserted in the
-PATH manually. At the same time, the interpreter program `python` needs to be specified, as the interpreter directive in
-the executable is specified for Unix OS. Path to the interpreter program `python` needs to be available in the PATH.
-Example of usage, in case `python` and `mapillary_tools` are available in the PATH:
-
-	python mapillary_tools
-
-in case of issues with editing PATH, both `python` and `mapillary_tools` can be specified with the absolute path:
-
-	C:\python27\python.exe C:\python27\Scripts\mapillary_tools
-
-note that the location of the `python` interpreter program and scripts installed as `python` scripts can be different
-depending on the Windows and Python versions. Therefore users need to check the exact paths locally before running.
-
-#### Unix
-
-On Ubuntu and MacOSX the executable is available in the PATH after installation and can be used as is (no need to
-specify `python` as the interpreter program and no need for setting up the PATH or providing the absolute path to
-executable, no matter where in the command line you are located).
-
 ## Troubleshooting
 
 In case of any issues with the installation and usage of `mapillary_tools`, check this section in case it has already
 been addressed, otherwise, open an issue on Github.
 
-#### General
+### General
 
 - In case of any issues, it is always safe to try and rerun the failing command while specifying `--verbose` to see more
   information printed out. Uploaded images should not get uploaded more than once and should not be processed after
   uploading. mapillary_tools should take care of that, if it occurs otherwise, please open an issue on Github.
 - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When
-  installing the latest version, dont forget you need to specify `--upgrade`.
+  installing the latest version, don't forget you need to specify `--upgrade`.
 - Advanced user are encouraged to explore the processed data and log files in
   the `{image_path}/.mapillary/logs/{image_name}/` to get more insight in the failure.
 
-#### Dependencies
-
-- If having issues installing `pip` with `brew` on macOS, one solution is `sudo easy_install pip`. If the installed
-  version is not appropriate then upgrade with `sudo pip install --upgrade pip`.
-
-#### Run time issues
+### Run time issues
 
 - HTTP Errors can occur due to poor network connection or high load on the import pipeline. In most cases the images
   eventually get uploaded regardless. But in some cases HTTP Errors can occur due to authentication issues, which can be
@@ -765,12 +720,7 @@ been addressed, otherwise, open an issue on Github.
   be inserted in a copy of the original image. We are still in progress of improving this step of data import and will
   make sure that no image gets overwritten at any point.
 
-- GIS users on Windows using Custom Installation, particularly ArcMap users, who have Python 2.7 version with pip
-  already installed, should add these paths in the system PATH, to avoid compatibility issues:
-- executing `python` : `C:\Python27\ArcGIS10.x`
-- executing `pip` ; `C:\Python27\ArcGIS10.x\Scripts`
-
-#### Upload quality issues
+### Upload quality issues
 
 - Some devices do not store the camera direction properly, often storing only 0. Camera direction will get derived based
   on latitide and longitude only if the camera direction is not set or `--interpolate_directions` is specified. Before
