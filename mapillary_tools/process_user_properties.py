@@ -85,7 +85,7 @@ def process_user_properties(
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
-        import_path, "user_process", rerun, verbose, skip_subfolders
+        import_path, "user_process", rerun=rerun, skip_subfolders=skip_subfolders
     )
     if not process_file_list:
         print("No images to run user process")

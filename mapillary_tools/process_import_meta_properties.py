@@ -206,7 +206,7 @@ def process_import_meta_properties(
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
-        import_path, "import_meta_data_process", rerun, verbose, skip_subfolders
+        import_path, "import_meta_data_process", rerun, skip_subfolders=skip_subfolders
     )
     if not len(process_file_list):
         print("No images to run import meta data process")

@@ -51,7 +51,7 @@ def process_geotag_properties(
 
     # get list of file to process
     process_file_list = processing.get_process_file_list(
-        import_path, "geotag_process", rerun, verbose, skip_subfolders
+        import_path, "geotag_process", rerun=rerun, skip_subfolders=skip_subfolders
     )
 
     if not len(process_file_list):
@@ -91,12 +91,12 @@ def process_geotag_properties(
 
     # function calls
     if geotag_source == "exif":
-        geotag_properties = processing.geotag_from_exif(
+        processing.geotag_from_exif(
             process_file_list, import_path, offset_time, offset_angle, verbose
         )
 
     elif geotag_source == "gpx" or geotag_source == "nmea":
-        geotag_properties = processing.geotag_from_gps_trace(
+        processing.geotag_from_gps_trace(
             process_file_list,
             geotag_source,
             geotag_source_path,
@@ -108,7 +108,7 @@ def process_geotag_properties(
             verbose,
         )
     elif geotag_source == "gopro_videos":
-        geotag_properties = processing.geotag_from_gopro_video(
+        processing.geotag_from_gopro_video(
             process_file_list,
             import_path,
             geotag_source_path,
@@ -120,7 +120,7 @@ def process_geotag_properties(
             verbose,
         )
     elif geotag_source == "blackvue_videos":
-        geotag_properties = processing.geotag_from_blackvue_video(
+        processing.geotag_from_blackvue_video(
             process_file_list,
             import_path,
             geotag_source_path,
