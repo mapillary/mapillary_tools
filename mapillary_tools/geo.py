@@ -2,12 +2,14 @@
 
 import datetime
 import math
+import logging
 
 import pytz
 from typing import Any, List, Tuple
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
+LOG = logging.getLogger()
 
 
 def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, float]:
@@ -130,7 +132,7 @@ def utc_to_localtime(utc_time):
     return utc_time - utc_offset_timedelta
 
 
-def compute_bearing(start_lat, start_lon, end_lat, end_lon):
+def compute_bearing(start_lat, start_lon, end_lat, end_lon) -> float:
     """
     Get the compass bearing from start to end.
 
@@ -191,39 +193,30 @@ def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
     return bearing
 
 
-def interpolate_lat_lon(points, t, max_dt=1):
+class MapillaryInterpolationError(RuntimeError):
+    pass
+
+
+def interpolate_lat_lon(points: list, t: datetime.datetime, tolerant=10):
     """
     Return interpolated lat, lon and compass bearing for time t.
 
     Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
     """
-    # find the enclosing points in sorted list
-    if (t <= points[0][0]) or (t >= points[-1][0]):
-        if t <= points[0][0]:
-            dt = abs((points[0][0] - t).total_seconds())
-        else:
-            dt = (t - points[-1][0]).total_seconds()
-        if dt > max_dt:
-            raise ValueError(f"time t not in scope of gpx file by {dt} seconds")
-        else:
-            print(f"time t not in scope of gpx file by {dt} seconds, extrapolating...")
+    if tolerant < 0:
+        raise ValueError(f"tolerant must be non-negative in seconds but got {tolerant}")
 
-        if t < points[0][0]:
-            before = points[0]
-            after = points[1]
-        else:
-            before = points[-2]
-            after = points[-1]
-        bearing = compute_bearing(before[1], before[2], after[1], after[2])
+    min_time: datetime.datetime = points[0][0]
+    max_time: datetime.datetime = points[-1][0]
 
-        if t == points[0][0]:
-            x = points[0]
-            return x[1], x[2], bearing, x[3]
+    if min_time > max_time:
+        raise ValueError(
+            f"Expect trace's start time {min_time} <= trace's end time {max_time}"
+        )
 
-        if t == points[-1][0]:
-            x = points[-1]
-            return x[1], x[2], bearing, x[3]
-    else:
+    max_dt = datetime.timedelta(seconds=tolerant)
+
+    if min_time < t < max_time:
         for i, point in enumerate(points):
             if t < point[0]:
                 if i > 0:
@@ -232,6 +225,32 @@ def interpolate_lat_lon(points, t, max_dt=1):
                     before = points[i]
                 after = points[i]
                 break
+    else:
+        if t < min_time - max_dt:
+            raise MapillaryInterpolationError(
+                f"Unable to interpolate the point captured at {t} because it is behind the trace start time {min_time} by {(min_time - t).total_seconds()} seconds",
+            )
+
+        if max_time + max_dt < t:
+            raise MapillaryInterpolationError(
+                f"Unable to interpolate the point captured at {t} because it is beyond the trace end time {max_time} by {(t - max_time).total_seconds()} seconds",
+            )
+
+        if t < min_time:
+            before = points[0]
+            after = points[1]
+        else:
+            before = points[-2]
+            after = points[-1]
+        bearing = compute_bearing(before[1], before[2], after[1], after[2])
+
+        if t == min_time:
+            x = points[0]
+            return x[1], x[2], bearing, x[3]
+
+        if t == max_time:
+            x = points[-1]
+            return x[1], x[2], bearing, x[3]
 
     # weight based on time
     weight = (t - before[0]).total_seconds() / (after[0] - before[0]).total_seconds()

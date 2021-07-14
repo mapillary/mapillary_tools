@@ -11,29 +11,26 @@ def get_ffprobe(path: str) -> dict:
     Gets information about a media file
     TODO: use the class in ffprobe.py - why doesn't it use json output?
     """
+    if not os.path.isfile(path):
+        raise RuntimeError(f"No such file: {path}")
+
     try:
-        with open(os.devnull, "w") as fp:
-            subprocess.check_call(["ffprobe", "-h"], stdout=fp, stderr=fp)
+        j_str = subprocess.check_output(
+            [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_format",
+                "-show_streams",
+                path,
+            ]
+        )
     except FileNotFoundError:
         raise RuntimeError(
             "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
         )
-
-    if not os.path.isfile(path):
-        raise RuntimeError(f"No such file: {path}")
-
-    j_str = subprocess.check_output(
-        [
-            "ffprobe",
-            "-v",
-            "quiet",
-            "-print_format",
-            "json",
-            "-show_format",
-            "-show_streams",
-            path,
-        ]
-    )
 
     try:
         j_obj = json.loads(j_str)

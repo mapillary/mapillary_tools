@@ -3,7 +3,6 @@ import io
 import os
 import struct
 import subprocess
-import sys
 
 from pymp4.parser import Box
 from tqdm import tqdm
@@ -57,15 +56,11 @@ def sample_video(
     skip_subfolders=False,
 ):
     if import_path and not os.path.isdir(import_path):
-        print(
-            "Error, import directory " + import_path + " does not exist, exiting..."
-        )  # ERROR LOG
-        sys.exit(1)
+        raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
     # sanity check
     if not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(f"Error, video path {video_import_path} does not exist")
 
     # Adjust the import path
     video_sampling_path = "mapillary_sampled_video_frames"
@@ -124,10 +119,6 @@ def extract_frames(
     video_duration_ratio=1.0,
     verbose=False,
 ):
-    if verbose:
-        # INFO LOG
-        print(f"extracting frames from {video_file}")
-
     video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
 
     command = [
@@ -146,46 +137,39 @@ def extract_frames(
     command.append(f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg")
     subprocess.call(command)
 
-    if video_start_time:
-        video_start_time = datetime.datetime.utcfromtimestamp(video_start_time / 1000.0)
+    if video_start_time is not None:
+        video_start_time_obj = datetime.datetime.utcfromtimestamp(
+            video_start_time / 1000.0
+        )
     else:
-        video_start_time = get_video_start_time(video_file)
-        if not video_start_time:
-            print(
-                "Warning, video start time not provided and could not be extracted from the video file, default video start time set to 0 milliseconds since UNIX epoch."
-            )
-            video_start_time = datetime.datetime.utcfromtimestamp(0)
+        video_start_time_obj = get_video_start_time(video_file)
 
     insert_video_frame_timestamp(
         video_filename,
         import_path,
-        video_start_time,
+        video_start_time_obj,
         video_sample_interval,
         video_duration_ratio,
         verbose,
     )
 
 
-def get_video_duration(video_file):
+def get_video_duration(video_file) -> float:
     """Get video duration in seconds"""
     probe = FFProbe(video_file)
-    if not probe.video:
-        print(f"No video found in {video_file}")
-        return None
-    duration = probe.video[0].duration
+    duration = probe.video[0]["duration"]
     try:
         return float(duration)
     except (TypeError, ValueError) as e:
-        print(
-            f"could not parse {duration} as duration from video {video_file} due to {e}"
+        raise RuntimeError(
+            f"could not parse duration {duration} from video {video_file} due to {e}"
         )
-        return None
 
 
 def insert_video_frame_timestamp(
     video_filename,
     video_sampling_path,
-    start_time,
+    start_time: datetime.datetime,
     sample_interval=2.0,
     duration_ratio=1.0,
     verbose=False,
@@ -205,47 +189,33 @@ def insert_video_frame_timestamp(
     for image, timestamp in tqdm(
         zip(frame_list, video_frame_timestamps), desc="Inserting frame capture time"
     ):
-        try:
-            exif_edit = ExifEdit(image)
-            exif_edit.add_date_time_original(timestamp)
-            exif_edit.write()
-        except:
-            # ERROR LOG
-            print(
-                "Could not insert timestamp into video frame "
-                + os.path.basename(image)[:-4]
-            )
-            continue
+        exif_edit = ExifEdit(image)
+        exif_edit.add_date_time_original(timestamp)
+        exif_edit.write()
 
 
-def get_video_end_time(video_file):
+def get_video_end_time(video_file) -> datetime.datetime:
     """Get video end time in seconds"""
-    if not os.path.isfile(video_file):
-        print(f"Error, video file {video_file} does not exist")
-        return None
+    time_string = FFProbe(video_file).video[0]["tags"]["creation_time"]
+
     try:
-        time_string = FFProbe(video_file).video[0].creation_time
+        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+    except ValueError:
         try:
-            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
-        except:
             creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
-    except:
-        return None
+        except ValueError:
+            raise RuntimeError(
+                f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
+            )
+
     return creation_time
 
 
-def get_video_start_time(video_file):
+def get_video_start_time(video_file) -> datetime.datetime:
     """Get start time in seconds"""
-    if not os.path.isfile(video_file):
-        print(f"Error, video file {video_file} does not exist")
-        return None
     video_end_time = get_video_end_time(video_file)
     duration = get_video_duration(video_file)
-    if video_end_time is None or duration is None:
-        return None
-    else:
-        video_start_time = video_end_time - datetime.timedelta(seconds=duration)
-        return video_start_time
+    return video_end_time - datetime.timedelta(seconds=duration)
 
 
 def get_video_start_time_blackvue(video_file):

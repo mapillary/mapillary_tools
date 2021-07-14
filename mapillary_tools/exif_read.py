@@ -172,18 +172,20 @@ class ExifRead:
         TODO: handle GPS DateTime
         """
         time_string = exif_datetime_fields()[0]
-        capture_time, time_field = self._extract_alternative_fields(time_string, 0, str)
+        capture_time, time_field = self._extract_alternative_fields(
+            time_string, None, str
+        )
         if time_field in exif_gps_date_fields()[0]:
-            capture_time = self.extract_gps_time()
-            return capture_time
+            return self.extract_gps_time()
 
-        if capture_time == 0:
+        if capture_time is None:
             # try interpret the filename
+            basename, _ = os.path.splitext(os.path.basename(self.filename))
             try:
-                capture_time = datetime.datetime.strptime(
-                    os.path.basename(self.filename)[:-4] + "000", "%Y_%m_%d_%H_%M_%S_%f"
+                return datetime.datetime.strptime(
+                    basename + "000", "%Y_%m_%d_%H_%M_%S_%f"
                 )
-            except:
+            except ValueError:
                 return None
         else:
             capture_time = capture_time.replace(" ", "_")
@@ -194,17 +196,16 @@ class ExifRead:
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()]
             )
-            capture_time, subseconds = format_time(capture_time)
+            capture_time_obj, subseconds = format_time(capture_time)
             sub_sec = "0"
             if not subseconds:
                 sub_sec = self.extract_subsec()
                 if isinstance(sub_sec, str):
                     sub_sec = sub_sec.strip()
-            capture_time = capture_time + datetime.timedelta(
+            capture_time_obj = capture_time_obj + datetime.timedelta(
                 seconds=float("0." + sub_sec)
             )
-
-        return capture_time
+            return capture_time_obj
 
     def extract_direction(self) -> float:
         """
@@ -247,13 +248,12 @@ class ExifRead:
             d["dop"] = dop
         return d
 
-    def extract_gps_time(self):
+    def extract_gps_time(self) -> Optional[datetime.datetime]:
         """
         Extract timestamp from GPS field.
         """
         gps_date_field = "GPS GPSDate"
         gps_time_field = "GPS GPSTimeStamp"
-        gps_time = 0
         if gps_date_field in self.tags and gps_time_field in self.tags:
             date = str(self.tags[gps_date_field].values).split(":")
             if int(date[0]) == 0 or int(date[1]) == 0 or int(date[2]) == 0:
@@ -271,7 +271,9 @@ class ExifRead:
                 microseconds=int((eval_frac(t.values[2]) % 1) * 1e6)
             )
             gps_time += microseconds
-        return gps_time
+            return gps_time
+        else:
+            return None
 
     def extract_exif(self):
         """
