@@ -13,13 +13,17 @@ import logging
 from dateutil.tz import tzlocal
 from tqdm import tqdm
 
-from . import login
 from . import ipc
 from . import uploader
 from .error import print_error
 from .exif_read import ExifRead
 from .exif_write import ExifEdit
-from .geo import normalize_bearing, interpolate_lat_lon, gps_distance
+from .geo import (
+    normalize_bearing,
+    interpolate_lat_lon,
+    gps_distance,
+    MapillaryInterpolationError,
+)
 from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from .gpx_from_blackvue import gpx_from_blackvue
 from .gpx_from_exif import gpx_from_exif
@@ -32,48 +36,6 @@ auxillary processing functions
 
 
 LOG = logging.getLogger()
-
-
-def exif_time(filename):
-    """
-    Get image capture time from exif
-    """
-    metadata = ExifRead(filename)
-    return metadata.extract_capture_time()
-
-
-def estimate_sub_second_time(files, interval=0.0):
-    """
-    Estimate the capture time of a sequence with sub-second precision
-    EXIF times are only given up to a second of precision. This function
-    uses the given interval between shots to estimate the time inside that
-    second that each picture was taken.
-    """
-    if interval <= 0.0:
-        return [exif_time(f) for f in tqdm(files, desc="Reading image capture time")]
-
-    onesecond = datetime.timedelta(seconds=1.0)
-    T = datetime.timedelta(seconds=interval)
-    for i, f in tqdm(enumerate(files), desc="Estimating subsecond time"):
-        m = exif_time(f)
-        if not m:
-            pass
-        if i == 0:
-            smin = m
-            smax = m + onesecond
-        else:
-            m0 = m - T * i
-            smin = max(smin, m0)
-            smax = min(smax, m0 + onesecond)
-    if not smin or not smax:
-        return None
-    if smin > smax:
-        # ERROR LOG
-        print("Interval not compatible with EXIF times")
-        return None
-    else:
-        s = smin + (smax - smin) / 2
-        return [s + T * i for i in range(len(files))]
 
 
 def geotag_from_exif(
@@ -220,7 +182,7 @@ def geotag_from_gopro_video(
             if os.path.join(gopro_video_filename, gopro_video_filename + "_") in x
         ]
 
-        if not len(process_file_sublist):
+        if not process_file_sublist:
             print_error(
                 f"Error, no video frames extracted for video file {gopro_video} in import_path {import_path}"
             )
@@ -324,7 +286,7 @@ def geotag_from_gps_trace(
 
     if not os.path.isfile(geotag_source_path):
         raise RuntimeError(
-            f"The path specified in geotag_source_path {geotag_source_path} is is not a file"
+            f"The path specified in geotag_source_path {geotag_source_path} is not a file"
         )
 
     # read gps file to get track locations
@@ -335,17 +297,6 @@ def geotag_from_gps_trace(
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    # Estimate capture time with sub-second precision, reading from image EXIF
-    sub_second_times = estimate_sub_second_time(process_file_list, sub_second_interval)
-    if not sub_second_times:
-        print_error(
-            "Error, capture times could not be estimated to sub second precision, images can not be geotagged."
-        )
-        create_and_log_process_in_list(
-            process_file_list, "geotag_process", "failed", verbose=verbose
-        )
-        return
-
     if not gps_trace:
         print_error(
             f"Error, gps trace file {geotag_source_path} was not read, images can not be geotagged."
@@ -355,66 +306,75 @@ def geotag_from_gps_trace(
         )
         return
 
+    pairs = [(ExifRead(f).extract_capture_time(), f) for f in process_file_list]
+
     if use_gps_start_time:
-        # update offset time with the gps start time
-        offset_time += (sorted(sub_second_times)[0] - gps_trace[0][0]).total_seconds()
-    for image, capture_time in tqdm(
-        zip(process_file_list, sub_second_times),
+        filtered_pairs: List[Tuple[datetime.datetime, str]] = [
+            p for p in pairs if p[0] is not None
+        ]
+        sorted_pairs = sorted(filtered_pairs)
+        if sorted_pairs:
+            # update offset time with the gps start time
+            offset_time += (sorted_pairs[0][0] - gps_trace[0][0]).total_seconds()
+            LOG.info(
+                f"Use GPS start time, which is same as using offset_time={offset_time}"
+            )
+
+    for capture_time, image in tqdm(
+        pairs,
         desc="Inserting gps data into image EXIF",
     ):
-        if not capture_time:
-            print_error("Error, capture time could not be extracted for image " + image)
+        if capture_time is None:
+            print_error(f"Error, capture time could not be extracted for image {image}")
             create_and_log_process(image, "geotag_process", "failed", verbose=verbose)
-            continue
+        else:
+            try:
+                geotag_properties = get_geotag_properties_from_gps_trace(
+                    image, capture_time, gps_trace, offset_angle, offset_time
+                )
+            except MapillaryInterpolationError as ex:
+                raise RuntimeError(
+                    f"""Failed to interpolate image {image} with the geotag source file {geotag_source_path}. Try the following fixes:
+1. Specify --local_time to read the timestamps from the geotag source file as local time
+2. Use --use_gps_start_time to align the start time
+3. Manually shift the timestamps in the geotag source file with --offset_time OFFSET_IN_SECONDS
+"""
+                ) from ex
 
-        geotag_properties = get_geotag_properties_from_gps_trace(
-            image, capture_time, gps_trace, offset_angle, offset_time, verbose
-        )
-
-        create_and_log_process(
-            image, "geotag_process", "success", geotag_properties, verbose
-        )
+            create_and_log_process(
+                image, "geotag_process", "success", geotag_properties, verbose
+            )
 
 
 def get_geotag_properties_from_gps_trace(
-    image, capture_time, gps_trace, offset_angle=0.0, offset_time=0.0, verbose=False
-):
+    image,
+    capture_time: datetime.datetime,
+    gps_trace: list,
+    offset_angle=0.0,
+    offset_time=0.0,
+) -> dict:
     capture_time = capture_time - datetime.timedelta(seconds=offset_time)
-    try:
-        lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace, capture_time)
-    except Exception as e:
-        print(
-            f"Warning, {e}, interpolation of latitude and longitude failed for image {image}"
-        )
-        return None
+
+    lat, lon, bearing, elevation = interpolate_lat_lon(gps_trace, capture_time)
+
+    geotag_properties = {
+        "MAPLatitude": lat,
+        "MAPLongitude": lon,
+    }
 
     corrected_bearing = (bearing + offset_angle) % 360
-
-    if lat is not None and lon is not None:
-        geotag_properties = {
-            "MAPLatitude": lat,
-            "MAPLongitude": lon,
-        }
-    else:
-        print(f"Warning, invalid latitude and longitude for image {image}")
-        return None
+    geotag_properties["MAPCompassHeading"] = {
+        "TrueHeading": corrected_bearing,
+        "MagneticHeading": corrected_bearing,
+    }
 
     geotag_properties["MAPCaptureTime"] = datetime.datetime.strftime(
         capture_time, "%Y_%m_%d_%H_%M_%S_%f"
     )[:-3]
-    if elevation:
+
+    if elevation is not None:
         geotag_properties["MAPAltitude"] = elevation
-    else:
-        if verbose:
-            print("Warning, image altitude tag not set.")
-    if corrected_bearing:
-        geotag_properties["MAPCompassHeading"] = {
-            "TrueHeading": corrected_bearing,
-            "MagneticHeading": corrected_bearing,
-        }
-    else:
-        if verbose:
-            print("Warning, image direction tag not set.")
+
     return geotag_properties
 
 

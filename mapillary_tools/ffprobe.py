@@ -37,9 +37,12 @@ class FFProbe:
         parsed = json.loads(output)
         self.streams = parsed.get("streams", [])
         self.video = [s for s in self.streams if s["codec_type"] == "video"]
+        if not self.video:
+            raise RuntimeError(f"Not found video streams in {self.video_file}")
 
 
 if __name__ == "__main__":
     import sys
+
     probe = FFProbe(sys.argv[1])
     print(json.dumps(probe.video))

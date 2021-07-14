@@ -4,6 +4,7 @@ import datetime
 
 from .geo import utc_to_localtime
 
+import typing as T
 import gpxpy
 import pynmea2
 
@@ -12,7 +13,9 @@ Methods for parsing gps data from various file format e.g. GPX, NMEA, SRT.
 """
 
 
-def get_lat_lon_time_from_gpx(gpx_file, local_time=True):
+def get_lat_lon_time_from_gpx(
+    gpx_file, local_time=True
+) -> T.List[T.Tuple[datetime.datetime, float, float, float]]:
     """
     Read location and time stamps from a track in a GPX file.
 
@@ -42,7 +45,9 @@ def get_lat_lon_time_from_gpx(gpx_file, local_time=True):
     return points
 
 
-def get_lat_lon_time_from_nmea(nmea_file, local_time=True):
+def get_lat_lon_time_from_nmea(
+    nmea_file, local_time=True
+) -> T.List[T.Tuple[datetime.datetime, float, float, float]]:
     """
     Read location and time stamps from a track in a NMEA file.
 
