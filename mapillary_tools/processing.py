@@ -171,9 +171,7 @@ def geotag_from_gopro_video(
     # frames
     gopro_videos = uploader.get_video_file_list(geotag_source_path)
     for gopro_video in gopro_videos:
-        gopro_video_filename = (
-            os.path.basename(gopro_video).replace(".mp4", "").replace(".MP4", "")
-        )
+        gopro_video_filename, _ = os.path.splitext(os.path.basename(gopro_video))
         gpx_path = gpx_from_gopro(gopro_video)
 
         process_file_sublist = [
@@ -694,9 +692,7 @@ def get_process_file_list(
         process_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
             for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
+            if uploader.is_image_file(file)
             and preform_process(os.path.join(root_dir, file), process, rerun)
         )
     else:
@@ -707,9 +703,7 @@ def get_process_file_list(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
                 if preform_process(os.path.join(root, file), process, rerun)
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
+                and uploader.is_image_file(file)
             )
 
     inform_processing_start(root_dir, len(process_file_list), process)
@@ -731,9 +725,7 @@ def get_process_status_file_list(
         status_process_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
             for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
+            if uploader.is_image_file(file)
             and process_status(os.path.join(root_dir, file), process, status)
         )
     else:
@@ -744,9 +736,7 @@ def get_process_status_file_list(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
                 if process_status(os.path.join(root, file), process, status)
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
+                and uploader.is_image_file(file)
             )
 
     return sorted(status_process_file_list)
@@ -768,9 +758,7 @@ def get_duplicate_file_list(
         duplicate_file_list.extend(
             os.path.join(os.path.abspath(root_dir), file)
             for file in os.listdir(root_dir)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
+            if uploader.is_image_file(file)
             and is_duplicate(os.path.join(root_dir, file))
         )
     else:
@@ -781,9 +769,7 @@ def get_duplicate_file_list(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
                 if is_duplicate(os.path.join(root, file))
-                and file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
+                and uploader.is_image_file(file)
             )
 
     return sorted(duplicate_file_list)
@@ -814,9 +800,7 @@ def get_failed_process_file_list(import_path, process):
             os.path.join(os.path.abspath(root), file)
             for file in files
             if failed_process(os.path.join(root, file), process)
-            and file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
+            and uploader.is_image_file(file)
         )
 
     return sorted(failed_process_file_list)

@@ -22,6 +22,16 @@ MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
 LOG = logging.getLogger()
 
 
+def is_image_file(path: str) -> bool:
+    basename, ext = os.path.splitext(os.path.basename(path))
+    return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
+
+
+def is_video_file(path: str) -> bool:
+    basename, ext = os.path.splitext(os.path.basename(path))
+    return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
+
+
 def flag_finalization(finalize_file_list):
     for file in finalize_file_list:
         finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
@@ -34,10 +44,7 @@ def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> Lis
         upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and preform_upload(import_path, file)
+            if is_image_file(file) and preform_upload(import_path, file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -46,10 +53,7 @@ def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> Lis
             upload_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-                and preform_upload(root, file)
+                if is_image_file(file) and preform_upload(root, file)
             )
     return sorted(upload_file_list)
 
@@ -58,19 +62,18 @@ def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> Lis
 # TODO: Create list of supported files instead of adding only these 3
 def get_video_file_list(video_file, skip_subfolders=False):
     video_file_list = []
-    supported_files = ("mp4", "avi", "tavi", "mov", "mkv")
     if skip_subfolders:
         video_file_list.extend(
             os.path.join(os.path.abspath(video_file), file)
             for file in os.listdir(video_file)
-            if (file.lower().endswith(supported_files))
+            if is_video_file(file)
         )
     else:
         for root, _, files in os.walk(video_file):
             video_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if (file.lower().endswith(supported_files))
+                if is_video_file(file)
             )
     return sorted(video_file_list)
 
@@ -81,9 +84,7 @@ def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List
         total_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
+            if is_image_file(file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -92,9 +93,7 @@ def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List
             total_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
+                if is_image_file(file)
             )
     return sorted(total_file_list)
 
@@ -107,10 +106,7 @@ def get_failed_upload_file_list(
         failed_upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and failed_upload(import_path, file)
+            if is_image_file(file) and failed_upload(import_path, file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -119,10 +115,7 @@ def get_failed_upload_file_list(
             failed_upload_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-                and failed_upload(root, file)
+                if is_image_file(file) and failed_upload(root, file)
             )
 
     return sorted(failed_upload_file_list)
@@ -136,10 +129,7 @@ def get_success_upload_file_list(
         success_upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and success_upload(import_path, file)
+            if is_image_file(file) and success_upload(import_path, file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -148,10 +138,7 @@ def get_success_upload_file_list(
             success_upload_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-                and success_upload(root, file)
+                if is_image_file(file) and success_upload(root, file)
             )
 
     return sorted(success_upload_file_list)
@@ -179,10 +166,7 @@ def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False)
         success_only_manual_upload_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and success_only_manual_upload(import_path, file)
+            if is_image_file(file) and success_only_manual_upload(import_path, file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -191,10 +175,7 @@ def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False)
             success_only_manual_upload_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-                and success_only_manual_upload(root, file)
+                if is_image_file(file) and success_only_manual_upload(root, file)
             )
 
     return sorted(success_only_manual_upload_file_list)
@@ -245,10 +226,7 @@ def get_finalize_file_list(
         finalize_file_list.extend(
             os.path.join(os.path.abspath(import_path), file)
             for file in os.listdir(import_path)
-            if file.lower().endswith(
-                ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-            )
-            and preform_finalize(import_path, file)
+            if is_image_file(file) and preform_finalize(import_path, file)
         )
     else:
         for root, _, files in os.walk(import_path):
@@ -257,10 +235,7 @@ def get_finalize_file_list(
             finalize_file_list.extend(
                 os.path.join(os.path.abspath(root), file)
                 for file in files
-                if file.lower().endswith(
-                    ("jpg", "jpeg", "tif", "tiff", "pgm", "pnm", "gif")
-                )
-                and preform_finalize(root, file)
+                if is_image_file(file) and preform_finalize(root, file)
             )
 
     return sorted(finalize_file_list)
