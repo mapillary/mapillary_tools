@@ -172,7 +172,7 @@ def get_video_duration(video_file):
     if not probe.video:
         print(f"No video found in {video_file}")
         return None
-    duration = probe.video[0].duration
+    duration = probe.video[0]["duration"]
     try:
         return float(duration)
     except (TypeError, ValueError) as e:
@@ -224,7 +224,7 @@ def get_video_end_time(video_file):
         print(f"Error, video file {video_file} does not exist")
         return None
     try:
-        time_string = FFProbe(video_file).video[0].creation_time
+        time_string = FFProbe(video_file).video[0]["tags"]["creation_time"]
         try:
             creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
         except:
