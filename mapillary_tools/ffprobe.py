@@ -19,8 +19,21 @@ class FFProbe:
 
     def __init__(self, video_file: str):
         self.video_file = video_file
-        cmd = ["ffprobe", "-loglevel", "quiet", "-show_streams", "-print_format", "json", self.video_file]
-        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        cmd = [
+            "ffprobe",
+            "-loglevel",
+            "quiet",
+            "-show_streams",
+            "-print_format",
+            "json",
+            self.video_file,
+        ]
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except FileNotFoundError:
+            raise RuntimeError(
+                "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+            )
         parsed = json.loads(output)
         self.streams = parsed.get("streams", [])
         self.video = [s for s in self.streams if s["codec_type"] == "video"]
