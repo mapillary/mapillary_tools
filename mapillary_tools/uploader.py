@@ -167,19 +167,6 @@ def print_summary(file_list):
     print(f"Done uploading {len(file_list)} images.")  # improve upload summary
 
 
-def progress(count, total, suffix=""):
-    """
-    Display progress bar
-    sources: https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
-    """
-    bar_len = 60
-    filled_len = int(round(bar_len * count / float(total)))
-    percents = round(100.0 * count / float(total), 1)
-    bar = "=" * filled_len + "-" * (bar_len - filled_len)
-    sys.stdout.write(f"[{bar}] {percents}% {suffix}\r")
-    sys.stdout.flush()
-
-
 def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     """
     find the common root path
@@ -239,10 +226,23 @@ def upload_sequence_v4(
 
         return _notify_progress
 
+    def _build_desc(desc: str) -> str:
+        if metadata is not None:
+            total = metadata.get("total_sequences")
+            idx = metadata.get("sequence_idx")
+            if total is not None and idx is not None:
+                return f"{desc} {idx + 1}/{total}"
+            else:
+                return desc
+        else:
+            return desc
+
     with tempfile.NamedTemporaryFile() as fp:
         # compressing
         with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-            with tqdm(total=len(file_list), desc="Compressing") as pbar:
+            with tqdm(
+                total=len(file_list), desc=_build_desc("Compressing"), unit="files"
+            ) as pbar:
                 for fullpath in file_list:
                     relpath = os.path.relpath(fullpath, root_dir)
                     ziph.write(fullpath, relpath)
@@ -285,26 +285,32 @@ def upload_sequence_v4(
             retries = 0
 
         while True:
-            initial_offset = service.fetch_offset()
-            notify_progress = _gen_notify_progress(initial_offset)
+            update_pbar = lambda chunk, _: pbar.update(len(chunk))
+            service.callbacks = [update_pbar, _reset_retries]
             with tqdm(
                 total=entity_size,
-                initial=initial_offset,
-                desc="Uploading",
+                desc=_build_desc("Uploading"),
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
             ) as pbar:
-                update_pbar = lambda chunk, _: pbar.update(len(chunk))
-                service.callbacks = [notify_progress, update_pbar, _reset_retries]
                 fp.seek(0, io.SEEK_SET)
                 try:
-                    upload_resp = service.upload(fp, chunk_size=chunk_size)
+                    offset = service.fetch_offset()
+                    pbar.update(offset)
+                    service.callbacks.append(_gen_notify_progress(offset))
+                    upload_resp = service.upload(
+                        fp, chunk_size=chunk_size, offset=offset
+                    )
                 except Exception as ex:
-                    if retries < 10 and isinstance(ex, retryable_errors):
+                    if retries < 200 and isinstance(ex, retryable_errors):
                         retries += 1
+                        sleep_for = min(2 ** retries, 16)
                         LOG.warning(
-                            f"Error uploading, retrying in {2 ** retries} seconds",
+                            f"Error uploading, resuming in {sleep_for} seconds",
                             exc_info=True,
                         )
-                        time.sleep(2 ** retries)
+                        time.sleep(sleep_for)
                     else:
                         if not dry_run:
                             for path in file_list:
@@ -333,6 +339,7 @@ def upload_sequence_v4(
     else:
         print(f"Finishing upload {sequence_uuid} for organization {organization_id}")
 
+    # TODO: retry here
     finish_resp = service.finish(file_handle, organization_id=organization_id)
     try:
         finish_resp.raise_for_status()

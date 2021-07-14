@@ -40,12 +40,15 @@ class UploadService:
     def upload(
         self,
         data: T.IO[bytes],
+        offset: T.Optional[int] = None,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> requests.Response:
         if chunk_size <= 0:
             raise ValueError("Expect positive chunk size")
 
-        offset = self.fetch_offset()
+        if offset is None:
+            offset = self.fetch_offset()
+
         data.seek(offset, io.SEEK_CUR)
 
         while True:
@@ -128,7 +131,13 @@ if __name__ == "__main__":
     print(f"initial offset: {service.fetch_offset()}")
 
     with open(path, "rb") as fp:
-        with tqdm.tqdm(total=entity_size, initial=service.fetch_offset()) as pbar:
+        with tqdm.tqdm(
+            total=entity_size,
+            initial=service.fetch_offset(),
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar:
             service.callbacks.append(lambda chunk, _: pbar.update(len(chunk)))
             try:
                 resp = service.upload(fp)
