@@ -689,14 +689,9 @@ been addressed, otherwise, open an issue on Github.
   information printed out. Uploaded images should not get uploaded more than once and should not be processed after
   uploading. mapillary_tools should take care of that, if it occurs otherwise, please open an issue on Github.
 - Make sure you run the latest version of `mapillary_tools`, which you can check with `mapillary_tools --version`. When
-  installing the latest version, dont forget you need to specify `--upgrade`.
+  installing the latest version, don't forget you need to specify `--upgrade`.
 - Advanced user are encouraged to explore the processed data and log files in
   the `{image_path}/.mapillary/logs/{image_name}/` to get more insight in the failure.
-
-### Dependencies
-
-- If having issues installing `pip` with `brew` on macOS, one solution is `sudo easy_install pip`. If the installed
-  version is not appropriate then upgrade with `sudo pip install --upgrade pip`.
 
 ### Run time issues
 
@@ -724,11 +719,6 @@ been addressed, otherwise, open an issue on Github.
   the script with Ctrl+c. To keep the images intact, you can specify `--keep_original` and all the processed data will
   be inserted in a copy of the original image. We are still in progress of improving this step of data import and will
   make sure that no image gets overwritten at any point.
-
-- GIS users on Windows using Custom Installation, particularly ArcMap users, who have Python 2.7 version with pip
-  already installed, should add these paths in the system PATH, to avoid compatibility issues:
-- executing `python` : `C:\Python27\ArcGIS10.x`
-- executing `pip` ; `C:\Python27\ArcGIS10.x\Scripts`
 
 ### Upload quality issues
 
