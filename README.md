@@ -17,16 +17,14 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 
 ## Quickstart
 
-Install `mapillary_tools`:
+Download the latest `mapillary_tools` binaries for your platform here: https://github.com/mapillary/mapillary_tools/releases/tag/v0.7.2
+
+See more [installation instructions](#installation) below.
+
+Upload imagery:
 
 ```bash
-python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
-```
-
-Upload imagery with `mapillary_tools`:
-
-```bash
-mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_username"
+./mapillary_tools process_and_upload --import_path "path/to/images" --user_name "mapillary_username"
 ```
 
 ## Requirements
@@ -35,11 +33,9 @@ mapillary_tools process_and_upload --import_path "path/to/images" --user_name "m
 
 To upload images to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When
 using the tools for the first time, user authentication is required. You will be prompted to enter your account
-credentials. Only Mapillary account credentials (username and password) are valid for authentication
+credentials. Only Mapillary account credentials (email and password) are valid for authentication
 in `mapillary_tools`. Other Mapillary login options (Facebook, OpenStreetMap, Google+, or ArcGIS) are not supported
-with `mapillary_tools`. If you signed up using one of those services, you can obtain a Mapillary password by requesting
-a password reset email through your [profile settings](https://www.mapillary.com/dashboard/profile) or the "Forgot
-password?" link on the Mapillary sign-in screen.
+with `mapillary_tools`.
 
 ### Metadata
 
@@ -48,24 +44,24 @@ information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geo
 
 ## Installation
 
-### Python 3
+### Installing via Pip
 
-Python 3 (3.6 and above), pip3 and git are required:
+Python 3.6 and above and git are required:
 
 ```bash
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
-### Python 3 (Android Devices)
+If you see "Permission Denied" error, try run the command above with `sudo`, or install it in your local [virtualenv](#development) (recommended).
+
+### Installing on Android Devices
 
 A command line program such as Termux is required. Installation can be done without root privileges.  The following commands will install Python 3, pip3, git, and all required libraries for mapillary_tools on Termux:
 
 ```bash
 pkg install python git build-essential libgeos openssl libjpeg-turbo
-
-pip install --upgrade pip wheel
-
-pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+python3 -m pip install --upgrade pip wheel
+python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
 ```
 
 Termux must access the device's internal storage to process and upload images. To do this, use the following command:
