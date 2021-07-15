@@ -4,7 +4,6 @@ import datetime
 import math
 import logging
 
-import pytz
 from typing import Any, List, Tuple
 
 WGS84_a = 6378137.0
@@ -71,27 +70,6 @@ def get_max_distance_from_start(latlon_track):
     return max_distance
 
 
-def get_total_distance_traveled(latlon_track):
-    """
-    Returns the total distance traveled of a GPS track. Used to calculate whether or not the entire sequence was just stationary video
-    Takes a sequence of points as input
-    """
-    latlon_list = []
-    # Remove timestamps from list
-    for idx, point in enumerate(latlon_track):
-        lat = latlon_track[idx][1]
-        lon = latlon_track[idx][2]
-        alt = latlon_track[idx][3]
-        latlon_list.append([lat, lon, alt])
-
-    total_distance = 0
-    last_position = latlon_list[0]
-    for position in latlon_list:
-        total_distance += gps_distance(last_position, position)
-        last_position = position
-    return total_distance
-
-
 def gps_speed(distance: List[Any], delta_t: List[Any]) -> List[Any]:
     # Most timestamps have 1 second resolution so change zeros in delta_t for
     # 0.5 so that we don't divide by zero
@@ -112,19 +90,6 @@ def decimal_to_dms(value, precision):
     sec = math.floor((value - deg - min / 60) * 3600 * precision)
 
     return (deg, 1), (min, 1), (sec, precision)
-
-
-def gpgga_to_dms(gpgga):
-    """
-    Convert GPS coordinate in GPGGA format to degree/minute/second
-
-    Reference: http://us.cactii.net/~bb/gps.py
-    """
-    deg_min, dmin = gpgga.split(".")
-    degrees = int(deg_min[:-2])
-    minutes = float(f"{deg_min[-2:]}.{dmin}")
-    decimal = degrees + (minutes / 60)
-    return decimal
 
 
 def utc_to_localtime(utc_time):
@@ -169,14 +134,6 @@ def diff_bearing(b1, b2):
     d = abs(b2 - b1)
     d = 360 - d if d > 180 else d
     return d
-
-
-def offset_bearing(bearing, offset):
-    """
-    Add offset to bearing
-    """
-    bearing = (bearing + offset) % 360
-    return bearing
 
 
 def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
@@ -300,20 +257,3 @@ def write_gpx(filename, gps_trace):
     gpx += "</gpx>" + "\n"
     with open(filename, "w") as fout:
         fout.write(gpx)
-
-
-def get_timezone_and_utc_offset(lat, lon):
-    # TODO Importing inside function because tzwhere is a temporary solution and dependency fails to install on windows
-    from tzwhere import tzwhere
-
-    tz = tzwhere.tzwhere(
-        forceTZ=True
-    )  # TODO: This library takes 2 seconds to initialize. Should be done only once if used for many videos
-    timezone_str = tz.tzNameAt(lat, lon)
-    if timezone_str is not None:
-        timezone = pytz.timezone(timezone_str)
-        dt = datetime.datetime.utcnow()
-        return [timezone_str, timezone.utcoffset(dt)]
-    else:
-        print("ERROR: Could not determine timezone")
-        return [None, None]

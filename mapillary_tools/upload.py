@@ -20,8 +20,6 @@ def verify_mapillary_tag(filepath):
 def upload(
     import_path,
     skip_subfolders=False,
-    number_threads=None,
-    max_attempts=None,
     video_import_path=None,
     dry_run=False,
 ):

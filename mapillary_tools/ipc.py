@@ -31,10 +31,6 @@ else:
         os.write(NODE_CHANNEL_FD, data.encode("utf-8"))
 
 
-def is_enabled():
-    return NODE_CHANNEL_FD != -1
-
-
 def send(type, payload):
     obj = {
         "type": type,

@@ -3,10 +3,8 @@ import datetime
 import io
 import os
 import re
-import sys
 
 import pynmea2
-from construct.core import RangeError, ConstError
 from pymp4.parser import Box
 
 from .geo import get_max_distance_from_start
@@ -31,14 +29,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
         found_first_gps_time = False
 
         while fd.tell() < eof:
-            try:
-                box = Box.parse_stream(fd)
-            except RangeError:
-                print("error parsing blackvue GPS information, exiting")
-                sys.exit(1)
-            except ConstError:
-                print("error parsing blackvue GPS information, exiting")
-                sys.exit(1)
+            box = Box.parse_stream(fd)
 
             if box.type.decode("utf-8") == "free":
                 length = len(box.data)
@@ -195,7 +186,7 @@ def gpx_from_blackvue(bv_video, use_nmea_stream_timestamp=False) -> Tuple[str, b
     bv_data = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
     if not bv_data:
         return "", True
-    basename, extension = os.path.splitext(bv_video)
+    basename, _ = os.path.splitext(bv_video)
     gpx_path = basename + ".gpx"
     bv_data.sort(key=lambda x: x[0])
     write_gpx(gpx_path, bv_data)

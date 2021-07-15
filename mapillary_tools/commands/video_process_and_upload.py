@@ -266,20 +266,6 @@ class Command:
             required=False,
         )
         parser.add_argument(
-            "--number_threads",
-            help="Specify the number of upload threads.",
-            type=int,
-            default=None,
-            required=False,
-        )
-        parser.add_argument(
-            "--max_attempts",
-            help="Specify the maximum number of attempts to upload.",
-            type=int,
-            default=None,
-            required=False,
-        )
-        parser.add_argument(
             "--overwrite_all_EXIF_tags",
             help="Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.",
             action="store_true",

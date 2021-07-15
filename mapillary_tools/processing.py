@@ -434,10 +434,6 @@ def get_upload_param_properties(
         )
         return None
 
-    upload_params_process_success_path = os.path.join(
-        log_root, "upload_params_process_success"
-    )
-
     # load the sequence json
     user_process_json_path = os.path.join(log_root, "user_process.json")
     try:
@@ -701,12 +697,6 @@ def save_json(data: Dict[str, Any], file_path: str) -> None:
         raise RuntimeError(f"Error JSON serializing {data}")
     with open(file_path, "w") as f:
         f.write(buf)
-
-
-def update_json(data, file_path, process):
-    original_data = load_json(file_path)
-    original_data[process] = data
-    save_json(original_data, file_path)
 
 
 def get_process_file_list(

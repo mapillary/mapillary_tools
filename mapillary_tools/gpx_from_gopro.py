@@ -30,7 +30,7 @@ def extract_bin(path: str) -> str:
     if stream_id is None:
         raise IOError("No GoPro metadata track found - was GPS turned on?")
 
-    basename, extension = os.path.splitext(path)
+    basename, _ = os.path.splitext(path)
     bin_path = basename + ".bin"
 
     extract_stream(path, bin_path, stream_id)
@@ -72,7 +72,7 @@ def get_points_from_gpmf(path: str) -> list:
 def gpx_from_gopro(gopro_video):
     gopro_data = get_points_from_gpmf(gopro_video)
 
-    basename, extension = os.path.splitext(gopro_video)
+    basename, _ = os.path.splitext(gopro_video)
     gpx_path = basename + ".gpx"
 
     write_gpx(gpx_path, sorted(gopro_data))

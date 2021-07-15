@@ -218,18 +218,6 @@ class ExifRead:
         else:
             return None
 
-    def extract_image_size(self):
-        """
-        Extract image height and width
-        """
-        width, _ = self._extract_alternative_fields(
-            ["Image ImageWidth", "EXIF ExifImageWidth"], -1, int
-        )
-        height, _ = self._extract_alternative_fields(
-            ["Image ImageLength", "EXIF ExifImageLength"], -1, int
-        )
-        return width, height
-
     def extract_image_description(self) -> Optional[str]:
         description, _ = self._extract_alternative_fields(
             ["Image ImageDescription"], None, str
