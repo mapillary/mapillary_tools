@@ -79,7 +79,7 @@ class ExifEdit:
 
         try:
             exif_bytes = piexif.dump(self._ef)
-        except piexif._exceptions.InvalidImageDataError:
+        except piexif.InvalidImageDataError:
             if self._ef.get("thumbnail") == b"":
                 # workaround https://github.com/hMatoba/Piexif/issues/30
                 del self._ef["thumbnail"]

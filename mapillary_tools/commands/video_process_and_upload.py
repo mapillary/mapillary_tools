@@ -52,7 +52,7 @@ class Command:
             help="Path to a video or a directory with one or more video files.",
             action="store",
             default=None,
-            required=False,
+            required=True,
         )
         parser.add_argument(
             "--video_sample_interval",

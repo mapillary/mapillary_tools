@@ -2,12 +2,15 @@ from typing import List, Optional, Tuple, Type, Union, Any
 import datetime
 import json
 import os
-import uuid
+import logging
 
 import exifread
 
 from .geo import normalize_bearing
 from exifread.utils import Ratio
+
+
+LOG = logging.getLogger()
 
 
 def eval_frac(value: Ratio) -> float:
@@ -82,9 +85,9 @@ class ExifRead:
         Initialize EXIF object with FILE as filename or fileobj
         """
         self.filename = filename
-        if type(filename) == str:
-            with open(filename, "rb") as fileobj:
-                self.tags = exifread.process_file(fileobj, details=details)
+        if isinstance(filename, str):
+            with open(filename, "rb") as fp:
+                self.tags = exifread.process_file(fp, details=details)
         else:
             self.tags = exifread.process_file(filename, details=details)
 
@@ -109,41 +112,6 @@ class ExifRead:
                 else:
                     return None, field
         return default, None
-
-    def exif_name(self):
-        """
-        Name of file in the form {lat}_{lon}_{ca}_{datetime}_{filename}_{hash}
-        """
-        lat, lon, ca, captured_at = self.exif_properties()
-
-        filename = f"{lat}_{lon}_{ca}_{captured_at}_{uuid.uuid4()}"
-
-        return filename
-
-    def exif_properties(self):
-        """
-        Gets {lat} {lon} {ca} {captured_at} as a tuple
-        """
-        mapillary_description = json.loads(self.extract_image_description())
-
-        lat = None
-        lon = None
-        ca = None
-        captured_at = None
-
-        if "MAPLatitude" in mapillary_description:
-            lat = mapillary_description["MAPLatitude"]
-        if "MAPLongitude" in mapillary_description:
-            lon = mapillary_description["MAPLongitude"]
-        if "MAPCompassHeading" in mapillary_description:
-            if "TrueHeading" in mapillary_description["MAPCompassHeading"]:
-                ca = mapillary_description["MAPCompassHeading"]["TrueHeading"]
-        if "MAPCaptureTime" in mapillary_description:
-            captured_at = datetime.datetime.strptime(
-                mapillary_description["MAPCaptureTime"], "%Y_%m_%d_%H_%M_%S_%f"
-            ).strftime("%Y-%m-%d-%H-%M-%S-%f")[:-3]
-
-        return lat, lon, ca, captured_at
 
     def extract_image_history(self) -> str:
         field = ["Image Tag 0x9213"]
@@ -223,31 +191,6 @@ class ExifRead:
             direction = normalize_bearing(direction, check_hex=True)
         return direction
 
-    def extract_dop(self):
-        """
-        Extract dilution of precision
-        """
-        fields = ["GPS GPSDOP", "EXIF GPS GPSDOP"]
-        dop, _ = self._extract_alternative_fields(fields)
-        return dop
-
-    def extract_geo(self):
-        """
-        Extract geo-related information from exif
-        """
-        altitude = self.extract_altitude()
-        dop = self.extract_dop()
-        lon, lat = self.extract_lon_lat()
-        d = {}
-        if lon is not None and lat is not None:
-            d["latitude"] = lat
-            d["longitude"] = lon
-        if altitude is not None:
-            d["altitude"] = altitude
-        if dop is not None:
-            d["dop"] = dop
-        return d
-
     def extract_gps_time(self) -> Optional[datetime.datetime]:
         """
         Extract timestamp from GPS field.
@@ -275,28 +218,6 @@ class ExifRead:
         else:
             return None
 
-    def extract_exif(self):
-        """
-        Extract a list of exif infos
-        """
-        width, height = self.extract_image_size()
-        make, model = self.extract_make(), self.extract_model()
-        orientation = self.extract_orientation()
-        geo = self.extract_geo()
-        capture = self.extract_capture_time()
-        direction = self.extract_direction()
-        d = {
-            "capture_time": capture,
-            "direction": direction,
-            "gps": geo,
-            "height": height,
-            "make": make,
-            "model": model,
-            "orientation": orientation,
-            "width": width,
-        }
-        return d
-
     def extract_image_size(self):
         """
         Extract image height and width
@@ -309,12 +230,9 @@ class ExifRead:
         )
         return width, height
 
-    def extract_image_description(self) -> str:
-        """
-        Extract image description
-        """
+    def extract_image_description(self) -> Optional[str]:
         description, _ = self._extract_alternative_fields(
-            ["Image ImageDescription"], "{}", str
+            ["Image ImageDescription"], None, str
         )
         return description
 
@@ -396,11 +314,16 @@ class ExifRead:
         """
         Check existence of required Mapillary tags
         """
-        description_tag = "Image ImageDescription"
-        description = self.tags.get(description_tag)
+        description = self.extract_image_description()
         if description is None:
             return False
-        description_values = json.loads(description.values)
+
+        try:
+            description_values = json.loads(description)
+        except json.JSONDecodeError:
+            LOG.warning(f"Error JSON decoding ImageDescription: {description}")
+            return False
+
         for requirement in [
             "MAPCaptureTime",
             "MAPLatitude",

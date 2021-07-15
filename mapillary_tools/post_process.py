@@ -65,12 +65,14 @@ def get_local_mapping(import_path):
                 )
         else:
             image_exif = exif_read.ExifRead(file)
-            description_string = image_exif.extract_image_description()
+            description = image_exif.extract_image_description()
+            if description is None:
+                description = ""
             try:
-                image_description = json.loads(description_string)
+                image_description = json.loads(description)
             except json.JSONDecodeError:
                 print(
-                    f"Warning, failed to JSON decoding image description {description_string} from {file}",
+                    f"Warning, failed to JSON decoding image description {description} from {file}",
                 )
                 image_description = {}
             if (

@@ -55,7 +55,7 @@ def sample_video(
     verbose=False,
     skip_subfolders=False,
 ):
-    if import_path and not os.path.isdir(import_path):
+    if import_path is not None and not os.path.isdir(import_path):
         raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
     # sanity check
@@ -71,7 +71,7 @@ def sample_video(
     )
     import_path = (
         os.path.join(os.path.abspath(import_path), video_sampling_path)
-        if import_path
+        if import_path is not None
         else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
     )
 
