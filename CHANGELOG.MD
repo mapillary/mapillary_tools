@@ -202,3 +202,14 @@ Breaking changes:
 
 Major changes:
 - Support upload for organization #418
+
+
+## 0.7.3 (2021-07-15)
+
+Fixes:
+- GoPro video processing #423 #426
+
+Improvement:
+- Recommend users download binaries in QuickStart #425
+- Retries on all upload API calls, and retries more frequently #427
+- Error message improvement #422 and the commit ea6f0cdf
