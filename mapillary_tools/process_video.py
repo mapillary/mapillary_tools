@@ -82,10 +82,8 @@ def sample_video(
     )
 
     for video in tqdm(video_list, desc="Extracting video frames"):
-
-        per_video_import_path = os.path.join(
-            import_path, ".".join(os.path.basename(video).split(".")[:-1])
-        )
+        basename, _ = os.path.splitext(os.path.basename(video))
+        per_video_import_path = os.path.join(import_path, basename)
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 
@@ -119,8 +117,6 @@ def extract_frames(
     video_duration_ratio=1.0,
     verbose=False,
 ):
-    video_filename = ".".join(os.path.basename(video_file).split(".")[:-1])
-
     command = [
         "ffmpeg",
         "-i",
@@ -134,8 +130,15 @@ def extract_frames(
         "-nostdin",
     ]
 
+    video_filename, ext = os.path.splitext(os.path.basename(video_file))
+
     command.append(f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg")
-    subprocess.call(command)
+    try:
+        subprocess.call(command)
+    except FileNotFoundError:
+        raise RuntimeError(
+            "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+        )
 
     if video_start_time is not None:
         video_start_time_obj = datetime.datetime.utcfromtimestamp(

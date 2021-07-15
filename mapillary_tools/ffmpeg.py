@@ -48,21 +48,26 @@ def extract_stream(source, dest, stream_id):
     if not os.path.isfile(source):
         raise RuntimeError(f"No such file: {source}")
 
-    subprocess.check_output(
-        [
-            "ffmpeg",
-            "-i",
-            source,
-            "-y",  # overwrite - potentially dangerous
-            "-nostats",
-            "-loglevel",
-            "0",
-            "-codec",
-            "copy",
-            "-map",
-            "0:" + str(stream_id),
-            "-f",
-            "rawvideo",
-            dest,
-        ]
-    )
+    try:
+        subprocess.check_output(
+            [
+                "ffmpeg",
+                "-i",
+                source,
+                "-y",  # overwrite - potentially dangerous
+                "-nostats",
+                "-loglevel",
+                "0",
+                "-codec",
+                "copy",
+                "-map",
+                "0:" + str(stream_id),
+                "-f",
+                "rawvideo",
+                dest,
+            ]
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+        )

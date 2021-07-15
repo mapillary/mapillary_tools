@@ -60,35 +60,6 @@ def process_geotag_properties(
             "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
         )
 
-    # sanity checks
-    if geotag_source_path is None and geotag_source != "exif":
-        # if geotagging from external log file, path to the external log file
-        # needs to be provided, if not, exit
-        print_error(
-            "Error, if geotagging from external log, rather than image EXIF, you need to provide full path to the log file."
-        )
-        processing.create_and_log_process_in_list(
-            process_file_list,
-            "geotag_process",
-            "failed",
-            verbose=verbose,
-        )
-        sys.exit(1)
-    elif (
-        geotag_source != "exif"
-        and not os.path.isfile(geotag_source_path)
-        and not os.path.isdir(geotag_source_path)
-    ):
-        print_error(
-            "Error, "
-            + geotag_source_path
-            + " file source of gps/time properties does not exist. If geotagging from external log, rather than image EXIF, you need to provide full path to the log file."
-        )
-        processing.create_and_log_process_in_list(
-            process_file_list, "geotag_process", "failed", verbose=verbose
-        )
-        sys.exit(1)
-
     # function calls
     if geotag_source == "exif":
         processing.geotag_from_exif(

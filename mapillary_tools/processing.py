@@ -167,6 +167,16 @@ def geotag_from_gopro_video(
     use_gps_start_time=False,
     verbose=False,
 ):
+    if geotag_source_path is None:
+        raise RuntimeError(
+            f"A path to your video directory is required to be specified in --geotag_source_path",
+        )
+
+    if not os.path.isdir(geotag_source_path):
+        raise RuntimeError(
+            f"The path specified in geotag_source_path {geotag_source_path} is not a directory"
+        )
+
     # for each video, create gpx trace and geotag the corresponding video
     # frames
     gopro_videos = uploader.get_video_file_list(geotag_source_path)
@@ -213,6 +223,16 @@ def geotag_from_blackvue_video(
     use_gps_start_time=False,
     verbose=False,
 ):
+    if geotag_source_path is None:
+        raise RuntimeError(
+            f"A path to your video directory is required to be specified in --geotag_source_path",
+        )
+
+    if not os.path.isdir(geotag_source_path):
+        raise RuntimeError(
+            f"The path specified in --geotag_source_path {geotag_source_path} is not a directory"
+        )
+
     # for each video, create gpx trace and geotag the corresponding video
     # frames
     blackvue_videos = uploader.get_video_file_list(geotag_source_path)
@@ -270,6 +290,23 @@ def geotag_from_gps_trace(
     use_gps_start_time=False,
     verbose=False,
 ):
+    if geotag_source == "gpx":
+        file_desc = "a GPX file"
+    elif geotag_source == "nmea":
+        file_desc = "an NMEA file"
+    else:
+        raise RuntimeError(f"Invalid geotag source {geotag_source}")
+
+    if geotag_source_path is None:
+        raise RuntimeError(
+            f"{file_desc} is required to be specified in --geotag_source_path",
+        )
+
+    if not os.path.isfile(geotag_source_path):
+        raise RuntimeError(
+            f"The path specified in geotag_source_path {geotag_source_path} is not {file_desc}"
+        )
+
     # print time now to warn in case local_time
     if local_time:
         now = datetime.datetime.now(tzlocal())
@@ -280,11 +317,6 @@ def geotag_from_gps_trace(
         # if not local time to be used, warn UTC will be used
         print(
             "It is assumed that the image timestamps are in UTC. If not, try using the option --local_time."
-        )
-
-    if not os.path.isfile(geotag_source_path):
-        raise RuntimeError(
-            f"The path specified in geotag_source_path {geotag_source_path} is not a file"
         )
 
     # read gps file to get track locations
@@ -611,6 +643,7 @@ def get_geotag_data(log_root: str, image: str, verbose: bool = False) -> Optiona
         if verbose:
             print("Warning, no logs for image " + image)
         return None
+
     # check if geotag process was a success
     log_geotag_process_success = os.path.join(log_root, "geotag_process_success")
     if not os.path.isfile(log_geotag_process_success):
