@@ -371,7 +371,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(sample_video).args
+                    if k in inspect.getfullargspec(sample_video).args
                 }
             )
         )
@@ -381,7 +381,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_user_properties).args
+                    if k in inspect.getfullargspec(process_user_properties).args
                 }
             )
         )
@@ -391,7 +391,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_import_meta_properties).args
+                    if k in inspect.getfullargspec(process_import_meta_properties).args
                 }
             )
         )
@@ -401,7 +401,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_geotag_properties).args
+                    if k in inspect.getfullargspec(process_geotag_properties).args
                 }
             )
         )
@@ -411,7 +411,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_sequence_properties).args
+                    if k in inspect.getfullargspec(process_sequence_properties).args
                 }
             )
         )
@@ -421,19 +421,17 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(insert_MAPJson).args
+                    if k in inspect.getfullargspec(insert_MAPJson).args
                 }
             )
         )
-
-        print("Process done.")
 
         post_process(
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(post_process).args
+                    if k in inspect.getfullargspec(post_process).args
                 }
             )
         )

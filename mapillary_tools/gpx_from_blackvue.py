@@ -1,21 +1,20 @@
-from typing import Tuple
+import typing as T
 import datetime
 import io
-import os
 import re
 
 import pynmea2
 from pymp4.parser import Box
 
 from .geo import get_max_distance_from_start
-from .geo import write_gpx
+from .types import GPXPoint
 
 """
 Pulls geo data out of a BlackVue video files
 """
 
 
-def get_points_from_bv(path, use_nmea_stream_timestamp=False):
+def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint]:
     points = []
     with open(path, "rb") as fd:
         fd.seek(0, io.SEEK_END)
@@ -23,8 +22,8 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
         fd.seek(0)
         date = None
 
-        first_gps_date = None
-        first_gps_time = None
+        first_gps_date: T.Optional[datetime.date] = None
+        first_gps_time: T.Optional[datetime.time] = None
         found_first_gps_date = False
         found_first_gps_time = False
 
@@ -117,7 +116,8 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                         if not use_nmea_stream_timestamp:
                             # If we use the camera timestamp, we need to get the timezone offset, since Mapillary backend expects UTC timestamps
                             first_gps_timestamp = datetime.datetime.combine(
-                                first_gps_date, first_gps_time
+                                T.cast(datetime.date, first_gps_date),
+                                T.cast(datetime.time, first_gps_time),
                             )
                             delta_t = points[0][0] - first_gps_timestamp
                             if delta_t.days > 0:
@@ -150,11 +150,10 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
                             # add date to points that don't have it yet, because GPRMC message came later
                             utc_points = []
                             for idx, point in enumerate(points):
-                                if type(points[idx][0]) != type(
-                                    datetime.datetime.today()
-                                ):
+                                if not isinstance(points[idx][0], datetime.datetime):
                                     timestamp = datetime.datetime.combine(
-                                        first_gps_date, points[idx][0]
+                                        T.cast(datetime.date, first_gps_date),
+                                        T.cast(datetime.time, points[idx][0]),
                                     )
                                 else:
                                     timestamp = points[idx][0]
@@ -170,7 +169,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False):
 
                 break
 
-        return points
+        return [GPXPoint(time=p[0], lat=p[1], lon=p[2], alt=p[3]) for p in points]
 
 
 def is_video_stationary(max_distance_from_start) -> bool:
@@ -182,12 +181,10 @@ def is_video_stationary(max_distance_from_start) -> bool:
     )
 
 
-def gpx_from_blackvue(bv_video, use_nmea_stream_timestamp=False) -> Tuple[str, bool]:
-    bv_data = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
-    if not bv_data:
-        return "", True
-    basename, _ = os.path.splitext(bv_video)
-    gpx_path = basename + ".gpx"
-    bv_data.sort(key=lambda x: x[0])
-    write_gpx(gpx_path, bv_data)
-    return gpx_path, is_video_stationary(get_max_distance_from_start(bv_data))
+def gpx_from_blackvue(
+    bv_video, use_nmea_stream_timestamp=False
+) -> T.Tuple[T.List[GPXPoint], bool]:
+    points = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
+    if not points:
+        return points, True
+    return points, is_video_stationary(get_max_distance_from_start(points))

@@ -1,5 +1,6 @@
 import typing as T
 import sys
+import datetime
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict, Literal, overload  # pylint: disable=no-name-in-module
@@ -23,12 +24,12 @@ class ImageRequired(TypedDict, total=True):
     MAPLatitude: float
     MAPLongitude: float
     MAPCaptureTime: str
-    MAPCompassHeading: CompassHeading
 
 
 class Image(ImageRequired, total=False):
     MAPAltitude: float
     MAPPhotoUUID: str
+    MAPCompassHeading: CompassHeading
 
 
 class SequenceOnly(TypedDict, total=True):
@@ -61,3 +62,46 @@ Process = Literal[
     "sequence_process",
     "mapillary_image_description",
 ]
+
+
+Status = Literal["success", "failed"]
+
+
+def datetime_to_map_capture_time(time: datetime.datetime) -> str:
+    return datetime.datetime.strftime(time, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+
+
+def map_capture_time_to_datetime(time: str) -> datetime.datetime:
+    pass
+
+
+class GPXPoint(T.NamedTuple):
+    # Put it first for sorting
+    time: datetime.datetime
+    lat: float
+    lon: float
+    alt: T.Optional[float]
+
+    def as_desc(self) -> Image:
+        desc: Image = {
+            "MAPLatitude": self.lat,
+            "MAPLongitude": self.lon,
+            "MAPCaptureTime": datetime_to_map_capture_time(self.time),
+        }
+        if self.alt is not None:
+            desc["MAPAltitude"] = self.alt
+        return desc
+
+
+class GPXPointAngle(T.NamedTuple):
+    point: GPXPoint
+    angle: T.Optional[float]
+
+    def as_desc(self) -> Image:
+        desc = self.point.as_desc()
+        if self.angle is not None:
+            desc["MAPCompassHeading"] = {
+                "TrueHeading": self.angle,
+                "MagneticHeading": self.angle,
+            }
+        return desc

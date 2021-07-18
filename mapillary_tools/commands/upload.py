@@ -99,7 +99,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(upload).args
+                    if k in inspect.getfullargspec(upload).args
                 }
             )
         )
@@ -109,7 +109,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(post_process).args
+                    if k in inspect.getfullargspec(post_process).args
                 }
             )
         )

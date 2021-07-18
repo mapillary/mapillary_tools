@@ -3,10 +3,7 @@ import datetime
 import os
 import uuid
 
-from tqdm import tqdm
-
 from . import processing, types
-from . import uploader
 from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
 
 MAX_SEQUENCE_LENGTH = 500
@@ -20,9 +17,8 @@ def finalize_sequence_processing(
     final_capture_times,
     verbose=False,
 ):
-    for image, direction, capture_time in tqdm(
-        zip(final_file_list, final_directions, final_capture_times),
-        desc="Finalizing sequence process",
+    for image, direction, capture_time in zip(
+        final_file_list, final_directions, final_capture_times
     ):
         mapillary_description: types.Sequence = {
             "MAPSequenceUUID": sequence,
@@ -37,12 +33,6 @@ def finalize_sequence_processing(
         processing.create_and_log_process(
             image, "sequence_process", "success", mapillary_description, verbose=verbose
         )
-
-
-def mark_as_duplicated(image: str) -> None:
-    log_root = uploader.log_rootpath(image)
-    duplicate_flag_path = os.path.join(log_root, "duplicate")
-    open(duplicate_flag_path, "w").close()
 
 
 def process_sequence_properties(
@@ -159,7 +149,7 @@ def process_sequence_properties(
                     direction_diff = 360
 
                 if distance < duplicate_distance and direction_diff < duplicate_angle:
-                    mark_as_duplicated(filename)
+                    processing.mark_as_duplicated(filename)
                     # FIXME: understand why
                     # log_root = uploader.log_rootpath(filename)
                     # sequence_process_success_path = os.path.join(
@@ -189,7 +179,6 @@ def process_sequence_properties(
                 final_capture_times[i : i + MAX_SEQUENCE_LENGTH],
                 verbose,
             )
-    print("Sub process ended")
 
 
 def find_sequences(

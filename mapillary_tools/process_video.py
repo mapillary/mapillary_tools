@@ -1,8 +1,7 @@
 import datetime
 import os
 import subprocess
-
-from tqdm import tqdm
+import typing as T
 
 from . import processing
 from . import uploader
@@ -15,8 +14,12 @@ TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 
 
 def timestamp_from_filename(
-    video_filename, filename, start_time, interval=2.0, adjustment=1.0
-):
+    video_filename: str,
+    filename: str,
+    start_time: datetime.datetime,
+    interval=2.0,
+    adjustment=1.0,
+) -> datetime.datetime:
     seconds = (
         (int(filename.rstrip(".jpg").replace(f"{video_filename}_", "").lstrip("0")) - 1)
         * interval
@@ -27,10 +30,14 @@ def timestamp_from_filename(
 
 
 def timestamps_from_filename(
-    video_filename, full_image_list, start_time, interval=2.0, adjustment=1.0
-):
-    capture_times = []
-    for image in tqdm(full_image_list, desc="Deriving frame capture time"):
+    video_filename: str,
+    full_image_list: T.List[str],
+    start_time: datetime.datetime,
+    interval=2.0,
+    adjustment=1.0,
+) -> T.List[datetime.datetime]:
+    capture_times: T.List[datetime.datetime] = []
+    for image in full_image_list:
         capture_times.append(
             timestamp_from_filename(
                 video_filename,
@@ -44,8 +51,8 @@ def timestamps_from_filename(
 
 
 def sample_video(
-    video_import_path,
-    import_path,
+    video_import_path: str,
+    import_path: T.Optional[str] = None,
     video_sample_interval=2.0,
     video_start_time=None,
     video_duration_ratio=1.0,
@@ -55,21 +62,20 @@ def sample_video(
     if import_path is not None and not os.path.isdir(import_path):
         raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
-    # sanity check
     if not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
         raise RuntimeError(f"Error, video path {video_import_path} does not exist")
 
-    # Adjust the import path
-    video_sampling_path = "mapillary_sampled_video_frames"
     video_dirname = (
         video_import_path
         if os.path.isdir(video_import_path)
         else os.path.dirname(video_import_path)
     )
+    # FIXME: set skip_folders to False for scanning the sample path
+    video_sampling_path = "mapillary_sampled_video_frames"
     import_path = (
-        os.path.join(os.path.abspath(import_path), video_sampling_path)
+        os.path.join(import_path, video_sampling_path)
         if import_path is not None
-        else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
+        else os.path.join(video_dirname, video_sampling_path)
     )
 
     video_list = (
@@ -78,21 +84,11 @@ def sample_video(
         else [video_import_path]
     )
 
-    for video in tqdm(video_list, desc="Extracting video frames"):
-        basename, _ = os.path.splitext(os.path.basename(video))
-        per_video_import_path = os.path.join(import_path, basename)
+    for video in video_list:
+        per_video_import_path = processing.video_sample_path(import_path, video)
+        # FIXME: ask the user if we should delete the import_path before extrating
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
-
-        print(f"Video sampling path set to {per_video_import_path}")
-        # check video logs
-        video_upload = processing.video_upload(
-            video_import_path, per_video_import_path, verbose
-        )
-        if video_upload:
-            print(
-                f"Video {video} has already been uploaded, contact support@mapillary for help with reuploading it if neccessary."
-            )
 
         extract_frames(
             video,
@@ -100,20 +96,16 @@ def sample_video(
             video_sample_interval,
             video_start_time,
             video_duration_ratio,
-            verbose,
         )
-
-    processing.create_and_log_video_process(video_import_path, import_path)
 
 
 def extract_frames(
-    video_file,
-    import_path,
-    video_sample_interval=2.0,
-    video_start_time=None,
-    video_duration_ratio=1.0,
-    verbose=False,
-):
+    video_file: str,
+    import_path: str,
+    video_sample_interval: float = 2.0,
+    video_start_time: float = None,
+    video_duration_ratio: float = 1.0,
+) -> None:
     video_filename, ext = os.path.splitext(os.path.basename(video_file))
     command = [
         "ffmpeg",
@@ -129,6 +121,7 @@ def extract_frames(
         f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg",
     ]
 
+    print(f"Extracting frames: {' '.join(command)}")
     try:
         subprocess.call(command)
     except FileNotFoundError:
@@ -149,34 +142,20 @@ def extract_frames(
         video_start_time_obj,
         video_sample_interval,
         video_duration_ratio,
-        verbose,
     )
 
 
-def get_video_duration(video_file) -> float:
-    """Get video duration in seconds"""
-    probe = FFProbe(video_file)
-    duration = probe.video[0]["duration"]
-    try:
-        return float(duration)
-    except (TypeError, ValueError) as e:
-        raise RuntimeError(
-            f"could not parse duration {duration} from video {video_file} due to {e}"
-        )
-
-
 def insert_video_frame_timestamp(
-    video_filename,
-    video_sampling_path,
+    video_filename: str,
+    video_sampling_path: str,
     start_time: datetime.datetime,
-    sample_interval=2.0,
-    duration_ratio=1.0,
-    verbose=False,
-):
+    sample_interval: float = 2.0,
+    duration_ratio: float = 1.0,
+) -> None:
     # get list of file to process
     frame_list = uploader.get_total_file_list(video_sampling_path)
 
-    if not len(frame_list):
+    if not frame_list:
         # WARNING LOG
         print("No video frames were sampled.")
         return
@@ -185,18 +164,26 @@ def insert_video_frame_timestamp(
         video_filename, frame_list, start_time, sample_interval, duration_ratio
     )
 
-    for image, timestamp in tqdm(
-        zip(frame_list, video_frame_timestamps), desc="Inserting frame capture time"
-    ):
+    for image, timestamp in zip(frame_list, video_frame_timestamps):
         exif_edit = ExifEdit(image)
         exif_edit.add_date_time_original(timestamp)
         exif_edit.write()
 
 
-def get_video_end_time(video_file) -> datetime.datetime:
-    """Get video end time in seconds"""
-    time_string = FFProbe(video_file).video[0]["tags"]["creation_time"]
+def get_video_duration_and_end_time(
+    video_file: str,
+) -> T.Tuple[float, datetime.datetime]:
+    probe = FFProbe(video_file)
 
+    duration_str = probe.video[0]["duration"]
+    try:
+        duration = float(duration_str)
+    except (TypeError, ValueError) as e:
+        raise RuntimeError(
+            f"could not parse duration {duration_str} from video {video_file} due to {e}"
+        )
+
+    time_string = probe.video[0]["tags"]["creation_time"]
     try:
         creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
     except ValueError:
@@ -207,11 +194,9 @@ def get_video_end_time(video_file) -> datetime.datetime:
                 f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
             )
 
-    return creation_time
+    return duration, creation_time
 
 
-def get_video_start_time(video_file) -> datetime.datetime:
-    """Get start time in seconds"""
-    video_end_time = get_video_end_time(video_file)
-    duration = get_video_duration(video_file)
+def get_video_start_time(video_file: str) -> datetime.datetime:
+    duration, video_end_time = get_video_duration_and_end_time(video_file)
     return video_end_time - datetime.timedelta(seconds=duration)

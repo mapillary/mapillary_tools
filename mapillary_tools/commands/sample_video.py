@@ -46,5 +46,4 @@ class Command:
         pass
 
     def run(self, args):
-        # sample video
         sample_video(**vars(args))

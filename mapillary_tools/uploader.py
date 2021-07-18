@@ -48,7 +48,6 @@ def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> Lis
     )
 
 
-# get a list of video files in a video_file
 def get_video_file_list(video_file, skip_subfolders=False) -> T.List[str]:
     files = iterate_files(video_file, not skip_subfolders)
     return sorted(file for file in files if is_video_file(file))
@@ -313,23 +312,18 @@ def log_rootpath(filepath: str) -> str:
 
 def create_upload_log(filepath: str, status: str) -> None:
     assert status in ["upload_success", "upload_failed"], f"invalid status {status}"
-    upload_log_root = log_rootpath(filepath)
-    upload_log_filepath = os.path.join(upload_log_root, status)
+    log_root = log_rootpath(filepath)
+    upload_log_filepath = os.path.join(log_root, status)
     opposite_status = {
         "upload_success": "upload_failed",
         "upload_failed": "upload_success",
     }
-    upload_opposite_log_filepath = os.path.join(
-        upload_log_root, opposite_status[status]
-    )
-    suffix = str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime()))
-    if not os.path.isdir(upload_log_root):
-        os.makedirs(upload_log_root)
+    upload_opposite_log_filepath = os.path.join(log_root, opposite_status[status])
+    if not os.path.isdir(log_root):
+        os.makedirs(log_root)
         open(upload_log_filepath, "w").close()
-        open(f"{upload_log_filepath}_{suffix}", "w").close()
     else:
         if not os.path.isfile(upload_log_filepath):
             open(upload_log_filepath, "w").close()
-            open(f"{upload_log_filepath}_{suffix}", "w").close()
         if os.path.isfile(upload_opposite_log_filepath):
             os.remove(upload_opposite_log_filepath)

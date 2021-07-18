@@ -5,7 +5,6 @@ import sys
 from tqdm import tqdm
 
 from . import processing
-from . import uploader
 from .error import print_error
 
 
@@ -60,18 +59,17 @@ def insert_MAPJson(
         rerun=rerun,
         skip_subfolders=skip_subfolders,
     )
+    process_file_list = [
+        file for file in process_file_list if not processing.is_duplicate(file)
+    ]
+
     if not len(process_file_list):
         print("No images to run process finalization")
-        print(
-            "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
-        )
+        return
 
     for image in tqdm(
-        process_file_list, desc="Inserting mapillary image description in image EXIF"
+        process_file_list, unit="files", desc="Processing image description"
     ):
-        if processing.is_duplicate(image):
-            continue
-
         final_mapillary_image_description = (
             processing.get_final_mapillary_image_description(
                 image,
@@ -79,25 +77,31 @@ def insert_MAPJson(
         )
 
         if final_mapillary_image_description is None:
-            continue
-
-        try:
-            _overwritten = processing.overwrite_exif_tags(
+            processing.create_and_log_process(
                 image,
-                final_mapillary_image_description,
-                overwrite_all_EXIF_tags,
-                overwrite_EXIF_time_tag,
-                overwrite_EXIF_gps_tag,
-                overwrite_EXIF_direction_tag,
-                overwrite_EXIF_orientation_tag,
+                "mapillary_image_description",
+                "failed",
+                {},
+                verbose=verbose,
             )
-        except Exception:
-            LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
+        else:
+            try:
+                _overwritten = processing.overwrite_exif_tags(
+                    image,
+                    final_mapillary_image_description,
+                    overwrite_all_EXIF_tags,
+                    overwrite_EXIF_time_tag,
+                    overwrite_EXIF_gps_tag,
+                    overwrite_EXIF_direction_tag,
+                    overwrite_EXIF_orientation_tag,
+                )
+            except Exception:
+                LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
 
-        processing.create_and_log_process(
-            image,
-            "mapillary_image_description",
-            "success",
-            final_mapillary_image_description,
-            verbose=verbose,
-        )
+            processing.create_and_log_process(
+                image,
+                "mapillary_image_description",
+                "success",
+                final_mapillary_image_description,
+                verbose=verbose,
+            )

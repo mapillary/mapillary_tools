@@ -35,7 +35,7 @@ def get_local_mapping(import_path):
     total_files = uploader.get_total_file_list(import_path)
 
     local_mapping = []
-    for file in tqdm(total_files, desc="Reading image uuids"):
+    for file in tqdm(total_files, unit="files", desc="Reading image uuids"):
         image_file_uuid = None
         relative_path = file.lstrip(os.path.abspath(import_path))
         log_rootpath = uploader.log_rootpath(file)

@@ -9,9 +9,7 @@ from . import processing, api_v4, types, login
 def get_user_properties(
     user_name: str,
     organization_key: T.Optional[str] = None,
-    private: bool = False,
 ) -> T.Optional[types.User]:
-    # basic
     user_items = login.authenticate_user(user_name)
 
     if organization_key:
@@ -58,9 +56,7 @@ def process_user_properties(
             f"Error, video path {video_import_path} does not exist, exiting..."
         )
 
-    # in case of video processing, adjust the import path
     if video_import_path:
-        # set sampling path
         video_sampling_path = "mapillary_sampled_video_frames"
         video_dirname = (
             video_import_path
@@ -73,23 +69,17 @@ def process_user_properties(
             else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
         )
 
-    # basic check for all
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    # get list of file to process
     process_file_list = processing.get_process_file_list(
         import_path, "user_process", rerun=rerun, skip_subfolders=skip_subfolders
     )
     if not process_file_list:
-        print("No images to run user process")
-        print(
-            "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
-        )
+        return
 
-    # sanity checks
     if not user_name:
         raise RuntimeError("Error, must provide a valid user name, exiting...")
 
@@ -101,13 +91,9 @@ def process_user_properties(
     user_properties = get_user_properties(
         user_name,
         organization_key,
-        private,
     )
 
-    # write data and logs
     for image in process_file_list:
         processing.create_and_log_process(
             image, "user_process", "success", user_properties, verbose=verbose
         )
-
-    print("Sub process ended")

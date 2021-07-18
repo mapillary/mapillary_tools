@@ -1,5 +1,4 @@
 from . import authenticate
-from . import exif_insert
 from . import extract_geotag_data
 from . import extract_import_meta_data
 from . import extract_sequence_data
@@ -22,7 +21,6 @@ mapillary_tools_advanced_commands = [
     extract_geotag_data,
     extract_import_meta_data,
     extract_sequence_data,
-    exif_insert,
     process_csv,
     authenticate,
     interpolate,

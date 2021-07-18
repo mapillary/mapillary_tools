@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
-
 import datetime
 import math
 import logging
 
 from typing import Any, List, Tuple
+
+from .error import MapillaryInterpolationError
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
@@ -92,7 +92,7 @@ def decimal_to_dms(value, precision):
     return (deg, 1), (min, 1), (sec, precision)
 
 
-def utc_to_localtime(utc_time):
+def utc_to_localtime(utc_time: datetime.datetime) -> datetime.datetime:
     utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
     return utc_time - utc_offset_timedelta
 
@@ -148,10 +148,6 @@ def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
         bearing = -float(int(bearing2, 2))
     bearing %= 360
     return bearing
-
-
-class MapillaryInterpolationError(RuntimeError):
-    pass
 
 
 def interpolate_lat_lon(points: list, t: datetime.datetime, tolerant=10):

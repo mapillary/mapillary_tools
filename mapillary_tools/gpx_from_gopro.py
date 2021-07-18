@@ -1,15 +1,10 @@
 import datetime
 import os
+import typing as T
 
 from .ffmpeg import extract_stream, get_ffprobe
-from .geo import write_gpx
 from .gpmf import parse_bin, interpolate_times
-
-# author https://github.com/stilldavid
-
-"""
-Pulls data out of a GoPro 5+ recording while GPS was enabled.
-"""
+from .types import GPXPoint
 
 
 def extract_bin(path: str) -> str:
@@ -38,13 +33,13 @@ def extract_bin(path: str) -> str:
     return bin_path
 
 
-def get_points_from_gpmf(path: str) -> list:
+def get_points_from_gpmf(path: str) -> T.List[GPXPoint]:
     bin_path = extract_bin(path)
 
     gpmf_data = parse_bin(bin_path)
     rows = len(gpmf_data)
 
-    points = []
+    points: T.List[GPXPoint] = []
     for i, frame in enumerate(gpmf_data):
         t = frame["time"]
 
@@ -57,24 +52,17 @@ def get_points_from_gpmf(path: str) -> list:
 
         for point in frame["gps"]:
             points.append(
-                (
-                    point["time"],
-                    point["lat"],
-                    point["lon"],
-                    point["alt"],
-                    frame["gps_fix"],
+                GPXPoint(
+                    time=point["time"],
+                    lat=point["lat"],
+                    lon=point["lon"],
+                    alt=point["alt"],
+                    # frame["gps_fix"],
                 )
             )
 
     return points
 
 
-def gpx_from_gopro(gopro_video):
-    gopro_data = get_points_from_gpmf(gopro_video)
-
-    basename, _ = os.path.splitext(gopro_video)
-    gpx_path = basename + ".gpx"
-
-    write_gpx(gpx_path, sorted(gopro_data))
-
-    return gpx_path
+def gpx_from_gopro(gopro_video: str) -> T.List[GPXPoint]:
+    return get_points_from_gpmf(gopro_video)

@@ -19,10 +19,7 @@ class Command:
         parser.add_argument(
             "--rerun", help="rerun the processing", action="store_true", required=False
         )
-        # user properties
-        # user name for the import
         parser.add_argument("--user_name", help="user name", required=True)
-        # organization level parameters
         parser.add_argument(
             "--organization_username",
             help="Specify organization user name",
@@ -51,7 +48,6 @@ class Command:
         )
 
     def add_advanced_arguments(self, parser):
-        # import meta
         parser.add_argument(
             "--device_make",
             help="Specify device manufacturer. Note this input has precedence over the input read from the import source file.",
@@ -329,8 +325,6 @@ class Command:
             default=False,
             required=False,
         )
-        # add custom meta data in a form of a string consisting of a triplet
-        # "name,type,value"
         parser.add_argument(
             "--custom_meta_data",
             help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
@@ -362,7 +356,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_user_properties).args
+                    if k in inspect.getfullargspec(process_user_properties).args
                 }
             )
         )
@@ -372,7 +366,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_import_meta_properties).args
+                    if k in inspect.getfullargspec(process_import_meta_properties).args
                 }
             )
         )
@@ -382,7 +376,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_geotag_properties).args
+                    if k in inspect.getfullargspec(process_geotag_properties).args
                 }
             )
         )
@@ -392,7 +386,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_sequence_properties).args
+                    if k in inspect.getfullargspec(process_sequence_properties).args
                 }
             )
         )
@@ -402,18 +396,17 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(insert_MAPJson).args
+                    if k in inspect.getfullargspec(insert_MAPJson).args
                 }
             )
         )
-        print("Process done.")
 
         upload(
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(upload).args
+                    if k in inspect.getfullargspec(upload).args
                 }
             )
         )
@@ -423,7 +416,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(post_process).args
+                    if k in inspect.getfullargspec(post_process).args
                 }
             )
         )

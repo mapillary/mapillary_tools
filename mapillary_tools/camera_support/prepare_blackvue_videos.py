@@ -3,7 +3,7 @@ import io
 
 
 def find_camera_model(videos_folder) -> bytes:
-    from mapillary_tools.uploader import get_video_file_list
+    from ..uploader import get_video_file_list
 
     file_list = get_video_file_list(videos_folder)
     if not file_list:

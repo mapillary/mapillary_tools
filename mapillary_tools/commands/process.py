@@ -347,12 +347,13 @@ class Command:
             and vars_args["device_make"].lower() == "blackvue"
         ):
             vars_args["duplicate_angle"] = 360
+
         process_user_properties(
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_user_properties).args
+                    if k in inspect.getfullargspec(process_user_properties).args
                 }
             )
         )
@@ -362,7 +363,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_import_meta_properties).args
+                    if k in inspect.getfullargspec(process_import_meta_properties).args
                 }
             )
         )
@@ -372,7 +373,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_geotag_properties).args
+                    if k in inspect.getfullargspec(process_geotag_properties).args
                 }
             )
         )
@@ -382,7 +383,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(process_sequence_properties).args
+                    if k in inspect.getfullargspec(process_sequence_properties).args
                 }
             )
         )
@@ -392,19 +393,17 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(insert_MAPJson).args
+                    if k in inspect.getfullargspec(insert_MAPJson).args
                 }
             )
         )
-
-        print("Process done.")
 
         post_process(
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getargspec(post_process).args
+                    if k in inspect.getfullargspec(post_process).args
                 }
             )
         )

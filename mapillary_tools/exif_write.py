@@ -1,3 +1,4 @@
+import datetime
 import json
 
 import piexif
@@ -29,7 +30,7 @@ class ExifEdit:
             self._ef["0th"][piexif.ImageIFD.Orientation] = orientation
 
     def add_date_time_original(
-        self, date_time, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
+        self, date_time: datetime.datetime, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
     ):
         """Add date time original."""
         try:
