@@ -17,6 +17,21 @@ class Command:
             default=False,
             required=False,
         )
+        parser.add_argument(
+            "--user_name", help="Upload to which Mapillary user account", required=False
+        )
+        parser.add_argument(
+            "--organization_username",
+            help="Specify organization user name",
+            default=None,
+            required=False,
+        )
+        parser.add_argument(
+            "--organization_key",
+            help="Specify organization key",
+            default=None,
+            required=False,
+        )
 
     def add_advanced_arguments(self, parser):
         parser.add_argument(

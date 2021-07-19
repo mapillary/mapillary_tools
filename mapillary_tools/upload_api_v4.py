@@ -42,7 +42,7 @@ class UploadService:
         data: T.IO[bytes],
         offset: T.Optional[int] = None,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
-    ) -> requests.Response:
+    ) -> str:
         if chunk_size <= 0:
             raise ValueError("Expect positive chunk size")
 
@@ -81,11 +81,17 @@ class UploadService:
             offset == self.entity_size
         ), f"offset ends at {offset} but the entity size is {self.entity_size}"
 
-        return resp
+        payload = resp.json()
+        try:
+            return payload["h"]
+        except KeyError:
+            raise RuntimeError(
+                f"Upload server error: File handle not found in the upload response {resp.text}"
+            )
 
     def finish(
         self, file_handle: str, organization_id: T.Optional[T.Union[str, int]] = None
-    ) -> requests.Response:
+    ) -> int:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
@@ -95,9 +101,56 @@ class UploadService:
         if organization_id is not None:
             data["organization_id"] = organization_id
 
-        return requests.post(
+        resp = requests.post(
             f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload", headers=headers, json=data
         )
+
+        resp.raise_for_status()
+
+        data = resp.json()
+
+        cluster_id = data.get("cluster_id")
+        if cluster_id is None:
+            raise RuntimeError(
+                f"Upload server error: failed to create the cluster {resp.text}"
+            )
+
+        return T.cast(int, cluster_id)
+
+
+# A mock class for testing only
+class FakeUploadService(UploadService):
+    def upload(
+        self,
+        data: T.IO[bytes],
+        offset: T.Optional[int] = None,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
+    ) -> str:
+        if offset is None:
+            offset = self.fetch_offset()
+        with open(self.session_key, "ab") as fp:
+            data.seek(offset, io.SEEK_CUR)
+            while True:
+                chunk = data.read(chunk_size)
+                if not chunk:
+                    break
+                fp.write(chunk)
+                for callback in self.callbacks:
+                    callback(chunk, None)
+        return self.session_key
+
+    def finish(
+        self, file_handle: str, organization_id: T.Optional[T.Union[str, int]] = None
+    ) -> int:
+        return 1
+
+    def fetch_offset(self) -> int:
+        try:
+            with open(self.session_key, "rb") as fp:
+                fp.seek(0, io.SEEK_END)
+                return fp.tell()
+        except FileNotFoundError:
+            return 0
 
 
 def _file_stats(fp: T.IO[bytes]):
@@ -140,7 +193,7 @@ if __name__ == "__main__":
         ) as pbar:
             service.callbacks.append(lambda chunk, _: pbar.update(len(chunk)))
             try:
-                resp = service.upload(fp)
+                file_handle = service.upload(fp)
             except requests.HTTPError as ex:
                 raise wrap_http_exception(ex)
-    print(resp.json())
+    print(file_handle)

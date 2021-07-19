@@ -55,8 +55,58 @@ class FinalImageDescription(SequenceOnly, User, Image, MetaProperties):
     pass
 
 
+UserItemSchema = {
+    "type": "object",
+    "properties": {
+        "MAPOrganizationKey": {"type": "string"},
+        "MAPSettingsUsername": {"type": "string"},
+        "MAPSettingsUserKey": {"type": "string"},
+        "user_upload_token": {"type": "string"},
+    },
+    "required": ["MAPSettingsUserKey", "user_upload_token"],
+    "additionalProperties": False,
+}
+
+
+FinalImageDescriptionSchema = {
+    "type": "object",
+    "properties": {
+        "MAPOrganizationKey": {"type": "string"},
+        "MAPSettingsUsername": {"type": "string"},
+        "MAPSettingsUserKey": {"type": "string"},
+        "MAPLatitude": {"type": "number"},
+        "MAPLongitude": {"type": "number"},
+        "MAPAltitude": {"type": "number"},
+        "MAPCaptureTime": {"type": "string"},
+        "MAPCompassHeading": {
+            "type": "object",
+            "properties": {
+                "TrueHeading": {"type": "number"},
+                "MagneticHeading": {"type": "number"},
+            },
+            "required": ["TrueHeading", "MagneticHeading"],
+            "additionalProperties": False,
+        },
+        "MAPSequenceUUID": {"type": "string"},
+        "MAPMetaTags": {"type": "object"},
+        "MAPDeviceMake": {"type": "string"},
+        "MAPDeviceModel": {"type": "string"},
+        "MAPGPSAccuracyMeters": {"type": "number"},
+        "MAPCameraUUID": {"type": "string"},
+        "MAPFilename": {"type": "string"},
+        "MAPOrientation": {"type": "integer"},
+    },
+    "required": [
+        "MAPLatitude",
+        "MAPLongitude",
+        "MAPCaptureTime",
+        "MAPSettingsUserKey",
+    ],
+    "additionalProperties": False,
+}
+
+
 Process = Literal[
-    "user_process",
     "import_meta_data_process",
     "geotag_process",
     "sequence_process",

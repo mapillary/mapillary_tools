@@ -11,9 +11,10 @@ import zipfile
 
 import requests
 from tqdm import tqdm
+import jsonschema
 
-from . import upload_api_v4, types, ipc
-from .login import authenticate_user, wrap_http_exception
+from . import upload_api_v4, types, ipc, exif_write
+from .login import wrap_http_exception
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
@@ -83,7 +84,7 @@ def success_upload(file_path: str) -> bool:
 
 def preform_upload(file_path: str) -> bool:
     log_root = log_rootpath(file_path)
-    process_success = os.path.join(log_root, "mapillary_image_description_success")
+    process_success = os.path.join(log_root, "mapillary_image_description.json")
     duplicate = os.path.join(log_root, "duplicate")
     upload_succes = os.path.join(log_root, "upload_success")
     upload = (
@@ -96,7 +97,7 @@ def preform_upload(file_path: str) -> bool:
 
 def failed_upload(file_path: str) -> bool:
     log_root = log_rootpath(file_path)
-    process_failed = os.path.join(log_root, "mapillary_image_description_failed")
+    process_failed = os.path.join(log_root, "mapillary_image_description.error.json")
     duplicate = os.path.join(log_root, "duplicate")
     upload_failed = os.path.join(log_root, "upload_failed")
     failed = (
@@ -124,16 +125,23 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
 
 def upload_images(
     image_descriptions: T.Dict[str, types.FinalImageDescription],
+    user_items: types.User,
     dry_run=False,
 ):
+    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
     sequences: T.Dict[str, T.Dict[str, types.FinalImageDescription]] = {}
     for path, desc in image_descriptions.items():
+        merged: types.FinalImageDescription = T.cast(
+            types.FinalImageDescription, {**desc, **user_items}
+        )
+        del merged["user_upload_token"]
+        jsonschema.validate(instance=merged, schema=types.FinalImageDescriptionSchema)
         sequence = sequences.setdefault(desc["MAPSequenceUUID"], {})
-        sequence[path] = desc
+        sequence[path] = merged
 
-    for sequence_idx, (seq_uuid, images) in enumerate(sequences.items()):
-        upload_single_sequence(
-            images, seq_uuid, sequence_idx, len(sequences), dry_run=dry_run
+    for sequence_idx, images in enumerate(sequences.values()):
+        cluster_id = upload_single_sequence(
+            images, user_items, sequence_idx, len(sequences), dry_run=dry_run
         )
         if not dry_run:
             for path in images:
@@ -142,32 +150,32 @@ def upload_images(
 
 def upload_single_sequence(
     sequences: T.Dict[str, types.FinalImageDescription],
-    sequence_uuid: str,
+    user_items: types.User,
     sequence_idx: int,
     total_sequences: int,
     dry_run=False,
-) -> None:
+) -> int:
     first_image = list(sequences.values())[0]
 
-    user_name = first_image["MAPSettingsUsername"]
+    sequence_uuid = first_image["MAPSequenceUUID"]
 
     file_list = list(sequences.keys())
-
-    # Sorting images by captured_at
-    file_list.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
 
     root_dir = find_root_dir(file_list)
     if root_dir is None:
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
-    credentials = authenticate_user(user_name)
-    user_access_token = credentials["user_upload_token"]
+    file_list.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
+
+    user_access_token = user_items["user_upload_token"]
 
     def _gen_notify_progress(uploaded_bytes: int):
         def _notify_progress(chunk: bytes, _):
             nonlocal uploaded_bytes
             uploaded_bytes += len(chunk)
-            assert uploaded_bytes <= entity_size
+            assert (
+                uploaded_bytes <= entity_size
+            ), f"expect {uploaded_bytes} <= {entity_size}"
             payload = {
                 "chunk_size": len(chunk),
                 "sequence_path": root_dir,
@@ -184,16 +192,25 @@ def upload_single_sequence(
     def _build_desc(desc: str) -> str:
         return f"{desc} {sequence_idx + 1}/{total_sequences}"
 
+    retryable_errors = (
+        requests.HTTPError,
+        requests.ConnectionError,
+        requests.Timeout,
+    )
+
+    md5 = hashlib.md5()
+
     with tempfile.NamedTemporaryFile() as fp:
         # compressing
         with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-            with tqdm(
-                total=len(file_list), desc=_build_desc("Compressing"), unit="files"
-            ) as pbar:
-                for fullpath in file_list:
-                    relpath = os.path.relpath(fullpath, root_dir)
-                    ziph.write(fullpath, relpath)
-                    pbar.update(1)
+            for file in tqdm(file_list, unit="files", desc=_build_desc("Compressing")):
+                relpath = os.path.relpath(file, root_dir)
+                edit = exif_write.ExifEdit(file)
+                edit.add_image_description(sequences[file])
+                image_bytes = edit.dump_image_bytes()
+                md5.update(image_bytes)
+                ziph.writestr(relpath, image_bytes)
+
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
@@ -202,27 +219,21 @@ def upload_single_sequence(
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
         # md5sum
-        fp.seek(0, io.SEEK_SET)
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(MAX_CHUNK_SIZE)
-            if not buf:
-                break
-            md5.update(buf)
         md5sum = md5.hexdigest()
 
         # uploading
-        service = upload_api_v4.UploadService(
-            user_access_token,
-            session_key=f"mly_tools_{md5sum}",
-            entity_size=entity_size,
-        )
-
-        retryable_errors = (
-            requests.HTTPError,
-            requests.ConnectionError,
-            requests.Timeout,
-        )
+        if dry_run:
+            service: upload_api_v4.UploadService = upload_api_v4.FakeUploadService(
+                user_access_token,
+                session_key=f"mly_tools_{md5sum}.zip",
+                entity_size=entity_size,
+            )
+        else:
+            service = upload_api_v4.UploadService(
+                user_access_token,
+                session_key=f"mly_tools_{md5sum}.zip",
+                entity_size=entity_size,
+            )
 
         retries = 0
 
@@ -232,8 +243,6 @@ def upload_single_sequence(
             retries = 0
 
         while True:
-            update_pbar = lambda chunk, _: pbar.update(len(chunk))
-            service.callbacks = [update_pbar, _reset_retries]
             with tqdm(
                 total=entity_size,
                 desc=_build_desc("Uploading"),
@@ -241,12 +250,17 @@ def upload_single_sequence(
                 unit_scale=True,
                 unit_divisor=1024,
             ) as pbar:
+                update_pbar = lambda chunk, _: pbar.update(len(chunk))
                 fp.seek(0, io.SEEK_SET)
                 try:
                     offset = service.fetch_offset()
                     pbar.update(offset)
-                    service.callbacks.append(_gen_notify_progress(offset))
-                    upload_resp = service.upload(
+                    service.callbacks = [
+                        update_pbar,
+                        _reset_retries,
+                        _gen_notify_progress(offset),
+                    ]
+                    file_handle = service.upload(
                         fp, chunk_size=chunk_size, offset=offset
                     )
                 except Exception as ex:
@@ -259,46 +273,20 @@ def upload_single_sequence(
                         )
                         time.sleep(sleep_for)
                     else:
-                        raise wrap_http_exception(ex) if isinstance(
-                            ex, requests.HTTPError
-                        ) else ex
+                        if isinstance(ex, requests.HTTPError):
+                            raise wrap_http_exception(ex) from ex
+                        else:
+                            raise ex
                 else:
                     break
 
-    upload_resp_json = upload_resp.json()
-    try:
-        file_handle = upload_resp_json["h"]
-    except KeyError:
-        raise RuntimeError(
-            f"File handle not found in the upload response {upload_resp.text}"
-        )
-
-    if dry_run:
-        return
-
     organization_id = first_image.get("MAPOrganizationKey")
 
-    if organization_id is None:
-        print(f"Finishing upload {sequence_uuid}")
-    else:
-        print(f"Finishing upload {sequence_uuid} for organization {organization_id}")
-
     # TODO: retry here
-    finish_resp = service.finish(file_handle, organization_id=organization_id)
     try:
-        finish_resp.raise_for_status()
+        return service.finish(file_handle, organization_id=organization_id)
     except requests.HTTPError as ex:
-        raise wrap_http_exception(ex)
-
-    # check cluster id
-    finish_data = finish_resp.json()
-    cluster_id = finish_data.get("cluster_id")
-    if cluster_id is None:
-        raise RuntimeError(
-            f"Upload server error: failed to create the cluster {finish_resp.text}"
-        )
-    else:
-        print(f"Cluster {cluster_id} created")
+        raise wrap_http_exception(ex) from ex
 
 
 def log_rootpath(filepath: str) -> str:

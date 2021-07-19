@@ -1,10 +1,12 @@
 import datetime
 import json
+import io
 
 import piexif
 
 from .error import print_error
 from .geo import decimal_to_dms
+from .types import FinalImageDescription
 
 
 class ExifEdit:
@@ -15,7 +17,7 @@ class ExifEdit:
         self._filename = filename
         self._ef = piexif.load(filename)
 
-    def add_image_description(self, data: dict) -> None:
+    def add_image_description(self, data: FinalImageDescription) -> None:
         """Add a dict to image description."""
         self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 
@@ -72,6 +74,22 @@ class ExifEdit:
             precision,
         )
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
+
+    def dump_image_bytes(self) -> bytes:
+        try:
+            exif_bytes = piexif.dump(self._ef)
+        except piexif.InvalidImageDataError:
+            if self._ef.get("thumbnail") == b"":
+                # workaround https://github.com/hMatoba/Piexif/issues/30
+                del self._ef["thumbnail"]
+                if "1st" in self._ef:
+                    del self._ef["1st"]
+                exif_bytes = piexif.dump(self._ef)
+            else:
+                raise
+        output = io.BytesIO()
+        piexif.insert(exif_bytes, self._filename, output)
+        return output.read()
 
     def write(self, filename=None):
         """Save exif data to file."""

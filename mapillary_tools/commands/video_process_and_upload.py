@@ -7,7 +7,6 @@ from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
 from ..process_sequence_properties import process_sequence_properties
-from ..process_user_properties import process_user_properties
 from ..process_video import sample_video
 from ..upload import upload
 
@@ -22,7 +21,9 @@ class Command:
         parser.add_argument(
             "--rerun", help="rerun the processing", action="store_true", required=False
         )
-        parser.add_argument("--user_name", help="user name", required=True)
+        parser.add_argument(
+            "--user_name", help="Upload to which Mapillary user account", required=False
+        )
         parser.add_argument(
             "--organization_username",
             help="Specify organization user name",
@@ -33,13 +34,6 @@ class Command:
             "--organization_key",
             help="Specify organization key",
             default=None,
-            required=False,
-        )
-        parser.add_argument(
-            "--private",
-            help="Specify whether the import is private",
-            action="store_true",
-            default=False,
             required=False,
         )
         # video specific args
@@ -391,16 +385,6 @@ class Command:
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(sample_video).args
-                }
-            )
-        )
-
-        process_user_properties(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(process_user_properties).args
                 }
             )
         )

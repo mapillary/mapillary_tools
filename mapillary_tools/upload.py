@@ -2,8 +2,9 @@ import os
 import sys
 import typing as T
 
+import requests
 
-from . import uploader, processing, types
+from . import uploader, processing, types, login, api_v4
 
 
 def list_image_descriptions_for_upload(
@@ -23,7 +24,9 @@ def list_image_descriptions_for_upload(
 
 
 def upload(
-    import_path,
+    import_path: str,
+    user_name: T.Optional[str] = None,
+    organization_key: T.Optional[str] = None,
     skip_subfolders=False,
     video_import_path=None,
     dry_run=False,
@@ -59,4 +62,41 @@ def upload(
         import_path, skip_subfolders
     )
 
-    uploader.upload_images(image_descriptions, dry_run=dry_run)
+    if not image_descriptions:
+        print("No images for upload")
+        return
+
+    if user_name is None:
+        all_user_items = login.list_all_users()
+        if not all_user_items:
+            raise RuntimeError(
+                "Not Mapillary account found in the system. Add one with --user_name"
+            )
+        if len(all_user_items) == 1:
+            user_items = all_user_items[0]
+        else:
+            raise RuntimeError(
+                f"There are multiple accounts in your config. Specify one with --user_name"
+            )
+    else:
+        user_items = login.authenticate_user(user_name)
+
+    if organization_key:
+        resp = api_v4.fetch_organization(
+            user_items["user_upload_token"], organization_key
+        )
+
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError as ex:
+            raise login.wrap_http_exception(ex) from ex
+
+        org = resp.json()
+
+        print(f"Organization ID: {org['id']}")
+        print(f"Organization name: {org['name']}")
+        print(f"Organization description: {org['description']}")
+
+        user_items.update({"MAPOrganizationKey": organization_key})
+
+    uploader.upload_images(image_descriptions, user_items, dry_run=dry_run)

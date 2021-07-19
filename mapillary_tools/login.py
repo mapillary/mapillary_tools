@@ -61,6 +61,17 @@ def prompt_user_for_user_items(user_name: str) -> types.User:
     }
 
 
+def list_all_users() -> T.List[types.User]:
+    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
+        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+        return [
+            config.load_user(global_config_object, user_name)
+            for user_name in global_config_object.sections()
+        ]
+    else:
+        return []
+
+
 def authenticate_user(user_name: str) -> types.User:
     if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
         global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)

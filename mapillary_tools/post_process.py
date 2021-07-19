@@ -169,7 +169,6 @@ def post_process(
 
         # process logs
         process_steps: T.List[types.Process] = [
-            "user_process",
             "import_meta_data_process",
             "geotag_process",
             "sequence_process",

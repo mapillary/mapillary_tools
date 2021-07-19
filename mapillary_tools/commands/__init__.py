@@ -2,7 +2,6 @@ from . import authenticate
 from . import extract_geotag_data
 from . import extract_import_meta_data
 from . import extract_sequence_data
-from . import extract_user_data
 from . import interpolate
 from . import post_process
 from . import process
@@ -17,7 +16,6 @@ mapillary_tools_advanced_commands = [
     sample_video,
     video_process,
     video_process_and_upload,
-    extract_user_data,
     extract_geotag_data,
     extract_import_meta_data,
     extract_sequence_data,

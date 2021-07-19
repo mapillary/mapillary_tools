@@ -8,7 +8,6 @@ from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
 from ..process_sequence_properties import process_sequence_properties
-from ..process_user_properties import process_user_properties
 from ..process_video import sample_video
 
 
@@ -19,29 +18,6 @@ class Command:
     def add_basic_arguments(self, parser):
         parser.add_argument(
             "--rerun", help="rerun the processing", action="store_true", required=False
-        )
-        # user properties
-        # user name for the import
-        parser.add_argument("--user_name", help="user name", required=True)
-        # organization level parameters
-        parser.add_argument(
-            "--organization_username",
-            help="Specify organization user name",
-            default=None,
-            required=False,
-        )
-        parser.add_argument(
-            "--organization_key",
-            help="Specify organization key",
-            default=None,
-            required=False,
-        )
-        parser.add_argument(
-            "--private",
-            help="Specify whether the import is private",
-            action="store_true",
-            default=False,
-            required=False,
         )
         parser.add_argument(
             "--skip_subfolders",
@@ -372,16 +348,6 @@ class Command:
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(sample_video).args
-                }
-            )
-        )
-
-        process_user_properties(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(process_user_properties).args
                 }
             )
         )

@@ -333,10 +333,6 @@ def read_geotag_process_data(image: str) -> Optional[types.Image]:
     return cast(Optional[types.Image], read_process_data(image, "geotag_process"))
 
 
-def read_user_process_data(image: str) -> Optional[types.User]:
-    return cast(Optional[types.User], read_process_data(image, "user_process"))
-
-
 def read_sequence_process_data(image) -> Optional[types.Sequence]:
     return cast(Optional[types.Sequence], read_process_data(image, "sequence_process"))
 
@@ -362,10 +358,6 @@ def get_final_mapillary_image_description(
     if image_data is None:
         return None
 
-    user_data = read_user_process_data(image)
-    if user_data is None:
-        return None
-
     sequence_data = read_sequence_process_data(image)
     if sequence_data is None:
         return None
@@ -373,7 +365,6 @@ def get_final_mapillary_image_description(
     description: dict = {}
 
     description.update(cast(dict, image_data))
-    description.update(cast(dict, user_data))
     description.update(cast(dict, sequence_data))
 
     meta = read_import_meta_data_process_data(image)
