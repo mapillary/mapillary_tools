@@ -1,23 +1,38 @@
 import os
 import sys
 import typing as T
+import json
 
 import requests
 
-from . import uploader, processing, types, login, api_v4
+from . import uploader, processing, types, login, api_v4, geojson
 
 
 def list_image_descriptions_for_upload(
-    import_path: str, skip_subfolders: bool
+    import_path: str,
+    geojson_source: T.Optional[dict] = None,
+    skip_subfolders: bool = False,
 ) -> T.Dict[str, types.FinalImageDescription]:
     filtered = {}
+    index = {}
+    if geojson_source is not None:
+        descs = geojson.feature_collection_to_desc(geojson_source)
+        for desc in descs:
+            index[desc["_filename"]] = desc
+
     images = uploader.get_total_file_list(import_path, skip_subfolders)
     for image in images:
         if uploader.success_upload(image):
             continue
-        desc = processing.read_image_description(image)
+
+        if geojson_source is None:
+            desc = processing.read_image_description(image)
+        else:
+            desc = index.get(image)
+
         if desc is None:
             continue
+
         filtered[image] = desc
 
     return filtered
@@ -25,6 +40,7 @@ def list_image_descriptions_for_upload(
 
 def upload(
     import_path: str,
+    read_geojson: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     skip_subfolders=False,
@@ -58,8 +74,19 @@ def upload(
         print(f"Error, import directory {import_path} does not exist, exiting...")
         sys.exit(1)
 
+    geojson_source: T.Optional[dict] = None
+    if read_geojson is not None:
+        if read_geojson == "-":
+            geojson_source = json.load(sys.stdin)
+            pass
+        else:
+            with open(read_geojson) as fp:
+                geojson_source = json.load(fp)
+
     image_descriptions = list_image_descriptions_for_upload(
-        import_path, skip_subfolders
+        import_path,
+        geojson_source=geojson_source,
+        skip_subfolders=skip_subfolders,
     )
 
     if not image_descriptions:

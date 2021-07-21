@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -6,7 +7,7 @@ from tqdm import tqdm
 
 from . import processing
 from .error import print_error
-
+from .geojson import desc_to_feature_collection
 
 LOG = logging.getLogger()
 
@@ -22,6 +23,7 @@ def insert_MAPJson(
     overwrite_EXIF_gps_tag=False,
     overwrite_EXIF_direction_tag=False,
     overwrite_EXIF_orientation_tag=False,
+    write_geojson: str = None,
 ):
     # sanity check if video file is passed
     if (
@@ -63,10 +65,11 @@ def insert_MAPJson(
         file for file in process_file_list if not processing.is_duplicate(file)
     ]
 
-    if not len(process_file_list):
+    if not process_file_list:
         print("No images to run process finalization")
         return
 
+    all_desc = []
     for image in tqdm(
         process_file_list, unit="files", desc="Processing image description"
     ):
@@ -86,7 +89,7 @@ def insert_MAPJson(
             )
         else:
             try:
-                _overwritten = processing.overwrite_exif_tags(
+                processing.overwrite_exif_tags(
                     image,
                     final_mapillary_image_description,
                     overwrite_all_EXIF_tags,
@@ -98,6 +101,8 @@ def insert_MAPJson(
             except Exception:
                 LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
 
+            all_desc.append(final_mapillary_image_description)
+
             processing.create_and_log_process(
                 image,
                 "mapillary_image_description",
@@ -105,3 +110,10 @@ def insert_MAPJson(
                 final_mapillary_image_description,
                 verbose=verbose,
             )
+
+    if write_geojson is not None:
+        if write_geojson == "-":
+            print(json.dumps(desc_to_feature_collection(all_desc), indent=4))
+        else:
+            with open(write_geojson, "w") as fp:
+                json.dump(desc_to_feature_collection(all_desc), fp, indent=4)
