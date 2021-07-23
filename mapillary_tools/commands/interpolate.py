@@ -3,7 +3,7 @@ from ..interpolation import interpolation
 
 class Command:
     name = "interpolate"
-    help = "Preprocess tool : Interpolate missing gps, identical timestamps, etc..."
+    help = "interpolate missing GPS, identical timestamps, etc..."
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -17,7 +17,7 @@ class Command:
             "--max_time_delta",
             default=1.0,
             type=float,
-            help="Maximum delta time in seconds, for an image with a timestamp out of scope to have missing gps extrapolated.",
+            help="Maximum delta time in seconds, for an image with a timestamp out of scope to have missing GPS extrapolated.",
             required=False,
         )
         parser.add_argument(
@@ -72,8 +72,5 @@ class Command:
             required=False,
         )
 
-    def add_advanced_arguments(self, parser):
-        pass
-
-    def run(self, args):
+    def run(self, args: dict):
         interpolation(**vars(args))

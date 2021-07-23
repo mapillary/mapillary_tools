@@ -80,7 +80,6 @@ def get_local_mapping(import_path):
 def post_process(
     import_path,
     split_import_path=None,
-    video_import_path=None,
     summarize=False,
     move_all_images=False,
     move_duplicates=False,
@@ -88,34 +87,9 @@ def post_process(
     move_sequences=False,
     save_as_json=False,
     list_file_status=False,
-    push_images=False,
     skip_subfolders=False,
     save_local_mapping=False,
 ):
-    # sanity check if video file is passed
-    if (
-        video_import_path
-        and not os.path.isdir(video_import_path)
-        and not os.path.isfile(video_import_path)
-    ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
-
-    # in case of video processing, adjust the import path
-    if video_import_path:
-        # set sampling path
-        video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = (
-            video_import_path
-            if os.path.isdir(video_import_path)
-            else os.path.dirname(video_import_path)
-        )
-        import_path = (
-            os.path.join(os.path.abspath(import_path), video_sampling_path)
-            if import_path
-            else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
-        )
-
     if move_all_images:
         move_sequences = True
         move_duplicates = True

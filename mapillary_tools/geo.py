@@ -92,11 +92,6 @@ def decimal_to_dms(value, precision):
     return (deg, 1), (min, 1), (sec, precision)
 
 
-def utc_to_localtime(utc_time: datetime.datetime) -> datetime.datetime:
-    utc_offset_timedelta = datetime.datetime.utcnow() - datetime.datetime.now()
-    return utc_time - utc_offset_timedelta
-
-
 def compute_bearing(start_lat, start_lon, end_lat, end_lon) -> float:
     """
     Get the compass bearing from start to end.
@@ -229,27 +224,3 @@ def interpolate_lat_lon(points: list, t: datetime.datetime, tolerant=10):
         ele = None
 
     return lat, lon, bearing, ele
-
-
-def write_gpx(filename, gps_trace):
-    time_format = "%Y-%m-%dT%H:%M:%S.%f"
-    gpx = "<gpx>" + "\n"
-    gpx += "<trk>" + "\n"
-    gpx += "<name>Mapillary GPX</name>" + "\n"
-    gpx += "<trkseg>" + "\n"
-    for point in gps_trace:
-        lat = point[1]
-        lon = point[2]
-        if lat == 0 or lon == 0:
-            continue
-        time = datetime.datetime.strftime(point[0], time_format)[:-3]
-        elevation = point[3] if len(point) > 3 else 0
-        gpx += '<trkpt lat="' + str(lat) + '" lon="' + str(lon) + '">' + "\n"
-        gpx += "<ele>" + str(elevation) + "</ele>" + "\n"
-        gpx += "<time>" + time + "</time>" + "\n"
-        gpx += "</trkpt>" + "\n"
-    gpx += "</trkseg>" + "\n"
-    gpx += "</trk>" + "\n"
-    gpx += "</gpx>" + "\n"
-    with open(filename, "w") as fout:
-        fout.write(gpx)

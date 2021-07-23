@@ -297,32 +297,3 @@ class ExifRead:
             fields, default="", field_type=str
         )
         return sub_sec
-
-    def mapillary_tag_exists(self):
-        """
-        Check existence of required Mapillary tags
-        """
-        description = self.extract_image_description()
-        if description is None:
-            return False
-
-        try:
-            description_values = json.loads(description)
-        except json.JSONDecodeError:
-            LOG.warning(f"Error JSON decoding ImageDescription: {description}")
-            return False
-
-        for requirement in [
-            "MAPCaptureTime",
-            "MAPLatitude",
-            "MAPLongitude",
-            "MAPSequenceUUID",
-            "MAPSettingsUserKey",
-        ]:
-            val = description_values.get(requirement)
-            if val is None:
-                return False
-            elif isinstance(val, str):
-                if not val.strip():
-                    return False
-        return True

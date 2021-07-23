@@ -1,9 +1,11 @@
+import inspect
+
 from ..post_process import post_process
 
 
 class Command:
     name = "post_process"
-    help = "Post process tool : Post process for a given import path, including import summary and grouping/moving based on import status."
+    help = "post process for a given import path, including import summary and grouping/moving based on import status"
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -13,8 +15,6 @@ class Command:
             default=False,
             required=False,
         )
-
-    def add_advanced_arguments(self, parser):
         parser.add_argument(
             "--summarize",
             help="Summarize import for given import path.",
@@ -86,5 +86,13 @@ class Command:
             required=False,
         )
 
-    def run(self, args):
-        post_process(**vars(args))
+    def run(self, vars_args: dict):
+        post_process(
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(post_process).args
+                }
+            )
+        )

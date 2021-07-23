@@ -3,7 +3,6 @@ import typing as T
 import gpxpy
 import pynmea2
 
-from .geo import utc_to_localtime
 from .types import GPXPoint
 
 

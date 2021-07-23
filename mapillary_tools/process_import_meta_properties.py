@@ -144,46 +144,20 @@ def process_import_meta_properties(
     verbose=False,
     rerun=False,
     skip_subfolders=False,
-    video_import_path=None,
     custom_meta_data=None,
     camera_uuid=None,
     windows_path=False,
     exclude_import_path=False,
     exclude_path=None,
 ) -> None:
-    # sanity check if video file is passed
-    if (
-        video_import_path
-        and not os.path.isdir(video_import_path)
-        and not os.path.isfile(video_import_path)
-    ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
-
-    # in case of video processing, adjust the import path
-    if video_import_path:
-        # set sampling path
-        video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = (
-            video_import_path
-            if os.path.isdir(video_import_path)
-            else os.path.dirname(video_import_path)
-        )
-        import_path = (
-            os.path.join(os.path.abspath(import_path), video_sampling_path)
-            if import_path
-            else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
-        )
-
     if not import_path or not os.path.isdir(import_path):
-        print_error(
-            "Error, import directory " + import_path + " does not exist, exiting..."
-        )
+        print_error(f"Error, import directory {import_path} does not exist, exiting...")
         sys.exit(1)
 
     process_file_list = processing.get_process_file_list(
         import_path, "import_meta_data_process", rerun, skip_subfolders=skip_subfolders
     )
+
     if not process_file_list:
         print("No images to run import meta data process")
         return

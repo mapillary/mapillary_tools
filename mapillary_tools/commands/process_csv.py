@@ -1,9 +1,11 @@
+import inspect
+
 from ..process_csv import process_csv
 
 
 class Command:
     name = "process_csv"
-    help = "Preprocess tool : Parse csv and preprocess the images, to enable running process_and_upload."
+    help = "parse csv and preprocess the images, to enable running process_and_upload"
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -21,7 +23,7 @@ class Command:
         )
         parser.add_argument(
             "--convert_gps_time",
-            help="Convert gps time in ticks to standard time.",
+            help="Convert GPS time in ticks to standard time.",
             action="store_true",
             default=False,
             required=False,
@@ -77,7 +79,7 @@ class Command:
         )
         parser.add_argument(
             "--gps_week_column",
-            help="Specify the column number of image timestamps gps week, counting from 1 on. Used only with --convert_gps_time.",
+            help="Specify the column number of image timestamps GPS week, counting from 1 on. Used only with --convert_gps_time.",
             action="store",
             required=False,
             type=int,
@@ -117,8 +119,6 @@ class Command:
             required=False,
             action="store_true",
         )
-
-    def add_advanced_arguments(self, parser):
         parser.add_argument(
             "--keep_original",
             help='Do not overwrite original images, instead save the processed images in a new directory by adding suffix "_processed" to the import_path.',
@@ -127,5 +127,13 @@ class Command:
             required=False,
         )
 
-    def run(self, args):
-        process_csv(**vars(args))
+    def run(self, vars_args: dict):
+        process_csv(
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(process_csv).args
+                }
+            )
+        )

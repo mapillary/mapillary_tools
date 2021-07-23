@@ -52,31 +52,14 @@ def timestamps_from_filename(
 
 def sample_video(
     video_import_path: str,
-    import_path: T.Optional[str] = None,
+    import_path: str,
     video_sample_interval=2.0,
     video_start_time=None,
     video_duration_ratio=1.0,
-    verbose=False,
     skip_subfolders=False,
 ):
-    if import_path is not None and not os.path.isdir(import_path):
-        raise RuntimeError(f"Error, import directory {import_path} does not exist")
-
-    if not os.path.isdir(video_import_path) and not os.path.isfile(video_import_path):
-        raise RuntimeError(f"Error, video path {video_import_path} does not exist")
-
-    video_dirname = (
-        video_import_path
-        if os.path.isdir(video_import_path)
-        else os.path.dirname(video_import_path)
-    )
-    # FIXME: set skip_folders to False for scanning the sample path
-    video_sampling_path = "mapillary_sampled_video_frames"
-    import_path = (
-        os.path.join(import_path, video_sampling_path)
-        if import_path is not None
-        else os.path.join(video_dirname, video_sampling_path)
-    )
+    if not os.path.exists(video_import_path):
+        raise RuntimeError(f'Error, video path "{video_import_path}" does not exist')
 
     video_list = (
         uploader.get_video_file_list(video_import_path, skip_subfolders)
@@ -84,9 +67,13 @@ def sample_video(
         else [video_import_path]
     )
 
+    if os.path.isdir(import_path) or os.path.isfile(import_path):
+        raise RuntimeError(
+            f'The import path "{import_path}" for storing extracted frames already exists. Either delete the current import_path or choose another import_path.'
+        )
+
     for video in video_list:
         per_video_import_path = processing.video_sample_path(import_path, video)
-        # FIXME: ask the user if we should delete the import_path before extrating
         if not os.path.isdir(per_video_import_path):
             os.makedirs(per_video_import_path)
 

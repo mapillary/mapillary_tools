@@ -1,5 +1,4 @@
 import os
-import sys
 import typing as T
 
 from . import processing
@@ -17,37 +16,11 @@ def process_geotag_properties(
     rerun=False,
     skip_subfolders=False,
 ) -> None:
-    # sanity check if video file is passed
-    if (
-        video_import_path
-        and not os.path.isdir(video_import_path)
-        and not os.path.isfile(video_import_path)
-    ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
-
-    # in case of video processing, adjust the import path
-    if video_import_path:
-        # set sampling path
-        video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = (
-            video_import_path
-            if os.path.isdir(video_import_path)
-            else os.path.dirname(video_import_path)
-        )
-        import_path = (
-            os.path.join(os.path.abspath(import_path), video_sampling_path)
-            if import_path
-            else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
-        )
-
-    # basic check for all
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    # get list of file to process
     process_file_list = processing.get_process_file_list(
         import_path, "geotag_process", rerun=rerun, skip_subfolders=skip_subfolders
     )
