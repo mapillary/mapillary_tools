@@ -344,7 +344,7 @@ def log_rootpath(filepath: str) -> str:
         os.path.dirname(filepath),
         ".mapillary",
         "logs",
-        os.path.splitext(os.path.basename(filepath))[0],
+        os.path.basename(filepath),
     )
 
 
