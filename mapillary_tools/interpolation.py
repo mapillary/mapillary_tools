@@ -5,9 +5,9 @@ import sys
 
 from tqdm import tqdm
 
+from . import image_log
 from . import process_csv
 from . import processing
-from . import uploader
 from .error import print_error
 from .exif_read import ExifRead
 from .exif_write import ExifEdit
@@ -123,7 +123,7 @@ def interpolation(
             sys.exit(1)
 
         # get list of files to process
-        process_file_list = uploader.get_total_file_list(import_path)
+        process_file_list = image_log.get_total_file_list(import_path)
         if not len(process_file_list):
             print("No images found in the import path " + import_path)
             sys.exit(1)

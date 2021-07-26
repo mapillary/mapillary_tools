@@ -50,7 +50,7 @@ def point_schema():
 
 def single_feature_to_desc(
     feature: dict, quiet=False
-) -> T.Optional[types.FinalImageDescription]:
+) -> T.Optional[types.FinalImageDescriptionFromGeoJSON]:
     input_schema = feature_schema(point_schema(), {})
     if quiet:
         try:
@@ -63,12 +63,12 @@ def single_feature_to_desc(
         "MAPLongitude": lat,
         **feature["properties"],
     }
-    return T.cast(types.FinalImageDescription, desc)
+    return T.cast(types.FinalImageDescriptionFromGeoJSON, desc)
 
 
 def feature_collection_to_desc(
     feature_collection: dict,
-) -> T.List[types.FinalImageDescription]:
+) -> T.List[types.FinalImageDescriptionFromGeoJSON]:
     input_schema = feature_collection_schema(
         feature_schema(
             point_schema(),

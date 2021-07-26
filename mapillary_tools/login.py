@@ -1,4 +1,5 @@
 import getpass
+import logging
 import os
 import typing as T
 
@@ -6,7 +7,8 @@ import requests
 
 from . import api_v4, config, types
 from .config import GLOBAL_CONFIG_FILEPATH
-from .error import print_error
+
+LOG = logging.getLogger()
 
 
 class HTTPError(Exception):
@@ -37,7 +39,7 @@ def prompt_user_for_user_items(user_name: str) -> types.User:
             if subcode in [1348028, 1348092, 3404005]:
                 title = resp.get("error", {}).get("error_user_title")
                 message = resp.get("error", {}).get("error_user_msg")
-                print_error(f"{title}: {message}")
+                LOG.error(f"{title}: {message}")
                 return prompt_user_for_user_items(user_name)
             else:
                 raise wrap_http_exception(ex)

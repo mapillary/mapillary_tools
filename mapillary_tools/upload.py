@@ -2,10 +2,14 @@ import os
 import sys
 import typing as T
 import json
+import logging
 
 import requests
 
-from . import uploader, processing, types, login, api_v4, geojson
+from . import image_log
+from . import uploader, types, login, api_v4, geojson
+
+LOG = logging.getLogger()
 
 
 def list_image_descriptions_for_upload(
@@ -14,26 +18,26 @@ def list_image_descriptions_for_upload(
     skip_subfolders: bool = False,
 ) -> T.Dict[str, types.FinalImageDescription]:
     filtered = {}
-    index = {}
+    index: T.Dict[str, types.FinalImageDescriptionFromGeoJSON] = {}
     if geojson_source is not None:
         descs = geojson.feature_collection_to_desc(geojson_source)
         for desc in descs:
             index[desc["_filename"]] = desc
 
-    images = uploader.get_total_file_list(import_path, skip_subfolders)
+    images = image_log.get_total_file_list(import_path, skip_subfolders)
     for image in images:
-        if uploader.success_upload(image):
+        if image_log.success_upload(image):
             continue
 
         if geojson_source is None:
-            desc = processing.read_image_description(image)
+            final_desc = image_log.read_image_description(image)
         else:
-            desc = index.get(image)
+            final_desc = index.get(image)
 
-        if desc is None:
+        if final_desc is None:
             continue
 
-        filtered[image] = desc
+        filtered[image] = final_desc
 
     return filtered
 
@@ -48,8 +52,9 @@ def upload(
 ):
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print(f"Error, import directory {import_path} does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
+        )
 
     geojson_source: T.Optional[dict] = None
     if read_geojson is not None:
@@ -97,9 +102,9 @@ def upload(
 
         org = resp.json()
 
-        print(f"Organization ID: {org['id']}")
-        print(f"Organization name: {org['name']}")
-        print(f"Organization description: {org['description']}")
+        LOG.info(f"Organization ID: {org['id']}")
+        LOG.info(f"Organization name: {org['name']}")
+        LOG.info(f"Organization description: {org['description']}")
 
         user_items.update({"MAPOrganizationKey": organization_key})
 

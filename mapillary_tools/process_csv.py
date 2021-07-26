@@ -4,9 +4,8 @@ import os
 
 from tqdm import tqdm
 
+from . import image_log
 from . import process_import_meta_properties
-from . import processing
-from . import uploader
 from .exif_write import ExifEdit
 
 META_DATA_TYPES = ["string", "double", "long", "date", "boolean"]
@@ -226,7 +225,7 @@ def process_csv(
         )
 
     # get list of file to process
-    process_file_list = uploader.get_total_file_list(import_path)
+    process_file_list = image_log.get_total_file_list(import_path)
     if not len(process_file_list):
         raise RuntimeError("No images found in the import path " + import_path)
 
@@ -316,7 +315,7 @@ def process_csv(
             exif_edit.add_image_history(meta["MAPMetaTags"])
 
         filename = image
-        filename_keep_original = processing.processed_images_rootpath(image)
+        filename_keep_original = image_log.processed_images_rootpath(image)
 
         if os.path.isfile(filename_keep_original):
             os.remove(filename_keep_original)

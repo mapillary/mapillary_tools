@@ -32,11 +32,11 @@ class Image(ImageRequired, total=False):
     MAPCompassHeading: CompassHeading
 
 
-class SequenceOnly(TypedDict, total=True):
+class _SequenceOnly(TypedDict, total=True):
     MAPSequenceUUID: str
 
 
-class Sequence(SequenceOnly, total=True):
+class Sequence(_SequenceOnly, total=True):
     MAPCompassHeading: CompassHeading
     MAPCaptureTime: str
 
@@ -51,8 +51,12 @@ class MetaProperties(TypedDict, total=False):
     MAPOrientation: int
 
 
-class FinalImageDescription(SequenceOnly, User, Image, MetaProperties):
+class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
     pass
+
+
+class FinalImageDescriptionFromGeoJSON(FinalImageDescription):
+    _filename: str
 
 
 UserItemSchema = {

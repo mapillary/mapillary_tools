@@ -1,12 +1,11 @@
 import os
-import sys
 import time
 import typing as T
 
 from tqdm import tqdm
 
+from . import image_log
 from . import processing, VERSION
-from .error import print_error
 from .exif_read import ExifRead
 from .types import MetaProperties
 
@@ -41,7 +40,6 @@ def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) ->
 def parse_and_add_custom_meta_tags(desc: MetaProperties, custom_meta_data: str) -> None:
     # parse entry
     meta_data_entries = custom_meta_data.split(";")
-    print(meta_data_entries)
     for entry in meta_data_entries:
         # parse name, type and value
         entry_fields = entry.split(",")
@@ -67,7 +65,6 @@ def finalize_import_properties_process(
     GPS_accuracy=None,
     add_file_name=False,
     add_import_date=False,
-    verbose=False,
     custom_meta_data=None,
     camera_uuid=None,
     windows_path=False,
@@ -109,22 +106,13 @@ def finalize_import_properties_process(
     if custom_meta_data:
         parse_and_add_custom_meta_tags(desc, custom_meta_data)
 
-    processing.create_and_log_process(
-        image, "import_meta_data_process", "success", desc, verbose
-    )
+    return desc
 
 
-def get_import_meta_properties_exif(image: str) -> T.Optional[MetaProperties]:
+def get_import_meta_properties_exif(image: str) -> MetaProperties:
     import_meta_data_properties: MetaProperties = {}
-    try:
-        exif = ExifRead(image)
-    except:
-        print(
-            "Warning, EXIF could not be read for image "
-            + image
-            + ", import properties not read."
-        )
-        return None
+    # FIXME: might throw error here
+    exif = ExifRead(image)
     import_meta_data_properties["MAPOrientation"] = exif.extract_orientation()
     import_meta_data_properties["MAPDeviceMake"] = exif.extract_make()
     import_meta_data_properties["MAPDeviceModel"] = exif.extract_model()
@@ -141,7 +129,6 @@ def process_import_meta_properties(
     GPS_accuracy=None,
     add_file_name=False,
     add_import_date=False,
-    verbose=False,
     rerun=False,
     skip_subfolders=False,
     custom_meta_data=None,
@@ -151,11 +138,15 @@ def process_import_meta_properties(
     exclude_path=None,
 ) -> None:
     if not import_path or not os.path.isdir(import_path):
-        print_error(f"Error, import directory {import_path} does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
+        )
 
-    process_file_list = processing.get_process_file_list(
-        import_path, "import_meta_data_process", rerun, skip_subfolders=skip_subfolders
+    process_file_list = image_log.get_process_file_list(
+        import_path,
+        "mapillary_image_description",
+        rerun=rerun,
+        skip_subfolders=skip_subfolders,
     )
 
     if not process_file_list:
@@ -169,25 +160,22 @@ def process_import_meta_properties(
         process_file_list, unit="files", desc="Processing import meta properties"
     ):
         import_meta_data_properties = get_import_meta_properties_exif(image)
-        if import_meta_data_properties is None:
-            processing.create_and_log_process(
-                image, "import_meta_data_process", "failed", {}, verbose
-            )
-        else:
-            finalize_import_properties_process(
-                image,
-                import_meta_data_properties,
-                import_path,
-                orientation,
-                device_make,
-                device_model,
-                GPS_accuracy,
-                add_file_name,
-                add_import_date,
-                verbose,
-                custom_meta_data,
-                camera_uuid,
-                windows_path,
-                exclude_import_path,
-                exclude_path,
-            )
+        desc = finalize_import_properties_process(
+            image,
+            import_meta_data_properties,
+            import_path,
+            orientation,
+            device_make,
+            device_model,
+            GPS_accuracy,
+            add_file_name,
+            add_import_date,
+            custom_meta_data,
+            camera_uuid,
+            windows_path,
+            exclude_import_path,
+            exclude_path,
+        )
+        image_log.create_and_log_process_in_memory(
+            image, "import_meta_data_process", "success", desc
+        )

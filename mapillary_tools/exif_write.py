@@ -4,7 +4,6 @@ import io
 
 import piexif
 
-from .error import print_error
 from .geo import decimal_to_dms
 from .types import FinalImageDescription
 
@@ -24,22 +23,15 @@ class ExifEdit:
     def add_orientation(self, orientation: int) -> None:
         """Add image orientation to image."""
         if orientation not in range(1, 9):
-            print_error(
-                "Error value for orientation, value must be in range(1,9), setting to default 1"
-            )
-            self._ef["0th"][piexif.ImageIFD.Orientation] = 1
-        else:
-            self._ef["0th"][piexif.ImageIFD.Orientation] = orientation
+            raise ValueError(f"orientation value {orientation} must be in range(1, 9)")
+        self._ef["0th"][piexif.ImageIFD.Orientation] = orientation
 
     def add_date_time_original(
         self, date_time: datetime.datetime, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
     ):
         """Add date time original."""
-        try:
-            DateTimeOriginal = date_time.strftime(time_format)[:-3]
-            self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
-        except Exception as e:
-            print_error("Error writing DateTimeOriginal, due to " + str(e))
+        DateTimeOriginal = date_time.strftime(time_format)[:-3]
+        self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
 
     def add_lat_lon(self, lat: float, lon: float, precision: float = 1e7):
         """Add lat, lon to gps (lat, lon in float)."""

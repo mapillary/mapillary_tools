@@ -1,5 +1,6 @@
 import io
-from typing import List, Optional, Iterable, Generator
+import uuid
+from typing import Optional, Iterable
 import typing as T
 import os
 import tempfile
@@ -14,98 +15,13 @@ from tqdm import tqdm
 import jsonschema
 
 from . import upload_api_v4, types, ipc, exif_write
+from .image_log import create_upload_log
 from .login import wrap_http_exception
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
 MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
 LOG = logging.getLogger()
-
-
-def is_image_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
-    return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
-
-
-def is_video_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
-    return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
-
-
-def iterate_files(root: str, recursive=False) -> Generator[str, None, None]:
-    for dirpath, dirnames, files in os.walk(root, topdown=True):
-        if not recursive:
-            dirnames.clear()
-        else:
-            dirnames[:] = [name for name in dirnames if not name.startswith(".")]
-        for file in files:
-            yield os.path.join(dirpath, file)
-
-
-def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and preform_upload(file)
-    )
-
-
-def get_video_file_list(video_file, skip_subfolders=False) -> T.List[str]:
-    files = iterate_files(video_file, not skip_subfolders)
-    return sorted(file for file in files if is_video_file(file))
-
-
-def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file))
-
-
-def get_failed_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file) and failed_upload(file))
-
-
-def get_success_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and success_upload(file)
-    )
-
-
-def success_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    upload_success = os.path.join(log_root, "upload_success")
-    success = os.path.isfile(upload_success)
-    return success
-
-
-def preform_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_success = os.path.join(log_root, "mapillary_image_description.json")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload = (
-        not os.path.isfile(upload_succes)
-        and os.path.isfile(process_success)
-        and not os.path.isfile(duplicate)
-    )
-    return upload
-
-
-def failed_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_failed = os.path.join(log_root, "mapillary_image_description.error.json")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_failed = os.path.join(log_root, "upload_failed")
-    failed = (
-        os.path.isfile(upload_failed)
-        and not os.path.isfile(process_failed)
-        and not os.path.isfile(duplicate)
-    )
-    return failed
 
 
 def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
@@ -198,7 +114,7 @@ def upload_zipped_sequence(
     fp: T.IO[bytes],
     entity_size: int,
     chunk_size: int,
-    session_key: str,
+    session_key: str = None,
     tqdm_desc: str = "Uploading",
     notifier: Optional[Notifier] = None,
     dry_run: bool = False,
@@ -209,6 +125,9 @@ def upload_zipped_sequence(
     :param session_key: the upload session key used to identify an upload
     :return: cluster ID
     """
+
+    if session_key is None:
+        session_key = str(uuid.uuid4())
 
     user_access_token = user_items["user_upload_token"]
 
@@ -257,7 +176,7 @@ def upload_zipped_sequence(
                     update_pbar,
                     _reset_retries,
                 ]
-                if notifier.notify_progress:
+                if notifier:
                     notifier.uploaded_bytes = offset
                     upload_service.callbacks.append(notifier.notify_progress)
                 file_handle = upload_service.upload(
@@ -337,31 +256,3 @@ def _upload_single_sequence(
             notifier=notifier,
             dry_run=dry_run,
         )
-
-
-def log_rootpath(filepath: str) -> str:
-    return os.path.join(
-        os.path.dirname(filepath),
-        ".mapillary",
-        "logs",
-        os.path.basename(filepath),
-    )
-
-
-def create_upload_log(filepath: str, status: str) -> None:
-    assert status in ["upload_success", "upload_failed"], f"invalid status {status}"
-    log_root = log_rootpath(filepath)
-    upload_log_filepath = os.path.join(log_root, status)
-    opposite_status = {
-        "upload_success": "upload_failed",
-        "upload_failed": "upload_success",
-    }
-    upload_opposite_log_filepath = os.path.join(log_root, opposite_status[status])
-    if not os.path.isdir(log_root):
-        os.makedirs(log_root)
-        open(upload_log_filepath, "w").close()
-    else:
-        if not os.path.isfile(upload_log_filepath):
-            open(upload_log_filepath, "w").close()
-        if os.path.isfile(upload_opposite_log_filepath):
-            os.remove(upload_opposite_log_filepath)

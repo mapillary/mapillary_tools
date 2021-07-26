@@ -1,20 +1,53 @@
+import typing as T
 import json
 import logging
 import os
-import sys
 
 from tqdm import tqdm
 
-from . import processing
-from .error import print_error
+from . import image_log, types, processing
 from .geojson import desc_to_feature_collection
 
 LOG = logging.getLogger()
 
 
+def get_final_mapillary_image_description(
+    image: str,
+) -> T.Optional[T.Tuple[types.Status, T.Mapping]]:
+    ret = image_log.read_process_data_from_memory(image, "geotag_process")
+    if ret is None:
+        return None
+
+    status, geotag_desc = ret
+    if status != "success":
+        return status, geotag_desc
+
+    ret = image_log.read_process_data_from_memory(image, "sequence_process")
+    if ret is None:
+        return None
+
+    status, sequence_desc = ret
+    if status != "success":
+        return status, sequence_desc
+
+    description: dict = {}
+    description.update(T.cast(dict, geotag_desc))
+    description.update(T.cast(dict, sequence_desc))
+
+    ret = image_log.read_process_data_from_memory(image, "import_meta_data_process")
+    if ret is not None:
+        status, meta_desc = ret
+        if status == "success":
+            description.update(T.cast(dict, meta_desc))
+
+    # FIXME
+    # description["MAPPhotoUUID"] = str(uuid.uuid4())
+
+    return status, T.cast(types.FinalImageDescription, description)
+
+
 def insert_MAPJson(
     import_path,
-    verbose=False,
     rerun=False,
     skip_subfolders=False,
     overwrite_all_EXIF_tags=False,
@@ -27,18 +60,19 @@ def insert_MAPJson(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print_error(f"Error, import directory {import_path} does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
+        )
 
     # get list of file to process
-    process_file_list = processing.get_process_file_list(
+    process_file_list = image_log.get_process_file_list(
         import_path,
         "mapillary_image_description",
         rerun=rerun,
         skip_subfolders=skip_subfolders,
     )
     process_file_list = [
-        file for file in process_file_list if not processing.is_duplicate(file)
+        file for file in process_file_list if not image_log.is_duplicate(file)
     ]
 
     if not process_file_list:
@@ -49,25 +83,17 @@ def insert_MAPJson(
     for image in tqdm(
         process_file_list, unit="files", desc="Processing image description"
     ):
-        final_mapillary_image_description = (
-            processing.get_final_mapillary_image_description(
-                image,
-            )
-        )
+        ret = get_final_mapillary_image_description(image)
+        if ret is None:
+            continue
 
-        if final_mapillary_image_description is None:
-            processing.create_and_log_process(
-                image,
-                "mapillary_image_description",
-                "failed",
-                {},
-                verbose=verbose,
-            )
-        else:
+        status, desc = ret
+
+        if status == "success":
             try:
                 processing.overwrite_exif_tags(
                     image,
-                    final_mapillary_image_description,
+                    T.cast(types.FinalImageDescription, desc),
                     overwrite_all_EXIF_tags,
                     overwrite_EXIF_time_tag,
                     overwrite_EXIF_gps_tag,
@@ -77,14 +103,20 @@ def insert_MAPJson(
             except Exception:
                 LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
 
-            all_desc.append(final_mapillary_image_description)
+            all_desc.append(T.cast(types.FinalImageDescription, desc))
 
-            processing.create_and_log_process(
+            image_log.create_and_log_process(
                 image,
                 "mapillary_image_description",
                 "success",
-                final_mapillary_image_description,
-                verbose=verbose,
+                desc,
+            )
+        else:
+            image_log.create_and_log_process(
+                image,
+                "mapillary_image_description",
+                status,
+                desc,
             )
 
     if write_geojson is not None:

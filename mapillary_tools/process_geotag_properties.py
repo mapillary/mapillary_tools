@@ -1,12 +1,13 @@
 import os
 import typing as T
 
+from . import image_log
 from . import processing
 
 
 def process_geotag_properties(
-    video_import_path: T.Optional[str] = None,
     import_path: T.Optional[str] = None,
+    video_import_path: T.Optional[str] = None,
     geotag_source="exif",
     geotag_source_path: T.Optional[str] = None,
     offset_time=0.0,
@@ -21,8 +22,11 @@ def process_geotag_properties(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    process_file_list = processing.get_process_file_list(
-        import_path, "geotag_process", rerun=rerun, skip_subfolders=skip_subfolders
+    process_file_list = image_log.get_process_file_list(
+        import_path,
+        "mapillary_image_description",
+        rerun=rerun,
+        skip_subfolders=skip_subfolders,
     )
 
     if not process_file_list:
@@ -30,14 +34,14 @@ def process_geotag_properties(
         return
 
     if geotag_source == "exif":
-        processing.geotag_from_exif(process_file_list, offset_time, offset_angle)
+        return processing.geotag_from_exif(process_file_list, offset_time, offset_angle)
 
     elif geotag_source == "gpx":
         if geotag_source_path is None:
             raise RuntimeError(
                 "GPX file is required to be specified with --geotag_source_path"
             )
-        processing.geotag_from_gpx_file(
+        return processing.geotag_from_gpx_file(
             process_file_list,
             geotag_source_path,
             offset_time=offset_time,
@@ -50,7 +54,7 @@ def process_geotag_properties(
             raise RuntimeError(
                 "NMEA file is required to be specified with --geotag_source_path"
             )
-        processing.geotag_from_nmea_file(
+        return processing.geotag_from_nmea_file(
             process_file_list,
             geotag_source_path,
             offset_time=offset_time,
@@ -63,7 +67,7 @@ def process_geotag_properties(
             geotag_source_path = video_import_path
         if geotag_source_path is None:
             raise RuntimeError("geotag_source_path is required")
-        processing.geotag_from_gopro_video(
+        return processing.geotag_from_gopro_video(
             process_file_list,
             geotag_source_path,
             offset_time=offset_time,
@@ -76,7 +80,7 @@ def process_geotag_properties(
             geotag_source_path = video_import_path
         if geotag_source_path is None:
             raise RuntimeError("geotag_source_path is required")
-        processing.geotag_from_blackvue_video(
+        return processing.geotag_from_blackvue_video(
             process_file_list,
             geotag_source_path,
             offset_time=offset_time,

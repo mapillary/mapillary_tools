@@ -1,14 +1,13 @@
 import csv
 import json
 import os
-import sys
 import typing as T
 
 from tqdm import tqdm
 
-from . import exif_read, types, processing
+from . import image_log
+from . import exif_read, types
 from . import ipc
-from . import uploader
 
 
 def map_images_to_sequences(destination_mapping, total_files):
@@ -17,7 +16,7 @@ def map_images_to_sequences(destination_mapping, total_files):
     for image in tqdm(
         total_files, desc="Reading sequence information stored in log files"
     ):
-        sequence_data = processing.read_sequence_process_data(image)
+        sequence_data = image_log.read_sequence_process_data(image)
         if sequence_data is not None:
             sequence_uuid = sequence_data["MAPSequenceUUID"]
             if sequence_uuid not in unique_sequence_uuids:
@@ -32,19 +31,19 @@ def map_images_to_sequences(destination_mapping, total_files):
 
 
 def get_local_mapping(import_path):
-    total_files = uploader.get_total_file_list(import_path)
+    total_files = image_log.get_total_file_list(import_path)
 
     local_mapping = []
     for file in tqdm(total_files, unit="files", desc="Reading image uuids"):
         image_file_uuid = None
         relative_path = file.lstrip(os.path.abspath(import_path))
-        log_rootpath = uploader.log_rootpath(file)
+        log_rootpath = image_log.log_rootpath(file)
         # FIXME: remove it
         image_description_json_path = os.path.join(
             log_rootpath, "mapillary_image_description.json"
         )
         if os.path.isfile(image_description_json_path):
-            image_description_json = processing.load_json(image_description_json_path)
+            image_description_json = image_log.load_json(image_description_json_path)
             if "MAPPhotoUUID" in image_description_json:
                 image_file_uuid = image_description_json["MAPPhotoUUID"]
             else:
@@ -97,8 +96,9 @@ def post_process(
 
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
-        print("Error, import directory " + import_path + " does not exist, exiting...")
-        sys.exit(1)
+        raise RuntimeError(
+            f"Error, import directory {import_path} does not exist, exiting..."
+        )
 
     if save_local_mapping:
         local_mapping = get_local_mapping(import_path)
@@ -112,23 +112,25 @@ def post_process(
             for row in local_mapping:
                 csvwriter.writerow(row)
 
-    total_files = uploader.get_total_file_list(import_path)
+    total_files = image_log.get_total_file_list(import_path)
     total_files_count = len(total_files)
 
-    uploaded_files = uploader.get_success_upload_file_list(import_path, skip_subfolders)
+    uploaded_files = image_log.get_success_upload_file_list(
+        import_path, skip_subfolders
+    )
     uploaded_files_count = len(uploaded_files)
 
-    failed_upload_files = uploader.get_failed_upload_file_list(
+    failed_upload_files = image_log.get_failed_upload_file_list(
         import_path, skip_subfolders
     )
     failed_upload_files_count = len(failed_upload_files)
 
-    duplicates_file_list = processing.get_duplicate_file_list(
+    duplicates_file_list = image_log.get_duplicate_file_list(
         import_path, skip_subfolders
     )
     duplicates_file_list_count = len(duplicates_file_list)
 
-    to_be_uploaded_files = uploader.get_upload_file_list(import_path, skip_subfolders)
+    to_be_uploaded_files = image_log.get_upload_file_list(import_path, skip_subfolders)
     to_be_uploaded_files_count = len(to_be_uploaded_files)
 
     if summarize:
@@ -150,12 +152,12 @@ def post_process(
 
         for step in process_steps:
             process_success = len(
-                processing.get_process_status_file_list(
+                image_log.get_process_status_file_list(
                     import_path, step, "success", skip_subfolders
                 )
             )
             process_failed = len(
-                processing.get_process_status_file_list(
+                image_log.get_process_status_file_list(
                     import_path, step, "failed", skip_subfolders
                 )
             )
@@ -173,7 +175,7 @@ def post_process(
         ipc.send("summary", summary_dict)
 
         if save_as_json:
-            processing.save_json(
+            image_log.save_json(
                 summary_dict,
                 os.path.join(import_path, "mapillary_import_summary.json"),
             )
@@ -189,7 +191,7 @@ def post_process(
         print(f"List of file status for import path {import_path} :")
         print(json.dumps(status_list_dict, indent=4))
         if save_as_json:
-            processing.save_json(
+            image_log.save_json(
                 status_list_dict,
                 os.path.join(import_path, "mapillary_import_image_status_list.json"),
             )
@@ -197,8 +199,7 @@ def post_process(
     split_import_path = split_import_path if split_import_path else import_path
     if move_sequences or move_duplicates or move_uploaded:
         if not os.path.isdir(split_import_path):
-            print(f"Split import path {split_import_path} does not exist.")
-            sys.exit(1)
+            raise RuntimeError(f"Split import path {split_import_path} does not exist.")
 
     destination_mapping = {}
 
@@ -248,8 +249,8 @@ def post_process(
         if not os.path.isdir(os.path.dirname(image_destination_path)):
             os.makedirs(os.path.dirname(image_destination_path))
         os.rename(image, image_destination_path)
-        image_logs_dir = uploader.log_rootpath(image)
-        destination_logs_dir = uploader.log_rootpath(image_destination_path)
+        image_logs_dir = image_log.log_rootpath(image)
+        destination_logs_dir = image_log.log_rootpath(image_destination_path)
         if not os.path.isdir(image_logs_dir):
             continue
         if not os.path.isdir(os.path.dirname(destination_logs_dir)):

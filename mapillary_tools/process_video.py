@@ -3,8 +3,8 @@ import os
 import subprocess
 import typing as T
 
+from . import image_log
 from . import processing
-from . import uploader
 from .exif_write import ExifEdit
 from .ffprobe import FFProbe
 
@@ -62,15 +62,15 @@ def sample_video(
         raise RuntimeError(f'Error, video path "{video_import_path}" does not exist')
 
     video_list = (
-        uploader.get_video_file_list(video_import_path, skip_subfolders)
+        image_log.get_video_file_list(video_import_path, skip_subfolders)
         if os.path.isdir(video_import_path)
         else [video_import_path]
     )
 
-    if os.path.isdir(import_path) or os.path.isfile(import_path):
-        raise RuntimeError(
-            f'The import path "{import_path}" for storing extracted frames already exists. Either delete the current import_path or choose another import_path.'
-        )
+    # if os.path.isdir(import_path) or os.path.isfile(import_path):
+    #     raise RuntimeError(
+    #         f'The import path "{import_path}" for storing extracted frames already exists. Either delete the current import_path or choose another import_path.'
+    #     )
 
     for video in video_list:
         per_video_import_path = processing.video_sample_path(import_path, video)
@@ -140,7 +140,7 @@ def insert_video_frame_timestamp(
     duration_ratio: float = 1.0,
 ) -> None:
     # get list of file to process
-    frame_list = uploader.get_total_file_list(video_sampling_path)
+    frame_list = image_log.get_total_file_list(video_sampling_path)
 
     if not frame_list:
         # WARNING LOG

@@ -133,7 +133,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--geotag_source",
-            help="Provide the source of date/time and GPS information needed for geotagging.",
+            help="Provide the source of date/time and GPS information needed for geotagging",
             action="store",
             choices=["exif", "gpx", "gopro_videos", "nmea", "blackvue_videos"],
             default="exif",
@@ -141,7 +141,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--geotag_source_path",
-            help="Provide the path to the file source of date/time and GPS information needed for geotagging.",
+            help="Provide the path to the file source of date/time and GPS information needed for geotagging",
             action="store",
             default=None,
             required=False,
@@ -154,29 +154,22 @@ class Command:
             required=False,
         )
         group_geotagging.add_argument(
-            "--sub_second_interval",
-            help="Sub second time between shots. Used to set image times with sub-second precision",
-            type=float,
-            default=0.0,
-            required=False,
-        )
-        group_geotagging.add_argument(
             "--offset_time",
             default=0.0,
             type=float,
-            help="time offset between the camera and the GPS device, in seconds.",
+            help="time offset, in seconds, that will be added to your image timestamps",
             required=False,
         )
         group_geotagging.add_argument(
             "--offset_angle",
             default=0.0,
             type=float,
-            help="offset camera angle (90 for right facing, 180 for rear facing, -90 for left facing)",
+            help="camera angle offset, in degrees, that will be added to your image camera angles",
             required=False,
         )
         group_geotagging.add_argument(
             "--use_gps_start_time",
-            help="Use GPS trace starting time in case of derivating timestamp from filename.",
+            help="Use GPS trace starting time in case of derivating timestamp from the geotag source.",
             action="store_true",
             default=False,
             required=False,
