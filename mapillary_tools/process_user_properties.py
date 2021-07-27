@@ -29,7 +29,6 @@ def get_user_properties(
 
         print(f"Organization ID: {org['id']}")
         print(f"Organization name: {org['name']}")
-        print(f"Organization description: {org['description']}")
 
         user_items.update(
             {"MAPOrganizationKey": organization_key, "MAPPrivate": private}
