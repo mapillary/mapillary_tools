@@ -245,10 +245,15 @@ def geotag_from_blackvue_video(
         )
 
         if not gpx_path or not os.path.isfile(gpx_path):
-            raise RuntimeError(f"Error, GPX path {gpx_path} not found")
+            print_error(
+                f"Warning: Skipping blackvue video that has no GPS data found: {blackvue_video}"
+            )
+            continue
 
         if is_stationary_video:
-            print_error("Warning: Skipping stationary video")
+            print_error(
+                f"Warning: Skipping stationary blackvue video: {blackvue_video}"
+            )
             continue
 
         process_file_sublist = [
