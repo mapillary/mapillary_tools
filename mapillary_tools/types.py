@@ -36,9 +36,8 @@ class _SequenceOnly(TypedDict, total=True):
     MAPSequenceUUID: str
 
 
-class Sequence(_SequenceOnly, total=True):
+class Sequence(_SequenceOnly, total=False):
     MAPCompassHeading: CompassHeading
-    MAPCaptureTime: str
 
 
 class MetaProperties(TypedDict, total=False):
@@ -57,6 +56,7 @@ class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
 
 class FinalImageDescriptionFromGeoJSON(FinalImageDescription):
     _filename: str
+    pass
 
 
 UserItemSchema = {
@@ -126,7 +126,7 @@ def datetime_to_map_capture_time(time: datetime.datetime) -> str:
 
 
 def map_capture_time_to_datetime(time: str) -> datetime.datetime:
-    pass
+    return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
 
 
 class GPXPoint(T.NamedTuple):

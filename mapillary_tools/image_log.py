@@ -55,13 +55,6 @@ def iterate_files(root: str, recursive=False) -> Generator[str, None, None]:
             yield os.path.join(dirpath, file)
 
 
-def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and preform_upload(file)
-    )
-
-
 def get_video_file_list(video_file, skip_subfolders=False) -> T.List[str]:
     files = iterate_files(video_file, not skip_subfolders)
     return sorted(file for file in files if is_video_file(file))
@@ -72,53 +65,26 @@ def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List
     return sorted(file for file in files if is_image_file(file))
 
 
-def get_failed_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file) and failed_upload(file))
+def process_success(image: str) -> bool:
+    log_root = log_rootpath(image)
+    return os.path.isfile(os.path.join(log_root, "mapillary_image_description.json"))
 
 
-def get_success_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and success_upload(file)
+def process_failed(image: str) -> bool:
+    log_root = log_rootpath(image)
+    return os.path.isfile(
+        os.path.join(log_root, "mapillary_image_description.error.json")
     )
 
 
-def success_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    upload_success = os.path.join(log_root, "upload_success")
-    success = os.path.isfile(upload_success)
-    return success
+def upload_success(image: str) -> bool:
+    log_root = log_rootpath(image)
+    return os.path.isfile(os.path.join(log_root, "upload_success"))
 
 
-def preform_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_success = os.path.join(log_root, "mapillary_image_description.json")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload = (
-        not os.path.isfile(upload_succes)
-        and os.path.isfile(process_success)
-        and not os.path.isfile(duplicate)
-    )
-    return upload
-
-
-def failed_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_failed = os.path.join(log_root, "mapillary_image_description.error.json")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_failed = os.path.join(log_root, "upload_failed")
-    failed = (
-        os.path.isfile(upload_failed)
-        and not os.path.isfile(process_failed)
-        and not os.path.isfile(duplicate)
-    )
-    return failed
+def upload_failed(image: str) -> bool:
+    log_root = log_rootpath(image)
+    return os.path.isfile(os.path.join(log_root, "upload_failed"))
 
 
 _IMAGE_STATE: T.Dict[str, T.Dict[types.Process, T.Tuple[types.Status, T.Mapping]]] = {}
@@ -129,8 +95,39 @@ def create_and_log_process_in_memory(
     process: types.Process,
     status: types.Status,
     description: T.Mapping,
-):
+) -> None:
     _IMAGE_STATE.setdefault(image, {})[process] = (status, description)
+    decoded_image = force_decode(image)
+    ipc.send(
+        process,
+        {
+            "image": decoded_image,
+            "status": status,
+            "description": description,
+        },
+    )
+
+
+ErrorCode = types.Literal[
+    "no_gps_found",
+    "no_exif_time_found",
+    "stationary_blackvue",
+    "duplicated",
+]
+
+
+class ErrorDescription(types.TypedDict, total=False):
+    code: ErrorCode
+    message: str
+    data: T.Mapping
+
+
+def log_failed_in_memory(image: str, process: types.Process, desc: ErrorDescription):
+    return create_and_log_process_in_memory(image, process, "failed", desc)
+
+
+def log_in_memory(image: str, process: types.Process, desc: T.Mapping):
+    return create_and_log_process_in_memory(image, process, "success", desc)
 
 
 def create_and_log_process(
@@ -186,83 +183,6 @@ def save_json(data: T.Mapping, file_path: str) -> None:
         raise RuntimeError(f"Error JSON serializing {data}")
     with open(file_path, "w") as f:
         f.write(buf)
-
-
-def get_process_file_list(
-    import_path: str,
-    process: types.Process,
-    rerun: bool = False,
-    skip_subfolders: bool = False,
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    sorted_files = sorted(
-        file
-        for file in files
-        if is_image_file(file) and preform_process(file, process, rerun)
-    )
-    return sorted_files
-
-
-def get_process_status_file_list(
-    import_path: str,
-    process: types.Process,
-    status: types.Status,
-    skip_subfolders: bool = False,
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file
-        for file in files
-        if is_image_file(file) and process_status(file, process, status)
-    )
-
-
-def process_status(
-    file_path: str, process: types.Process, status: types.Status
-) -> bool:
-    log_root = log_rootpath(file_path)
-    if status == "success":
-        status_file = os.path.join(log_root, process + ".json")
-    elif status == "failed":
-        status_file = os.path.join(log_root, process + ".error.json")
-    else:
-        raise ValueError(f"Invalid status {status}")
-    return os.path.isfile(status_file)
-
-
-def get_duplicate_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file) and is_duplicate(file))
-
-
-def is_duplicate(image: str) -> bool:
-    log_root = log_rootpath(image)
-    duplicate_flag_path = os.path.join(log_root, "duplicate")
-    return os.path.isfile(duplicate_flag_path)
-
-
-def mark_as_duplicated(image: str) -> None:
-    log_root = log_rootpath(image)
-    duplicate_flag_path = os.path.join(log_root, "duplicate")
-    open(duplicate_flag_path, "w").close()
-
-
-def unmark_duplicated(image: str) -> None:
-    log_root = log_rootpath(image)
-    duplicate_flag_path = os.path.join(log_root, "duplicate")
-    if os.path.isfile(duplicate_flag_path):
-        os.remove(duplicate_flag_path)
-
-
-def preform_process(
-    file_path: str, process: types.Process, rerun: bool = False
-) -> bool:
-    log_root = log_rootpath(file_path)
-    process_success = os.path.join(log_root, process + ".json")
-    preform = not os.path.isfile(process_success) or rerun
-    return preform
 
 
 def processed_images_rootpath(filepath: str) -> str:

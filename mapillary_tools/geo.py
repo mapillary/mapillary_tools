@@ -1,14 +1,12 @@
 import datetime
 import math
-import logging
+import itertools
+import bisect
 
-from typing import Any, List, Tuple
-
-from .error import MapillaryInterpolationError
+from typing import List, Tuple, TypeVar, Iterable, Optional, NamedTuple
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
-LOG = logging.getLogger()
 
 
 def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, float]:
@@ -68,17 +66,6 @@ def get_max_distance_from_start(latlon_track):
         if distance > max_distance:
             max_distance = distance
     return max_distance
-
-
-def gps_speed(distance: List[Any], delta_t: List[Any]) -> List[Any]:
-    # Most timestamps have 1 second resolution so change zeros in delta_t for
-    # 0.5 so that we don't divide by zero
-    delta_t_corrected = [0.5 if x == 0 else x for x in delta_t]
-    speed = [
-        distance / delta_t_corrected
-        for distance, delta_t_corrected in zip(distance, delta_t_corrected)
-    ]
-    return speed
 
 
 def decimal_to_dms(value, precision):
@@ -145,82 +132,57 @@ def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
     return bearing
 
 
-def interpolate_lat_lon(points: list, t: datetime.datetime, tolerant=10):
-    """
-    Return interpolated lat, lon and compass bearing for time t.
+_IT = TypeVar("_IT")
 
-    Points is a list of tuples (time, lat, lon, elevation), t a datetime object.
-    """
-    if tolerant < 0:
-        raise ValueError(f"tolerant must be non-negative in seconds but got {tolerant}")
 
-    min_time: datetime.datetime = points[0][0]
-    max_time: datetime.datetime = points[-1][0]
+# http://stackoverflow.com/a/5434936
+def pairwise(iterable: Iterable[_IT]) -> Iterable[Tuple[_IT, _IT]]:
+    """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
-    if min_time > max_time:
-        raise ValueError(
-            f"Expect trace's start time {min_time} <= trace's end time {max_time}"
-        )
 
-    max_dt = datetime.timedelta(seconds=tolerant)
+class Point(NamedTuple):
+    time: datetime.datetime
+    lat: float
+    lon: float
+    alt: Optional[float]
 
-    if min_time < t < max_time:
-        for i, point in enumerate(points):
-            if t < point[0]:
-                if i > 0:
-                    before = points[i - 1]
-                else:
-                    before = points[i]
-                after = points[i]
-                break
-    else:
-        if t < min_time - max_dt:
-            raise MapillaryInterpolationError(
-                f"Unable to interpolate the point captured at {t} because it is behind the trace start time {min_time} by {(min_time - t).total_seconds()} seconds",
-            )
 
-        if max_time + max_dt < t:
-            raise MapillaryInterpolationError(
-                f"Unable to interpolate the point captured at {t} because it is beyond the trace end time {max_time} by {(t - max_time).total_seconds()} seconds",
-            )
+def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
+    if not points:
+        raise ValueError("Expect non-empty points")
+    for cur, nex in pairwise(points):
+        assert cur.time <= nex.time, "Points not sorted"
+    idx = bisect.bisect_left([x.time for x in points], t)
 
-        if t < min_time:
-            before = points[0]
-            after = points[1]
+    if 0 < idx < len(points):
+        before = points[idx - 1]
+        after = points[idx]
+    elif idx <= 0:
+        if 2 <= len(points):
+            before, after = points[0], points[1]
         else:
-            before = points[-2]
-            after = points[-1]
-        bearing = compute_bearing(before[1], before[2], after[1], after[2])
-
-        if t == min_time:
-            x = points[0]
-            return x[1], x[2], bearing, x[3]
-
-        if t == max_time:
-            x = points[-1]
-            return x[1], x[2], bearing, x[3]
-
-    # weight based on time
-    weight = (t - before[0]).total_seconds() / (after[0] - before[0]).total_seconds()
-
-    # simple linear interpolation in case points are not the same
-    if before[1] == after[1]:
-        lat = before[1]
+            before, after = points[0], points[0]
     else:
-        lat = before[1] - weight * before[1] + weight * after[1]
+        assert len(points) <= idx
+        if 2 <= len(points):
+            before, after = points[-2], points[-1]
+        else:
+            before, after = points[-1], points[-1]
 
-    if before[2] == after[2]:
-        lon = before[2]
+    if before.time == after.time:
+        weight = 0.0
     else:
-        lon = before[2] - weight * before[2] + weight * after[2]
-
-    # camera angle
-    bearing = compute_bearing(before[1], before[2], after[1], after[2])
-
-    # altitude
-    if before[3] is not None:
-        ele = before[3] - weight * before[3] + weight * after[3]
+        weight = (t - before.time).total_seconds() / (
+            after.time - before.time
+        ).total_seconds()
+    lat = before.lat - weight * before.lat + weight * after.lat
+    lon = before.lon - weight * before.lon + weight * after.lon
+    bearing = compute_bearing(before.lat, before.lon, after.lat, after.lon)
+    if before.alt is not None and after.alt is not None:
+        alt: Optional[float] = before.alt - weight * before.alt + weight * after.alt
     else:
-        ele = None
-
-    return lat, lon, bearing, ele
+        alt = None
+    return lat, lon, bearing, alt

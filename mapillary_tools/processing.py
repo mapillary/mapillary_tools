@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Tuple
 import typing as T
 import datetime
 import os
@@ -9,10 +9,10 @@ from tqdm import tqdm
 
 from . import image_log
 from . import types
-from .error import MapillaryGeoTaggingError, MapillaryInterpolationError
+from .error import MapillaryGeoTaggingError
 from .exif_read import ExifRead
 from .exif_write import ExifEdit
-from .geo import normalize_bearing, interpolate_lat_lon
+from .geo import normalize_bearing, interpolate_lat_lon, Point
 from .gps_parser import get_lat_lon_time_from_gpx, get_lat_lon_time_from_nmea
 from .gpx_from_blackvue import gpx_from_blackvue
 from .gpx_from_exif import gpx_from_exif
@@ -26,20 +26,17 @@ def geotag_from_exif(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
-    for image in tqdm(
-        process_file_list, unit="files", desc="Extracting GPS data from image EXIF"
-    ):
+    for image in tqdm(process_file_list, unit="files", desc="Extracting GPS from EXIF"):
 
         try:
             point = gpx_from_exif(image)
         except MapillaryGeoTaggingError as ex:
-            image_log.create_and_log_process_in_memory(
+            image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                "failed",
                 {
-                    "process": "geotag_process",
-                    "message": str(ex),
+                    "code": "no_gps_found",
+                    "message": f"No GPS found in image EXIF: {ex}",
                 },
             )
             continue
@@ -63,12 +60,7 @@ def geotag_from_exif(
             angle=corrected_angle,
         )
 
-        image_log.create_and_log_process_in_memory(
-            image,
-            "geotag_process",
-            "success",
-            point.as_desc(),
-        )
+        image_log.log_in_memory(image, "geotag_process", point.as_desc())
 
 
 def video_sample_path(import_path: str, video_file_path: str) -> str:
@@ -95,8 +87,6 @@ def geotag_from_gopro_video(
     geotag_source_path: str,
     offset_time: float,
     offset_angle: float,
-    local_time: bool,
-    use_gps_start_time=False,
 ) -> None:
     if not os.path.isdir(geotag_source_path):
         raise RuntimeError(
@@ -111,8 +101,6 @@ def geotag_from_gopro_video(
             trace,
             offset_time,
             offset_angle,
-            local_time,
-            use_gps_start_time,
         )
 
 
@@ -121,63 +109,64 @@ def _geotag_from_gpx(
     points: List[types.GPXPoint],
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
-    local_time: bool = False,
-    use_gps_start_time: bool = False,
+    read_image_time: T.Optional[T.Callable] = None,
 ):
+    if read_image_time is None:
+        read_image_time = lambda img: ExifRead(img).extract_capture_time()
+
+    if not points:
+        raise ValueError("Empty GPX list provided")
+
     # need EXIF timestamps for sorting
-    pairs = [(ExifRead(f).extract_capture_time(), f) for f in images]
-
-    if use_gps_start_time:
-        filtered_pairs: List[Tuple[datetime.datetime, str]] = [
-            T.cast(Tuple[datetime.datetime, str], p) for p in pairs if p[0] is not None
-        ]
-        sorted_pairs = sorted(filtered_pairs)
-        if sorted_pairs:
-            # assume: the ordered image timestamps are [2, 3, 4, 5]
-            # the ordered gpx timestamps are [5, 6, 7, 8]
-            # then the exif_time_offset will be 5 - 2 = 3
-            first_exif_time = sorted_pairs[0][0]
-            offset_time = (points[0].time - first_exif_time).total_seconds()
-
-    for exif_time, image in pairs:
-        if exif_time is None:
-            image_log.create_and_log_process_in_memory(
+    pairs = []
+    for image in images:
+        capture_time = read_image_time(image)
+        if capture_time is None:
+            image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                "failed",
                 {
-                    "process": "geotag_process",
-                    "message": "Unable to extract the timestamp",
+                    "code": "no_exif_time_found",
+                    "message": "No capture time found in EXIF",
                 },
             )
         else:
-            corrected_exif_time = exif_time + datetime.timedelta(seconds=offset_time)
-            try:
-                lat, lon, bearing, elevation = interpolate_lat_lon(
-                    points, corrected_exif_time
-                )
-            except MapillaryInterpolationError as ex:
-                raise RuntimeError(
-                    f"""Failed to interpolate image {image} with the geotag source. Try the following fixes:
-1. Specify --local_time to read the timestamps from the geotag source file as local time
-2. Use --use_gps_start_time
-3. Add a time offset with --offset_time to your image timestamps
-"""
-                ) from ex
+            pairs.append((capture_time, image))
 
-            corrected_angle = normalize_bearing(bearing + offset_angle)
-            point = types.GPXPointAngle(
-                point=types.GPXPoint(
-                    time=corrected_exif_time,
-                    lon=lon,
-                    lat=lat,
-                    alt=elevation,
-                ),
-                angle=corrected_angle,
-            )
-            image_log.create_and_log_process_in_memory(
-                image, "geotag_process", "success", point.as_desc()
-            )
+    sorted_points = sorted(points, key=lambda p: p.time)
+    sorted_pairs = sorted(pairs)
+
+    if sorted_pairs:
+        # assume: the ordered image timestamps are [2, 3, 4, 5]
+        # the ordered gpx timestamps are [5, 6, 7, 8]
+        # then the offset will be 5 - 2 = 3
+        time_delta = (sorted_points[0].time - sorted_pairs[0][0]).total_seconds()
+    else:
+        time_delta = 0.0
+
+    # same thing but different type
+    sorted_points_for_interpolation = [
+        Point(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time) for p in sorted_points
+    ]
+
+    for exif_time, image in sorted_pairs:
+        exif_time = exif_time + datetime.timedelta(seconds=time_delta)
+        lat, lon, bearing, elevation = interpolate_lat_lon(
+            sorted_points_for_interpolation, exif_time
+        )
+
+        corrected_angle = normalize_bearing(bearing + offset_angle)
+        corrected_time = exif_time + datetime.timedelta(seconds=offset_time)
+        point = types.GPXPointAngle(
+            point=types.GPXPoint(
+                time=corrected_time,
+                lon=lon,
+                lat=lat,
+                alt=elevation,
+            ),
+            angle=corrected_angle,
+        )
+        image_log.log_in_memory(image, "geotag_process", point.as_desc())
 
 
 def geotag_from_blackvue_video(
@@ -185,8 +174,6 @@ def geotag_from_blackvue_video(
     geotag_source_path: str,
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
-    local_time: bool = False,
-    use_gps_start_time=False,
 ) -> None:
     if not os.path.isdir(geotag_source_path):
         raise RuntimeError(
@@ -204,33 +191,28 @@ def geotag_from_blackvue_video(
         )
 
         if not points:
-            LOG.warning(
-                f"Skipping the BlackVue video {blackvue_video} -- no GPS information found in the video"
-            )
+            message = f"Skipping the BlackVue video {blackvue_video} -- no GPS found in the video"
+            LOG.warning(message)
             for image in process_file_sublist:
-                image_log.create_and_log_process_in_memory(
+                image_log.log_failed_in_memory(
                     image,
                     "geotag_process",
-                    "failed",
                     {
-                        "process": "geotag_process",
                         "code": "no_gps_found",
-                        "message": f"no GPS information found in the blackvue video {blackvue_video}",
+                        "message": message,
                     },
                 )
             continue
 
         if is_stationary_video:
-            LOG.warning(f"Skipping stationary BlackVue video {blackvue_video}")
+            message = f"Skipping stationary BlackVue video {blackvue_video}"
             for image in process_file_sublist:
-                image_log.create_and_log_process_in_memory(
+                image_log.log_failed_in_memory(
                     image,
                     "geotag_process",
-                    "failed",
                     {
-                        "process": "geotag_process",
                         "code": "stationary_blackvue",
-                        "message": f"unable to geotag from a stationary blackvue",
+                        "message": message,
                     },
                 )
             continue
@@ -240,8 +222,6 @@ def geotag_from_blackvue_video(
             points,
             offset_time,
             offset_angle,
-            local_time,
-            use_gps_start_time,
         )
 
 
@@ -250,8 +230,6 @@ def geotag_from_nmea_file(
     geotag_source_path: str,
     offset_time=0.0,
     offset_angle=0.0,
-    local_time=False,
-    use_gps_start_time=False,
 ) -> None:
     if not os.path.isfile(geotag_source_path):
         raise RuntimeError(
@@ -264,17 +242,15 @@ def geotag_from_nmea_file(
     gps_trace = get_lat_lon_time_from_nmea(geotag_source_path)
 
     if not gps_trace:
-        LOG.warning(
-            f"NMEA trace file {geotag_source_path} was not read, images can not be geotagged."
-        )
+        message = f"No GPS extracted from the NMEA trace file {geotag_source_path}"
+        LOG.warning(message)
         for image in process_file_list:
-            image_log.create_and_log_process_in_memory(
+            image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                "failed",
                 {
-                    "process": "geotag_process",
-                    "message": "Not GPS trace found in the NMEA file",
+                    "code": "no_gps_found",
+                    "message": message,
                 },
             )
         return
@@ -284,8 +260,6 @@ def geotag_from_nmea_file(
         gps_trace,
         offset_time,
         offset_angle,
-        local_time,
-        use_gps_start_time,
     )
 
 
@@ -294,8 +268,6 @@ def geotag_from_gpx_file(
     geotag_source_path: str,
     offset_time=0.0,
     offset_angle=0.0,
-    local_time=False,
-    use_gps_start_time=False,
 ) -> None:
     if not os.path.isfile(geotag_source_path):
         raise RuntimeError(
@@ -308,9 +280,17 @@ def geotag_from_gpx_file(
     gps_trace = get_lat_lon_time_from_gpx(geotag_source_path)
 
     if not gps_trace:
-        LOG.warning(
-            f"Error, GPS trace file {geotag_source_path} was not read, images can not be geotagged."
-        )
+        message = f"No GPS extracted from the GPX file {geotag_source_path}"
+        LOG.warning(message)
+        for image in process_file_list:
+            image_log.log_failed_in_memory(
+                image,
+                "geotag_process",
+                {
+                    "code": "no_gps_found",
+                    "message": message,
+                },
+            )
         return
 
     _geotag_from_gpx(
@@ -318,14 +298,12 @@ def geotag_from_gpx_file(
         gps_trace,
         offset_time,
         offset_angle,
-        local_time,
-        use_gps_start_time,
     )
 
 
 def overwrite_exif_tags(
     image_path: str,
-    final_mapillary_image_description: types.FinalImageDescription,
+    desc: types.FinalImageDescription,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
     overwrite_EXIF_gps_tag: bool = False,
@@ -339,33 +317,27 @@ def overwrite_exif_tags(
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
     if overwrite_all_EXIF_tags or overwrite_EXIF_time_tag:
-        image_exif.add_date_time_original(
-            datetime.datetime.strptime(
-                final_mapillary_image_description["MAPCaptureTime"],
-                "%Y_%m_%d_%H_%M_%S_%f",
-            )
-        )
+        dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+        image_exif.add_date_time_original(dt)
         modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_gps_tag:
         image_exif.add_lat_lon(
-            final_mapillary_image_description["MAPLatitude"],
-            final_mapillary_image_description["MAPLongitude"],
+            desc["MAPLatitude"],
+            desc["MAPLongitude"],
         )
         modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_direction_tag:
-        image_exif.add_direction(
-            final_mapillary_image_description["MAPCompassHeading"]["TrueHeading"]
-        )
-        modified = True
+        heading = desc.get("MAPCompassHeading")
+        if heading is not None:
+            image_exif.add_direction(heading["TrueHeading"])
+            modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_orientation_tag:
-        if "MAPOrientation" in final_mapillary_image_description:
-            image_exif.add_orientation(
-                final_mapillary_image_description["MAPOrientation"]
-            )
-        modified = True
+        if "MAPOrientation" in desc:
+            image_exif.add_orientation(desc["MAPOrientation"])
+            modified = True
 
     if modified:
         image_exif.write()

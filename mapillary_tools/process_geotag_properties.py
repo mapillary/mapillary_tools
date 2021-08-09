@@ -12,8 +12,6 @@ def process_geotag_properties(
     geotag_source_path: T.Optional[str] = None,
     offset_time=0.0,
     offset_angle=0.0,
-    local_time=False,
-    use_gps_start_time=False,
     rerun=False,
     skip_subfolders=False,
 ) -> None:
@@ -22,15 +20,12 @@ def process_geotag_properties(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    process_file_list = image_log.get_process_file_list(
+    process_file_list = image_log.get_total_file_list(
         import_path,
-        "mapillary_image_description",
-        rerun=rerun,
         skip_subfolders=skip_subfolders,
     )
 
     if not process_file_list:
-        print("No images to run geotag process")
         return
 
     if geotag_source == "exif":
@@ -46,8 +41,6 @@ def process_geotag_properties(
             geotag_source_path,
             offset_time=offset_time,
             offset_angle=offset_angle,
-            local_time=local_time,
-            use_gps_start_time=use_gps_start_time,
         )
     elif geotag_source == "nmea":
         if geotag_source_path is None:
@@ -59,8 +52,6 @@ def process_geotag_properties(
             geotag_source_path,
             offset_time=offset_time,
             offset_angle=offset_angle,
-            local_time=local_time,
-            use_gps_start_time=use_gps_start_time,
         )
     elif geotag_source == "gopro_videos":
         if geotag_source_path is None:
@@ -72,8 +63,6 @@ def process_geotag_properties(
             geotag_source_path,
             offset_time=offset_time,
             offset_angle=offset_angle,
-            local_time=local_time,
-            use_gps_start_time=use_gps_start_time,
         )
     elif geotag_source == "blackvue_videos":
         if geotag_source_path is None:
@@ -85,8 +74,6 @@ def process_geotag_properties(
             geotag_source_path,
             offset_time=offset_time,
             offset_angle=offset_angle,
-            local_time=local_time,
-            use_gps_start_time=use_gps_start_time,
         )
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")

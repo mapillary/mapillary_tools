@@ -147,13 +147,6 @@ class Command:
             required=False,
         )
         group_geotagging.add_argument(
-            "--local_time",
-            help="Assume image timestamps are in your local time",
-            action="store_true",
-            default=False,
-            required=False,
-        )
-        group_geotagging.add_argument(
             "--offset_time",
             default=0.0,
             type=float,
@@ -165,13 +158,6 @@ class Command:
             default=0.0,
             type=float,
             help="camera angle offset, in degrees, that will be added to your image camera angles",
-            required=False,
-        )
-        group_geotagging.add_argument(
-            "--use_gps_start_time",
-            help="Use GPS trace starting time in case of derivating timestamp from the geotag source.",
-            action="store_true",
-            default=False,
             required=False,
         )
 
@@ -195,13 +181,6 @@ class Command:
             help="perform interploation of directions",
             action="store_true",
             required=False,
-        )
-        group_sequence.add_argument(
-            "--keep_duplicates",
-            help="keep duplicates, ie do not flag duplicates for upload exclusion, but keep them to be uploaded",
-            action="store_true",
-            required=False,
-            default=False,
         )
         group_sequence.add_argument(
             "--duplicate_distance",

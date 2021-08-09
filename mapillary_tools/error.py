@@ -12,7 +12,3 @@ class MapillaryUserError(Exception):
 
 class MapillaryGeoTaggingError(MapillaryUserError):
     pass
-
-
-class MapillaryInterpolationError(MapillaryUserError):
-    pass

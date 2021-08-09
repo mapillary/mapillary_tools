@@ -142,15 +142,12 @@ def process_import_meta_properties(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    process_file_list = image_log.get_process_file_list(
+    process_file_list = image_log.get_total_file_list(
         import_path,
-        "mapillary_image_description",
-        rerun=rerun,
         skip_subfolders=skip_subfolders,
     )
 
     if not process_file_list:
-        print("No images to run import meta data process")
         return
 
     if orientation is not None:
@@ -176,6 +173,4 @@ def process_import_meta_properties(
             exclude_import_path,
             exclude_path,
         )
-        image_log.create_and_log_process_in_memory(
-            image, "import_meta_data_process", "success", desc
-        )
+        image_log.log_in_memory(image, "import_meta_data_process", desc)

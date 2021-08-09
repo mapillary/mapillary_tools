@@ -26,7 +26,7 @@ def list_image_descriptions_for_upload(
 
     images = image_log.get_total_file_list(import_path, skip_subfolders)
     for image in images:
-        if image_log.success_upload(image):
+        if image_log.upload_success(image):
             continue
 
         if geojson_source is None:

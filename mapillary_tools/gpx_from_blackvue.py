@@ -1,3 +1,4 @@
+import logging
 import typing as T
 import datetime
 import io
@@ -12,6 +13,8 @@ from .types import GPXPoint
 """
 Pulls geo data out of a BlackVue video files
 """
+
+LOG = logging.getLogger()
 
 
 def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint]:
@@ -82,7 +85,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint
                                         # There are often Checksum errors in the GPS stream, better not to show errors to user
                                         pass
                                     except Exception:
-                                        print(
+                                        LOG.warning(
                                             "Warning: Error in parsing gps trace to extract date information, nmea parsing failed"
                                         )
                             if use_nmea_stream_timestamp:
@@ -104,8 +107,9 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint
                                             points.append((timestamp, lat, lon, alt))
 
                                     except Exception as e:
-                                        print(
-                                            f"Error in parsing gps trace to extract time and gps information, nmea parsing failed due to {e}"
+                                        LOG.error(
+                                            f"Error in parsing GPS trace to extract time and GPS information, nmea parsing failed",
+                                            exc_info=e,
                                         )
 
                         # If there are no points after parsing just return empty vector

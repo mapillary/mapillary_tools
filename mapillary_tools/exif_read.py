@@ -1,6 +1,5 @@
 from typing import List, Optional, Tuple, Type, Union, Any
 import datetime
-import json
 import os
 import logging
 
@@ -126,12 +125,19 @@ class ExifRead:
         fields: List[str] = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
         refs: List[str] = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
-        ref = (
-            0
-            if not any([True for x in refs if x in self.tags])
-            else [self.tags[x].values for x in refs if x in self.tags][0][0]
-        )
-        return altitude * altitude_ref[ref]
+        ref = 0
+        for x in refs:
+            t = self.tags.get(x)
+            if t is not None:
+                if t.values:
+                    if isinstance(t.values[0], Ratio):
+                        try:
+                            ref = int(eval_frac(t.values[0]))
+                        except ZeroDivisionError:
+                            pass
+                        else:
+                            break
+        return altitude * altitude_ref.get(ref, 1)
 
     def extract_capture_time(self) -> Optional[datetime.datetime]:
         """

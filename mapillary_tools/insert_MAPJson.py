@@ -2,6 +2,7 @@ import typing as T
 import json
 import logging
 import os
+import uuid
 
 from tqdm import tqdm
 
@@ -32,6 +33,7 @@ def get_final_mapillary_image_description(
 
     description: dict = {}
     description.update(T.cast(dict, geotag_desc))
+    # sequence desc overrides the image desc
     description.update(T.cast(dict, sequence_desc))
 
     ret = image_log.read_process_data_from_memory(image, "import_meta_data_process")
@@ -40,8 +42,7 @@ def get_final_mapillary_image_description(
         if status == "success":
             description.update(T.cast(dict, meta_desc))
 
-    # FIXME
-    # description["MAPPhotoUUID"] = str(uuid.uuid4())
+    description["MAPPhotoUUID"] = str(uuid.uuid4())
 
     return status, T.cast(types.FinalImageDescription, description)
 
@@ -64,25 +65,14 @@ def insert_MAPJson(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    # get list of file to process
-    process_file_list = image_log.get_process_file_list(
-        import_path,
-        "mapillary_image_description",
-        rerun=rerun,
-        skip_subfolders=skip_subfolders,
-    )
-    process_file_list = [
-        file for file in process_file_list if not image_log.is_duplicate(file)
-    ]
+    images = image_log.get_total_file_list(import_path, skip_subfolders=skip_subfolders)
 
-    if not process_file_list:
+    if not images:
         print("No images to run process finalization")
         return
 
     all_desc = []
-    for image in tqdm(
-        process_file_list, unit="files", desc="Processing image description"
-    ):
+    for image in tqdm(images, unit="files", desc="Processing image description"):
         ret = get_final_mapillary_image_description(image)
         if ret is None:
             continue
@@ -105,19 +95,12 @@ def insert_MAPJson(
 
             all_desc.append(T.cast(types.FinalImageDescription, desc))
 
-            image_log.create_and_log_process(
-                image,
-                "mapillary_image_description",
-                "success",
-                desc,
-            )
-        else:
-            image_log.create_and_log_process(
-                image,
-                "mapillary_image_description",
-                status,
-                desc,
-            )
+        image_log.create_and_log_process(
+            image,
+            "mapillary_image_description",
+            status,
+            desc,
+        )
 
     if write_geojson is not None:
         if write_geojson == "-":
