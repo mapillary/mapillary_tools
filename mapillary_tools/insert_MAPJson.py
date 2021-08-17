@@ -49,7 +49,6 @@ def get_final_mapillary_image_description(
 
 def insert_MAPJson(
     import_path,
-    rerun=False,
     skip_subfolders=False,
     overwrite_all_EXIF_tags=False,
     overwrite_EXIF_time_tag=False,

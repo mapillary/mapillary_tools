@@ -120,12 +120,11 @@ def process_sequence_properties(
     interpolate_directions=False,
     duplicate_distance=0.1,
     duplicate_angle=5,
-    rerun=False,
     skip_subfolders=False,
 ) -> None:
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(f"Error, import directory {import_path} does not exist")
-    sequences = find_sequences(import_path, rerun, skip_subfolders)
+    sequences = find_sequences(import_path, skip_subfolders)
     for sequence in sequences:
         process_sequence(
             sequence,
@@ -239,7 +238,6 @@ def process_sequence(
 
 def find_sequences(
     import_path: str,
-    rerun: bool,
     skip_subfolders: bool,
 ) -> T.List[Sequence]:
     sort_key = lambda image: image.time

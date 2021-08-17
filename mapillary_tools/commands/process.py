@@ -14,10 +14,7 @@ class Command:
     help = "process images"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
-        group = parser.add_argument_group("process options")
-        group.add_argument(
-            "--rerun", help="rerun the processing", action="store_true", required=False
-        )
+        group = parser.add_argument_group("process EXIF options")
         group.add_argument(
             "--overwrite_all_EXIF_tags",
             help="Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.",

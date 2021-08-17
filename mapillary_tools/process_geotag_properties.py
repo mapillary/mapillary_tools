@@ -12,7 +12,6 @@ def process_geotag_properties(
     geotag_source_path: T.Optional[str] = None,
     offset_time=0.0,
     offset_angle=0.0,
-    rerun=False,
     skip_subfolders=False,
 ) -> None:
     if not import_path or not os.path.isdir(import_path):
