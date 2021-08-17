@@ -213,3 +213,10 @@ Improvement:
 - Recommend users download binaries in QuickStart #425
 - Retries on all upload API calls, and retries more frequently #427
 - Error message improvement #422 and the commit ea6f0cdf
+
+
+## 0.7.4 (2021-07-28)
+
+Fixes:
+- Fix organization description missing from the API #429
+- Skip BlackVue videos that have no GPS data found #430
