@@ -40,18 +40,18 @@ def setup_data(tmpdir):
 
 
 def test_basic():
-    for option in ["--version", "--help", "--full_help"]:
+    for option in ["--version", "--help"]:
         x = subprocess.run(f"{EXECUTABLE} {option}", shell=True)
-        assert x.returncode == 0
+        assert x.returncode == 0, x.stderr
 
 
 def test_process(setup_config, setup_data):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
     x = subprocess.run(
-        f"{EXECUTABLE} process --import_path {setup_data} --user_name {USERNAME}",
+        f"{EXECUTABLE} process {setup_data}",
         shell=True,
     )
-    assert x.returncode == 0
+    assert x.returncode == 0, x.stderr
 
 
 def test_process_boolean_options(setup_config, setup_data):
@@ -61,98 +61,27 @@ def test_process_boolean_options(setup_config, setup_data):
         "--add_import_date",
         "--exclude_import_path",
         "--interpolate_directions",
-        "--keep_duplicates",
-        "--keep_original",
-        "--list_file_status",
-        "--local_time",
-        "--move_all_images",
-        "--move_duplicates",
-        "--move_sequences",
-        "--move_uploaded",
         "--overwrite_EXIF_direction_tag",
         "--overwrite_EXIF_gps_tag",
         "--overwrite_EXIF_orientation_tag",
         "--overwrite_EXIF_time_tag",
         "--overwrite_all_EXIF_tags",
-        # --private only works with organizations
-        # '--private',
-        # FIXME: AttributeError: module 'mapillary_tools.uploader' has no attribute 'process_upload_finalization'
-        # '--push_images',
         "--rerun",
-        "--save_as_json",
-        # '--save_local_mapping',
-        "--skip_EXIF_insert",
         "--skip_subfolders",
-        "--summarize",
-        "--use_gps_start_time",
-        "--verbose",
         "--windows_path",
     ]
     for option in boolean_options:
         x = subprocess.run(
-            f"{EXECUTABLE} --advanced process --import_path {setup_data} --user_name {USERNAME} {option}",
+            f"{EXECUTABLE} process {setup_data} {option}",
             shell=True,
         )
         assert x.returncode == 0
     all_options = " ".join(boolean_options)
     x = subprocess.run(
-        f"{EXECUTABLE} --advanced process --import_path {setup_data} --user_name {USERNAME} {all_options}",
+        f"{EXECUTABLE} process {setup_data} {all_options}",
         shell=True,
     )
-    assert x.returncode == 0
-
-
-def test_extract_user_data(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced extract_user_data --import_path {setup_data} --user_name {USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0
-
-
-def test_extract_geotag_data(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced extract_geotag_data --import_path {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0
-
-
-def test_extract_import_meta_data(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced extract_import_meta_data --import_path {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0
-
-
-def test_extract_sequence_data(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced extract_sequence_data --import_path {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0
-
-
-def test_extract_upload_params(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced extract_upload_params --import_path {setup_data} --user_name {USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0
-
-
-def test_exif_insert(setup_config, setup_data):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
-    x = subprocess.run(
-        f"{EXECUTABLE} --advanced exif_insert --import_path {setup_data}", shell=True
-    )
-    assert x.returncode == 0
+    assert x.returncode == 0, x.stderr
 
 
 def test_process_csv():
@@ -169,46 +98,29 @@ def test_authenticate():
 def test_interpolate_missing_gps(setup_config, setup_data):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
     x = subprocess.run(
-        f"{EXECUTABLE} --advanced interpolate --import_path {setup_data} --data missing_gps",
+        f"{EXECUTABLE} interpolate --import_path {setup_data} --data missing_gps",
         shell=True,
     )
-    assert x.returncode == 0
+    assert x.returncode == 0, x.stderr
 
 
-def test_interpolate_identical_timestamps(setup_config, setup_data):
+def xtest_interpolate_identical_timestamps(setup_config, setup_data):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
     x = subprocess.run(
-        f"{EXECUTABLE} --advanced interpolate --import_path {setup_data} --data identical_timestamps",
+        f"{EXECUTABLE} interpolate --import_path {setup_data} --data identical_timestamps",
         shell=True,
     )
-    assert x.returncode == 0
+    assert x.returncode == 0, x.stderr
 
 
-def test_post_process_boolean_options(setup_config, setup_data):
+def xtest_post_process_boolean_options(setup_config, setup_data):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
     boolean_options = [
-        "--list_file_status",
-        "--move_all_images",
-        "--move_duplicates",
-        "--move_sequences",
-        "--move_uploaded",
-        # "--push_images",
         "--save_as_json",
-        "--save_local_mapping",
-        "--skip_subfolders",
-        "--summarize",
     ]
     for option in boolean_options:
         x = subprocess.run(
-            f"{EXECUTABLE} --advanced post_process --import_path {setup_data} {option}",
+            f"{EXECUTABLE} post_process {setup_data} {option}",
             shell=True,
         )
-        assert x.returncode == 0, x.returncode
-
-
-def test_download():
-    pass
-
-
-def test_send_videos_for_processing():
-    pass
+        assert x.returncode == 0, x.stderr
