@@ -66,7 +66,6 @@ def test_process_boolean_options(setup_config, setup_data):
         "--overwrite_EXIF_orientation_tag",
         "--overwrite_EXIF_time_tag",
         "--overwrite_all_EXIF_tags",
-        "--rerun",
         "--skip_subfolders",
         "--windows_path",
     ]
