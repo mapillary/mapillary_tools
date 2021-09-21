@@ -88,19 +88,27 @@ def geotag_from_gopro_video(
     offset_time: float,
     offset_angle: float,
 ) -> None:
-    if not os.path.isdir(geotag_source_path):
-        raise RuntimeError(
-            f"The path specified in geotag_source_path {geotag_source_path} is not a directory"
-        )
-
-    gopro_videos = image_log.get_video_file_list(geotag_source_path)
-    for gopro_video in gopro_videos:
-        trace = gpx_from_gopro(gopro_video)
+    if os.path.isdir(geotag_source_path):
+        gopro_videos = image_log.get_video_file_list(geotag_source_path)
+        for gopro_video in gopro_videos:
+            trace = gpx_from_gopro(gopro_video)
+            _geotag_from_gpx(
+                _filter_video_samples(process_file_list, gopro_video),
+                trace,
+                offset_time,
+                offset_angle,
+            )
+    elif os.path.isfile(geotag_source_path):
+        trace = gpx_from_gopro(geotag_source_path)
         _geotag_from_gpx(
-            _filter_video_samples(process_file_list, gopro_video),
+            _filter_video_samples(process_file_list, geotag_source_path),
             trace,
             offset_time,
             offset_angle,
+        )
+    else:
+        raise RuntimeError(
+            f"The geotag_source_path {geotag_source_path} does not exist"
         )
 
 
@@ -175,12 +183,15 @@ def geotag_from_blackvue_video(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
-    if not os.path.isdir(geotag_source_path):
+    if os.path.isdir(geotag_source_path):
+        blackvue_videos = image_log.get_video_file_list(geotag_source_path)
+    elif os.path.isfile(geotag_source_path):
+        blackvue_videos = [geotag_source_path]
+    else:
         raise RuntimeError(
-            f"The path specified in --geotag_source_path {geotag_source_path} is not a directory"
+            f"The geotag_source_path {geotag_source_path} does not exist"
         )
 
-    blackvue_videos = image_log.get_video_file_list(geotag_source_path)
     for blackvue_video in blackvue_videos:
         process_file_sublist = _filter_video_samples(process_file_list, blackvue_video)
         if not process_file_sublist:
