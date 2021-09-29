@@ -82,6 +82,7 @@ FinalImageDescriptionSchema = {
         "MAPLongitude": {"type": "number"},
         "MAPAltitude": {"type": "number"},
         "MAPCaptureTime": {"type": "string"},
+        "MAPPhotoUUID": {"type": "string"},
         "MAPCompassHeading": {
             "type": "object",
             "properties": {
