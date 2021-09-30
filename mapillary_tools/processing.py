@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from . import image_log
 from . import types
-from .error import MapillaryGeoTaggingError
+from .error import MapillaryGeoTaggingError, MapillaryStationaryBlackVueError
 from .exif_read import ExifRead
 from .exif_write import ExifEdit
 from .geo import normalize_bearing, interpolate_lat_lon, Point
@@ -31,14 +31,7 @@ def geotag_from_exif(
         try:
             point = gpx_from_exif(image)
         except MapillaryGeoTaggingError as ex:
-            image_log.log_failed_in_memory(
-                image,
-                "geotag_process",
-                {
-                    "code": "no_gps_found",
-                    "message": f"No GPS found in image EXIF: {ex}",
-                },
-            )
+            image_log.log_failed_in_memory(image, "geotag_process", ex)
             continue
 
         corrected_time = point.point.time + datetime.timedelta(seconds=offset_time)
@@ -133,10 +126,7 @@ def _geotag_from_gpx(
             image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                {
-                    "code": "no_exif_time_found",
-                    "message": "No capture time found in EXIF",
-                },
+                MapillaryGeoTaggingError("No capture time found in EXIF"),
             )
         else:
             pairs.append((capture_time, image))
@@ -203,15 +193,11 @@ def geotag_from_blackvue_video(
 
         if not points:
             message = f"Skipping the BlackVue video {blackvue_video} -- no GPS found in the video"
-            LOG.warning(message)
             for image in process_file_sublist:
                 image_log.log_failed_in_memory(
                     image,
                     "geotag_process",
-                    {
-                        "code": "no_gps_found",
-                        "message": message,
-                    },
+                    MapillaryGeoTaggingError(message),
                 )
             continue
 
@@ -221,10 +207,7 @@ def geotag_from_blackvue_video(
                 image_log.log_failed_in_memory(
                     image,
                     "geotag_process",
-                    {
-                        "code": "stationary_blackvue",
-                        "message": message,
-                    },
+                    MapillaryStationaryBlackVueError(message),
                 )
             continue
 
@@ -259,10 +242,7 @@ def geotag_from_nmea_file(
             image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                {
-                    "code": "no_gps_found",
-                    "message": message,
-                },
+                MapillaryGeoTaggingError(message),
             )
         return
 
@@ -292,15 +272,11 @@ def geotag_from_gpx_file(
 
     if not gps_trace:
         message = f"No GPS extracted from the GPX file {geotag_source_path}"
-        LOG.warning(message)
         for image in process_file_list:
             image_log.log_failed_in_memory(
                 image,
                 "geotag_process",
-                {
-                    "code": "no_gps_found",
-                    "message": message,
-                },
+                MapillaryGeoTaggingError(message),
             )
         return
 

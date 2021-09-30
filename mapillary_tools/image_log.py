@@ -108,21 +108,14 @@ def create_and_log_process_in_memory(
     )
 
 
-ErrorCode = types.Literal[
-    "no_gps_found",
-    "no_exif_time_found",
-    "stationary_blackvue",
-    "duplicated",
-]
-
-
-class ErrorDescription(types.TypedDict, total=False):
-    code: ErrorCode
-    message: str
-    data: T.Mapping
-
-
-def log_failed_in_memory(image: str, process: types.Process, desc: ErrorDescription):
+def log_failed_in_memory(image: str, process: types.Process, exc: Exception):
+    desc = {
+        "type": exc.__class__.__name__,
+        "message": str(exc),
+    }
+    exc_vars = vars(exc)
+    if exc_vars:
+        desc["vars"] = exc_vars
     return create_and_log_process_in_memory(image, process, "failed", desc)
 
 
@@ -197,6 +190,14 @@ def processed_images_rootpath(filepath: str) -> str:
 def read_process_data(image: str, process: types.Process) -> Optional[dict]:
     log_root = log_rootpath(image)
     path = os.path.join(log_root, f"{process}.json")
+    if not os.path.isfile(path):
+        return None
+    return load_json(path)
+
+
+def read_failed_process_data(image: str, process: types.Process) -> Optional[dict]:
+    log_root = log_rootpath(image)
+    path = os.path.join(log_root, f"{process}.error.json")
     if not os.path.isfile(path):
         return None
     return load_json(path)

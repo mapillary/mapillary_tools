@@ -5,6 +5,7 @@ import uuid
 
 from . import image_log, types
 from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
+from .error import MapillaryDuplicationError
 
 MAX_SEQUENCE_LENGTH = 500
 MAX_CAPTURE_SPEED = 45  # in m/s
@@ -158,15 +159,10 @@ def process_sequence(
         dup_set = set(dup_indices)
         dup_sequence = [image for idx, image in enumerate(sequence) if idx in dup_set]
         for image in dup_sequence:
-            error_desc: image_log.ErrorDescription = {
-                "code": "duplicated",
-                "message": "duplicated",
-                "data": image.desc,
-            }
             image_log.log_failed_in_memory(
                 image.filename,
                 "sequence_process",
-                error_desc,
+                MapillaryDuplicationError("duplicated", image.desc),
             )
 
         dedup_sequence = [

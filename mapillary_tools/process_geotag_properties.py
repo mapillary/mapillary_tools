@@ -23,7 +23,6 @@ def process_geotag_properties(
         import_path,
         skip_subfolders=skip_subfolders,
     )
-
     if not process_file_list:
         return
 
