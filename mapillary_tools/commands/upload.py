@@ -25,8 +25,8 @@ class Command:
             required=False,
         )
         group.add_argument(
-            "--read_geojson",
-            help="Geotagging imagery from the GeoJSON file",
+            "--desc_path",
+            help="Specify the path to read image description",
             default=None,
             required=False,
         )

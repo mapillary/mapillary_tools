@@ -7,7 +7,6 @@ import uuid
 from tqdm import tqdm
 
 from . import image_log, types, processing
-from .geojson import desc_to_feature_collection
 
 LOG = logging.getLogger()
 
@@ -55,22 +54,20 @@ def insert_MAPJson(
     overwrite_EXIF_gps_tag=False,
     overwrite_EXIF_direction_tag=False,
     overwrite_EXIF_orientation_tag=False,
-    write_geojson: str = None,
+    desc_path: str = None,
 ):
-
     # basic check for all
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
+    if desc_path is None:
+        desc_path = os.path.join(import_path, "mapillary_image_description.json")
+
     images = image_log.get_total_file_list(import_path, skip_subfolders=skip_subfolders)
 
-    if not images:
-        print("No images to run process finalization")
-        return
-
-    all_desc = []
+    all_desc: T.List[types.FinalImageDescriptionOrError] = []
     for image in tqdm(images, unit="files", desc="Processing image description"):
         ret = get_final_mapillary_image_description(image)
         if ret is None:
@@ -92,18 +89,21 @@ def insert_MAPJson(
             except Exception:
                 LOG.warning(f"Failed to overwrite EXIF", exc_info=True)
 
-            all_desc.append(T.cast(types.FinalImageDescription, desc))
-
-        image_log.create_and_log_process(
-            image,
-            "mapillary_image_description",
-            status,
-            desc,
-        )
-
-    if write_geojson is not None:
-        if write_geojson == "-":
-            print(json.dumps(desc_to_feature_collection(all_desc), indent=4))
+        relpath = os.path.relpath(image, import_path)
+        if status == "success":
+            all_desc.append(
+                T.cast(types.FinalImageDescription, {**desc, "_filename": relpath})
+            )
         else:
-            with open(write_geojson, "w") as fp:
-                json.dump(desc_to_feature_collection(all_desc), fp, indent=4)
+            all_desc.append(
+                T.cast(
+                    types.FinalImageDescriptionError,
+                    {"error": desc, "_filename": relpath},
+                )
+            )
+
+    if desc_path == "-":
+        print(json.dumps(all_desc, indent=4))
+    else:
+        with open(desc_path, "w") as fp:
+            json.dump(all_desc, fp, indent=4)

@@ -103,16 +103,16 @@ def test_duplication():
 
     assert descs[0][0] == "success"
     assert descs[1][0] == "failed"
-    assert descs[1][1]["code"] == "duplicated"
+    assert descs[1][1]["type"] == "MapillaryDuplicationError"
 
     assert descs[2][0] == "failed"
-    assert descs[2][1]["code"] == "duplicated"
+    assert descs[2][1]["type"] == "MapillaryDuplicationError"
 
     assert descs[3][0] == "failed"
-    assert descs[3][1]["code"] == "duplicated"
+    assert descs[3][1]["type"] == "MapillaryDuplicationError"
 
     assert descs[4][0] == "failed"
-    assert descs[4][1]["code"] == "duplicated"
+    assert descs[4][1]["type"] == "MapillaryDuplicationError"
 
     assert descs[5][0] == "success"
     assert descs[6][0] == "success"

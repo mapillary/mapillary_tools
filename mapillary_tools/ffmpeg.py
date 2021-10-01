@@ -1,6 +1,9 @@
 import json
 import os
 import subprocess
+import logging
+
+LOG = logging.getLogger()
 
 
 def get_ffprobe(path: str) -> dict:

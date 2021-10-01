@@ -51,11 +51,20 @@ class MetaProperties(TypedDict, total=False):
 
 
 class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
-    pass
+    _filename: str
+
+
+class FinalImageDescriptionError(TypedDict):
+    _filename: str
+    error: T.Dict
+
+
+FinalImageDescriptionOrError = T.Union[
+    FinalImageDescriptionError, FinalImageDescription
+]
 
 
 class FinalImageDescriptionFromGeoJSON(FinalImageDescription):
-    _filename: str
     pass
 
 
@@ -100,12 +109,12 @@ FinalImageDescriptionSchema = {
         "MAPCameraUUID": {"type": "string"},
         "MAPFilename": {"type": "string"},
         "MAPOrientation": {"type": "integer"},
+        "_filename": {"type": "string"},
     },
     "required": [
         "MAPLatitude",
         "MAPLongitude",
         "MAPCaptureTime",
-        "MAPSettingsUserKey",
     ],
     "additionalProperties": False,
 }

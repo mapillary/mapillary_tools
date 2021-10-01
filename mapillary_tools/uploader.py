@@ -15,7 +15,6 @@ from tqdm import tqdm
 import jsonschema
 
 from . import upload_api_v4, types, ipc, exif_write
-from .image_log import create_upload_log
 from .login import wrap_http_exception
 
 
@@ -40,6 +39,7 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
 
 
 def upload_images(
+    image_folder: str,
     image_descriptions: T.Dict[str, types.FinalImageDescription],
     user_items: types.User,
     dry_run=False,
@@ -57,11 +57,13 @@ def upload_images(
 
     for sequence_idx, images in enumerate(sequences.values()):
         cluster_id = _upload_single_sequence(
-            images, user_items, sequence_idx, len(sequences), dry_run=dry_run
+            image_folder,
+            images,
+            user_items,
+            sequence_idx,
+            len(sequences),
+            dry_run=dry_run,
         )
-        if not dry_run:
-            for path in images:
-                create_upload_log(path, "upload_success")
 
 
 class Notifier:
@@ -80,6 +82,7 @@ class Notifier:
 
 
 def zip_sequence(
+    image_folder: str,
     sequences: T.Dict[str, types.FinalImageDescription],
     fp: T.IO[bytes],
     tqdm_desc: str = "Compressing",
@@ -100,7 +103,8 @@ def zip_sequence(
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for file in tqdm(file_list, unit="files", desc=tqdm_desc):
             relpath = os.path.relpath(file, root_dir)
-            edit = exif_write.ExifEdit(file)
+            abspath = os.path.join(image_folder, file)
+            edit = exif_write.ExifEdit(abspath)
             edit.add_image_description(sequences[file])
             image_bytes = edit.dump_image_bytes()
             sequence_md5.update(image_bytes)
@@ -209,6 +213,7 @@ def upload_zipped_sequence(
 
 
 def _upload_single_sequence(
+    image_folder: str,
     sequences: T.Dict[str, types.FinalImageDescription],
     user_items: types.User,
     sequence_idx: int,
@@ -227,7 +232,9 @@ def _upload_single_sequence(
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
     with tempfile.NamedTemporaryFile() as fp:
-        sequence_md5 = zip_sequence(sequences, fp, tqdm_desc=_build_desc("Compressing"))
+        sequence_md5 = zip_sequence(
+            image_folder, sequences, fp, tqdm_desc=_build_desc("Compressing")
+        )
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()

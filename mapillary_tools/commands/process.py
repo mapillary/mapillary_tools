@@ -123,8 +123,8 @@ class Command:
 
         group_geotagging = parser.add_argument_group("process geotagging options")
         group_geotagging.add_argument(
-            "--write_geojson",
-            help="Geotagging imagery from the GeoJSON file",
+            "--desc_path",
+            help="Specify the path to store mapillary image descriptions as JSON. By default it is {IMPORT_PATH}/mapillary_image_description.json",
             default=None,
             required=False,
         )

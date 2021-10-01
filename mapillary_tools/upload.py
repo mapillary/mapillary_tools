@@ -7,44 +7,35 @@ import logging
 import requests
 
 from . import image_log
-from . import uploader, types, login, api_v4, geojson
+from . import uploader, types, login, api_v4
 
 LOG = logging.getLogger()
 
 
 def list_image_descriptions_for_upload(
     import_path: str,
-    geojson_source: T.Optional[dict] = None,
+    descs: T.List[types.FinalImageDescription],
     skip_subfolders: bool = False,
 ) -> T.Dict[str, types.FinalImageDescription]:
     filtered = {}
-    index: T.Dict[str, types.FinalImageDescriptionFromGeoJSON] = {}
-    if geojson_source is not None:
-        descs = geojson.feature_collection_to_desc(geojson_source)
-        for desc in descs:
-            index[desc["_filename"]] = desc
+    index: T.Dict[str, types.FinalImageDescription] = {}
+    for desc in descs:
+        index[desc["_filename"]] = desc
 
     images = image_log.get_total_file_list(import_path, skip_subfolders)
     for image in images:
-        if image_log.upload_success(image):
-            continue
-
-        if geojson_source is None:
-            final_desc = image_log.read_image_description(image)
-        else:
-            final_desc = index.get(image)
-
+        relpath = os.path.relpath(image, import_path)
+        final_desc = index.get(relpath)
         if final_desc is None:
             continue
-
-        filtered[image] = final_desc
+        filtered[relpath] = final_desc
 
     return filtered
 
 
 def upload(
     import_path: str,
-    read_geojson: T.Optional[str] = None,
+    desc_path: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     skip_subfolders=False,
@@ -56,18 +47,20 @@ def upload(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    geojson_source: T.Optional[dict] = None
-    if read_geojson is not None:
-        if read_geojson == "-":
-            geojson_source = json.load(sys.stdin)
-            pass
-        else:
-            with open(read_geojson) as fp:
-                geojson_source = json.load(fp)
+    if desc_path is None:
+        desc_path = os.path.join(import_path, "mapillary_image_description.json")
+
+    if desc_path == "-":
+        descs = json.load(sys.stdin)
+    else:
+        with open(desc_path) as fp:
+            descs = json.load(fp)
+
+    descs = [desc for desc in descs if "error" not in desc]
 
     image_descriptions = list_image_descriptions_for_upload(
         import_path,
-        geojson_source=geojson_source,
+        descs,
         skip_subfolders=skip_subfolders,
     )
 
@@ -108,4 +101,4 @@ def upload(
 
         user_items.update({"MAPOrganizationKey": organization_key})
 
-    uploader.upload_images(image_descriptions, user_items, dry_run=dry_run)
+    uploader.upload_images(import_path, image_descriptions, user_items, dry_run=dry_run)
