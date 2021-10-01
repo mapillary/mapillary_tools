@@ -3,7 +3,6 @@ import argparse
 from . import VERSION
 from .commands import authenticate
 from .commands import interpolate
-from .commands import post_process
 from .commands import process
 from .commands import process_and_upload
 from .commands import process_csv
@@ -22,7 +21,6 @@ mapillary_tools_commands = [
     authenticate,
     interpolate,
     process_csv,
-    post_process,
 ]
 
 
