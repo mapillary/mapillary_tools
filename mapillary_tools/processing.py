@@ -2,7 +2,6 @@ from typing import Dict, List, Tuple
 import typing as T
 import datetime
 import os
-from collections import OrderedDict
 import logging
 
 from tqdm import tqdm
@@ -346,49 +345,6 @@ def format_orientation(orientation: int) -> int:
         raise ValueError("Orientation value has to be 0, 90, 180, or 270")
 
     return mapping[orientation]
-
-
-def interpolate_timestamp(
-    capture_times: List[datetime.datetime],
-) -> List[datetime.datetime]:
-    """
-    Interpolate time stamps in case of identical timestamps
-    """
-
-    if len(capture_times) < 2:
-        return capture_times
-
-    # trace identical timestamps (always assume capture_times is sorted)
-    time_dict: OrderedDict[datetime.datetime, Dict] = OrderedDict()
-    for i, t in enumerate(capture_times):
-        if t not in time_dict:
-            time_dict[t] = {"count": 0, "pointer": 0}
-
-            if 0 < i:
-                interval = (t - capture_times[i - 1]).total_seconds()
-                time_dict[capture_times[i - 1]]["interval"] = interval
-
-        time_dict[t]["count"] += 1
-
-    keys = list(time_dict.keys())
-    if len(keys) >= 2:
-        # set time interval as the last available time interval
-        time_dict[keys[-1]]["interval"] = time_dict[keys[-2]]["interval"]
-    else:
-        # set time interval assuming capture interval is 1 second
-        time_dict[keys[0]]["interval"] = time_dict[keys[0]]["count"] * 1.0
-
-    timestamps = []
-
-    # interpolate timestamps
-    for t in capture_times:
-        d = time_dict[t]
-        s = datetime.timedelta(seconds=d["pointer"] * d["interval"] / float(d["count"]))
-        updated_time = t + s
-        time_dict[t]["pointer"] += 1
-        timestamps.append(updated_time)
-
-    return timestamps
 
 
 def get_images_geotags(process_file_list: List[str]):

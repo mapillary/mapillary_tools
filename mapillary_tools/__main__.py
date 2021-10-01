@@ -2,7 +2,6 @@ import argparse
 
 from . import VERSION
 from .commands import authenticate
-from .commands import interpolate
 from .commands import process
 from .commands import process_and_upload
 from .commands import sample_video
@@ -18,7 +17,6 @@ mapillary_tools_commands = [
     video_process,
     video_process_and_upload,
     authenticate,
-    interpolate,
 ]
 
 

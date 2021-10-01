@@ -1,5 +1,4 @@
 from . import authenticate
-from . import interpolate
 from . import process
 from . import process_and_upload
 from . import sample_video

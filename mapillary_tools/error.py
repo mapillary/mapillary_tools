@@ -1,7 +1,3 @@
-def print_error(message):
-    print(message)
-
-
 class MapillaryUserError(Exception):
     pass
 

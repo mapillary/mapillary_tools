@@ -1,17 +1,8 @@
 import os
 import typing as T
-from typing import Generator, List, Optional, cast
+from typing import Generator, List, Optional
 
 from . import types
-
-
-def log_rootpath(filepath: str) -> str:
-    return os.path.join(
-        os.path.dirname(filepath),
-        ".mapillary",
-        "logs",
-        os.path.basename(filepath),
-    )
 
 
 def is_image_file(path: str) -> bool:
@@ -69,15 +60,6 @@ def log_failed_in_memory(image: str, process: types.Process, exc: Exception):
 
 def log_in_memory(image: str, process: types.Process, desc: T.Mapping):
     return _create_and_log_process_in_memory(image, process, "success", desc)
-
-
-def processed_images_rootpath(filepath: str) -> str:
-    return os.path.join(
-        os.path.dirname(filepath),
-        ".mapillary",
-        "processed_images",
-        os.path.basename(filepath),
-    )
 
 
 def read_process_data_from_memory(
