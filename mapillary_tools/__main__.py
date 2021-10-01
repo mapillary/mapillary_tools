@@ -5,7 +5,6 @@ from .commands import authenticate
 from .commands import interpolate
 from .commands import process
 from .commands import process_and_upload
-from .commands import process_csv
 from .commands import sample_video
 from .commands import upload
 from .commands import video_process
@@ -20,7 +19,6 @@ mapillary_tools_commands = [
     video_process_and_upload,
     authenticate,
     interpolate,
-    process_csv,
 ]
 
 
