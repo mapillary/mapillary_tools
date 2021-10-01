@@ -7,6 +7,7 @@ from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
 from ..process_sequence_properties import process_sequence_properties
+from ..post_process import post_process
 
 
 class Command:
@@ -247,6 +248,16 @@ class Command:
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(insert_MAPJson).args
+                }
+            )
+        )
+
+        post_process(
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(post_process).args
                 }
             )
         )
