@@ -5,6 +5,7 @@ import zipfile
 
 import pytest
 import py.path
+import exifread
 
 EXECUTABLE = os.getenv("MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools")
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
@@ -58,15 +59,13 @@ def test_process(setup_data: py.path.local):
 
 
 def validate_and_extract_zip(filename: str):
-    import exifread
-
     basename = os.path.basename(filename)
     assert basename.startswith("mly_tools_"), filename
     assert basename.endswith(".zip"), filename
     ret = {}
     with zipfile.ZipFile(filename) as fp:
         for name in fp.namelist():
-            with fp.open(name) as fp2:
+            with fp.open(name, "r") as fp2:
                 tags = exifread.process_file(fp2)
                 desc_tag = tags.get("Image ImageDescription")
                 assert desc_tag is not None, tags
