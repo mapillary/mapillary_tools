@@ -63,19 +63,23 @@ def validate_and_extract_zip(filename: str):
     assert basename.startswith("mly_tools_"), filename
     assert basename.endswith(".zip"), filename
     ret = {}
-    with zipfile.ZipFile(filename) as fp:
-        for name in fp.namelist():
-            with fp.open(name, "r") as fp2:
-                tags = exifread.process_file(fp2)
-                desc_tag = tags.get("Image ImageDescription")
-                assert desc_tag is not None, tags
-                desc = json.loads(str(desc_tag.values))
-                assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
-                assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
-                assert isinstance(desc.get("MAPCaptureTime"), str), desc
-                for key in desc.keys():
-                    assert key.startswith("MAP"), key
-                ret[name] = desc
+    import tempfile
+
+    with zipfile.ZipFile(filename) as zipf:
+        with tempfile.TemporaryDirectory() as tempdir:
+            zipf.extractall(path=tempdir)
+            for name in os.listdir(tempdir):
+                with open(os.path.join(tempdir, name), "rb") as fp:
+                    tags = exifread.process_file(fp)
+                    desc_tag = tags.get("Image ImageDescription")
+                    assert desc_tag is not None, tags
+                    desc = json.loads(str(desc_tag.values))
+                    assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
+                    assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
+                    assert isinstance(desc.get("MAPCaptureTime"), str), desc
+                    for key in desc.keys():
+                        assert key.startswith("MAP"), key
+                    ret[name] = desc
     return ret
 
 
@@ -158,7 +162,7 @@ def test_process_and_upload(
         validate_and_extract_zip(str(file))
 
 
-def xtest_process_boolean_options(
+def test_process_boolean_options(
     setup_config: py.path.local, setup_data: py.path.local
 ):
     os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
