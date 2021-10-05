@@ -92,13 +92,13 @@ def insert_MAPJson(
         relpath = os.path.relpath(image, import_path)
         if status == "success":
             all_desc.append(
-                T.cast(types.FinalImageDescription, {**desc, "_filename": relpath})
+                T.cast(types.FinalImageDescription, {**desc, "filename": relpath})
             )
         else:
             all_desc.append(
                 T.cast(
                     types.FinalImageDescriptionError,
-                    {"error": desc, "_filename": relpath},
+                    {"error": desc, "filename": relpath},
                 )
             )
 

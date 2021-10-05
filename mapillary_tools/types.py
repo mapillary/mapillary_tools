@@ -51,11 +51,15 @@ class MetaProperties(TypedDict, total=False):
 
 
 class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
-    _filename: str
+    pass
+
+
+class ImageDescriptionJSON(FinalImageDescription):
+    filename: str
 
 
 class FinalImageDescriptionError(TypedDict):
-    _filename: str
+    filename: str
     error: T.Dict
 
 
@@ -109,7 +113,6 @@ FinalImageDescriptionSchema = {
         "MAPCameraUUID": {"type": "string"},
         "MAPFilename": {"type": "string"},
         "MAPOrientation": {"type": "integer"},
-        "_filename": {"type": "string"},
     },
     "required": [
         "MAPLatitude",
@@ -118,6 +121,29 @@ FinalImageDescriptionSchema = {
     ],
     "additionalProperties": False,
 }
+
+
+def merge_schema(*schemas: T.Dict):
+    for s in schemas:
+        assert s.get("type") == "object", "must be all object schemas"
+    properties = {}
+    for s in schemas:
+        properties.update(s.get("properties", {}))
+    return {
+        "type": "object",
+        "properties": properties,
+    }
+
+
+ImageDescriptionJSONSchema = merge_schema(
+    FinalImageDescriptionSchema,
+    {
+        "type": "object",
+        "properties": {
+            "filename": {"type": "string"},
+        },
+    },
+)
 
 
 Process = Literal[

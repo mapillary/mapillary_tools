@@ -345,19 +345,3 @@ def format_orientation(orientation: int) -> int:
         raise ValueError("Orientation value has to be 0, 90, 180, or 270")
 
     return mapping[orientation]
-
-
-def get_images_geotags(process_file_list: List[str]):
-    geotags = []
-    missing_geotags = []
-    for image in tqdm(sorted(process_file_list), desc="Reading GPS data"):
-        exif = ExifRead(image)
-        timestamp = exif.extract_capture_time()
-        lon, lat = exif.extract_lon_lat()
-        altitude = exif.extract_altitude()
-        if timestamp and lon and lat:
-            geotags.append((timestamp, lat, lon, altitude))
-            continue
-        if timestamp and (not lon or not lat):
-            missing_geotags.append((image, timestamp))
-    return geotags, missing_geotags

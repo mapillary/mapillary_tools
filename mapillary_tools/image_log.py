@@ -48,7 +48,7 @@ def _create_and_log_process_in_memory(
 
 
 def log_failed_in_memory(image: str, process: types.Process, exc: Exception):
-    desc = {
+    desc: T.Dict = {
         "type": exc.__class__.__name__,
         "message": str(exc),
     }

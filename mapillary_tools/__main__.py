@@ -1,4 +1,6 @@
 import argparse
+import logging
+import sys
 
 from . import VERSION
 from .commands import authenticate
@@ -8,9 +10,11 @@ from .commands import sample_video
 from .commands import upload
 from .commands import video_process
 from .commands import video_process_and_upload
+from .commands import zip
 
 mapillary_tools_commands = [
     process,
+    zip,
     upload,
     process_and_upload,
     sample_video,
@@ -20,6 +24,9 @@ mapillary_tools_commands = [
 ]
 
 
+LOG = logging.getLogger()
+
+
 def add_general_arguments(parser, command):
     if command == "authenticate":
         return
@@ -27,11 +34,11 @@ def add_general_arguments(parser, command):
     if command in ["sample_video", "video_process", "video_process_and_upload"]:
         parser.add_argument(
             "video_import_path",
-            help="path to a video or directory with one or more video files.",
+            help="Path to a video or directory with one or more video files.",
         )
         parser.add_argument(
             "import_path",
-            help='path to where the images from video sampling will be saved. If not specified, it will default to "mapillary_sampled_video_frames" under your video import path',
+            help='Path to where the images from video sampling will be saved. If not specified, it will default to "mapillary_sampled_video_frames" under your video import path',
             nargs="?",
         )
         parser.add_argument(
@@ -41,10 +48,24 @@ def add_general_arguments(parser, command):
             default=False,
             required=False,
         )
+    elif command in ["upload"]:
+        parser.add_argument(
+            "import_path",
+            help="Path to your images",
+        )
+    elif command in ["zip"]:
+        parser.add_argument(
+            "import_path",
+            help="Path to your images",
+        )
+        parser.add_argument(
+            "zip_dir",
+            help="Path to store zipped images",
+        )
     else:
         parser.add_argument(
             "import_path",
-            help="path to your images",
+            help="Path to your images",
         )
         parser.add_argument(
             "--skip_subfolders",

@@ -23,7 +23,7 @@ MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
 LOG = logging.getLogger()
 
 
-def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
+def _find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     """
     find the common root path
     """
@@ -35,29 +35,46 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     elif len(dirs) == 1:
         return list(dirs)[0]
     else:
-        return find_root_dir(dirs)
+        return _find_root_dir(dirs)
 
 
-def upload_images(
-    image_folder: str,
-    image_descriptions: T.Dict[str, types.FinalImageDescription],
+def _group_sequences_by_uuid(
+    image_descs: T.List[types.ImageDescriptionJSON],
+) -> T.Dict[str, T.Dict[str, types.FinalImageDescription]]:
+    sequences: T.Dict[str, T.Dict[str, types.FinalImageDescription]] = {}
+    missing_sequence_uuid = str(uuid.uuid4())
+    for desc in image_descs:
+        sequence_uuid = desc.get("MAPSequenceUUID", missing_sequence_uuid)
+        sequence = sequences.setdefault(sequence_uuid, {})
+        desc_without_filename = {**desc}
+        del desc_without_filename["filename"]
+        sequence[desc["filename"]] = T.cast(
+            types.FinalImageDescription, desc_without_filename
+        )
+    return sequences
+
+
+def _validate_descs(image_dir: str, image_descs: T.List[types.ImageDescriptionJSON]):
+    for desc in image_descs:
+        jsonschema.validate(instance=desc, schema=types.ImageDescriptionJSONSchema)
+    for desc in image_descs:
+        abspath = os.path.join(image_dir, desc["filename"])
+        if not os.path.isfile(abspath):
+            raise RuntimeError(f"Image path {abspath} not found")
+
+
+def upload_image_dir(
+    image_dir: str,
+    image_descs: T.List[types.ImageDescriptionJSON],
     user_items: types.User,
     dry_run=False,
 ):
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-    sequences: T.Dict[str, T.Dict[str, types.FinalImageDescription]] = {}
-    for path, desc in image_descriptions.items():
-        merged: types.FinalImageDescription = T.cast(
-            types.FinalImageDescription, {**desc, **user_items}
-        )
-        del merged["user_upload_token"]
-        jsonschema.validate(instance=merged, schema=types.FinalImageDescriptionSchema)
-        sequence = sequences.setdefault(desc["MAPSequenceUUID"], {})
-        sequence[path] = merged
-
+    _validate_descs(image_dir, image_descs)
+    sequences = _group_sequences_by_uuid(image_descs)
     for sequence_idx, images in enumerate(sequences.values()):
-        cluster_id = _upload_single_sequence(
-            image_folder,
+        cluster_id = _zip_and_upload_single_sequence(
+            image_dir,
             images,
             user_items,
             sequence_idx,
@@ -66,8 +83,25 @@ def upload_images(
         )
 
 
+def zip_image_dir(
+    image_dir: str, image_descs: T.List[types.ImageDescriptionJSON], zip_dir: str
+):
+    _validate_descs(image_dir, image_descs)
+    sequences = _group_sequences_by_uuid(image_descs)
+    os.makedirs(zip_dir, exist_ok=True)
+    for sequence_uuid, sequence in sequences.items():
+        # FIXME: do not use UUID as filename
+        zip_filename_wip = os.path.join(
+            zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
+        )
+        with open(zip_filename_wip, "wb") as fp:
+            sequence_md5 = _zip_sequence(image_dir, sequence, fp)
+        zip_filename = os.path.join(zip_dir, f"mly_tools_{sequence_md5}.zip")
+        os.rename(zip_filename_wip, zip_filename)
+
+
 class Notifier:
-    def __init__(self, sequnece_info: dict):
+    def __init__(self, sequnece_info: T.Dict):
         self.uploaded_bytes = 0
         self.sequence_info = sequnece_info
 
@@ -81,18 +115,18 @@ class Notifier:
         ipc.send("upload", payload)
 
 
-def zip_sequence(
-    image_folder: str,
+def _zip_sequence(
+    image_dir: str,
     sequences: T.Dict[str, types.FinalImageDescription],
     fp: T.IO[bytes],
     tqdm_desc: str = "Compressing",
 ) -> str:
     file_list = list(sequences.keys())
     first_image = list(sequences.values())[0]
-    sequence_uuid = first_image["MAPSequenceUUID"]
 
-    root_dir = find_root_dir(file_list)
+    root_dir = _find_root_dir(file_list)
     if root_dir is None:
+        sequence_uuid = first_image.get("MAPSequenceUUID")
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
     sequence_md5 = hashlib.md5()
@@ -103,7 +137,7 @@ def zip_sequence(
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for file in tqdm(file_list, unit="files", desc=tqdm_desc):
             relpath = os.path.relpath(file, root_dir)
-            abspath = os.path.join(image_folder, file)
+            abspath = os.path.join(image_dir, file)
             edit = exif_write.ExifEdit(abspath)
             edit.add_image_description(sequences[file])
             image_bytes = edit.dump_image_bytes()
@@ -113,7 +147,39 @@ def zip_sequence(
     return sequence_md5.hexdigest()
 
 
-def upload_zipped_sequence(
+def upload_zipfile(zip_path: str, user_items: types.User, dry_run=False):
+    basename = os.path.basename(zip_path)
+    with open(zip_path, "rb") as fp:
+        fp.seek(0, io.SEEK_END)
+        entity_size = fp.tell()
+
+        # chunk size
+        avg_image_size = int(entity_size / 32)
+        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
+
+        notifier = Notifier(
+            {
+                "sequence_path": zip_path,
+                "sequence_uuid": "",
+                "total_bytes": entity_size,
+                "sequence_idx": 0,
+                "total_sequences": 1,
+            }
+        )
+
+        return _upload_zipfile_fp(
+            user_items,
+            fp,
+            entity_size,
+            chunk_size,
+            session_key=basename,
+            tqdm_desc="Uploading",
+            notifier=notifier,
+            dry_run=dry_run,
+        )
+
+
+def _upload_zipfile_fp(
     user_items: types.User,
     fp: T.IO[bytes],
     entity_size: int,
@@ -212,8 +278,8 @@ def upload_zipped_sequence(
         raise wrap_http_exception(ex) from ex
 
 
-def _upload_single_sequence(
-    image_folder: str,
+def _zip_and_upload_single_sequence(
+    image_dir: str,
     sequences: T.Dict[str, types.FinalImageDescription],
     user_items: types.User,
     sequence_idx: int,
@@ -225,15 +291,15 @@ def _upload_single_sequence(
 
     file_list = list(sequences.keys())
     first_image = list(sequences.values())[0]
-    sequence_uuid = first_image["MAPSequenceUUID"]
+    sequence_uuid = first_image.get("MAPSequenceUUID")
 
-    root_dir = find_root_dir(file_list)
+    root_dir = _find_root_dir(file_list)
     if root_dir is None:
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
     with tempfile.NamedTemporaryFile() as fp:
-        sequence_md5 = zip_sequence(
-            image_folder, sequences, fp, tqdm_desc=_build_desc("Compressing")
+        sequence_md5 = _zip_sequence(
+            image_dir, sequences, fp, tqdm_desc=_build_desc("Compressing")
         )
 
         fp.seek(0, io.SEEK_END)
@@ -253,7 +319,7 @@ def _upload_single_sequence(
             }
         )
 
-        return upload_zipped_sequence(
+        return _upload_zipfile_fp(
             user_items,
             fp,
             entity_size,
