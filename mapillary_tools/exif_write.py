@@ -44,10 +44,6 @@ class ExifEdit:
             abs(lat), int(precision)
         )
 
-    def add_image_history(self, data: dict) -> None:
-        """Add arbitrary string to ImageHistory tag."""
-        self._ef["0th"][piexif.ImageIFD.ImageHistory] = json.dumps(data)
-
     def add_altitude(self, altitude: float, precision: int = 100) -> None:
         """Add altitude (pre is the precision)."""
         ref = 0 if altitude > 0 else 1

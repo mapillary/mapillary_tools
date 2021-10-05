@@ -1,3 +1,4 @@
+import sys
 import typing as T
 import json
 import logging
@@ -107,3 +108,11 @@ def insert_MAPJson(
     else:
         with open(desc_path, "w") as fp:
             json.dump(all_desc, fp, indent=4)
+
+    summary = {
+        "total_images": len(all_desc),
+        "processed_images": len([desc for desc in all_desc if "error" not in desc]),
+        "failed_images": len([desc for desc in all_desc if "error" in desc]),
+    }
+
+    print(json.dumps(summary, indent=4), file=sys.stderr)
