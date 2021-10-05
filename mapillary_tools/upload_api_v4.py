@@ -120,6 +120,8 @@ class UploadService:
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
+    upload_path = os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
+
     def upload(
         self,
         data: T.IO[bytes],
@@ -128,7 +130,9 @@ class FakeUploadService(UploadService):
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
-        with open(self.session_key, "ab") as fp:
+        os.makedirs(FakeUploadService.upload_path, exist_ok=True)
+        filename = os.path.join(FakeUploadService.upload_path, self.session_key)
+        with open(filename, "ab") as fp:
             data.seek(offset, io.SEEK_CUR)
             while True:
                 chunk = data.read(chunk_size)
