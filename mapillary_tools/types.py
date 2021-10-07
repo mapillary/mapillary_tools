@@ -1,11 +1,11 @@
-import typing as T
-import sys
 import datetime
+import sys
+import typing as T
 
 if sys.version_info >= (3, 8):
-    from typing import TypedDict, Literal, overload  # pylint: disable=no-name-in-module
+    from typing import TypedDict, Literal  # pylint: disable=no-name-in-module
 else:
-    from typing_extensions import TypedDict, Literal, overload
+    from typing_extensions import TypedDict, Literal
 
 
 class User(TypedDict, total=False):
@@ -84,17 +84,25 @@ UserItemSchema = {
     "additionalProperties": False,
 }
 
-
 FinalImageDescriptionSchema = {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {"type": "string"},
+        "MAPOrganizationKey": {
+            "type": "string",
+            "description": "Organization ID. Upload for which organization",
+        },
         "MAPSettingsUsername": {"type": "string"},
-        "MAPSettingsUserKey": {"type": "string"},
-        "MAPLatitude": {"type": "number"},
-        "MAPLongitude": {"type": "number"},
-        "MAPAltitude": {"type": "number"},
-        "MAPCaptureTime": {"type": "string"},
+        "MAPSettingsUserKey": {
+            "type": "string",
+            "description": "User ID. Upload to which Mapillary user",
+        },
+        "MAPLatitude": {"type": "number", "description": "Latitude of the image"},
+        "MAPLongitude": {"type": "number", "description": "Longitude of the image"},
+        "MAPAltitude": {"type": "number", "description": "Altitude of the image"},
+        "MAPCaptureTime": {
+            "type": "string",
+            "description": "Capture time of the image",
+        },
         "MAPPhotoUUID": {"type": "string"},
         "MAPCompassHeading": {
             "type": "object",
@@ -105,7 +113,10 @@ FinalImageDescriptionSchema = {
             "required": ["TrueHeading", "MagneticHeading"],
             "additionalProperties": False,
         },
-        "MAPSequenceUUID": {"type": "string"},
+        "MAPSequenceUUID": {
+            "type": "string",
+            "description": "Arbitrary key used to group images",
+        },
         "MAPMetaTags": {"type": "object"},
         "MAPDeviceMake": {"type": "string"},
         "MAPDeviceModel": {"type": "string"},
@@ -127,11 +138,18 @@ def merge_schema(*schemas: T.Dict):
     for s in schemas:
         assert s.get("type") == "object", "must be all object schemas"
     properties = {}
+    all_required = []
+    additional_properties = True
     for s in schemas:
         properties.update(s.get("properties", {}))
+        all_required += s.get("required", [])
+        if "additionalProperties" in s:
+            additional_properties = s["additionalProperties"]
     return {
         "type": "object",
         "properties": properties,
+        "required": list(set(all_required)),
+        "additionalProperties": additional_properties,
     }
 
 
@@ -140,11 +158,16 @@ ImageDescriptionJSONSchema = merge_schema(
     {
         "type": "object",
         "properties": {
-            "filename": {"type": "string"},
+            "filename": {
+                "type": "string",
+                "description": "The image file's path relative to the image directory",
+            },
         },
+        "required": [
+            "filename",
+        ],
     },
 )
-
 
 Process = Literal[
     "import_meta_data_process",
@@ -152,7 +175,6 @@ Process = Literal[
     "sequence_process",
     "mapillary_image_description",
 ]
-
 
 Status = Literal["success", "failed"]
 
@@ -195,3 +217,9 @@ class GPXPointAngle(T.NamedTuple):
                 "MagneticHeading": self.angle,
             }
         return desc
+
+
+if __name__ == "__main__":
+    import json
+
+    print(json.dumps(ImageDescriptionJSONSchema, indent=4))
