@@ -32,4 +32,5 @@ def fetch_organization(
             "Authorization": f"OAuth {user_access_token}",
         },
     )
+    resp.raise_for_status()
     return resp

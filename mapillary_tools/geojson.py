@@ -113,3 +113,14 @@ def desc_to_feature_collection(desc: T.List[types.FinalImageDescription]) -> dic
         "type": "FeatureCollection",
         "features": features,
     }
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    with open(sys.argv[1]) as fp:
+        descs = json.load(fp)
+        descs = [d for d in descs if "error" not in d]
+        feature_collection = desc_to_feature_collection(descs)
+        print(json.dumps(feature_collection, indent=4))
