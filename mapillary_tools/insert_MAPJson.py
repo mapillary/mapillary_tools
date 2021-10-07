@@ -110,7 +110,10 @@ def insert_MAPJson(
             json.dump(descs, fp, indent=4)
 
     processed_images = [desc for desc in descs if "error" not in desc]
-    not_processed_images = T.cast(T.List[types.FinalImageDescriptionError], [desc for desc in descs if "error" in desc])
+    not_processed_images = T.cast(
+        T.List[types.FinalImageDescriptionError],
+        [desc for desc in descs if "error" in desc],
+    )
     duplicated_images = [
         desc
         for desc in not_processed_images
