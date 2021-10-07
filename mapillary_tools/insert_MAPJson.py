@@ -1,4 +1,3 @@
-import sys
 import typing as T
 import json
 import logging
@@ -7,9 +6,9 @@ import uuid
 
 from tqdm import tqdm
 
-from . import image_log, types, processing
+from . import image_log, types, processing, error
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def get_final_mapillary_image_description(
@@ -50,6 +49,7 @@ def get_final_mapillary_image_description(
 def insert_MAPJson(
     import_path,
     skip_subfolders=False,
+    skip_process_errors=False,
     overwrite_all_EXIF_tags=False,
     overwrite_EXIF_time_tag=False,
     overwrite_EXIF_gps_tag=False,
@@ -109,10 +109,27 @@ def insert_MAPJson(
         with open(desc_path, "w") as fp:
             json.dump(all_desc, fp, indent=4)
 
+    processed_images = [desc for desc in all_desc if "error" not in desc]
+    not_processed_images = [desc for desc in all_desc if "error" in desc]
+    duplicated_images = [
+        desc
+        for desc in not_processed_images
+        if desc["error"]["type"] == error.MapillaryDuplicationError.__name__
+    ]
+
     summary = {
         "total_images": len(all_desc),
-        "processed_images": len([desc for desc in all_desc if "error" not in desc]),
-        "failed_images": len([desc for desc in all_desc if "error" in desc]),
+        "processed_images": len(processed_images),
+        "failed_images": len(not_processed_images) - len(duplicated_images),
+        "duplicated_images": len(duplicated_images),
     }
 
-    print(json.dumps(summary, indent=4), file=sys.stderr)
+    LOG.info(json.dumps(summary, indent=4))
+    if 0 < summary["failed_images"]:
+        if skip_process_errors:
+            LOG.warning("Skipping %s failed images", summary["failed_images"])
+        else:
+            raise RuntimeError(
+                f"Failed to process {summary['failed_images']} images. Check {desc_path} for details. Specify --skip_process_errors to skip these errors"
+            )
+    LOG.info(f"Check {desc_path} for details")

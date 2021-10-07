@@ -14,6 +14,13 @@ class Command:
     help = "process images"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
+        parser.add_argument(
+            "--skip_process_errors",
+            help="Skip process errors.",
+            action="store_true",
+            default=False,
+            required=False,
+        )
         group = parser.add_argument_group("process EXIF options")
         group.add_argument(
             "--overwrite_all_EXIF_tags",
