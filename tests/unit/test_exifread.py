@@ -29,16 +29,6 @@ def load_exif_PIL(filename=TEST_EXIF_FILE):
     return exif_data
 
 
-def read_image_description_general(test_obj, filename):
-    exif_data_PIL = load_exif_PIL()
-    image_description_PIL = str(
-        exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["ImageDescription"]]
-    )
-    exif_data_ExifRead = ExifRead(filename)
-    image_description_ExifRead = str(exif_data_ExifRead.extract_image_description())
-    test_obj.assertEqual(image_description_ExifRead, image_description_PIL)
-
-
 def read_image_history_general(test_obj, filename):
     exif_data_PIL = load_exif_PIL()
     image_history_PIL = str(exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["ImageHistory"]])
@@ -136,9 +126,6 @@ def read_direction_general(test_obj, filename):
 
 class ExifReadTests(unittest.TestCase):
     """tests for main functions."""
-
-    def test_read_image_description(self):
-        read_image_description_general(self, TEST_EXIF_FILE)
 
     def test_read_orientation(self):
         read_orientation_general(self, TEST_EXIF_FILE)

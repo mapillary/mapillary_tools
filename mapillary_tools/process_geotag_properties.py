@@ -1,105 +1,77 @@
 import os
-import sys
+import typing as T
 
+from . import image_log
 from . import processing
-from .error import print_error
 
 
 def process_geotag_properties(
-    import_path,
+    import_path: T.Optional[str] = None,
+    video_import_path: T.Optional[str] = None,
     geotag_source="exif",
-    geotag_source_path=None,
+    geotag_source_path: T.Optional[str] = None,
     offset_time=0.0,
     offset_angle=0.0,
-    local_time=False,
-    sub_second_interval=0.0,
-    use_gps_start_time=False,
-    verbose=False,
-    rerun=False,
     skip_subfolders=False,
-    video_import_path=None,
-):
-    # sanity check if video file is passed
-    if (
-        video_import_path
-        and not os.path.isdir(video_import_path)
-        and not os.path.isfile(video_import_path)
-    ):
-        print("Error, video path " + video_import_path + " does not exist, exiting...")
-        sys.exit(1)
-
-    # in case of video processing, adjust the import path
-    if video_import_path:
-        # set sampling path
-        video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = (
-            video_import_path
-            if os.path.isdir(video_import_path)
-            else os.path.dirname(video_import_path)
-        )
-        import_path = (
-            os.path.join(os.path.abspath(import_path), video_sampling_path)
-            if import_path
-            else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
-        )
-
-    # basic check for all
+) -> None:
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
             f"Error, import directory {import_path} does not exist, exiting..."
         )
 
-    # get list of file to process
-    process_file_list = processing.get_process_file_list(
-        import_path, "geotag_process", rerun=rerun, skip_subfolders=skip_subfolders
+    process_file_list = image_log.get_total_file_list(
+        import_path,
+        skip_subfolders=skip_subfolders,
     )
+    if not process_file_list:
+        return
 
-    if not len(process_file_list):
-        print("No images to run geotag process")
-        print(
-            "If the images have already been processed and not yet uploaded, they can be processed again, by passing the argument --rerun"
-        )
-
-    # function calls
     if geotag_source == "exif":
-        processing.geotag_from_exif(
-            process_file_list, import_path, offset_time, offset_angle, verbose
-        )
+        return processing.geotag_from_exif(process_file_list, offset_time, offset_angle)
 
-    elif geotag_source == "gpx" or geotag_source == "nmea":
-        processing.geotag_from_gps_trace(
+    elif geotag_source == "gpx":
+        if geotag_source_path is None:
+            raise RuntimeError(
+                "GPX file is required to be specified with --geotag_source_path"
+            )
+        return processing.geotag_from_gpx_file(
             process_file_list,
-            geotag_source,
             geotag_source_path,
-            offset_time,
-            offset_angle,
-            local_time,
-            sub_second_interval,
-            use_gps_start_time,
-            verbose,
+            offset_time=offset_time,
+            offset_angle=offset_angle,
+        )
+    elif geotag_source == "nmea":
+        if geotag_source_path is None:
+            raise RuntimeError(
+                "NMEA file is required to be specified with --geotag_source_path"
+            )
+        return processing.geotag_from_nmea_file(
+            process_file_list,
+            geotag_source_path,
+            offset_time=offset_time,
+            offset_angle=offset_angle,
         )
     elif geotag_source == "gopro_videos":
-        processing.geotag_from_gopro_video(
+        if geotag_source_path is None:
+            geotag_source_path = video_import_path
+        if geotag_source_path is None:
+            raise RuntimeError("geotag_source_path is required")
+        return processing.geotag_from_gopro_video(
             process_file_list,
-            import_path,
             geotag_source_path,
-            offset_time,
-            offset_angle,
-            local_time,
-            sub_second_interval,
-            use_gps_start_time,
-            verbose,
+            offset_time=offset_time,
+            offset_angle=offset_angle,
         )
     elif geotag_source == "blackvue_videos":
-        processing.geotag_from_blackvue_video(
+        if geotag_source_path is None:
+            geotag_source_path = video_import_path
+        if geotag_source_path is None:
+            raise RuntimeError("geotag_source_path is required")
+        return processing.geotag_from_blackvue_video(
             process_file_list,
-            import_path,
             geotag_source_path,
-            offset_time,
-            offset_angle,
-            local_time,
-            sub_second_interval,
-            use_gps_start_time,
-            verbose,
+            offset_time=offset_time,
+            offset_angle=offset_angle,
         )
-    print("Sub process ended")
+    else:
+        raise RuntimeError(f"Invalid geotag source {geotag_source}")

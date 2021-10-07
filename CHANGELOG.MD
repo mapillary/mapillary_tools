@@ -220,3 +220,38 @@ Improvement:
 Fixes:
 - Fix organization description missing from the API #429
 - Skip BlackVue videos that have no GPS data found #430
+
+## 0.8.0 (2021-10-07)
+
+## Features
+- Immutable process and upload: do not modify images 0430c711f06678380ccd15f6b539c16d02eeb721 #276
+- The command `process` writes all metadata a single file (image description file) instead of multiple files 081e6f6daaa5827fc148d2f48062b56ab8ca732b #269
+- The command `upload` supports upload given a image folder and a image description file (for advanced usages)
+
+## Improvement
+- Simplify internal image states (now an image has only 3 states processed, not_processed, failed) a859732b69b76d3b9ba9c96bfc4287c9e738687c
+- Simplify command line UI (which introduces some breaking changes)
+- Improve the processing performance -- less image EXIF reading/writing #251
+- Improve sequence processing a859732b69b76d3b9ba9c96bfc4287c9e738687c #383 #395
+- More unit tests and integration tests 5263409dc6d12ef89e89f09e13cceaf7c52df244 f1d488b708a06e915a0cba48d110c7b36db28ec8
+- Use the logging module to log messages/events 5263409dc6d12ef89e89f09e13cceaf7c52df244 #342
+- Update/Improve README.md a728461bc4c6a1090633bc0ffcab5e9286dde793
+- Upgrade `piexif==1.1.3` and ` exifread==2.3.2` to latest a728461bc4c6a1090633bc0ffcab5e9286dde793 #398
+
+## Breaking changes
+### UI changes
+- Remove `--import_path`: Instead of `process --import_path path/to/images`, use `process path/to/images`
+- Remove `--advanced`: Not needed
+- Remove `--rerun`: always rerun (re-process) due to performance improvement and less states c3886884166df22a6a806ddb01b9f4ae9164412b
+
+### Other changes
+- Remove command `post_process`: No need because all information are written in the description file 60ee64749a97ec71b65c7f832f2f69ba967812da
+- Remove command `interpolate`
+- Remove command `process_csv`: Will add back as a geotag source
+- Remove all `extract_*` commands: No need because all information are written in the description file
+
+## Other fixes:
+- Fix missing GPS reference 60ee64749a97ec71b65c7f832f2f69ba967812da
+- https://github.com/mapillary/mapillary_tools/issues/433
+- https://github.com/mapillary/mapillary_tools/issues/437
+- https://github.com/mapillary/mapillary_tools/issues/338

@@ -1,43 +1,43 @@
-#!/usr/bin/python
-
 import datetime
-
-from .geo import utc_to_localtime
-
 import typing as T
 import gpxpy
 import pynmea2
+
+from .types import GPXPoint
+
 
 """
 Methods for parsing gps data from various file format e.g. GPX, NMEA, SRT.
 """
 
 
-def get_lat_lon_time_from_gpx(
-    gpx_file, local_time=True
-) -> T.List[T.Tuple[datetime.datetime, float, float, float]]:
-    """
-    Read location and time stamps from a track in a GPX file.
-
-    Returns a list of tuples (time, lat, lon).
-
-    GPX stores time in UTC, by default we assume your camera used the local time
-    and convert accordingly.
-    """
+def get_lat_lon_time_from_gpx(gpx_file: str) -> T.List[GPXPoint]:
     with open(gpx_file, "r") as f:
         gpx = gpxpy.parse(f)
 
-    points = []
-    if len(gpx.tracks) > 0:
-        for track in gpx.tracks:
-            for segment in track.segments:
-                for point in segment.points:
-                    t = utc_to_localtime(point.time) if local_time else point.time
-                    points.append((t, point.latitude, point.longitude, point.elevation))
-    if len(gpx.waypoints) > 0:
-        for point in gpx.waypoints:
-            t = utc_to_localtime(point.time) if local_time else point.time
-            points.append((t, point.latitude, point.longitude, point.elevation))
+    points: T.List[GPXPoint] = []
+
+    for track in gpx.tracks:
+        for segment in track.segments:
+            for point in segment.points:
+                points.append(
+                    GPXPoint(
+                        point.time,
+                        lat=point.latitude,
+                        lon=point.longitude,
+                        alt=point.elevation,
+                    )
+                )
+
+    for point in gpx.waypoints:
+        points.append(
+            GPXPoint(
+                time=point.time,
+                lat=point.latitude,
+                lon=point.longitude,
+                alt=point.elevation,
+            )
+        )
 
     # sort by time just in case
     points.sort()
@@ -45,17 +45,7 @@ def get_lat_lon_time_from_gpx(
     return points
 
 
-def get_lat_lon_time_from_nmea(
-    nmea_file, local_time=True
-) -> T.List[T.Tuple[datetime.datetime, float, float, float]]:
-    """
-    Read location and time stamps from a track in a NMEA file.
-
-    Returns a list of tuples (time, lat, lon).
-
-    GPX stores time in UTC, by default we assume your camera used the local time
-    and convert accordingly.
-    """
+def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[GPXPoint]:
     with open(nmea_file, "r") as f:
         lines = f.readlines()
         lines = [l.rstrip("\n\r") for l in lines]
@@ -78,7 +68,7 @@ def get_lat_lon_time_from_nmea(
             data = pynmea2.parse(l)
             timestamp = datetime.datetime.combine(date, data.timestamp)
             lat, lon, alt = data.latitude, data.longitude, data.altitude
-            points.append((timestamp, lat, lon, alt))
+            points.append(GPXPoint(time=timestamp, lat=lat, lon=lon, alt=alt))
 
     points.sort()
     return points
