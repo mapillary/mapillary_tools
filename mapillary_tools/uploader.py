@@ -154,6 +154,7 @@ def upload_zipfile(zip_path: str, user_items: types.User, dry_run=False):
         entity_size = fp.tell()
 
         # chunk size
+        # FIXME
         avg_image_size = int(entity_size / 32)
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 

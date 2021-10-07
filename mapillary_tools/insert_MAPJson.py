@@ -68,7 +68,7 @@ def insert_MAPJson(
 
     images = image_log.get_total_file_list(import_path, skip_subfolders=skip_subfolders)
 
-    all_desc: T.List[types.FinalImageDescriptionOrError] = []
+    descs: T.List[types.FinalImageDescriptionOrError] = []
     for image in tqdm(images, unit="files", desc="Processing image description"):
         ret = get_final_mapillary_image_description(image)
         if ret is None:
@@ -92,11 +92,11 @@ def insert_MAPJson(
 
         relpath = os.path.relpath(image, import_path)
         if status == "success":
-            all_desc.append(
+            descs.append(
                 T.cast(types.FinalImageDescription, {**desc, "filename": relpath})
             )
         else:
-            all_desc.append(
+            descs.append(
                 T.cast(
                     types.FinalImageDescriptionError,
                     {"error": desc, "filename": relpath},
@@ -104,13 +104,13 @@ def insert_MAPJson(
             )
 
     if desc_path == "-":
-        print(json.dumps(all_desc, indent=4))
+        print(json.dumps(descs, indent=4))
     else:
         with open(desc_path, "w") as fp:
-            json.dump(all_desc, fp, indent=4)
+            json.dump(descs, fp, indent=4)
 
-    processed_images = [desc for desc in all_desc if "error" not in desc]
-    not_processed_images = [desc for desc in all_desc if "error" in desc]
+    processed_images = [desc for desc in descs if "error" not in desc]
+    not_processed_images = [desc for desc in descs if "error" in desc]
     duplicated_images = [
         desc
         for desc in not_processed_images
@@ -118,7 +118,7 @@ def insert_MAPJson(
     ]
 
     summary = {
-        "total_images": len(all_desc),
+        "total_images": len(descs),
         "processed_images": len(processed_images),
         "failed_images": len(not_processed_images) - len(duplicated_images),
         "duplicated_images": len(duplicated_images),

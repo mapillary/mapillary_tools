@@ -71,11 +71,10 @@ def fetch_user_items(
         user_items = login.authenticate_user(user_name)
 
     if organization_key is not None:
-        resp = api_v4.fetch_organization(
-            user_items["user_upload_token"], organization_key
-        )
         try:
-            resp.raise_for_status()
+            resp = api_v4.fetch_organization(
+                user_items["user_upload_token"], organization_key
+            )
         except requests.HTTPError as ex:
             raise login.wrap_http_exception(ex) from ex
         org = resp.json()

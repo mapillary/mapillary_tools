@@ -136,9 +136,7 @@ def process_import_meta_properties(
     exclude_path=None,
 ) -> None:
     if not import_path or not os.path.isdir(import_path):
-        raise RuntimeError(
-            f"Error, import directory {import_path} does not exist, exiting..."
-        )
+        raise RuntimeError(f"Image directory {import_path} does not exist")
 
     process_file_list = image_log.get_total_file_list(
         import_path,

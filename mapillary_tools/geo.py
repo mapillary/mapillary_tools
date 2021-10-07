@@ -153,8 +153,9 @@ class Point(NamedTuple):
 def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
     if not points:
         raise ValueError("Expect non-empty points")
-    for cur, nex in pairwise(points):
-        assert cur.time <= nex.time, "Points not sorted"
+    # Make sure that points are sorted:
+    # for cur, nex in pairwise(points):
+    #     assert cur.time <= nex.time, "Points not sorted"
     idx = bisect.bisect_left([x.time for x in points], t)
 
     if 0 < idx < len(points):
