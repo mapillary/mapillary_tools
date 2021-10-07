@@ -1,16 +1,16 @@
 import datetime
 import os
+import shutil
 import subprocess
 import typing as T
+import logging
 
 from . import image_log
 from . import processing
 from .exif_write import ExifEdit
-from .ffprobe import FFProbe
 
 ZERO_PADDING = 6
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
+LOG = logging.getLogger(__name__)
 
 
 def timestamp_from_filename(
@@ -67,30 +67,39 @@ def sample_video(
         else [video_import_path]
     )
 
-    # if os.path.isdir(import_path) or os.path.isfile(import_path):
-    #     raise RuntimeError(
-    #         f'The import path "{import_path}" for storing extracted frames already exists. Either delete the current import_path or choose another import_path.'
-    #     )
+    for video in video_list:
+        per_video_import_path = processing.video_sample_path(import_path, video)
+        if os.path.isdir(per_video_import_path):
+            images = image_log.get_total_file_list(per_video_import_path)
+            if images:
+                answer = input(
+                    f"The sample folder {per_video_import_path} already contains {len(images)} images.\nTo proceed, either DELETE the whole folder to restart the extraction (y), or skip the extraction (N)? [y/N] "
+                )
+                if answer in ["y", "Y"]:
+                    shutil.rmtree(per_video_import_path)
+        elif os.path.isfile(per_video_import_path):
+            answer = input(
+                f"The sample path {per_video_import_path} is found to be a file. To proceed, either DELETE it to restart the extraction (y), or skip the extraction (N)? [y/N] "
+            )
+            if answer in ["y", "Y"]:
+                os.remove(per_video_import_path)
 
     for video in video_list:
         per_video_import_path = processing.video_sample_path(import_path, video)
-        if not os.path.isdir(per_video_import_path):
+        if not os.path.exists(per_video_import_path):
             os.makedirs(per_video_import_path)
-
-        extract_frames(
-            video,
-            per_video_import_path,
-            video_sample_interval,
-            video_start_time,
-            video_duration_ratio,
-        )
+            extract_frames(
+                video,
+                per_video_import_path,
+                video_sample_interval,
+                video_duration_ratio,
+            )
 
 
 def extract_frames(
     video_file: str,
     import_path: str,
     video_sample_interval: float = 2.0,
-    video_start_time: float = None,
     video_duration_ratio: float = 1.0,
 ) -> None:
     video_filename, ext = os.path.splitext(os.path.basename(video_file))
@@ -98,17 +107,16 @@ def extract_frames(
         "ffmpeg",
         "-i",
         video_file,
-        "-loglevel",
-        "quiet",
         "-vf",
         f"fps=1/{video_sample_interval}",
-        "-qscale",
+        # video quality level
+        "-qscale:v",
         "1",
         "-nostdin",
         f"{os.path.join(import_path, video_filename)}_%0{ZERO_PADDING}d.jpg",
     ]
 
-    print(f"Extracting frames: {' '.join(command)}")
+    LOG.info(f"Extracting frames: {' '.join(command)}")
     try:
         subprocess.call(command)
     except FileNotFoundError:
@@ -116,17 +124,12 @@ def extract_frames(
             "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
         )
 
-    if video_start_time is not None:
-        video_start_time_obj = datetime.datetime.utcfromtimestamp(
-            video_start_time / 1000.0
-        )
-    else:
-        video_start_time_obj = get_video_start_time(video_file)
+    video_start_time = datetime.datetime.utcnow()
 
     insert_video_frame_timestamp(
         video_filename,
         import_path,
-        video_start_time_obj,
+        video_start_time,
         video_sample_interval,
         video_duration_ratio,
     )
@@ -139,12 +142,10 @@ def insert_video_frame_timestamp(
     sample_interval: float = 2.0,
     duration_ratio: float = 1.0,
 ) -> None:
-    # get list of file to process
     frame_list = image_log.get_total_file_list(video_sampling_path)
 
     if not frame_list:
-        # WARNING LOG
-        print("No video frames were sampled.")
+        LOG.warning("No video frames were extracted.")
         return
 
     video_frame_timestamps = timestamps_from_filename(
@@ -155,35 +156,3 @@ def insert_video_frame_timestamp(
         exif_edit = ExifEdit(image)
         exif_edit.add_date_time_original(timestamp)
         exif_edit.write()
-
-
-def get_video_duration_and_end_time(
-    video_file: str,
-) -> T.Tuple[float, datetime.datetime]:
-    probe = FFProbe(video_file)
-
-    duration_str = probe.video[0]["duration"]
-    try:
-        duration = float(duration_str)
-    except (TypeError, ValueError) as e:
-        raise RuntimeError(
-            f"could not parse duration {duration_str} from video {video_file} due to {e}"
-        )
-
-    time_string = probe.video[0]["tags"]["creation_time"]
-    try:
-        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
-    except ValueError:
-        try:
-            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
-        except ValueError:
-            raise RuntimeError(
-                f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
-            )
-
-    return duration, creation_time
-
-
-def get_video_start_time(video_file: str) -> datetime.datetime:
-    duration, video_end_time = get_video_duration_and_end_time(video_file)
-    return video_end_time - datetime.timedelta(seconds=duration)
