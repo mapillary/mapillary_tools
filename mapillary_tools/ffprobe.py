@@ -1,6 +1,10 @@
+import logging
 import typing as T
 import json
 import subprocess
+
+
+LOG = logging.getLogger(__name__)
 
 
 class FFProbe:
@@ -18,7 +22,7 @@ class FFProbe:
             "json",
             self.video_file,
         ]
-        print(f"Running: {' '.join(cmd)}")
+        LOG.info(f"Extracting video information: {' '.join(cmd)}")
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         except FileNotFoundError:

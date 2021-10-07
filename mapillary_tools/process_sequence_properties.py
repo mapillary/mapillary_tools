@@ -8,7 +8,6 @@ from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
 from .error import MapillaryDuplicationError
 
 MAX_SEQUENCE_LENGTH = 500
-MAX_CAPTURE_SPEED = 45  # in m/s
 
 
 class _GPXPoint:

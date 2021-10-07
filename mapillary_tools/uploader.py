@@ -20,7 +20,7 @@ from .login import wrap_http_exception
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
 MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def _find_root_dir(file_list: Iterable[str]) -> Optional[str]:

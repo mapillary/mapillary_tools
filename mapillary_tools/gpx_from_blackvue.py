@@ -14,7 +14,7 @@ from .types import GPXPoint
 Pulls geo data out of a BlackVue video files
 """
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint]:

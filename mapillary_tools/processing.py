@@ -17,7 +17,7 @@ from .gpx_from_blackvue import gpx_from_blackvue
 from .gpx_from_exif import gpx_from_exif
 from .gpx_from_gopro import gpx_from_gopro
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def geotag_from_exif(

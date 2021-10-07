@@ -1,8 +1,12 @@
 import json
 import os
 import struct
+import logging
 
+
+LOG = logging.getLogger(__name__)
 NODE_CHANNEL_FD = int(os.getenv("NODE_CHANNEL_FD", -1))
+
 
 if NODE_CHANNEL_FD == -1:
 
@@ -38,10 +42,5 @@ def send(type, payload):
     }
     try:
         __write(obj)
-    except Exception as e:
-        print(f"IPC error for: {obj}")
-        print(f"Error: {e}")
-
-
-def send_error(message):
-    send("error", {"message": message})
+    except Exception:
+        LOG.warning(f"IPC error sending: {obj}", exc_info=True)

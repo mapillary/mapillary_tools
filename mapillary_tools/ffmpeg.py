@@ -3,7 +3,7 @@ import os
 import subprocess
 import logging
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 def get_ffprobe(path: str) -> dict:
@@ -20,7 +20,7 @@ def get_ffprobe(path: str) -> dict:
         "-show_streams",
         path,
     ]
-    print(f"Running: {' '.join(cmd)}")
+    LOG.info(f"Extracting video information: {' '.join(cmd)}")
     try:
         output = subprocess.check_output(cmd)
     except FileNotFoundError:
@@ -57,7 +57,7 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         dest,
     ]
 
-    print(f"Running: {' '.join(cmd)}")
+    LOG.info(f"Extracting frames: {' '.join(cmd)}")
     try:
         subprocess.check_output(cmd)
     except FileNotFoundError:

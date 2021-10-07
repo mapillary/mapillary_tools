@@ -1,6 +1,5 @@
 import os
 import time
-import typing as T
 
 from tqdm import tqdm
 
@@ -129,7 +128,6 @@ def process_import_meta_properties(
     GPS_accuracy=None,
     add_file_name=False,
     add_import_date=False,
-    rerun=False,
     skip_subfolders=False,
     custom_meta_data=None,
     camera_uuid=None,

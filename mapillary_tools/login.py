@@ -8,7 +8,7 @@ import requests
 from . import api_v4, config, types
 from .config import GLOBAL_CONFIG_FILEPATH
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
 class HTTPError(Exception):
