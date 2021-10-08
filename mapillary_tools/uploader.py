@@ -1,4 +1,5 @@
 import io
+import json
 import uuid
 from typing import Optional, Iterable
 import typing as T
@@ -186,7 +187,11 @@ def is_retriable_exception(ex: Exception):
 
     if isinstance(ex, requests.HTTPError):
         if 400 <= ex.response.status_code < 500:
-            return False
+            try:
+                resp = ex.response.json()
+            except json.JSONDecodeError:
+                return False
+            return resp.get("debug_info", {}).get("retriable", False)
         else:
             return True
 
