@@ -24,7 +24,8 @@ mapillary_tools_commands = [
 ]
 
 
-LOG = logging.getLogger(__name__)
+# do not use __name__ here is because if you run tools as a module, __name__ will be "__main__"
+LOG = logging.getLogger("mapillary_tools")
 
 
 def add_general_arguments(parser, command):
@@ -77,10 +78,8 @@ def add_general_arguments(parser, command):
 
 
 def configure_logger(logger: logging.Logger, level, stream=None) -> None:
-    """Configure the given logger."""
     formatter = logging.Formatter("%(asctime)s - %(levelname)-6s - %(message)s")
     handler = logging.StreamHandler(stream)
-    handler.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
@@ -118,7 +117,7 @@ def main():
 
     args = parser.parse_args()
     log_level = logging.DEBUG if args.verbose else logging.INFO
-    configure_logger(LOG, log_level, sys.stderr)
+    configure_logger(LOG, sys.stderr)
     LOG.setLevel(log_level)
     LOG.debug(f"argparse vars: {vars(args)}")
     args.func(vars(args))

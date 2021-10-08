@@ -11,7 +11,7 @@ from .config import GLOBAL_CONFIG_FILEPATH
 LOG = logging.getLogger(__name__)
 
 
-class HTTPError(Exception):
+class HTTPError(requests.HTTPError):
     pass
 
 
