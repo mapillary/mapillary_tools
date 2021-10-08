@@ -93,10 +93,9 @@ mv -v storage/dcim/mapillaryimages mapillaryimages
 To [process videos](#video-process), you will also need to install `ffmpeg`.
 
 You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
-downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager in your system.
-For example:
+downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
 
-On macOS, use [`Homebrew`](https://brew.sh/):
+On macOS, use [Homebrew](https://brew.sh/):
 
 ```shell
 brew install ffmpeg
@@ -154,7 +153,9 @@ Upload all processed images in the directory `path/to/images/` to user `mly_user
 . It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
-mapillary_tools upload "path/to/images/" --user_name "mly_user" --organization_id "mly_organization_id"
+mapillary_tools upload "path/to/images/" \
+    --user_name "mly_user" \
+    --organization_key "mly_organization_id"
 ```
 
 ### Video Process
@@ -196,8 +197,8 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
     --interpolate_directions
 ```
 
-Sample GoPro videos in directory `path/to/videos/` into import path `path/to/sample_images/` at a sampling rate 0.5
-seconds, i.e. two frames every second, reading geotag data from the GoPro videos in `path/to/videos/`.
+**GoPro videos**: Sample GoPro videos in directory `path/to/videos/` into import path `path/to/sample_images/` at a
+sampling rate 0.5 seconds, i.e. two frames every second, reading geotag data from the GoPro videos in `path/to/videos/`.
 
 ```shell
 mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
@@ -206,8 +207,8 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
     --video_sample_interval 0.5
 ```
 
-Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.2 seconds, i.e. 5 frames every second and
-process resulting video frames for user `mapillary_user`, reading geotag data from the BlackVue videos
+**BlackVue videos**: Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.2 seconds, i.e. 5 frames
+every second and process resulting video frames for user `mapillary_user`, reading geotag data from the BlackVue videos
 in `path/to/videos/` and specifying camera make and model.
 
 ```shell
@@ -273,8 +274,9 @@ mapillary_tools authenticate --user_name "mly_user"
 
 As the output, the `procss` command generates `mapillary_image_description.json` under the image directory by default.
 The file contains an array of objects, each of which records the metadata of one image in the image directory. The
-metadata is validated by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json).
-Here is a minimal example:
+metadata is validated
+by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json)
+. Here is a minimal example:
 
 ```json
 [
@@ -303,27 +305,43 @@ that contain `error` property will be ignored.
 Write and read the image description file in another location. This is useful if the image directory is readonly.
 
 ```shell
-mapillary_tools process "path/to/images/" --desc_path "path/to/description.json"
-mapillary_tools upload  "path/to/images/" --desc_path "path/to/description.json"
+mapillary_tools process "path/to/images/" --desc_path "description.json"
+mapillary_tools upload  "path/to/images/" --desc_path "description.json"
+# equivalent to
+mapillary_tools process_and_upload  "path/to/images/" --desc_path "description.json"
 ```
 
-Edit the description with the script `./description_editor.py` before uploading.
+Edit the description file with your own scripts, e.g. filter out images outside a bounding box, or snap image locations
+to the nearest roads:
 
 ```shell
-mapillary_tools process "path/to/images/" --desc_path - | ./description_editor.py > "path/to/description.json"
-mapillary_tools upload  "path/to/images/" --desc_path "path/to/description.json"
+mapillary_tools process "path/to/images/" --desc_path - \
+    | ./filter_by_bbox.py 5.9559,45.818,10.4921,47.8084 \
+    | ./map_match.py > "description.json"
+mapillary_tools upload  "path/to/images/" --desc_path "description.json"
 ```
 
-Geotag from a special CSV format.
+Geotag from a custom CSV format.
 
 ```shell
-./special_csv_to_description.sh special.csv | mapillary_tools upload "path/to/images/" --desc_path -
+./custom_csv_to_description.sh special.csv | mapillary_tools upload "path/to/images/" --desc_path -
+```
+
+Geotag from a custom video format.
+
+```shell
+# sample with ffmpeg
+ffmpeg -i "path/to/video.mp4" -vf fps=1/1 -qscale 1 -nostdin "path/to/images/video_%06d.jpg"
+# extract geotags from the videos (or other sources)
+./geotag_from_custom_video.sh "path/to/video.mp4" > "description.json"
+# upload
+mapillary_tools upload "path/to/images/" --desc_path "description.json"
 ```
 
 ### Zip Images
 
-When uploading an image directory `mapillary_tools upload path/to/images/`, internally the `upload` command will zip
-sequences in the temporary directory (`TMPDIR`) and then upload these zip files.
+When [uploading](#upload) an image directory, internally the `upload` command will zip sequences in the temporary
+directory (`TMPDIR`) and then upload these zip files.
 
 Mapillary Tools provides `zip` command that allows users to specify where to store the zip files, usually somewhere with
 faster IO or more free space.
@@ -339,16 +357,17 @@ mapillary_tools zip "path/to/images/" "path/to/zipped_images/"
 Choose the image description file to write when zipping images:
 
 ```shell
-mapillary_tools zip --desc_path "path/to/image_description.json" "path/to/images/" "path/to/zipped_images/"
+mapillary_tools zip "path/to/images/" "path/to/zipped_images/" \
+    --desc_path "path/to/image_description.json"
 ```
 
 Then upload the zip files separately:
 
 ```shell
 for zipfile in path/to/zipped_images/*.zip; do
-  mapillary_tools upload "$zipfile"
-  # optionally remove the zipfile after uploaded
-  rm "$zipfile"
+    mapillary_tools upload "$zipfile"
+    # optionally remove the zipfile after uploaded
+    rm "$zipfile"
 done
 ```
 
