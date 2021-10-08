@@ -5,12 +5,12 @@ import typing as T
 from . import api_v4, types
 
 
-_CLIENT_ID = api_v4.MAPILLARY_WEB_CLIENT_ID
+_CLIENT_ID = api_v4.MAPILLARY_CLIENT_TOKEN
 # Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
 _CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
 
-GLOBAL_CONFIG_FILEPATH = os.getenv(
-    "GLOBAL_CONFIG_FILEPATH",
+MAPILLARY_CONFIG_PATH = os.getenv(
+    "MAPILLARY_CONFIG_PATH",
     os.path.join(
         os.path.expanduser("~"),
         ".config",

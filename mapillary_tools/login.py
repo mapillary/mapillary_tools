@@ -6,7 +6,7 @@ import typing as T
 import requests
 
 from . import api_v4, config, types
-from .config import GLOBAL_CONFIG_FILEPATH
+from .config import MAPILLARY_CONFIG_PATH
 
 LOG = logging.getLogger(__name__)
 
@@ -64,8 +64,8 @@ def prompt_user_for_user_items(user_name: str) -> types.User:
 
 
 def list_all_users() -> T.List[types.User]:
-    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
-        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+    if os.path.isfile(MAPILLARY_CONFIG_PATH):
+        global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
         return [
             config.load_user(global_config_object, user_name)
             for user_name in global_config_object.sections()
@@ -75,13 +75,13 @@ def list_all_users() -> T.List[types.User]:
 
 
 def authenticate_user(user_name: str) -> types.User:
-    if os.path.isfile(GLOBAL_CONFIG_FILEPATH):
-        global_config_object = config.load_config(GLOBAL_CONFIG_FILEPATH)
+    if os.path.isfile(MAPILLARY_CONFIG_PATH):
+        global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
         if user_name in global_config_object.sections():
             return config.load_user(global_config_object, user_name)
 
     user_items = prompt_user_for_user_items(user_name)
 
-    config.create_config(GLOBAL_CONFIG_FILEPATH)
-    config.update_config(GLOBAL_CONFIG_FILEPATH, user_name, user_items)
+    config.create_config(MAPILLARY_CONFIG_PATH)
+    config.update_config(MAPILLARY_CONFIG_PATH, user_name, user_items)
     return user_items

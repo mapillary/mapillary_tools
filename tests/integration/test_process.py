@@ -103,7 +103,7 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
 def test_upload_image_dir(
     tmpdir: py.path.local, setup_config: py.path.local, setup_data: py.path.local
 ):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     x = subprocess.run(
@@ -123,7 +123,7 @@ def test_upload_image_dir(
 def test_upload_zip(
     tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
 ):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     zip_dir = tmpdir.mkdir("zip_dir")
@@ -150,7 +150,7 @@ def test_upload_zip(
 def test_process_and_upload(
     tmpdir: py.path.local, setup_config: py.path.local, setup_data: py.path.local
 ):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     x = subprocess.run(
@@ -165,7 +165,7 @@ def test_process_and_upload(
 def test_process_boolean_options(
     setup_config: py.path.local, setup_data: py.path.local
 ):
-    os.environ["GLOBAL_CONFIG_FILEPATH"] = str(setup_config)
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
     boolean_options = [
         "--add_file_name",
         "--add_import_date",
