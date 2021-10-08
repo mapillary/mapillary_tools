@@ -149,14 +149,19 @@ def _zip_sequence(
 
 
 def upload_zipfile(zip_path: str, user_items: types.User, dry_run=False):
+    with zipfile.ZipFile(zip_path) as ziph:
+        namelist = ziph.namelist()
+
+    if not namelist:
+        raise RuntimeError(f"The zip file {zip_path} is empty")
+
     basename = os.path.basename(zip_path)
     with open(zip_path, "rb") as fp:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
         # chunk size
-        # FIXME
-        avg_image_size = int(entity_size / 32)
+        avg_image_size = int(entity_size / len(namelist))
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
         notifier = Notifier(
