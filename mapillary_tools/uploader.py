@@ -180,6 +180,19 @@ def upload_zipfile(zip_path: str, user_items: types.User, dry_run=False):
         )
 
 
+def is_retriable_exception(ex: Exception):
+    if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
+        return True
+
+    if isinstance(ex, requests.HTTPError):
+        if 400 <= ex.response.status_code < 500:
+            return False
+        else:
+            return True
+
+    return False
+
+
 def _upload_zipfile_fp(
     user_items: types.User,
     fp: T.IO[bytes],
@@ -218,12 +231,6 @@ def _upload_zipfile_fp(
 
     retries = 0
 
-    retryable_errors = (
-        requests.HTTPError,
-        requests.ConnectionError,
-        requests.Timeout,
-    )
-
     # when it progresses, we reset retries
     def _reset_retries(_, __):
         nonlocal retries
@@ -254,7 +261,7 @@ def _upload_zipfile_fp(
                     fp, chunk_size=chunk_size, offset=offset
                 )
             except Exception as ex:
-                if retries < 200 and isinstance(ex, retryable_errors):
+                if retries < 200 and is_retriable_exception(ex):
                     retries += 1
                     sleep_for = min(2 ** retries, 16)
                     LOG.warning(
