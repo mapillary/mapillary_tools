@@ -36,7 +36,7 @@ def prompt_user_for_user_items(user_name: str) -> types.User:
         if 400 <= ex.response.status_code < 500:
             resp = ex.response.json()
             subcode = resp.get("error", {}).get("error_subcode")
-            if subcode in [1348028, 1348092, 3404005]:
+            if subcode in [1348028, 1348092, 3404005, 1348131]:
                 title = resp.get("error", {}).get("error_user_title")
                 message = resp.get("error", {}).get("error_user_msg")
                 LOG.error(f"{title}: {message}")

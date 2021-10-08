@@ -14,7 +14,7 @@ def get_upload_token(email: str, password: str) -> dict:
     resp = requests.post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
         params={"access_token": MAPILLARY_WEB_CLIENT_ID},
-        json={"email": email, "password": password},
+        json={"email": email, "password": password, "locale": "en_US"},
     )
     resp.raise_for_status()
     return resp.json()
