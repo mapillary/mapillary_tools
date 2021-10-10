@@ -2,9 +2,39 @@ import datetime
 import os
 import typing as T
 
-from .ffmpeg import extract_stream, get_ffprobe
+from .. import types, image_log
+from ..ffmpeg import extract_stream, get_ffprobe
+from .geotag_from_blackvue import filter_video_samples
+from .geotag_from_gpx import GeotagFromGPX
+from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
-from .types import GPXPoint
+
+
+class GeotagFromGoPro(GeotagFromGeneric):
+    def __init__(self, image_dir: str, source_path: str):
+        self.image_dir = image_dir
+        if os.path.isdir(source_path):
+            self.videos = image_log.get_video_file_list(source_path)
+        elif os.path.isfile(source_path):
+            # FIXME: make sure it is mp4
+            self.videos = [source_path]
+        else:
+            raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
+        super().__init__()
+
+    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
+        descs = []
+
+        images = image_log.get_total_file_list(self.image_dir)
+        for video in self.videos:
+            sample_images = filter_video_samples(images, video)
+            if not sample_images:
+                continue
+            points = get_points_from_gpmf(video)
+            geotag = GeotagFromGPX(self.image_dir, sample_images, points)
+            descs.extend(geotag.to_description())
+
+        return descs
 
 
 def extract_bin(path: str) -> str:
@@ -33,13 +63,13 @@ def extract_bin(path: str) -> str:
     return bin_path
 
 
-def get_points_from_gpmf(path: str) -> T.List[GPXPoint]:
+def get_points_from_gpmf(path: str) -> T.List[types.GPXPoint]:
     bin_path = extract_bin(path)
 
     gpmf_data = parse_bin(bin_path)
     rows = len(gpmf_data)
 
-    points: T.List[GPXPoint] = []
+    points: T.List[types.GPXPoint] = []
     for i, frame in enumerate(gpmf_data):
         t = frame["time"]
 
@@ -52,7 +82,7 @@ def get_points_from_gpmf(path: str) -> T.List[GPXPoint]:
 
         for point in frame["gps"]:
             points.append(
-                GPXPoint(
+                types.GPXPoint(
                     time=point["time"],
                     lat=point["lat"],
                     lon=point["lon"],
@@ -62,7 +92,3 @@ def get_points_from_gpmf(path: str) -> T.List[GPXPoint]:
             )
 
     return points
-
-
-def gpx_from_gopro(gopro_video: str) -> T.List[GPXPoint]:
-    return get_points_from_gpmf(gopro_video)

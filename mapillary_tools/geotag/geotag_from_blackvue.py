@@ -1,23 +1,85 @@
-import logging
-import typing as T
 import datetime
 import io
+import logging
+import os
 import re
+import typing as T
 
 import pynmea2
 from pymp4.parser import Box
 
-from .geo import get_max_distance_from_start
-from .types import GPXPoint
-
-"""
-Pulls geo data out of a BlackVue video files
-"""
+from .geotag_from_generic import GeotagFromGeneric
+from .geotag_from_gpx import GeotagFromGPX
+from .. import image_log, types
+from ..error import MapillaryGeoTaggingError, MapillaryStationaryBlackVueError
+from ..geo import get_max_distance_from_start
 
 LOG = logging.getLogger(__name__)
 
 
-def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint]:
+class GeotagFromBlackVue(GeotagFromGeneric):
+    def __init__(self, image_dir: str, source_path: str):
+        super().__init__()
+        self.image_dir = image_dir
+        if os.path.isdir(source_path):
+            self.blackvue_videos = image_log.get_video_file_list(source_path)
+        elif os.path.isfile(source_path):
+            # FIXME: make sure it is mp4
+            self.blackvue_videos = [source_path]
+        else:
+            raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
+        self.source_path = source_path
+
+    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
+        descs: T.List[types.FinalImageDescriptionOrError] = []
+
+        images = image_log.get_total_file_list(self.image_dir)
+        for blackvue_video in self.blackvue_videos:
+            sample_images = filter_video_samples(images, blackvue_video)
+            if not sample_images:
+                continue
+
+            [points, is_stationary_video] = gpx_from_blackvue(
+                blackvue_video, use_nmea_stream_timestamp=False
+            )
+
+            if not points:
+                message = f"Skipping the BlackVue video {blackvue_video} -- no GPS found in the video"
+                for image in sample_images:
+                    error = types.describe_error(MapillaryGeoTaggingError(message))
+                    descs.append({"error": error, "filename": image})
+                continue
+
+            if is_stationary_video:
+                message = f"Skipping stationary BlackVue video {blackvue_video}"
+                for image in sample_images:
+                    error = types.describe_error(
+                        MapillaryStationaryBlackVueError(message)
+                    )
+                    descs.append({"error": error, "filename": image})
+                continue
+
+            geotag = GeotagFromGPX(self.image_dir, sample_images, points)
+            descs.extend(geotag.to_description())
+
+        return descs
+
+
+def is_sample_of_video(sample_path: str, video_filename: str) -> bool:
+    abs_sample_path = os.path.abspath(sample_path)
+    video_basename = os.path.basename(video_filename)
+    if video_basename == os.path.basename(os.path.dirname(abs_sample_path)):
+        sample_basename = os.path.basename(sample_path)
+        root, _ = os.path.splitext(video_basename)
+        return sample_basename.startswith(root + "_")
+    return False
+
+
+def filter_video_samples(images: T.List[str], video_path: str) -> T.List[str]:
+    return [image for image in images if is_sample_of_video(image, video_path)]
+
+
+def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[types.GPXPoint]:
     points = []
     with open(path, "rb") as fd:
         fd.seek(0, io.SEEK_END)
@@ -173,7 +235,7 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[GPXPoint
 
                 break
 
-        return [GPXPoint(time=p[0], lat=p[1], lon=p[2], alt=p[3]) for p in points]
+        return [types.GPXPoint(time=p[0], lat=p[1], lon=p[2], alt=p[3]) for p in points]
 
 
 def is_video_stationary(max_distance_from_start) -> bool:
@@ -187,7 +249,7 @@ def is_video_stationary(max_distance_from_start) -> bool:
 
 def gpx_from_blackvue(
     bv_video, use_nmea_stream_timestamp=False
-) -> T.Tuple[T.List[GPXPoint], bool]:
+) -> T.Tuple[T.List[types.GPXPoint], bool]:
     points = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
     if not points:
         return points, True

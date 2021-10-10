@@ -1,24 +1,21 @@
+import typing as T
 import os
 import time
 
-from tqdm import tqdm
-
-from . import image_log
-from . import processing, VERSION
+from . import VERSION, types
 from .exif_read import ExifRead
 from .types import MetaProperties
 
 
-META_DATA_TYPES = {
-    "strings": str,
-    "doubles": float,
-    "longs": int,
-    "dates": int,
-    "booleans": bool,
-}
-
-
 def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) -> None:
+    META_DATA_TYPES = {
+        "strings": str,
+        "doubles": float,
+        "longs": int,
+        "dates": int,
+        "booleans": bool,
+    }
+
     type_ = META_DATA_TYPES.get(tag_type)
 
     if type_ is None:
@@ -52,6 +49,24 @@ def parse_and_add_custom_meta_tags(desc: MetaProperties, custom_meta_data: str) 
         tag_value = entry_fields[2]
 
         add_meta_tag(desc, tag_type, tag_name, tag_value)
+
+
+def format_orientation(orientation: int) -> int:
+    """
+    Convert orientation from clockwise degrees to exif tag
+
+    # see http://sylvana.net/jpegcrop/exif_orientation.html
+    """
+    mapping: T.Mapping[int, int] = {
+        0: 1,
+        90: 8,
+        180: 3,
+        270: 6,
+    }
+    if orientation not in mapping:
+        raise ValueError("Orientation value has to be 0, 90, 180, or 270")
+
+    return mapping[orientation]
 
 
 def finalize_import_properties_process(
@@ -121,39 +136,27 @@ def get_import_meta_properties_exif(image: str) -> MetaProperties:
 
 
 def process_import_meta_properties(
-    import_path,
+    import_path: str,
+    descs: T.List[types.FinalImageDescriptionOrError],
     orientation=None,
     device_make=None,
     device_model=None,
     GPS_accuracy=None,
     add_file_name=False,
     add_import_date=False,
-    skip_subfolders=False,
     custom_meta_data=None,
     camera_uuid=None,
     windows_path=False,
     exclude_import_path=False,
     exclude_path=None,
-) -> None:
-    if not import_path or not os.path.isdir(import_path):
-        raise RuntimeError(f"Image directory {import_path} does not exist")
-
-    process_file_list = image_log.get_total_file_list(
-        import_path,
-        skip_subfolders=skip_subfolders,
-    )
-
-    if not process_file_list:
-        return
-
+) -> T.List[types.FinalImageDescriptionOrError]:
     if orientation is not None:
-        orientation = processing.format_orientation(orientation)
+        orientation = format_orientation(orientation)
 
-    for image in tqdm(
-        process_file_list, unit="files", desc="Processing import meta properties"
-    ):
+    for desc in descs:
+        image = os.path.join(import_path, desc["filename"])
         import_meta_data_properties = get_import_meta_properties_exif(image)
-        desc = finalize_import_properties_process(
+        meta_desc = finalize_import_properties_process(
             image,
             import_meta_data_properties,
             import_path,
@@ -169,4 +172,6 @@ def process_import_meta_properties(
             exclude_import_path,
             exclude_path,
         )
-        image_log.log_in_memory(image, "import_meta_data_process", desc)
+        desc.update(meta_desc)
+
+    return descs

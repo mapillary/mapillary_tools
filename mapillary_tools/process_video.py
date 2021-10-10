@@ -6,7 +6,6 @@ import typing as T
 import logging
 
 from . import image_log
-from . import processing
 from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
@@ -50,6 +49,11 @@ def timestamps_from_filename(
     return capture_times
 
 
+def video_sample_path(import_path: str, video_file_path: str) -> str:
+    video_filename = os.path.basename(video_file_path)
+    return os.path.join(import_path, video_filename)
+
+
 def sample_video(
     video_import_path: str,
     import_path: str,
@@ -68,7 +72,7 @@ def sample_video(
     )
 
     for video in video_list:
-        per_video_import_path = processing.video_sample_path(import_path, video)
+        per_video_import_path = video_sample_path(import_path, video)
         if os.path.isdir(per_video_import_path):
             images = image_log.get_total_file_list(per_video_import_path)
             if images:
@@ -85,7 +89,7 @@ def sample_video(
                 os.remove(per_video_import_path)
 
     for video in video_list:
-        per_video_import_path = processing.video_sample_path(import_path, video)
+        per_video_import_path = video_sample_path(import_path, video)
         if not os.path.exists(per_video_import_path):
             os.makedirs(per_video_import_path)
             extract_frames(
