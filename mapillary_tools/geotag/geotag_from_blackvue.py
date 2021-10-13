@@ -60,9 +60,29 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 continue
 
             geotag = GeotagFromGPX(self.image_dir, sample_images, points)
-            descs.extend(geotag.to_description())
+
+            model = find_camera_model(blackvue_video)
+            LOG.debug(f"Found BlackVue camera model {model} for {blackvue_video}")
+
+            for desc in geotag.to_description():
+                desc["MAPDeviceMake"] = "Blackvue"
+                if model is not None:
+                    desc["MAPDeviceModel"] = model.decode("utf-8")
+                descs.append(desc)
 
         return descs
+
+
+def find_camera_model(video_path) -> T.Optional[bytes]:
+    with open(video_path, "rb") as fd:
+        fd.seek(0, io.SEEK_END)
+        eof = fd.tell()
+        fd.seek(0)
+        while fd.tell() < eof:
+            box = Box.parse_stream(fd)
+            if box.type.decode("utf-8") == "free":
+                return box.data[29:39]
+        return None
 
 
 def is_sample_of_video(sample_path: str, video_filename: str) -> bool:
