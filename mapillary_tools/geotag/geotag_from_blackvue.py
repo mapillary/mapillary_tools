@@ -26,7 +26,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 source_path, abs_path=True
             )
         elif os.path.isfile(source_path):
-            # FIXME: make sure it is mp4
+            # it is okay to not suffix with .mp4
             self.blackvue_videos = [source_path]
         else:
             raise RuntimeError(f"The geotag_source_path {source_path} does not exist")

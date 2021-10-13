@@ -1,5 +1,7 @@
 import datetime
+import logging
 import os
+import tempfile
 import typing as T
 
 from .. import types, image_log
@@ -10,13 +12,16 @@ from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
 
 
+LOG = logging.getLogger(__name__)
+
+
 class GeotagFromGoPro(GeotagFromGeneric):
     def __init__(self, image_dir: str, source_path: str):
         self.image_dir = image_dir
         if os.path.isdir(source_path):
             self.videos = image_log.get_video_file_list(source_path, abs_path=True)
         elif os.path.isfile(source_path):
-            # FIXME: make sure it is mp4
+            # it is okay to not suffix with .mp4
             self.videos = [source_path]
         else:
             raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
@@ -37,7 +42,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         return descs
 
 
-def extract_bin(path: str) -> str:
+def extract_and_parse_bin(path: str) -> T.List:
     info = get_ffprobe(path)
 
     format_name = info["format"]["format_name"].lower()
@@ -55,18 +60,16 @@ def extract_bin(path: str) -> str:
     if stream_id is None:
         raise IOError("No GoPro metadata track found - was GPS turned on?")
 
-    basename, _ = os.path.splitext(path)
-    bin_path = basename + ".bin"
-
-    extract_stream(path, bin_path, stream_id)
-
-    return bin_path
+    with tempfile.NamedTemporaryFile() as tmp:
+        LOG.debug("Extracting GoPro stream %s to %s", stream_id, tmp.name)
+        extract_stream(path, tmp.name, stream_id)
+        LOG.debug("Parsing GoPro GPMF %s", tmp.name)
+        return parse_bin(tmp.name)
 
 
 def get_points_from_gpmf(path: str) -> T.List[types.GPXPoint]:
-    bin_path = extract_bin(path)
+    gpmf_data = extract_and_parse_bin(path)
 
-    gpmf_data = parse_bin(bin_path)
     rows = len(gpmf_data)
 
     points: T.List[types.GPXPoint] = []
