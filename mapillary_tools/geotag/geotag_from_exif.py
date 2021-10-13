@@ -1,3 +1,4 @@
+import os
 import typing as T
 
 from .geotag_from_generic import GeotagFromGeneric
@@ -16,7 +17,9 @@ class GeotagFromEXIF(GeotagFromGeneric):
         descs: T.List[types.FinalImageDescriptionOrError] = []
 
         for image in self.images:
-            exif = ExifRead(image)
+            image_path = os.path.join(self.image_dir, image)
+
+            exif = ExifRead(image_path)
 
             lon, lat = exif.extract_lon_lat()
             if lat is None or lon is None:
@@ -47,6 +50,17 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     "TrueHeading": angle,
                     "MagneticHeading": angle,
                 }
+
+            desc["MAPOrientation"] = exif.extract_orientation()
+
+            make = exif.extract_make()
+            if make is not None:
+                desc["MAPDeviceMake"] = make
+
+            model = exif.extract_model()
+            if model is not None:
+                desc["MAPDeviceModel"] = model
+
             descs.append(desc)
 
         return descs

@@ -22,7 +22,9 @@ class GeotagFromBlackVue(GeotagFromGeneric):
         super().__init__()
         self.image_dir = image_dir
         if os.path.isdir(source_path):
-            self.blackvue_videos = image_log.get_video_file_list(source_path)
+            self.blackvue_videos = image_log.get_video_file_list(
+                source_path, abs_path=True
+            )
         elif os.path.isfile(source_path):
             # FIXME: make sure it is mp4
             self.blackvue_videos = [source_path]
@@ -62,12 +64,14 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             geotag = GeotagFromGPX(self.image_dir, sample_images, points)
 
             model = find_camera_model(blackvue_video)
-            LOG.debug(f"Found BlackVue camera model {model} for {blackvue_video}")
+            LOG.debug(f"Found BlackVue camera model %s for %s", model, blackvue_video)
 
             for desc in geotag.to_description():
-                desc["MAPDeviceMake"] = "Blackvue"
-                if model is not None:
-                    desc["MAPDeviceModel"] = model.decode("utf-8")
+                if "error" not in desc:
+                    desc = T.cast(types.ImageDescriptionJSON, desc)
+                    desc["MAPDeviceMake"] = "Blackvue"
+                    if model is not None:
+                        desc["MAPDeviceModel"] = model.decode("utf-8")
                 descs.append(desc)
 
         return descs
@@ -268,7 +272,7 @@ def is_video_stationary(max_distance_from_start) -> bool:
 
 
 def gpx_from_blackvue(
-    bv_video, use_nmea_stream_timestamp=False
+    bv_video: str, use_nmea_stream_timestamp=False
 ) -> T.Tuple[T.List[types.GPXPoint], bool]:
     points = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
     if not points:

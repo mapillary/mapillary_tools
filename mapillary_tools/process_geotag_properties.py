@@ -24,6 +24,7 @@ def process_geotag_properties(
     skip_subfolders=False,
     video_import_path: T.Optional[str] = None,
     geotag_source_path: T.Optional[str] = None,
+    # FIXME: here
     offset_time=0.0,
     offset_angle=0.0,
 ) -> T.List[types.FinalImageDescriptionOrError]:

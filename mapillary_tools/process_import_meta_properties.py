@@ -3,7 +3,6 @@ import os
 import time
 
 from . import VERSION, types
-from .exif_read import ExifRead
 from .types import MetaProperties
 
 
@@ -69,72 +68,6 @@ def format_orientation(orientation: int) -> int:
     return mapping[orientation]
 
 
-def finalize_import_properties_process(
-    image: str,
-    desc: MetaProperties,
-    import_path: str,
-    orientation=None,
-    device_make=None,
-    device_model=None,
-    GPS_accuracy=None,
-    add_file_name=False,
-    add_import_date=False,
-    custom_meta_data=None,
-    camera_uuid=None,
-    windows_path=False,
-    exclude_import_path=False,
-    exclude_path=None,
-):
-    # always check if there are any command line arguments passed, they will
-    if orientation is not None:
-        desc["MAPOrientation"] = orientation
-    if device_make is not None:
-        desc["MAPDeviceMake"] = device_make
-    if device_model is not None:
-        desc["MAPDeviceModel"] = device_model
-    if GPS_accuracy is not None:
-        desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
-    if camera_uuid is not None:
-        desc["MAPCameraUUID"] = camera_uuid
-    if add_file_name:
-        image_path = image
-        if exclude_import_path:
-            image_path = image_path.replace(import_path, "").lstrip("\\").lstrip("/")
-        elif exclude_path:
-            image_path = image_path.replace(exclude_path, "").lstrip("\\").lstrip("/")
-        if windows_path:
-            image_path = image_path.replace("/", "\\")
-
-        desc["MAPFilename"] = image_path
-
-    if add_import_date:
-        add_meta_tag(
-            desc,
-            "dates",
-            "import_date",
-            int(round(time.time() * 1000)),
-        )
-
-    add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
-
-    if custom_meta_data:
-        parse_and_add_custom_meta_tags(desc, custom_meta_data)
-
-    return desc
-
-
-def get_import_meta_properties_exif(image: str) -> MetaProperties:
-    import_meta_data_properties: MetaProperties = {}
-    # FIXME: might throw error here
-    exif = ExifRead(image)
-    import_meta_data_properties["MAPOrientation"] = exif.extract_orientation()
-    import_meta_data_properties["MAPDeviceMake"] = exif.extract_make()
-    import_meta_data_properties["MAPDeviceModel"] = exif.extract_model()
-    import_meta_data_properties["MAPMetaTags"] = eval(exif.extract_image_history())
-
-    return import_meta_data_properties
-
-
 def process_import_meta_properties(
     import_path: str,
     descs: T.List[types.FinalImageDescriptionOrError],
@@ -150,28 +83,55 @@ def process_import_meta_properties(
     exclude_import_path=False,
     exclude_path=None,
 ) -> T.List[types.FinalImageDescriptionOrError]:
-    if orientation is not None:
-        orientation = format_orientation(orientation)
-
     for desc in descs:
+        if "error" in desc:
+            continue
+
+        desc = T.cast(types.ImageDescriptionJSON, desc)
+
         image = os.path.join(import_path, desc["filename"])
-        import_meta_data_properties = get_import_meta_properties_exif(image)
-        meta_desc = finalize_import_properties_process(
-            image,
-            import_meta_data_properties,
-            import_path,
-            orientation,
-            device_make,
-            device_model,
-            GPS_accuracy,
-            add_file_name,
-            add_import_date,
-            custom_meta_data,
-            camera_uuid,
-            windows_path,
-            exclude_import_path,
-            exclude_path,
-        )
-        desc.update(meta_desc)
+
+        if orientation is not None:
+            desc["MAPOrientation"] = format_orientation(orientation)
+
+        if device_make is not None:
+            desc["MAPDeviceMake"] = device_make
+
+        if device_model is not None:
+            desc["MAPDeviceModel"] = device_model
+
+        if GPS_accuracy is not None:
+            desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
+
+        if camera_uuid is not None:
+            desc["MAPCameraUUID"] = camera_uuid
+
+        if add_file_name:
+            image_path = image
+            if exclude_import_path:
+                image_path = (
+                    image_path.replace(import_path, "").lstrip("\\").lstrip("/")
+                )
+            elif exclude_path:
+                image_path = (
+                    image_path.replace(exclude_path, "").lstrip("\\").lstrip("/")
+                )
+            if windows_path:
+                image_path = image_path.replace("/", "\\")
+
+            desc["MAPFilename"] = image_path
+
+        if add_import_date:
+            add_meta_tag(
+                desc,
+                "dates",
+                "import_date",
+                int(round(time.time() * 1000)),
+            )
+
+        add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
+
+        if custom_meta_data:
+            parse_and_add_custom_meta_tags(desc, custom_meta_data)
 
     return descs

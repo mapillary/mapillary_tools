@@ -252,24 +252,20 @@ class ExifRead:
 
         return None, None
 
-    def extract_make(self) -> str:
+    def extract_make(self) -> Optional[str]:
         """
         Extract camera make
         """
         fields = ["EXIF LensMake", "Image Make"]
-        make, _ = self._extract_alternative_fields(
-            fields, default="none", field_type=str
-        )
+        make, _ = self._extract_alternative_fields(fields, field_type=str)
         return make
 
-    def extract_model(self) -> str:
+    def extract_model(self) -> Optional[str]:
         """
         Extract camera model
         """
         fields = ["EXIF LensModel", "Image Model"]
-        model, _ = self._extract_alternative_fields(
-            fields, default="none", field_type=str
-        )
+        model, _ = self._extract_alternative_fields(fields, field_type=str)
         return model
 
     def extract_orientation(self) -> int:

@@ -23,11 +23,23 @@ def iterate_files(root: str, recursive=False) -> Generator[str, None, None]:
             yield os.path.join(dirpath, file)
 
 
-def get_video_file_list(video_file, skip_subfolders=False) -> T.List[str]:
+def get_video_file_list(
+    video_file, skip_subfolders=False, abs_path: bool = False
+) -> T.List[str]:
     files = iterate_files(video_file, not skip_subfolders)
-    return sorted(file for file in files if is_video_file(file))
+    return sorted(
+        file if abs_path else os.path.relpath(file, video_file)
+        for file in files
+        if is_video_file(file)
+    )
 
 
-def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
+def get_total_file_list(
+    import_path: str, skip_subfolders: bool = False, abs_path: bool = False
+) -> List[str]:
     files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file))
+    return sorted(
+        file if abs_path else os.path.relpath(file, import_path)
+        for file in files
+        if is_image_file(file)
+    )

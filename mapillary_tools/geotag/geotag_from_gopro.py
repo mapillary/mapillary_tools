@@ -14,7 +14,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
     def __init__(self, image_dir: str, source_path: str):
         self.image_dir = image_dir
         if os.path.isdir(source_path):
-            self.videos = image_log.get_video_file_list(source_path)
+            self.videos = image_log.get_video_file_list(source_path, abs_path=True)
         elif os.path.isfile(source_path):
             # FIXME: make sure it is mp4
             self.videos = [source_path]

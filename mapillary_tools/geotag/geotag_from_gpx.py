@@ -1,3 +1,4 @@
+import os
 import typing as T
 import datetime
 
@@ -17,8 +18,9 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.images = images
         self.points = points
 
-    def read_image_capture_time(self, image):
-        return ExifRead(image).extract_capture_time()
+    def read_image_capture_time(self, image: str) -> T.Optional[datetime.datetime]:
+        image_path = os.path.join(self.image_dir, image)
+        return ExifRead(image_path).extract_capture_time()
 
     def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
         descs: T.List[types.FinalImageDescriptionOrError] = []
