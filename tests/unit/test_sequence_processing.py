@@ -166,8 +166,6 @@ def test_interpolation_single():
     assert [123] == [int(desc["MAPCompassHeading"]["TrueHeading"]) for desc in descs]
 
 
-
-
 def test_geotag_from_gpx_2():
     images = [
         make_image_desc(0, 0, 1),
@@ -182,7 +180,9 @@ def test_geotag_from_gpx_2():
 
     class GeotagFromGPXTest(GeotagFromGPX):
         def read_image_capture_time(self, image):
-            return types.map_capture_time_to_datetime(image_by_filename[image]["MAPCaptureTime"])
+            return types.map_capture_time_to_datetime(
+                image_by_filename[image]["MAPCaptureTime"]
+            )
 
     points = [
         types.GPXPoint(
@@ -199,7 +199,9 @@ def test_geotag_from_gpx_2():
         ),
     ]
 
-    geotag = GeotagFromGPXTest(image_dir=".", images=[d["filename"] for d in images], points=points)
+    geotag = GeotagFromGPXTest(
+        image_dir=".", images=[d["filename"] for d in images], points=points
+    )
     descs = geotag.to_description()
     descs.sort(key=lambda d: d["MAPCaptureTime"])
 

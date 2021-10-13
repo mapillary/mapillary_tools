@@ -2,9 +2,11 @@ import logging
 import os
 import typing as T
 import json
+import datetime
 
 from . import image_log, types, error
 from .exif_write import ExifEdit
+from .geo import normalize_bearing
 from .geotag import (
     geotag_from_exif,
     geotag_from_gopro,
@@ -24,7 +26,6 @@ def process_geotag_properties(
     skip_subfolders=False,
     video_import_path: T.Optional[str] = None,
     geotag_source_path: T.Optional[str] = None,
-    # FIXME: here
     offset_time=0.0,
     offset_angle=0.0,
 ) -> T.List[types.FinalImageDescriptionOrError]:
@@ -88,7 +89,27 @@ def process_geotag_properties(
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    return geotag.to_description()
+    descs = geotag.to_description()
+
+    for desc in descs:
+        if "error" not in desc:
+            desc = T.cast(types.ImageDescriptionJSON, desc)
+            if offset_time:
+                dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+                desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
+                    dt + datetime.timedelta(seconds=offset_time)
+                )
+            if offset_angle:
+                heading = desc.get("MAPCompassHeading")
+                if heading is not None:
+                    heading["TrueHeading"] = normalize_bearing(
+                        heading["TrueHeading"] + offset_angle
+                    )
+                    heading["MagneticHeading"] = normalize_bearing(
+                        heading["MagneticHeading"] + offset_angle
+                    )
+
+    return descs
 
 
 def overwrite_exif_tags(
