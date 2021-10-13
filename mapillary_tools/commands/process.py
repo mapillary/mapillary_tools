@@ -1,8 +1,7 @@
 import inspect
 import argparse
 
-from ..insert_MAPJson import insert_MAPJson
-from ..process_geotag_properties import process_geotag_properties
+from ..process_geotag_properties import process_geotag_properties, insert_MAPJson
 from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
@@ -218,17 +217,7 @@ class Command:
         ):
             vars_args["duplicate_angle"] = 360
 
-        process_import_meta_properties(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(process_import_meta_properties).args
-                }
-            )
-        )
-
-        process_geotag_properties(
+        descs = process_geotag_properties(
             **(
                 {
                     k: v
@@ -238,7 +227,19 @@ class Command:
             )
         )
 
-        process_sequence_properties(
+        descs = process_import_meta_properties(
+            descs=descs,
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(process_import_meta_properties).args
+                }
+            )
+        )
+
+        descs = process_sequence_properties(
+            descs=descs,
             **(
                 {
                     k: v
@@ -249,6 +250,7 @@ class Command:
         )
 
         insert_MAPJson(
+            descs=descs,
             **(
                 {
                     k: v

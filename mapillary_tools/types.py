@@ -32,7 +32,7 @@ class Image(ImageRequired, total=False):
     MAPCompassHeading: CompassHeading
 
 
-class _SequenceOnly(TypedDict, total=True):
+class _SequenceOnly(TypedDict, total=False):
     MAPSequenceUUID: str
 
 
@@ -58,14 +58,31 @@ class ImageDescriptionJSON(FinalImageDescription):
     filename: str
 
 
+class ImageDescriptionErrorObject(TypedDict, total=False):
+    # type and message are required
+    type: str
+    message: str
+    # vars is optional
+    vars: T.Dict
+
+
+def describe_error(exc: Exception) -> ImageDescriptionErrorObject:
+    desc: ImageDescriptionErrorObject = {
+        "type": exc.__class__.__name__,
+        "message": str(exc),
+    }
+    exc_vars = vars(exc)
+    if exc_vars:
+        desc["vars"] = exc_vars
+    return desc
+
+
 class FinalImageDescriptionError(TypedDict):
     filename: str
-    error: T.Dict
+    error: ImageDescriptionErrorObject
 
 
-FinalImageDescriptionOrError = T.Union[
-    FinalImageDescriptionError, FinalImageDescription
-]
+FinalImageDescriptionOrError = T.Union[FinalImageDescriptionError, ImageDescriptionJSON]
 
 
 class FinalImageDescriptionFromGeoJSON(FinalImageDescription):
@@ -168,15 +185,6 @@ ImageDescriptionJSONSchema = merge_schema(
         ],
     },
 )
-
-Process = Literal[
-    "import_meta_data_process",
-    "geotag_process",
-    "sequence_process",
-    "mapillary_image_description",
-]
-
-Status = Literal["success", "failed"]
 
 
 def datetime_to_map_capture_time(time: datetime.datetime) -> str:

@@ -162,6 +162,121 @@ def test_process_and_upload(
         validate_and_extract_zip(str(file))
 
 
+def test_time(setup_data: py.path.local):
+    # before offset
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data}",
+        shell=True,
+    )
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+
+    expected = {
+        "DSC00001.JPG": "2018_06_08_13_24_10_000",
+        "DSC00497.JPG": "2018_06_08_13_32_28_000",
+        "V0370574.JPG": "2018_07_27_11_32_14_000",
+    }
+
+    for desc in descs:
+        assert "filename" in desc
+        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+
+    # after offset
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data} --offset_time=2.5",
+        shell=True,
+    )
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+
+    expected = {
+        "DSC00001.JPG": "2018_06_08_13_24_12_500",
+        "DSC00497.JPG": "2018_06_08_13_32_30_500",
+        "V0370574.JPG": "2018_07_27_11_32_16_500",
+    }
+
+    for desc in descs:
+        assert "filename" in desc
+        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+
+    # after offset
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data} --offset_time=-1.0",
+        shell=True,
+    )
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+
+    expected = {
+        "DSC00001.JPG": "2018_06_08_13_24_09_000",
+        "DSC00497.JPG": "2018_06_08_13_32_27_000",
+        "V0370574.JPG": "2018_07_27_11_32_13_000",
+    }
+
+    for desc in descs:
+        assert "filename" in desc
+        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+
+
+def test_angle(setup_data: py.path.local):
+    # before offset
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data}",
+        shell=True,
+    )
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+    expected = {
+        "DSC00001.JPG": 270.89,
+        "DSC00497.JPG": 271.27,
+        "V0370574.JPG": 359.0,
+    }
+    for desc in descs:
+        assert "filename" in desc
+        assert (
+            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
+            < 0.00001
+        )
+        assert (
+            abs(
+                expected[desc["filename"]]
+                - desc["MAPCompassHeading"]["MagneticHeading"]
+            )
+            < 0.00001
+        )
+
+    # after offset
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data} --offset_angle=2.5",
+        shell=True,
+    )
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+    expected = {
+        "DSC00001.JPG": 270.89 + 2.5,
+        "DSC00497.JPG": 271.27 + 2.5,
+        "V0370574.JPG": 1.5,
+    }
+    for desc in descs:
+        assert "filename" in desc
+        assert (
+            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
+            < 0.00001
+        )
+        assert (
+            abs(
+                expected[desc["filename"]]
+                - desc["MAPCompassHeading"]["MagneticHeading"]
+            )
+            < 0.00001
+        )
+
+
 def test_process_boolean_options(
     setup_config: py.path.local, setup_data: py.path.local
 ):

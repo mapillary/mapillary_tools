@@ -6,7 +6,6 @@ import typing as T
 import logging
 
 from . import image_log
-from . import processing
 from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
@@ -50,6 +49,11 @@ def timestamps_from_filename(
     return capture_times
 
 
+def video_sample_path(import_path: str, video_file_path: str) -> str:
+    video_filename = os.path.basename(video_file_path)
+    return os.path.join(import_path, video_filename)
+
+
 def sample_video(
     video_import_path: str,
     import_path: str,
@@ -62,13 +66,13 @@ def sample_video(
         raise RuntimeError(f'Error, video path "{video_import_path}" does not exist')
 
     video_list = (
-        image_log.get_video_file_list(video_import_path, skip_subfolders)
+        image_log.get_video_file_list(video_import_path, skip_subfolders, abs_path=True)
         if os.path.isdir(video_import_path)
         else [video_import_path]
     )
 
-    for video in video_list:
-        per_video_import_path = processing.video_sample_path(import_path, video)
+    for video_file_path in video_list:
+        per_video_import_path = video_sample_path(import_path, video_file_path)
         if os.path.isdir(per_video_import_path):
             images = image_log.get_total_file_list(per_video_import_path)
             if images:
@@ -84,12 +88,12 @@ def sample_video(
             if answer in ["y", "Y"]:
                 os.remove(per_video_import_path)
 
-    for video in video_list:
-        per_video_import_path = processing.video_sample_path(import_path, video)
+    for video_file_path in video_list:
+        per_video_import_path = video_sample_path(import_path, video_file_path)
         if not os.path.exists(per_video_import_path):
             os.makedirs(per_video_import_path)
             extract_frames(
-                video,
+                video_file_path,
                 per_video_import_path,
                 video_sample_interval,
                 video_duration_ratio,
@@ -153,6 +157,7 @@ def insert_video_frame_timestamp(
     )
 
     for image, timestamp in zip(frame_list, video_frame_timestamps):
-        exif_edit = ExifEdit(image)
+        image_path = os.path.join(video_sampling_path, image)
+        exif_edit = ExifEdit(image_path)
         exif_edit.add_date_time_original(timestamp)
         exif_edit.write()

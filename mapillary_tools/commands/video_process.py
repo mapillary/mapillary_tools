@@ -1,6 +1,5 @@
 from .process import Command as ProcessCommand
 from .sample_video import Command as SampleCommand
-from ..apply_camera_specific_config import apply_camera_specific_config
 
 
 class Command:
@@ -12,6 +11,5 @@ class Command:
         ProcessCommand().add_basic_arguments(parser)
 
     def run(self, args: dict):
-        vars_args = apply_camera_specific_config(args)
-        SampleCommand().run(vars_args)
-        ProcessCommand().run(vars_args)
+        SampleCommand().run(args)
+        ProcessCommand().run(args)
