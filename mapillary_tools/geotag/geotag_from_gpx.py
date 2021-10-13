@@ -4,7 +4,7 @@ import datetime
 
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
-from ..error import MapillaryGeoTaggingError
+from ..error import MapillaryGeoTaggingError, MapillaryInterpolationError
 from ..exif_read import ExifRead
 from ..geo import interpolate_lat_lon, Point
 
@@ -26,7 +26,16 @@ class GeotagFromGPX(GeotagFromGeneric):
         descs: T.List[types.FinalImageDescriptionOrError] = []
 
         if not self.points:
-            # FIXME: describe errors
+            exc = MapillaryInterpolationError(
+                "No GPS points extracted from the geotag source"
+            )
+            for image in self.images:
+                descs.append(
+                    {
+                        "error": types.describe_error(exc),
+                        "filename": image,
+                    }
+                )
             return descs
 
         # need EXIF timestamps for sorting
@@ -34,9 +43,10 @@ class GeotagFromGPX(GeotagFromGeneric):
         for image in self.images:
             capture_time = self.read_image_capture_time(image)
             if capture_time is None:
-                # FIXME: improve error message
                 error = types.describe_error(
-                    MapillaryGeoTaggingError("No capture time found in EXIF")
+                    MapillaryGeoTaggingError(
+                        "No capture time found from the image for interpolation"
+                    )
                 )
                 descs.append({"error": error, "filename": image})
             else:

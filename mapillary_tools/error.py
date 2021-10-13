@@ -6,6 +6,10 @@ class MapillaryGeoTaggingError(MapillaryUserError):
     pass
 
 
+class MapillaryInterpolationError(MapillaryUserError):
+    pass
+
+
 class MapillaryStationaryBlackVueError(MapillaryUserError):
     pass
 
