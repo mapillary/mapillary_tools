@@ -154,7 +154,7 @@ class Command:
             default=None,
             required=False,
         )
-        group_metadata.add_argument(
+        group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",
             help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Applicable for geotagging from {', '.join(geotag_gpx_based_sources)}",
             action="store_true",
