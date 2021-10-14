@@ -26,8 +26,10 @@ def process_geotag_properties(
     skip_subfolders=False,
     video_import_path: T.Optional[str] = None,
     geotag_source_path: T.Optional[str] = None,
-    offset_time=0.0,
-    offset_angle=0.0,
+    interpolation_use_gpx_start_time: bool = False,
+    interpolation_offset_time: float = 0.0,
+    offset_time: float = 0.0,
+    offset_angle: float = 0.0,
 ) -> T.List[types.FinalImageDescriptionOrError]:
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
@@ -67,6 +69,8 @@ def process_geotag_properties(
             import_path,
             images,
             geotag_source_path,
+            use_gpx_start_time=interpolation_use_gpx_start_time,
+            offset_time=interpolation_offset_time,
         )
     elif geotag_source == "gopro_videos":
         if geotag_source_path is None:
@@ -76,6 +80,8 @@ def process_geotag_properties(
         geotag = geotag_from_gopro.GeotagFromGoPro(
             import_path,
             geotag_source_path,
+            use_gpx_start_time=interpolation_use_gpx_start_time,
+            offset_time=interpolation_offset_time,
         )
     elif geotag_source == "blackvue_videos":
         if geotag_source_path is None:
@@ -85,6 +91,8 @@ def process_geotag_properties(
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             import_path,
             geotag_source_path,
+            use_gpx_start_time=interpolation_use_gpx_start_time,
+            offset_time=interpolation_offset_time,
         )
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")

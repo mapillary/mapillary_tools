@@ -13,6 +13,11 @@ class Command:
     help = "process images"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
+        geotag_sources = ["exif", "gpx", "gopro_videos", "nmea", "blackvue_videos"]
+        geotag_gpx_based_sources = ["gpx", "gopro_videos", "nmea", "blackvue_videos"]
+        for source in geotag_gpx_based_sources:
+            assert source in geotag_sources
+
         parser.add_argument(
             "--skip_process_errors",
             help="Skip process errors.",
@@ -138,7 +143,7 @@ class Command:
             "--geotag_source",
             help="Provide the source of date/time and GPS information needed for geotagging",
             action="store",
-            choices=["exif", "gpx", "gopro_videos", "nmea", "blackvue_videos"],
+            choices=geotag_sources,
             default="exif",
             required=False,
         )
@@ -149,18 +154,31 @@ class Command:
             default=None,
             required=False,
         )
+        group_metadata.add_argument(
+            "--interpolation_use_gpx_start_time",
+            help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Applicable for geotagging from {', '.join(geotag_gpx_based_sources)}",
+            action="store_true",
+            required=False,
+        )
         group_geotagging.add_argument(
-            "--offset_time",
+            "--interpolation_offset_time",
             default=0.0,
             type=float,
-            help="time offset, in seconds, that will be added to your image timestamps",
+            help=f"Time offset, in seconds, that be added for GPX interpolation, which affects image locations. Note that it is applied after --interpolation_use_gpx_start_time. Applicable for geotagging from {', '.join(geotag_gpx_based_sources)}",
             required=False,
         )
         group_geotagging.add_argument(
             "--offset_angle",
             default=0.0,
             type=float,
-            help="camera angle offset, in degrees, that will be added to your image camera angles",
+            help="Camera angle offset, in degrees, that will be added to your image camera angles after geotagging/interpolation",
+            required=False,
+        )
+        group_geotagging.add_argument(
+            "--offset_time",
+            default=0.0,
+            type=float,
+            help="Time offset, in seconds, that will be added to your image timestamps after geotagging/interpolation",
             required=False,
         )
 
@@ -235,7 +253,7 @@ class Command:
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(process_import_meta_properties).args
                 }
-            )
+            ),
         )
 
         descs = process_sequence_properties(
@@ -246,7 +264,7 @@ class Command:
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(process_sequence_properties).args
                 }
-            )
+            ),
         )
 
         insert_MAPJson(
@@ -257,5 +275,5 @@ class Command:
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(insert_MAPJson).args
                 }
-            )
+            ),
         )

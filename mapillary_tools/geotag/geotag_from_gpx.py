@@ -11,12 +11,19 @@ from ..geo import interpolate_lat_lon, Point
 
 class GeotagFromGPX(GeotagFromGeneric):
     def __init__(
-        self, image_dir: str, images: T.List[str], points: T.List[types.GPXPoint]
+        self,
+        image_dir: str,
+        images: T.List[str],
+        points: T.List[types.GPXPoint],
+        use_gpx_start_time: bool = False,
+        offset_time: float = 0.0,
     ):
         super().__init__()
         self.image_dir = image_dir
         self.images = images
         self.points = points
+        self.use_gpx_start_time = use_gpx_start_time
+        self.offset_time = offset_time
 
     def read_image_capture_time(self, image: str) -> T.Optional[datetime.datetime]:
         image_path = os.path.join(self.image_dir, image)
@@ -55,13 +62,15 @@ class GeotagFromGPX(GeotagFromGeneric):
         sorted_points = sorted(self.points, key=lambda p: p.time)
         sorted_pairs = sorted(pairs)
 
-        if sorted_pairs:
-            # assume: the ordered image timestamps are [2, 3, 4, 5]
-            # the ordered gpx timestamps are [5, 6, 7, 8]
-            # then the offset will be 5 - 2 = 3
-            time_delta = (sorted_points[0].time - sorted_pairs[0][0]).total_seconds()
-        else:
-            time_delta = 0.0
+        image_time_offset = self.offset_time
+
+        if self.use_gpx_start_time:
+            if sorted_pairs and sorted_points:
+                # assume: the ordered image timestamps are [2, 3, 4, 5]
+                # the ordered gpx timestamps are [5, 6, 7, 8]
+                # then the offset will be 5 - 2 = 3
+                time_delta = sorted_points[0].time - sorted_pairs[0][0]
+                image_time_offset += time_delta.total_seconds()
 
         # same thing but different type
         sorted_points_for_interpolation = [
@@ -69,7 +78,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         ]
 
         for exif_time, image in sorted_pairs:
-            exif_time = exif_time + datetime.timedelta(seconds=time_delta)
+            exif_time = exif_time + datetime.timedelta(seconds=image_time_offset)
             lat, lon, bearing, elevation = interpolate_lat_lon(
                 sorted_points_for_interpolation, exif_time
             )

@@ -18,7 +18,13 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagFromBlackVue(GeotagFromGeneric):
-    def __init__(self, image_dir: str, source_path: str):
+    def __init__(
+        self,
+        image_dir: str,
+        source_path: str,
+        use_gpx_start_time: bool = False,
+        offset_time: float = 0.0,
+    ):
         super().__init__()
         self.image_dir = image_dir
         if os.path.isdir(source_path):
@@ -31,6 +37,8 @@ class GeotagFromBlackVue(GeotagFromGeneric):
         else:
             raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
         self.source_path = source_path
+        self.use_gpx_start_time = use_gpx_start_time
+        self.offset_time = offset_time
 
     def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
         descs: T.List[types.FinalImageDescriptionOrError] = []
@@ -61,7 +69,13 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                     descs.append({"error": error, "filename": image})
                 continue
 
-            geotag = GeotagFromGPX(self.image_dir, sample_images, points)
+            geotag = GeotagFromGPX(
+                self.image_dir,
+                sample_images,
+                points,
+                use_gpx_start_time=self.use_gpx_start_time,
+                offset_time=self.offset_time,
+            )
 
             model = find_camera_model(blackvue_video)
             LOG.debug(f"Found BlackVue camera model %s for %s", model, blackvue_video)
