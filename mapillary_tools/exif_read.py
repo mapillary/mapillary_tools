@@ -1,8 +1,7 @@
+import sys
 from typing import List, Optional, Tuple, Type, Union, Any
 import datetime
-import json
 import os
-import logging
 
 import exifread
 
@@ -10,13 +9,11 @@ from .geo import normalize_bearing
 from exifread.utils import Ratio
 
 
-LOG = logging.getLogger()
-
-
 def eval_frac(value: Ratio) -> float:
-    if value.den == 0:
-        return -1.0
-    return float(value.num) / float(value.den)
+    try:
+        return float(value.num) / float(value.den)
+    except ZeroDivisionError:
+        return 0
 
 
 def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
@@ -43,9 +40,10 @@ def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
 
 def gps_to_decimal(values: List[Ratio], reference: str) -> float:
     sign = 1 if reference in "NE" else -1
-    degrees = eval_frac(values[0])
-    minutes = eval_frac(values[1])
-    seconds = eval_frac(values[2])
+    deg, min, sec = values
+    degrees = eval_frac(deg)
+    minutes = eval_frac(min)
+    seconds = eval_frac(sec)
     return sign * (degrees + minutes / 60 + seconds / 3600)
 
 
@@ -87,9 +85,9 @@ class ExifRead:
         self.filename = filename
         if isinstance(filename, str):
             with open(filename, "rb") as fp:
-                self.tags = exifread.process_file(fp, details=details)
+                self.tags = exifread.process_file(fp, details=details, debug=True)
         else:
-            self.tags = exifread.process_file(filename, details=details)
+            self.tags = exifread.process_file(filename, details=details, debug=True)
 
     def _extract_alternative_fields(
         self,
@@ -126,12 +124,19 @@ class ExifRead:
         fields: List[str] = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
         refs: List[str] = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
         altitude, _ = self._extract_alternative_fields(fields, 0, float)
-        ref = (
-            0
-            if not any([True for x in refs if x in self.tags])
-            else [self.tags[x].values for x in refs if x in self.tags][0][0]
-        )
-        return altitude * altitude_ref[ref]
+        ref = 0
+        for x in refs:
+            t = self.tags.get(x)
+            if t is not None:
+                if t.values:
+                    if isinstance(t.values[0], Ratio):
+                        try:
+                            ref = int(eval_frac(t.values[0]))
+                        except ZeroDivisionError:
+                            pass
+                        else:
+                            break
+        return altitude * altitude_ref.get(ref, 1)
 
     def extract_capture_time(self) -> Optional[datetime.datetime]:
         """
@@ -167,7 +172,7 @@ class ExifRead:
             capture_time_obj, subseconds = format_time(capture_time)
             sub_sec = "0"
             if not subseconds:
-                sub_sec = self.extract_subsec()
+                sub_sec = self._extract_subsec()
                 if isinstance(sub_sec, str):
                     sub_sec = sub_sec.strip()
             capture_time_obj = capture_time_obj + datetime.timedelta(
@@ -175,7 +180,7 @@ class ExifRead:
             )
             return capture_time_obj
 
-    def extract_direction(self) -> float:
+    def extract_direction(self) -> Optional[float]:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
@@ -218,67 +223,49 @@ class ExifRead:
         else:
             return None
 
-    def extract_image_size(self):
-        """
-        Extract image height and width
-        """
-        width, _ = self._extract_alternative_fields(
-            ["Image ImageWidth", "EXIF ExifImageWidth"], -1, int
-        )
-        height, _ = self._extract_alternative_fields(
-            ["Image ImageLength", "EXIF ExifImageLength"], -1, int
-        )
-        return width, height
-
-    def extract_image_description(self) -> Optional[str]:
-        description, _ = self._extract_alternative_fields(
-            ["Image ImageDescription"], None, str
-        )
-        return description
-
     def extract_lon_lat(self) -> Tuple[Optional[float], Optional[float]]:
-        if "GPS GPSLatitude" in self.tags and "GPS GPSLatitude" in self.tags:
-            lat: Optional[float] = gps_to_decimal(
-                self.tags["GPS GPSLatitude"].values,
-                self.tags["GPS GPSLatitudeRef"].values,
-            )
-            lon: Optional[float] = gps_to_decimal(
-                self.tags["GPS GPSLongitude"].values,
-                self.tags["GPS GPSLongitudeRef"].values,
-            )
-        elif (
-            "EXIF GPS GPSLatitude" in self.tags and "EXIF GPS GPSLatitude" in self.tags
-        ):
+        lat_tag = self.tags.get("GPS GPSLatitude")
+        lon_tag = self.tags.get("GPS GPSLongitude")
+        if lat_tag and lon_tag:
+            lat_ref_tag = self.tags.get("GPS GPSLatitudeRef")
             lat = gps_to_decimal(
-                self.tags["EXIF GPS GPSLatitude"].values,
-                self.tags["EXIF GPS GPSLatitudeRef"].values,
+                lat_tag.values, lat_ref_tag.values if lat_ref_tag else "N"
             )
+            lon_ref_tag = self.tags.get("GPS GPSLongitudeRef")
             lon = gps_to_decimal(
-                self.tags["EXIF GPS GPSLongitude"].values,
-                self.tags["EXIF GPS GPSLongitudeRef"].values,
+                lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
             )
-        else:
-            lon, lat = None, None
-        return lon, lat
+            return lon, lat
 
-    def extract_make(self) -> str:
+        lat_tag = self.tags.get("EXIF GPS GPSLatitude")
+        lon_tag = self.tags.get("EXIF GPS GPSLongitude")
+        if lat_tag and lon_tag:
+            lat_ref_tag = self.tags.get("EXIF GPS GPSLatitudeRef")
+            lat = gps_to_decimal(
+                lat_tag.values, lat_ref_tag.values if lat_ref_tag else "N"
+            )
+            lon_ref_tag = self.tags.get("EXIF GPS GPSLongitudeRef")
+            lon = gps_to_decimal(
+                lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
+            )
+            return lon, lat
+
+        return None, None
+
+    def extract_make(self) -> Optional[str]:
         """
         Extract camera make
         """
         fields = ["EXIF LensMake", "Image Make"]
-        make, _ = self._extract_alternative_fields(
-            fields, default="none", field_type=str
-        )
+        make, _ = self._extract_alternative_fields(fields, field_type=str)
         return make
 
-    def extract_model(self) -> str:
+    def extract_model(self) -> Optional[str]:
         """
         Extract camera model
         """
         fields = ["EXIF LensModel", "Image Model"]
-        model, _ = self._extract_alternative_fields(
-            fields, default="none", field_type=str
-        )
+        model, _ = self._extract_alternative_fields(fields, field_type=str)
         return model
 
     def extract_orientation(self) -> int:
@@ -293,7 +280,7 @@ class ExifRead:
             return 1
         return orientation
 
-    def extract_subsec(self) -> str:
+    def _extract_subsec(self) -> str:
         """
         Extract microseconds
         """
@@ -310,31 +297,21 @@ class ExifRead:
         )
         return sub_sec
 
-    def mapillary_tag_exists(self):
-        """
-        Check existence of required Mapillary tags
-        """
-        description = self.extract_image_description()
-        if description is None:
-            return False
 
-        try:
-            description_values = json.loads(description)
-        except json.JSONDecodeError:
-            LOG.warning(f"Error JSON decoding ImageDescription: {description}")
-            return False
+if __name__ == "__main__":
+    import pprint
 
-        for requirement in [
-            "MAPCaptureTime",
-            "MAPLatitude",
-            "MAPLongitude",
-            "MAPSequenceUUID",
-            "MAPSettingsUserKey",
-        ]:
-            val = description_values.get(requirement)
-            if val is None:
-                return False
-            elif isinstance(val, str):
-                if not val.strip():
-                    return False
-        return True
+    for filename in sys.argv[1:]:
+        exif = ExifRead(filename, details=True)
+        pprint.pprint(
+            {
+                "capture_time": exif.extract_capture_time(),
+                "gps_time": exif.extract_gps_time(),
+                "direction": exif.extract_direction(),
+                "model": exif.extract_model(),
+                "make": exif.extract_make(),
+                "lon_lat": exif.extract_lon_lat(),
+                "altitude": exif.extract_altitude(),
+                "image_history": exif.extract_image_history(),
+            }
+        )

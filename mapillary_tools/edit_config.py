@@ -15,7 +15,7 @@ def edit_config(
     user_key=None,
 ):
     if config_file is None:
-        config_file = config.GLOBAL_CONFIG_FILEPATH
+        config_file = config.MAPILLARY_CONFIG_PATH
 
     if not os.path.isfile(config_file):
         config.create_config(config_file)

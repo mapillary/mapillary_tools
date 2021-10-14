@@ -1,15 +1,16 @@
 import configparser
 import os
+import typing as T
 
-from . import api_v4
+from . import api_v4, types
 
 
-_CLIENT_ID = api_v4.MAPILLARY_WEB_CLIENT_ID
+_CLIENT_ID = api_v4.MAPILLARY_CLIENT_TOKEN
 # Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
 _CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
 
-GLOBAL_CONFIG_FILEPATH = os.getenv(
-    "GLOBAL_CONFIG_FILEPATH",
+MAPILLARY_CONFIG_PATH = os.getenv(
+    "MAPILLARY_CONFIG_PATH",
     os.path.join(
         os.path.expanduser("~"),
         ".config",
@@ -34,9 +35,9 @@ def save_config(config: configparser.ConfigParser, config_path: str) -> None:
         config.write(cfg)
 
 
-def load_user(config: configparser.ConfigParser, user_name: str) -> dict:
+def load_user(config: configparser.ConfigParser, user_name: str) -> types.User:
     user_items = dict(config.items(user_name))
-    return user_items
+    return T.cast(types.User, user_items)
 
 
 def add_user(
@@ -50,14 +51,14 @@ def add_user(
 
 
 def set_user_items(
-    config: configparser.ConfigParser, user_name: str, user_items: dict
+    config: configparser.ConfigParser, user_name: str, user_items: types.User
 ) -> configparser.ConfigParser:
-    for key in user_items.keys():
-        config.set(user_name, key, user_items[key])
+    for key, val in user_items.items():
+        config.set(user_name, key, T.cast(str, val))
     return config
 
 
-def update_config(config_path: str, user_name: str, user_items) -> None:
+def update_config(config_path: str, user_name: str, user_items: types.User) -> None:
     config = load_config(config_path)
     if user_name not in config.sections():
         add_user(config, user_name, config_path)

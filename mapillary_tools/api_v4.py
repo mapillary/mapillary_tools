@@ -2,8 +2,8 @@ import os
 import requests
 from typing import Union
 
-MAPILLARY_WEB_CLIENT_ID = os.getenv(
-    "MAPILLARY_WEB_CLIENT_ID", "MLY|5675152195860640|6b02c72e6e3c801e5603ab0495623282"
+MAPILLARY_CLIENT_TOKEN = os.getenv(
+    "MAPILLARY_CLIENT_TOKEN", "MLY|5675152195860640|6b02c72e6e3c801e5603ab0495623282"
 )
 MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
     "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
@@ -13,8 +13,8 @@ MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
 def get_upload_token(email: str, password: str) -> dict:
     resp = requests.post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
-        params={"access_token": MAPILLARY_WEB_CLIENT_ID},
-        json={"email": email, "password": password},
+        params={"access_token": MAPILLARY_CLIENT_TOKEN},
+        json={"email": email, "password": password, "locale": "en_US"},
     )
     resp.raise_for_status()
     return resp.json()
@@ -32,4 +32,5 @@ def fetch_organization(
             "Authorization": f"OAuth {user_access_token}",
         },
     )
+    resp.raise_for_status()
     return resp

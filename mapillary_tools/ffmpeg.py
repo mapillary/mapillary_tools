@@ -1,72 +1,65 @@
 import json
 import os
 import subprocess
+import logging
 
-
-# author https://github.com/stilldavid
+LOG = logging.getLogger(__name__)
 
 
 def get_ffprobe(path: str) -> dict:
-    """
-    Gets information about a media file
-    TODO: use the class in ffprobe.py - why doesn't it use json output?
-    """
     if not os.path.isfile(path):
         raise RuntimeError(f"No such file: {path}")
 
+    cmd = [
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        path,
+    ]
+    LOG.info(f"Extracting video information: {' '.join(cmd)}")
     try:
-        j_str = subprocess.check_output(
-            [
-                "ffprobe",
-                "-v",
-                "quiet",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
-                path,
-            ]
-        )
+        output = subprocess.check_output(cmd)
     except FileNotFoundError:
         raise RuntimeError(
             "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
         )
 
     try:
-        j_obj = json.loads(j_str)
+        j_obj = json.loads(output)
     except json.JSONDecodeError:
-        raise RuntimeError(f"Error JSON decoding {j_str.decode('utf-8')}")
+        raise RuntimeError(f"Error JSON decoding {output.decode('utf-8')}")
 
     return j_obj
 
 
-def extract_stream(source, dest, stream_id):
-    """
-    Get the data out of the file using ffmpeg
-    @param filename: mp4 filename
-    """
+def extract_stream(source: str, dest: str, stream_id: int) -> None:
     if not os.path.isfile(source):
         raise RuntimeError(f"No such file: {source}")
 
+    cmd = [
+        "ffmpeg",
+        "-i",
+        source,
+        "-y",  # overwrite - potentially dangerous
+        "-nostats",
+        "-loglevel",
+        "0",
+        "-codec",
+        "copy",
+        "-map",
+        "0:" + str(stream_id),
+        "-f",
+        "rawvideo",
+        dest,
+    ]
+
+    LOG.info(f"Extracting frames: {' '.join(cmd)}")
     try:
-        subprocess.check_output(
-            [
-                "ffmpeg",
-                "-i",
-                source,
-                "-y",  # overwrite - potentially dangerous
-                "-nostats",
-                "-loglevel",
-                "0",
-                "-codec",
-                "copy",
-                "-map",
-                "0:" + str(stream_id),
-                "-f",
-                "rawvideo",
-                dest,
-            ]
-        )
+        subprocess.check_output(cmd)
     except FileNotFoundError:
         raise RuntimeError(
             "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"

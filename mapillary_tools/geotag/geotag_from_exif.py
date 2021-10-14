@@ -1,0 +1,66 @@
+import os
+import typing as T
+
+from .geotag_from_generic import GeotagFromGeneric
+from .. import types
+from ..exif_read import ExifRead
+from ..error import MapillaryGeoTaggingError
+
+
+class GeotagFromEXIF(GeotagFromGeneric):
+    def __init__(self, image_dir: str, images: T.List[str]):
+        self.image_dir = image_dir
+        self.images = images
+        super().__init__()
+
+    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
+        descs: T.List[types.FinalImageDescriptionOrError] = []
+
+        for image in self.images:
+            image_path = os.path.join(self.image_dir, image)
+
+            exif = ExifRead(image_path)
+
+            lon, lat = exif.extract_lon_lat()
+            if lat is None or lon is None:
+                exc = MapillaryGeoTaggingError(
+                    "Unable to extract GPS Longitude or GPS Latitude from the image"
+                )
+                descs.append({"error": types.describe_error(exc), "filename": image})
+                continue
+
+            timestamp = exif.extract_capture_time()
+            if timestamp is None:
+                exc = MapillaryGeoTaggingError(
+                    "Unable to extract timestamp from the image"
+                )
+                descs.append({"error": types.describe_error(exc), "filename": image})
+                continue
+
+            angle = exif.extract_direction()
+
+            desc: types.ImageDescriptionJSON = {
+                "MAPLatitude": lat,
+                "MAPLongitude": lon,
+                "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),
+                "filename": image,
+            }
+            if angle is not None:
+                desc["MAPCompassHeading"] = {
+                    "TrueHeading": angle,
+                    "MagneticHeading": angle,
+                }
+
+            desc["MAPOrientation"] = exif.extract_orientation()
+
+            make = exif.extract_make()
+            if make is not None:
+                desc["MAPDeviceMake"] = make
+
+            model = exif.extract_model()
+            if model is not None:
+                desc["MAPDeviceModel"] = model
+
+            descs.append(desc)
+
+        return descs

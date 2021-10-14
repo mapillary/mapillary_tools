@@ -1,7 +1,9 @@
 import io
-from typing import List, Optional, Iterable, Generator
+import json
+import uuid
+from typing import Optional, Iterable
+import typing as T
 import os
-import sys
 import tempfile
 import hashlib
 import logging
@@ -11,163 +13,18 @@ import zipfile
 
 import requests
 from tqdm import tqdm
+import jsonschema
 
-from . import upload_api_v4
-from . import ipc
-from .login import authenticate_user, wrap_http_exception
+from . import upload_api_v4, types, ipc, exif_write
+from .login import wrap_http_exception
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
 MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 
-def is_image_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
-    return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
-
-
-def is_video_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
-    return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
-
-
-def flag_finalization(finalize_file_list):
-    for file in finalize_file_list:
-        finalize_flag = os.path.join(log_rootpath(file), "upload_finalized")
-        open(finalize_flag, "a").close()
-
-
-def iterate_files(root: str, recursive=False) -> Generator[str, None, None]:
-    for dirpath, dirnames, files in os.walk(root, topdown=True):
-        if not recursive:
-            dirnames.clear()
-        else:
-            dirnames[:] = [name for name in dirnames if not name.startswith(".")]
-        for file in files:
-            yield os.path.join(dirpath, file)
-
-
-def get_upload_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and preform_upload(file)
-    )
-
-
-# get a list of video files in a video_file
-def get_video_file_list(video_file, skip_subfolders=False):
-    files = iterate_files(video_file, not skip_subfolders)
-    return sorted(file for file in files if is_video_file(file))
-
-
-def get_total_file_list(import_path: str, skip_subfolders: bool = False) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file))
-
-
-def get_failed_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(file for file in files if is_image_file(file) and failed_upload(file))
-
-
-def get_success_upload_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and success_upload(file)
-    )
-
-
-def success_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    upload_success = os.path.join(log_root, "upload_success")
-    upload_finalization = os.path.join(log_root, "upload_finalized")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    success = (
-        os.path.isfile(upload_success) and not os.path.isfile(manual_upload)
-    ) or (
-        os.path.isfile(upload_success)
-        and os.path.isfile(manual_upload)
-        and os.path.isfile(upload_finalization)
-    )
-    return success
-
-
-def get_success_only_manual_upload_file_list(import_path, skip_subfolders=False):
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file
-        for file in files
-        if is_image_file(file) and success_only_manual_upload(file)
-    )
-
-
-def success_only_manual_upload(file_path: str):
-    log_root = log_rootpath(file_path)
-    upload_success = os.path.join(log_root, "upload_success")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    success = os.path.isfile(upload_success) and os.path.isfile(manual_upload)
-    return success
-
-
-def preform_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_success = os.path.join(log_root, "mapillary_image_description_success")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload = (
-        not os.path.isfile(upload_succes)
-        and os.path.isfile(process_success)
-        and not os.path.isfile(duplicate)
-    )
-    return upload
-
-
-def failed_upload(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    process_failed = os.path.join(log_root, "mapillary_image_description_failed")
-    duplicate = os.path.join(log_root, "duplicate")
-    upload_failed = os.path.join(log_root, "upload_failed")
-    failed = (
-        os.path.isfile(upload_failed)
-        and not os.path.isfile(process_failed)
-        and not os.path.isfile(duplicate)
-    )
-    return failed
-
-
-def get_finalize_file_list(
-    import_path: str, skip_subfolders: bool = False
-) -> List[str]:
-    files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file for file in files if is_image_file(file) and preform_finalize(file)
-    )
-
-
-def preform_finalize(file_path: str) -> bool:
-    log_root = log_rootpath(file_path)
-    upload_succes = os.path.join(log_root, "upload_success")
-    upload_finalized = os.path.join(log_root, "upload_finalized")
-    manual_upload = os.path.join(log_root, "manual_upload")
-    finalize = (
-        os.path.isfile(upload_succes)
-        and not os.path.isfile(upload_finalized)
-        and os.path.isfile(manual_upload)
-    )
-    return finalize
-
-
-def print_summary(file_list):
-    # inform upload has finished and print out the summary
-    print(f"Done uploading {len(file_list)} images.")  # improve upload summary
-
-
-def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
+def _find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     """
     find the common root path
     """
@@ -179,221 +36,314 @@ def find_root_dir(file_list: Iterable[str]) -> Optional[str]:
     elif len(dirs) == 1:
         return list(dirs)[0]
     else:
-        return find_root_dir(dirs)
+        return _find_root_dir(dirs)
 
 
-def upload_sequence_v4(
-    file_list: list,
-    sequence_uuid: str,
-    file_params: dict,
-    metadata: Optional[dict] = None,
+def _group_sequences_by_uuid(
+    image_descs: T.List[types.ImageDescriptionJSON],
+) -> T.Dict[str, T.Dict[str, types.FinalImageDescription]]:
+    sequences: T.Dict[str, T.Dict[str, types.FinalImageDescription]] = {}
+    missing_sequence_uuid = str(uuid.uuid4())
+    for desc in image_descs:
+        sequence_uuid = desc.get("MAPSequenceUUID", missing_sequence_uuid)
+        sequence = sequences.setdefault(sequence_uuid, {})
+        desc_without_filename = {**desc}
+        del desc_without_filename["filename"]
+        sequence[desc["filename"]] = T.cast(
+            types.FinalImageDescription, desc_without_filename
+        )
+    return sequences
+
+
+def _validate_descs(image_dir: str, image_descs: T.List[types.ImageDescriptionJSON]):
+    for desc in image_descs:
+        jsonschema.validate(instance=desc, schema=types.ImageDescriptionJSONSchema)
+    for desc in image_descs:
+        abspath = os.path.join(image_dir, desc["filename"])
+        if not os.path.isfile(abspath):
+            raise RuntimeError(f"Image path {abspath} not found")
+
+
+def upload_image_dir(
+    image_dir: str,
+    image_descs: T.List[types.ImageDescriptionJSON],
+    user_items: types.User,
     dry_run=False,
 ):
-    if metadata is None:
-        metadata = {}
+    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
+    _validate_descs(image_dir, image_descs)
+    sequences = _group_sequences_by_uuid(image_descs)
+    for sequence_idx, images in enumerate(sequences.values()):
+        cluster_id = _zip_and_upload_single_sequence(
+            image_dir,
+            images,
+            user_items,
+            sequence_idx,
+            len(sequences),
+            dry_run=dry_run,
+        )
 
-    first_image = list(file_params.values())[0]
-    user_name = first_image["user_name"]
 
-    def _read_captured_at(path):
-        return file_params.get(path, {}).get("MAPCaptureTime", "")
+def zip_image_dir(
+    image_dir: str, image_descs: T.List[types.ImageDescriptionJSON], zip_dir: str
+):
+    _validate_descs(image_dir, image_descs)
+    sequences = _group_sequences_by_uuid(image_descs)
+    os.makedirs(zip_dir, exist_ok=True)
+    for sequence_uuid, sequence in sequences.items():
+        # FIXME: do not use UUID as filename
+        zip_filename_wip = os.path.join(
+            zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
+        )
+        with open(zip_filename_wip, "wb") as fp:
+            sequence_md5 = _zip_sequence(image_dir, sequence, fp)
+        zip_filename = os.path.join(zip_dir, f"mly_tools_{sequence_md5}.zip")
+        os.rename(zip_filename_wip, zip_filename)
 
-    # Sorting images by captured_at
-    file_list.sort(key=_read_captured_at)
 
-    root_dir = find_root_dir(file_list)
+class Notifier:
+    def __init__(self, sequnece_info: T.Dict):
+        self.uploaded_bytes = 0
+        self.sequence_info = sequnece_info
+
+    def notify_progress(self, chunk: bytes, _):
+        self.uploaded_bytes += len(chunk)
+        payload = {
+            "chunk_size": len(chunk),
+            "uploaded_bytes": self.uploaded_bytes,
+            **self.sequence_info,
+        }
+        ipc.send("upload", payload)
+
+
+def _zip_sequence(
+    image_dir: str,
+    sequences: T.Dict[str, types.FinalImageDescription],
+    fp: T.IO[bytes],
+    tqdm_desc: str = "Compressing",
+) -> str:
+    file_list = list(sequences.keys())
+    first_image = list(sequences.values())[0]
+
+    root_dir = _find_root_dir(file_list)
     if root_dir is None:
+        sequence_uuid = first_image.get("MAPSequenceUUID")
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
-    credentials = authenticate_user(user_name)
-    user_access_token = credentials["user_upload_token"]
+    sequence_md5 = hashlib.md5()
 
-    def _gen_notify_progress(uploaded_bytes: int):
-        def _notify_progress(chunk: bytes, _):
-            nonlocal uploaded_bytes
-            uploaded_bytes += len(chunk)
-            assert uploaded_bytes <= entity_size
-            payload = {
-                "chunk_size": len(chunk),
-                "sequence_path": root_dir,
-                "sequence_uuid": sequence_uuid,
-                "total_bytes": entity_size,
-                "uploaded_bytes": uploaded_bytes,
-            }
-            if metadata:
-                payload.update(metadata)
-            ipc.send("upload", payload)
+    file_list.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
 
-        return _notify_progress
+    # compressing
+    with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
+        for file in tqdm(file_list, unit="files", desc=tqdm_desc):
+            relpath = os.path.relpath(file, root_dir)
+            abspath = os.path.join(image_dir, file)
+            edit = exif_write.ExifEdit(abspath)
+            edit.add_image_description(sequences[file])
+            image_bytes = edit.dump_image_bytes()
+            sequence_md5.update(image_bytes)
+            ziph.writestr(relpath, image_bytes)
 
-    def _build_desc(desc: str) -> str:
-        if metadata is not None:
-            total = metadata.get("total_sequences")
-            idx = metadata.get("sequence_idx")
-            if total is not None and idx is not None:
-                return f"{desc} {idx + 1}/{total}"
-            else:
-                return desc
-        else:
-            return desc
+    return sequence_md5.hexdigest()
 
-    with tempfile.NamedTemporaryFile() as fp:
-        # compressing
-        with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-            with tqdm(
-                total=len(file_list), desc=_build_desc("Compressing"), unit="files"
-            ) as pbar:
-                for fullpath in file_list:
-                    relpath = os.path.relpath(fullpath, root_dir)
-                    ziph.write(fullpath, relpath)
-                    pbar.update(1)
+
+def upload_zipfile(zip_path: str, user_items: types.User, dry_run=False):
+    with zipfile.ZipFile(zip_path) as ziph:
+        namelist = ziph.namelist()
+
+    if not namelist:
+        raise RuntimeError(f"The zip file {zip_path} is empty")
+
+    basename = os.path.basename(zip_path)
+    with open(zip_path, "rb") as fp:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
         # chunk size
-        avg_image_size = int(entity_size / len(file_list))
+        avg_image_size = int(entity_size / len(namelist))
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
-        # md5sum
-        fp.seek(0, io.SEEK_SET)
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(MAX_CHUNK_SIZE)
-            if not buf:
-                break
-            md5.update(buf)
-        md5sum = md5.hexdigest()
+        notifier = Notifier(
+            {
+                "sequence_path": zip_path,
+                "sequence_uuid": "",
+                "total_bytes": entity_size,
+                "sequence_idx": 0,
+                "total_sequences": 1,
+            }
+        )
 
-        # uploading
-        service = upload_api_v4.UploadService(
+        return _upload_zipfile_fp(
+            user_items,
+            fp,
+            entity_size,
+            chunk_size,
+            session_key=basename,
+            tqdm_desc="Uploading",
+            notifier=notifier,
+            dry_run=dry_run,
+        )
+
+
+def is_retriable_exception(ex: Exception):
+    if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
+        return True
+
+    if isinstance(ex, requests.HTTPError):
+        if 400 <= ex.response.status_code < 500:
+            try:
+                resp = ex.response.json()
+            except json.JSONDecodeError:
+                return False
+            return resp.get("debug_info", {}).get("retriable", False)
+        else:
+            return True
+
+    return False
+
+
+def _upload_zipfile_fp(
+    user_items: types.User,
+    fp: T.IO[bytes],
+    entity_size: int,
+    chunk_size: int,
+    session_key: str = None,
+    tqdm_desc: str = "Uploading",
+    notifier: Optional[Notifier] = None,
+    dry_run: bool = False,
+) -> int:
+    """
+    :param fp: the file handle to a zipped sequence file. Will always upload from the beginning
+    :param entity_size: the size of the whole zipped sequence file
+    :param session_key: the upload session key used to identify an upload
+    :return: cluster ID
+    """
+
+    if session_key is None:
+        session_key = str(uuid.uuid4())
+
+    user_access_token = user_items["user_upload_token"]
+
+    # uploading
+    if dry_run:
+        upload_service: upload_api_v4.UploadService = upload_api_v4.FakeUploadService(
             user_access_token,
-            session_key=f"mly_tools_{md5sum}",
+            session_key=session_key,
+            entity_size=entity_size,
+        )
+    else:
+        upload_service = upload_api_v4.UploadService(
+            user_access_token,
+            session_key=session_key,
             entity_size=entity_size,
         )
 
-        retryable_errors = (
-            requests.HTTPError,
-            requests.ConnectionError,
-            requests.Timeout,
-        )
+    retries = 0
 
+    # when it progresses, we reset retries
+    def _reset_retries(_, __):
+        nonlocal retries
         retries = 0
 
-        # when it progresses, we reset retries
-        def _reset_retries(_, __):
-            nonlocal retries
-            retries = 0
-
-        while True:
+    while True:
+        with tqdm(
+            total=upload_service.entity_size,
+            desc=tqdm_desc,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar:
+            fp.seek(0, io.SEEK_SET)
             update_pbar = lambda chunk, _: pbar.update(len(chunk))
-            service.callbacks = [update_pbar, _reset_retries]
-            with tqdm(
-                total=entity_size,
-                desc=_build_desc("Uploading"),
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-            ) as pbar:
-                fp.seek(0, io.SEEK_SET)
-                try:
-                    offset = service.fetch_offset()
-                    pbar.update(offset)
-                    service.callbacks.append(_gen_notify_progress(offset))
-                    upload_resp = service.upload(
-                        fp, chunk_size=chunk_size, offset=offset
+            try:
+                offset = upload_service.fetch_offset()
+                # set the initial progress
+                pbar.update(offset)
+                upload_service.callbacks = [
+                    update_pbar,
+                    _reset_retries,
+                ]
+                if notifier:
+                    notifier.uploaded_bytes = offset
+                    upload_service.callbacks.append(notifier.notify_progress)
+                file_handle = upload_service.upload(
+                    fp, chunk_size=chunk_size, offset=offset
+                )
+            except Exception as ex:
+                if retries < 200 and is_retriable_exception(ex):
+                    retries += 1
+                    sleep_for = min(2 ** retries, 16)
+                    LOG.warning(
+                        f"Error uploading, resuming in {sleep_for} seconds",
+                        exc_info=True,
                     )
-                except Exception as ex:
-                    if retries < 200 and isinstance(ex, retryable_errors):
-                        retries += 1
-                        sleep_for = min(2 ** retries, 16)
-                        LOG.warning(
-                            f"Error uploading, resuming in {sleep_for} seconds",
-                            exc_info=True,
-                        )
-                        time.sleep(sleep_for)
-                    else:
-                        if not dry_run:
-                            for path in file_list:
-                                create_upload_log(path, "upload_failed")
-                        raise wrap_http_exception(ex) if isinstance(
-                            ex, requests.HTTPError
-                        ) else ex
+                    time.sleep(sleep_for)
                 else:
-                    break
+                    if isinstance(ex, requests.HTTPError):
+                        raise wrap_http_exception(ex) from ex
+                    else:
+                        raise ex
+            else:
+                break
 
-    upload_resp_json = upload_resp.json()
-    try:
-        file_handle = upload_resp_json["h"]
-    except KeyError:
-        raise RuntimeError(
-            f"File handle not found in the upload response {upload_resp.text}"
-        )
-
-    if dry_run:
-        return
-
-    organization_id = first_image.get("MAPOrganizationKey")
-
-    if organization_id is None:
-        print(f"Finishing upload {sequence_uuid}")
-    else:
-        print(f"Finishing upload {sequence_uuid} for organization {organization_id}")
+    organization_id = user_items.get("MAPOrganizationKey")
 
     # TODO: retry here
-    finish_resp = service.finish(file_handle, organization_id=organization_id)
     try:
-        finish_resp.raise_for_status()
+        return upload_service.finish(file_handle, organization_id=organization_id)
     except requests.HTTPError as ex:
-        for path in file_list:
-            create_upload_log(path, "upload_failed")
-        raise wrap_http_exception(ex)
+        raise wrap_http_exception(ex) from ex
 
-    # check cluster id
-    finish_data = finish_resp.json()
-    cluster_id = finish_data.get("cluster_id")
-    if cluster_id is None:
-        for path in file_list:
-            create_upload_log(path, "upload_failed")
-        raise RuntimeError(
-            f"Upload server error: failed to create the cluster {finish_resp.text}"
+
+def _zip_and_upload_single_sequence(
+    image_dir: str,
+    sequences: T.Dict[str, types.FinalImageDescription],
+    user_items: types.User,
+    sequence_idx: int,
+    total_sequences: int,
+    dry_run=False,
+) -> int:
+    def _build_desc(desc: str) -> str:
+        return f"{desc} {sequence_idx + 1}/{total_sequences}"
+
+    file_list = list(sequences.keys())
+    first_image = list(sequences.values())[0]
+    sequence_uuid = first_image.get("MAPSequenceUUID")
+
+    root_dir = _find_root_dir(file_list)
+    if root_dir is None:
+        raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
+
+    with tempfile.NamedTemporaryFile() as fp:
+        sequence_md5 = _zip_sequence(
+            image_dir, sequences, fp, tqdm_desc=_build_desc("Compressing")
         )
-    else:
-        print(f"Cluster {cluster_id} created")
 
-    for path in file_list:
-        create_upload_log(path, "upload_success")
+        fp.seek(0, io.SEEK_END)
+        entity_size = fp.tell()
 
-    flag_finalization(file_list)
+        # chunk size
+        avg_image_size = int(entity_size / len(sequences))
+        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
+        notifier = Notifier(
+            {
+                "sequence_path": root_dir,
+                "sequence_uuid": sequence_uuid,
+                "total_bytes": entity_size,
+                "sequence_idx": sequence_idx,
+                "total_sequences": total_sequences,
+            }
+        )
 
-def log_rootpath(filepath: str) -> str:
-    return os.path.join(
-        os.path.dirname(filepath),
-        ".mapillary",
-        "logs",
-        os.path.splitext(os.path.basename(filepath))[0],
-    )
-
-
-def create_upload_log(filepath: str, status: str) -> None:
-    assert status in ["upload_success", "upload_failed"], f"invalid status {status}"
-    upload_log_root = log_rootpath(filepath)
-    upload_log_filepath = os.path.join(upload_log_root, status)
-    opposite_status = {
-        "upload_success": "upload_failed",
-        "upload_failed": "upload_success",
-    }
-    upload_opposite_log_filepath = os.path.join(
-        upload_log_root, opposite_status[status]
-    )
-    suffix = str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime()))
-    if not os.path.isdir(upload_log_root):
-        os.makedirs(upload_log_root)
-        open(upload_log_filepath, "w").close()
-        open(f"{upload_log_filepath}_{suffix}", "w").close()
-    else:
-        if not os.path.isfile(upload_log_filepath):
-            open(upload_log_filepath, "w").close()
-            open(f"{upload_log_filepath}_{suffix}", "w").close()
-        if os.path.isfile(upload_opposite_log_filepath):
-            os.remove(upload_opposite_log_filepath)
+        return _upload_zipfile_fp(
+            user_items,
+            fp,
+            entity_size,
+            chunk_size,
+            session_key=f"mly_tools_{sequence_md5}.zip",
+            tqdm_desc=_build_desc("Uploading"),
+            notifier=notifier,
+            dry_run=dry_run,
+        )

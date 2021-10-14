@@ -1,11 +1,14 @@
+import argparse
+import inspect
+
 from ..edit_config import edit_config
 
 
 class Command:
     name = "authenticate"
-    help = "Helper tool : (Re)run authentication."
+    help = "authenticate Mapillary users"
 
-    def add_basic_arguments(self, parser):
+    def add_basic_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
             "--config_file",
             help="Full path to the config file to be edited. Default is ~/.config/mapillary/configs/MLY_CLIENT_ID",
@@ -44,8 +47,13 @@ class Command:
             required=False,
         )
 
-    def add_advanced_arguments(self, parser):
-        pass
-
-    def run(self, args):
-        edit_config(**vars(args))
+    def run(self, vars_args: dict):
+        edit_config(
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(edit_config).args
+                }
+            )
+        )

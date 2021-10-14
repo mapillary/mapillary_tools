@@ -1,240 +1,258 @@
+import os
 import typing as T
 import datetime
-import os
-import time
 import uuid
+import itertools
 
-from tqdm import tqdm
-
-from . import processing
-from . import uploader
-from .geo import compute_bearing, gps_distance, diff_bearing, gps_speed
+from . import types
+from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
+from .error import MapillaryDuplicationError
 
 MAX_SEQUENCE_LENGTH = 500
-MAX_CAPTURE_SPEED = 45  # in m/s
 
 
-def finalize_sequence_processing(
-    sequence,
-    final_file_list,
-    final_directions,
-    final_capture_times,
-    verbose=False,
-):
-    for image, direction, capture_time in tqdm(
-        zip(final_file_list, final_directions, final_capture_times),
-        desc="Finalizing sequence process",
-    ):
-        mapillary_description = {
-            "MAPSequenceUUID": sequence,
-            "MAPCompassHeading": {
-                "TrueHeading": direction,
-                "MagneticHeading": direction,
-            },
-            "MAPCaptureTime": datetime.datetime.strftime(
-                capture_time, "%Y_%m_%d_%H_%M_%S_%f"
-            )[:-3],
-        }
-        processing.create_and_log_process(
-            image, "sequence_process", "success", mapillary_description, verbose=verbose
+class _GPXPoint:
+    desc: types.ImageDescriptionJSON
+
+    def __init__(self, desc: types.ImageDescriptionJSON):
+        self.desc = desc
+
+    @property
+    def filename(self) -> str:
+        return self.desc["filename"]
+
+    @property
+    def lat(self) -> float:
+        return self.desc["MAPLatitude"]
+
+    @property
+    def lon(self) -> float:
+        return self.desc["MAPLongitude"]
+
+    @property
+    def time(self) -> datetime.datetime:
+        return types.map_capture_time_to_datetime(self.desc["MAPCaptureTime"])
+
+    @property
+    def angle(self) -> T.Optional[float]:
+        return self.desc.get("MAPCompassHeading", {}).get("TrueHeading")
+
+
+GPXSequence = T.List[_GPXPoint]
+
+
+def cut_sequences(
+    sequence: GPXSequence,
+    cutoff_distance: float,
+    cutoff_time: float,
+) -> T.List[GPXSequence]:
+    sequences: T.List[T.List[_GPXPoint]] = []
+
+    if sequence:
+        sequences.append([sequence[0]])
+
+    for prev, cur in pairwise(sequence):
+        # invariant: prev is processed
+        distance = gps_distance(
+            (prev.lat, prev.lon),
+            (cur.lat, cur.lon),
         )
+        if cutoff_distance <= distance:
+            sequences.append([cur])
+            continue
+        time_diff = (cur.time - prev.time).total_seconds()
+        if cutoff_time <= time_diff:
+            sequences.append([cur])
+            continue
+        sequences[-1].append(cur)
+        # invariant: cur is processed
+
+    return sequences
+
+
+def find_duplicates(
+    sequence: GPXSequence,
+    duplicate_distance: float,
+    duplicate_angle: float,
+) -> T.List[int]:
+    if not sequence:
+        return []
+
+    duplicates = []
+    sequence_iter = iter(sequence)
+    prev = next(sequence_iter)
+    for idx, cur in enumerate(sequence_iter):
+        distance = gps_distance(
+            (prev.lat, prev.lon),
+            (cur.lat, cur.lon),
+        )
+        distance_duplicated = distance <= duplicate_distance
+
+        if prev.angle is not None and cur.angle is not None:
+            bearing_delta = diff_bearing(prev.angle, cur.angle)
+            angle_duplicated = bearing_delta <= duplicate_angle
+        else:
+            angle_duplicated = False
+
+        if distance_duplicated and angle_duplicated:
+            duplicates.append(idx + 1)
+            continue
+
+        prev = cur
+
+    return duplicates
+
+
+def group_descs_by_folder(
+    descs: T.List[types.ImageDescriptionJSON],
+) -> T.List[T.List[types.ImageDescriptionJSON]]:
+    descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
+    group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
+    sequences = []
+    for _, sequence in group:
+        sequences.append(list(sequence))
+    return sequences
+
+
+def duplication_check(
+    sequence: GPXSequence,
+    duplicate_distance: float,
+    duplicate_angle: float,
+) -> T.Tuple[GPXSequence, T.List[types.FinalImageDescriptionError]]:
+    dup_indices = find_duplicates(
+        sequence,
+        duplicate_distance=duplicate_distance,
+        duplicate_angle=duplicate_angle,
+    )
+    dup_set = set(dup_indices)
+    dups = [image for idx, image in enumerate(sequence) if idx in dup_set]
+    failures: T.List[types.FinalImageDescriptionError] = []
+    for image in dups:
+        error: types.FinalImageDescriptionError = {
+            "error": types.describe_error(
+                MapillaryDuplicationError("duplicated", image.desc)
+            ),
+            "filename": image.filename,
+        }
+
+        failures.append(error)
+
+    dedups = [image for idx, image in enumerate(sequence) if idx not in dup_set]
+    return dedups, failures
+
+
+def interpolate(sequence: GPXSequence, interpolate_directions: bool) -> GPXSequence:
+    interpolated: GPXSequence = []
+    for cur, nex in pairwise(sequence):
+        # should interpolate or not
+        if interpolate_directions or cur.angle is None:
+            new_bearing = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
+            new_desc = T.cast(
+                types.ImageDescriptionJSON,
+                {
+                    **cur.desc,
+                    "MAPCompassHeading": {
+                        "TrueHeading": new_bearing,
+                        "MagneticHeading": new_bearing,
+                    },
+                },
+            )
+            interpolated.append(_GPXPoint(new_desc))
+        else:
+            interpolated.append(cur)
+
+    if interpolated:
+        assert len(interpolated) == len(sequence) - 1
+    else:
+        assert len(sequence) <= 1
+
+    # interpolate the last image's angle
+    # can interpolate or not
+    if 2 <= len(sequence) and interpolated[-1] is not None:
+        # should interpolate or not
+        if interpolate_directions or sequence[-1] is None:
+            new_desc = T.cast(
+                types.ImageDescriptionJSON,
+                {
+                    **sequence[-1].desc,
+                    "MAPCompassHeading": {
+                        "TrueHeading": interpolated[-1].angle,
+                        "MagneticHeading": interpolated[-1].angle,
+                    },
+                },
+            )
+            interpolated.append(_GPXPoint(new_desc))
+        else:
+            interpolated.append(sequence[-1])
+    else:
+        interpolated.append(sequence[-1])
+
+    assert len(interpolated) == len(sequence)
+
+    return interpolated
+
+
+def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
+    sequences: T.List[GPXSequence] = []
+    for idx in range(0, len(sequence), MAX_SEQUENCE_LENGTH):
+        sequences.append([])
+        for image in sequence[idx : idx + MAX_SEQUENCE_LENGTH]:
+            sequences[-1].append(image)
+    return sequences
 
 
 def process_sequence_properties(
-    import_path,
+    descs: T.List[types.FinalImageDescriptionOrError],
     cutoff_distance=600.0,
     cutoff_time=60.0,
     interpolate_directions=False,
-    keep_duplicates=False,
     duplicate_distance=0.1,
     duplicate_angle=5,
-    offset_angle=0.0,
-    verbose=False,
-    rerun=False,
-    skip_subfolders=False,
-    video_import_path=None,
-):
-    # sanity check if video file is passed
-    if (
-        video_import_path
-        and not os.path.isdir(video_import_path)
-        and not os.path.isfile(video_import_path)
-    ):
-        raise RuntimeError(
-            f"Error, video path {video_import_path} does not exist, exiting..."
-        )
-
-    # in case of video processing, adjust the import path
-    if video_import_path:
-        # set sampling path
-        video_sampling_path = "mapillary_sampled_video_frames"
-        video_dirname = (
-            video_import_path
-            if os.path.isdir(video_import_path)
-            else os.path.dirname(video_import_path)
-        )
-        import_path = (
-            os.path.join(os.path.abspath(import_path), video_sampling_path)
-            if import_path
-            else os.path.join(os.path.abspath(video_dirname), video_sampling_path)
-        )
-
-    # basic check for all
-    if not import_path or not os.path.isdir(import_path):
-        raise RuntimeError(f"Error, import directory {import_path} does not exist")
-
-    sequences = find_sequences(
-        cutoff_distance, cutoff_time, import_path, rerun, skip_subfolders, verbose
+) -> T.List[types.FinalImageDescriptionOrError]:
+    failed_descs = [desc for desc in descs if "error" in desc]
+    passed_descs = T.cast(
+        T.List[types.ImageDescriptionJSON],
+        [desc for desc in descs if "error" not in desc],
     )
 
-    # process for each sequence
-    for sequence in sequences:
-        file_list = sequence["file_list"]
-        directions = sequence["directions"]
-        latlons = sequence["latlons"]
-        capture_times = sequence["capture_times"]
+    groups = group_descs_by_folder(passed_descs)
 
-        # COMPUTE DIRECTIONS --------------------------------------
-        interpolated_directions = [
-            compute_bearing(ll1[0], ll1[1], ll2[0], ll2[1])
-            for ll1, ll2 in zip(latlons[:-1], latlons[1:])
-        ]
-        if len(interpolated_directions):
-            interpolated_directions.append(interpolated_directions[-1])
-        else:
-            interpolated_directions.append(directions[-1])
-        # use interpolated directions if direction not available or if flag for
-        # interpolate_directions
-        for i, d in enumerate(directions):
-            directions[i] = (
-                d
-                if (d is not None and not interpolate_directions)
-                else (interpolated_directions[i] + offset_angle) % 360.0
+    sequences = []
+    for group in groups:
+        sequences.extend(
+            cut_sequences(
+                [_GPXPoint(desc) for desc in group], cutoff_distance, cutoff_time
             )
-        # ---------------------------------------
-
-        # COMPUTE SPEED -------------------------------------------
-        computed_delta_ts = [
-            (t1 - t0).total_seconds()
-            for t0, t1 in zip(capture_times[:-1], capture_times[1:])
-        ]
-        computed_distances = [
-            gps_distance(l1, l0) for l0, l1 in zip(latlons[:-1], latlons[1:])
-        ]
-        computed_speed = gps_speed(
-            computed_distances, computed_delta_ts
-        )  # in meters/second
-        if len([x for x in computed_speed if x > MAX_CAPTURE_SPEED]) > 0:
-            print(
-                f"Warning: The distance in sequence including images\n{file_list[0]}\nto\n{file_list[-1]}\nis too large for the time difference (very high apparent capture speed). Are you sure timestamps and locations are correct?"
-            )
-
-        # INTERPOLATE TIMESTAMPS, in case of identical timestamps
-        capture_times = processing.interpolate_timestamp(capture_times)
-
-        final_file_list = file_list[:]
-        final_directions = directions[:]
-        final_capture_times = capture_times[:]
-
-        # FLAG DUPLICATES --------------------------------------
-        if not keep_duplicates:
-            final_file_list = [file_list[0]]
-            final_directions = [directions[0]]
-            final_capture_times = [capture_times[0]]
-            prev_latlon = latlons[0]
-            prev_direction = directions[0]
-            for i, filename in enumerate(file_list[1:]):
-                log_root = uploader.log_rootpath(filename)
-                duplicate_flag_path = os.path.join(log_root, "duplicate")
-                sequence_process_success_path = os.path.join(
-                    log_root, "sequence_process_success"
-                )
-                k = i + 1
-                distance = gps_distance(latlons[k], prev_latlon)
-                if directions[k] is not None and prev_direction is not None:
-                    direction_diff = diff_bearing(directions[k], prev_direction)
-                else:
-                    # dont use bearing difference if no bearings are
-                    # available
-                    direction_diff = 360
-                if distance < duplicate_distance and direction_diff < duplicate_angle:
-                    open(duplicate_flag_path, "w").close()
-                    open(sequence_process_success_path, "w").close()
-                    open(
-                        sequence_process_success_path
-                        + "_"
-                        + str(time.strftime("%Y_%m_%d_%H_%M_%S", time.gmtime())),
-                        "w",
-                    ).close()
-                else:
-                    prev_latlon = latlons[k]
-                    prev_direction = directions[k]
-                    final_file_list.append(filename)
-                    final_directions.append(directions[k])
-                    final_capture_times.append(capture_times[k])
-        # ---------------------------------------
-
-        # FINALIZE ------------------------------------
-        for i in range(0, len(final_file_list), MAX_SEQUENCE_LENGTH):
-            finalize_sequence_processing(
-                str(uuid.uuid4()),
-                final_file_list[i : i + MAX_SEQUENCE_LENGTH],
-                final_directions[i : i + MAX_SEQUENCE_LENGTH],
-                final_capture_times[i : i + MAX_SEQUENCE_LENGTH],
-                verbose,
-            )
-    print("Sub process ended")
-
-
-def find_sequences(
-    cutoff_distance, cutoff_time, import_path, rerun, skip_subfolders, verbose
-) -> T.List[T.Dict]:
-    def _split(process_file_list: T.List[str]) -> T.List[T.Dict]:
-        if not process_file_list:
-            return []
-
-        (
-            file_list,
-            capture_times,
-            lats,
-            lons,
-            directions,
-        ) = processing.load_geotag_points(process_file_list, verbose)
-
-        if capture_times and lats and lons:
-            return processing.split_sequences(
-                capture_times,
-                lats,
-                lons,
-                file_list,
-                directions,
-                cutoff_time,
-                cutoff_distance,
-                verbose,
-            )
-        else:
-            return []
-
-    if skip_subfolders:
-        process_file_list = processing.get_process_file_list(
-            import_path,
-            "sequence_process",
-            rerun=rerun,
-            skip_subfolders=True,
         )
-        return _split(process_file_list)
-    else:
-        sequences = []
 
-        # sequence limited to the root of the files
-        for root, dirs, files in os.walk(import_path, topdown=True):
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
-            process_file_list = processing.get_process_file_list(
-                root,
-                "sequence_process",
-                rerun=rerun,
-                skip_subfolders=True,
-            )
-            sequences.extend(_split(process_file_list))
+    processed: T.List[types.FinalImageDescriptionOrError] = failed_descs
 
-        return sequences
+    for sequence in sequences:
+        # duplication check
+        passed, failed = duplication_check(
+            sequence,
+            duplicate_distance=duplicate_distance,
+            duplicate_angle=duplicate_angle,
+        )
+        for desc in failed:
+            processed.append(desc)
+
+        # interpolate angles
+        interpolated = interpolate(passed, interpolate_directions)
+
+        # cut sequence per MAX_SEQUENCE_LENGTH images
+        capped = cap_sequence(interpolated)
+
+        for s in capped:
+            sequence_uuid = str(uuid.uuid4())
+            for p in s:
+                processed.append(
+                    T.cast(
+                        types.ImageDescriptionJSON,
+                        {**p.desc, "MAPSequenceUUID": sequence_uuid},
+                    )
+                )
+
+    assert len(descs) == len(processed)
+
+    return processed
