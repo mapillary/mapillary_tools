@@ -16,7 +16,7 @@ def make_image_desc(
         "MAPLatitude": lat,
         "MAPLongitude": lng,
         "MAPCaptureTime": types.datetime_to_map_capture_time(
-            datetime.datetime.fromtimestamp(time)
+            datetime.datetime.utcfromtimestamp(time)
         ),
         "filename": filename,
     }
@@ -200,7 +200,10 @@ def test_geotag_from_gpx_2():
     ]
 
     geotag = GeotagFromGPXTest(
-        image_dir=".", images=[d["filename"] for d in images], points=points
+        image_dir=".",
+        images=[d["filename"] for d in images],
+        points=points,
+        use_gpx_start_time=True,
     )
     descs = geotag.to_description()
     descs.sort(key=lambda d: d["MAPCaptureTime"])
@@ -208,7 +211,7 @@ def test_geotag_from_gpx_2():
     assert descs[0]["MAPLatitude"] == 1.3
     assert descs[0]["MAPLongitude"] == 1
     assert descs[0]["MAPCaptureTime"] == "1970_01_01_00_01_40_000"
-    #
+
     assert abs(descs[1]["MAPLatitude"] - 2.5) < 0.0001
     assert abs(descs[1]["MAPLongitude"] - 2) < 0.001
     assert descs[1]["MAPCaptureTime"] == "1970_01_01_00_01_43_000"
@@ -224,3 +227,18 @@ def test_geotag_from_gpx_2():
     assert abs(descs[4]["MAPLatitude"] - 4) < 0.0001
     assert abs(descs[4]["MAPLongitude"] - 11.423076923076923) < 0.001
     assert descs[4]["MAPCaptureTime"] == "1970_01_01_00_02_19_000"
+
+    geotag = GeotagFromGPXTest(
+        image_dir=".",
+        images=[d["filename"] for d in images],
+        points=points,
+    )
+    descs = geotag.to_description()
+    descs.sort(key=lambda d: d["MAPCaptureTime"])
+    assert (
+        "1970_01_01_00_00_01_000",
+        "1970_01_01_00_00_04_000",
+        "1970_01_01_00_00_09_000",
+        "1970_01_01_00_00_17_000",
+        "1970_01_01_00_00_40_000",
+    ) == tuple(d["MAPCaptureTime"] for d in descs)

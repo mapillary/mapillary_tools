@@ -82,22 +82,23 @@ class GeotagFromGPX(GeotagFromGeneric):
 
         # same thing but different type
         sorted_points_for_interpolation = [
-            Point(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time) for p in sorted_points
+            Point(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time, angle=None)
+            for p in sorted_points
         ]
 
         for exif_time, image in sorted_pairs:
             exif_time = exif_time + datetime.timedelta(seconds=image_time_offset)
-            lat, lon, bearing, elevation = interpolate_lat_lon(
+            interpolated = interpolate_lat_lon(
                 sorted_points_for_interpolation, exif_time
             )
             point = types.GPXPointAngle(
                 point=types.GPXPoint(
                     time=exif_time,
-                    lon=lon,
-                    lat=lat,
-                    alt=elevation,
+                    lon=interpolated.lon,
+                    lat=interpolated.lat,
+                    alt=interpolated.alt,
                 ),
-                angle=bearing,
+                angle=interpolated.angle,
             )
             descs.append(
                 T.cast(

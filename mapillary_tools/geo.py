@@ -148,6 +148,7 @@ class Point(NamedTuple):
     lat: float
     lon: float
     alt: Optional[float]
+    angle: Optional[float]
 
 
 def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
@@ -158,15 +159,18 @@ def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
     #     assert cur.time <= nex.time, "Points not sorted"
     idx = bisect.bisect_left([x.time for x in points], t)
 
+    # interpolated within the range
     if 0 < idx < len(points):
         before = points[idx - 1]
         after = points[idx]
     elif idx <= 0:
+        # interpolated behind the range
         if 2 <= len(points):
             before, after = points[0], points[1]
         else:
             before, after = points[0], points[0]
     else:
+        # interpolated beyond the range
         assert len(points) <= idx
         if 2 <= len(points):
             before, after = points[-2], points[-1]
@@ -179,11 +183,11 @@ def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
         weight = (t - before.time).total_seconds() / (
             after.time - before.time
         ).total_seconds()
-    lat = before.lat - weight * before.lat + weight * after.lat
-    lon = before.lon - weight * before.lon + weight * after.lon
-    bearing = compute_bearing(before.lat, before.lon, after.lat, after.lon)
+    lat = before.lat + (after.lat - before.lat) * weight
+    lon = before.lon + (after.lon - before.lon) * weight
+    angle = compute_bearing(before.lat, before.lon, after.lat, after.lon)
     if before.alt is not None and after.alt is not None:
-        alt: Optional[float] = before.alt - weight * before.alt + weight * after.alt
+        alt: Optional[float] = before.alt + (after.alt - before.alt) * weight
     else:
         alt = None
-    return lat, lon, bearing, alt
+    return Point(lat=lat, lon=lon, alt=alt, angle=angle, time=t)
