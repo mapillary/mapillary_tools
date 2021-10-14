@@ -52,8 +52,8 @@ jobs:
       if: matrix.platform == 'macos-latest'
     - name: Build with Pyinstaller on Ubuntu
       run: |
-        ./script/build
-        ./dist/osx/mapillary_tools --version
+        ./script/build_linux
+        ./dist/linux/mapillary_tools --version
       if: matrix.platform == 'ubuntu-latest'
     - name: Build with Pyinstaller on Windows
       run: |
