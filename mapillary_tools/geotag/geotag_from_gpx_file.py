@@ -39,7 +39,7 @@ def get_lat_lon_time_from_gpx(gpx_file: str) -> T.List[types.GPXPoint]:
             for point in segment.points:
                 points.append(
                     types.GPXPoint(
-                        point.time,
+                        point.time.replace(tzinfo=None),
                         lat=point.latitude,
                         lon=point.longitude,
                         alt=point.elevation,
@@ -49,7 +49,7 @@ def get_lat_lon_time_from_gpx(gpx_file: str) -> T.List[types.GPXPoint]:
     for point in gpx.waypoints:
         points.append(
             types.GPXPoint(
-                time=point.time,
+                time=point.time.replace(tzinfo=None),
                 lat=point.latitude,
                 lon=point.longitude,
                 alt=point.elevation,

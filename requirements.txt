@@ -1,6 +1,6 @@
 exifread==2.3.2
 piexif==1.1.3
-gpxpy==0.9.8
+gpxpy==1.4.2
 pymp4==1.1.0
 pynmea2==1.12.0
 requests==2.20.0
