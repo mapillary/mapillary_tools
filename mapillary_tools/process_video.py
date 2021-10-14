@@ -5,10 +5,12 @@ import subprocess
 import typing as T
 import logging
 
-from . import image_log
+from . import image_log, ffprobe
 from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
+TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 LOG = logging.getLogger(__name__)
 
 
@@ -128,7 +130,7 @@ def extract_frames(
             "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
         )
 
-    video_start_time = datetime.datetime.utcnow()
+    video_start_time = get_video_start_time(video_file)
 
     insert_video_frame_timestamp(
         video_filename,
@@ -137,6 +139,38 @@ def extract_frames(
         video_sample_interval,
         video_duration_ratio,
     )
+
+
+def get_video_duration_and_end_time(
+    video_file: str,
+) -> T.Tuple[float, datetime.datetime]:
+    probe = ffprobe.FFProbe(video_file)
+
+    duration_str = probe.video[0]["duration"]
+    try:
+        duration = float(duration_str)
+    except (TypeError, ValueError) as e:
+        raise RuntimeError(
+            f"could not parse duration {duration_str} from video {video_file} due to {e}"
+        )
+
+    time_string = probe.video[0]["tags"]["creation_time"]
+    try:
+        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+    except ValueError:
+        try:
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
+        except ValueError:
+            raise RuntimeError(
+                f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
+            )
+
+    return duration, creation_time
+
+
+def get_video_start_time(video_file: str) -> datetime.datetime:
+    duration, video_end_time = get_video_duration_and_end_time(video_file)
+    return video_end_time - datetime.timedelta(seconds=duration)
 
 
 def insert_video_frame_timestamp(

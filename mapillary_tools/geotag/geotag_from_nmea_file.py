@@ -9,11 +9,24 @@ from .. import types
 
 
 class GeotagFromNMEAFile(GeotagFromGPX):
-    def __init__(self, image_dir: str, images: T.List[str], source_path: str):
+    def __init__(
+        self,
+        image_dir: str,
+        images: T.List[str],
+        source_path: str,
+        use_gpx_start_time: bool = False,
+        offset_time: float = 0.0,
+    ):
         if not os.path.isfile(source_path):
             raise RuntimeError(f"GPX file not found: {source_path}")
         points = get_lat_lon_time_from_nmea(source_path)
-        super().__init__(image_dir, images, points)
+        super().__init__(
+            image_dir,
+            images,
+            points,
+            use_gpx_start_time=use_gpx_start_time,
+            offset_time=offset_time,
+        )
 
 
 def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[types.GPXPoint]:

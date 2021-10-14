@@ -16,7 +16,13 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagFromGoPro(GeotagFromGeneric):
-    def __init__(self, image_dir: str, source_path: str):
+    def __init__(
+        self,
+        image_dir: str,
+        source_path: str,
+        use_gpx_start_time: bool = False,
+        offset_time: float = 0.0,
+    ):
         self.image_dir = image_dir
         if os.path.isdir(source_path):
             self.videos = image_log.get_video_file_list(source_path, abs_path=True)
@@ -25,6 +31,8 @@ class GeotagFromGoPro(GeotagFromGeneric):
             self.videos = [source_path]
         else:
             raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
+        self.use_gpx_start_time = use_gpx_start_time
+        self.offset_time = offset_time
         super().__init__()
 
     def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
@@ -36,7 +44,13 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_images:
                 continue
             points = get_points_from_gpmf(video)
-            geotag = GeotagFromGPX(self.image_dir, sample_images, points)
+            geotag = GeotagFromGPX(
+                self.image_dir,
+                sample_images,
+                points,
+                use_gpx_start_time=self.use_gpx_start_time,
+                offset_time=self.offset_time,
+            )
             descs.extend(geotag.to_description())
 
         return descs
