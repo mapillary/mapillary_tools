@@ -1,12 +1,16 @@
 import os
 import typing as T
 import datetime
+import logging
 
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
 from ..error import MapillaryGeoTaggingError, MapillaryInterpolationError
 from ..exif_read import ExifRead
 from ..geo import interpolate_lat_lon, Point
+
+
+LOG = logging.getLogger(__name__)
 
 
 class GeotagFromGPX(GeotagFromGeneric):
@@ -63,6 +67,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         sorted_pairs = sorted(pairs)
 
         image_time_offset = self.offset_time
+        LOG.debug("Initial time offset for interpolation: %s", image_time_offset)
 
         if self.use_gpx_start_time:
             if sorted_pairs and sorted_points:
@@ -70,7 +75,10 @@ class GeotagFromGPX(GeotagFromGeneric):
                 # the ordered gpx timestamps are [5, 6, 7, 8]
                 # then the offset will be 5 - 2 = 3
                 time_delta = sorted_points[0].time - sorted_pairs[0][0]
+                LOG.debug("GPX start time delta: %s", time_delta)
                 image_time_offset += time_delta.total_seconds()
+
+        LOG.debug("Final time offset for interpolation: %s", image_time_offset)
 
         # same thing but different type
         sorted_points_for_interpolation = [
