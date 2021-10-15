@@ -5,7 +5,11 @@ import logging
 
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
-from ..error import MapillaryGeoTaggingError, MapillaryInterpolationError
+from ..error import (
+    MapillaryGeoTaggingError,
+    MapillaryOutsideGPXTrackError,
+    MapillaryGPXEmptyError,
+)
 from ..exif_read import ExifRead
 from ..geo import interpolate_lat_lon, Point
 
@@ -37,7 +41,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         descs: T.List[types.FinalImageDescriptionOrError] = []
 
         if not self.points:
-            exc = MapillaryInterpolationError(
+            exc = MapillaryGPXEmptyError(
                 "No GPS points extracted from the geotag source"
             )
             for image in self.images:
@@ -49,8 +53,8 @@ class GeotagFromGPX(GeotagFromGeneric):
                 )
             return descs
 
-        # need EXIF timestamps for sorting
-        pairs = []
+        # pairing the timestamp and the image for sorting
+        image_pairs = []
         for image in self.images:
             capture_time = self.read_image_capture_time(image)
             if capture_time is None:
@@ -61,36 +65,65 @@ class GeotagFromGPX(GeotagFromGeneric):
                 )
                 descs.append({"error": error, "filename": image})
             else:
-                pairs.append((capture_time, image))
+                image_pairs.append((capture_time, image))
 
-        sorted_points = sorted(self.points, key=lambda p: p.time)
-        sorted_pairs = sorted(pairs)
+        track = sorted(self.points, key=lambda p: p.time)
+        sorted_images = sorted(image_pairs)
 
         image_time_offset = self.offset_time
         LOG.debug("Initial time offset for interpolation: %s", image_time_offset)
 
         if self.use_gpx_start_time:
-            if sorted_pairs and sorted_points:
+            if sorted_images and track:
                 # assume: the ordered image timestamps are [2, 3, 4, 5]
                 # the ordered gpx timestamps are [5, 6, 7, 8]
                 # then the offset will be 5 - 2 = 3
-                time_delta = sorted_points[0].time - sorted_pairs[0][0]
+                time_delta = track[0].time - sorted_images[0][0]
                 LOG.debug("GPX start time delta: %s", time_delta)
                 image_time_offset += time_delta.total_seconds()
 
         LOG.debug("Final time offset for interpolation: %s", image_time_offset)
 
         # same thing but different type
-        sorted_points_for_interpolation = [
+        sorted_points = [
             Point(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time, angle=None)
-            for p in sorted_points
+            for p in track
         ]
 
-        for exif_time, image in sorted_pairs:
+        for exif_time, image in sorted_images:
             exif_time = exif_time + datetime.timedelta(seconds=image_time_offset)
-            interpolated = interpolate_lat_lon(
-                sorted_points_for_interpolation, exif_time
-            )
+
+            if exif_time < sorted_points[0].time:
+                delta = sorted_points[0].time - exif_time
+                exc2 = MapillaryOutsideGPXTrackError(
+                    f"Unable to interpolate: the image timestamp is beyond the GPX trace start point by {delta.total_seconds()} seconds",
+                    image_time=types.datetime_to_map_capture_time(exif_time),
+                    gpx_start_time=types.datetime_to_map_capture_time(
+                        sorted_points[0].time
+                    ),
+                    gpx_end_time=types.datetime_to_map_capture_time(
+                        sorted_points[-1].time
+                    ),
+                )
+                descs.append({"error": types.describe_error(exc2), "filename": image})
+                continue
+
+            if sorted_points[-1].time < exif_time:
+                delta = exif_time - sorted_points[-1].time
+                exc2 = MapillaryOutsideGPXTrackError(
+                    f"Unable to interpolate: the image timestamp is beyond the GPX trace end point by {delta.total_seconds()} seconds",
+                    image_time=types.datetime_to_map_capture_time(exif_time),
+                    gpx_start_time=types.datetime_to_map_capture_time(
+                        sorted_points[0].time
+                    ),
+                    gpx_end_time=types.datetime_to_map_capture_time(
+                        sorted_points[-1].time
+                    ),
+                )
+                descs.append({"error": types.describe_error(exc2), "filename": image})
+                continue
+
+            interpolated = interpolate_lat_lon(sorted_points, exif_time)
             point = types.GPXPointAngle(
                 point=types.GPXPoint(
                     time=exif_time,
