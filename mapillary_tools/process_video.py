@@ -5,7 +5,7 @@ import subprocess
 import typing as T
 import logging
 
-from . import image_log, ffprobe
+from . import image_log, ffmpeg
 from .exif_write import ExifEdit
 
 ZERO_PADDING = 6
@@ -141,7 +141,7 @@ def extract_frames(
 def get_video_duration_and_end_time(
     video_file: str,
 ) -> T.Tuple[float, datetime.datetime]:
-    probe = ffprobe.FFProbe(video_file)
+    probe = ffmpeg.FFProbe(video_file)
 
     duration_str = probe.video[0]["duration"]
     try:
