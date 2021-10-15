@@ -2,7 +2,7 @@ import os
 import inspect
 import argparse
 
-from ..process_video import sample_video
+from ..sample_video import sample_video
 
 
 class Command:
