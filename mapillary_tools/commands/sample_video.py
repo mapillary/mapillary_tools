@@ -39,6 +39,13 @@ class Command:
             default=False,
             required=False,
         )
+        group.add_argument(
+            "--rerun",
+            help="Re-sample all videos. Note it will REMOVE all the existing video sample directories",
+            action="store_true",
+            default=False,
+            required=False,
+        )
 
     def run(self, vars_args: dict):
         video_import_path = vars_args["video_import_path"]

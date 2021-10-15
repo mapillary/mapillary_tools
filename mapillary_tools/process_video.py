@@ -59,10 +59,11 @@ def video_sample_path(import_path: str, video_file_path: str) -> str:
 def sample_video(
     video_import_path: str,
     import_path: str,
+    skip_subfolders=False,
     video_sample_interval=2.0,
     video_start_time=None,
     video_duration_ratio=1.0,
-    skip_subfolders=False,
+    rerun: bool = False,
 ):
     if not os.path.exists(video_import_path):
         raise RuntimeError(f'Error, video path "{video_import_path}" does not exist')
@@ -73,26 +74,22 @@ def sample_video(
         else [video_import_path]
     )
 
-    for video_file_path in video_list:
-        per_video_import_path = video_sample_path(import_path, video_file_path)
-        if os.path.isdir(per_video_import_path):
-            images = image_log.get_total_file_list(per_video_import_path)
-            if images:
-                answer = input(
-                    f"The sample folder {per_video_import_path} already contains {len(images)} images.\nTo proceed, either DELETE the whole folder to restart the extraction (y), or skip the extraction (N)? [y/N] "
-                )
-                if answer in ["y", "Y"]:
-                    shutil.rmtree(per_video_import_path)
-        elif os.path.isfile(per_video_import_path):
-            answer = input(
-                f"The sample path {per_video_import_path} is found to be a file. To proceed, either DELETE it to restart the extraction (y), or skip the extraction (N)? [y/N] "
-            )
-            if answer in ["y", "Y"]:
+    if rerun:
+        for video_file_path in video_list:
+            per_video_import_path = video_sample_path(import_path, video_file_path)
+            LOG.info(f"Removing the sample directory {per_video_import_path}")
+            if os.path.isdir(per_video_import_path):
+                shutil.rmtree(per_video_import_path)
+            elif os.path.isfile(per_video_import_path):
                 os.remove(per_video_import_path)
 
     for video_file_path in video_list:
         per_video_import_path = video_sample_path(import_path, video_file_path)
-        if not os.path.exists(per_video_import_path):
+        if os.path.exists(per_video_import_path):
+            LOG.warning(
+                f"Skip video {os.path.basename(video_file_path)} as it has been sampled in {per_video_import_path}"
+            )
+        else:
             os.makedirs(per_video_import_path)
             extract_frames(
                 video_file_path,
