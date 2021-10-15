@@ -4,8 +4,7 @@ import os
 import tempfile
 import typing as T
 
-from .. import types, image_log
-from ..ffmpeg import extract_stream, get_ffprobe
+from .. import types, image_log, ffmpeg
 from .geotag_from_blackvue import filter_video_samples
 from .geotag_from_gpx import GeotagFromGPX
 from .geotag_from_generic import GeotagFromGeneric
@@ -57,7 +56,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
 
 def extract_and_parse_bin(path: str) -> T.List:
-    info = get_ffprobe(path)
+    info = ffmpeg.probe_video_format_and_streams(path)
 
     format_name = info["format"]["format_name"].lower()
     if "mp4" not in format_name:
@@ -76,7 +75,7 @@ def extract_and_parse_bin(path: str) -> T.List:
 
     with tempfile.NamedTemporaryFile() as tmp:
         LOG.debug("Extracting GoPro stream %s to %s", stream_id, tmp.name)
-        extract_stream(path, tmp.name, stream_id)
+        ffmpeg.extract_stream(path, tmp.name, stream_id)
         LOG.debug("Parsing GoPro GPMF %s", tmp.name)
         return parse_bin(tmp.name)
 

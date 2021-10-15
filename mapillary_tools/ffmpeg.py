@@ -5,65 +5,60 @@ import subprocess
 import logging
 
 LOG = logging.getLogger(__name__)
+MAPILLARY_FFPROBE_PATH = os.getenv("MAPILLARY_FFPROBE_PATH", "ffprobe")
+MAPILLARY_FFMPEG_PATH = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
+FRAME_EXT = ".jpg"
+ZERO_PADDING = 6
 
 
-def get_ffprobe(path: str) -> dict:
-    if not os.path.isfile(path):
-        raise RuntimeError(f"No such file: {path}")
-
-    cmd = [
-        "ffprobe",
-        "-loglevel",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        path,
-    ]
-    LOG.info(f"Extracting video information: {' '.join(cmd)}")
+def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
+    full_cmd = [MAPILLARY_FFPROBE_PATH, "-print_format", "json", *cmd]
+    LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
     try:
-        output = subprocess.check_output(cmd)
+        output = subprocess.check_output(full_cmd)
     except FileNotFoundError:
         raise RuntimeError(
-            "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
+            f'The command "{MAPILLARY_FFPROBE_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFPROBE_PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions'
+        )
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            f"Error JSON decoding ffprobe output: {output.decode('utf-8')}"
         )
 
+
+def run_ffmpeg(cmd: T.List[str]) -> None:
+    full_cmd = [MAPILLARY_FFMPEG_PATH, *cmd]
+    LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
     try:
-        j_obj = json.loads(output)
-    except json.JSONDecodeError:
-        raise RuntimeError(f"Error JSON decoding {output.decode('utf-8')}")
+        subprocess.check_call(full_cmd)
+    except FileNotFoundError:
+        raise RuntimeError(
+            f'The command "{MAPILLARY_FFMPEG_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFMPEG_PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions'
+        )
 
-    return j_obj
+
+def probe_video_format_and_streams(video_path: str) -> T.Dict:
+    if not os.path.isfile(video_path):
+        raise FileNotFoundError(video_path)
+    cmd = ["-loglevel", "quiet", "-show_format", "-show_streams", video_path]
+    return run_ffprobe_json(cmd)
 
 
-class FFProbe:
-    video: T.List[dict]
-    streams: T.List[dict]
-
-    def __init__(self, video_file: str):
-        self.video_file = video_file
-        cmd = [
-            "ffprobe",
+def probe_video_streams(video_path: str):
+    if not os.path.isfile(video_path):
+        raise FileNotFoundError(video_path)
+    output = run_ffprobe_json(
+        [
             "-loglevel",
             "quiet",
-            "-print_format",
-            "json",
             "-show_streams",
-            self.video_file,
+            video_path,
         ]
-        LOG.info(f"Extracting video information: {' '.join(cmd)}")
-        try:
-            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        except FileNotFoundError:
-            raise RuntimeError(
-                "ffprobe not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
-            )
-        parsed = json.loads(output)
-        self.streams = parsed.get("streams", [])
-        self.video = [s for s in self.streams if s["codec_type"] == "video"]
-        if not self.video:
-            raise RuntimeError(f"Not found video streams in {self.video_file}")
+    )
+    streams = output.get("streams", [])
+    return [s for s in streams if s["codec_type"] == "video"]
 
 
 def extract_stream(source: str, dest: str, stream_id: int) -> None:
@@ -71,7 +66,6 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         raise RuntimeError(f"No such file: {source}")
 
     cmd = [
-        "ffmpeg",
         "-i",
         source,
         "-y",  # overwrite - potentially dangerous
@@ -81,23 +75,49 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         "-codec",
         "copy",
         "-map",
-        "0:" + str(stream_id),
+        f"0:{stream_id}",
         "-f",
         "rawvideo",
         dest,
     ]
 
-    LOG.info(f"Extracting frames: {' '.join(cmd)}")
-    try:
-        subprocess.check_output(cmd)
-    except FileNotFoundError:
-        raise RuntimeError(
-            "ffmpeg not found. Please make sure it is installed in your PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions"
-        )
+    run_ffmpeg(cmd)
 
 
-if __name__ == "__main__":
-    import sys
+def extract_frames(
+    video_path: str,
+    sample_path: str,
+    video_sample_interval: float = 2.0,
+) -> None:
+    if not os.path.isfile(video_path):
+        raise FileNotFoundError(video_path)
 
-    probe = FFProbe(sys.argv[1])
-    print(json.dumps(probe.video))
+    video_basename_no_ext, ext = os.path.splitext(os.path.basename(video_path))
+    frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
+    cmd = [
+        "-i",
+        video_path,
+        "-vf",
+        f"fps=1/{video_sample_interval}",
+        # video quality level
+        "-qscale:v",
+        "1",
+        "-nostdin",
+        f"{frame_path_prefix}_%0{ZERO_PADDING}d{FRAME_EXT}",
+    ]
+    run_ffmpeg(cmd)
+
+
+def extract_idx_from_frame_filename(
+    video_basename: str, image_basename: str
+) -> T.Optional[int]:
+    video_no_ext, _ = os.path.splitext(video_basename)
+    image_no_ext, ext = os.path.splitext(image_basename)
+    if ext == FRAME_EXT and image_no_ext.startswith(f"{video_no_ext}_"):
+        n = image_no_ext.replace(f"{video_no_ext}_", "").lstrip("0")
+        try:
+            return int(n) - 1
+        except ValueError:
+            return None
+    else:
+        return None
