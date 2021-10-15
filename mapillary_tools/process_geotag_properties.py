@@ -179,6 +179,8 @@ def insert_MAPJson(
         desc_path = os.path.join(import_path, "mapillary_image_description.json")
 
     for desc in descs:
+        if "error" in desc:
+            continue
         image = os.path.join(import_path, desc["filename"])
         try:
             overwrite_exif_tags(
