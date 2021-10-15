@@ -317,24 +317,24 @@ GPX_CONTENT = """
     <trk>
         <name>Mapillary GPX</name>
         <trkseg>
-            <trkpt lat="-17.0353635" lon="142.98326566666665">
-            <ele>73.4</ele>
-            <time>2018-06-08T13:28:34.805</time>
+            <trkpt lat="0.02" lon="0.01">
+            <ele>1</ele>
+            <time>2018-06-08T13:23:34.805</time>
             </trkpt>
 
-            <trkpt lat="-17.035461166666668" lon="142.982867">
-            <ele>73.7</ele>
-            <time>2018-06-08T13:28:35.809</time>
+            <trkpt lat="2.02" lon="0.01">
+            <ele>2</ele>
+            <time>2018-06-08T13:24:35.809</time>
             </trkpt>
 
-            <trkpt lat="-17.035558666666667" lon="142.98366866666666">
-            <ele>73.9</ele>
-            <time>2018-06-08T13:28:36.813</time>
+            <trkpt lat="2.02" lon="2.01">
+            <ele>4</ele>
+            <time>2018-06-08T13:33:36.813</time>
             </trkpt>
 
-            <trkpt lat="-17.035655833333333" lon="142.98517033333333">
-            <ele>73.0</ele>
-            <time>2018-06-08T13:28:37.812</time>
+            <trkpt lat="4.02" lon="2.01">
+            <ele>9</ele>
+            <time>2018-06-08T13:58:37.812</time>
             </trkpt>
         </trkseg>
     </trk>
@@ -342,12 +342,21 @@ GPX_CONTENT = """
 """
 
 
+def find_desc_errors(descs):
+    return [desc for desc in descs if "error" in desc]
+
+
+def filter_out_errors(descs):
+    return [desc for desc in descs if "error" not in desc]
+
+
 def test_geotagging_from_gpx(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
+    desc_path = setup_data.join("mapillary_image_description.json")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file}",
+        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -355,28 +364,27 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
         # capture_time, lon, lat, elevation
         "DSC00001.JPG": [
             "2018_06_08_13_24_10_000",
-            143.08841399999687,
-            -17.00960391666611,
-            -5.724999999999241,
+            0.01,
+            1.1738587633597797,
+            1.5769293816798897,
         ],
         "DSC00497.JPG": [
             "2018_06_08_13_32_28_000",
-            143.33118199166228,
-            -17.058044822989615,
-            -134.37657657657792,
-        ],
-        "V0370574.JPG": [
-            "2018_07_27_11_32_14_000",
-            6496.307134683567,
-            -428.1329594034548,
-            -3807689.3315315554,
+            1.7556100139740183,
+            2.02,
+            3.7456100139740185,
         ],
     }
-    desc_path = setup_data.join("mapillary_image_description.json")
+
     with open(desc_path) as fp:
         descs = json.load(fp)
-    for desc in descs:
-        assert "filename" in desc
+
+    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+
+    for desc in find_desc_errors(descs):
+        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
+
+    for desc in filter_out_errors(descs):
         assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
         assert (
             abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
@@ -384,35 +392,43 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
         assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
         assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
 
+
+def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
+    gpx_file = setup_data.join("test.gpx")
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-100",
+        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    with open(desc_path) as fp:
-        descs = json.load(fp)
+
     expected_lonlat = {
         # capture_time, lon, lat, elevation
         "DSC00001.JPG": [
-            "2018_06_08_13_22_30_000",
-            143.12812183532108,
-            -16.99987616102181,
-            -35.605478087648365,
+            "2018_06_08_13_23_50_000",
+            0.01,
+            0.5181640548160776,
+            1.2490820274080388,
         ],
         "DSC00497.JPG": [
-            "2018_06_08_13_30_48_000",
-            143.18086500801024,
-            -17.048318429929907,
-            -44.286486486487235,
-        ],
-        "V0370574.JPG": [
-            "2018_07_27_11_30_34_000",
-            6496.156817699915,
-            -428.1232330103951,
-            -3807599.2414414654,
+            "2018_06_08_13_32_08_000",
+            1.6816734072206487,
+            2.02,
+            3.671673407220649,
         ],
     }
-    for desc in descs:
+
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+
+    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+
+    for desc in find_desc_errors(descs):
+        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
+
+    for desc in filter_out_errors(descs):
         assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
         assert (
             abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
@@ -426,35 +442,31 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file}",
+        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
     expected_lonlat = {
         # capture_time, lon, lat, elevation
-        "DSC00001.JPG": [
-            "2018_06_08_13_28_34_805",
-            142.98326566666665,
-            -17.0353635,
-            73.4,
-        ],
+        "DSC00001.JPG": ["2018_06_08_13_23_34_805", 0.01, 0.02, 1.0],
         "DSC00497.JPG": [
-            "2018_06_08_13_36_52_805",
-            143.72922888022205,
-            -17.083800798131374,
-            -372.93963963964245,
-        ],
-        "V0370574.JPG": [
-            "2018_07_27_11_36_38_805",
-            6496.705181572127,
-            -428.1587153785965,
-            -3807927.8945946186,
+            "2018_06_08_13_31_52_805",
+            1.6255000702397762,
+            2.02,
+            3.6155000702397766,
         ],
     }
     desc_path = setup_data.join("mapillary_image_description.json")
+
     with open(desc_path) as fp:
         descs = json.load(fp)
-    for desc in descs:
+
+    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+
+    for desc in find_desc_errors(descs):
+        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
+
+    for desc in filter_out_errors(descs):
         assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
         assert (
             abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
@@ -462,36 +474,38 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
         assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
         assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
 
+
+def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
+    gpx_file = setup_data.join("test.gpx")
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100",
+        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
     expected_lonlat = {
         # capture_time, lon, lat, elevation
         "DSC00001.JPG": [
-            "2018_06_08_13_30_14_805",
-            143.13096728528697,
-            -17.045089753753736,
-            -14.381081081081646,
+            "2018_06_08_13_25_14_805",
+            0.15416159584772016,
+            2.02,
+            2.14416159584772,
         ],
         "DSC00497.JPG": [
-            "2018_06_08_13_38_32_805",
-            143.87954586387409,
-            -17.093527191191082,
-            -463.02972972973316,
-        ],
-        "V0370574.JPG": [
-            "2018_07_27_11_38_18_805",
-            6496.855498555779,
-            -428.16844177165626,
-            -3808017.9846847085,
+            "2018_06_08_13_33_32_805",
+            1.9951831040066244,
+            2.02,
+            3.985183104006625,
         ],
     }
     desc_path = setup_data.join("mapillary_image_description.json")
     with open(desc_path) as fp:
         descs = json.load(fp)
-    for desc in descs:
+    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    for desc in find_desc_errors(descs):
+        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
+    for desc in filter_out_errors(descs):
         assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
         assert (
             abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
