@@ -44,10 +44,9 @@ def sample_video(
             elif os.path.isfile(video_sample_path):
                 os.remove(video_sample_path)
 
+    video_start_time_dt: T.Optional[datetime.datetime] = None
     if video_start_time is not None:
         video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
-    else:
-        video_start_time_dt = None
 
     for video_path in video_list:
         relpath = os.path.relpath(video_path, video_dir)
