@@ -514,7 +514,22 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
         assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
 
 
+def ffmpeg_installed():
+    ffmpeg_path = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
+    try:
+        subprocess.run([ffmpeg_path, "-version"])
+    except FileNotFoundError:
+        return False
+    return True
+
+
+is_ffmpeg_installed = ffmpeg_installed()
+
+
 def test_sample_video(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
     for input_path in [setup_data, setup_data.join("sample-5s.mp4")]:
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --rerun {input_path}",
@@ -552,6 +567,9 @@ def test_sample_video(setup_data: py.path.local):
 
 
 def test_video_process(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
     gpx_file = setup_data.join("test.gpx")
     desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
     with gpx_file.open("w") as fp:
@@ -568,6 +586,9 @@ def test_video_process(setup_data: py.path.local):
 
 
 def test_video_process_multiple_videos(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
     gpx_file = setup_data.join("test.gpx")
     desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
     sub_folder = setup_data.join("video_sub_folder").mkdir()

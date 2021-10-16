@@ -40,6 +40,11 @@ jobs:
     - name: Type check with mypy
       run: |
         mypy mapillary_tools
+    - name: Install ffmpeg for testing (Ubuntu only)
+      run: |
+        apt install ffmpeg
+        ffmpeg -version
+      if: matrix.platform == 'ubuntu-latest'
     - name: Test with pytest
       run: |
         pytest tests
