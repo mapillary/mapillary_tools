@@ -1,9 +1,10 @@
+import typing as T
 import datetime
 import os
 import shutil
 import logging
 
-from . import image_log, ffmpeg
+from . import image_log, ffmpeg, types
 from .exif_write import ExifEdit
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -16,8 +17,9 @@ def sample_video(
     import_path: str,
     skip_subfolders=False,
     video_sample_interval=2.0,
-    video_start_time=None,
+    video_start_time: T.Optional[str] = None,
     video_duration_ratio=1.0,
+    skip_sample_errors: bool = False,
     rerun: bool = False,
 ) -> None:
     if not os.path.exists(video_import_path):
@@ -42,6 +44,11 @@ def sample_video(
             elif os.path.isfile(video_sample_path):
                 os.remove(video_sample_path)
 
+    if video_start_time is not None:
+        video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+    else:
+        video_start_time_dt = None
+
     for video_path in video_list:
         relpath = os.path.relpath(video_path, video_dir)
         video_sample_path = os.path.join(import_path, relpath)
@@ -49,24 +56,45 @@ def sample_video(
             LOG.warning(
                 f"Skip video {os.path.basename(video_path)} as it has been sampled in {video_sample_path}"
             )
-        else:
-            os.makedirs(video_sample_path)
+            continue
 
+        # extract frames in the temporary folder and then rename it
+        now = datetime.datetime.utcnow()
+        video_sample_path_temporary = os.path.join(
+            os.path.dirname(video_sample_path),
+            f"{os.path.basename(video_sample_path)}.{os.getpid()}.{int(now.timestamp())}",
+        )
+        os.makedirs(video_sample_path_temporary)
+        try:
             ffmpeg.extract_frames(
                 video_path,
-                video_sample_path,
+                video_sample_path_temporary,
                 video_sample_interval,
             )
-
-            video_start_time = extract_video_start_time(video_path)
-
+            if video_start_time_dt is None:
+                video_start_time_dt = extract_video_start_time(video_path)
             insert_video_frame_timestamp(
                 os.path.basename(video_path),
-                video_sample_path,
-                video_start_time,
+                video_sample_path_temporary,
+                video_start_time_dt,
                 video_sample_interval,
                 video_duration_ratio,
             )
+        except:
+            shutil.rmtree(video_sample_path_temporary)
+            if skip_sample_errors:
+                LOG.warning(f"Skipping the error sampling {video_path}", exc_info=True)
+            else:
+                raise
+        else:
+            try:
+                os.rename(video_sample_path_temporary, video_sample_path)
+            except IOError:
+                # video_sample_path might have been created by another process during the sampling
+                LOG.warning(
+                    f"Skip the error renaming {video_sample_path} to {video_sample_path}",
+                    exc_info=True,
+                )
 
 
 def extract_video_start_time(video_path: str) -> datetime.datetime:
