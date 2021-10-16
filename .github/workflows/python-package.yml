@@ -42,7 +42,7 @@ jobs:
         mypy mapillary_tools
     - name: Install ffmpeg for testing (Ubuntu only)
       run: |
-        apt install ffmpeg
+        sudo apt install -y ffmpeg
         ffmpeg -version
       if: matrix.platform == 'ubuntu-latest'
     - name: Test with pytest
