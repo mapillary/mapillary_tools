@@ -512,3 +512,98 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
         )
         assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
         assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+
+
+def ffmpeg_installed():
+    ffmpeg_path = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
+    try:
+        subprocess.run([ffmpeg_path, "-version"])
+    except FileNotFoundError:
+        return False
+    return True
+
+
+is_ffmpeg_installed = ffmpeg_installed()
+
+
+def test_sample_video(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    for input_path in [setup_data, setup_data.join("sample-5s.mp4")]:
+        x = subprocess.run(
+            f"{EXECUTABLE} sample_video --rerun {input_path}",
+            shell=True,
+        )
+        assert x.returncode != 0, x.stderr
+        assert len(setup_data.join("mapillary_sampled_video_frames").listdir()) == 0
+
+        x = subprocess.run(
+            f"{EXECUTABLE} sample_video --skip_sample_errors --rerun {input_path}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        assert len(setup_data.join("mapillary_sampled_video_frames").listdir()) == 0
+
+        x = subprocess.run(
+            f"{EXECUTABLE} sample_video --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        sample_path = setup_data.join("mapillary_sampled_video_frames")
+        assert len(sample_path.listdir()) == 1
+        samples = sample_path.join("sample-5s.mp4").listdir()
+        samples.sort()
+        times = []
+        for s in samples:
+            with s.open("rb") as fp:
+                tags = exifread.process_file(fp)
+                times.append(tags["EXIF DateTimeOriginal"].values)
+        assert (
+            "2021:10:10 10:10:10.123",
+            "2021:10:10 10:10:12.123",
+            "2021:10:10 10:10:14.123",
+        ) == tuple(times)
+
+
+def test_video_process(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    gpx_file = setup_data.join("test.gpx")
+    desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode != 0, x.stderr
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+    assert 1 == len(find_desc_errors(descs))
+    assert 2 == len(filter_out_errors(descs))
+
+
+def test_video_process_multiple_videos(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    gpx_file = setup_data.join("test.gpx")
+    desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    sub_folder = setup_data.join("video_sub_folder").mkdir()
+    video_path = setup_data.join("sample-5s.mp4")
+    video_path.copy(sub_folder)
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode != 0, x.stderr
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+    for d in descs:
+        assert d["filename"].startswith("sample-5s.mp4/")
+    assert 1 == len(find_desc_errors(descs))
+    assert 2 == len(filter_out_errors(descs))

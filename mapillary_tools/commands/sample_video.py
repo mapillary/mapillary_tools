@@ -2,7 +2,7 @@ import os
 import inspect
 import argparse
 
-from ..process_video import sample_video
+from ..sample_video import sample_video
 
 
 class Command:
@@ -27,8 +27,7 @@ class Command:
         )
         group.add_argument(
             "--video_start_time",
-            help="Video start time in epochs (milliseconds)",
-            type=int,
+            help="Video start time specified in YYYY_MM_DD_HH_MM_SS_sss in UTC. For example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z",
             default=None,
             required=False,
         )
@@ -42,6 +41,13 @@ class Command:
         group.add_argument(
             "--rerun",
             help="Re-sample all videos. Note it will REMOVE all the existing video sample directories",
+            action="store_true",
+            default=False,
+            required=False,
+        )
+        group.add_argument(
+            "--skip_sample_errors",
+            help="Skip errors from the video sampling",
             action="store_true",
             default=False,
             required=False,
