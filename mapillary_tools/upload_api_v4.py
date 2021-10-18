@@ -29,7 +29,7 @@ class UploadService:
     user_access_token: str
     entity_size: int
     session_key: str
-    callbacks: T.List[T.Callable[[bytes, requests.Response], None]]
+    callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
 
     def __init__(
         self,

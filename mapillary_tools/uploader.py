@@ -89,6 +89,7 @@ class Uploader:
             zip_path,
             self.user_items,
             emitter=self.emitter,
+            dry_run=self.dry_run,
         )
 
     def upload_image_dir(
@@ -193,13 +194,9 @@ def _zip_sequence(
 def upload_zipfile(
     zip_path: str,
     user_items: types.User,
-    event_payload: Progress = None,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
-    if event_payload is None:
-        event_payload = {}
-
     with zipfile.ZipFile(zip_path) as ziph:
         namelist = ziph.namelist()
 
@@ -237,7 +234,14 @@ def upload_zipfile(
             fp,
             chunk_size,
             event_payload=T.cast(
-                Progress, {**event_payload, "entity_size": entity_size}
+                Progress,
+                {
+                    "sequence_idx": 0,
+                    "total_sequences": 1,
+                    "entity_size": entity_size,
+                    # FIXME: use uuid
+                    "sequence_uuid": session_key,
+                },
             ),
             emitter=emitter,
         )
@@ -384,7 +388,12 @@ def _zip_and_upload_single_sequence(
             fp,
             chunk_size,
             event_payload=T.cast(
-                Progress, {**event_payload, "entity_size": entity_size}
+                Progress,
+                {
+                    **event_payload,
+                    "entity_size": entity_size,
+                    "sequence_uuid": sequence_uuid,
+                },
             ),
             emitter=emitter,
         )

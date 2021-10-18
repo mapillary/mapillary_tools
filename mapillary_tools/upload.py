@@ -5,8 +5,9 @@ import json
 import logging
 
 import requests
+from tqdm import tqdm
 
-from . import uploader, types, login, api_v4
+from . import uploader, types, login, api_v4, ipc
 
 LOG = logging.getLogger(__name__)
 
@@ -85,6 +86,50 @@ def fetch_user_items(
     return user_items
 
 
+upload_pbar: T.Optional[tqdm] = None
+
+emitter = uploader.EventEmitter()
+
+
+@emitter.on("upload_fetch_offset")
+def upload_start(payload: uploader.Progress) -> None:
+    global upload_pbar
+
+    if upload_pbar is not None:
+        upload_pbar.close()
+
+    nth = payload["sequence_idx"] + 1
+    total = payload["total_sequences"]
+    upload_pbar = tqdm(
+        total=payload["entity_size"],
+        desc=f"Uploading ({nth}/{total})",
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        initial=payload["offset"],
+    )
+
+
+@emitter.on("upload_progress")
+def upload_progress(stats: uploader.Progress) -> None:
+    assert upload_pbar is not None, "progress_bar must be initialized"
+    upload_pbar.update(stats["chunk_size"])
+
+
+@emitter.on("upload_progress")
+def upload_ipc_send(payload: uploader.Progress):
+    LOG.debug(f"Sending upload progress via IPC: {payload}")
+    ipc.send("upload", payload)
+
+
+@emitter.on("upload_end")
+def upload_end(cluster_id: int) -> None:
+    global upload_pbar
+    if upload_pbar:
+        upload_pbar.close()
+    upload_pbar = None
+
+
 def upload(
     import_path: str,
     desc_path: T.Optional[str] = None,
@@ -93,8 +138,17 @@ def upload(
     dry_run=False,
 ):
     if os.path.isfile(import_path):
+        _, ext = os.path.splitext(import_path)
         user_items = fetch_user_items(user_name, organization_key)
-        uploader.upload_zipfile(import_path, user_items, dry_run=dry_run)
+        if ext.lower() in [".zip"]:
+            cluster_id = uploader.Uploader(
+                user_items, emitter=emitter, dry_run=dry_run
+            ).upload_zipfile(import_path)
+        else:
+            raise RuntimeError(
+                f"Unknown file type {ext}. Currently only BlackVue (.mp4) and ZipFile (.zip) are supported"
+            )
+        LOG.debug(f"Uploaded to cluster {cluster_id}")
 
     elif os.path.isdir(import_path):
         if desc_path is None:
@@ -102,10 +156,13 @@ def upload(
 
         descs = read_image_descriptions(desc_path)
         if not descs:
-            LOG.warning(f"No images found in {desc_path}. Exiting...")
+            LOG.warning(f"No images found in {desc_path}")
             return
 
         user_items = fetch_user_items(user_name, organization_key)
-        uploader.upload_image_dir(import_path, descs, user_items, dry_run=dry_run)
+
+        uploader.Uploader(
+            user_items, emitter=emitter, dry_run=dry_run
+        ).upload_image_dir(import_path, descs)
     else:
         raise RuntimeError(f"Expect {import_path} to be either file or directory")
