@@ -54,6 +54,9 @@ class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
     pass
 
 
+ExifImageDescription = FinalImageDescription
+
+
 class ImageDescriptionJSON(FinalImageDescription):
     filename: str
 
