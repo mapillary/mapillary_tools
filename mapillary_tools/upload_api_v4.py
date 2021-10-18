@@ -13,17 +13,25 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024 * 64
 
 class UploadService:
     user_access_token: str
-    # This amount of data that will be loaded to memory
     entity_size: int
     session_key: str
     callbacks: T.List[T.Callable]
 
-    def __init__(self, user_access_token: str, session_key: str, entity_size: int):
+    def __init__(
+        self,
+        user_access_token: str,
+        session_key: str,
+        entity_size: int,
+        organization_id: str = None,
+        file_type: str = "zip",
+    ):
         if entity_size <= 0:
             raise ValueError(f"Expect positive entity size but got {entity_size}")
         self.user_access_token = user_access_token
         self.session_key = session_key
         self.entity_size = entity_size
+        self.organization_id = organization_id
+        self.file_type = file_type
         self.callbacks = []
 
     def fetch_offset(self) -> int:
@@ -89,20 +97,21 @@ class UploadService:
                 f"Upload server error: File handle not found in the upload response {resp.text}"
             )
 
-    def finish(
-        self, file_handle: str, organization_id: T.Optional[T.Union[str, int]] = None
-    ) -> int:
+    def finish(self, file_handle: str) -> int:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
         data: T.Dict[str, T.Union[str, int]] = {
             "file_handle": file_handle,
+            "file_type": self.file_type,
         }
-        if organization_id is not None:
-            data["organization_id"] = organization_id
+        if self.organization_id is not None:
+            data["organization_id"] = self.organization_id
 
         resp = requests.post(
-            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload", headers=headers, json=data
+            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+            headers=headers,
+            json=data,
         )
 
         resp.raise_for_status()
@@ -143,10 +152,8 @@ class FakeUploadService(UploadService):
                     callback(chunk, None)
         return self.session_key
 
-    def finish(
-        self, file_handle: str, organization_id: T.Optional[T.Union[str, int]] = None
-    ) -> int:
-        return 1
+    def finish(self, _: str) -> int:
+        return 0
 
     def fetch_offset(self) -> int:
         try:
