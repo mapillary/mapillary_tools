@@ -107,6 +107,7 @@ def upload_start(payload: uploader.Progress) -> None:
         unit_scale=True,
         unit_divisor=1024,
         initial=payload["offset"],
+        disable=LOG.level <= logging.DEBUG,
     )
 
 
@@ -144,6 +145,10 @@ def upload(
             cluster_id = uploader.Uploader(
                 user_items, emitter=emitter, dry_run=dry_run
             ).upload_zipfile(import_path)
+        elif ext.lower() in [".mp4"]:
+            cluster_id = uploader.Uploader(
+                user_items, emitter=emitter, dry_run=dry_run
+            ).upload_blackvue(import_path)
         else:
             raise RuntimeError(
                 f"Unknown file type {ext}. Currently only BlackVue (.mp4) and ZipFile (.zip) are supported"

@@ -17,7 +17,7 @@ from . import upload_api_v4, types, exif_write
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
-MAX_CHUNK_SIZE = 1024 * 1024 * 32  # 32MB
+MAX_CHUNK_SIZE = 1024 * 1024 * 16  # 32MB
 LOG = logging.getLogger(__name__)
 
 
@@ -84,9 +84,17 @@ class Uploader:
         self.dry_run = dry_run
         self.emitter = emitter
 
-    def upload_zipfile(self, zip_path: str):
+    def upload_zipfile(self, zip_path: str) -> int:
         return upload_zipfile(
             zip_path,
+            self.user_items,
+            emitter=self.emitter,
+            dry_run=self.dry_run,
+        )
+
+    def upload_blackvue(self, blackvue_path: str) -> int:
+        return upload_blackvue(
+            blackvue_path,
             self.user_items,
             emitter=self.emitter,
             dry_run=self.dry_run,
@@ -227,6 +235,58 @@ def upload_zipfile(
                 session_key=session_key,
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
+            )
+
+        return _upload_fp(
+            upload_service,
+            fp,
+            chunk_size,
+            event_payload=T.cast(
+                Progress,
+                {
+                    "sequence_idx": 0,
+                    "total_sequences": 1,
+                    "entity_size": entity_size,
+                    # FIXME: use uuid
+                    "sequence_uuid": session_key,
+                },
+            ),
+            emitter=emitter,
+        )
+
+
+def upload_blackvue(
+    blackvue_path: str,
+    user_items: types.User,
+    emitter: EventEmitter = None,
+    dry_run=False,
+) -> int:
+    with open(blackvue_path, "rb") as fp:
+        fp.seek(0, io.SEEK_END)
+        entity_size = fp.tell()
+
+        # chunk size
+        avg_image_size = entity_size
+        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
+
+        session_key = os.path.basename(blackvue_path)
+        if dry_run:
+            upload_service: upload_api_v4.UploadService = (
+                upload_api_v4.FakeUploadService(
+                    user_access_token=user_items["user_upload_token"],
+                    session_key=session_key,
+                    entity_size=entity_size,
+                    organization_id=user_items.get("MAPOrganizationKey"),
+                    file_type="mly_blackvue_video",
+                )
+            )
+        else:
+            upload_service = upload_api_v4.UploadService(
+                user_access_token=user_items["user_upload_token"],
+                session_key=session_key,
+                entity_size=entity_size,
+                organization_id=user_items.get("MAPOrganizationKey"),
+                file_type="mly_blackvue_video",
             )
 
         return _upload_fp(
