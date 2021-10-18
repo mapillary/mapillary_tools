@@ -14,7 +14,6 @@ import requests
 import jsonschema
 
 from . import upload_api_v4, types, exif_write
-from .login import wrap_http_exception
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
@@ -322,7 +321,7 @@ def _upload_fp(
                 time.sleep(sleep_for)
             else:
                 if isinstance(ex, requests.HTTPError):
-                    raise wrap_http_exception(ex) from ex
+                    raise upload_api_v4.wrap_http_exception(ex) from ex
                 else:
                     raise ex
         else:
@@ -332,7 +331,7 @@ def _upload_fp(
     try:
         cluster_id = upload_service.finish(file_handle)
     except requests.HTTPError as ex:
-        raise wrap_http_exception(ex) from ex
+        raise upload_api_v4.wrap_http_exception(ex) from ex
 
     return cluster_id
 

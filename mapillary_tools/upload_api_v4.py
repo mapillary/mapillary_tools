@@ -11,11 +11,25 @@ MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 64
 
 
+class UploadHTTPError(Exception):
+    pass
+
+
+def wrap_http_exception(ex: requests.HTTPError):
+    resp = ex.response
+    lines = [
+        f"{ex.request.method} {resp.url}",
+        f"> HTTP Status: {ex.response.status_code}",
+        f"{ex.response.text}",
+    ]
+    return UploadHTTPError("\n".join(lines))
+
+
 class UploadService:
     user_access_token: str
     entity_size: int
     session_key: str
-    callbacks: T.List[T.Callable]
+    callbacks: T.List[T.Callable[[bytes, requests.Response], None]]
 
     def __init__(
         self,
@@ -178,7 +192,6 @@ def _file_stats(fp: T.IO[bytes]):
 if __name__ == "__main__":
     import sys, hashlib, os
     import tqdm
-    from .login import wrap_http_exception
 
     user_access_token = os.getenv("MAPILLARY_TOOLS_USER_ACCESS_TOKEN")
     if not user_access_token:
@@ -202,7 +215,7 @@ if __name__ == "__main__":
             unit_scale=True,
             unit_divisor=1024,
         ) as pbar:
-            service.callbacks.append(lambda chunk, _: pbar.update(len(chunk)))
+            service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
             try:
                 file_handle = service.upload(fp)
             except requests.HTTPError as ex:
