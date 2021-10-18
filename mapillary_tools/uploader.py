@@ -50,12 +50,61 @@ def _group_sequences_by_uuid(
 
 
 class Progress(types.TypedDict, total=False):
+    chunk_size: int
+    # how many bytes has been uploaded
+    offset: int
     sequence_uuid: str
-    total_bytes: str
+    entity_size: str
     sequence_idx: int
     total_sequences: int
+    retries: int
 
 
+class EventEmitter:
+    events: T.Dict[str, T.List]
+
+    def __init__(self):
+        self.events = {}
+
+    def on(self, event: str):
+        def _wrap(callback):
+            self.events.setdefault(event, []).append(callback)
+
+        return _wrap
+
+    def emit(self, event: str, *args, **kwargs):
+        for callback in self.events.get(event, []):
+            callback(*args, **kwargs)
+
+
+class Uploader:
+    def __init__(
+        self, user_items: types.User, emitter: EventEmitter = None, dry_run=False
+    ):
+        self.user_items = user_items
+        self.dry_run = dry_run
+        self.emitter = emitter
+
+    def upload_zipfile(self, zip_path: str):
+        return upload_zipfile(
+            zip_path,
+            self.user_items,
+            emitter=self.emitter,
+        )
+
+    def upload_image_dir(
+        self, image_dir: str, descs: T.List[types.ImageDescriptionJSON]
+    ):
+        return upload_image_dir(
+            image_dir,
+            descs,
+            self.user_items,
+            emitter=self.emitter,
+            dry_run=self.dry_run,
+        )
+
+
+# FIXME: move this to types.py
 def _validate_descs(image_dir: str, image_descs: T.List[types.ImageDescriptionJSON]):
     for desc in image_descs:
         jsonschema.validate(instance=desc, schema=types.ImageDescriptionJSONSchema)
@@ -76,20 +125,23 @@ def upload_image_dir(
     image_dir: str,
     image_descs: T.List[types.ImageDescriptionJSON],
     user_items: types.User,
-    progress_callback: T.Callable[[Progress], None] = None,
+    emitter: EventEmitter = None,
     dry_run=False,
 ):
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
     _validate_descs(image_dir, image_descs)
     sequences = _group_sequences_by_uuid(image_descs)
     for sequence_idx, images in enumerate(sequences.values()):
+        event_payload: Progress = {
+            "sequence_idx": sequence_idx,
+            "total_sequences": len(sequences),
+        }
         cluster_id = _zip_and_upload_single_sequence(
             image_dir,
             images,
             user_items,
-            sequence_idx,
-            len(sequences),
-            progress_callback=progress_callback,
+            event_payload=event_payload,
+            emitter=emitter,
             dry_run=dry_run,
         )
 
@@ -142,16 +194,19 @@ def _zip_sequence(
 def upload_zipfile(
     zip_path: str,
     user_items: types.User,
-    progress_callback: T.Callable[[Progress], None] = None,
+    event_payload: Progress = None,
+    emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
+    if event_payload is None:
+        event_payload = {}
+
     with zipfile.ZipFile(zip_path) as ziph:
         namelist = ziph.namelist()
 
     if not namelist:
         raise RuntimeError(f"The zip file {zip_path} is empty")
 
-    basename = os.path.basename(zip_path)
     with open(zip_path, "rb") as fp:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -159,16 +214,6 @@ def upload_zipfile(
         # chunk size
         avg_image_size = int(entity_size / len(namelist))
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
-
-        def callback(chunk, resp):
-            if progress_callback is not None:
-                progress: Progress = {
-                    "sequence_uuid": "",
-                    "total_bytes": entity_size,
-                    "sequence_idx": 0,
-                    "total_sequences": 1,
-                }
-                progress_callback(progress)
 
         session_key = os.path.basename(zip_path)
         if dry_run:
@@ -188,7 +233,15 @@ def upload_zipfile(
                 organization_id=user_items.get("MAPOrganizationKey"),
             )
 
-        return _upload_fp(upload_service, fp, chunk_size, callback=callback)
+        return _upload_fp(
+            upload_service,
+            fp,
+            chunk_size,
+            event_payload=T.cast(
+                Progress, {**event_payload, "entity_size": entity_size}
+            ),
+            emitter=emitter,
+        )
 
 
 def is_retriable_exception(ex: Exception):
@@ -208,13 +261,36 @@ def is_retriable_exception(ex: Exception):
     return False
 
 
+def _setup_callback(emitter: EventEmitter, event_payload: Progress):
+    offset = event_payload["offset"]
+
+    def _callback(chunk: bytes, _):
+        nonlocal offset
+        assert isinstance(emitter, EventEmitter)
+        emitter.emit(
+            "upload_progress",
+            {
+                **event_payload,
+                "offset": offset + len(chunk),
+                "chunk_size": len(chunk),
+            },
+        )
+        offset += len(chunk)
+
+    return _callback
+
+
 def _upload_fp(
     upload_service: upload_api_v4.UploadService,
     fp: T.IO[bytes],
     chunk_size: int,
-    callback: T.Callable[[bytes, requests.Response], None] = None,
+    event_payload: Progress = None,
+    emitter: EventEmitter = None,
 ) -> int:
     retries = 0
+
+    if event_payload is None:
+        event_payload = {}
 
     # when it progresses, we reset retries
     def _reset_retries(_, __):
@@ -223,15 +299,15 @@ def _upload_fp(
 
     while True:
         fp.seek(0, io.SEEK_SET)
-        # update_pbar = lambda chunk, _: pbar.update(len(chunk))
         try:
             offset = upload_service.fetch_offset()
-            # set the initial progress
-            # pbar.update(offset)
             upload_service.callbacks = [_reset_retries]
-            if callback:
-                # notifier.uploaded_bytes = offset
-                upload_service.callbacks.append(callback)
+            if emitter:
+                new_payload = T.cast(
+                    Progress, {**event_payload, "offset": offset, "retries": retries}
+                )
+                emitter.emit("upload_fetch_offset", new_payload)
+                upload_service.callbacks.append(_setup_callback(emitter, new_payload))
             file_handle = upload_service.upload(
                 fp, chunk_size=chunk_size, offset=offset
             )
@@ -254,18 +330,19 @@ def _upload_fp(
 
     # TODO: retry here
     try:
-        return upload_service.finish(file_handle)
+        cluster_id = upload_service.finish(file_handle)
     except requests.HTTPError as ex:
         raise wrap_http_exception(ex) from ex
+
+    return cluster_id
 
 
 def _zip_and_upload_single_sequence(
     image_dir: str,
     sequences: T.Dict[str, types.ImageDescriptionJSON],
     user_items: types.User,
-    sequence_idx: int,
-    total_sequences: int,
-    progress_callback: T.Optional[T.Callable[[Progress], None]] = None,
+    event_payload: Progress,
+    emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
     file_list = list(sequences.keys())
@@ -286,16 +363,6 @@ def _zip_and_upload_single_sequence(
         avg_image_size = int(entity_size / len(sequences))
         chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
-        def callback(chunk, resp):
-            if progress_callback is not None:
-                progress: Progress = {
-                    "sequence_uuid": sequence_uuid,
-                    "total_bytes": entity_size,
-                    "sequence_idx": sequence_idx,
-                    "total_sequences": total_sequences,
-                }
-                progress_callback(progress)
-
         if dry_run:
             upload_service: upload_api_v4.UploadService = (
                 upload_api_v4.FakeUploadService(
@@ -313,4 +380,14 @@ def _zip_and_upload_single_sequence(
                 organization_id=user_items.get("MAPOrganizationKey"),
             )
 
-        return _upload_fp(upload_service, fp, chunk_size, callback=callback)
+        cluster_id = _upload_fp(
+            upload_service,
+            fp,
+            chunk_size,
+            event_payload=T.cast(
+                Progress, {**event_payload, "entity_size": entity_size}
+            ),
+            emitter=emitter,
+        )
+
+        return cluster_id
