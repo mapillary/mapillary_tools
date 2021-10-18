@@ -85,12 +85,14 @@ class UploadService:
         if offset is None:
             offset = self.fetch_offset()
 
-        data.seek(offset, io.SEEK_CUR)
-
         entity_type_map: T.Dict[FileType, str] = {
             "zip": "application/zip",
             "mly_blackvue_video": "video/mp4",
         }
+
+        entity_type = entity_type_map[self.file_type]
+
+        data.seek(offset, io.SEEK_CUR)
 
         while True:
             chunk = data.read(chunk_size)
@@ -101,7 +103,7 @@ class UploadService:
                 "Offset": f"{offset}",
                 "X-Entity-Length": str(self.entity_size),
                 "X-Entity-Name": self.session_key,
-                "X-Entity-Type": entity_type_map[self.file_type],
+                "X-Entity-Type": entity_type,
             }
             resp = requests.post(
                 f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
