@@ -1,7 +1,13 @@
 import requests
 import os
 import io
+import sys
 import typing as T
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal
 
 from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
 
@@ -9,6 +15,9 @@ MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 64
+
+
+FileType = Literal["zip", "mly_blackvue_video"]
 
 
 class UploadHTTPError(Exception):
@@ -30,6 +39,7 @@ class UploadService:
     entity_size: int
     session_key: str
     callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
+    file_type: FileType
 
     def __init__(
         self,
@@ -37,15 +47,19 @@ class UploadService:
         session_key: str,
         entity_size: int,
         organization_id: str = None,
-        file_type: str = "zip",
+        file_type: FileType = "zip",
     ):
         if entity_size <= 0:
             raise ValueError(f"Expect positive entity size but got {entity_size}")
+
+        if file_type.lower() not in ["zip", "mly_blackvue_video"]:
+            raise ValueError(f"Invalid file type {file_type}")
+
         self.user_access_token = user_access_token
         self.session_key = session_key
         self.entity_size = entity_size
         self.organization_id = organization_id
-        self.file_type = file_type
+        self.file_type = T.cast(FileType, file_type.lower())
         self.callbacks = []
 
     def fetch_offset(self) -> int:
@@ -71,6 +85,13 @@ class UploadService:
         if offset is None:
             offset = self.fetch_offset()
 
+        entity_type_map: T.Dict[FileType, str] = {
+            "zip": "application/zip",
+            "mly_blackvue_video": "video/mp4",
+        }
+
+        entity_type = entity_type_map[self.file_type]
+
         data.seek(offset, io.SEEK_CUR)
 
         while True:
@@ -82,7 +103,7 @@ class UploadService:
                 "Offset": f"{offset}",
                 "X-Entity-Length": str(self.entity_size),
                 "X-Entity-Name": self.session_key,
-                "X-Entity-Type": "application/zip",
+                "X-Entity-Type": entity_type,
             }
             resp = requests.post(
                 f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",

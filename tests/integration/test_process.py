@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import zipfile
+import hashlib
 
 import pytest
 import py.path
@@ -607,3 +608,32 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
         assert d["filename"].startswith("sample-5s.mp4/")
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
+
+
+def file_md5sum(path) -> str:
+    with open(path, "rb") as fp:
+        md5 = hashlib.md5()
+        while True:
+            buf = fp.read(1024 * 1024 * 32)
+            if not buf:
+                break
+            md5.update(buf)
+        return md5.hexdigest()
+
+
+def test_upload_mp4(
+    tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
+):
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
+    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
+    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
+    video_path = setup_data.join("sample-5s.mp4")
+    md5 = file_md5sum(video_path)
+    x = subprocess.run(
+        f"{EXECUTABLE} upload {video_path} --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert 1 == len(upload_dir.listdir())
+    assert {"sample-5s.mp4"} == {os.path.basename(f) for f in upload_dir.listdir()}
+    assert {md5} == {file_md5sum(f) for f in upload_dir.listdir()}
