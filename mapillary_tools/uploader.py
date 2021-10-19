@@ -52,10 +52,16 @@ class Progress(types.TypedDict, total=False):
     chunk_size: int
     # how many bytes has been uploaded
     offset: int
-    sequence_uuid: str
-    entity_size: str
+    # size of the zip
+    entity_size: int
+    # how many images in total
+    total_image_count: int
+    # how many sequences in total
+    total_sequence_count: int
     sequence_idx: int
-    total_sequences: int
+    # how many images in the sequence
+    sequence_image_count: int
+    sequence_uuid: str
     retries: int
 
 
@@ -142,7 +148,8 @@ def upload_image_dir(
     for sequence_idx, images in enumerate(sequences.values()):
         event_payload: Progress = {
             "sequence_idx": sequence_idx,
-            "total_sequences": len(sequences),
+            "total_sequence_count": len(sequences),
+            "sequence_image_count": len(images),
         }
         cluster_id = _zip_and_upload_single_sequence(
             image_dir,
@@ -245,7 +252,8 @@ def upload_zipfile(
                 Progress,
                 {
                     "sequence_idx": 0,
-                    "total_sequences": 1,
+                    "total_sequence_count": 1,
+                    "image_count": len(namelist),
                     "entity_size": entity_size,
                     # FIXME: use uuid
                     "sequence_uuid": session_key,
@@ -297,7 +305,7 @@ def upload_blackvue(
                 Progress,
                 {
                     "sequence_idx": 0,
-                    "total_sequences": 1,
+                    "total_sequence_count": 1,
                     "entity_size": entity_size,
                     # FIXME: use uuid
                     "sequence_uuid": session_key,
@@ -324,21 +332,12 @@ def is_retriable_exception(ex: Exception):
     return False
 
 
-def _setup_callback(emitter: EventEmitter, event_payload: Progress):
-    offset = event_payload["offset"]
-
+def _setup_callback(emitter: EventEmitter, mutable_payload: Progress):
     def _callback(chunk: bytes, _):
-        nonlocal offset
         assert isinstance(emitter, EventEmitter)
-        emitter.emit(
-            "upload_progress",
-            {
-                **event_payload,
-                "offset": offset + len(chunk),
-                "chunk_size": len(chunk),
-            },
-        )
-        offset += len(chunk)
+        mutable_payload["offset"] += len(chunk)
+        mutable_payload["chunk_size"] = len(chunk)
+        emitter.emit("upload_progress", mutable_payload)
 
     return _callback
 
@@ -355,10 +354,15 @@ def _upload_fp(
     if event_payload is None:
         event_payload = {}
 
+    mutable_payload = T.cast(Progress, {**event_payload})
+
     # when it progresses, we reset retries
     def _reset_retries(_, __):
         nonlocal retries
         retries = 0
+
+    if emitter:
+        emitter.emit("upload_start", mutable_payload)
 
     while True:
         fp.seek(0, io.SEEK_SET)
@@ -366,16 +370,19 @@ def _upload_fp(
             offset = upload_service.fetch_offset()
             upload_service.callbacks = [_reset_retries]
             if emitter:
-                new_payload = T.cast(
-                    Progress, {**event_payload, "offset": offset, "retries": retries}
+                mutable_payload["offset"] = offset
+                mutable_payload["retries"] = retries
+                emitter.emit("upload_fetch_offset", mutable_payload)
+                upload_service.callbacks.append(
+                    _setup_callback(emitter, mutable_payload)
                 )
-                emitter.emit("upload_fetch_offset", new_payload)
-                upload_service.callbacks.append(_setup_callback(emitter, new_payload))
             file_handle = upload_service.upload(
                 fp, chunk_size=chunk_size, offset=offset
             )
         except Exception as ex:
             if retries < 200 and is_retriable_exception(ex):
+                if emitter:
+                    emitter.emit("upload_interrupted", mutable_payload)
                 retries += 1
                 sleep_for = min(2 ** retries, 16)
                 LOG.warning(
@@ -390,6 +397,9 @@ def _upload_fp(
                     raise ex
         else:
             break
+
+    if emitter:
+        emitter.emit("upload_end", mutable_payload)
 
     # TODO: retry here
     try:
