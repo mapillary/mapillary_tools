@@ -83,12 +83,7 @@ def process_import_meta_properties(
     exclude_import_path=False,
     exclude_path=None,
 ) -> T.List[types.FinalImageDescriptionOrError]:
-    for desc in descs:
-        if "error" in desc:
-            continue
-
-        desc = T.cast(types.ImageDescriptionJSON, desc)
-
+    for desc in types.filter_out_errors(descs):
         image = os.path.join(import_path, desc["filename"])
 
         if orientation is not None:

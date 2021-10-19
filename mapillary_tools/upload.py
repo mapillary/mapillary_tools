@@ -34,8 +34,9 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionJSON
                 descs = json.load(fp)
             except json.JSONDecodeError:
                 raise RuntimeError(f" Invalid JSON file {desc_path}")
-    descs = [desc for desc in descs if "error" not in desc]
-    return descs
+    return types.filter_out_errors(
+        T.cast(T.List[types.FinalImageDescriptionOrError], descs)
+    )
 
 
 def zip_images(

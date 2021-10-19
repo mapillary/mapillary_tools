@@ -1,6 +1,7 @@
 import datetime
 import json
 import io
+import typing as T
 
 import piexif
 
@@ -9,12 +10,12 @@ from .types import FinalImageDescription
 
 
 class ExifEdit:
-    _filename: str
+    _filename_or_bytes: T.Union[str, bytes]
 
-    def __init__(self, filename: str):
+    def __init__(self, filename_or_bytes: T.Union[str, bytes]):
         """Initialize the object"""
-        self._filename = filename
-        self._ef = piexif.load(filename)
+        self._filename_or_bytes = filename_or_bytes
+        self._ef = piexif.load(filename_or_bytes)
 
     def add_image_description(self, data: FinalImageDescription) -> None:
         """Add a dict to image description."""
@@ -76,13 +77,16 @@ class ExifEdit:
             else:
                 raise
         output = io.BytesIO()
-        piexif.insert(exif_bytes, self._filename, output)
+        piexif.insert(exif_bytes, self._filename_or_bytes, output)
         return output.read()
 
     def write(self, filename=None):
         """Save exif data to file."""
         if filename is None:
-            filename = self._filename
+            if isinstance(self._filename_or_bytes, str):
+                filename = self._filename_or_bytes
+            else:
+                raise RuntimeError("Unable to write image into bytes")
 
         try:
             exif_bytes = piexif.dump(self._ef)
@@ -96,7 +100,10 @@ class ExifEdit:
             else:
                 raise
 
-        with open(self._filename, "rb") as fp:
-            img = fp.read()
+        if isinstance(self._filename_or_bytes, bytes):
+            img = self._filename_or_bytes
+        else:
+            with open(self._filename_or_bytes, "rb") as fp:
+                img = fp.read()
 
         piexif.insert(exif_bytes, img, filename)

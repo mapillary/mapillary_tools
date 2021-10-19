@@ -194,6 +194,7 @@ class ExifRead:
 
         if direction is not None:
             direction = normalize_bearing(direction, check_hex=True)
+
         return direction
 
     def extract_gps_time(self) -> Optional[datetime.datetime]:

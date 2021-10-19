@@ -1,10 +1,14 @@
 import os
+import tempfile
 import unittest
 from PIL import Image, ExifTags, TiffImagePlugin
 from mapillary_tools.exif_write import ExifEdit
 from mapillary_tools.geo import decimal_to_dms
 import datetime
 import shutil
+
+import py.path
+
 
 """Initialize all the neccessary data"""
 
@@ -296,23 +300,13 @@ class ExifEditTests(unittest.TestCase):
     def test_load_and_dump_corrupt_exif(self):
 
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-
-        error_raised = False
-        try:
-            corrupt_exifedit.write(FIXED_EXIF_FILE)
-        except:
-            error_raised = True
-        self.assertFalse(error_raised, "EXIF load and dump back failed")
+        with tempfile.NamedTemporaryFile() as tmp:
+            corrupt_exifedit.write(tmp.name)
 
     def test_load_and_dump_corrupt_exif_2(self):
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-
-        error_raised = False
-        try:
-            corrupt_exifedit.write(FIXED_EXIF_FILE_2)
-        except:
-            error_raised = True
-        self.assertFalse(error_raised, "EXIF load and dump back failed")
+        with tempfile.NamedTemporaryFile() as tmp:
+            corrupt_exifedit.write(tmp.name)
 
     def test_add_image_description_corrupt_exif(self):
         add_image_description_general(self, CORRUPT_EXIF_FILE)
@@ -355,6 +349,42 @@ class ExifEditTests(unittest.TestCase):
 
     def test_add_repeatedly_time_original_corrupt_exif_2(self):
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
+
+
+def test_exif_write(tmpdir: py.path.local):
+    image_dir = tmpdir.mkdir("images")
+    image_path = image_dir.join("img.jpg")
+
+    for filename in [
+        EMPTY_EXIF_FILE,
+        CORRUPT_EXIF_FILE,
+        CORRUPT_EXIF_FILE_2,
+        FIXED_EXIF_FILE,
+        FIXED_EXIF_FILE_2,
+    ]:
+        p = py.path.local(filename)
+        p.copy(image_path)
+
+        with open(image_path, "rb") as fp:
+            orig = fp.read()
+
+        with open(image_path, "rb") as fp:
+            edit = ExifEdit(fp.read())
+        edit.add_orientation(1)
+        image_bytes = edit.dump_image_bytes()
+
+        with open(image_path, "rb") as fp:
+            content = fp.read()
+        assert image_bytes != content
+        assert content == orig
+
+        exif = ExifEdit(str(image_path))
+        exif.add_orientation(1)
+        exif.write()
+
+        with open(image_path, "rb") as fp:
+            content = fp.read()
+        assert image_bytes == content
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import logging
 import os
 import typing as T
 
@@ -5,6 +6,8 @@ from .geotag_from_generic import GeotagFromGeneric
 from .. import types
 from ..exif_read import ExifRead
 from ..error import MapillaryGeoTaggingError
+
+LOG = logging.getLogger(__name__)
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
@@ -19,7 +22,16 @@ class GeotagFromEXIF(GeotagFromGeneric):
         for image in self.images:
             image_path = os.path.join(self.image_dir, image)
 
-            exif = ExifRead(image_path)
+            try:
+                exif = ExifRead(image_path)
+            except Exception as exc0:
+                LOG.warning(
+                    "Unknown error reading EXIF from image %s",
+                    image_path,
+                    exc_info=True,
+                )
+                descs.append({"error": types.describe_error(exc0), "filename": image})
+                continue
 
             lon, lat = exif.extract_lon_lat()
             if lat is None or lon is None:

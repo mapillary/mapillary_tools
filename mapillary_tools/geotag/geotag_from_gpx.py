@@ -56,7 +56,12 @@ class GeotagFromGPX(GeotagFromGeneric):
         # pairing the timestamp and the image for sorting
         image_pairs = []
         for image in self.images:
-            capture_time = self.read_image_capture_time(image)
+            try:
+                capture_time = self.read_image_capture_time(image)
+            except Exception as exc:
+                descs.append({"error": types.describe_error(exc), "filename": image})
+                continue
+
             if capture_time is None:
                 error = types.describe_error(
                     MapillaryGeoTaggingError(

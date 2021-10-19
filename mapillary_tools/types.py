@@ -1,3 +1,4 @@
+import os
 import datetime
 import sys
 import typing as T
@@ -6,6 +7,8 @@ if sys.version_info >= (3, 8):
     from typing import TypedDict, Literal  # pylint: disable=no-name-in-module
 else:
     from typing_extensions import TypedDict, Literal
+
+import jsonschema
 
 
 class User(TypedDict, total=False):
@@ -116,12 +119,23 @@ FinalImageDescriptionSchema = {
             "type": "string",
             "description": "User ID. Upload to which Mapillary user",
         },
-        "MAPLatitude": {"type": "number", "description": "Latitude of the image"},
-        "MAPLongitude": {"type": "number", "description": "Longitude of the image"},
+        "MAPLatitude": {
+            "type": "number",
+            "description": "Latitude of the image",
+            "minimum": -90,
+            "maximum": 90,
+        },
+        "MAPLongitude": {
+            "type": "number",
+            "description": "Longitude of the image",
+            "minimum": -180,
+            "maximum": 180,
+        },
         "MAPAltitude": {"type": "number", "description": "Altitude of the image"},
         "MAPCaptureTime": {
             "type": "string",
             "description": "Capture time of the image",
+            "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+",
         },
         "MAPPhotoUUID": {"type": "string"},
         "MAPCompassHeading": {
@@ -136,6 +150,7 @@ FinalImageDescriptionSchema = {
         "MAPSequenceUUID": {
             "type": "string",
             "description": "Arbitrary key used to group images",
+            "pattern": "[a-zA-Z0-9_-]+",
         },
         "MAPMetaTags": {"type": "object"},
         "MAPDeviceMake": {"type": "string"},
@@ -188,6 +203,49 @@ ImageDescriptionJSONSchema = merge_schema(
         ],
     },
 )
+
+
+def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionJSON]):
+    for desc in image_descs:
+        validate_desc(desc)
+        abspath = os.path.join(image_dir, desc["filename"])
+        if not os.path.isfile(abspath):
+            raise RuntimeError(f"Image path {abspath} not found")
+
+
+def validate_desc(desc: ImageDescriptionJSON):
+    jsonschema.validate(instance=desc, schema=ImageDescriptionJSONSchema)
+    try:
+        map_capture_time_to_datetime(desc["MAPCaptureTime"])
+    except ValueError as exc:
+        raise jsonschema.ValidationError(
+            str(exc), instance=desc, schema=ImageDescriptionJSONSchema
+        )
+
+
+def is_error(desc: FinalImageDescriptionOrError) -> bool:
+    return "error" in desc
+
+
+def map_descs(
+    func: T.Callable[[ImageDescriptionJSON], FinalImageDescriptionOrError],
+    descs: T.List[FinalImageDescriptionOrError],
+) -> T.Iterator[FinalImageDescriptionOrError]:
+    def _f(desc: FinalImageDescriptionOrError) -> FinalImageDescriptionOrError:
+        if is_error(desc):
+            return desc
+        else:
+            return func(T.cast(ImageDescriptionJSON, desc))
+
+    return map(_f, descs)
+
+
+def filter_out_errors(
+    descs: T.List[FinalImageDescriptionOrError],
+) -> T.List[ImageDescriptionJSON]:
+    return T.cast(
+        T.List[ImageDescriptionJSON], [desc for desc in descs if not is_error(desc)]
+    )
 
 
 def datetime_to_map_capture_time(time: datetime.datetime) -> str:
