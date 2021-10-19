@@ -131,7 +131,16 @@ def overwrite_exif_tags(
     overwrite_EXIF_direction_tag: bool = False,
     overwrite_EXIF_orientation_tag: bool = False,
 ) -> None:
-    modified = False
+    if not any(
+        [
+            overwrite_all_EXIF_tags,
+            overwrite_EXIF_time_tag,
+            overwrite_EXIF_gps_tag,
+            overwrite_EXIF_direction_tag,
+            overwrite_EXIF_orientation_tag,
+        ]
+    ):
+        return
 
     image_exif = ExifEdit(image_path)
 
@@ -140,28 +149,23 @@ def overwrite_exif_tags(
     if overwrite_all_EXIF_tags or overwrite_EXIF_time_tag:
         dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
         image_exif.add_date_time_original(dt)
-        modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_gps_tag:
         image_exif.add_lat_lon(
             desc["MAPLatitude"],
             desc["MAPLongitude"],
         )
-        modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_direction_tag:
         heading = desc.get("MAPCompassHeading")
         if heading is not None:
             image_exif.add_direction(heading["TrueHeading"])
-            modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_orientation_tag:
         if "MAPOrientation" in desc:
             image_exif.add_orientation(desc["MAPOrientation"])
-            modified = True
 
-    if modified:
-        image_exif.write()
+    image_exif.write()
 
 
 def insert_MAPJson(
