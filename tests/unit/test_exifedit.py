@@ -298,15 +298,12 @@ class ExifEditTests(unittest.TestCase):
 
     # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
-
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
-        with tempfile.NamedTemporaryFile(mode="wb") as tmp:
-            corrupt_exifedit.write(tmp.name)
+        corrupt_exifedit.dump_image_bytes()
 
     def test_load_and_dump_corrupt_exif_2(self):
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE_2)
-        with tempfile.NamedTemporaryFile(mode="wb") as tmp:
-            corrupt_exifedit.write(tmp.name)
+        corrupt_exifedit.dump_image_bytes()
 
     def test_add_image_description_corrupt_exif(self):
         add_image_description_general(self, CORRUPT_EXIF_FILE)
