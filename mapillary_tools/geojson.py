@@ -5,7 +5,7 @@ import jsonschema
 from . import types
 
 
-def feature_collection_schema(features: dict) -> dict:
+def feature_collection_schema(features: T.Dict) -> T.Dict:
     return {
         "type": "object",
         "properties": {
@@ -18,7 +18,7 @@ def feature_collection_schema(features: dict) -> dict:
     }
 
 
-def feature_schema(geometry: dict, properties: T.Any) -> dict:
+def feature_schema(geometry: T.Dict, properties: T.Any) -> T.Dict:
     return {
         "type": "object",
         "properties": {
@@ -49,7 +49,7 @@ def point_schema():
 
 
 def single_feature_to_desc(
-    feature: dict, quiet=False
+    feature: T.Dict, quiet=False
 ) -> T.Optional[types.FinalImageDescriptionFromGeoJSON]:
     input_schema = feature_schema(point_schema(), {})
     if quiet:
@@ -67,7 +67,7 @@ def single_feature_to_desc(
 
 
 def feature_collection_to_desc(
-    feature_collection: dict,
+    feature_collection: T.Dict,
 ) -> T.List[types.FinalImageDescriptionFromGeoJSON]:
     input_schema = feature_collection_schema(
         feature_schema(
@@ -84,7 +84,7 @@ def feature_collection_to_desc(
 
 def single_desc_to_feature(
     desc: types.FinalImageDescription, quiet=False
-) -> T.Optional[dict]:
+) -> T.Optional[T.Dict]:
     input_schema = {
         "type": "array",
         "items": types.FinalImageDescriptionSchema,
@@ -107,7 +107,7 @@ def single_desc_to_feature(
     }
 
 
-def desc_to_feature_collection(desc: T.List[types.FinalImageDescription]) -> dict:
+def desc_to_feature_collection(desc: T.List[types.FinalImageDescription]) -> T.Dict:
     features = [single_desc_to_feature(d) for d in desc]
     return {
         "type": "FeatureCollection",
@@ -121,6 +121,7 @@ if __name__ == "__main__":
 
     with open(sys.argv[1]) as fp:
         descs = json.load(fp)
-        descs = [d for d in descs if "error" not in d]
-        feature_collection = desc_to_feature_collection(descs)
+        feature_collection = desc_to_feature_collection(
+            T.cast(T.List[types.FinalImageDescription], types.filter_out_errors(descs))
+        )
         print(json.dumps(feature_collection, indent=4))

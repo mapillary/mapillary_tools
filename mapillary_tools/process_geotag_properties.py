@@ -4,6 +4,9 @@ import typing as T
 import json
 import datetime
 
+import jsonschema
+import piexif
+
 from . import image_log, types, error
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
@@ -18,6 +21,20 @@ from .geotag import (
 
 
 LOG = logging.getLogger(__name__)
+
+
+def validate_and_fail_desc(
+    desc: types.ImageDescriptionJSON,
+) -> types.FinalImageDescriptionOrError:
+    try:
+        types.validate_desc(desc)
+    except jsonschema.ValidationError as exc:
+        return T.cast(
+            types.FinalImageDescriptionError,
+            {"error": types.describe_error(exc), "filename": desc["filename"]},
+        )
+    else:
+        return desc
 
 
 def process_geotag_properties(
@@ -101,23 +118,25 @@ def process_geotag_properties(
 
     descs = geotag.to_description()
 
-    for desc in descs:
-        if "error" not in desc:
-            desc = T.cast(types.ImageDescriptionJSON, desc)
-            if offset_time:
-                dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-                desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
-                    dt + datetime.timedelta(seconds=offset_time)
+    descs = list(types.map_descs(validate_and_fail_desc, descs))
+
+    for desc in types.filter_out_errors(descs):
+        if offset_time:
+            dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+            desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
+                dt + datetime.timedelta(seconds=offset_time)
+            )
+        if offset_angle:
+            heading = desc.get("MAPCompassHeading")
+            if heading is not None:
+                heading["TrueHeading"] = normalize_bearing(
+                    heading["TrueHeading"] + offset_angle
                 )
-            if offset_angle:
-                heading = desc.get("MAPCompassHeading")
-                if heading is not None:
-                    heading["TrueHeading"] = normalize_bearing(
-                        heading["TrueHeading"] + offset_angle
-                    )
-                    heading["MagneticHeading"] = normalize_bearing(
-                        heading["MagneticHeading"] + offset_angle
-                    )
+                heading["MagneticHeading"] = normalize_bearing(
+                    heading["MagneticHeading"] + offset_angle
+                )
+
+    descs = list(types.map_descs(validate_and_fail_desc, descs))
 
     return descs
 
@@ -131,7 +150,16 @@ def overwrite_exif_tags(
     overwrite_EXIF_direction_tag: bool = False,
     overwrite_EXIF_orientation_tag: bool = False,
 ) -> None:
-    modified = False
+    if not any(
+        [
+            overwrite_all_EXIF_tags,
+            overwrite_EXIF_time_tag,
+            overwrite_EXIF_gps_tag,
+            overwrite_EXIF_direction_tag,
+            overwrite_EXIF_orientation_tag,
+        ]
+    ):
+        return
 
     image_exif = ExifEdit(image_path)
 
@@ -140,28 +168,48 @@ def overwrite_exif_tags(
     if overwrite_all_EXIF_tags or overwrite_EXIF_time_tag:
         dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
         image_exif.add_date_time_original(dt)
-        modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_gps_tag:
         image_exif.add_lat_lon(
             desc["MAPLatitude"],
             desc["MAPLongitude"],
         )
-        modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_direction_tag:
         heading = desc.get("MAPCompassHeading")
         if heading is not None:
             image_exif.add_direction(heading["TrueHeading"])
-            modified = True
 
     if overwrite_all_EXIF_tags or overwrite_EXIF_orientation_tag:
         if "MAPOrientation" in desc:
             image_exif.add_orientation(desc["MAPOrientation"])
-            modified = True
 
-    if modified:
-        image_exif.write()
+    image_exif.write()
+
+
+def verify_exif_write(
+    import_path: str,
+    desc: types.ImageDescriptionJSON,
+) -> types.FinalImageDescriptionOrError:
+    image_path = os.path.join(import_path, desc["filename"])
+    with open(image_path, "rb") as fp:
+        edit = ExifEdit(fp.read())
+    edit.add_image_description(desc)
+    try:
+        edit.dump_image_bytes()
+    except piexif.InvalidImageDataError as exc:
+        return {
+            "error": types.describe_error(exc),
+            "filename": desc["filename"],
+        }
+    except Exception as exc:
+        LOG.warning("Unknown error test writing image %s", image_path, exc_info=True)
+        return {
+            "error": types.describe_error(exc),
+            "filename": desc["filename"],
+        }
+    else:
+        return desc
 
 
 def insert_MAPJson(
@@ -178,9 +226,7 @@ def insert_MAPJson(
     if desc_path is None:
         desc_path = os.path.join(import_path, "mapillary_image_description.json")
 
-    for desc in descs:
-        if "error" in desc:
-            continue
+    for desc in types.filter_out_errors(descs):
         image = os.path.join(import_path, desc["filename"])
         try:
             overwrite_exif_tags(
@@ -195,16 +241,22 @@ def insert_MAPJson(
         except Exception:
             LOG.warning(f"Failed to overwrite EXIF for image {image}", exc_info=True)
 
+    descs = list(types.map_descs(validate_and_fail_desc, descs))
+
+    descs = list(
+        types.map_descs(lambda desc: verify_exif_write(import_path, desc), descs)
+    )
+
     if desc_path == "-":
         print(json.dumps(descs, indent=4))
     else:
         with open(desc_path, "w") as fp:
             json.dump(descs, fp, indent=4)
 
-    processed_images = [desc for desc in descs if "error" not in desc]
+    processed_images = types.filter_out_errors(descs)
     not_processed_images = T.cast(
         T.List[types.FinalImageDescriptionError],
-        [desc for desc in descs if "error" in desc],
+        [desc for desc in descs if types.is_error(desc)],
     )
     duplicated_images = [
         desc
@@ -227,4 +279,5 @@ def insert_MAPJson(
             raise RuntimeError(
                 f"Failed to process {summary['failed_images']} images. Check {desc_path} for details. Specify --skip_process_errors to skip these errors"
             )
+    # FIXME: check stdin for details
     LOG.info(f"Check {desc_path} for details")

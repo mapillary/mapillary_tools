@@ -118,16 +118,6 @@ class Uploader:
         )
 
 
-# FIXME: move this to types.py
-def _validate_descs(image_dir: str, image_descs: T.List[types.ImageDescriptionJSON]):
-    for desc in image_descs:
-        jsonschema.validate(instance=desc, schema=types.ImageDescriptionJSONSchema)
-    for desc in image_descs:
-        abspath = os.path.join(image_dir, desc["filename"])
-        if not os.path.isfile(abspath):
-            raise RuntimeError(f"Image path {abspath} not found")
-
-
 def _remove_non_exif_desc(
     desc: types.ImageDescriptionJSON,
 ) -> types.ExifImageDescription:
@@ -143,7 +133,7 @@ def upload_image_dir(
     dry_run=False,
 ):
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-    _validate_descs(image_dir, image_descs)
+    types.validate_descs(image_dir, image_descs)
     sequences = _group_sequences_by_uuid(image_descs)
     for sequence_idx, images in enumerate(sequences.values()):
         event_payload: Progress = {
@@ -166,7 +156,7 @@ def zip_image_dir(
     image_descs: T.List[types.ImageDescriptionJSON],
     zip_dir: str,
 ):
-    _validate_descs(image_dir, image_descs)
+    types.validate_descs(image_dir, image_descs)
     sequences = _group_sequences_by_uuid(image_descs)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():

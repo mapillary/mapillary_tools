@@ -209,13 +209,7 @@ def process_sequence_properties(
     duplicate_distance=0.1,
     duplicate_angle=5,
 ) -> T.List[types.FinalImageDescriptionOrError]:
-    failed_descs = [desc for desc in descs if "error" in desc]
-    passed_descs = T.cast(
-        T.List[types.ImageDescriptionJSON],
-        [desc for desc in descs if "error" not in desc],
-    )
-
-    groups = group_descs_by_folder(passed_descs)
+    groups = group_descs_by_folder(types.filter_out_errors(descs))
 
     sequences = []
     for group in groups:
@@ -225,7 +219,7 @@ def process_sequence_properties(
             )
         )
 
-    processed: T.List[types.FinalImageDescriptionOrError] = failed_descs
+    processed = [desc for desc in descs if types.is_error(desc)]
 
     for sequence in sequences:
         # duplication check
