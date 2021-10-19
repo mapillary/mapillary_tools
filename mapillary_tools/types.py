@@ -183,7 +183,7 @@ def merge_schema(*schemas: T.Dict):
     return {
         "type": "object",
         "properties": properties,
-        "required": list(set(all_required)),
+        "required": sorted(set(all_required)),
         "additionalProperties": additional_properties,
     }
 
