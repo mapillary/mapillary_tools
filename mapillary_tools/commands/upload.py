@@ -13,20 +13,14 @@ class Command:
             "--user_name", help="Upload to which Mapillary user account", required=False
         )
         group.add_argument(
-            "--organization_username",
-            help="Specify organization user name",
-            default=None,
-            required=False,
-        )
-        group.add_argument(
             "--organization_key",
-            help="Specify organization key",
+            help="Specify organization ID",
             default=None,
             required=False,
         )
         group.add_argument(
             "--desc_path",
-            help="Specify the path to read image description",
+            help="Specify the path to read image description. Applicable for uploading image directories only",
             default=None,
             required=False,
         )
