@@ -70,7 +70,7 @@ def format_orientation(orientation: int) -> int:
 
 def process_import_meta_properties(
     import_path: str,
-    descs: T.List[types.FinalImageDescriptionOrError],
+    descs: T.List[types.ImageDescriptionFileOrError],
     orientation=None,
     device_make=None,
     device_model=None,
@@ -82,7 +82,7 @@ def process_import_meta_properties(
     windows_path=False,
     exclude_import_path=False,
     exclude_path=None,
-) -> T.List[types.FinalImageDescriptionOrError]:
+) -> T.List[types.ImageDescriptionFileOrError]:
     for desc in types.filter_out_errors(descs):
         image = os.path.join(import_path, desc["filename"])
 

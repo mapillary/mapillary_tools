@@ -12,9 +12,9 @@ MAX_SEQUENCE_LENGTH = 500
 
 
 class _GPXPoint:
-    desc: types.ImageDescriptionJSON
+    desc: types.ImageDescriptionFile
 
-    def __init__(self, desc: types.ImageDescriptionJSON):
+    def __init__(self, desc: types.ImageDescriptionFile):
         self.desc = desc
 
     @property
@@ -104,8 +104,8 @@ def find_duplicates(
 
 
 def group_descs_by_folder(
-    descs: T.List[types.ImageDescriptionJSON],
-) -> T.List[T.List[types.ImageDescriptionJSON]]:
+    descs: T.List[types.ImageDescriptionFile],
+) -> T.List[T.List[types.ImageDescriptionFile]]:
     descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
     group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
     sequences = []
@@ -118,7 +118,7 @@ def duplication_check(
     sequence: GPXSequence,
     duplicate_distance: float,
     duplicate_angle: float,
-) -> T.Tuple[GPXSequence, T.List[types.FinalImageDescriptionError]]:
+) -> T.Tuple[GPXSequence, T.List[types.ImageDescriptionFileError]]:
     dup_indices = find_duplicates(
         sequence,
         duplicate_distance=duplicate_distance,
@@ -126,9 +126,9 @@ def duplication_check(
     )
     dup_set = set(dup_indices)
     dups = [image for idx, image in enumerate(sequence) if idx in dup_set]
-    failures: T.List[types.FinalImageDescriptionError] = []
+    failures: T.List[types.ImageDescriptionFileError] = []
     for image in dups:
-        error: types.FinalImageDescriptionError = {
+        error: types.ImageDescriptionFileError = {
             "error": types.describe_error(
                 MapillaryDuplicationError("duplicated", image.desc)
             ),
@@ -148,7 +148,7 @@ def interpolate(sequence: GPXSequence, interpolate_directions: bool) -> GPXSeque
         if interpolate_directions or cur.angle is None:
             new_bearing = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
             new_desc = T.cast(
-                types.ImageDescriptionJSON,
+                types.ImageDescriptionFile,
                 {
                     **cur.desc,
                     "MAPCompassHeading": {
@@ -172,7 +172,7 @@ def interpolate(sequence: GPXSequence, interpolate_directions: bool) -> GPXSeque
         # should interpolate or not
         if interpolate_directions or sequence[-1] is None:
             new_desc = T.cast(
-                types.ImageDescriptionJSON,
+                types.ImageDescriptionFile,
                 {
                     **sequence[-1].desc,
                     "MAPCompassHeading": {
@@ -202,13 +202,13 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
 
 
 def process_sequence_properties(
-    descs: T.List[types.FinalImageDescriptionOrError],
+    descs: T.List[types.ImageDescriptionFileOrError],
     cutoff_distance=600.0,
     cutoff_time=60.0,
     interpolate_directions=False,
     duplicate_distance=0.1,
     duplicate_angle=5,
-) -> T.List[types.FinalImageDescriptionOrError]:
+) -> T.List[types.ImageDescriptionFileOrError]:
     groups = group_descs_by_folder(types.filter_out_errors(descs))
 
     sequences = []
@@ -242,7 +242,7 @@ def process_sequence_properties(
             for p in s:
                 processed.append(
                     T.cast(
-                        types.ImageDescriptionJSON,
+                        types.ImageDescriptionFile,
                         {**p.desc, "MAPSequenceUUID": sequence_uuid},
                     )
                 )

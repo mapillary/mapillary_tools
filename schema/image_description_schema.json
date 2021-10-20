@@ -1,17 +1,6 @@
 {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {
-            "type": "string",
-            "description": "Organization ID. Upload for which organization"
-        },
-        "MAPSettingsUsername": {
-            "type": "string"
-        },
-        "MAPSettingsUserKey": {
-            "type": "string",
-            "description": "User ID. Upload to which Mapillary user"
-        },
         "MAPLatitude": {
             "type": "number",
             "description": "Latitude of the image",

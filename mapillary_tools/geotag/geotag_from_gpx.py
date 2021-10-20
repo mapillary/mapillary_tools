@@ -37,8 +37,8 @@ class GeotagFromGPX(GeotagFromGeneric):
         image_path = os.path.join(self.image_dir, image)
         return ExifRead(image_path).extract_capture_time()
 
-    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
-        descs: T.List[types.FinalImageDescriptionOrError] = []
+    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+        descs: T.List[types.ImageDescriptionFileOrError] = []
 
         if not self.points:
             exc = MapillaryGPXEmptyError(
@@ -140,7 +140,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             )
             descs.append(
                 T.cast(
-                    types.ImageDescriptionJSON, {**point.as_desc(), "filename": image}
+                    types.ImageDescriptionFile, {**point.as_desc(), "filename": image}
                 )
             )
 

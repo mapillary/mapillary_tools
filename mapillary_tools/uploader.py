@@ -37,9 +37,9 @@ def _find_root_dir(file_list: Iterable[str]) -> Optional[str]:
 
 
 def _group_sequences_by_uuid(
-    image_descs: T.List[types.ImageDescriptionJSON],
-) -> T.Dict[str, T.Dict[str, types.ImageDescriptionJSON]]:
-    sequences: T.Dict[str, T.Dict[str, types.ImageDescriptionJSON]] = {}
+    image_descs: T.List[types.ImageDescriptionFile],
+) -> T.Dict[str, T.Dict[str, types.ImageDescriptionFile]]:
+    sequences: T.Dict[str, T.Dict[str, types.ImageDescriptionFile]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
     for desc in image_descs:
         sequence_uuid = desc.get("MAPSequenceUUID", missing_sequence_uuid)
@@ -84,7 +84,7 @@ class EventEmitter:
 
 class Uploader:
     def __init__(
-        self, user_items: types.User, emitter: EventEmitter = None, dry_run=False
+        self, user_items: types.UserItem, emitter: EventEmitter = None, dry_run=False
     ):
         self.user_items = user_items
         self.dry_run = dry_run
@@ -107,7 +107,7 @@ class Uploader:
         )
 
     def upload_image_dir(
-        self, image_dir: str, descs: T.List[types.ImageDescriptionJSON]
+        self, image_dir: str, descs: T.List[types.ImageDescriptionFile]
     ):
         return upload_image_dir(
             image_dir,
@@ -119,16 +119,16 @@ class Uploader:
 
 
 def _remove_non_exif_desc(
-    desc: types.ImageDescriptionJSON,
-) -> types.ExifImageDescription:
+    desc: types.ImageDescriptionFile,
+) -> types.ImageDescriptionEXIF:
     removed = {key: value for key, value in desc.items() if key.startswith("MAP")}
-    return T.cast(types.ExifImageDescription, removed)
+    return T.cast(types.ImageDescriptionEXIF, removed)
 
 
 def upload_image_dir(
     image_dir: str,
-    image_descs: T.List[types.ImageDescriptionJSON],
-    user_items: types.User,
+    image_descs: T.List[types.ImageDescriptionFile],
+    user_items: types.UserItem,
     emitter: EventEmitter = None,
     dry_run=False,
 ):
@@ -153,7 +153,7 @@ def upload_image_dir(
 
 def zip_image_dir(
     image_dir: str,
-    image_descs: T.List[types.ImageDescriptionJSON],
+    image_descs: T.List[types.ImageDescriptionFile],
     zip_dir: str,
 ):
     types.validate_descs(image_dir, image_descs)
@@ -172,7 +172,7 @@ def zip_image_dir(
 
 def _zip_sequence(
     image_dir: str,
-    sequences: T.Dict[str, types.ImageDescriptionJSON],
+    sequences: T.Dict[str, types.ImageDescriptionFile],
     fp: T.IO[bytes],
 ) -> None:
     file_list = list(sequences.keys())
@@ -198,7 +198,7 @@ def _zip_sequence(
 
 def upload_zipfile(
     zip_path: str,
-    user_items: types.User,
+    user_items: types.UserItem,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
@@ -255,7 +255,7 @@ def upload_zipfile(
 
 def upload_blackvue(
     blackvue_path: str,
-    user_items: types.User,
+    user_items: types.UserItem,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
@@ -402,8 +402,8 @@ def _upload_fp(
 
 def _zip_and_upload_single_sequence(
     image_dir: str,
-    sequences: T.Dict[str, types.ImageDescriptionJSON],
-    user_items: types.User,
+    sequences: T.Dict[str, types.ImageDescriptionFile],
+    user_items: types.UserItem,
     event_payload: Progress,
     emitter: EventEmitter = None,
     dry_run=False,

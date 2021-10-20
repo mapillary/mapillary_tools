@@ -16,8 +16,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
         self.images = images
         super().__init__()
 
-    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
-        descs: T.List[types.FinalImageDescriptionOrError] = []
+    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+        descs: T.List[types.ImageDescriptionFileOrError] = []
 
         for image in self.images:
             image_path = os.path.join(self.image_dir, image)
@@ -51,7 +51,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
 
             angle = exif.extract_direction()
 
-            desc: types.ImageDescriptionJSON = {
+            desc: types.ImageDescriptionFile = {
                 "MAPLatitude": lat,
                 "MAPLongitude": lon,
                 "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),

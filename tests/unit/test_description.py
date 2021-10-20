@@ -2,7 +2,7 @@ import json
 import os
 import jsonschema
 
-from mapillary_tools.types import validate_desc, ImageDescriptionJSONSchema
+from mapillary_tools.types import validate_desc, ImageDescriptionFileSchema
 
 
 def test_validate_descs_ok():
@@ -69,5 +69,5 @@ def test_validate_image_description_schema():
     with open("./schema/image_description_schema.json") as fp:
         schema = json.load(fp)
     assert json.dumps(schema, sort_keys=True) == json.dumps(
-        ImageDescriptionJSONSchema, sort_keys=True
+        ImageDescriptionFileSchema, sort_keys=True
     )

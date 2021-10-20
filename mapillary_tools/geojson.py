@@ -50,7 +50,7 @@ def point_schema():
 
 def single_feature_to_desc(
     feature: T.Dict, quiet=False
-) -> T.Optional[types.FinalImageDescriptionFromGeoJSON]:
+) -> T.Optional[types.ImageDescriptionEXIF]:
     input_schema = feature_schema(point_schema(), {})
     if quiet:
         try:
@@ -63,12 +63,12 @@ def single_feature_to_desc(
         "MAPLongitude": lat,
         **feature["properties"],
     }
-    return T.cast(types.FinalImageDescriptionFromGeoJSON, desc)
+    return T.cast(types.ImageDescriptionEXIF, desc)
 
 
 def feature_collection_to_desc(
     feature_collection: T.Dict,
-) -> T.List[types.FinalImageDescriptionFromGeoJSON]:
+) -> T.List[types.ImageDescriptionEXIF]:
     input_schema = feature_collection_schema(
         feature_schema(
             point_schema(),
@@ -83,11 +83,11 @@ def feature_collection_to_desc(
 
 
 def single_desc_to_feature(
-    desc: types.FinalImageDescription, quiet=False
+    desc: types.ImageDescriptionEXIF, quiet=False
 ) -> T.Optional[T.Dict]:
     input_schema = {
         "type": "array",
-        "items": types.FinalImageDescriptionSchema,
+        "items": types.ImageDescriptionEXIFSchema,
     }
     if quiet:
         try:
@@ -107,7 +107,7 @@ def single_desc_to_feature(
     }
 
 
-def desc_to_feature_collection(desc: T.List[types.FinalImageDescription]) -> T.Dict:
+def desc_to_feature_collection(desc: T.List[types.ImageDescriptionEXIF]) -> T.Dict:
     features = [single_desc_to_feature(d) for d in desc]
     return {
         "type": "FeatureCollection",
@@ -122,6 +122,6 @@ if __name__ == "__main__":
     with open(sys.argv[1]) as fp:
         descs = json.load(fp)
         feature_collection = desc_to_feature_collection(
-            T.cast(T.List[types.FinalImageDescription], types.filter_out_errors(descs))
+            T.cast(T.List[types.ImageDescriptionEXIF], types.filter_out_errors(descs))
         )
         print(json.dumps(feature_collection, indent=4))
