@@ -43,7 +43,7 @@ def zip_images(
     desc_path: T.Optional[str] = None,
 ):
     # basic check for all
-    if not import_path or not os.path.isdir(import_path):
+    if not os.path.isdir(import_path):
         raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
     if desc_path is None:
@@ -55,7 +55,7 @@ def zip_images(
         LOG.warning(f"No images found in {desc_path}")
         return
 
-    uploader.zip_image_dir(import_path, descs, zip_dir)
+    uploader.zip_images(_join_desc_path(import_path, descs), zip_dir)
 
 
 def fetch_user_items(
@@ -234,6 +234,18 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
+def _join_desc_path(
+    image_dir: str, descs: T.List[types.ImageDescriptionFile]
+) -> T.List[types.ImageDescriptionFile]:
+    return [
+        T.cast(
+            types.ImageDescriptionFile,
+            {**d, "filename": os.path.join(image_dir, d["filename"])},
+        )
+        for d in descs
+    ]
+
+
 def upload(
     import_path: str,
     desc_path: T.Optional[str] = None,
@@ -250,20 +262,19 @@ def upload(
     if os.path.isfile(import_path):
         _, ext = os.path.splitext(import_path)
         user_items = fetch_user_items(user_name, organization_key)
+        mly_uploader = cluster_id = uploader.Uploader(
+            user_items, emitter=emitter, dry_run=dry_run
+        )
         if ext.lower() in [".zip"]:
             try:
-                cluster_id = uploader.Uploader(
-                    user_items, emitter=emitter, dry_run=dry_run
-                ).upload_zipfile(import_path)
+                mly_uploader.upload_zipfile(import_path)
             except Exception as exc:
                 if not dry_run:
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         elif ext.lower() in [".mp4"]:
             try:
-                cluster_id = uploader.Uploader(
-                    user_items, emitter=emitter, dry_run=dry_run
-                ).upload_blackvue(import_path)
+                mly_uploader.upload_blackvue(import_path)
             except Exception as exc:
                 if not dry_run:
                     _api_logging_failed(user_items, _summarize(stats), exc)
@@ -285,10 +296,9 @@ def upload(
 
         user_items = fetch_user_items(user_name, organization_key)
 
+        mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         try:
-            uploader.Uploader(
-                user_items, emitter=emitter, dry_run=dry_run
-            ).upload_image_dir(import_path, descs)
+            mly_uploader.upload_images(_join_desc_path(import_path, descs))
         except Exception as exc:
             if not dry_run:
                 _api_logging_failed(user_items, _summarize(stats), exc)

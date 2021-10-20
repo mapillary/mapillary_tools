@@ -12,7 +12,7 @@ import jsonschema
 
 
 class UserItem(TypedDict, total=False):
-    MAPOrganizationKey: str
+    MAPOrganizationKey: int
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
     user_upload_token: str
@@ -91,12 +91,12 @@ ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptio
 UserItemSchema = {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {"type": "string"},
+        "MAPOrganizationKey": {"type": "integer"},
         "MAPSettingsUsername": {"type": "string"},
         "MAPSettingsUserKey": {"type": "string"},
         "user_upload_token": {"type": "string"},
     },
-    "required": ["MAPSettingsUserKey", "user_upload_token"],
+    "required": ["user_upload_token"],
     "additionalProperties": False,
 }
 
@@ -187,14 +187,6 @@ ImageDescriptionFileSchema = merge_schema(
         ],
     },
 )
-
-
-def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionFile]):
-    for desc in image_descs:
-        validate_desc(desc)
-        abspath = os.path.join(image_dir, desc["filename"])
-        if not os.path.isfile(abspath):
-            raise RuntimeError(f"Image path {abspath} not found")
 
 
 def validate_desc(desc: ImageDescriptionFile):

@@ -17,7 +17,7 @@ from . import upload_api_v4, types, exif_write
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB
-MAX_CHUNK_SIZE = 1024 * 1024 * 16  # 32MB
+MAX_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 LOG = logging.getLogger(__name__)
 
 
@@ -37,11 +37,11 @@ def _find_root_dir(file_list: Iterable[str]) -> Optional[str]:
 
 
 def _group_sequences_by_uuid(
-    image_descs: T.List[types.ImageDescriptionFile],
+    descs: T.List[types.ImageDescriptionFile],
 ) -> T.Dict[str, T.Dict[str, types.ImageDescriptionFile]]:
     sequences: T.Dict[str, T.Dict[str, types.ImageDescriptionFile]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
-    for desc in image_descs:
+    for desc in descs:
         sequence_uuid = desc.get("MAPSequenceUUID", missing_sequence_uuid)
         sequence = sequences.setdefault(sequence_uuid, {})
         sequence[desc["filename"]] = desc
@@ -58,6 +58,7 @@ class Progress(types.TypedDict, total=False):
     total_image_count: int
     # how many sequences in total
     total_sequence_count: int
+    # 0-based nth sequence
     sequence_idx: int
     # how many images in the sequence
     sequence_image_count: int
@@ -106,11 +107,10 @@ class Uploader:
             dry_run=self.dry_run,
         )
 
-    def upload_image_dir(
-        self, image_dir: str, descs: T.List[types.ImageDescriptionFile]
-    ):
-        return upload_image_dir(
-            image_dir,
+    def upload_images(
+        self, descs: T.List[types.ImageDescriptionFile]
+    ) -> T.Dict[str, int]:
+        return upload_images(
             descs,
             self.user_items,
             emitter=self.emitter,
@@ -125,39 +125,46 @@ def _remove_non_exif_desc(
     return T.cast(types.ImageDescriptionEXIF, removed)
 
 
-def upload_image_dir(
-    image_dir: str,
-    image_descs: T.List[types.ImageDescriptionFile],
+def upload_images(
+    descs: T.List[types.ImageDescriptionFile],
     user_items: types.UserItem,
     emitter: EventEmitter = None,
     dry_run=False,
-):
+) -> T.Dict[str, int]:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-    types.validate_descs(image_dir, image_descs)
-    sequences = _group_sequences_by_uuid(image_descs)
-    for sequence_idx, images in enumerate(sequences.values()):
+    _validate_descs(descs)
+    sequences = _group_sequences_by_uuid(descs)
+    ret: T.Dict[str, int] = {}
+    for sequence_idx, (uuid, images) in enumerate(sequences.items()):
         event_payload: Progress = {
             "sequence_idx": sequence_idx,
             "total_sequence_count": len(sequences),
             "sequence_image_count": len(images),
         }
         cluster_id = _zip_and_upload_single_sequence(
-            image_dir,
             images,
             user_items,
             event_payload=event_payload,
             emitter=emitter,
             dry_run=dry_run,
         )
+        ret[uuid] = cluster_id
+    return ret
 
 
-def zip_image_dir(
-    image_dir: str,
-    image_descs: T.List[types.ImageDescriptionFile],
+def _validate_descs(descs: T.List[types.ImageDescriptionFile]):
+    for desc in descs:
+        types.validate_desc(desc)
+        if not os.path.isfile(desc["filename"]):
+            raise RuntimeError(f"Image path {desc['filename']} not found")
+
+
+def zip_images(
+    descs: T.List[types.ImageDescriptionFile],
     zip_dir: str,
 ):
-    types.validate_descs(image_dir, image_descs)
-    sequences = _group_sequences_by_uuid(image_descs)
+    _validate_descs(descs)
+    sequences = _group_sequences_by_uuid(descs)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
         # FIXME: do not use UUID as filename
@@ -165,34 +172,32 @@ def zip_image_dir(
             zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
-            _zip_sequence(image_dir, sequence, fp)
+            _zip_sequence(sequence, fp)
         zip_filename = os.path.join(zip_dir, f"mly_tools_{sequence_uuid}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 
 def _zip_sequence(
-    image_dir: str,
     sequences: T.Dict[str, types.ImageDescriptionFile],
     fp: T.IO[bytes],
 ) -> None:
-    file_list = list(sequences.keys())
-    first_image = list(sequences.values())[0]
+    images = list(sequences.keys())
+    first_desc = list(sequences.values())[0]
 
-    root_dir = _find_root_dir(file_list)
+    root_dir = _find_root_dir(images)
     if root_dir is None:
-        sequence_uuid = first_image.get("MAPSequenceUUID")
+        sequence_uuid = first_desc.get("MAPSequenceUUID")
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
-    file_list.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
+    images.sort(key=lambda path: sequences[path]["MAPCaptureTime"])
 
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-        for file in file_list:
-            abspath = os.path.join(image_dir, file)
-            edit = exif_write.ExifEdit(abspath)
-            exif_desc = _remove_non_exif_desc(sequences[file])
+        for image_path in images:
+            edit = exif_write.ExifEdit(image_path)
+            exif_desc = _remove_non_exif_desc(sequences[image_path])
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
-            relpath = os.path.relpath(file, root_dir)
+            relpath = os.path.relpath(image_path, root_dir)
             ziph.writestr(relpath, image_bytes)
 
 
@@ -401,7 +406,6 @@ def _upload_fp(
 
 
 def _zip_and_upload_single_sequence(
-    image_dir: str,
     sequences: T.Dict[str, types.ImageDescriptionFile],
     user_items: types.UserItem,
     event_payload: Progress,
@@ -417,7 +421,7 @@ def _zip_and_upload_single_sequence(
         raise RuntimeError(f"Unable to find the root dir of sequence {sequence_uuid}")
 
     with tempfile.NamedTemporaryFile() as fp:
-        _zip_sequence(image_dir, sequences, fp)
+        _zip_sequence(sequences, fp)
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
