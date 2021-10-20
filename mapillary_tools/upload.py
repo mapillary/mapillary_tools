@@ -8,7 +8,7 @@ import logging
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc
+from . import uploader, types, login, api_v4, ipc, utils
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")

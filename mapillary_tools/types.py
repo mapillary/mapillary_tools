@@ -1,4 +1,3 @@
-import os
 import datetime
 import sys
 import typing as T
@@ -57,8 +56,10 @@ class ImageDescriptionEXIF(_SequenceOnly, Image, MetaProperties):
     pass
 
 
-class ImageDescriptionFile(ImageDescriptionEXIF):
+class ImageDescriptionFile(ImageDescriptionEXIF, total=False):
+    # filename is required
     filename: str
+    md5sum: str
 
 
 class ErrorObject(TypedDict, total=False):
@@ -180,6 +181,11 @@ ImageDescriptionFileSchema = merge_schema(
             "filename": {
                 "type": "string",
                 "description": "The image file's path relative to the image directory",
+            },
+            # FIXME: use pattern
+            "md5sum": {
+                "type": "string",
+                "description": "The image MD5 hash value in hexadecimal digits",
             },
         },
         "required": [

@@ -70,6 +70,10 @@
         "filename": {
             "type": "string",
             "description": "The image file's path relative to the image directory"
+        },
+        "md5sum": {
+            "type": "string",
+            "description": "The image MD5 hash value in hexadecimal digits"
         }
     },
     "required": [
