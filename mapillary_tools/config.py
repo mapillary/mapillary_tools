@@ -35,9 +35,9 @@ def save_config(config: configparser.ConfigParser, config_path: str) -> None:
         config.write(cfg)
 
 
-def load_user(config: configparser.ConfigParser, user_name: str) -> types.User:
+def load_user(config: configparser.ConfigParser, user_name: str) -> types.UserItem:
     user_items = dict(config.items(user_name))
-    return T.cast(types.User, user_items)
+    return T.cast(types.UserItem, user_items)
 
 
 def add_user(
@@ -51,14 +51,14 @@ def add_user(
 
 
 def set_user_items(
-    config: configparser.ConfigParser, user_name: str, user_items: types.User
+    config: configparser.ConfigParser, user_name: str, user_items: types.UserItem
 ) -> configparser.ConfigParser:
     for key, val in user_items.items():
         config.set(user_name, key, T.cast(str, val))
     return config
 
 
-def update_config(config_path: str, user_name: str, user_items: types.User) -> None:
+def update_config(config_path: str, user_name: str, user_items: types.UserItem) -> None:
     config = load_config(config_path)
     if user_name not in config.sections():
         add_user(config, user_name, config_path)

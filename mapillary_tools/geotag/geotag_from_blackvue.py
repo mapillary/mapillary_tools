@@ -40,8 +40,8 @@ class GeotagFromBlackVue(GeotagFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
 
-    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
-        descs: T.List[types.FinalImageDescriptionOrError] = []
+    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+        descs: T.List[types.ImageDescriptionFileOrError] = []
 
         images = image_log.get_total_file_list(self.image_dir)
         for blackvue_video in self.blackvue_videos:

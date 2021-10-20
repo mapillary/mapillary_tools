@@ -6,7 +6,7 @@ import typing as T
 import piexif
 
 from .geo import decimal_to_dms
-from .types import FinalImageDescription
+from .types import ImageDescriptionEXIF
 
 
 class ExifEdit:
@@ -17,7 +17,7 @@ class ExifEdit:
         self._filename_or_bytes = filename_or_bytes
         self._ef = piexif.load(filename_or_bytes)
 
-    def add_image_description(self, data: FinalImageDescription) -> None:
+    def add_image_description(self, data: ImageDescriptionEXIF) -> None:
         """Add a dict to image description."""
         self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 

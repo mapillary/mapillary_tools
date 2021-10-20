@@ -6,7 +6,7 @@ from ..upload import zip_images
 
 class Command:
     name = "zip"
-    help = "Zip images into sequences"
+    help = "zip images into sequences"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(

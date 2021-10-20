@@ -8,7 +8,7 @@ from mapillary_tools import process_sequence_properties as psp, types
 
 def make_image_desc(
     lng: float, lat: float, time: float, angle: float = None, filename: str = None
-) -> types.FinalImageDescriptionOrError:
+) -> types.ImageDescriptionFileOrError:
     if filename is None:
         filename = str(uuid.uuid4())
 
@@ -25,7 +25,7 @@ def make_image_desc(
             "TrueHeading": angle,
             "MagneticHeading": angle,
         }
-    return T.cast(types.FinalImageDescriptionOrError, desc)
+    return T.cast(types.ImageDescriptionFileOrError, desc)
 
 
 def test_find_sequences_by_folder():

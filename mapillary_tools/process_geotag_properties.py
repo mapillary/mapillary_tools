@@ -24,13 +24,13 @@ LOG = logging.getLogger(__name__)
 
 
 def validate_and_fail_desc(
-    desc: types.ImageDescriptionJSON,
-) -> types.FinalImageDescriptionOrError:
+    desc: types.ImageDescriptionFile,
+) -> types.ImageDescriptionFileOrError:
     try:
         types.validate_desc(desc)
     except jsonschema.ValidationError as exc:
         return T.cast(
-            types.FinalImageDescriptionError,
+            types.ImageDescriptionFileError,
             {"error": types.describe_error(exc), "filename": desc["filename"]},
         )
     else:
@@ -47,7 +47,7 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
-) -> T.List[types.FinalImageDescriptionOrError]:
+) -> T.List[types.ImageDescriptionFileOrError]:
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
             f"Error, import directory {import_path} does not exist, exiting..."
@@ -143,7 +143,7 @@ def process_geotag_properties(
 
 def overwrite_exif_tags(
     image_path: str,
-    desc: types.FinalImageDescription,
+    desc: types.ImageDescriptionEXIF,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
     overwrite_EXIF_gps_tag: bool = False,
@@ -189,8 +189,8 @@ def overwrite_exif_tags(
 
 def verify_exif_write(
     import_path: str,
-    desc: types.ImageDescriptionJSON,
-) -> types.FinalImageDescriptionOrError:
+    desc: types.ImageDescriptionFile,
+) -> types.ImageDescriptionFileOrError:
     image_path = os.path.join(import_path, desc["filename"])
     with open(image_path, "rb") as fp:
         edit = ExifEdit(fp.read())
@@ -214,7 +214,7 @@ def verify_exif_write(
 
 def insert_MAPJson(
     import_path: str,
-    descs: T.List[types.FinalImageDescriptionOrError],
+    descs: T.List[types.ImageDescriptionFileOrError],
     skip_process_errors=False,
     overwrite_all_EXIF_tags=False,
     overwrite_EXIF_time_tag=False,
@@ -231,7 +231,7 @@ def insert_MAPJson(
         try:
             overwrite_exif_tags(
                 image,
-                T.cast(types.FinalImageDescription, desc),
+                T.cast(types.ImageDescriptionEXIF, desc),
                 overwrite_all_EXIF_tags,
                 overwrite_EXIF_time_tag,
                 overwrite_EXIF_gps_tag,
@@ -255,7 +255,7 @@ def insert_MAPJson(
 
     processed_images = types.filter_out_errors(descs)
     not_processed_images = T.cast(
-        T.List[types.FinalImageDescriptionError],
+        T.List[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
     duplicated_images = [

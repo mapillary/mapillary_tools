@@ -25,7 +25,7 @@ def wrap_http_exception(ex: requests.HTTPError):
     return HTTPError("\n".join(lines))
 
 
-def prompt_user_for_user_items(user_name: str) -> types.User:
+def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     print(f"Sign in for user {user_name}")
     user_email = input("Enter your Mapillary user email: ")
     user_password = getpass.getpass("Enter Mapillary user password: ")
@@ -63,7 +63,7 @@ def prompt_user_for_user_items(user_name: str) -> types.User:
     }
 
 
-def list_all_users() -> T.List[types.User]:
+def list_all_users() -> T.List[types.UserItem]:
     if os.path.isfile(MAPILLARY_CONFIG_PATH):
         global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
         return [
@@ -74,7 +74,7 @@ def list_all_users() -> T.List[types.User]:
         return []
 
 
-def authenticate_user(user_name: str) -> types.User:
+def authenticate_user(user_name: str) -> types.UserItem:
     if os.path.isfile(MAPILLARY_CONFIG_PATH):
         global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
         if user_name in global_config_object.sections():

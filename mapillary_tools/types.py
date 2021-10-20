@@ -11,7 +11,7 @@ else:
 import jsonschema
 
 
-class User(TypedDict, total=False):
+class UserItem(TypedDict, total=False):
     MAPOrganizationKey: str
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
@@ -53,18 +53,15 @@ class MetaProperties(TypedDict, total=False):
     MAPOrientation: int
 
 
-class FinalImageDescription(_SequenceOnly, Image, MetaProperties):
+class ImageDescriptionEXIF(_SequenceOnly, Image, MetaProperties):
     pass
 
 
-ExifImageDescription = FinalImageDescription
-
-
-class ImageDescriptionJSON(FinalImageDescription):
+class ImageDescriptionFile(ImageDescriptionEXIF):
     filename: str
 
 
-class ImageDescriptionErrorObject(TypedDict, total=False):
+class ErrorObject(TypedDict, total=False):
     # type and message are required
     type: str
     message: str
@@ -72,8 +69,8 @@ class ImageDescriptionErrorObject(TypedDict, total=False):
     vars: T.Dict
 
 
-def describe_error(exc: Exception) -> ImageDescriptionErrorObject:
-    desc: ImageDescriptionErrorObject = {
+def describe_error(exc: Exception) -> ErrorObject:
+    desc: ErrorObject = {
         "type": exc.__class__.__name__,
         "message": str(exc),
     }
@@ -83,16 +80,12 @@ def describe_error(exc: Exception) -> ImageDescriptionErrorObject:
     return desc
 
 
-class FinalImageDescriptionError(TypedDict):
+class ImageDescriptionFileError(TypedDict):
     filename: str
-    error: ImageDescriptionErrorObject
+    error: ErrorObject
 
 
-FinalImageDescriptionOrError = T.Union[FinalImageDescriptionError, ImageDescriptionJSON]
-
-
-class FinalImageDescriptionFromGeoJSON(FinalImageDescription):
-    pass
+ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
 
 
 UserItemSchema = {
@@ -107,7 +100,7 @@ UserItemSchema = {
     "additionalProperties": False,
 }
 
-FinalImageDescriptionSchema = {
+ImageDescriptionEXIFSchema = {
     "type": "object",
     "properties": {
         "MAPLatitude": {
@@ -179,8 +172,8 @@ def merge_schema(*schemas: T.Dict):
     }
 
 
-ImageDescriptionJSONSchema = merge_schema(
-    FinalImageDescriptionSchema,
+ImageDescriptionFileSchema = merge_schema(
+    ImageDescriptionEXIFSchema,
     {
         "type": "object",
         "properties": {
@@ -196,7 +189,7 @@ ImageDescriptionJSONSchema = merge_schema(
 )
 
 
-def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionJSON]):
+def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionFile]):
     for desc in image_descs:
         validate_desc(desc)
         abspath = os.path.join(image_dir, desc["filename"])
@@ -204,38 +197,38 @@ def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionJSON]):
             raise RuntimeError(f"Image path {abspath} not found")
 
 
-def validate_desc(desc: ImageDescriptionJSON):
-    jsonschema.validate(instance=desc, schema=ImageDescriptionJSONSchema)
+def validate_desc(desc: ImageDescriptionFile):
+    jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
     except ValueError as exc:
         raise jsonschema.ValidationError(
-            str(exc), instance=desc, schema=ImageDescriptionJSONSchema
+            str(exc), instance=desc, schema=ImageDescriptionFileSchema
         )
 
 
-def is_error(desc: FinalImageDescriptionOrError) -> bool:
+def is_error(desc: ImageDescriptionFileOrError) -> bool:
     return "error" in desc
 
 
 def map_descs(
-    func: T.Callable[[ImageDescriptionJSON], FinalImageDescriptionOrError],
-    descs: T.List[FinalImageDescriptionOrError],
-) -> T.Iterator[FinalImageDescriptionOrError]:
-    def _f(desc: FinalImageDescriptionOrError) -> FinalImageDescriptionOrError:
+    func: T.Callable[[ImageDescriptionFile], ImageDescriptionFileOrError],
+    descs: T.List[ImageDescriptionFileOrError],
+) -> T.Iterator[ImageDescriptionFileOrError]:
+    def _f(desc: ImageDescriptionFileOrError) -> ImageDescriptionFileOrError:
         if is_error(desc):
             return desc
         else:
-            return func(T.cast(ImageDescriptionJSON, desc))
+            return func(T.cast(ImageDescriptionFile, desc))
 
     return map(_f, descs)
 
 
 def filter_out_errors(
-    descs: T.List[FinalImageDescriptionOrError],
-) -> T.List[ImageDescriptionJSON]:
+    descs: T.List[ImageDescriptionFileOrError],
+) -> T.List[ImageDescriptionFile]:
     return T.cast(
-        T.List[ImageDescriptionJSON], [desc for desc in descs if not is_error(desc)]
+        T.List[ImageDescriptionFile], [desc for desc in descs if not is_error(desc)]
     )
 
 
@@ -282,4 +275,4 @@ class GPXPointAngle(T.NamedTuple):
 if __name__ == "__main__":
     import json
 
-    print(json.dumps(ImageDescriptionJSONSchema, indent=4))
+    print(json.dumps(ImageDescriptionFileSchema, indent=4))

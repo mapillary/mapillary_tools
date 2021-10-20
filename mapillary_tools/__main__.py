@@ -120,6 +120,7 @@ def main():
     configure_logger(LOG, sys.stderr)
     LOG.setLevel(log_level)
     LOG.debug(f"argparse vars: {vars(args)}")
+    # FIXME: AttributeError: 'Namespace' object has no attribute 'func'
     args.func(vars(args))
 
 

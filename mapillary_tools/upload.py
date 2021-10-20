@@ -14,13 +14,13 @@ LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
 
 
-def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionJSON]:
+def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
         raise RuntimeError(
             f"Image description file {desc_path} not found. Please process the image directory first"
         )
 
-    descs: T.List[types.ImageDescriptionJSON] = []
+    descs: T.List[types.ImageDescriptionFile] = []
     if desc_path == "-":
         try:
             descs = json.load(sys.stdin)
@@ -33,7 +33,7 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionJSON
             except json.JSONDecodeError:
                 raise RuntimeError(f" Invalid JSON file {desc_path}")
     return types.filter_out_errors(
-        T.cast(T.List[types.FinalImageDescriptionOrError], descs)
+        T.cast(T.List[types.ImageDescriptionFileOrError], descs)
     )
 
 
@@ -60,7 +60,7 @@ def zip_images(
 
 def fetch_user_items(
     user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
-) -> types.User:
+) -> types.UserItem:
     if user_name is None:
         all_user_items = login.list_all_users()
         if not all_user_items:
@@ -84,7 +84,7 @@ def fetch_user_items(
         org = resp.json()
         LOG.info(f"Uploading to organization: {json.dumps(org)}")
         user_items = T.cast(
-            types.User, {**user_items, "MAPOrganizationKey": organization_key}
+            types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
         )
     return user_items
 
@@ -188,7 +188,7 @@ def _summarize(stats: T.List[_Stats]) -> T.Dict:
     return upload_summary
 
 
-def _api_logging_finished(user_items: types.User, payload: T.Dict):
+def _api_logging_finished(user_items: types.UserItem, payload: T.Dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -210,7 +210,7 @@ def _api_logging_finished(user_items: types.User, payload: T.Dict):
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _api_logging_failed(user_items: types.User, payload: T.Dict, exc: Exception):
+def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Exception):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 

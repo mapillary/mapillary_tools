@@ -34,7 +34,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         self.offset_time = offset_time
         super().__init__()
 
-    def to_description(self) -> T.List[types.FinalImageDescriptionOrError]:
+    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs = []
 
         images = image_log.get_total_file_list(self.image_dir)
