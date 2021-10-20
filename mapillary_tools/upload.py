@@ -11,9 +11,7 @@ from tqdm import tqdm
 from . import uploader, types, login, api_v4, ipc
 
 LOG = logging.getLogger(__name__)
-MAPILLARY_DISABLE_API_LOGGING = os.getenv(
-    "MAPILLARY_DISABLE_API_LOGGING", "FIXME_NOT_READY_SO_DISABLED"
-)
+MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
 
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionJSON]:
