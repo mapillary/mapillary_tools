@@ -1,4 +1,3 @@
-import os
 import datetime
 import sys
 import typing as T
@@ -12,7 +11,7 @@ import jsonschema
 
 
 class UserItem(TypedDict, total=False):
-    MAPOrganizationKey: str
+    MAPOrganizationKey: int
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
     user_upload_token: str
@@ -57,8 +56,10 @@ class ImageDescriptionEXIF(_SequenceOnly, Image, MetaProperties):
     pass
 
 
-class ImageDescriptionFile(ImageDescriptionEXIF):
+class ImageDescriptionFile(ImageDescriptionEXIF, total=False):
+    # filename is required
     filename: str
+    md5sum: str
 
 
 class ErrorObject(TypedDict, total=False):
@@ -91,12 +92,12 @@ ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptio
 UserItemSchema = {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {"type": "string"},
+        "MAPOrganizationKey": {"type": "integer"},
         "MAPSettingsUsername": {"type": "string"},
         "MAPSettingsUserKey": {"type": "string"},
         "user_upload_token": {"type": "string"},
     },
-    "required": ["MAPSettingsUserKey", "user_upload_token"],
+    "required": ["user_upload_token"],
     "additionalProperties": False,
 }
 
@@ -181,20 +182,17 @@ ImageDescriptionFileSchema = merge_schema(
                 "type": "string",
                 "description": "The image file's path relative to the image directory",
             },
+            # FIXME: use pattern
+            "md5sum": {
+                "type": "string",
+                "description": "The image MD5 hash value in hexadecimal digits",
+            },
         },
         "required": [
             "filename",
         ],
     },
 )
-
-
-def validate_descs(image_dir: str, image_descs: T.List[ImageDescriptionFile]):
-    for desc in image_descs:
-        validate_desc(desc)
-        abspath = os.path.join(image_dir, desc["filename"])
-        if not os.path.isfile(abspath):
-            raise RuntimeError(f"Image path {abspath} not found")
 
 
 def validate_desc(desc: ImageDescriptionFile):

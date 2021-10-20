@@ -46,7 +46,7 @@ class UploadService:
         user_access_token: str,
         session_key: str,
         entity_size: int,
-        organization_id: str = None,
+        organization_id: int = None,
         file_type: FileType = "zip",
     ):
         if entity_size <= 0:
@@ -164,8 +164,6 @@ class UploadService:
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
-    upload_path = os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
-
     def upload(
         self,
         data: T.IO[bytes],
@@ -174,8 +172,9 @@ class FakeUploadService(UploadService):
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
-        os.makedirs(FakeUploadService.upload_path, exist_ok=True)
-        filename = os.path.join(FakeUploadService.upload_path, self.session_key)
+        upload_path = os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
+        os.makedirs(upload_path, exist_ok=True)
+        filename = os.path.join(upload_path, self.session_key)
         with open(filename, "ab") as fp:
             data.seek(offset, io.SEEK_CUR)
             while True:

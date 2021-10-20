@@ -10,7 +10,7 @@ import exifread
 
 EXECUTABLE = os.getenv("MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools")
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
-USERNAME = "test_username"
+USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
 CONFIG_CONTENT = f"""
 [{USERNAME}]
 MAPSettingsUsername = {USERNAME}
@@ -635,5 +635,7 @@ def test_upload_mp4(
     )
     assert x.returncode == 0, x.stderr
     assert 1 == len(upload_dir.listdir())
-    assert {"sample-5s.mp4"} == {os.path.basename(f) for f in upload_dir.listdir()}
+    assert {"mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4"} == {
+        os.path.basename(f) for f in upload_dir.listdir()
+    }
     assert {md5} == {file_md5sum(f) for f in upload_dir.listdir()}
