@@ -53,7 +53,7 @@ class MetaProperties(TypedDict, total=False):
     MAPOrientation: int
 
 
-class FinalImageDescription(_SequenceOnly, User, Image, MetaProperties):
+class FinalImageDescription(_SequenceOnly, Image, MetaProperties):
     pass
 
 
@@ -110,15 +110,6 @@ UserItemSchema = {
 FinalImageDescriptionSchema = {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {
-            "type": "string",
-            "description": "Organization ID. Upload for which organization",
-        },
-        "MAPSettingsUsername": {"type": "string"},
-        "MAPSettingsUserKey": {
-            "type": "string",
-            "description": "User ID. Upload to which Mapillary user",
-        },
         "MAPLatitude": {
             "type": "number",
             "description": "Latitude of the image",
