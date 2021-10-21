@@ -1,14 +1,14 @@
-import datetime
 import os
 import sys
 import typing as T
 import json
 import logging
+import time
 
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc, utils
+from . import uploader, types, login, api_v4, ipc
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -130,9 +130,9 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
 
 class _Stats(uploader.Progress):
-    upload_start_time: datetime.datetime
-    upload_end_time: datetime.datetime
-    upload_last_restart_time: datetime.datetime
+    upload_start_time: float
+    upload_end_time: float
+    upload_last_restart_time: float
     upload_total_time: float
 
 
@@ -141,25 +141,24 @@ def _setup_stats(emitter: uploader.EventEmitter):
 
     @emitter.on("upload_start")
     def collect_start_time(payload: _Stats) -> None:
-        payload["upload_start_time"] = datetime.datetime.utcnow()
+        payload["upload_start_time"] = time.time()
         payload["upload_total_time"] = 0
 
     @emitter.on("upload_fetch_offset")
     def collect_restart_time(payload: _Stats) -> None:
-        payload["upload_last_restart_time"] = datetime.datetime.utcnow()
+        payload["upload_last_restart_time"] = time.time()
 
     @emitter.on("upload_interrupted")
     def collect_interrupted(payload: _Stats):
         payload["upload_total_time"] += (
-            datetime.datetime.utcnow() - payload["upload_last_restart_time"]
-        ).total_seconds()
+            time.time() - payload["upload_last_restart_time"]
+        )
 
     @emitter.on("upload_end")
     def collect_end_time(payload: _Stats) -> None:
-        payload["upload_end_time"] = datetime.datetime.utcnow()
-        payload["upload_total_time"] += (
-            datetime.datetime.utcnow() - payload["upload_last_restart_time"]
-        ).total_seconds()
+        now = time.time()
+        payload["upload_end_time"] = now
+        payload["upload_total_time"] += now - payload["upload_last_restart_time"]
         all_stats.append(payload)
 
     return all_stats
