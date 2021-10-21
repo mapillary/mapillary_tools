@@ -8,16 +8,15 @@ LOG = logging.getLogger(__name__)
 NODE_CHANNEL_FD = int(os.getenv("NODE_CHANNEL_FD", -1))
 
 
-if NODE_CHANNEL_FD == -1:
+def _write(obj):
+    # put here to make sure obj is JSON-serializable, and if not, fail early
+    data = json.dumps(obj, separators=(",", ":")) + os.linesep
 
-    def __write(obj):
-        pass
+    if NODE_CHANNEL_FD == -1:
+        # do nothing
+        return
 
-
-elif os.name == "nt":
-
-    def __write(obj):
-        data = json.dumps(obj, separators=(",", ":")) + os.linesep
+    if os.name == "nt":
         buf = data.encode("utf-8")
         # On windows, using node v8.11.4, this assertion fails
         # without sending the header
@@ -26,12 +25,7 @@ elif os.name == "nt":
         # file src\win\pipe.c, line 1607
         header = struct.pack("<Q", 1) + struct.pack("<Q", len(buf))
         os.write(NODE_CHANNEL_FD, header + buf)
-
-
-else:
-
-    def __write(obj):
-        data = json.dumps(obj, separators=(",", ":")) + os.linesep
+    else:
         os.write(NODE_CHANNEL_FD, data.encode("utf-8"))
 
 
@@ -41,6 +35,6 @@ def send(type, payload):
         "payload": payload,
     }
     try:
-        __write(obj)
+        _write(obj)
     except Exception:
         LOG.warning(f"IPC error sending: {obj}", exc_info=True)

@@ -1,14 +1,14 @@
-import datetime
 import os
 import sys
 import typing as T
 import json
 import logging
+import time
 
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc, utils
+from . import uploader, types, login, api_v4, ipc
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -130,10 +130,12 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
 
 class _Stats(uploader.Progress):
-    upload_start_time: datetime.datetime
-    upload_end_time: datetime.datetime
-    upload_last_restart_time: datetime.datetime
+    upload_start_time: float
+    upload_end_time: float
+    upload_last_restart_time: float
+    # does not include time waiting for retries
     upload_total_time: float
+    upload_first_offset: int
 
 
 def _setup_stats(emitter: uploader.EventEmitter):
@@ -141,25 +143,27 @@ def _setup_stats(emitter: uploader.EventEmitter):
 
     @emitter.on("upload_start")
     def collect_start_time(payload: _Stats) -> None:
-        payload["upload_start_time"] = datetime.datetime.utcnow()
+        payload["upload_start_time"] = time.time()
         payload["upload_total_time"] = 0
 
     @emitter.on("upload_fetch_offset")
     def collect_restart_time(payload: _Stats) -> None:
-        payload["upload_last_restart_time"] = datetime.datetime.utcnow()
+        payload["upload_last_restart_time"] = time.time()
+        payload["upload_first_offset"] = min(
+            payload["offset"], payload.get("upload_first_offset", payload["offset"])
+        )
 
     @emitter.on("upload_interrupted")
     def collect_interrupted(payload: _Stats):
         payload["upload_total_time"] += (
-            datetime.datetime.utcnow() - payload["upload_last_restart_time"]
-        ).total_seconds()
+            time.time() - payload["upload_last_restart_time"]
+        )
 
     @emitter.on("upload_end")
     def collect_end_time(payload: _Stats) -> None:
-        payload["upload_end_time"] = datetime.datetime.utcnow()
-        payload["upload_total_time"] += (
-            datetime.datetime.utcnow() - payload["upload_last_restart_time"]
-        ).total_seconds()
+        now = time.time()
+        payload["upload_end_time"] = now
+        payload["upload_total_time"] += now - payload["upload_last_restart_time"]
         all_stats.append(payload)
 
     return all_stats
@@ -170,17 +174,26 @@ def _summarize(stats: T.List[_Stats]) -> T.Dict:
     total_sequence_count = len(stats)
     if stats:
         assert total_sequence_count == stats[0]["total_sequence_count"], stats
-    total_entity_size = sum(s["entity_size"] for s in stats)
-    total_entity_size_mb = total_entity_size / (1024 * 1024)
+
+    total_uploaded_size = sum(
+        s["entity_size"] - s["upload_first_offset"] for s in stats
+    )
+    total_uploaded_size_mb = total_uploaded_size / (1024 * 1024)
+
     total_upload_time = sum(s["upload_total_time"] for s in stats)
     try:
-        speed = total_entity_size_mb / total_upload_time
+        speed = total_uploaded_size_mb / total_upload_time
     except ZeroDivisionError:
         speed = 0
+
+    total_entity_size = sum(s["entity_size"] for s in stats)
+    total_entity_size_mb = total_entity_size / (1024 * 1024)
+
     upload_summary = {
         "images": total_image_count,
         "sequences": total_sequence_count,
         "size": round(total_entity_size_mb, 4),
+        "uploaded_size": round(total_uploaded_size_mb, 4),
         "speed": round(speed, 4),
         "time": round(total_upload_time, 4),
     }
@@ -262,19 +275,17 @@ def upload(
     if os.path.isfile(import_path):
         _, ext = os.path.splitext(import_path)
         user_items = fetch_user_items(user_name, organization_key)
-        mly_uploader = cluster_id = uploader.Uploader(
-            user_items, emitter=emitter, dry_run=dry_run
-        )
+        mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         if ext.lower() in [".zip"]:
             try:
-                mly_uploader.upload_zipfile(import_path)
+                cluster_id = mly_uploader.upload_zipfile(import_path)
             except Exception as exc:
                 if not dry_run:
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         elif ext.lower() in [".mp4"]:
             try:
-                mly_uploader.upload_blackvue(import_path)
+                cluster_id = mly_uploader.upload_blackvue(import_path)
             except Exception as exc:
                 if not dry_run:
                     _api_logging_failed(user_items, _summarize(stats), exc)
