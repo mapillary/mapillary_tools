@@ -12,11 +12,12 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
     - [Process](#process)
     - [Upload](#upload)
     - [Video Process](#video-process)
-    - [Aliases](#aliases)
     - [Authenticate](#authenticate)
+    - [Aliases](#aliases)
 * [Advanced Usage](#advanced-usage)
     - [Image Description](#image-description)
     - [Zip Images](#zip-images)
+    - [Upload API](#upload-api)
 * [Troubleshooting](#troubleshooting)
 * [Development](#development)
 
@@ -209,13 +210,29 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
 
 **BlackVue videos**: Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.2 seconds, i.e. 5 frames
 every second and process resulting video frames for user `mapillary_user`, reading geotag data from the BlackVue videos
-in `path/to/videos/` and specifying camera make and model.
+in `path/to/videos/`.
 
 ```shell
 mapillary_tools video_process "path/to/videos/" \
-    --geotag_source "blackvue_videos" \
-    --device_make "Blackvue" \
-    --device_model "DR900S-2CH"
+    --geotag_source "blackvue_videos"
+```
+
+### Authenticate
+
+The command `authenticate` will update the user credentials stored in the config file.
+
+#### Examples
+
+Authenticate new user:
+
+```shell
+mapillary_tools authenticate
+```
+
+Authenticate for user `mly_user`. If the user is already authenticated, it will update the credentials in the config:
+
+```shell
+mapillary_tools authenticate --user_name "mly_user"
 ```
 
 ### Aliases
@@ -248,24 +265,6 @@ required and optional arguments. It is equivalent to:
 ```shell
 mapillary_tools sample_video "path/to/videos/" "path/to/videos/mapillary_sampled_video_frames/"
 mapillary_tools process_and_upload "path/to/videos/mapillary_sampled_video_frames/"
-```
-
-### Authenticate
-
-The command `authenticate` will update the user credentials stored in the config file.
-
-#### Examples
-
-Authenticate new user:
-
-```shell
-mapillary_tools authenticate
-```
-
-Authenticate for user `mly_user`. If the user is already authenticated, it will update the credentials in the config:
-
-```shell
-mapillary_tools authenticate --user_name "mly_user"
 ```
 
 ## Advanced Usage
@@ -370,6 +369,70 @@ for zipfile in path/to/zipped_images/*.zip; do
     rm "$zipfile"
 done
 ```
+
+### Upload API
+
+`mapillary_tools` provides a simple Upload API interface:
+
+```python
+class Uploader:
+    def __init__(self, user_items: UserItem, emitter: EventEmitter = None, dry_run=False): ...
+
+    def upload_zipfile(self, zip_path: str) -> int: ...
+
+    def upload_blackvue(self, blackvue_path: str) -> int: ...
+
+    def upload_images(self, descs: List[ImageDescriptionFile]) -> Dict[str, int]: ...
+```
+
+#### Examples
+
+```python
+import os
+from mapillary_tools import uploader
+
+# To obtain your user access token, check https://www.mapillary.com/developer/api-documentation/#authentication
+user_item = {
+    "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
+    "MAPOrganizationKEY": 1234,
+}
+mly_uploader = uploader.Uploader(user_item)
+
+descs = [
+    {
+        "MAPLatitude": 58.5927694,
+        "MAPLongitude": 16.1840944,
+        "MAPCaptureTime": "2021_02_13_13_24_41_140",
+        "filename": "path/to/IMG_0291.jpg",
+        "MAPSequenceUUID": "sequence_1",
+    },
+    {
+        "MAPLatitude": 58.5927694,
+        "MAPLongitude": 16.1840944,
+        "MAPCaptureTime": "2021_02_13_13_24_41_140",
+        "filename": "path/to/IMG_0292.jpg",
+        "MAPSequenceUUID": "sequence_2",
+    },
+]
+
+# upload images as 2 sequences
+mly_uploader.upload_images(descs)
+
+# zip images
+uploader.zip_images(descs, "path/to/zip_dir")
+
+# upload zip files
+for zip_path in os.listdir("path/to/zip_dir"):
+    if zip_path.endswith(".zip"):
+        mly_uploader.upload_zipfile(zip_path)
+
+# upload blackvue videos directly
+mly_uploader.upload_blackvue("path/to/blackvue.mp4")
+```
+
+See more examples in
+the [unit tests](https://github.com/mapillary/mapillary_tools/blob/main/tests/unit/test_uploader.py) or the upload
+command [implementation](https://github.com/mapillary/mapillary_tools/blob/main/mapillary_tools/upload.py).
 
 ## Troubleshooting
 
