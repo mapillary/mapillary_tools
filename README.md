@@ -394,7 +394,7 @@ from mapillary_tools import uploader
 # To obtain your user access token, check https://www.mapillary.com/developer/api-documentation/#authentication
 user_item = {
     "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
-    "MAPOrganizationKEY": 1234,
+    "MAPOrganizationKey": 1234,
 }
 mly_uploader = uploader.Uploader(user_item)
 
