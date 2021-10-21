@@ -163,8 +163,18 @@ class UploadService:
         return T.cast(int, cluster_id)
 
 
+import random
+
+
 # A mock class for testing only
 class FakeUploadService(UploadService):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._upload_path = os.getenv(
+            "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
+        )
+        self._error_ratio = 0.2
+
     def upload(
         self,
         data: T.IO[bytes],
@@ -173,16 +183,25 @@ class FakeUploadService(UploadService):
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
-        upload_path = os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
-        os.makedirs(upload_path, exist_ok=True)
-        filename = os.path.join(upload_path, self.session_key)
+        os.makedirs(self._upload_path, exist_ok=True)
+        filename = os.path.join(self._upload_path, self.session_key)
         with open(filename, "ab") as fp:
             data.seek(offset, io.SEEK_CUR)
             while True:
                 chunk = data.read(chunk_size)
                 if not chunk:
                     break
+                # fail here means nothing uploaded
+                if random.random() <= self._error_ratio:
+                    raise requests.ConnectionError(
+                        f"TEST ONLY: Failed to upload with error ratio {self._error_ratio}"
+                    )
                 fp.write(chunk)
+                # fail here means patially uploaded
+                if random.random() <= self._error_ratio:
+                    raise requests.ConnectionError(
+                        f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
+                    )
                 for callback in self.callbacks:
                     callback(chunk, None)
         return self.session_key
@@ -191,12 +210,12 @@ class FakeUploadService(UploadService):
         return 0
 
     def fetch_offset(self) -> int:
-        try:
-            with open(self.session_key, "rb") as fp:
-                fp.seek(0, io.SEEK_END)
-                return fp.tell()
-        except FileNotFoundError:
+        filename = os.path.join(self._upload_path, self.session_key)
+        if not os.path.exists(filename):
             return 0
+        with open(filename, "rb") as fp:
+            fp.seek(0, io.SEEK_END)
+            return fp.tell()
 
 
 def _file_stats(fp: T.IO[bytes]):

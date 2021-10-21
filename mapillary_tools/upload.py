@@ -42,7 +42,6 @@ def zip_images(
     zip_dir: str,
     desc_path: T.Optional[str] = None,
 ):
-    # basic check for all
     if not os.path.isdir(import_path):
         raise RuntimeError(f"Error, import directory {import_path} does not exist")
 
