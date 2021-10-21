@@ -36,7 +36,7 @@ class Progress(types.TypedDict, total=False):
     chunk_size: int
     # how many bytes has been uploaded
     offset: int
-    # size of the zip
+    # size of the zip/mp4
     entity_size: int
     # how many images in total
     total_image_count: int
@@ -47,6 +47,7 @@ class Progress(types.TypedDict, total=False):
     # how many images in the sequence
     sequence_image_count: int
     sequence_uuid: str
+    # reset to 0 if after a chunk is uploaded
     retries: int
 
 
@@ -166,7 +167,12 @@ def _zip_sequence(
 ) -> str:
     descs = list(sequence.values())
     utils.update_image_md5sum(descs)
-    descs.sort(key=lambda desc: (desc["MAPCaptureTime"], desc["md5sum"]))
+    descs.sort(
+        key=lambda desc: (
+            types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
+            desc["md5sum"],
+        )
+    )
     sequence_md5sum = utils.calculate_sequence_md5sum(descs)
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
