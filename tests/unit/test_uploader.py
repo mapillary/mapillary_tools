@@ -34,8 +34,8 @@ def _validate_zip_dir(zip_dir: py.path.local):
             sequence_md5sum = json.loads(fp.comment.decode("utf-8")).get(
                 "mly_sequence_md5sum"
             )
-            _validate_and_extract_zip(str(zip_path))
         assert str(os.path.basename(zip_path)) == f"mly_tools_{sequence_md5sum}.zip"
+        _validate_and_extract_zip(str(zip_path))
 
 
 def test_upload_images(tmpdir: py.path.local):
@@ -92,7 +92,7 @@ def test_upload_images_multiple_sequences(tmpdir: py.path.local):
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
             # will call the API for real
-            # "MAPOrganizationKey": 3011753992432185,
+            # "MAPOrganizationKey": "3011753992432185",
         },
         dry_run=True,
     )
@@ -137,7 +137,8 @@ def test_upload_zip(tmpdir: py.path.local, emitter=None):
     mly_uploader = uploader.Uploader(
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
-            "MAPOrganizationKey": 3011753992432185,
+            # will call the API for real
+            # "MAPOrganizationKey": 3011753992432185,
         },
         dry_run=True,
         emitter=emitter,
@@ -154,7 +155,7 @@ def test_upload_blackvue(tmpdir: py.path.local):
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
             # will call the API for real
-            # "MAPOrganizationKey": 3011753992432185,
+            # "MAPOrganizationKey": "3011753992432185",
         },
         dry_run=True,
     )
@@ -178,27 +179,29 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local):
 
     @emitter.on("upload_start")
     def _upload_start(payload):
-        assert payload["sequence_uuid"] not in stats
         assert payload["entity_size"] > 0
-        assert "offset" not in stats
-        stats[payload["sequence_uuid"]] = {**payload}
+        assert "offset" not in payload
         assert "test_started" not in payload
         payload["test_started"] = True
 
+        assert payload["sequence_uuid"] not in stats
+        stats[payload["sequence_uuid"]] = {**payload}
+
     @emitter.on("upload_fetch_offset")
     def _fetch_offset(payload):
-        assert payload["sequence_uuid"] in stats
-        assert payload["offset"] == 0
+        assert payload["offset"] >= 0
         assert payload["test_started"]
-        assert "test_fetch_offset" not in payload
         payload["test_fetch_offset"] = True
+
+        assert payload["sequence_uuid"] in stats
 
     @emitter.on("upload_end")
     def _upload_end(payload):
-        assert payload["sequence_uuid"] in stats
         assert payload["offset"] > 0
         assert payload["test_started"]
         assert payload["test_fetch_offset"]
+
+        assert payload["sequence_uuid"] in stats
 
     test_upload_zip(tmpdir, emitter=emitter)
 

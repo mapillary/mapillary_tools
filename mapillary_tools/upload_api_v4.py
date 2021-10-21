@@ -40,13 +40,14 @@ class UploadService:
     session_key: str
     callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
     file_type: FileType
+    organization_id: T.Optional[T.Union[str, int]]
 
     def __init__(
         self,
         user_access_token: str,
         session_key: str,
         entity_size: int,
-        organization_id: int = None,
+        organization_id: T.Optional[T.Union[str, int]] = None,
         file_type: FileType = "zip",
     ):
         if entity_size <= 0:
@@ -122,7 +123,7 @@ class UploadService:
 
         assert (
             offset == self.entity_size
-        ), f"offset ends at {offset} but the entity size is {self.entity_size}"
+        ), f"Offset ends at {offset} but the entity size is {self.entity_size}"
 
         payload = resp.json()
         try:

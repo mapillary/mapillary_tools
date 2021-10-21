@@ -11,7 +11,7 @@ import jsonschema
 
 
 class UserItem(TypedDict, total=False):
-    MAPOrganizationKey: int
+    MAPOrganizationKey: T.Union[int, str]
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
     user_upload_token: str
@@ -92,7 +92,7 @@ ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptio
 UserItemSchema = {
     "type": "object",
     "properties": {
-        "MAPOrganizationKey": {"type": "integer"},
+        "MAPOrganizationKey": {"type": ["integer", "string"]},
         "MAPSettingsUsername": {"type": "string"},
         "MAPSettingsUserKey": {"type": "string"},
         "user_upload_token": {"type": "string"},
