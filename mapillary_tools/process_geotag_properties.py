@@ -7,7 +7,7 @@ import datetime
 import jsonschema
 import piexif
 
-from . import image_log, types, error
+from . import image_log, types, error, uploader
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
 from .geotag import (
@@ -194,7 +194,7 @@ def verify_exif_write(
     image_path = os.path.join(import_path, desc["filename"])
     with open(image_path, "rb") as fp:
         edit = ExifEdit(fp.read())
-    edit.add_image_description(desc)
+    edit.add_image_description(uploader.desc_file_to_exif(desc))
     try:
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:
@@ -279,5 +279,6 @@ def insert_MAPJson(
             raise RuntimeError(
                 f"Failed to process {summary['failed_images']} images. Check {desc_path} for details. Specify --skip_process_errors to skip these errors"
             )
+
     # FIXME: check stdin for details
     LOG.info(f"Check {desc_path} for details")

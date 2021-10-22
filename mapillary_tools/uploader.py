@@ -103,10 +103,15 @@ class Uploader:
         )
 
 
-def _remove_non_exif_desc(
+def desc_file_to_exif(
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionEXIF:
-    removed = {key: value for key, value in desc.items() if key.startswith("MAP")}
+    not_needed = ["MAPPhotoUUID", "MAPSequenceUUID"]
+    removed = {
+        key: value
+        for key, value in desc.items()
+        if key.startswith("MAP") and key not in not_needed
+    }
     return T.cast(types.ImageDescriptionEXIF, removed)
 
 
@@ -173,7 +178,7 @@ def _zip_sequence(
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
             edit = exif_write.ExifEdit(desc["filename"])
-            exif_desc = _remove_non_exif_desc(desc)
+            exif_desc = desc_file_to_exif(desc)
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             ziph.writestr(os.path.basename(desc["filename"]), image_bytes)
