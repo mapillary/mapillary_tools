@@ -156,8 +156,9 @@ def zip_images(
             zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
-            sequence_md5sum = _zip_sequence(sequence, fp)
-        zip_filename = os.path.join(zip_dir, f"mly_tools_{sequence_md5sum}.zip")
+            _zip_sequence(sequence, fp)
+        upload_md5sum = utils.file_md5sum(zip_filename_wip)
+        zip_filename = os.path.join(zip_dir, f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 
@@ -187,23 +188,6 @@ def _zip_sequence(
     return sequence_md5sum
 
 
-def _calculate_zipfile_md5sum(zip_path: str, zip_comment: bytes = None) -> str:
-    sequence_md5sum = None
-    if zip_comment:
-        try:
-            zip_payload = json.loads(zip_comment.decode("utf-8"))
-        except Exception:
-            pass
-        else:
-            if isinstance(zip_payload, dict):
-                sequence_md5sum = zip_payload.get("mly_sequence_md5sum")
-
-    if not sequence_md5sum:
-        sequence_md5sum = utils.file_md5sum(zip_path)
-
-    return sequence_md5sum
-
-
 def upload_zipfile(
     zip_path: str,
     user_items: types.UserItem,
@@ -212,14 +196,14 @@ def upload_zipfile(
 ) -> int:
     with zipfile.ZipFile(zip_path) as ziph:
         namelist = ziph.namelist()
-        comment = ziph.comment
-
-    sequence_md5sum = _calculate_zipfile_md5sum(zip_path, comment)
 
     if not namelist:
         raise RuntimeError(f"The zip file {zip_path} is empty")
 
     with open(zip_path, "rb") as fp:
+        assert fp.tell() == 0
+        upload_md5sum = utils.md5sum_fp(fp)
+
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
@@ -231,7 +215,7 @@ def upload_zipfile(
             upload_service: upload_api_v4.UploadService = (
                 upload_api_v4.FakeUploadService(
                     user_access_token=user_items["user_upload_token"],
-                    session_key=f"mly_tools_{sequence_md5sum}.zip",
+                    session_key=f"mly_tools_{upload_md5sum}.zip",
                     entity_size=entity_size,
                     organization_id=user_items.get("MAPOrganizationKey"),
                 )
@@ -239,7 +223,7 @@ def upload_zipfile(
         else:
             upload_service = upload_api_v4.UploadService(
                 user_access_token=user_items["user_upload_token"],
-                session_key=f"mly_tools_{sequence_md5sum}.zip",
+                session_key=f"mly_tools_{upload_md5sum}.zip",
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
             )
@@ -255,7 +239,7 @@ def upload_zipfile(
                     "total_sequence_count": 1,
                     "image_count": len(namelist),
                     "entity_size": entity_size,
-                    "sequence_uuid": sequence_md5sum,
+                    "sequence_uuid": upload_md5sum,
                 },
             ),
             emitter=emitter,
@@ -269,7 +253,7 @@ def upload_blackvue(
     dry_run=False,
 ) -> int:
     with open(blackvue_path, "rb") as fp:
-        sequence_md5sum = utils.md5sum_fp(fp)
+        upload_md5sum = utils.md5sum_fp(fp)
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -282,7 +266,7 @@ def upload_blackvue(
             upload_service: upload_api_v4.UploadService = (
                 upload_api_v4.FakeUploadService(
                     user_access_token=user_items["user_upload_token"],
-                    session_key=f"mly_tools_{sequence_md5sum}.mp4",
+                    session_key=f"mly_tools_{upload_md5sum}.mp4",
                     entity_size=entity_size,
                     organization_id=user_items.get("MAPOrganizationKey"),
                     file_type="mly_blackvue_video",
@@ -291,7 +275,7 @@ def upload_blackvue(
         else:
             upload_service = upload_api_v4.UploadService(
                 user_access_token=user_items["user_upload_token"],
-                session_key=f"mly_tools_{sequence_md5sum}.mp4",
+                session_key=f"mly_tools_{upload_md5sum}.mp4",
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
                 file_type="mly_blackvue_video",
@@ -307,7 +291,7 @@ def upload_blackvue(
                     "sequence_idx": 0,
                     "total_sequence_count": 1,
                     "entity_size": entity_size,
-                    "sequence_uuid": sequence_md5sum,
+                    "sequence_uuid": upload_md5sum,
                 },
             ),
             emitter=emitter,
@@ -420,7 +404,10 @@ def _zip_and_upload_single_sequence(
     sequence_uuid = first_desc.get("MAPSequenceUUID")
 
     with tempfile.NamedTemporaryFile() as fp:
-        sequence_md5sum = _zip_sequence(sequence, fp)
+        _zip_sequence(sequence, fp)
+
+        fp.seek(0, io.SEEK_SET)
+        upload_md5sum = utils.md5sum_fp(fp)
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -433,7 +420,7 @@ def _zip_and_upload_single_sequence(
             upload_service: upload_api_v4.UploadService = (
                 upload_api_v4.FakeUploadService(
                     user_items["user_upload_token"],
-                    session_key=f"mly_tools_{sequence_md5sum}.zip",
+                    session_key=f"mly_tools_{upload_md5sum}.zip",
                     entity_size=entity_size,
                     organization_id=user_items.get("MAPOrganizationKey"),
                 )
@@ -441,7 +428,7 @@ def _zip_and_upload_single_sequence(
         else:
             upload_service = upload_api_v4.UploadService(
                 user_items["user_upload_token"],
-                session_key=f"mly_tools_{sequence_md5sum}.zip",
+                session_key=f"mly_tools_{upload_md5sum}.zip",
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
             )
