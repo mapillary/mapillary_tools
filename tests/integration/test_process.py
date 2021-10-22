@@ -121,6 +121,43 @@ def test_upload_image_dir(
     assert x.returncode == 0, x.stderr
 
 
+def test_upload_image_dir_twice(
+    tmpdir: py.path.local, setup_config: py.path.local, setup_data: py.path.local
+):
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
+    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
+    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
+    x = subprocess.run(
+        f"{EXECUTABLE} process {setup_data}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+
+    md5sum_map = {}
+
+    # first upload
+    x = subprocess.run(
+        f"{EXECUTABLE} upload {setup_data} --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    for file in upload_dir.listdir():
+        validate_and_extract_zip(str(file))
+        md5sum_map[os.path.basename(file)] = file_md5sum(file)
+
+    # expect the second upload to not produce new uploads
+    x = subprocess.run(
+        f"{EXECUTABLE} upload {setup_data} --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    for file in upload_dir.listdir():
+        validate_and_extract_zip(str(file))
+        new_md5sum = file_md5sum(file)
+        assert md5sum_map[os.path.basename(file)] == new_md5sum
+    assert len(md5sum_map) == len(upload_dir.listdir())
+
+
 def test_upload_zip(
     tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
 ):

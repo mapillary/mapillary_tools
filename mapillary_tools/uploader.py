@@ -173,7 +173,10 @@ def _zip_sequence(
 ) -> None:
     descs = list(sequence.values())
     descs.sort(
-        key=lambda desc: types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+        key=lambda desc: (
+            types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
+            desc["filename"],
+        )
     )
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
@@ -181,7 +184,11 @@ def _zip_sequence(
             exif_desc = desc_file_to_exif(desc)
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
-            ziph.writestr(os.path.basename(desc["filename"]), image_bytes)
+            # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
+            # we use md5 as the name, and an constant as the modification time
+            arcname = f"{utils.md5sum_bytes(image_bytes)}.jpg"
+            zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+            ziph.writestr(zipinfo, image_bytes)
 
 
 def upload_zipfile(
