@@ -183,8 +183,8 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local):
         assert "test_started" not in payload
         payload["test_started"] = True
 
-        assert payload["sequence_uuid"] not in stats
-        stats[payload["sequence_uuid"]] = {**payload}
+        assert payload["md5sum"] not in stats
+        stats[payload["md5sum"]] = {**payload}
 
     @emitter.on("upload_fetch_offset")
     def _fetch_offset(payload):
@@ -192,7 +192,7 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local):
         assert payload["test_started"]
         payload["test_fetch_offset"] = True
 
-        assert payload["sequence_uuid"] in stats
+        assert payload["md5sum"] in stats
 
     @emitter.on("upload_end")
     def _upload_end(payload):
@@ -200,7 +200,7 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local):
         assert payload["test_started"]
         assert payload["test_fetch_offset"]
 
-        assert payload["sequence_uuid"] in stats
+        assert payload["md5sum"] in stats
 
     test_upload_zip(tmpdir, emitter=emitter)
 

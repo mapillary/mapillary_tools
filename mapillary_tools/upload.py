@@ -5,6 +5,11 @@ import json
 import logging
 import time
 
+if sys.version_info >= (3, 8):
+    from typing import Literal  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal
+
 import requests
 from tqdm import tqdm
 
@@ -88,11 +93,16 @@ def fetch_user_items(
     return user_items
 
 
+EventName = Literal[
+    "upload_start", "upload_fetch_offset", "upload_progress", "upload_end"
+]
+
+
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
     upload_pbar: T.Optional[tqdm] = None
 
     @emitter.on("upload_fetch_offset")
-    def upload_start(payload: uploader.Progress) -> None:
+    def upload_fetch_offset(payload: uploader.Progress) -> None:
         nonlocal upload_pbar
 
         if upload_pbar is not None:
@@ -111,14 +121,9 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         )
 
     @emitter.on("upload_progress")
-    def upload_progress(stats: uploader.Progress) -> None:
+    def upload_progress(payload: uploader.Progress) -> None:
         assert upload_pbar is not None, "progress_bar must be initialized"
-        upload_pbar.update(stats["chunk_size"])
-
-    @emitter.on("upload_progress")
-    def upload_ipc_send(payload: uploader.Progress):
-        LOG.debug(f"Sending upload progress via IPC: {payload}")
-        ipc.send("upload", payload)
+        upload_pbar.update(payload["chunk_size"])
 
     @emitter.on("upload_end")
     def upload_end(cluster_id: int) -> None:
@@ -128,38 +133,72 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         upload_pbar = None
 
 
-class _Stats(uploader.Progress):
+def _setup_ipc(emitter: uploader.EventEmitter):
+    @emitter.on("upload_start")
+    def upload_start(payload: uploader.Progress):
+        type: EventName = "upload_start"
+        LOG.debug(f"Sending {type} via IPC: {payload}")
+        ipc.send(type, payload)
+
+    @emitter.on("upload_fetch_offset")
+    def upload_fetch_offset(payload: uploader.Progress) -> None:
+        type: EventName = "upload_fetch_offset"
+        LOG.debug(f"Sending {type} via IPC: {payload}")
+        ipc.send(type, payload)
+
+    @emitter.on("upload_progress")
+    def upload_progress(payload: uploader.Progress):
+        type: EventName = "upload_progress"
+        LOG.debug(f"Sending {type} via IPC: {payload}")
+        ipc.send(type, payload)
+
+    @emitter.on("upload_end")
+    def upload_end(payload: uploader.Progress) -> None:
+        type: EventName = "upload_end"
+        LOG.debug(f"Sending {type} via IPC: {payload}")
+        ipc.send(type, payload)
+
+
+class _APIStats(uploader.Progress):
+    # timestamp on upload_start
     upload_start_time: float
+
+    # timestamp on upload_end
     upload_end_time: float
+
+    # timestamp on upload_fetch_offset
     upload_last_restart_time: float
-    # does not include time waiting for retries
+
+    # total time without time waiting for retries
     upload_total_time: float
+
+    # first offset (used to calculate the total uploaded size)
     upload_first_offset: int
 
 
-def _setup_stats(emitter: uploader.EventEmitter):
-    all_stats: T.List[_Stats] = []
+def _setup_api_stats(emitter: uploader.EventEmitter):
+    all_stats: T.List[_APIStats] = []
 
     @emitter.on("upload_start")
-    def collect_start_time(payload: _Stats) -> None:
+    def collect_start_time(payload: _APIStats) -> None:
         payload["upload_start_time"] = time.time()
         payload["upload_total_time"] = 0
 
     @emitter.on("upload_fetch_offset")
-    def collect_restart_time(payload: _Stats) -> None:
+    def collect_restart_time(payload: _APIStats) -> None:
         payload["upload_last_restart_time"] = time.time()
         payload["upload_first_offset"] = min(
             payload["offset"], payload.get("upload_first_offset", payload["offset"])
         )
 
     @emitter.on("upload_interrupted")
-    def collect_interrupted(payload: _Stats):
+    def collect_interrupted(payload: _APIStats):
         payload["upload_total_time"] += (
             time.time() - payload["upload_last_restart_time"]
         )
 
     @emitter.on("upload_end")
-    def collect_end_time(payload: _Stats) -> None:
+    def collect_end_time(payload: _APIStats) -> None:
         now = time.time()
         payload["upload_end_time"] = now
         payload["upload_total_time"] += now - payload["upload_last_restart_time"]
@@ -168,7 +207,7 @@ def _setup_stats(emitter: uploader.EventEmitter):
     return all_stats
 
 
-def _summarize(stats: T.List[_Stats]) -> T.Dict:
+def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     total_image_count = sum(s.get("sequence_image_count", 0) for s in stats)
     total_sequence_count = len(stats)
     if stats:
@@ -266,10 +305,15 @@ def upload(
     dry_run=False,
 ):
     emitter = uploader.EventEmitter()
+
+    # setup order matters here
     _setup_tdqm(emitter)
 
     # now it is empty but it will collect during upload
-    stats = _setup_stats(emitter)
+    stats = _setup_api_stats(emitter)
+
+    # send the progress as well as the log stats collected above
+    _setup_ipc(emitter)
 
     if os.path.isfile(import_path):
         _, ext = os.path.splitext(import_path)

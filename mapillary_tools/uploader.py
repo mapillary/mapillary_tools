@@ -33,22 +33,32 @@ def _group_sequences_by_uuid(
 
 
 class Progress(types.TypedDict, total=False):
+    # The size of the chunk, in bytes, that has been uploaded in the last request
     chunk_size: int
-    # how many bytes has been uploaded
+
+    # How many bytes has been uploaded so far since "upload_start"
     offset: int
-    # size of the zip/mp4
+
+    # Size in bytes of the zipfile/BlackVue
     entity_size: int
-    # how many images in total
-    total_image_count: int
-    # how many sequences in total
+
+    # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue
     total_sequence_count: int
-    # 0-based nth sequence
+
+    # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue
     sequence_idx: int
-    # how many images in the sequence
+
+    # How many images in the sequence. It's available only when uploading directories/Zipfiles
     sequence_image_count: int
+
+    # MAPSequenceUUID. It is only available for directory uploading
     sequence_uuid: str
-    # reset to 0 if after a chunk is uploaded
+
+    # An "upload_interrupted" will increase it. Reset to 0 if if the chunk is uploaded
     retries: int
+
+    # md5sum of the zipfile/BlackVue in uploading
+    md5sum: str
 
 
 class EventEmitter:
@@ -72,17 +82,32 @@ class Uploader:
     def __init__(
         self, user_items: types.UserItem, emitter: EventEmitter = None, dry_run=False
     ):
+        jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
         self.user_items = user_items
         self.dry_run = dry_run
         self.emitter = emitter
 
     def upload_zipfile(self, zip_path: str) -> int:
-        return upload_zipfile(
-            zip_path,
-            self.user_items,
-            emitter=self.emitter,
-            dry_run=self.dry_run,
-        )
+        with zipfile.ZipFile(zip_path) as ziph:
+            namelist = ziph.namelist()
+
+        if not namelist:
+            raise RuntimeError(f"The zip file {zip_path} is empty")
+
+        event_payload: Progress = {
+            "sequence_idx": 0,
+            "total_sequence_count": 1,
+            "sequence_image_count": len(namelist),
+        }
+
+        with open(zip_path, "rb") as fp:
+            return _upload_zipfile_fp(
+                fp,
+                self.user_items,
+                event_payload=event_payload,
+                emitter=self.emitter,
+                dry_run=self.dry_run,
+            )
 
     def upload_blackvue(self, blackvue_path: str) -> int:
         return upload_blackvue(
@@ -95,12 +120,27 @@ class Uploader:
     def upload_images(
         self, descs: T.List[types.ImageDescriptionFile]
     ) -> T.Dict[str, int]:
-        return upload_images(
-            descs,
-            self.user_items,
-            emitter=self.emitter,
-            dry_run=self.dry_run,
-        )
+        _validate_descs(descs)
+        sequences = _group_sequences_by_uuid(descs)
+        ret: T.Dict[str, int] = {}
+        for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
+            event_payload: Progress = {
+                "sequence_idx": sequence_idx,
+                "total_sequence_count": len(sequences),
+                "sequence_image_count": len(images),
+                "sequence_uuid": sequence_uuid,
+            }
+            with tempfile.NamedTemporaryFile() as fp:
+                _zip_sequence_fp(images, fp)
+                cluster_id = _upload_zipfile_fp(
+                    fp,
+                    self.user_items,
+                    emitter=self.emitter,
+                    event_payload=event_payload,
+                    dry_run=self.dry_run,
+                )
+            ret[sequence_uuid] = cluster_id
+        return ret
 
 
 def desc_file_to_exif(
@@ -113,33 +153,6 @@ def desc_file_to_exif(
         if key.startswith("MAP") and key not in not_needed
     }
     return T.cast(types.ImageDescriptionEXIF, removed)
-
-
-def upload_images(
-    descs: T.List[types.ImageDescriptionFile],
-    user_items: types.UserItem,
-    emitter: EventEmitter = None,
-    dry_run=False,
-) -> T.Dict[str, int]:
-    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-    _validate_descs(descs)
-    sequences = _group_sequences_by_uuid(descs)
-    ret: T.Dict[str, int] = {}
-    for sequence_idx, (uuid, images) in enumerate(sequences.items()):
-        event_payload: Progress = {
-            "sequence_idx": sequence_idx,
-            "total_sequence_count": len(sequences),
-            "sequence_image_count": len(images),
-        }
-        cluster_id = _zip_and_upload_single_sequence(
-            images,
-            user_items,
-            event_payload=event_payload,
-            emitter=emitter,
-            dry_run=dry_run,
-        )
-        ret[uuid] = cluster_id
-    return ret
 
 
 def _validate_descs(descs: T.List[types.ImageDescriptionFile]):
@@ -161,13 +174,13 @@ def zip_images(
             zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
-            _zip_sequence(sequence, fp)
+            _zip_sequence_fp(sequence, fp)
         upload_md5sum = utils.file_md5sum(zip_filename_wip)
         zip_filename = os.path.join(zip_dir, f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 
-def _zip_sequence(
+def _zip_sequence_fp(
     sequence: T.Dict[str, types.ImageDescriptionFile],
     fp: T.IO[bytes],
 ) -> None:
@@ -191,62 +204,58 @@ def _zip_sequence(
             ziph.writestr(zipinfo, image_bytes)
 
 
-def upload_zipfile(
-    zip_path: str,
+def _upload_zipfile_fp(
+    fp: T.IO[bytes],
     user_items: types.UserItem,
-    emitter: EventEmitter = None,
+    event_payload: T.Optional[Progress] = None,
+    emitter: T.Optional[EventEmitter] = None,
     dry_run=False,
 ) -> int:
-    with zipfile.ZipFile(zip_path) as ziph:
-        namelist = ziph.namelist()
+    if event_payload is None:
+        event_payload = {
+            "sequence_idx": 0,
+            "total_sequence_count": 1,
+        }
 
-    if not namelist:
-        raise RuntimeError(f"The zip file {zip_path} is empty")
+    fp.seek(0, io.SEEK_SET)
+    upload_md5sum = utils.md5sum_fp(fp)
 
-    with open(zip_path, "rb") as fp:
-        assert fp.tell() == 0
-        upload_md5sum = utils.md5sum_fp(fp)
+    fp.seek(0, io.SEEK_END)
+    entity_size = fp.tell()
 
-        fp.seek(0, io.SEEK_END)
-        entity_size = fp.tell()
+    # chunk size
+    avg_image_size = int(
+        entity_size / max(event_payload.get("sequence_image_count", 1), 1)
+    )
+    chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
-        # chunk size
-        avg_image_size = int(entity_size / len(namelist))
-        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
-
-        if dry_run:
-            upload_service: upload_api_v4.UploadService = (
-                upload_api_v4.FakeUploadService(
-                    user_access_token=user_items["user_upload_token"],
-                    session_key=f"mly_tools_{upload_md5sum}.zip",
-                    entity_size=entity_size,
-                    organization_id=user_items.get("MAPOrganizationKey"),
-                )
-            )
-        else:
-            upload_service = upload_api_v4.UploadService(
-                user_access_token=user_items["user_upload_token"],
-                session_key=f"mly_tools_{upload_md5sum}.zip",
-                entity_size=entity_size,
-                organization_id=user_items.get("MAPOrganizationKey"),
-            )
-
-        return _upload_fp(
-            upload_service,
-            fp,
-            chunk_size,
-            event_payload=T.cast(
-                Progress,
-                {
-                    "sequence_idx": 0,
-                    "total_sequence_count": 1,
-                    "image_count": len(namelist),
-                    "entity_size": entity_size,
-                    "sequence_uuid": upload_md5sum,
-                },
-            ),
-            emitter=emitter,
+    if dry_run:
+        upload_service: upload_api_v4.UploadService = upload_api_v4.FakeUploadService(
+            user_access_token=user_items["user_upload_token"],
+            session_key=f"mly_tools_{upload_md5sum}.zip",
+            entity_size=entity_size,
+            organization_id=user_items.get("MAPOrganizationKey"),
         )
+    else:
+        upload_service = upload_api_v4.UploadService(
+            user_access_token=user_items["user_upload_token"],
+            session_key=f"mly_tools_{upload_md5sum}.zip",
+            entity_size=entity_size,
+            organization_id=user_items.get("MAPOrganizationKey"),
+        )
+
+    new_event_payload: Progress = {
+        "entity_size": entity_size,
+        "md5sum": upload_md5sum,
+    }
+
+    return _upload_fp(
+        upload_service,
+        fp,
+        chunk_size,
+        event_payload=T.cast(Progress, {**event_payload, **new_event_payload}),
+        emitter=emitter,
+    )
 
 
 def upload_blackvue(
@@ -255,6 +264,8 @@ def upload_blackvue(
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> int:
+    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
+
     with open(blackvue_path, "rb") as fp:
         upload_md5sum = utils.md5sum_fp(fp)
 
@@ -284,19 +295,18 @@ def upload_blackvue(
                 file_type="mly_blackvue_video",
             )
 
+        event_payload: Progress = {
+            "sequence_idx": 0,
+            "total_sequence_count": 1,
+            "entity_size": entity_size,
+            "md5sum": upload_md5sum,
+        }
+
         return _upload_fp(
             upload_service,
             fp,
             chunk_size,
-            event_payload=T.cast(
-                Progress,
-                {
-                    "sequence_idx": 0,
-                    "total_sequence_count": 1,
-                    "entity_size": entity_size,
-                    "sequence_uuid": upload_md5sum,
-                },
-            ),
+            event_payload=event_payload,
             emitter=emitter,
         )
 
@@ -394,61 +404,3 @@ def _upload_fp(
         raise upload_api_v4.wrap_http_exception(ex) from ex
 
     return cluster_id
-
-
-def _zip_and_upload_single_sequence(
-    sequence: T.Dict[str, types.ImageDescriptionFile],
-    user_items: types.UserItem,
-    event_payload: Progress,
-    emitter: EventEmitter = None,
-    dry_run=False,
-) -> int:
-    first_desc = list(sequence.values())[0]
-    sequence_uuid = first_desc.get("MAPSequenceUUID")
-
-    with tempfile.NamedTemporaryFile() as fp:
-        _zip_sequence(sequence, fp)
-
-        fp.seek(0, io.SEEK_SET)
-        upload_md5sum = utils.md5sum_fp(fp)
-
-        fp.seek(0, io.SEEK_END)
-        entity_size = fp.tell()
-
-        # chunk size
-        avg_image_size = int(entity_size / len(sequence))
-        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
-
-        if dry_run:
-            upload_service: upload_api_v4.UploadService = (
-                upload_api_v4.FakeUploadService(
-                    user_items["user_upload_token"],
-                    session_key=f"mly_tools_{upload_md5sum}.zip",
-                    entity_size=entity_size,
-                    organization_id=user_items.get("MAPOrganizationKey"),
-                )
-            )
-        else:
-            upload_service = upload_api_v4.UploadService(
-                user_items["user_upload_token"],
-                session_key=f"mly_tools_{upload_md5sum}.zip",
-                entity_size=entity_size,
-                organization_id=user_items.get("MAPOrganizationKey"),
-            )
-
-        cluster_id = _upload_fp(
-            upload_service,
-            fp,
-            chunk_size,
-            event_payload=T.cast(
-                Progress,
-                {
-                    **event_payload,
-                    "entity_size": entity_size,
-                    "sequence_uuid": sequence_uuid,
-                },
-            ),
-            emitter=emitter,
-        )
-
-        return cluster_id
