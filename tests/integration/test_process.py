@@ -628,7 +628,7 @@ def test_upload_mp4(
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     video_path = setup_data.join("sample-5s.mp4")
-    md5 = file_md5sum(video_path)
+    md5sum = file_md5sum(video_path)
     x = subprocess.run(
         f"{EXECUTABLE} upload {video_path} --dry_run --user_name={USERNAME}",
         shell=True,
@@ -638,4 +638,4 @@ def test_upload_mp4(
     assert {"mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4"} == {
         os.path.basename(f) for f in upload_dir.listdir()
     }
-    assert {md5} == {file_md5sum(f) for f in upload_dir.listdir()}
+    assert {md5sum} == {file_md5sum(f) for f in upload_dir.listdir()}
