@@ -165,16 +165,11 @@ def zip_images(
 def _zip_sequence(
     sequence: T.Dict[str, types.ImageDescriptionFile],
     fp: T.IO[bytes],
-) -> str:
+) -> None:
     descs = list(sequence.values())
-    utils.update_image_md5sum(descs)
     descs.sort(
-        key=lambda desc: (
-            types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
-            desc["md5sum"],
-        )
+        key=lambda desc: types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
     )
-    sequence_md5sum = utils.calculate_sequence_md5sum(descs)
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
             edit = exif_write.ExifEdit(desc["filename"])
@@ -182,10 +177,6 @@ def _zip_sequence(
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             ziph.writestr(os.path.basename(desc["filename"]), image_bytes)
-            comment = json.dumps({"mly_sequence_md5sum": sequence_md5sum})
-            ziph.comment = comment.encode("utf-8")
-
-    return sequence_md5sum
 
 
 def upload_zipfile(
