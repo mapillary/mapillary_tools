@@ -15,6 +15,12 @@ def md5sum_fp(fp: T.IO[bytes]) -> str:
     return md5.hexdigest()
 
 
+def md5sum_bytes(data: bytes) -> str:
+    md5 = hashlib.md5()
+    md5.update(data)
+    return md5.hexdigest()
+
+
 def file_md5sum(path: str) -> str:
     with open(path, "rb") as fp:
         return md5sum_fp(fp)
