@@ -115,6 +115,7 @@ def _validate_hexdigits(md5sum: str):
 
 
 def _history_desc_path(md5sum: str) -> str:
+    assert MAPILLARY_UPLOAD_HISTORY_PATH is not None
     _validate_hexdigits(md5sum)
     subfolder = md5sum[:2]
     assert subfolder, f"Invalid md5sum {md5sum}"
