@@ -60,6 +60,13 @@ class Progress(types.TypedDict, total=False):
     # md5sum of the zipfile/BlackVue in uploading
     md5sum: str
 
+    # Path to the Zipfile/BlackVue
+    import_path: str
+
+
+class UploadCancelled(Exception):
+    pass
+
 
 class EventEmitter:
     events: T.Dict[str, T.List]
@@ -87,7 +94,7 @@ class Uploader:
         self.dry_run = dry_run
         self.emitter = emitter
 
-    def upload_zipfile(self, zip_path: str) -> int:
+    def upload_zipfile(self, zip_path: str) -> T.Optional[int]:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
 
@@ -95,27 +102,34 @@ class Uploader:
             raise RuntimeError(f"The zip file {zip_path} is empty")
 
         event_payload: Progress = {
+            "import_path": zip_path,
             "sequence_idx": 0,
-            "total_sequence_count": 1,
             "sequence_image_count": len(namelist),
+            "total_sequence_count": 1,
         }
 
         with open(zip_path, "rb") as fp:
-            return _upload_zipfile_fp(
-                fp,
+            try:
+                return _upload_zipfile_fp(
+                    fp,
+                    self.user_items,
+                    event_payload=event_payload,
+                    emitter=self.emitter,
+                    dry_run=self.dry_run,
+                )
+            except UploadCancelled:
+                return None
+
+    def upload_blackvue(self, blackvue_path: str) -> T.Optional[int]:
+        try:
+            return upload_blackvue(
+                blackvue_path,
                 self.user_items,
-                event_payload=event_payload,
                 emitter=self.emitter,
                 dry_run=self.dry_run,
             )
-
-    def upload_blackvue(self, blackvue_path: str) -> int:
-        return upload_blackvue(
-            blackvue_path,
-            self.user_items,
-            emitter=self.emitter,
-            dry_run=self.dry_run,
-        )
+        except UploadCancelled:
+            return None
 
     def upload_images(
         self, descs: T.List[types.ImageDescriptionFile]
@@ -132,14 +146,18 @@ class Uploader:
             }
             with tempfile.NamedTemporaryFile() as fp:
                 _zip_sequence_fp(images, fp)
-                cluster_id = _upload_zipfile_fp(
-                    fp,
-                    self.user_items,
-                    emitter=self.emitter,
-                    event_payload=event_payload,
-                    dry_run=self.dry_run,
-                )
-            ret[sequence_uuid] = cluster_id
+                try:
+                    cluster_id: T.Optional[int] = _upload_zipfile_fp(
+                        fp,
+                        self.user_items,
+                        emitter=self.emitter,
+                        event_payload=event_payload,
+                        dry_run=self.dry_run,
+                    )
+                except UploadCancelled:
+                    cluster_id = None
+            if cluster_id is not None:
+                ret[sequence_uuid] = cluster_id
         return ret
 
 
@@ -199,7 +217,8 @@ def _zip_sequence_fp(
             image_bytes = edit.dump_image_bytes()
             # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
             # we use md5 as the name, and an constant as the modification time
-            arcname = f"{utils.md5sum_bytes(image_bytes)}.jpg"
+            _, ext = os.path.split(desc["filename"])
+            arcname = f"{utils.md5sum_bytes(image_bytes)}{ext.lower()}"
             zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
             ziph.writestr(zipinfo, image_bytes)
 
@@ -296,10 +315,11 @@ def upload_blackvue(
             )
 
         event_payload: Progress = {
+            "entity_size": entity_size,
+            "import_path": blackvue_path,
+            "md5sum": upload_md5sum,
             "sequence_idx": 0,
             "total_sequence_count": 1,
-            "entity_size": entity_size,
-            "md5sum": upload_md5sum,
         }
 
         return _upload_fp(
