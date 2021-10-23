@@ -45,8 +45,6 @@ def process_geotag_properties(
     geotag_source_path: T.Optional[str] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
-    offset_time: float = 0.0,
-    offset_angle: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     if not import_path or not os.path.isdir(import_path):
         raise RuntimeError(
@@ -117,24 +115,6 @@ def process_geotag_properties(
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
     descs = geotag.to_description()
-
-    descs = list(types.map_descs(validate_and_fail_desc, descs))
-
-    for desc in types.filter_out_errors(descs):
-        if offset_time:
-            dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-            desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
-                dt + datetime.timedelta(seconds=offset_time)
-            )
-        if offset_angle:
-            heading = desc.get("MAPCompassHeading")
-            if heading is not None:
-                heading["TrueHeading"] = normalize_bearing(
-                    heading["TrueHeading"] + offset_angle
-                )
-                heading["MagneticHeading"] = normalize_bearing(
-                    heading["MagneticHeading"] + offset_angle
-                )
 
     descs = list(types.map_descs(validate_and_fail_desc, descs))
 
@@ -212,7 +192,7 @@ def verify_exif_write(
         return desc
 
 
-def insert_MAPJson(
+def process_finalize(
     import_path: str,
     descs: T.List[types.ImageDescriptionFileOrError],
     skip_process_errors=False,
@@ -221,10 +201,36 @@ def insert_MAPJson(
     overwrite_EXIF_gps_tag=False,
     overwrite_EXIF_direction_tag=False,
     overwrite_EXIF_orientation_tag=False,
+    offset_time: float = 0.0,
+    offset_angle: float = 0.0,
     desc_path: str = None,
 ) -> None:
     if desc_path is None:
         desc_path = os.path.join(import_path, "mapillary_image_description.json")
+
+    if offset_time:
+        for desc in types.filter_out_errors(descs):
+            dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+            desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
+                dt + datetime.timedelta(seconds=offset_time)
+            )
+
+    for desc in types.filter_out_errors(descs):
+        heading = desc.setdefault(
+            "MAPCompassHeading",
+            {
+                "TrueHeading": 0,
+                "MagneticHeading": 0,
+            },
+        )
+        heading["TrueHeading"] = normalize_bearing(
+            heading["TrueHeading"] + offset_angle
+        )
+        heading["MagneticHeading"] = normalize_bearing(
+            heading["MagneticHeading"] + offset_angle
+        )
+
+    descs = list(types.map_descs(validate_and_fail_desc, descs))
 
     for desc in types.filter_out_errors(descs):
         image = os.path.join(import_path, desc["filename"])

@@ -1,7 +1,7 @@
 import inspect
 import argparse
 
-from ..process_geotag_properties import process_geotag_properties, insert_MAPJson
+from ..process_geotag_properties import process_geotag_properties, process_finalize
 from ..process_import_meta_properties import (
     process_import_meta_properties,
 )
@@ -267,13 +267,13 @@ class Command:
             ),
         )
 
-        insert_MAPJson(
+        process_finalize(
             descs=descs,
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(insert_MAPJson).args
+                    if k in inspect.getfullargspec(process_finalize).args
                 }
             ),
         )
