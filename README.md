@@ -378,9 +378,9 @@ done
 class Uploader:
     def __init__(self, user_items: UserItem, emitter: EventEmitter = None, dry_run=False): ...
 
-    def upload_zipfile(self, zip_path: str) -> int: ...
+    def upload_zipfile(self, zip_path: str) -> Optional[int]: ...
 
-    def upload_blackvue(self, blackvue_path: str) -> int: ...
+    def upload_blackvue(self, blackvue_path: str) -> Optional[int]: ...
 
     def upload_images(self, descs: List[ImageDescriptionFile]) -> Dict[str, int]: ...
 ```
@@ -415,18 +415,18 @@ descs = [
     },
 ]
 
-# upload images as 2 sequences
+# Upload images as 2 sequences
 mly_uploader.upload_images(descs)
 
-# zip images
+# Zip images
 uploader.zip_images(descs, "path/to/zip_dir")
 
-# upload zip files
+# Upload zip files
 for zip_path in os.listdir("path/to/zip_dir"):
     if zip_path.endswith(".zip"):
         mly_uploader.upload_zipfile(zip_path)
 
-# upload blackvue videos directly
+# Upload blackvue videos directly
 mly_uploader.upload_blackvue("path/to/blackvue.mp4")
 ```
 

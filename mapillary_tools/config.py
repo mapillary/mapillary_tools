@@ -9,12 +9,16 @@ _CLIENT_ID = api_v4.MAPILLARY_CLIENT_TOKEN
 # Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
 _CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
 
+DEFAULT_MAPILLARY_FOLDER = os.path.join(
+    os.path.expanduser("~"),
+    ".config",
+    "mapillary",
+)
+
 MAPILLARY_CONFIG_PATH = os.getenv(
     "MAPILLARY_CONFIG_PATH",
     os.path.join(
-        os.path.expanduser("~"),
-        ".config",
-        "mapillary",
+        DEFAULT_MAPILLARY_FOLDER,
         "configs",
         _CLIENT_ID,
     ),

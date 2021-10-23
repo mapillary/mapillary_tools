@@ -4,6 +4,8 @@ import typing as T
 import json
 import logging
 import time
+import uuid
+import string
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
@@ -13,10 +15,15 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc
+from . import uploader, types, login, api_v4, ipc, config
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
+MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
+    "MAPILLARY_UPLOAD_HISTORY_PATH",
+    # To enable it by default
+    # os.path.join(config.DEFAULT_MAPILLARY_FOLDER, "upload_history"),
+)
 
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
@@ -96,6 +103,100 @@ def fetch_user_items(
 EventName = Literal[
     "upload_start", "upload_fetch_offset", "upload_progress", "upload_end"
 ]
+
+
+def _validate_hexdigits(md5sum: str):
+    try:
+        assert set(md5sum).issubset(string.hexdigits)
+        assert 4 <= len(md5sum)
+        _ = int(md5sum, 16)
+    except Exception:
+        raise ValueError(f"Invalid md5sum {md5sum}")
+
+
+def _history_desc_path(md5sum: str) -> str:
+    assert MAPILLARY_UPLOAD_HISTORY_PATH is not None
+    _validate_hexdigits(md5sum)
+    subfolder = md5sum[:2]
+    assert subfolder, f"Invalid md5sum {md5sum}"
+    basename = md5sum[2:]
+    assert basename, f"Invalid md5sum {md5sum}"
+    return os.path.join(MAPILLARY_UPLOAD_HISTORY_PATH, subfolder, f"{basename}.json")
+
+
+def is_uploaded(md5sum: str) -> bool:
+    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+        return False
+    return os.path.isfile(_history_desc_path(md5sum))
+
+
+def write_history(
+    md5sum: str,
+    params: T.Dict,
+    summary: T.Dict,
+    descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
+) -> None:
+    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+        return
+    path = _history_desc_path(md5sum)
+    LOG.debug(f"Writing upload history at {path}")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    history: T.Dict = {
+        "params": params,
+        "summary": summary,
+    }
+    if descs is not None:
+        history["descs"] = descs
+    with open(path, "w") as fp:
+        fp.write(json.dumps(history))
+
+
+def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
+    @emitter.on("upload_start")
+    def upload_start(payload: uploader.Progress):
+        md5sum = payload["md5sum"]
+        if is_uploaded(md5sum):
+            sequence_uuid = payload.get("sequence_uuid")
+            if sequence_uuid is None:
+                basename = os.path.basename(payload.get("import_path", ""))
+                LOG.info(
+                    f"File {basename} has been uploaded already. Check the upload history at {_history_desc_path(md5sum)}"
+                )
+            else:
+                LOG.info(
+                    f"Sequence {sequence_uuid} has been uploaded already. Check the upload history at {_history_desc_path(md5sum)}"
+                )
+            raise uploader.UploadCancelled()
+
+
+def _setup_write_upload_history(
+    emitter: uploader.EventEmitter,
+    params: T.Dict,
+    descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
+) -> None:
+    @emitter.on("upload_end")
+    def upload_start(payload: uploader.Progress):
+        sequence_uuid = payload.get("sequence_uuid")
+        md5sum = payload["md5sum"]
+        if sequence_uuid is None or descs is None:
+            sequence = None
+        else:
+            sequence = [
+                desc for desc in descs if desc.get("MAPSequenceUUID") == sequence_uuid
+            ]
+            sequence.sort(
+                key=lambda d: types.map_capture_time_to_datetime(d["MAPCaptureTime"])
+            )
+
+        try:
+            write_history(
+                md5sum,
+                params,
+                T.cast(T.Dict, payload),
+                sequence,
+            )
+        except OSError:
+            LOG.warning(f"Error writing upload history {md5sum}", exc_info=True)
 
 
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
@@ -209,9 +310,8 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
 
 def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     total_image_count = sum(s.get("sequence_image_count", 0) for s in stats)
-    total_sequence_count = len(stats)
-    if stats:
-        assert total_sequence_count == stats[0]["total_sequence_count"], stats
+    total_uploaded_sequence_count = len(stats)
+    # note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
 
     total_uploaded_size = sum(
         s["entity_size"] - s["upload_first_offset"] for s in stats
@@ -229,7 +329,7 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
 
     upload_summary = {
         "images": total_image_count,
-        "sequences": total_sequence_count,
+        "sequences": total_uploaded_sequence_count,
         "size": round(total_entity_size_mb, 4),
         "uploaded_size": round(total_uploaded_size_mb, 4),
         "speed": round(speed, 4),
@@ -239,17 +339,17 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     return upload_summary
 
 
-def _api_logging_finished(user_items: types.UserItem, payload: T.Dict):
+def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
     action: api_v4.ActionType = "upload_finished_upload"
-    LOG.debug("API Logging for action %s: %s", action, payload)
+    LOG.debug("API Logging for action %s: %s", action, summary)
     try:
         api_v4.logging(
             user_items["user_upload_token"],
             action,
-            payload,
+            summary,
         )
     except requests.HTTPError as exc:
         LOG.warning(
@@ -306,18 +406,32 @@ def upload(
 ):
     emitter = uploader.EventEmitter()
 
-    # setup order matters here
+    # Setup the emitter -- the order matters here
+
+    # Put it first one to cancel early
+    _setup_cancel_due_to_duplication(emitter)
+
+    # This one set up tdqm
     _setup_tdqm(emitter)
 
-    # now it is empty but it will collect during upload
+    # Now stats is empty but it will collect during upload
     stats = _setup_api_stats(emitter)
 
-    # send the progress as well as the log stats collected above
+    # Send the progress as well as the log stats collected above
     _setup_ipc(emitter)
+
+    params = {
+        "import_path": import_path,
+        "desc_path": desc_path,
+        "user_name": user_name,
+        "organization_key": organization_key,
+    }
 
     if os.path.isfile(import_path):
         _, ext = os.path.splitext(import_path)
         user_items = fetch_user_items(user_name, organization_key)
+        if not dry_run:
+            _setup_write_upload_history(emitter, params)
         mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         if ext.lower() in [".zip"]:
             try:
@@ -345,10 +459,20 @@ def upload(
 
         descs = read_image_descriptions(desc_path)
         if not descs:
-            LOG.warning(f"No images found in {desc_path}")
+            LOG.warning(f"No images found in {desc_path}. Bye.")
             return
 
         user_items = fetch_user_items(user_name, organization_key)
+
+        # Make sure all descs have uuid assigned
+        # It is used to find the right sequence when writing upload history
+        missing_sequence_uuid = str(uuid.uuid4())
+        for desc in descs:
+            if "MAPSequenceUUID" not in desc:
+                desc["MAPSequenceUUID"] = missing_sequence_uuid
+
+        if not dry_run:
+            _setup_write_upload_history(emitter, params, descs)
 
         mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         try:
@@ -360,10 +484,15 @@ def upload(
     else:
         raise RuntimeError(f"Expect {import_path} to be either file or directory")
 
-    upload_summary = _summarize(stats)
+    # if there is something uploaded
+    if stats:
+        upload_summary = _summarize(stats)
 
-    LOG.info(
-        "Upload summary (in megabytes/second): %s", json.dumps(upload_summary, indent=4)
-    )
-    if not dry_run:
-        _api_logging_finished(user_items, upload_summary)
+        LOG.info(
+            "Upload summary (in megabytes/second): %s",
+            json.dumps(upload_summary, indent=4),
+        )
+        if not dry_run:
+            _api_logging_finished(user_items, upload_summary)
+    else:
+        LOG.info("Nothing uploaded. Bye.")
