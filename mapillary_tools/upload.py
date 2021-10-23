@@ -227,7 +227,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         upload_pbar.update(payload["chunk_size"])
 
     @emitter.on("upload_end")
-    def upload_end(cluster_id: int) -> None:
+    def upload_end(_: uploader.Progress) -> None:
         nonlocal upload_pbar
         if upload_pbar:
             upload_pbar.close()

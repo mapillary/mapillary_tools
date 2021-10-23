@@ -247,8 +247,6 @@ def process_finalize(
         except Exception:
             LOG.warning(f"Failed to overwrite EXIF for image {image}", exc_info=True)
 
-    descs = list(types.map_descs(validate_and_fail_desc, descs))
-
     descs = list(
         types.map_descs(lambda desc: verify_exif_write(import_path, desc), descs)
     )
