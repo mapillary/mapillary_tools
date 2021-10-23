@@ -22,7 +22,6 @@ def _validate_and_extract_zip(filename: str):
                     assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
                     assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
                     assert isinstance(desc.get("MAPCaptureTime"), str), desc
-                    assert isinstance(desc.get("MAPCompassHeading"), dict), desc
                     for key in desc.keys():
                         assert key.startswith("MAP"), key
                     ret[name] = desc
