@@ -1,8 +1,5 @@
-import json
 import typing as T
 import hashlib
-
-from . import types
 
 
 def md5sum_fp(fp: T.IO[bytes]) -> str:
@@ -39,25 +36,3 @@ def separate_by_bool(
         else:
             no.append(x)
     return yes, no
-
-
-def update_image_md5sum(descs: T.List[types.ImageDescriptionFile]) -> None:
-    for desc in descs:
-        md5sum = desc.get("md5sum")
-        if md5sum is None:
-            desc["md5sum"] = file_md5sum(desc["filename"])
-
-
-def calculate_sequence_md5sum(descs: T.List[types.ImageDescriptionFile]):
-    excluded_properties = ["MAPPhotoUUID", "MAPSequenceUUID"]
-    md5 = hashlib.md5()
-    for desc in descs:
-        assert "md5sum" in desc
-        md5.update(desc["md5sum"].encode("utf-8"))
-        new_desc = {
-            k: v
-            for k, v in desc.items()
-            if k.startswith("MAP") and k not in excluded_properties
-        }
-        md5.update(json.dumps(new_desc, sort_keys=True).encode("utf-8"))
-    return md5.hexdigest()

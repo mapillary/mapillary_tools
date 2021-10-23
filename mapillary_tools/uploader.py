@@ -177,7 +177,7 @@ def _validate_descs(descs: T.List[types.ImageDescriptionFile]):
     for desc in descs:
         types.validate_desc(desc)
         if not os.path.isfile(desc["filename"]):
-            raise RuntimeError(f"Image path {desc['filename']} not found")
+            raise RuntimeError(f"Image not found: {desc['filename']}")
 
 
 def zip_images(

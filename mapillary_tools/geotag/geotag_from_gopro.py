@@ -4,7 +4,7 @@ import os
 import tempfile
 import typing as T
 
-from .. import types, image_log, ffmpeg
+from .. import types, image_log, ffmpeg, error
 from .geotag_from_blackvue import filter_video_samples
 from .geotag_from_gpx import GeotagFromGPX
 from .geotag_from_generic import GeotagFromGeneric
@@ -29,7 +29,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
             # it is okay to not suffix with .mp4
             self.videos = [source_path]
         else:
-            raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
+            raise error.MapillaryFileError(
+                f"The geotag_source_path {source_path} does not exist"
+            )
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
         super().__init__()

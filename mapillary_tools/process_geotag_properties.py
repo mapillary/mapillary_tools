@@ -47,9 +47,7 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     if not import_path or not os.path.isdir(import_path):
-        raise RuntimeError(
-            f"Error, import directory {import_path} does not exist, exiting..."
-        )
+        raise error.MapillaryFileError(f"Import directory {import_path} does not exist")
 
     if geotag_source == "exif":
         images = image_log.get_total_file_list(
@@ -61,7 +59,7 @@ def process_geotag_properties(
 
     elif geotag_source == "gpx":
         if geotag_source_path is None:
-            raise RuntimeError(
+            raise error.MapillaryFileError(
                 "GPX file is required to be specified with --geotag_source_path"
             )
         images = image_log.get_total_file_list(
@@ -76,7 +74,7 @@ def process_geotag_properties(
         )
     elif geotag_source == "nmea":
         if geotag_source_path is None:
-            raise RuntimeError(
+            raise error.MapillaryFileError(
                 "NMEA file is required to be specified with --geotag_source_path"
             )
         images = image_log.get_total_file_list(
@@ -93,7 +91,7 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise RuntimeError("geotag_source_path is required")
+            raise error.MapillaryFileError("geotag_source_path is required")
         geotag = geotag_from_gopro.GeotagFromGoPro(
             import_path,
             geotag_source_path,
@@ -104,7 +102,7 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise RuntimeError("geotag_source_path is required")
+            raise error.MapillaryFileError("geotag_source_path is required")
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             import_path,
             geotag_source_path,
@@ -112,7 +110,7 @@ def process_geotag_properties(
             offset_time=interpolation_offset_time,
         )
     else:
-        raise RuntimeError(f"Invalid geotag source {geotag_source}")
+        raise error.MapillaryFileError(f"Invalid geotag source {geotag_source}")
 
     descs = geotag.to_description()
 
@@ -280,7 +278,7 @@ def process_finalize(
         if skip_process_errors:
             LOG.warning("Skipping %s failed images", summary["failed_images"])
         else:
-            raise RuntimeError(
+            raise error.MapillaryProcessError(
                 f"Failed to process {summary['failed_images']} images. Check {desc_path} for details. Specify --skip_process_errors to skip these errors"
             )
 

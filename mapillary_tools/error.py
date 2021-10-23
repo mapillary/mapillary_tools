@@ -1,20 +1,65 @@
+# - UserError
+#   - FileError
+#   - BadParameterError
+#   - ProcessError
+#   - GeotaggingError
+#     - EXIFGeotaggingError
+#     - InterpolationError
+#   - SequenceError
+#     - DuplicationError
+#   - UploadError
+#     - APIError
+#     - UploadAPIError
+#     - AuthenticationError
+
+
 class MapillaryUserError(Exception):
     pass
+
+
+UNHANDLED_ERROR_CODE = 1
+
+
+class MapillaryFileError(MapillaryUserError):
+    exit_code = 3
+
+
+class MapillaryBadParameterError(MapillaryUserError):
+    exit_code = 2
+
+
+class MapillaryProcessError(MapillaryUserError):
+    exit_code = 20
+    help = "https://github.com/mapillary/mapillary_tools#MapillaryProcessError"
 
 
 class MapillaryGeoTaggingError(MapillaryUserError):
     pass
 
 
-class MapillaryInterpolationError(MapillaryUserError):
+class _MapillaryInterpolationError(MapillaryGeoTaggingError):
     pass
 
 
-class MapillaryGPXEmptyError(MapillaryInterpolationError):
+class MapillaryGPXEmptyError(MapillaryGeoTaggingError):
+    help = "https://github.com/mapillary/mapillary_tools#MapillaryGPXEmptyError"
+
+
+class MapillaryVideoError(MapillaryUserError):
     pass
 
 
-class MapillaryOutsideGPXTrackError(MapillaryInterpolationError):
+class MapillaryFFmpegNotFoundError(MapillaryUserError):
+    help = "https://github.com/mapillary/mapillary_tools#video-support"
+
+
+class MapillaryFFprobeNotFoundError(MapillaryUserError):
+    help = "https://github.com/mapillary/mapillary_tools#video-support"
+
+
+class MapillaryOutsideGPXTrackError(_MapillaryInterpolationError):
+    help = "https://github.com/mapillary/mapillary_tools#MapillaryOutsideGPXTrackError"
+
     def __init__(
         self, message, image_time: str, gpx_start_time: str, gpx_end_time: str
     ):
@@ -24,11 +69,18 @@ class MapillaryOutsideGPXTrackError(MapillaryInterpolationError):
         self.gpx_end_time = gpx_end_time
 
 
-class MapillaryStationaryBlackVueError(MapillaryUserError):
+class MapillaryUploadAPIError(MapillaryUserError):
     pass
 
 
+class MapillaryStationaryBlackVueError(MapillaryGeoTaggingError):
+    pass
+
+
+# FIXME: sequence error
 class MapillaryDuplicationError(MapillaryUserError):
+    help = "https://github.com/mapillary/mapillary_tools#MapillaryDuplicationError"
+
     def __init__(self, message, desc):
         super().__init__(message)
         self.desc = desc
