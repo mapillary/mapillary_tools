@@ -53,6 +53,7 @@ def process_geotag_properties(
         images = image_log.get_total_file_list(
             import_path, skip_subfolders=skip_subfolders
         )
+        LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag: geotag_from_generic.GeotagFromGeneric = geotag_from_exif.GeotagFromEXIF(
             import_path, images
         )
@@ -65,6 +66,7 @@ def process_geotag_properties(
         images = image_log.get_total_file_list(
             import_path, skip_subfolders=skip_subfolders
         )
+        LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag = geotag_from_gpx_file.GeotagFromGPXFile(
             import_path,
             images,
@@ -80,6 +82,7 @@ def process_geotag_properties(
         images = image_log.get_total_file_list(
             import_path, skip_subfolders=skip_subfolders
         )
+        LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
             import_path,
             images,

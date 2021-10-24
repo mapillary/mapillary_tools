@@ -1,23 +1,5 @@
-# - UserError
-#   - FileError
-#   - BadParameterError
-#   - ProcessError
-#   - GeotaggingError
-#     - EXIFGeotaggingError
-#     - InterpolationError
-#   - SequenceError
-#     - DuplicationError
-#   - UploadError
-#     - APIError
-#     - UploadAPIError
-#     - AuthenticationError
-
-
 class MapillaryUserError(Exception):
-    pass
-
-
-UNHANDLED_ERROR_CODE = 1
+    exit_code: int = 2
 
 
 class MapillaryFileError(MapillaryUserError):

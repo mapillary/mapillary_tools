@@ -11,16 +11,17 @@ from .commands import upload
 from .commands import video_process
 from .commands import video_process_and_upload
 from .commands import zip
+from . import error
 
 mapillary_tools_commands = [
     process,
-    zip,
     upload,
-    process_and_upload,
     sample_video,
     video_process,
-    video_process_and_upload,
     authenticate,
+    process_and_upload,
+    video_process_and_upload,
+    zip,
 ]
 
 
@@ -77,7 +78,7 @@ def add_general_arguments(parser, command):
         )
 
 
-def configure_logger(logger: logging.Logger, level, stream=None) -> None:
+def configure_logger(logger: logging.Logger, stream=None) -> None:
     formatter = logging.Formatter("%(asctime)s - %(levelname)-6s - %(message)s")
     handler = logging.StreamHandler(stream)
     handler.setFormatter(formatter)
@@ -92,15 +93,16 @@ def main():
         "--version",
         help="show the version of mapillary tools and exit",
         action="version",
-        version=f"Mapillary tools version : {VERSION}",
+        version=f"mapillary_tools version {VERSION}",
     )
     parser.add_argument(
         "--verbose",
-        help="Show verbose",
+        help="show verbose",
         action="store_true",
         default=False,
         required=False,
     )
+    parser.set_defaults(func=lambda _: parser.print_help())
 
     all_commands = [module.Command() for module in mapillary_tools_commands]
 
@@ -116,12 +118,21 @@ def main():
         cmd_parser.set_defaults(func=command.run)
 
     args = parser.parse_args()
+
     log_level = logging.DEBUG if args.verbose else logging.INFO
     configure_logger(LOG, sys.stderr)
     LOG.setLevel(log_level)
-    LOG.debug(f"argparse vars: {vars(args)}")
-    # FIXME: AttributeError: 'Namespace' object has no attribute 'func'
-    args.func(vars(args))
+
+    argvars = vars(args)
+    params = {k: v for k, v in argvars.items() if v is not None and not callable(v)}
+    for k, v in params.items():
+        LOG.debug(f"param: {k}: {v}")
+
+    try:
+        args.func(argvars)
+    except error.MapillaryUserError as exc:
+        LOG.error(f"{exc.__class__.__name__}: {exc}")
+        sys.exit(exc.exit_code)
 
 
 if __name__ == "__main__":
