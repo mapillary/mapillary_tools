@@ -34,11 +34,6 @@ def load_config(config_path: str) -> configparser.ConfigParser:
     return config
 
 
-def save_config(config: configparser.ConfigParser, config_path: str) -> None:
-    with open(config_path, "w") as cfg:
-        config.write(cfg)
-
-
 def load_user(config: configparser.ConfigParser, user_name: str) -> types.UserItem:
     user_items = dict(config.items(user_name))
     return T.cast(types.UserItem, user_items)
@@ -51,7 +46,8 @@ def add_user(
         config.add_section(user_name)
     else:
         print(f"Error, user {user_name} already exists")
-    save_config(config, config_path)
+    with open(config_path, "w") as fp:
+        config.write(fp)
 
 
 def set_user_items(
@@ -67,7 +63,8 @@ def update_config(config_path: str, user_name: str, user_items: types.UserItem) 
     if user_name not in config.sections():
         add_user(config, user_name, config_path)
     config = set_user_items(config, user_name, user_items)
-    save_config(config, config_path)
+    with open(config_path, "w") as fp:
+        config.write(fp)
 
 
 def create_config(config_path: str) -> None:
