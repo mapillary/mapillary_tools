@@ -10,7 +10,8 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 * [Video Support](#video-support)
 * [Usage](#usage)
     - [Process](#process)
-    - [Upload](#upload)
+    - [Upload Images](#upload)
+    - [Upload BlackVue Videos](#upload-blackvue)
     - [Video Process](#video-process)
     - [Authenticate](#authenticate)
     - [Aliases](#aliases)
@@ -144,7 +145,7 @@ mapillary_tools process "path/to/images/" \
     --cutoff_time 120
 ```
 
-### Upload
+### Upload Images
 
 Images that have been successfully processed can be uploaded with the `upload` command.
 
@@ -155,6 +156,21 @@ Upload all processed images in the directory `path/to/images/` to user `mly_user
 
 ```shell
 mapillary_tools upload "path/to/images/" \
+    --user_name "mly_user" \
+    --organization_key "mly_organization_id"
+```
+
+### Upload BlackVue Videos
+
+BlackVue videos can be uploaded with the `upload` command and will be processed on Mapillary servers.
+
+#### Examples
+
+Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`
+. It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+
+```shell
+mapillary_tools upload "video_file_name.mp4" \
     --user_name "mly_user" \
     --organization_key "mly_organization_id"
 ```
