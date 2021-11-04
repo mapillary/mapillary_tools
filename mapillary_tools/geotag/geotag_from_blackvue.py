@@ -80,10 +80,12 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             model = find_camera_model(blackvue_video)
             LOG.debug(f"Found BlackVue camera model %s for %s", model, blackvue_video)
 
-            for desc in types.filter_out_errors(geotag.to_description()):
-                desc["MAPDeviceMake"] = "Blackvue"
-                if model is not None:
-                    desc["MAPDeviceModel"] = model.decode("utf-8")
+            for desc in geotag.to_description():
+                if not types.is_error(desc):
+                    desc = T.cast(types.ImageDescriptionFile, desc)
+                    desc["MAPDeviceMake"] = "Blackvue"
+                    if model is not None:
+                        desc["MAPDeviceModel"] = model.decode("utf-8")
                 descs.append(desc)
 
         return descs
