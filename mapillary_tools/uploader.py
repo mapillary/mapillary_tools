@@ -423,4 +423,7 @@ def _upload_fp(
     except requests.HTTPError as ex:
         raise upload_api_v4.wrap_http_exception(ex) from ex
 
+    if emitter:
+        emitter.emit("upload_finished", mutable_payload)
+
     return cluster_id
