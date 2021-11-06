@@ -174,8 +174,8 @@ def _setup_write_upload_history(
     params: T.Dict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
-    @emitter.on("upload_end")
-    def upload_start(payload: uploader.Progress):
+    @emitter.on("upload_finished")
+    def upload_finished(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
         md5sum = payload["md5sum"]
         if sequence_uuid is None or descs is None:
