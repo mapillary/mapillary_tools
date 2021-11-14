@@ -86,6 +86,7 @@ def sample_video(
             else:
                 raise
         else:
+            LOG.debug(f"Renaming {video_sample_path_temporary} to {video_sample_path}")
             try:
                 os.rename(video_sample_path_temporary, video_sample_path)
             except IOError:
