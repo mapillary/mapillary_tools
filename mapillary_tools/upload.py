@@ -218,7 +218,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
             unit_scale=True,
             unit_divisor=1024,
             initial=payload["offset"],
-            disable=LOG.level <= logging.DEBUG,
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
 
     @emitter.on("upload_progress")
