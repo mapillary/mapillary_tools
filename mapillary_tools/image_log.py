@@ -43,3 +43,24 @@ def get_total_file_list(
         for file in files
         if is_image_file(file)
     )
+
+
+def filter_video_samples(
+    images: T.List[str], video_path: str, skip_subfolders: bool = False
+) -> T.List[str]:
+    videos: T.Set[str] = set()
+    if os.path.isdir(video_path):
+        videos = set(
+            os.path.basename(f)
+            for f in get_video_file_list(video_path, skip_subfolders=skip_subfolders)
+        )
+    else:
+        videos = {os.path.basename(video_path)}
+    filtered = []
+    for image in images:
+        dirname = os.path.basename(os.path.dirname(os.path.abspath(image)))
+        if dirname in videos:
+            root, _ = os.path.splitext(dirname)
+            if os.path.basename(image).startswith(root + "_"):
+                filtered.append(image)
+    return filtered

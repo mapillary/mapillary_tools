@@ -45,7 +45,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
 
         images = image_log.get_total_file_list(self.image_dir)
         for blackvue_video in self.blackvue_videos:
-            sample_images = filter_video_samples(images, blackvue_video)
+            sample_images = image_log.filter_video_samples(images, blackvue_video)
             if not sample_images:
                 continue
 
@@ -101,20 +101,6 @@ def find_camera_model(video_path) -> T.Optional[bytes]:
             if box.type.decode("utf-8") == "free":
                 return box.data[29:39]
         return None
-
-
-def is_sample_of_video(sample_path: str, video_filename: str) -> bool:
-    abs_sample_path = os.path.abspath(sample_path)
-    video_basename = os.path.basename(video_filename)
-    if video_basename == os.path.basename(os.path.dirname(abs_sample_path)):
-        sample_basename = os.path.basename(sample_path)
-        root, _ = os.path.splitext(video_basename)
-        return sample_basename.startswith(root + "_")
-    return False
-
-
-def filter_video_samples(images: T.List[str], video_path: str) -> T.List[str]:
-    return [image for image in images if is_sample_of_video(image, video_path)]
 
 
 def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[types.GPXPoint]:
