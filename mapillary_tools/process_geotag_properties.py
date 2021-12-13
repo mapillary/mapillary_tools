@@ -64,9 +64,18 @@ def process_geotag_properties(
             raise RuntimeError(
                 "GPX file is required to be specified with --geotag_source_path"
             )
-        images = image_log.get_total_file_list(
-            import_path, skip_subfolders=skip_subfolders
-        )
+        if video_import_path is None:
+            images = image_log.get_total_file_list(
+                import_path, skip_subfolders=skip_subfolders
+            )
+        else:
+            images = image_log.get_total_file_list(
+                import_path,
+                skip_subfolders=False,
+            )
+            images = image_log.filter_video_samples(
+                images, video_import_path, skip_subfolders=skip_subfolders
+            )
         geotag = geotag_from_gpx_file.GeotagFromGPXFile(
             import_path,
             images,
@@ -79,9 +88,18 @@ def process_geotag_properties(
             raise RuntimeError(
                 "NMEA file is required to be specified with --geotag_source_path"
             )
-        images = image_log.get_total_file_list(
-            import_path, skip_subfolders=skip_subfolders
-        )
+        if video_import_path is None:
+            images = image_log.get_total_file_list(
+                import_path, skip_subfolders=skip_subfolders
+            )
+        else:
+            images = image_log.get_total_file_list(
+                import_path,
+                skip_subfolders=False,
+            )
+            images = image_log.filter_video_samples(
+                images, video_import_path, skip_subfolders=skip_subfolders
+            )
         geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
             import_path,
             images,

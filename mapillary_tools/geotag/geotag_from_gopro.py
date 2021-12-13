@@ -5,7 +5,6 @@ import tempfile
 import typing as T
 
 from .. import types, image_log, ffmpeg
-from .geotag_from_blackvue import filter_video_samples
 from .geotag_from_gpx import GeotagFromGPX
 from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
@@ -39,7 +38,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
         images = image_log.get_total_file_list(self.image_dir)
         for video in self.videos:
-            sample_images = filter_video_samples(images, video)
+            sample_images = image_log.filter_video_samples(images, video)
             if not sample_images:
                 continue
             points = get_points_from_gpmf(video)

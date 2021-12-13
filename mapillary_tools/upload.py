@@ -174,8 +174,8 @@ def _setup_write_upload_history(
     params: T.Dict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
-    @emitter.on("upload_end")
-    def upload_start(payload: uploader.Progress):
+    @emitter.on("upload_finished")
+    def upload_finished(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
         md5sum = payload["md5sum"]
         if sequence_uuid is None or descs is None:
@@ -218,7 +218,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
             unit_scale=True,
             unit_divisor=1024,
             initial=payload["offset"],
-            disable=LOG.level <= logging.DEBUG,
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
 
     @emitter.on("upload_progress")
