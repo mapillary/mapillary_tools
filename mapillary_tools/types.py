@@ -12,6 +12,7 @@ import jsonschema
 
 class UserItem(TypedDict, total=False):
     MAPOrganizationKey: T.Union[int, str]
+    # Not in use. Keep here for back-compatibility
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
     user_upload_token: str
@@ -93,6 +94,7 @@ UserItemSchema = {
     "type": "object",
     "properties": {
         "MAPOrganizationKey": {"type": ["integer", "string"]},
+        # Not in use. Keep here for back-compatibility
         "MAPSettingsUsername": {"type": "string"},
         "MAPSettingsUserKey": {"type": "string"},
         "user_upload_token": {"type": "string"},

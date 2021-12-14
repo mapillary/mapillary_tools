@@ -57,7 +57,6 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
         user_key = str(user_key)
 
     return {
-        "MAPSettingsUsername": user_name,
         "MAPSettingsUserKey": user_key,
         "user_upload_token": upload_token,
     }
