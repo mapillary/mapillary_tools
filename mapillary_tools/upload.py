@@ -73,7 +73,7 @@ def fetch_user_items(
     user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
 ) -> types.UserItem:
     if user_name is None:
-        all_user_items = login.list_all_users()
+        all_user_items = config.list_all_users()
         if not all_user_items:
             raise RuntimeError("No Mapillary account found. Add one with --user_name")
         if len(all_user_items) == 1:

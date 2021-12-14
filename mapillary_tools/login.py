@@ -1,12 +1,11 @@
 import getpass
 import logging
-import os
 import typing as T
 
+import jsonschema
 import requests
 
 from . import api_v4, config, types
-from .config import MAPILLARY_CONFIG_PATH
 
 LOG = logging.getLogger(__name__)
 
@@ -62,25 +61,18 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     }
 
 
-def list_all_users() -> T.List[types.UserItem]:
-    if os.path.isfile(MAPILLARY_CONFIG_PATH):
-        global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
-        return [
-            config.load_user(global_config_object, user_name)
-            for user_name in global_config_object.sections()
-        ]
-    else:
-        return []
-
-
 def authenticate_user(user_name: str) -> types.UserItem:
-    if os.path.isfile(MAPILLARY_CONFIG_PATH):
-        global_config_object = config.load_config(MAPILLARY_CONFIG_PATH)
-        if user_name in global_config_object.sections():
-            return config.load_user(global_config_object, user_name)
+    user_items = config.load_user(user_name)
+    if user_items is not None:
+        try:
+            jsonschema.validate(user_items, types.UserItemSchema)
+        except jsonschema.ValidationError:
+            pass
+        else:
+            return user_items
 
     user_items = prompt_user_for_user_items(user_name)
+    jsonschema.validate(user_items, types.UserItemSchema)
+    config.update_config(user_name, user_items)
 
-    config.create_config(MAPILLARY_CONFIG_PATH)
-    config.update_config(MAPILLARY_CONFIG_PATH, user_name, user_items)
     return user_items

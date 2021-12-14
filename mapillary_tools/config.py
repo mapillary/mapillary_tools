@@ -25,49 +25,44 @@ MAPILLARY_CONFIG_PATH = os.getenv(
 )
 
 
-def load_config(config_path: str) -> configparser.ConfigParser:
-    if not os.path.isfile(config_path):
-        raise RuntimeError(f"config {config_path} does not exist")
+def _load_config(config_path: str) -> configparser.ConfigParser:
     config = configparser.ConfigParser()
+    # Override to not change option names (by default it will lower them)
     config.optionxform = str  # type: ignore
+    # If path not found, then config will be empty
     config.read(config_path)
     return config
 
 
-def load_user(config: configparser.ConfigParser, user_name: str) -> types.UserItem:
+def load_user(user_name: str, config_path: str = None) -> T.Optional[types.UserItem]:
+    if config_path is None:
+        config_path = MAPILLARY_CONFIG_PATH
+    config = _load_config(config_path)
+    if not config.has_section(user_name):
+        return None
     user_items = dict(config.items(user_name))
     return T.cast(types.UserItem, user_items)
 
 
-def add_user(
-    config: configparser.ConfigParser, user_name: str, config_path: str
+def list_all_users(config_path: str = None) -> T.List[types.UserItem]:
+    if config_path is None:
+        config_path = MAPILLARY_CONFIG_PATH
+    cp = _load_config(config_path)
+    users = [
+        load_user(user_name, config_path=config_path) for user_name in cp.sections()
+    ]
+    return [item for item in users if item is not None]
+
+
+def update_config(
+    user_name: str, user_items: types.UserItem, config_path: str = None
 ) -> None:
-    if user_name not in config.sections():
+    if config_path is None:
+        config_path = MAPILLARY_CONFIG_PATH
+    config = _load_config(config_path)
+    if not config.has_section(user_name):
         config.add_section(user_name)
-    else:
-        print(f"Error, user {user_name} already exists")
-    with open(config_path, "w") as fp:
-        config.write(fp)
-
-
-def set_user_items(
-    config: configparser.ConfigParser, user_name: str, user_items: types.UserItem
-) -> configparser.ConfigParser:
     for key, val in user_items.items():
         config.set(user_name, key, T.cast(str, val))
-    return config
-
-
-def update_config(config_path: str, user_name: str, user_items: types.UserItem) -> None:
-    config = load_config(config_path)
-    if user_name not in config.sections():
-        add_user(config, user_name, config_path)
-    config = set_user_items(config, user_name, user_items)
     with open(config_path, "w") as fp:
         config.write(fp)
-
-
-def create_config(config_path: str) -> None:
-    if not os.path.isdir(os.path.dirname(config_path)):
-        os.makedirs(os.path.dirname(config_path))
-    open(config_path, "a").close()

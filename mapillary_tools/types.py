@@ -100,7 +100,7 @@ UserItemSchema = {
         "user_upload_token": {"type": "string"},
     },
     "required": ["user_upload_token"],
-    "additionalProperties": False,
+    "additionalProperties": True,
 }
 
 ImageDescriptionEXIFSchema = {

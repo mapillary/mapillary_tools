@@ -7,10 +7,14 @@ def edit_config(
     user_password: str = None,
     jwt: str = None,
 ):
+    if user_name:
+        user_name = user_name.strip()
+
     while not user_name:
         user_name = input(
             "Enter the Mapillary username you would like to (re)authenticate: "
         )
+        user_name = user_name.strip()
 
     if jwt:
         user_items: types.UserItem = {
@@ -25,4 +29,4 @@ def edit_config(
     else:
         user_items = login.prompt_user_for_user_items(user_name)
 
-    config.update_config(config.MAPILLARY_CONFIG_PATH, user_name, user_items)
+    config.update_config(user_name, user_items)
