@@ -32,7 +32,7 @@ def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
 
 def run_ffmpeg(cmd: T.List[str]) -> None:
     full_cmd = [MAPILLARY_FFMPEG_PATH, *cmd]
-    LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
+    LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
     try:
         subprocess.check_call(full_cmd)
     except FileNotFoundError:
@@ -58,6 +58,7 @@ def probe_video_streams(video_path: str):
             "-loglevel",
             "quiet",
             "-show_streams",
+            "-hide_banner",
             video_path,
         ]
     )
@@ -76,6 +77,7 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         "-nostats",
         "-loglevel",
         "0",
+        "-hide_banner",
         "-codec",
         "copy",
         "-map",
@@ -103,6 +105,7 @@ def extract_frames(
         video_path,
         "-vf",
         f"fps=1/{video_sample_interval}",
+        "-hide_banner",
         # video quality level
         "-qscale:v",
         "1",

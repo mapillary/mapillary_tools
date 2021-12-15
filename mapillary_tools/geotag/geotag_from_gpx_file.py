@@ -5,7 +5,7 @@ import typing as T
 import gpxpy
 
 from .geotag_from_gpx import GeotagFromGPX
-from .. import types
+from .. import types, exif_read
 
 
 LOG = logging.getLogger(__name__)
@@ -37,6 +37,38 @@ class GeotagFromGPXFile(GeotagFromGPX):
             use_gpx_start_time=use_gpx_start_time,
             offset_time=offset_time,
         )
+
+    def _attach_exif(
+        self, desc: types.ImageDescriptionFile
+    ) -> types.ImageDescriptionFileOrError:
+        image_path = os.path.join(self.image_dir, desc["filename"])
+
+        try:
+            exif = exif_read.ExifRead(image_path)
+        except Exception as exc:
+            LOG.warning(
+                "Unknown error reading EXIF from image %s",
+                image_path,
+                exc_info=True,
+            )
+            return {"error": types.describe_error(exc), "filename": desc["filename"]}
+
+        meta: types.MetaProperties = {
+            "MAPOrientation": exif.extract_orientation(),
+        }
+        make = exif.extract_make()
+        if make is not None:
+            meta["MAPDeviceMake"] = make
+
+        model = exif.extract_model()
+        if model is not None:
+            meta["MAPDeviceModel"] = model
+
+        return T.cast(types.ImageDescriptionFile, {**desc, **meta})
+
+    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+        descs = super().to_description()
+        return list(types.map_descs(self._attach_exif, descs))
 
 
 Track = T.List[types.GPXPoint]

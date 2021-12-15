@@ -44,11 +44,11 @@ def sample_video(
             elif os.path.isfile(video_sample_path):
                 os.remove(video_sample_path)
 
-    video_start_time_dt: T.Optional[datetime.datetime] = None
-    if video_start_time is not None:
-        video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
-
     for video_path in video_list:
+        video_start_time_dt: T.Optional[datetime.datetime] = None
+        if video_start_time is not None:
+            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+
         relpath = os.path.relpath(video_path, video_dir)
         video_sample_path = os.path.join(import_path, relpath)
         if os.path.exists(video_sample_path):
@@ -91,6 +91,7 @@ def sample_video(
             else:
                 raise
         else:
+            LOG.debug(f"Renaming {video_sample_path_temporary} to {video_sample_path}")
             try:
                 os.rename(video_sample_path_temporary, video_sample_path)
             except IOError:
