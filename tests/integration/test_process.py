@@ -11,19 +11,17 @@ import exifread
 EXECUTABLE = os.getenv("MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools")
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
-CONFIG_CONTENT = f"""
-[{USERNAME}]
-MAPSettingsUsername = {USERNAME}
-MAPSettingsUserKey = test_user_key
-user_upload_token = test_user_token
-"""
 
 
 @pytest.fixture
 def setup_config(tmpdir: py.path.local):
     config_path = tmpdir.mkdir("configs").join("CLIENT_ID")
-    with open(config_path, "w") as fp:
-        fp.write(CONFIG_CONTENT)
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(config_path)
+    x = subprocess.run(
+        f"{EXECUTABLE} authenticate --user_name {USERNAME} --jwt test_user_token",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
     yield config_path
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
