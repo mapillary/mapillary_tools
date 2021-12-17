@@ -79,7 +79,7 @@ def add_general_arguments(parser, command):
 
 
 def configure_logger(logger: logging.Logger, stream=None) -> None:
-    formatter = logging.Formatter("%(asctime)s - %(levelname)-6s - %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)-7s - %(message)s")
     handler = logging.StreamHandler(stream)
     handler.setFormatter(formatter)
     logger.addHandler(handler)

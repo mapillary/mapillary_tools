@@ -15,7 +15,6 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
     - [Video Process](#video-process)
     - [Authenticate](#authenticate)
     - [Aliases](#aliases)
-    - [Exit Codes](#exit-codes)
 * [Advanced Usage](#advanced-usage)
     - [Image Description](#image-description)
     - [Zip Images](#zip-images)
@@ -237,11 +236,6 @@ mapillary_tools video_process "path/to/videos/" \
 ### Authenticate
 
 The command `authenticate` will update the user credentials stored in the config file.
-
-#### Exit Codes
-
-##### `MapillaryAuthenticationError`
-
 
 #### Examples
 

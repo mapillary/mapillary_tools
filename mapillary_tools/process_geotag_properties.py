@@ -3,6 +3,7 @@ import os
 import typing as T
 import json
 import datetime
+import collections
 
 import jsonschema
 import piexif
@@ -295,27 +296,35 @@ def process_finalize(
         T.List[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
-    duplicated_images = [
-        desc
-        for desc in not_processed_images
-        if desc["error"].get("type") == error.MapillaryDuplicationError.__name__
-    ]
 
-    summary = {
-        "total_images": len(descs),
-        "processed_images": len(processed_images),
-        "failed_images": len(not_processed_images) - len(duplicated_images),
-        "duplicated_images": len(duplicated_images),
-    }
+    LOG.info("%8d images read", len(descs))
+    if processed_images:
+        LOG.info("%8d images processed and ready to upload", len(processed_images))
 
-    LOG.info(json.dumps(summary, indent=4))
-    if 0 < summary["failed_images"]:
-        if skip_process_errors:
-            LOG.warning("Skipping %s failed images", summary["failed_images"])
-        else:
-            raise error.MapillaryProcessError(
-                f"Failed to process {summary['failed_images']} images. Check {desc_path} for details. Specify --skip_process_errors to skip these errors"
-            )
+    counter = collections.Counter(
+        desc["error"].get("type") for desc in not_processed_images
+    )
 
-    # FIXME: check stdin for details
-    LOG.info(f"Check {desc_path} for details")
+    duplicated_image_count = counter.get(error.MapillaryDuplicationError.__name__, 0)
+    if duplicated_image_count:
+        LOG.warning(
+            "%8d images skipped due to %s",
+            duplicated_image_count,
+            error.MapillaryDuplicationError.__name__,
+        )
+
+    for error_code, count in counter.items():
+        if error_code not in [error.MapillaryDuplicationError.__name__]:
+            if skip_process_errors:
+                LOG.warning("%8d images skipped due to %s", count, error_code)
+            else:
+                LOG.warning("%8d images failed due to %s", count, error_code)
+
+    LOG.info("Check the image description file for details: %s", desc_path)
+
+    failed_count = len(not_processed_images) - duplicated_image_count
+
+    if failed_count and not skip_process_errors:
+        raise error.MapillaryProcessError(
+            f"Failed to process {failed_count} images. To skip these errors, specify --skip_process_errors"
+        )
