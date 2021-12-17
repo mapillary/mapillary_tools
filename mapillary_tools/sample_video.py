@@ -23,7 +23,9 @@ def sample_video(
     rerun: bool = False,
 ) -> None:
     if not os.path.exists(video_import_path):
-        raise error.MapillaryFileError(f"Video path not found: {video_import_path}")
+        raise error.MapillaryFileNotFoundError(
+            f"Video file or directory not found: {video_import_path}"
+        )
 
     if os.path.isdir(video_import_path):
         video_list = image_log.get_video_file_list(
@@ -33,6 +35,8 @@ def sample_video(
     else:
         video_list = [video_import_path]
         video_dir = os.path.dirname(video_import_path)
+
+    LOG.debug(f"Found {len(video_list)} videos in {video_import_path}")
 
     if rerun:
         for video_path in video_list:
@@ -80,7 +84,7 @@ def sample_video(
                 video_duration_ratio,
             )
         except (
-            error.MapillaryFileError,
+            error.MapillaryFileNotFoundError,
             error.MapillaryFFmpegNotFoundError,
             error.MapillaryFFprobeNotFoundError,
         ):

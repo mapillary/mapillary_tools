@@ -24,13 +24,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
         self.image_dir = image_dir
         if os.path.isdir(source_path):
             self.videos = image_log.get_video_file_list(source_path, abs_path=True)
-        elif os.path.isfile(source_path):
+        else:
             # it is okay to not suffix with .mp4
             self.videos = [source_path]
-        else:
-            raise error.MapillaryFileError(
-                f"The geotag_source_path {source_path} does not exist"
-            )
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
         super().__init__()

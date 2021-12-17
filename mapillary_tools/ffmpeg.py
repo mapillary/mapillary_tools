@@ -43,7 +43,7 @@ def run_ffmpeg(cmd: T.List[str]) -> None:
 
 def probe_video_format_and_streams(video_path: str) -> T.Dict:
     if not os.path.isfile(video_path):
-        raise error.MapillaryFileError(f"Video file not found: {video_path}")
+        raise error.MapillaryFileNotFoundError(f"Video file not found: {video_path}")
 
     cmd = ["-loglevel", "quiet", "-show_format", "-show_streams", video_path]
     return run_ffprobe_json(cmd)
@@ -51,7 +51,7 @@ def probe_video_format_and_streams(video_path: str) -> T.Dict:
 
 def probe_video_streams(video_path: str):
     if not os.path.isfile(video_path):
-        raise error.MapillaryFileError(f"Video file not found: {video_path}")
+        raise error.MapillaryFileNotFoundError(f"Video file not found: {video_path}")
 
     output = run_ffprobe_json(
         [
@@ -68,7 +68,7 @@ def probe_video_streams(video_path: str):
 
 def extract_stream(source: str, dest: str, stream_id: int) -> None:
     if not os.path.isfile(source):
-        raise error.MapillaryFileError(f"Video file not found: {source}")
+        raise error.MapillaryFileNotFoundError(f"Video file not found: {source}")
 
     cmd = [
         "-i",
@@ -96,7 +96,7 @@ def extract_frames(
     video_sample_interval: float = 2.0,
 ) -> None:
     if not os.path.isfile(video_path):
-        raise error.MapillaryFileError(f"Video file not found: {video_path}")
+        raise error.MapillaryFileNotFoundError(f"Video file not found: {video_path}")
 
     video_basename_no_ext, ext = os.path.splitext(os.path.basename(video_path))
     frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)

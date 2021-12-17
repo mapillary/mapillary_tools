@@ -31,11 +31,9 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             self.blackvue_videos = image_log.get_video_file_list(
                 source_path, abs_path=True
             )
-        elif os.path.isfile(source_path):
+        else:
             # it is okay to not suffix with .mp4
             self.blackvue_videos = [source_path]
-        else:
-            raise RuntimeError(f"The geotag_source_path {source_path} does not exist")
         self.source_path = source_path
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time

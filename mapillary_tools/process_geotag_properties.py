@@ -46,8 +46,10 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    if not import_path or not os.path.isdir(import_path):
-        raise error.MapillaryFileError(f"Import directory {import_path} does not exist")
+    if not os.path.isdir(import_path):
+        raise error.MapillaryFileNotFoundError(
+            f"Import directory not found: {import_path}"
+        )
 
     if geotag_source == "exif":
         images = image_log.get_total_file_list(
@@ -60,8 +62,10 @@ def process_geotag_properties(
 
     elif geotag_source == "gpx":
         if geotag_source_path is None:
-            raise error.MapillaryFileError(
-                "GPX file is required to be specified with --geotag_source_path"
+            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+        if not os.path.isfile(geotag_source_path):
+            raise error.MapillaryFileNotFoundError(
+                f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
             images = image_log.get_total_file_list(
@@ -85,8 +89,10 @@ def process_geotag_properties(
         )
     elif geotag_source == "nmea":
         if geotag_source_path is None:
-            raise error.MapillaryFileError(
-                "NMEA file is required to be specified with --geotag_source_path"
+            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+        if not os.path.isfile(geotag_source_path):
+            raise error.MapillaryFileNotFoundError(
+                f"NMEA file not found: {geotag_source_path}"
             )
         if video_import_path is None:
             images = image_log.get_total_file_list(
@@ -112,7 +118,11 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise error.MapillaryFileError("geotag_source_path is required")
+            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+        if not os.path.exists(geotag_source_path):
+            raise error.MapillaryFileNotFoundError(
+                f"GoPro video file or directory not found: {geotag_source_path}"
+            )
         geotag = geotag_from_gopro.GeotagFromGoPro(
             import_path,
             geotag_source_path,
@@ -123,7 +133,11 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise error.MapillaryFileError("geotag_source_path is required")
+            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+        if not os.path.exists(geotag_source_path):
+            raise error.MapillaryFileNotFoundError(
+                f"BlackVue video file or directory not found: {geotag_source_path}"
+            )
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             import_path,
             geotag_source_path,
@@ -131,7 +145,7 @@ def process_geotag_properties(
             offset_time=interpolation_offset_time,
         )
     else:
-        raise error.MapillaryFileError(f"Invalid geotag source {geotag_source}")
+        raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
     descs = geotag.to_description()
 

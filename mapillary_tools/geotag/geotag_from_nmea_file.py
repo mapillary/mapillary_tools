@@ -17,8 +17,6 @@ class GeotagFromNMEAFile(GeotagFromGPX):
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
-        if not os.path.isfile(source_path):
-            raise RuntimeError(f"GPX file not found: {source_path}")
         points = get_lat_lon_time_from_nmea(source_path)
         super().__init__(
             image_dir,

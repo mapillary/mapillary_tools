@@ -28,7 +28,7 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
-        raise error.MapillaryFileError(
+        raise error.MapillaryFileNotFoundError(
             f"Image description file {desc_path} not found. Please process the image directory first"
         )
 
@@ -36,14 +36,18 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
     if desc_path == "-":
         try:
             descs = json.load(sys.stdin)
-        except json.JSONDecodeError:
-            raise error.MapillaryFileError(f"Invalid JSON stream from stdin")
+        except json.JSONDecodeError as ex:
+            raise error.MapillaryInvalidDescriptionFile(
+                f"Invalid JSON stream from stdin: {ex}"
+            )
     else:
         with open(desc_path) as fp:
             try:
                 descs = json.load(fp)
-            except json.JSONDecodeError:
-                raise error.MapillaryFileError(f" Invalid JSON file {desc_path}")
+            except json.JSONDecodeError as ex:
+                raise error.MapillaryInvalidDescriptionFile(
+                    f"Invalid JSON file {desc_path}: {ex}"
+                )
     return types.filter_out_errors(
         T.cast(T.List[types.ImageDescriptionFileOrError], descs)
     )
@@ -55,7 +59,9 @@ def zip_images(
     desc_path: T.Optional[str] = None,
 ):
     if not os.path.isdir(import_path):
-        raise error.MapillaryFileError(f"Import directory {import_path} does not exist")
+        raise error.MapillaryFileNotFoundError(
+            f"Import directory not found: {import_path}"
+        )
 
     if desc_path is None:
         desc_path = os.path.join(import_path, "mapillary_image_description.json")
@@ -75,11 +81,13 @@ def fetch_user_items(
     if user_name is None:
         all_user_items = config.list_all_users()
         if not all_user_items:
-            raise RuntimeError("No Mapillary account found. Add one with --user_name")
+            raise error.MapillaryBadParameterError(
+                "No Mapillary account found. Add one with --user_name"
+            )
         if len(all_user_items) == 1:
             user_items = all_user_items[0]
         else:
-            raise RuntimeError(
+            raise error.MapillaryBadParameterError(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
@@ -448,7 +456,7 @@ def upload(
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         else:
-            raise error.MapillaryFileError(
+            raise error.MapillaryUnknownFileTypeError(
                 f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
             )
         LOG.debug(f"Uploaded to cluster {cluster_id}")
@@ -476,14 +484,15 @@ def upload(
 
         mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         try:
-            mly_uploader.upload_images(_join_desc_path(import_path, descs))
+            clusters = mly_uploader.upload_images(_join_desc_path(import_path, descs))
         except Exception as exc:
             if not dry_run:
                 _api_logging_failed(user_items, _summarize(stats), exc)
             raise
+        LOG.debug(f"Uploaded to cluster {clusters}")
     else:
-        raise error.MapillaryFileError(
-            f"Unknown file type {import_path}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
+        raise error.MapillaryFileNotFoundError(
+            f"Import file or directory not foun: {import_path}"
         )
 
     # if there is something uploaded
