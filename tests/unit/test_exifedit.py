@@ -1,5 +1,4 @@
 import os
-import tempfile
 import unittest
 from PIL import Image, ExifTags, TiffImagePlugin
 from mapillary_tools.exif_write import ExifEdit
@@ -92,7 +91,9 @@ def add_date_time_original_general(test_obj, filename):
     exif_data = load_exif()
     test_obj.assertEqual(
         test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
-        exif_data[EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]],
+        exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
+            EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
+        ],
     )
 
 
@@ -108,7 +109,7 @@ def add_lat_lon_general(test_obj, filename):
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = load_exif()
-    exif_gps_info = exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]]
+    exif_gps_info = exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])
 
     test_obj.assertEqual(
         (
@@ -140,7 +141,7 @@ def add_altitude_general(test_obj, filename):
     test_obj.assertEqual(
         (test_altitude * test_altitude_precision, test_altitude_precision),
         rational_to_tuple(
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+            exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
                 EXIF_GPS_TAGS_DICT["GPSAltitude"]
             ]
         ),
@@ -166,7 +167,9 @@ def add_repeatedly_time_original_general(test_obj, filename):
     exif_data = load_exif()
     test_obj.assertEqual(
         test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
-        exif_data[EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]],
+        exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
+            EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
+        ],
     )
 
 
@@ -187,7 +190,7 @@ def add_direction_general(test_obj, filename):
     test_obj.assertEqual(
         (test_direction * test_direction_precision, test_direction_precision),
         rational_to_tuple(
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+            exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
                 EXIF_GPS_TAGS_DICT["GPSImgDirection"]
             ]
         ),
@@ -241,7 +244,9 @@ class ExifEditTests(unittest.TestCase):
         exif_data = load_exif(NON_EXISTING_FILE)
         self.assertEqual(
             test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
-            exif_data[EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]],
+            exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
+                EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
+            ],
         )
 
     def test_add_repeatedly_time_original(self):
@@ -269,7 +274,7 @@ class ExifEditTests(unittest.TestCase):
 
         self.assertEqual(
             test_altitude,
-            exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+            exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
                 EXIF_GPS_TAGS_DICT["GPSAltitude"]
             ],
         )
@@ -285,7 +290,7 @@ class ExifEditTests(unittest.TestCase):
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
         exif_data = load_exif()
-        exif_gps_info = exif_data[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]]
+        exif_gps_info = exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])
 
         assert decimal_to_dms(abs(test_latitude), precision) == rational_to_tuple(
             exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitude"]]
