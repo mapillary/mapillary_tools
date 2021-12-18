@@ -86,7 +86,6 @@ def sample_video(
         except (
             error.MapillaryFileNotFoundError,
             error.MapillaryFFmpegNotFoundError,
-            error.MapillaryFFprobeNotFoundError,
         ):
             raise
         except Exception:

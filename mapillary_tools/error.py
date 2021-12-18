@@ -27,10 +27,7 @@ class MapillaryVideoError(MapillaryUserError):
 
 
 class MapillaryFFmpegNotFoundError(MapillaryUserError):
-    help = "https://github.com/mapillary/mapillary_tools#video-support"
-
-
-class MapillaryFFprobeNotFoundError(MapillaryUserError):
+    exit_code = 8
     help = "https://github.com/mapillary/mapillary_tools#video-support"
 
 

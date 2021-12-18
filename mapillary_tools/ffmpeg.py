@@ -19,7 +19,7 @@ def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
     try:
         output = subprocess.check_output(full_cmd)
     except FileNotFoundError:
-        raise error.MapillaryFFprobeNotFoundError(
+        raise error.MapillaryFFmpegNotFoundError(
             f'The ffprobe command "{MAPILLARY_FFPROBE_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFPROBE_PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions'
         )
     try:
