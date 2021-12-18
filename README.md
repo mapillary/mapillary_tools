@@ -183,7 +183,7 @@ Video process involves two commands:
    based on the video start time and sampling interval. This is where `ffmpeg` is being used.
 2. `process`: process (geotag) the sample images with the specified source
 
-The two commands are usually combined into a single command `video_process`. See the examples below.
+The two commands are usually combined into a single command `video_process`.
 
 #### Examples
 
@@ -225,8 +225,8 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
 ```
 
 **BlackVue videos**: Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.2 seconds, i.e. 5 frames
-every second and process resulting video frames for user `mapillary_user`, reading geotag data from the BlackVue videos
-in `path/to/videos/`.
+every second and process resulting video frames, reading geotag data from the BlackVue videos
+in `path/to/videos/mapillary_sampled_video_frames`.
 
 ```shell
 mapillary_tools video_process "path/to/videos/" \

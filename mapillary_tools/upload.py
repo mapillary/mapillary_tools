@@ -15,7 +15,7 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc, config
+from . import uploader, types, login, api_v4, ipc, error, config
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -28,7 +28,7 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
-        raise RuntimeError(
+        raise error.MapillaryFileNotFoundError(
             f"Image description file {desc_path} not found. Please process the image directory first"
         )
 
@@ -36,14 +36,18 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
     if desc_path == "-":
         try:
             descs = json.load(sys.stdin)
-        except json.JSONDecodeError:
-            raise RuntimeError(f"Invalid JSON stream from stdin")
+        except json.JSONDecodeError as ex:
+            raise error.MapillaryInvalidDescriptionFile(
+                f"Invalid JSON stream from stdin: {ex}"
+            )
     else:
         with open(desc_path) as fp:
             try:
                 descs = json.load(fp)
-            except json.JSONDecodeError:
-                raise RuntimeError(f" Invalid JSON file {desc_path}")
+            except json.JSONDecodeError as ex:
+                raise error.MapillaryInvalidDescriptionFile(
+                    f"Invalid JSON file {desc_path}: {ex}"
+                )
     return types.filter_out_errors(
         T.cast(T.List[types.ImageDescriptionFileOrError], descs)
     )
@@ -55,7 +59,9 @@ def zip_images(
     desc_path: T.Optional[str] = None,
 ):
     if not os.path.isdir(import_path):
-        raise RuntimeError(f"Error, import directory {import_path} does not exist")
+        raise error.MapillaryFileNotFoundError(
+            f"Import directory not found: {import_path}"
+        )
 
     if desc_path is None:
         desc_path = os.path.join(import_path, "mapillary_image_description.json")
@@ -75,11 +81,13 @@ def fetch_user_items(
     if user_name is None:
         all_user_items = config.list_all_users()
         if not all_user_items:
-            raise RuntimeError("No Mapillary account found. Add one with --user_name")
+            raise error.MapillaryBadParameterError(
+                "No Mapillary account found. Add one with --user_name"
+            )
         if len(all_user_items) == 1:
             user_items = all_user_items[0]
         else:
-            raise RuntimeError(
+            raise error.MapillaryBadParameterError(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
@@ -227,7 +235,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         upload_pbar.update(payload["chunk_size"])
 
     @emitter.on("upload_end")
-    def upload_end(cluster_id: int) -> None:
+    def upload_end(_: uploader.Progress) -> None:
         nonlocal upload_pbar
         if upload_pbar:
             upload_pbar.close()
@@ -339,6 +347,14 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     return upload_summary
 
 
+def _log_upload_summary(summary: T.Dict):
+    LOG.info("%8d images uploaded", summary["images"])
+    LOG.info("%8d sequences uploaded", summary["sequences"])
+    LOG.info("%8.1f data size in total (in megabytes)", summary["size"])
+    LOG.info("%8.1f data size uploaded (in megabytes)", summary["uploaded_size"])
+    LOG.info("%8.1f upload time (in seconds)", summary["time"])
+
+
 def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
@@ -448,8 +464,8 @@ def upload(
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         else:
-            raise RuntimeError(
-                f"Unknown file type {ext}. Currently only BlackVue (.mp4) and ZipFile (.zip) are supported"
+            raise error.MapillaryUnknownFileTypeError(
+                f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
             )
         LOG.debug(f"Uploaded to cluster {cluster_id}")
 
@@ -476,22 +492,21 @@ def upload(
 
         mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
         try:
-            mly_uploader.upload_images(_join_desc_path(import_path, descs))
+            clusters = mly_uploader.upload_images(_join_desc_path(import_path, descs))
         except Exception as exc:
             if not dry_run:
                 _api_logging_failed(user_items, _summarize(stats), exc)
             raise
+        LOG.debug(f"Uploaded to cluster {clusters}")
     else:
-        raise RuntimeError(f"Expect {import_path} to be either file or directory")
+        raise error.MapillaryFileNotFoundError(
+            f"Import file or directory not foun: {import_path}"
+        )
 
-    # if there is something uploaded
+    # If there is something uploaded
     if stats:
         upload_summary = _summarize(stats)
-
-        LOG.info(
-            "Upload summary (in megabytes/second): %s",
-            json.dumps(upload_summary, indent=4),
-        )
+        _log_upload_summary(upload_summary)
         if not dry_run:
             _api_logging_finished(user_items, upload_summary)
     else:

@@ -48,7 +48,6 @@ def get_total_file_list(
 def filter_video_samples(
     images: T.List[str], video_path: str, skip_subfolders: bool = False
 ) -> T.List[str]:
-    videos: T.Set[str] = set()
     if os.path.isdir(video_path):
         videos = set(
             os.path.basename(f)

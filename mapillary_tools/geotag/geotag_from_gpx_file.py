@@ -20,8 +20,6 @@ class GeotagFromGPXFile(GeotagFromGPX):
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
-        if not os.path.isfile(source_path):
-            raise RuntimeError(f"GPX file not found: {source_path}")
         tracks = parse_gpx(source_path)
         if 1 < len(tracks):
             LOG.warning(

@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 
-from . import image_log, ffmpeg, types
+from . import image_log, ffmpeg, types, error
 from .exif_write import ExifEdit
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -23,7 +23,9 @@ def sample_video(
     rerun: bool = False,
 ) -> None:
     if not os.path.exists(video_import_path):
-        raise RuntimeError(f'Error, video path "{video_import_path}" does not exist')
+        raise error.MapillaryFileNotFoundError(
+            f"Video file or directory not found: {video_import_path}"
+        )
 
     if os.path.isdir(video_import_path):
         video_list = image_log.get_video_file_list(
@@ -33,6 +35,8 @@ def sample_video(
     else:
         video_list = [video_import_path]
         video_dir = os.path.dirname(video_import_path)
+
+    LOG.debug(f"Found {len(video_list)} videos in {video_import_path}")
 
     if rerun:
         for video_path in video_list:
@@ -79,8 +83,12 @@ def sample_video(
                 video_sample_interval,
                 video_duration_ratio,
             )
-        except:
-            shutil.rmtree(video_sample_path_temporary)
+        except (
+            error.MapillaryFileNotFoundError,
+            error.MapillaryFFmpegNotFoundError,
+        ):
+            raise
+        except Exception:
             if skip_sample_errors:
                 LOG.warning(f"Skipping the error sampling {video_path}", exc_info=True)
             else:
@@ -95,12 +103,15 @@ def sample_video(
                     f"Skip the error renaming {video_sample_path} to {video_sample_path}",
                     exc_info=True,
                 )
+        finally:
+            if os.path.isdir(video_sample_path_temporary):
+                shutil.rmtree(video_sample_path_temporary)
 
 
 def extract_video_start_time(video_path: str) -> datetime.datetime:
     streams = ffmpeg.probe_video_streams(video_path)
     if not streams:
-        raise RuntimeError(f"Failed to find video streams in {video_path}")
+        raise error.MapillaryVideoError(f"Failed to find video streams in {video_path}")
 
     if 2 <= len(streams):
         LOG.warning(
@@ -114,7 +125,7 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
     try:
         duration = float(duration_str)
     except (TypeError, ValueError) as exc:
-        raise RuntimeError(
+        raise error.MapillaryVideoError(
             f"Failed to find video stream duration {duration_str} from video {video_path}"
         ) from exc
 
@@ -122,7 +133,9 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
 
     time_string = stream.get("tags", {}).get("creation_time")
     if time_string is None:
-        raise RuntimeError(f"Failed to find video creation_time in {video_path}")
+        raise error.MapillaryVideoError(
+            f"Failed to find video creation_time in {video_path}"
+        )
 
     try:
         video_end_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
@@ -130,7 +143,7 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
         try:
             video_end_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
         except ValueError:
-            raise RuntimeError(
+            raise error.MapillaryVideoError(
                 f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
             )
 
