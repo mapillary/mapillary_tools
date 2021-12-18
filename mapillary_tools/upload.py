@@ -347,6 +347,14 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     return upload_summary
 
 
+def _log_upload_summary(summary: T.Dict):
+    LOG.info("%8d images uploaded", summary["images"])
+    LOG.info("%8d sequences uploaded", summary["sequences"])
+    LOG.info("%8.1f data size in total (in megabytes)", summary["size"])
+    LOG.info("%8.1f data size uploaded (in megabytes)", summary["uploaded_size"])
+    LOG.info("%8.1f upload time (in seconds)", summary["time"])
+
+
 def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
@@ -495,14 +503,10 @@ def upload(
             f"Import file or directory not foun: {import_path}"
         )
 
-    # if there is something uploaded
+    # If there is something uploaded
     if stats:
         upload_summary = _summarize(stats)
-
-        LOG.info(
-            "Upload summary (in megabytes/second): %s",
-            json.dumps(upload_summary, indent=4),
-        )
+        _log_upload_summary(upload_summary)
         if not dry_run:
             _api_logging_finished(user_items, upload_summary)
     else:

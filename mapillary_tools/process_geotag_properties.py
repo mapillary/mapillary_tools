@@ -296,10 +296,11 @@ def process_finalize(
         T.List[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
+    assert len(processed_images) + len(not_processed_images) == len(descs)
 
-    LOG.info("%8d images read", len(descs))
+    LOG.info("%8d images read in total", len(descs))
     if processed_images:
-        LOG.info("%8d images processed and ready to upload", len(processed_images))
+        LOG.info("%8d images processed and ready to be uploaded", len(processed_images))
 
     counter = collections.Counter(
         desc["error"].get("type") for desc in not_processed_images
