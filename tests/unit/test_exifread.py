@@ -25,8 +25,7 @@ def gps_to_decimal(value, ref):
 
 def load_exif_PIL(filename=TEST_EXIF_FILE):
     test_image = Image.open(filename)
-    exif_data = test_image.getexif()
-    return exif_data
+    return test_image.getexif()
 
 
 def read_image_history_general(test_obj, filename):
@@ -51,7 +50,9 @@ def read_orientation_general(test_obj, filename):
 
 def read_date_time_original_general(test_obj, filename):
     exif_data_PIL = load_exif_PIL()
-    capture_time_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]]
+    capture_time_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
+        EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
+    ]
 
     exif_data_ExifRead = ExifRead(filename)
     capture_time_ExifRead = exif_data_ExifRead.extract_capture_time()
@@ -62,16 +63,16 @@ def read_date_time_original_general(test_obj, filename):
 
 def read_lat_lon_general(test_obj, filename):
     exif_data_PIL = load_exif_PIL()
-    latitude_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    latitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSLatitude"]
     ]
-    longitude_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    longitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSLongitude"]
     ]
-    latitudeRef_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    latitudeRef_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]
     ]
-    longitudeRef_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    longitudeRef_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]
     ]
 
@@ -100,7 +101,7 @@ def read_camera_make_model_general(test_obj, filename):
 
 def read_altitude_general(test_obj, filename):
     exif_data_PIL = load_exif_PIL()
-    altitude_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    altitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSAltitude"]
     ]
     altitude_value_PIL = altitude_PIL.numerator / altitude_PIL.denominator
@@ -113,7 +114,7 @@ def read_altitude_general(test_obj, filename):
 
 def read_direction_general(test_obj, filename):
     exif_data_PIL = load_exif_PIL()
-    direction_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["GPSInfo"]][
+    direction_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSImgDirection"]
     ]
     direction_value_PIL = direction_PIL.numerator / direction_PIL.denominator
