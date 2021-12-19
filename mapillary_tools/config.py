@@ -64,5 +64,6 @@ def update_config(
         config.add_section(user_name)
     for key, val in user_items.items():
         config.set(user_name, key, T.cast(str, val))
+    os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
     with open(config_path, "w") as fp:
         config.write(fp)
