@@ -147,7 +147,7 @@ def write_history(
     if MAPILLARY_UPLOAD_HISTORY_PATH is None:
         return
     path = _history_desc_path(md5sum)
-    LOG.debug(f"Writing upload history at {path}")
+    LOG.debug(f"Writing upload history: {path}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     history: T.Dict = {
         "params": params,
@@ -348,11 +348,11 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
 
 
 def _log_upload_summary(summary: T.Dict):
-    LOG.info("%8d images uploaded", summary["images"])
-    LOG.info("%8d sequences uploaded", summary["sequences"])
-    LOG.info("%8.1f data size in total (in megabytes)", summary["size"])
-    LOG.info("%8.1f data size uploaded (in megabytes)", summary["uploaded_size"])
-    LOG.info("%8.1f upload time (in seconds)", summary["time"])
+    LOG.info("%8d  images uploaded", summary["images"])
+    LOG.info("%8d  sequences uploaded", summary["sequences"])
+    LOG.info("%8.1fM data in total", summary["size"])
+    LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
+    LOG.info("%8.1fs upload time", summary["time"])
 
 
 def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
@@ -413,13 +413,60 @@ def _join_desc_path(
     ]
 
 
-def upload(
-    import_path: str,
+def upload_multiple(
+    import_path: T.Union[T.List[str], str],
     desc_path: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     dry_run=False,
 ):
+    if isinstance(import_path, str):
+        import_paths = [import_path]
+    else:
+        assert isinstance(import_path, list)
+        import_paths = import_path
+
+    # Check and fail early
+    for path in import_paths:
+        if os.path.isfile(path):
+            _, ext = os.path.splitext(path)
+            if ext.lower() not in [".zip", ".mp4"]:
+                raise error.MapillaryUnknownFileTypeError(
+                    f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
+                )
+        elif os.path.isdir(path):
+            pass
+        else:
+            raise error.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
+
+    user_items = fetch_user_items(user_name, organization_key)
+
+    all_stats = []
+    for path in import_paths:
+        LOG.info("Uploading import path: %s", path)
+        stats = upload(
+            path,
+            user_items,
+            desc_path=desc_path,
+            dry_run=dry_run,
+        )
+        all_stats.extend(stats)
+
+    upload_summary = _summarize(all_stats)
+    if all_stats:
+        _log_upload_summary(upload_summary)
+    else:
+        LOG.info("Nothing uploaded. Bye.")
+
+
+def upload(
+    import_path: str,
+    user_items: types.UserItem,
+    desc_path: T.Optional[str] = None,
+    dry_run=False,
+) -> T.List[_APIStats]:
     emitter = uploader.EventEmitter()
 
     # Setup the emitter -- the order matters here
@@ -439,13 +486,12 @@ def upload(
     params = {
         "import_path": import_path,
         "desc_path": desc_path,
-        "user_name": user_name,
-        "organization_key": organization_key,
+        "user_key": user_items.get("MAPSettingsUserKey"),
+        "organization_key": user_items.get("MAPOrganizationKey"),
     }
 
     if os.path.isfile(import_path):
         _, ext = os.path.splitext(import_path)
-        user_items = fetch_user_items(user_name, organization_key)
         if not dry_run:
             _setup_write_upload_history(emitter, params)
         mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
@@ -467,7 +513,7 @@ def upload(
             raise error.MapillaryUnknownFileTypeError(
                 f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
             )
-        LOG.debug(f"Uploaded to cluster {cluster_id}")
+        LOG.debug(f"Uploaded to cluster: {cluster_id}")
 
     elif os.path.isdir(import_path):
         if desc_path is None:
@@ -475,10 +521,8 @@ def upload(
 
         descs = read_image_descriptions(desc_path)
         if not descs:
-            LOG.warning(f"No images found in {desc_path}. Bye.")
-            return
-
-        user_items = fetch_user_items(user_name, organization_key)
+            LOG.warning(f"No images found in {desc_path}")
+            return []
 
         # Make sure all descs have uuid assigned
         # It is used to find the right sequence when writing upload history
@@ -497,17 +541,17 @@ def upload(
             if not dry_run:
                 _api_logging_failed(user_items, _summarize(stats), exc)
             raise
-        LOG.debug(f"Uploaded to cluster {clusters}")
+        LOG.debug(f"Uploaded to cluster: {clusters}")
     else:
         raise error.MapillaryFileNotFoundError(
-            f"Import file or directory not foun: {import_path}"
+            f"Import file or directory not found: {import_path}"
         )
 
+    upload_summary = _summarize(stats)
+    LOG.debug("Upload summary: %s", upload_summary)
+
     # If there is something uploaded
-    if stats:
-        upload_summary = _summarize(stats)
-        _log_upload_summary(upload_summary)
-        if not dry_run:
-            _api_logging_finished(user_items, upload_summary)
-    else:
-        LOG.info("Nothing uploaded. Bye.")
+    if stats and not dry_run:
+        _api_logging_finished(user_items, upload_summary)
+
+    return stats

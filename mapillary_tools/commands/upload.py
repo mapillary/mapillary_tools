@@ -1,6 +1,6 @@
 import inspect
 
-from ..upload import upload
+from ..upload import upload, upload_multiple
 
 
 class Command:
@@ -33,7 +33,7 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        upload(
+        upload_multiple(
             **(
                 {
                     k: v
