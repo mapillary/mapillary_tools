@@ -379,11 +379,7 @@ mapillary_tools zip "path/to/images/" "path/to/zipped_images/" \
 Then upload the zip files separately:
 
 ```shell
-for zipfile in path/to/zipped_images/*.zip; do
-    mapillary_tools upload "$zipfile"
-    # optionally remove the zipfile after uploaded
-    rm "$zipfile"
-done
+mapillary_tools upload path/to/zipped_images/*.zip
 ```
 
 ### Upload API
