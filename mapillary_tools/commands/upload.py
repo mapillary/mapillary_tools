@@ -1,6 +1,6 @@
 import inspect
 
-from ..upload import upload, upload_multiple
+from ..upload import upload_multiple
 
 
 class Command:
@@ -38,7 +38,7 @@ class Command:
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(upload).args
+                    if k in inspect.getfullargspec(upload_multiple).args
                 }
             )
         )
