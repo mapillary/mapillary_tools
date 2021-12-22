@@ -7,6 +7,7 @@ import collections
 
 import jsonschema
 import piexif
+from tqdm import tqdm
 
 from . import image_log, types, error, uploader
 from .exif_write import ExifEdit
@@ -164,17 +165,6 @@ def overwrite_exif_tags(
     overwrite_EXIF_direction_tag: bool = False,
     overwrite_EXIF_orientation_tag: bool = False,
 ) -> None:
-    if not any(
-        [
-            overwrite_all_EXIF_tags,
-            overwrite_EXIF_time_tag,
-            overwrite_EXIF_gps_tag,
-            overwrite_EXIF_direction_tag,
-            overwrite_EXIF_orientation_tag,
-        ]
-    ):
-        return
-
     image_exif = ExifEdit(image_path)
 
     # also try to set time and gps so image can be placed on the map for testing and
@@ -266,24 +256,50 @@ def process_finalize(
 
     descs = list(types.map_descs(validate_and_fail_desc, descs))
 
-    for desc in types.filter_out_errors(descs):
-        image = os.path.join(import_path, desc["filename"])
-        try:
-            overwrite_exif_tags(
-                image,
-                T.cast(types.ImageDescriptionEXIF, desc),
-                overwrite_all_EXIF_tags,
-                overwrite_EXIF_time_tag,
-                overwrite_EXIF_gps_tag,
-                overwrite_EXIF_direction_tag,
-                overwrite_EXIF_orientation_tag,
-            )
-        except Exception:
-            LOG.warning(f"Failed to overwrite EXIF for image {image}", exc_info=True)
+    if any(
+        [
+            overwrite_all_EXIF_tags,
+            overwrite_EXIF_time_tag,
+            overwrite_EXIF_gps_tag,
+            overwrite_EXIF_direction_tag,
+            overwrite_EXIF_orientation_tag,
+        ]
+    ):
+        for desc in tqdm(
+            types.filter_out_errors(descs),
+            desc="Overwriting EXIF",
+            unit="images",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        ):
+            image = os.path.join(import_path, desc["filename"])
+            try:
+                overwrite_exif_tags(
+                    image,
+                    T.cast(types.ImageDescriptionEXIF, desc),
+                    overwrite_all_EXIF_tags,
+                    overwrite_EXIF_time_tag,
+                    overwrite_EXIF_gps_tag,
+                    overwrite_EXIF_direction_tag,
+                    overwrite_EXIF_orientation_tag,
+                )
+            except Exception:
+                LOG.warning(
+                    f"Failed to overwrite EXIF for image {image}", exc_info=True
+                )
 
-    descs = list(
-        types.map_descs(lambda desc: verify_exif_write(import_path, desc), descs)
-    )
+    with tqdm(
+        total=len(types.filter_out_errors(descs)),
+        desc="Test EXIF writing",
+        unit="images",
+        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+    ) as pbar:
+
+        def _update(desc):
+            new_desc = verify_exif_write(import_path, desc)
+            pbar.update(1)
+            return new_desc
+
+        descs = list(types.map_descs(_update, descs))
 
     if desc_path == "-":
         print(json.dumps(descs, indent=4))

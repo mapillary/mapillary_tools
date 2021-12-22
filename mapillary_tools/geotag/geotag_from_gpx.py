@@ -101,7 +101,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             if exif_time < sorted_points[0].time:
                 delta = sorted_points[0].time - exif_time
                 exc2 = MapillaryOutsideGPXTrackError(
-                    f"Unable to interpolate: the image timestamp is beyond the GPX trace start point by {delta.total_seconds()} seconds",
+                    f"The image timestamp is {round(delta.total_seconds(), 2)} seconds behind the GPX start point",
                     image_time=types.datetime_to_map_capture_time(exif_time),
                     gpx_start_time=types.datetime_to_map_capture_time(
                         sorted_points[0].time
@@ -116,7 +116,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             if sorted_points[-1].time < exif_time:
                 delta = exif_time - sorted_points[-1].time
                 exc2 = MapillaryOutsideGPXTrackError(
-                    f"Unable to interpolate: the image timestamp is beyond the GPX trace end point by {delta.total_seconds()} seconds",
+                    f"The image timestamp is {round(delta.total_seconds(), 2)} seconds beyond the GPX end point",
                     image_time=types.datetime_to_map_capture_time(exif_time),
                     gpx_start_time=types.datetime_to_map_capture_time(
                         sorted_points[0].time
@@ -147,3 +147,31 @@ class GeotagFromGPX(GeotagFromGeneric):
         assert len(descs) == len(self.images)
 
         return descs
+
+
+class GeotagFromGPXWithProgress(GeotagFromGPX):
+    def __init__(
+        self,
+        image_dir: str,
+        images: T.List[str],
+        points: T.List[types.GPXPoint],
+        use_gpx_start_time: bool = False,
+        offset_time: float = 0.0,
+        progress_bar=None,
+    ) -> None:
+        super().__init__(
+            image_dir,
+            images,
+            points,
+            use_gpx_start_time=use_gpx_start_time,
+            offset_time=offset_time,
+        )
+        self._progress_bar = progress_bar
+
+    def read_image_capture_time(self, image: str) -> T.Optional[datetime.datetime]:
+        try:
+            capture_time = super().read_image_capture_time(image)
+        finally:
+            if self._progress_bar:
+                self._progress_bar.update(1)
+        return capture_time

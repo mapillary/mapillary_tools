@@ -7,12 +7,14 @@ import typing as T
 
 import pynmea2
 from pymp4.parser import Box
+from tqdm import tqdm
 
 from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_gpx import GeotagFromGPX
+from .geotag_from_gpx import GeotagFromGPXWithProgress
 from .. import image_log, types
-from ..error import MapillaryGeoTaggingError, MapillaryStationaryBlackVueError
-from ..geo import get_max_distance_from_start
+from ..error import MapillaryStationaryVideoError
+from ..geo import get_max_distance_from_start, gps_distance, pairwise
+from . import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -43,53 +45,67 @@ class GeotagFromBlackVue(GeotagFromGeneric):
 
         images = image_log.get_total_file_list(self.image_dir)
         for blackvue_video in self.blackvue_videos:
+            LOG.debug("Processing BlackVue video: %s", blackvue_video)
+
             sample_images = image_log.filter_video_samples(images, blackvue_video)
+            LOG.debug(
+                "Found %d sample images from video %s",
+                len(sample_images),
+                blackvue_video,
+            )
+
             if not sample_images:
                 continue
 
-            [points, is_stationary_video] = gpx_from_blackvue(
-                blackvue_video, use_nmea_stream_timestamp=False
-            )
+            points = get_points_from_bv(blackvue_video)
 
-            if not points:
-                message = f"Skipping the BlackVue video {blackvue_video} -- no GPS found in the video"
+            # bypass empty points to raise MapillaryGPXEmptyError
+            if points and utils.is_video_stationary(
+                get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            ):
+                LOG.warning(
+                    "Fail %d sample images due to stationary video %s",
+                    len(sample_images),
+                    blackvue_video,
+                )
                 for image in sample_images:
-                    error = types.describe_error(MapillaryGeoTaggingError(message))
-                    descs.append({"error": error, "filename": image})
-                continue
-
-            if is_stationary_video:
-                message = f"Skipping stationary BlackVue video {blackvue_video}"
-                for image in sample_images:
-                    error = types.describe_error(
-                        MapillaryStationaryBlackVueError(message)
+                    err = types.describe_error(
+                        MapillaryStationaryVideoError("Stationary BlackVue video")
                     )
-                    descs.append({"error": error, "filename": image})
+                    descs.append({"error": err, "filename": image})
                 continue
-
-            geotag = GeotagFromGPX(
-                self.image_dir,
-                sample_images,
-                points,
-                use_gpx_start_time=self.use_gpx_start_time,
-                offset_time=self.offset_time,
-            )
 
             model = find_camera_model(blackvue_video)
-            LOG.debug(f"Found BlackVue camera model %s for %s", model, blackvue_video)
+            LOG.debug(
+                f"Found BlackVue camera model %s from video %s", model, blackvue_video
+            )
 
-            for desc in geotag.to_description():
-                if not types.is_error(desc):
-                    desc = T.cast(types.ImageDescriptionFile, desc)
-                    desc["MAPDeviceMake"] = "Blackvue"
-                    if model is not None:
-                        desc["MAPDeviceModel"] = model.decode("utf-8")
-                descs.append(desc)
+            with tqdm(
+                total=len(sample_images),
+                desc=f"Interpolating {os.path.basename(blackvue_video)}",
+                unit="images",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+            ) as pbar:
+                geotag = GeotagFromGPXWithProgress(
+                    self.image_dir,
+                    sample_images,
+                    points,
+                    use_gpx_start_time=self.use_gpx_start_time,
+                    offset_time=self.offset_time,
+                    progress_bar=pbar,
+                )
+                for desc in geotag.to_description():
+                    if not types.is_error(desc):
+                        desc = T.cast(types.ImageDescriptionFile, desc)
+                        desc["MAPDeviceMake"] = "Blackvue"
+                        if model is not None:
+                            desc["MAPDeviceModel"] = model.decode("utf-8")
+                    descs.append(desc)
 
         return descs
 
 
-def find_camera_model(video_path) -> T.Optional[bytes]:
+def find_camera_model(video_path: str) -> T.Optional[bytes]:
     with open(video_path, "rb") as fd:
         fd.seek(0, io.SEEK_END)
         eof = fd.tell()
@@ -97,11 +113,13 @@ def find_camera_model(video_path) -> T.Optional[bytes]:
         while fd.tell() < eof:
             box = Box.parse_stream(fd)
             if box.type.decode("utf-8") == "free":
-                return box.data[29:39]
+                return T.cast(bytes, box.data[29:39])
         return None
 
 
-def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[types.GPXPoint]:
+def get_points_from_bv(
+    path: str, use_nmea_stream_timestamp: bool = False
+) -> T.List[types.GPXPoint]:
     points = []
     with open(path, "rb") as fd:
         fd.seek(0, io.SEEK_END)
@@ -260,19 +278,25 @@ def get_points_from_bv(path, use_nmea_stream_timestamp=False) -> T.List[types.GP
         return [types.GPXPoint(time=p[0], lat=p[1], lon=p[2], alt=p[3]) for p in points]
 
 
-def is_video_stationary(max_distance_from_start) -> bool:
-    radius_threshold = 10
-    accumulated_distance_threshold = 20
-    return (
-        max_distance_from_start < radius_threshold
-        or accumulated_distance_threshold < accumulated_distance_threshold
+if __name__ == "__main__":
+    import sys
+
+    points = get_points_from_bv(sys.argv[1])
+    gpx = utils.convert_points_to_gpx(points)
+    print(gpx.to_xml())
+
+    LOG.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    LOG.addHandler(handler)
+    LOG.info(
+        "Stationary: %s",
+        utils.is_video_stationary(
+            get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        ),
     )
-
-
-def gpx_from_blackvue(
-    bv_video: str, use_nmea_stream_timestamp=False
-) -> T.Tuple[T.List[types.GPXPoint], bool]:
-    points = get_points_from_bv(bv_video, use_nmea_stream_timestamp)
-    if not points:
-        return points, True
-    return points, is_video_stationary(get_max_distance_from_start(points))
+    distance = sum(
+        gps_distance((cur.lat, cur.lon), (nex.lat, nex.lon))
+        for cur, nex in pairwise(points)
+    )
+    LOG.info("Total distance: %f", distance)

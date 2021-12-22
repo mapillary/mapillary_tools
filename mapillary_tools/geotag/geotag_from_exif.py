@@ -2,6 +2,8 @@ import logging
 import os
 import typing as T
 
+from tqdm import tqdm
+
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
 from ..exif_read import ExifRead
@@ -19,7 +21,12 @@ class GeotagFromEXIF(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        for image in self.images:
+        for image in tqdm(
+            self.images,
+            desc=f"Processing",
+            unit="images",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        ):
             image_path = os.path.join(self.image_dir, image)
 
             try:

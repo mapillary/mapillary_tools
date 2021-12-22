@@ -53,7 +53,7 @@ class MapillaryOutsideGPXTrackError(_MapillaryDescriptionError):
         self.gpx_end_time = gpx_end_time
 
 
-class MapillaryStationaryBlackVueError(_MapillaryDescriptionError):
+class MapillaryStationaryVideoError(_MapillaryDescriptionError):
     pass
 
 

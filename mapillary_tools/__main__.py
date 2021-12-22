@@ -127,7 +127,7 @@ def main():
     argvars = vars(args)
     params = {k: v for k, v in argvars.items() if v is not None and not callable(v)}
     for k, v in params.items():
-        LOG.debug(f"param: {k}: {v}")
+        LOG.debug(f"CLI param: {k}: {v}")
 
     try:
         args.func(argvars)

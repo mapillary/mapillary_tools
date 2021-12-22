@@ -4,10 +4,14 @@ import os
 import tempfile
 import typing as T
 
+from tqdm import tqdm
+
+from ..geo import get_max_distance_from_start, gps_distance, pairwise
 from .. import types, image_log, ffmpeg, error
-from .geotag_from_gpx import GeotagFromGPX
+from .geotag_from_gpx import GeotagFromGPXWithProgress
 from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
+from . import utils
 
 
 LOG = logging.getLogger(__name__)
@@ -32,22 +36,55 @@ class GeotagFromGoPro(GeotagFromGeneric):
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        descs = []
+        descs: T.List[types.ImageDescriptionFileOrError] = []
 
         images = image_log.get_total_file_list(self.image_dir)
         for video in self.videos:
+            LOG.debug("Processing GoPro video: %s", video)
+
             sample_images = image_log.filter_video_samples(images, video)
+            LOG.debug(
+                "Found %d sample images from video %s",
+                len(sample_images),
+                video,
+            )
+
             if not sample_images:
                 continue
+
             points = get_points_from_gpmf(video)
-            geotag = GeotagFromGPX(
-                self.image_dir,
-                sample_images,
-                points,
-                use_gpx_start_time=self.use_gpx_start_time,
-                offset_time=self.offset_time,
-            )
-            descs.extend(geotag.to_description())
+
+            # bypass empty points to raise MapillaryGPXEmptyError
+            if points and utils.is_video_stationary(
+                get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            ):
+                LOG.warning(
+                    "Fail %d sample images due to stationary video %s",
+                    len(sample_images),
+                    video,
+                )
+                for image in sample_images:
+                    err = types.describe_error(
+                        error.MapillaryStationaryVideoError("Stationary GoPro video")
+                    )
+                    descs.append({"error": err, "filename": image})
+                continue
+
+            with tqdm(
+                total=len(sample_images),
+                desc=f"Interpolating {os.path.basename(video)}",
+                unit="images",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+            ) as pbar:
+                geotag = GeotagFromGPXWithProgress(
+                    self.image_dir,
+                    sample_images,
+                    points,
+                    use_gpx_start_time=self.use_gpx_start_time,
+                    offset_time=self.offset_time,
+                    progress_bar=pbar,
+                )
+                descs.extend(geotag.to_description())
 
         return descs
 
@@ -105,3 +142,27 @@ def get_points_from_gpmf(path: str) -> T.List[types.GPXPoint]:
             )
 
     return points
+
+
+if __name__ == "__main__":
+    import sys
+
+    points = get_points_from_gpmf(sys.argv[1])
+    gpx = utils.convert_points_to_gpx(points)
+    print(gpx.to_xml())
+
+    LOG.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    LOG.addHandler(handler)
+    LOG.info(
+        "Stationary: %s",
+        utils.is_video_stationary(
+            get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        ),
+    )
+    distance = sum(
+        gps_distance((cur.lat, cur.lon), (nex.lat, nex.lon))
+        for cur, nex in pairwise(points)
+    )
+    LOG.info("Total distance: %f", distance)
