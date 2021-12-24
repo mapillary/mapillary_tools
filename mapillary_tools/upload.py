@@ -15,7 +15,7 @@ else:
     from typing_extensions import Literal
 
 import requests
-from tqdm import tqdm, utils
+from tqdm import tqdm
 
 from . import uploader, types, login, api_v4, ipc, error, config
 
