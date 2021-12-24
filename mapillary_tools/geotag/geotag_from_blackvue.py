@@ -8,11 +8,12 @@ import typing as T
 import pynmea2
 from pymp4.parser import Box
 from tqdm import tqdm
+import construct
 
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 from .. import image_log, types
-from ..error import MapillaryStationaryVideoError
+from ..error import MapillaryStationaryVideoError, MapillaryInvalidBlackVueVideoError
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
 from . import utils
 
@@ -57,7 +58,17 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = get_points_from_bv(blackvue_video)
+            try:
+                points = get_points_from_bv(blackvue_video)
+            except MapillaryInvalidBlackVueVideoError:
+                for image in sample_images:
+                    err = types.describe_error(
+                        MapillaryInvalidBlackVueVideoError(
+                            f"Unable to parse the BlackVue video: {blackvue_video}"
+                        )
+                    )
+                    descs.append({"error": err, "filename": image})
+                continue
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and utils.is_video_stationary(
@@ -133,7 +144,12 @@ def get_points_from_bv(
         found_first_gps_time = False
 
         while fd.tell() < eof:
-            box = Box.parse_stream(fd)
+            try:
+                box = Box.parse_stream(fd)
+            except (construct.core.RangeError, construct.core.ConstError):
+                raise MapillaryInvalidBlackVueVideoError(
+                    f"Unable to parse the BlackVue video: {path}"
+                )
 
             if box.type.decode("utf-8") == "free":
                 length = len(box.data)

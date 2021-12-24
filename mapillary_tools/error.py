@@ -39,13 +39,13 @@ class MapillaryGeoTaggingError(_MapillaryDescriptionError):
     pass
 
 
-class MapillaryGPXEmptyError(_MapillaryDescriptionError):
-    pass
+class MapillaryGPXEmptyError(_MapillaryDescriptionError, MapillaryUserError):
+    exit_code = 9
 
 
 class MapillaryOutsideGPXTrackError(_MapillaryDescriptionError):
     def __init__(
-        self, message, image_time: str, gpx_start_time: str, gpx_end_time: str
+        self, message: str, image_time: str, gpx_start_time: str, gpx_end_time: str
     ):
         super().__init__(message)
         self.image_time = image_time
@@ -53,8 +53,14 @@ class MapillaryOutsideGPXTrackError(_MapillaryDescriptionError):
         self.gpx_end_time = gpx_end_time
 
 
-class MapillaryStationaryVideoError(_MapillaryDescriptionError):
-    pass
+class MapillaryStationaryVideoError(_MapillaryDescriptionError, MapillaryUserError):
+    exit_code = 10
+
+
+class MapillaryInvalidBlackVueVideoError(
+    _MapillaryDescriptionError, MapillaryUserError
+):
+    exit_code = 11
 
 
 # FIXME: sequence error

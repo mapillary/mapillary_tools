@@ -7,13 +7,15 @@ import time
 import uuid
 import string
 
+from .geo import get_max_distance_from_start
+
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
 else:
     from typing_extensions import Literal
 
 import requests
-from tqdm import tqdm
+from tqdm import tqdm, utils
 
 from . import uploader, types, login, api_v4, ipc, error, config
 
@@ -503,6 +505,22 @@ def upload(
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         elif ext.lower() in [".mp4"]:
+            from .geotag import geotag_from_blackvue, utils
+
+            points = geotag_from_blackvue.get_points_from_bv(import_path)
+            if not points:
+                raise error.MapillaryGPXEmptyError(
+                    f"Empty GPS extracted from {import_path}"
+                )
+
+            stationary = utils.is_video_stationary(
+                get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            )
+            if stationary:
+                raise error.MapillaryStationaryVideoError(
+                    f"The video is stationary: {import_path}"
+                )
+
             try:
                 cluster_id = mly_uploader.upload_blackvue(import_path)
             except Exception as exc:
