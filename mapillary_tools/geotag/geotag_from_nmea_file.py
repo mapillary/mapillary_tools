@@ -1,5 +1,4 @@
 import typing as T
-import os
 import datetime
 
 import pynmea2

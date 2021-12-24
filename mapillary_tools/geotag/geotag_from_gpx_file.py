@@ -3,15 +3,18 @@ import os
 import typing as T
 
 import gpxpy
+from tqdm import tqdm
 
-from .geotag_from_gpx import GeotagFromGPX
+from .geotag_from_generic import GeotagFromGeneric
+
+from .geotag_from_gpx import GeotagFromGPXWithProgress
 from .. import types, exif_read
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPXFile(GeotagFromGPX):
+class GeotagFromGPXFile(GeotagFromGeneric):
     def __init__(
         self,
         image_dir: str,
@@ -27,14 +30,12 @@ class GeotagFromGPXFile(GeotagFromGPX):
                 len(tracks),
                 source_path,
             )
-        points: T.List[types.GPXPoint] = sum(tracks, [])
-        super().__init__(
-            image_dir,
-            images,
-            points,
-            use_gpx_start_time=use_gpx_start_time,
-            offset_time=offset_time,
-        )
+        self.points: T.List[types.GPXPoint] = sum(tracks, [])
+        self.image_dir = image_dir
+        self.images = images
+        self.source_path = source_path
+        self.use_gpx_start_time = use_gpx_start_time
+        self.offset_time = offset_time
 
     def _attach_exif(
         self, desc: types.ImageDescriptionFile
@@ -65,8 +66,33 @@ class GeotagFromGPXFile(GeotagFromGPX):
         return T.cast(types.ImageDescriptionFile, {**desc, **meta})
 
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        descs = super().to_description()
-        return list(types.map_descs(self._attach_exif, descs))
+        with tqdm(
+            total=len(self.images),
+            desc=f"Interpolating",
+            unit="images",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        ) as pbar:
+            geotag = GeotagFromGPXWithProgress(
+                self.image_dir,
+                self.images,
+                self.points,
+                use_gpx_start_time=self.use_gpx_start_time,
+                offset_time=self.offset_time,
+                progress_bar=pbar,
+            )
+            descs = geotag.to_description()
+
+        return list(
+            types.map_descs(
+                self._attach_exif,
+                tqdm(
+                    descs,
+                    desc=f"Processing",
+                    unit="images",
+                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                ),
+            )
+        )
 
 
 Track = T.List[types.GPXPoint]

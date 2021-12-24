@@ -57,7 +57,7 @@ def sample_video(
         video_sample_path = os.path.join(import_path, relpath)
         if os.path.exists(video_sample_path):
             LOG.warning(
-                f"Skip video {os.path.basename(video_path)} as it has been sampled in {video_sample_path}"
+                f"Skip sampling video {os.path.basename(video_path)} as it has been sampled in {video_sample_path}"
             )
             continue
 
