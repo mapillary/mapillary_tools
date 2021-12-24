@@ -41,9 +41,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
         if not self.points:
-            exc = MapillaryGPXEmptyError(
-                "No GPS points extracted from the geotag source"
-            )
+            exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
             for image in self.images:
                 descs.append(
                     {
