@@ -2,11 +2,15 @@ import datetime
 import json
 import io
 import typing as T
+import logging
 
 import piexif
 
 from .geo import decimal_to_dms
 from .types import ImageDescriptionEXIF
+
+
+LOG = logging.getLogger(__name__)
 
 
 class ExifEdit:
@@ -64,18 +68,68 @@ class ExifEdit:
         )
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
-    def dump_image_bytes(self) -> bytes:
-        try:
-            exif_bytes = piexif.dump(self._ef)
-        except piexif.InvalidImageDataError:
-            if self._ef.get("thumbnail") == b"":
-                # workaround https://github.com/hMatoba/Piexif/issues/30
-                del self._ef["thumbnail"]
-                if "1st" in self._ef:
-                    del self._ef["1st"]
+    def _safe_dump(self) -> bytes:
+        TRUSTED_TAGS = [
+            piexif.ExifIFD.DateTimeOriginal,
+            piexif.GPSIFD.GPSAltitude,
+            piexif.GPSIFD.GPSAltitudeRef,
+            piexif.GPSIFD.GPSImgDirection,
+            piexif.GPSIFD.GPSImgDirection,
+            piexif.GPSIFD.GPSImgDirectionRef,
+            piexif.GPSIFD.GPSImgDirectionRef,
+            piexif.GPSIFD.GPSLatitude,
+            piexif.GPSIFD.GPSLatitudeRef,
+            piexif.GPSIFD.GPSLongitude,
+            piexif.GPSIFD.GPSLongitudeRef,
+            piexif.ImageIFD.ImageDescription,
+            piexif.ImageIFD.Orientation,
+        ]
+
+        thumbnail_removed = False
+
+        while True:
+            try:
                 exif_bytes = piexif.dump(self._ef)
+            except piexif.InvalidImageDataError as exc:
+                if thumbnail_removed:
+                    raise exc
+                LOG.debug(
+                    "InvalidImageDataError on dumping -- removing thumbnail and 1st: %s",
+                    exc,
+                )
+                # workaround: https://github.com/hMatoba/Piexif/issues/30
+                del self._ef["thumbnail"]
+                del self._ef["1st"]
+                thumbnail_removed = True
+                # retry later
+            except ValueError as exc:
+                # workaround: https://github.com/hMatoba/Piexif/issues/95
+                # a sample message: "dump" got wrong type of exif value.\n41729 in Exif IFD. Got as <class 'int'>.
+                message = str(exc)
+                if "got wrong type of exif value" in message:
+                    split = message.split("\n")
+                    LOG.debug(
+                        "Found invalid EXIF tag -- removing it and retry: %s", message
+                    )
+                    try:
+                        tag = int(split[1].split()[0])
+                        ifd = split[1].split()[2]
+                    except Exception:
+                        raise exc
+                    if tag in TRUSTED_TAGS:
+                        raise exc
+                    else:
+                        del self._ef[ifd][tag]
+                        # retry later
+                else:
+                    raise exc
             else:
-                raise
+                break
+
+        return exif_bytes
+
+    def dump_image_bytes(self) -> bytes:
+        exif_bytes = self._safe_dump()
         output = io.BytesIO()
         piexif.insert(exif_bytes, self._filename_or_bytes, output)
         return output.read()
@@ -88,17 +142,7 @@ class ExifEdit:
             else:
                 raise RuntimeError("Unable to write image into bytes")
 
-        try:
-            exif_bytes = piexif.dump(self._ef)
-        except piexif.InvalidImageDataError:
-            if self._ef.get("thumbnail") == b"":
-                # workaround https://github.com/hMatoba/Piexif/issues/30
-                del self._ef["thumbnail"]
-                if "1st" in self._ef:
-                    del self._ef["1st"]
-                exif_bytes = piexif.dump(self._ef)
-            else:
-                raise
+        exif_bytes = self._safe_dump()
 
         if isinstance(self._filename_or_bytes, bytes):
             img = self._filename_or_bytes
@@ -107,3 +151,15 @@ class ExifEdit:
                 img = fp.read()
 
         piexif.insert(exif_bytes, img, filename)
+
+
+if __name__ == "__main__":
+    import sys
+
+    LOG.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.DEBUG)
+    LOG.addHandler(handler)
+    for image in sys.argv[1:]:
+        edit = ExifEdit(image)
+        edit.dump_image_bytes()
