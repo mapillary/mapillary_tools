@@ -7,7 +7,7 @@ from tqdm import tqdm
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
 from ..exif_read import ExifRead
-from ..error import MapillaryGeoTaggingError
+from ..exceptions import MapillaryGeoTaggingError
 
 LOG = logging.getLogger(__name__)
 

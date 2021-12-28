@@ -6,8 +6,8 @@ import gpxpy
 from tqdm import tqdm
 
 from .geotag_from_generic import GeotagFromGeneric
-
 from .geotag_from_gpx import GeotagFromGPXWithProgress
+
 from .. import types, exif_read
 
 
@@ -23,6 +23,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
+        super().__init__()
         tracks = parse_gpx(source_path)
         if 1 < len(tracks):
             LOG.warning(

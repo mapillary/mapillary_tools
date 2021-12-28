@@ -7,8 +7,6 @@ import time
 import uuid
 import string
 
-from .geo import get_max_distance_from_start
-
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
 else:
@@ -17,7 +15,9 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc, error, config
+from . import uploader, types, api_v4, ipc, exceptions, config, authenticate
+from .geo import get_max_distance_from_start
+
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -30,7 +30,7 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
-        raise error.MapillaryFileNotFoundError(
+        raise exceptions.MapillaryFileNotFoundError(
             f"Image description file {desc_path} not found. Please process the image directory first"
         )
 
@@ -39,7 +39,7 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
         try:
             descs = json.load(sys.stdin)
         except json.JSONDecodeError as ex:
-            raise error.MapillaryInvalidDescriptionFile(
+            raise exceptions.MapillaryInvalidDescriptionFile(
                 f"Invalid JSON stream from stdin: {ex}"
             )
     else:
@@ -47,7 +47,7 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
             try:
                 descs = json.load(fp)
             except json.JSONDecodeError as ex:
-                raise error.MapillaryInvalidDescriptionFile(
+                raise exceptions.MapillaryInvalidDescriptionFile(
                     f"Invalid JSON file {desc_path}: {ex}"
                 )
     return types.filter_out_errors(
@@ -61,7 +61,7 @@ def zip_images(
     desc_path: T.Optional[str] = None,
 ):
     if not os.path.isdir(import_path):
-        raise error.MapillaryFileNotFoundError(
+        raise exceptions.MapillaryFileNotFoundError(
             f"Import directory not found: {import_path}"
         )
 
@@ -83,17 +83,17 @@ def fetch_user_items(
     if user_name is None:
         all_user_items = config.list_all_users()
         if not all_user_items:
-            raise error.MapillaryBadParameterError(
+            raise exceptions.MapillaryBadParameterError(
                 "No Mapillary account found. Add one with --user_name"
             )
         if len(all_user_items) == 1:
             user_items = all_user_items[0]
         else:
-            raise error.MapillaryBadParameterError(
+            raise exceptions.MapillaryBadParameterError(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
-        user_items = login.authenticate_user(user_name)
+        user_items = authenticate.authenticate_user(user_name)
 
     if organization_key is not None:
         try:
@@ -101,7 +101,7 @@ def fetch_user_items(
                 user_items["user_upload_token"], organization_key
             )
         except requests.HTTPError as ex:
-            raise login.wrap_http_exception(ex) from ex
+            raise authenticate.wrap_http_exception(ex) from ex
         org = resp.json()
         LOG.info(f"Uploading to organization: {json.dumps(org)}")
         user_items = T.cast(
@@ -433,13 +433,13 @@ def upload_multiple(
         if os.path.isfile(path):
             _, ext = os.path.splitext(path)
             if ext.lower() not in [".zip", ".mp4"]:
-                raise error.MapillaryUnknownFileTypeError(
+                raise exceptions.MapillaryUnknownFileTypeError(
                     f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
                 )
         elif os.path.isdir(path):
             pass
         else:
-            raise error.MapillaryFileNotFoundError(
+            raise exceptions.MapillaryFileNotFoundError(
                 f"Import file or directory not found: {path}"
             )
 
@@ -509,7 +509,7 @@ def upload(
 
             points = geotag_from_blackvue.get_points_from_bv(import_path)
             if not points:
-                raise error.MapillaryGPXEmptyError(
+                raise exceptions.MapillaryGPXEmptyError(
                     f"Empty GPS extracted from {import_path}"
                 )
 
@@ -517,7 +517,7 @@ def upload(
                 get_max_distance_from_start([(p.lat, p.lon) for p in points])
             )
             if stationary:
-                raise error.MapillaryStationaryVideoError(
+                raise exceptions.MapillaryStationaryVideoError(
                     f"The video is stationary: {import_path}"
                 )
 
@@ -528,7 +528,7 @@ def upload(
                     _api_logging_failed(user_items, _summarize(stats), exc)
                 raise
         else:
-            raise error.MapillaryUnknownFileTypeError(
+            raise exceptions.MapillaryUnknownFileTypeError(
                 f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
             )
         LOG.debug(f"Uploaded to cluster: {cluster_id}")
@@ -561,7 +561,7 @@ def upload(
             raise
         LOG.debug(f"Uploaded to cluster: {clusters}")
     else:
-        raise error.MapillaryFileNotFoundError(
+        raise exceptions.MapillaryFileNotFoundError(
             f"Import file or directory not found: {import_path}"
         )
 

@@ -9,7 +9,7 @@ import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import image_log, types, error, uploader
+from . import types, exceptions, uploader, utils
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
 from .geotag import (
@@ -49,14 +49,12 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     if not os.path.isdir(import_path):
-        raise error.MapillaryFileNotFoundError(
+        raise exceptions.MapillaryFileNotFoundError(
             f"Import directory not found: {import_path}"
         )
 
     if geotag_source == "exif":
-        images = image_log.get_total_file_list(
-            import_path, skip_subfolders=skip_subfolders
-        )
+        images = utils.get_image_file_list(import_path, skip_subfolders=skip_subfolders)
         LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag: geotag_from_generic.GeotagFromGeneric = geotag_from_exif.GeotagFromEXIF(
             import_path, images
@@ -64,21 +62,23 @@ def process_geotag_properties(
 
     elif geotag_source == "gpx":
         if geotag_source_path is None:
-            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path is required"
+            )
         if not os.path.isfile(geotag_source_path):
-            raise error.MapillaryFileNotFoundError(
+            raise exceptions.MapillaryFileNotFoundError(
                 f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = image_log.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = image_log.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path,
                 skip_subfolders=False,
             )
-            images = image_log.filter_video_samples(
+            images = utils.filter_video_samples(
                 images, video_import_path, skip_subfolders=skip_subfolders
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")
@@ -91,21 +91,23 @@ def process_geotag_properties(
         )
     elif geotag_source == "nmea":
         if geotag_source_path is None:
-            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path is required"
+            )
         if not os.path.isfile(geotag_source_path):
-            raise error.MapillaryFileNotFoundError(
+            raise exceptions.MapillaryFileNotFoundError(
                 f"NMEA file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = image_log.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = image_log.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path,
                 skip_subfolders=False,
             )
-            images = image_log.filter_video_samples(
+            images = utils.filter_video_samples(
                 images, video_import_path, skip_subfolders=skip_subfolders
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")
@@ -120,9 +122,11 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path is required"
+            )
         if not os.path.exists(geotag_source_path):
-            raise error.MapillaryFileNotFoundError(
+            raise exceptions.MapillaryFileNotFoundError(
                 f"GoPro video file or directory not found: {geotag_source_path}"
             )
         geotag = geotag_from_gopro.GeotagFromGoPro(
@@ -135,9 +139,11 @@ def process_geotag_properties(
         if geotag_source_path is None:
             geotag_source_path = video_import_path
         if geotag_source_path is None:
-            raise error.MapillaryFileNotFoundError("Geotag source path is required")
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path is required"
+            )
         if not os.path.exists(geotag_source_path):
-            raise error.MapillaryFileNotFoundError(
+            raise exceptions.MapillaryFileNotFoundError(
                 f"BlackVue video file or directory not found: {geotag_source_path}"
             )
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
@@ -243,8 +249,8 @@ def process_finalize(
         heading = desc.setdefault(
             "MAPCompassHeading",
             {
-                "TrueHeading": 0,
-                "MagneticHeading": 0,
+                "TrueHeading": 0.0,
+                "MagneticHeading": 0.0,
             },
         )
         heading["TrueHeading"] = normalize_bearing(
@@ -322,16 +328,18 @@ def process_finalize(
         desc["error"].get("type") for desc in not_processed_images
     )
 
-    duplicated_image_count = counter.get(error.MapillaryDuplicationError.__name__, 0)
+    duplicated_image_count = counter.get(
+        exceptions.MapillaryDuplicationError.__name__, 0
+    )
     if duplicated_image_count:
         LOG.warning(
             "%8d images skipped due to %s",
             duplicated_image_count,
-            error.MapillaryDuplicationError.__name__,
+            exceptions.MapillaryDuplicationError.__name__,
         )
 
     for error_code, count in counter.items():
-        if error_code not in [error.MapillaryDuplicationError.__name__]:
+        if error_code not in [exceptions.MapillaryDuplicationError.__name__]:
             if skip_process_errors:
                 LOG.warning("%8d images skipped due to %s", count, error_code)
             else:
@@ -342,6 +350,6 @@ def process_finalize(
     failed_count = len(not_processed_images) - duplicated_image_count
 
     if failed_count and not skip_process_errors:
-        raise error.MapillaryProcessError(
+        raise exceptions.MapillaryProcessError(
             f"Failed to process {failed_count} images. To skip these errors, specify --skip_process_errors"
         )

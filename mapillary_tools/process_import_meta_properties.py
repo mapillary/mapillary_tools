@@ -2,7 +2,7 @@ import typing as T
 import os
 import time
 
-from . import VERSION, types, error
+from . import VERSION, types, exceptions
 from .types import MetaProperties
 
 
@@ -18,12 +18,12 @@ def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) ->
     type_ = META_DATA_TYPES.get(tag_type)
 
     if type_ is None:
-        raise error.MapillaryBadParameterError(f"Invalid tag type: {tag_type}")
+        raise exceptions.MapillaryBadParameterError(f"Invalid tag type: {tag_type}")
 
     try:
         value = type_(value_before)
     except (ValueError, TypeError) as ex:
-        raise error.MapillaryBadParameterError(
+        raise exceptions.MapillaryBadParameterError(
             f'Unable to parse "{key}" in the custom metatags as {tag_type}'
         ) from ex
 
@@ -39,7 +39,7 @@ def parse_and_add_custom_meta_tags(desc: MetaProperties, custom_meta_data: str) 
         # parse name, type and value
         entry_fields = entry.split(",")
         if len(entry_fields) != 3:
-            raise error.MapillaryBadParameterError(
+            raise exceptions.MapillaryBadParameterError(
                 f'Unable to parse tag "{entry}" -- it must be "name,type,value"'
             )
         # set name, type and value

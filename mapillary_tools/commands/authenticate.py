@@ -1,7 +1,7 @@
 import argparse
 import inspect
 
-from ..edit_config import edit_config
+from ..authenticate import authenticate
 
 
 class Command:
@@ -29,12 +29,12 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        edit_config(
+        authenticate(
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(edit_config).args
+                    if k in inspect.getfullargspec(authenticate).args
                 }
             )
         )

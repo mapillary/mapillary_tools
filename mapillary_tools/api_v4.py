@@ -17,15 +17,14 @@ MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
 )
 
 
-def get_upload_token(email: str, password: str) -> dict:
+def get_upload_token(email: str, password: str) -> requests.Response:
     resp = requests.post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
         params={"access_token": MAPILLARY_CLIENT_TOKEN},
         json={"email": email, "password": password, "locale": "en_US"},
     )
     resp.raise_for_status()
-    # FIXME
-    return resp.json()
+    return resp
 
 
 def fetch_organization(

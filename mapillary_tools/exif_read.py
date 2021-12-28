@@ -123,7 +123,7 @@ class ExifRead:
             fields, default=None, field_type=float
         )
         if altitude is None:
-            return altitude
+            return None
         fields = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
         ref, _ = self._extract_alternative_fields(fields, default=0, field_type=int)
         altitude_ref = {0: 1, 1: -1}

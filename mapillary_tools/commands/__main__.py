@@ -2,16 +2,17 @@ import argparse
 import logging
 import sys
 
-from . import VERSION
-from .commands import authenticate
-from .commands import process
-from .commands import process_and_upload
-from .commands import sample_video
-from .commands import upload
-from .commands import video_process
-from .commands import video_process_and_upload
-from .commands import zip
-from . import error
+from .. import VERSION, exceptions
+from . import (
+    authenticate,
+    process,
+    process_and_upload,
+    sample_video,
+    upload,
+    video_process,
+    video_process_and_upload,
+    zip,
+)
 
 mapillary_tools_commands = [
     process,
@@ -131,7 +132,7 @@ def main():
 
     try:
         args.func(argvars)
-    except error.MapillaryUserError as exc:
+    except exceptions.MapillaryUserError as exc:
         LOG.error(f"{exc.__class__.__name__}: {exc}")
         sys.exit(exc.exit_code)
 
