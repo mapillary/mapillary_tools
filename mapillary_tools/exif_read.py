@@ -161,14 +161,18 @@ class ExifRead:
                 [ts for ts in capture_time.split("_") if ts.isdigit()]
             )
             capture_time_obj, has_subseconds = format_time(capture_time)
-            sub_sec = "0"
             if not has_subseconds:
                 sub_sec = self._extract_subsec()
-                if isinstance(sub_sec, str):
-                    sub_sec = sub_sec.strip()
-            capture_time_obj = capture_time_obj + datetime.timedelta(
-                seconds=float("0." + sub_sec)
-            )
+                # Fix spaces in subsec in gopro
+                # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
+                # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
+                if sub_sec.startswith(" "):
+                    make = self.extract_make()
+                    if make is not None and make.lower() == "gopro":
+                        sub_sec = sub_sec.replace(" ", "0")
+                capture_time_obj = capture_time_obj + datetime.timedelta(
+                    seconds=float("0." + sub_sec)
+                )
             return capture_time_obj
 
     def extract_direction(self) -> Optional[float]:
@@ -181,7 +185,9 @@ class ExifRead:
             "GPS GPSTrack",
             "EXIF GPS GPSTrack",
         ]
-        direction, _ = self._extract_alternative_fields(fields, field_type=float)
+        direction, _ = self._extract_alternative_fields(
+            fields, default=None, field_type=float
+        )
 
         if direction is not None:
             direction = normalize_bearing(direction, check_hex=True)
@@ -252,7 +258,7 @@ class ExifRead:
         Extract camera make
         """
         fields = ["EXIF LensMake", "Image Make"]
-        make, _ = self._extract_alternative_fields(fields, field_type=str)
+        make, _ = self._extract_alternative_fields(fields, default=None, field_type=str)
         return make
 
     def extract_model(self) -> Optional[str]:
@@ -260,7 +266,9 @@ class ExifRead:
         Extract camera model
         """
         fields = ["EXIF LensModel", "Image Model"]
-        model, _ = self._extract_alternative_fields(fields, field_type=str)
+        model, _ = self._extract_alternative_fields(
+            fields, default=None, field_type=str
+        )
         return model
 
     def extract_orientation(self) -> int:
