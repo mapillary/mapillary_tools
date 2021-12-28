@@ -1,13 +1,13 @@
 import os
 import unittest
 from PIL import Image, ExifTags, TiffImagePlugin
-from mapillary_tools.exif_write import ExifEdit
-from mapillary_tools.geo import decimal_to_dms
 import datetime
 import shutil
 
 import py.path
 
+from mapillary_tools.exif_write import ExifEdit
+from mapillary_tools.geo import decimal_to_dms
 
 """Initialize all the neccessary data"""
 

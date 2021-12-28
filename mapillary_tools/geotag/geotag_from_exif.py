@@ -70,6 +70,10 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     "MagneticHeading": angle,
                 }
 
+            altitude = exif.extract_altitude()
+            if altitude is not None:
+                desc["MAPAltitude"] = altitude
+
             desc["MAPOrientation"] = exif.extract_orientation()
 
             make = exif.extract_make()

@@ -4,16 +4,13 @@ import datetime
 import os
 
 import exifread
+from exifread.utils import Ratio
 
 from .geo import normalize_bearing
-from exifread.utils import Ratio
 
 
 def eval_frac(value: Ratio) -> float:
-    try:
-        return float(value.num) / float(value.den)
-    except ZeroDivisionError:
-        return 0
+    return float(value.num) / float(value.den)
 
 
 def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
@@ -38,12 +35,15 @@ def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
     return date_time, subseconds
 
 
-def gps_to_decimal(values: List[Ratio], reference: str) -> float:
+def gps_to_decimal(values: List[Ratio], reference: str) -> Optional[float]:
     sign = 1 if reference in "NE" else -1
     deg, min, sec = values
-    degrees = eval_frac(deg)
-    minutes = eval_frac(min)
-    seconds = eval_frac(sec)
+    try:
+        degrees = eval_frac(deg)
+        minutes = eval_frac(min)
+        seconds = eval_frac(sec)
+    except ZeroDivisionError:
+        return None
     return sign * (degrees + minutes / 60 + seconds / 3600)
 
 
@@ -92,9 +92,9 @@ class ExifRead:
     def _extract_alternative_fields(
         self,
         fields: List[str],
-        default: Optional[Union[str, int]] = None,
+        default: Optional[Union[str, int, float]] = None,
         field_type: Union[Type[float], Type[str], Type[int]] = float,
-    ) -> Union[Tuple[Any, Any]]:
+    ) -> Tuple[Any, Optional[str]]:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -102,40 +102,31 @@ class ExifRead:
         for field in fields:
             if field in self.tags:
                 if field_type is float:
-                    return eval_frac(self.tags[field].values[0]), field
+                    try:
+                        return eval_frac(self.tags[field].values[0]), field
+                    except ZeroDivisionError:
+                        pass
                 elif field_type is str:
                     return str(self.tags[field].values), field
                 elif field_type is int:
                     return int(self.tags[field].values[0]), field
                 else:
-                    return None, field
+                    raise ValueError(f"Invalid field type {field_type}")
         return default, None
 
-    def extract_image_history(self) -> str:
-        field = ["Image Tag 0x9213"]
-        user_comment, _ = self._extract_alternative_fields(field, "{}", str)
-        return user_comment
-
-    def extract_altitude(self) -> float:
+    def extract_altitude(self) -> Optional[float]:
         """
         Extract altitude
         """
-        altitude_ref = {0: 1, 1: -1}
         fields: List[str] = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
-        refs: List[str] = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
-        altitude, _ = self._extract_alternative_fields(fields, 0, float)
-        ref = 0
-        for x in refs:
-            t = self.tags.get(x)
-            if t is not None:
-                if t.values:
-                    if isinstance(t.values[0], Ratio):
-                        try:
-                            ref = int(eval_frac(t.values[0]))
-                        except ZeroDivisionError:
-                            pass
-                        else:
-                            break
+        altitude, _ = self._extract_alternative_fields(
+            fields, default=None, field_type=float
+        )
+        if altitude is None:
+            return altitude
+        fields = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
+        ref, _ = self._extract_alternative_fields(fields, default=0, field_type=int)
+        altitude_ref = {0: 1, 1: -1}
         return altitude * altitude_ref.get(ref, 1)
 
     def extract_capture_time(self) -> Optional[datetime.datetime]:
@@ -146,7 +137,7 @@ class ExifRead:
         """
         time_string = exif_datetime_fields()[0]
         capture_time, time_field = self._extract_alternative_fields(
-            time_string, None, str
+            time_string, default=None, field_type=str
         )
         if time_field in exif_gps_date_fields()[0]:
             return self.extract_gps_time()
@@ -169,15 +160,19 @@ class ExifRead:
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()]
             )
-            capture_time_obj, subseconds = format_time(capture_time)
-            sub_sec = "0"
-            if not subseconds:
+            capture_time_obj, has_subseconds = format_time(capture_time)
+            if not has_subseconds:
                 sub_sec = self._extract_subsec()
-                if isinstance(sub_sec, str):
-                    sub_sec = sub_sec.strip()
-            capture_time_obj = capture_time_obj + datetime.timedelta(
-                seconds=float("0." + sub_sec)
-            )
+                # Fix spaces in subsec in gopro
+                # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
+                # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
+                if sub_sec.startswith(" "):
+                    make = self.extract_make()
+                    if make is not None and make.lower() == "gopro":
+                        sub_sec = sub_sec.replace(" ", "0")
+                capture_time_obj = capture_time_obj + datetime.timedelta(
+                    seconds=float("0." + sub_sec)
+                )
             return capture_time_obj
 
     def extract_direction(self) -> Optional[float]:
@@ -190,7 +185,9 @@ class ExifRead:
             "GPS GPSTrack",
             "EXIF GPS GPSTrack",
         ]
-        direction, _ = self._extract_alternative_fields(fields)
+        direction, _ = self._extract_alternative_fields(
+            fields, default=None, field_type=float
+        )
 
         if direction is not None:
             direction = normalize_bearing(direction, check_hex=True)
@@ -236,8 +233,10 @@ class ExifRead:
             lon = gps_to_decimal(
                 lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
             )
-            return lon, lat
+            if lon is not None and lat is not None:
+                return lon, lat
 
+        # repeat above
         lat_tag = self.tags.get("EXIF GPS GPSLatitude")
         lon_tag = self.tags.get("EXIF GPS GPSLongitude")
         if lat_tag and lon_tag:
@@ -249,7 +248,8 @@ class ExifRead:
             lon = gps_to_decimal(
                 lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
             )
-            return lon, lat
+            if lon is not None and lat is not None:
+                return lon, lat
 
         return None, None
 
@@ -258,7 +258,7 @@ class ExifRead:
         Extract camera make
         """
         fields = ["EXIF LensMake", "Image Make"]
-        make, _ = self._extract_alternative_fields(fields, field_type=str)
+        make, _ = self._extract_alternative_fields(fields, default=None, field_type=str)
         return make
 
     def extract_model(self) -> Optional[str]:
@@ -266,7 +266,9 @@ class ExifRead:
         Extract camera model
         """
         fields = ["EXIF LensModel", "Image Model"]
-        model, _ = self._extract_alternative_fields(fields, field_type=str)
+        model, _ = self._extract_alternative_fields(
+            fields, default=None, field_type=str
+        )
         return model
 
     def extract_orientation(self) -> int:
@@ -313,6 +315,5 @@ if __name__ == "__main__":
                 "make": exif.extract_make(),
                 "lon_lat": exif.extract_lon_lat(),
                 "altitude": exif.extract_altitude(),
-                "image_history": exif.extract_image_history(),
             }
         )
