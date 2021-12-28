@@ -31,7 +31,8 @@ def authenticate(
             "user_upload_token": jwt,
         }
     elif user_email and user_password:
-        data = api_v4.get_upload_token(user_email, user_password)
+        resp = api_v4.get_upload_token(user_email, user_password)
+        data = resp.json()
         user_items = {
             "MAPSettingsUserKey": data["user_id"],
             "user_upload_token": data["access_token"],
@@ -62,14 +63,14 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     user_password = getpass.getpass("Enter Mapillary user password: ")
 
     try:
-        data = api_v4.get_upload_token(user_email, user_password)
+        resp = api_v4.get_upload_token(user_email, user_password)
     except requests.HTTPError as ex:
         if 400 <= ex.response.status_code < 500:
-            resp = ex.response.json()
-            subcode = resp.get("error", {}).get("error_subcode")
+            r = ex.response.json()
+            subcode = r.get("error", {}).get("error_subcode")
             if subcode in [1348028, 1348092, 3404005, 1348131]:
-                title = resp.get("error", {}).get("error_user_title")
-                message = resp.get("error", {}).get("error_user_msg")
+                title = r.get("error", {}).get("error_user_title")
+                message = r.get("error", {}).get("error_user_msg")
                 LOG.error(f"{title}: {message}")
                 return prompt_user_for_user_items(user_name)
             else:
@@ -77,6 +78,7 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
         else:
             raise wrap_http_exception(ex)
 
+    data = resp.json()
     upload_token = T.cast(str, data.get("access_token"))
     user_key = T.cast(str, data.get("user_id"))
     if not isinstance(upload_token, str) or not isinstance(user_key, (str, int)):
