@@ -42,7 +42,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        images = utils.get_total_file_list(self.image_dir)
+        images = utils.get_image_file_list(self.image_dir)
         for blackvue_video in self.blackvue_videos:
             LOG.debug("Processing BlackVue video: %s", blackvue_video)
 

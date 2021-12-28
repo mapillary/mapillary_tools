@@ -38,7 +38,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        images = utils.get_total_file_list(self.image_dir)
+        images = utils.get_image_file_list(self.image_dir)
         for video in self.videos:
             LOG.debug("Processing GoPro video: %s", video)
 

@@ -159,7 +159,7 @@ def insert_video_frame_timestamp(
     sample_interval: float = 2.0,
     duration_ratio: float = 1.0,
 ) -> None:
-    for image in utils.get_total_file_list(video_sampling_path, abs_path=True):
+    for image in utils.get_image_file_list(video_sampling_path, abs_path=True):
         idx = ffmpeg.extract_idx_from_frame_filename(
             video_basename,
             os.path.basename(image),

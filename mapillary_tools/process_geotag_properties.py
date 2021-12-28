@@ -54,7 +54,7 @@ def process_geotag_properties(
         )
 
     if geotag_source == "exif":
-        images = utils.get_total_file_list(import_path, skip_subfolders=skip_subfolders)
+        images = utils.get_image_file_list(import_path, skip_subfolders=skip_subfolders)
         LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag: geotag_from_generic.GeotagFromGeneric = geotag_from_exif.GeotagFromEXIF(
             import_path, images
@@ -68,11 +68,11 @@ def process_geotag_properties(
                 f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = utils.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = utils.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path,
                 skip_subfolders=False,
             )
@@ -95,11 +95,11 @@ def process_geotag_properties(
                 f"NMEA file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = utils.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = utils.get_total_file_list(
+            images = utils.get_image_file_list(
                 import_path,
                 skip_subfolders=False,
             )

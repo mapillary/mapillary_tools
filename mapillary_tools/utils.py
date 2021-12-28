@@ -55,7 +55,7 @@ def get_video_file_list(
     )
 
 
-def get_total_file_list(
+def get_image_file_list(
     import_path: str, skip_subfolders: bool = False, abs_path: bool = False
 ) -> T.List[str]:
     files = iterate_files(import_path, not skip_subfolders)
