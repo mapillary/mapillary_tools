@@ -12,10 +12,10 @@ import construct
 
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
-from .. import image_log, types
+from . import utils as geotag_utils
+from .. import utils, types
 from ..error import MapillaryStationaryVideoError, MapillaryInvalidBlackVueVideoError
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from . import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -31,9 +31,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
         super().__init__()
         self.image_dir = image_dir
         if os.path.isdir(source_path):
-            self.blackvue_videos = image_log.get_video_file_list(
-                source_path, abs_path=True
-            )
+            self.blackvue_videos = utils.get_video_file_list(source_path, abs_path=True)
         else:
             # it is okay to not suffix with .mp4
             self.blackvue_videos = [source_path]
@@ -44,11 +42,11 @@ class GeotagFromBlackVue(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        images = image_log.get_total_file_list(self.image_dir)
+        images = utils.get_total_file_list(self.image_dir)
         for blackvue_video in self.blackvue_videos:
             LOG.debug("Processing BlackVue video: %s", blackvue_video)
 
-            sample_images = image_log.filter_video_samples(images, blackvue_video)
+            sample_images = utils.filter_video_samples(images, blackvue_video)
             LOG.debug(
                 "Found %d sample images from video %s",
                 len(sample_images),
@@ -71,7 +69,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 continue
 
             # bypass empty points to raise MapillaryGPXEmptyError
-            if points and utils.is_video_stationary(
+            if points and geotag_utils.is_video_stationary(
                 get_max_distance_from_start([(p.lat, p.lon) for p in points])
             ):
                 LOG.warning(
@@ -298,7 +296,7 @@ if __name__ == "__main__":
     import sys
 
     points = get_points_from_bv(sys.argv[1])
-    gpx = utils.convert_points_to_gpx(points)
+    gpx = geotag_utils.convert_points_to_gpx(points)
     print(gpx.to_xml())
 
     LOG.setLevel(logging.INFO)
@@ -307,7 +305,7 @@ if __name__ == "__main__":
     LOG.addHandler(handler)
     LOG.info(
         "Stationary: %s",
-        utils.is_video_stationary(
+        geotag_utils.is_video_stationary(
             get_max_distance_from_start([(p.lat, p.lon) for p in points])
         ),
     )

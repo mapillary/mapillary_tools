@@ -9,7 +9,7 @@ import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import image_log, types, error, uploader
+from . import types, error, uploader, utils
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
 from .geotag import (
@@ -54,9 +54,7 @@ def process_geotag_properties(
         )
 
     if geotag_source == "exif":
-        images = image_log.get_total_file_list(
-            import_path, skip_subfolders=skip_subfolders
-        )
+        images = utils.get_total_file_list(import_path, skip_subfolders=skip_subfolders)
         LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag: geotag_from_generic.GeotagFromGeneric = geotag_from_exif.GeotagFromEXIF(
             import_path, images
@@ -70,15 +68,15 @@ def process_geotag_properties(
                 f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = image_log.get_total_file_list(
+            images = utils.get_total_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = image_log.get_total_file_list(
+            images = utils.get_total_file_list(
                 import_path,
                 skip_subfolders=False,
             )
-            images = image_log.filter_video_samples(
+            images = utils.filter_video_samples(
                 images, video_import_path, skip_subfolders=skip_subfolders
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")
@@ -97,15 +95,15 @@ def process_geotag_properties(
                 f"NMEA file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = image_log.get_total_file_list(
+            images = utils.get_total_file_list(
                 import_path, skip_subfolders=skip_subfolders
             )
         else:
-            images = image_log.get_total_file_list(
+            images = utils.get_total_file_list(
                 import_path,
                 skip_subfolders=False,
             )
-            images = image_log.filter_video_samples(
+            images = utils.filter_video_samples(
                 images, video_import_path, skip_subfolders=skip_subfolders
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")

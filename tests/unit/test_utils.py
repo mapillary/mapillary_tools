@@ -1,4 +1,4 @@
-from mapillary_tools import image_log
+from mapillary_tools import utils
 
 
 def test_filter():
@@ -8,5 +8,5 @@ def test_filter():
         "foo/bar/hello/hello_123.jpg",
         "/hello.mp4/hell_123.jpg",
     ]
-    r = image_log.filter_video_samples(images, "hello.mp4")
+    r = utils.filter_video_samples(images, "hello.mp4")
     assert r == ["foo/bar/hello.mp4/hello_123.jpg", "/hello.mp4/hello_123.jpg"]

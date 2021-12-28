@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 
-from . import image_log, ffmpeg, types, error
+from . import utils, ffmpeg, types, error
 from .exif_write import ExifEdit
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -28,7 +28,7 @@ def sample_video(
         )
 
     if os.path.isdir(video_import_path):
-        video_list = image_log.get_video_file_list(
+        video_list = utils.get_video_file_list(
             video_import_path, skip_subfolders, abs_path=True
         )
         video_dir = video_import_path
@@ -159,7 +159,7 @@ def insert_video_frame_timestamp(
     sample_interval: float = 2.0,
     duration_ratio: float = 1.0,
 ) -> None:
-    for image in image_log.get_total_file_list(video_sampling_path, abs_path=True):
+    for image in utils.get_total_file_list(video_sampling_path, abs_path=True):
         idx = ffmpeg.extract_idx_from_frame_filename(
             video_basename,
             os.path.basename(image),
