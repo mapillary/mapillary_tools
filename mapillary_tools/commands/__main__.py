@@ -2,16 +2,17 @@ import argparse
 import logging
 import sys
 
-from . import VERSION
-from .commands import authenticate
-from .commands import process
-from .commands import process_and_upload
-from .commands import sample_video
-from .commands import upload
-from .commands import video_process
-from .commands import video_process_and_upload
-from .commands import zip
-from . import error
+from .. import VERSION, error
+from . import (
+    authenticate,
+    process,
+    process_and_upload,
+    sample_video,
+    upload,
+    video_process,
+    video_process_and_upload,
+    zip,
+)
 
 mapillary_tools_commands = [
     process,
