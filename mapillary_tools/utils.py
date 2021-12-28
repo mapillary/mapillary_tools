@@ -24,21 +24,6 @@ def file_md5sum(path: str) -> str:
         return md5sum_fp(fp)
 
 
-_IT = T.TypeVar("_IT")
-
-
-def separate_by_bool(
-    f: T.Callable[[_IT], bool], s: T.Iterable[_IT]
-) -> T.Tuple[T.List[_IT], T.List[_IT]]:
-    yes, no = [], []
-    for x in s:
-        if f(x):
-            yes.append(x)
-        else:
-            no.append(x)
-    return yes, no
-
-
 def is_image_file(path: str) -> bool:
     basename, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
