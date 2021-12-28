@@ -7,8 +7,6 @@ import time
 import uuid
 import string
 
-from .geo import get_max_distance_from_start
-
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
 else:
@@ -17,7 +15,9 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, login, api_v4, ipc, error, config
+from . import uploader, types, api_v4, ipc, error, config, authenticate
+from .geo import get_max_distance_from_start
+
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -93,7 +93,7 @@ def fetch_user_items(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
-        user_items = login.authenticate_user(user_name)
+        user_items = authenticate.authenticate_user(user_name)
 
     if organization_key is not None:
         try:
@@ -101,7 +101,7 @@ def fetch_user_items(
                 user_items["user_upload_token"], organization_key
             )
         except requests.HTTPError as ex:
-            raise login.wrap_http_exception(ex) from ex
+            raise authenticate.wrap_http_exception(ex) from ex
         org = resp.json()
         LOG.info(f"Uploading to organization: {json.dumps(org)}")
         user_items = T.cast(
