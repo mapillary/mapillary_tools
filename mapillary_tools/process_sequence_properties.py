@@ -6,7 +6,7 @@ import itertools
 
 from . import types
 from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
-from .error import MapillaryDuplicationError
+from .exceptions import MapillaryDuplicationError
 
 MAX_SEQUENCE_LENGTH = 500
 

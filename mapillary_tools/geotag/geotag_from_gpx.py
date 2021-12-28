@@ -5,7 +5,7 @@ import logging
 
 from .geotag_from_generic import GeotagFromGeneric
 from .. import types
-from ..error import (
+from ..exceptions import (
     MapillaryGeoTaggingError,
     MapillaryOutsideGPXTrackError,
     MapillaryGPXEmptyError,

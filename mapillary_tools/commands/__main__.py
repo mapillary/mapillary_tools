@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from .. import VERSION, error
+from .. import VERSION, exceptions
 from . import (
     authenticate,
     process,
@@ -132,7 +132,7 @@ def main():
 
     try:
         args.func(argvars)
-    except error.MapillaryUserError as exc:
+    except exceptions.MapillaryUserError as exc:
         LOG.error(f"{exc.__class__.__name__}: {exc}")
         sys.exit(exc.exit_code)
 

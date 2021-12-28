@@ -11,7 +11,7 @@ from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
 from . import utils as geotag_utils
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from .. import types, ffmpeg, error, utils
+from .. import types, ffmpeg, exceptions, utils
 
 
 LOG = logging.getLogger(__name__)
@@ -65,7 +65,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
                 )
                 for image in sample_images:
                     err = types.describe_error(
-                        error.MapillaryStationaryVideoError("Stationary GoPro video")
+                        exceptions.MapillaryStationaryVideoError(
+                            "Stationary GoPro video"
+                        )
                     )
                     descs.append({"error": err, "filename": image})
                 continue

@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 
-from . import utils, ffmpeg, types, error
+from . import utils, ffmpeg, types, exceptions
 from .exif_write import ExifEdit
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -23,7 +23,7 @@ def sample_video(
     rerun: bool = False,
 ) -> None:
     if not os.path.exists(video_import_path):
-        raise error.MapillaryFileNotFoundError(
+        raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
         )
 
@@ -84,8 +84,8 @@ def sample_video(
                 video_duration_ratio,
             )
         except (
-            error.MapillaryFileNotFoundError,
-            error.MapillaryFFmpegNotFoundError,
+            exceptions.MapillaryFileNotFoundError,
+            exceptions.MapillaryFFmpegNotFoundError,
         ):
             raise
         except Exception:
@@ -111,7 +111,9 @@ def sample_video(
 def extract_video_start_time(video_path: str) -> datetime.datetime:
     streams = ffmpeg.probe_video_streams(video_path)
     if not streams:
-        raise error.MapillaryVideoError(f"Failed to find video streams in {video_path}")
+        raise exceptions.MapillaryVideoError(
+            f"Failed to find video streams in {video_path}"
+        )
 
     if 2 <= len(streams):
         LOG.warning(
@@ -125,7 +127,7 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
     try:
         duration = float(duration_str)
     except (TypeError, ValueError) as exc:
-        raise error.MapillaryVideoError(
+        raise exceptions.MapillaryVideoError(
             f"Failed to find video stream duration {duration_str} from video {video_path}"
         ) from exc
 
@@ -133,7 +135,7 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
 
     time_string = stream.get("tags", {}).get("creation_time")
     if time_string is None:
-        raise error.MapillaryVideoError(
+        raise exceptions.MapillaryVideoError(
             f"Failed to find video creation_time in {video_path}"
         )
 
@@ -143,7 +145,7 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
         try:
             video_end_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
         except ValueError:
-            raise error.MapillaryVideoError(
+            raise exceptions.MapillaryVideoError(
                 f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
             )
 

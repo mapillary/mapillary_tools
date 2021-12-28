@@ -14,7 +14,10 @@ from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 from . import utils as geotag_utils
 from .. import utils, types
-from ..error import MapillaryStationaryVideoError, MapillaryInvalidBlackVueVideoError
+from ..exceptions import (
+    MapillaryStationaryVideoError,
+    MapillaryInvalidBlackVueVideoError,
+)
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
 
 LOG = logging.getLogger(__name__)
