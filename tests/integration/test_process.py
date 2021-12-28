@@ -8,7 +8,9 @@ import pytest
 import py.path
 import exifread
 
-EXECUTABLE = os.getenv("MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools")
+EXECUTABLE = os.getenv(
+    "MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools.commands"
+)
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
 

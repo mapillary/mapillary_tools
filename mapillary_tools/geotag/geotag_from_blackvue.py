@@ -300,7 +300,7 @@ if __name__ == "__main__":
     print(gpx.to_xml())
 
     LOG.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logging.INFO)
     LOG.addHandler(handler)
     LOG.info(

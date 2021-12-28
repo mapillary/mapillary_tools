@@ -6,12 +6,12 @@ import typing as T
 
 from tqdm import tqdm
 
-from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from .. import types, ffmpeg, error, utils
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
 from . import utils as geotag_utils
+from ..geo import get_max_distance_from_start, gps_distance, pairwise
+from .. import types, ffmpeg, error, utils
 
 
 LOG = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     print(gpx.to_xml())
 
     LOG.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(logging.INFO)
     LOG.addHandler(handler)
     LOG.info(

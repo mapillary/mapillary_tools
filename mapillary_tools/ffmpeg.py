@@ -10,7 +10,6 @@ LOG = logging.getLogger(__name__)
 MAPILLARY_FFPROBE_PATH = os.getenv("MAPILLARY_FFPROBE_PATH", "ffprobe")
 MAPILLARY_FFMPEG_PATH = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
 FRAME_EXT = ".jpg"
-ZERO_PADDING = 6
 
 
 def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
@@ -110,7 +109,7 @@ def extract_frames(
         "-qscale:v",
         "1",
         "-nostdin",
-        f"{frame_path_prefix}_%0{ZERO_PADDING}d{FRAME_EXT}",
+        f"{frame_path_prefix}_%06d{FRAME_EXT}",
     ]
     run_ffmpeg(cmd)
 
