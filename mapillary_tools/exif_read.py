@@ -10,10 +10,7 @@ from .geo import normalize_bearing
 
 
 def eval_frac(value: Ratio) -> float:
-    try:
-        return float(value.num) / float(value.den)
-    except ZeroDivisionError:
-        return 0
+    return float(value.num) / float(value.den)
 
 
 def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
@@ -38,12 +35,15 @@ def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
     return date_time, subseconds
 
 
-def gps_to_decimal(values: List[Ratio], reference: str) -> float:
+def gps_to_decimal(values: List[Ratio], reference: str) -> Optional[float]:
     sign = 1 if reference in "NE" else -1
     deg, min, sec = values
-    degrees = eval_frac(deg)
-    minutes = eval_frac(min)
-    seconds = eval_frac(sec)
+    try:
+        degrees = eval_frac(deg)
+        minutes = eval_frac(min)
+        seconds = eval_frac(sec)
+    except ZeroDivisionError:
+        return None
     return sign * (degrees + minutes / 60 + seconds / 3600)
 
 
@@ -102,7 +102,10 @@ class ExifRead:
         for field in fields:
             if field in self.tags:
                 if field_type is float:
-                    return eval_frac(self.tags[field].values[0]), field
+                    try:
+                        return eval_frac(self.tags[field].values[0]), field
+                    except ZeroDivisionError:
+                        pass
                 elif field_type is str:
                     return str(self.tags[field].values), field
                 elif field_type is int:
@@ -157,9 +160,9 @@ class ExifRead:
             capture_time = "_".join(
                 [ts for ts in capture_time.split("_") if ts.isdigit()]
             )
-            capture_time_obj, subseconds = format_time(capture_time)
+            capture_time_obj, has_subseconds = format_time(capture_time)
             sub_sec = "0"
-            if not subseconds:
+            if not has_subseconds:
                 sub_sec = self._extract_subsec()
                 if isinstance(sub_sec, str):
                     sub_sec = sub_sec.strip()
@@ -224,7 +227,8 @@ class ExifRead:
             lon = gps_to_decimal(
                 lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
             )
-            return lon, lat
+            if lon is not None and lat is not None:
+                return lon, lat
 
         # repeat above
         lat_tag = self.tags.get("EXIF GPS GPSLatitude")
@@ -238,7 +242,8 @@ class ExifRead:
             lon = gps_to_decimal(
                 lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
             )
-            return lon, lat
+            if lon is not None and lat is not None:
+                return lon, lat
 
         return None, None
 
