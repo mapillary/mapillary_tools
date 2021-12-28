@@ -34,7 +34,7 @@ def is_video_file(path: str) -> bool:
     return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
 
 
-def iterate_files(root: str, recursive=False) -> T.Generator[str, None, None]:
+def iterate_files(root: str, recursive: bool = False) -> T.Generator[str, None, None]:
     for dirpath, dirnames, files in os.walk(root, topdown=True):
         if not recursive:
             dirnames.clear()
@@ -45,7 +45,7 @@ def iterate_files(root: str, recursive=False) -> T.Generator[str, None, None]:
 
 
 def get_video_file_list(
-    video_file, skip_subfolders=False, abs_path: bool = False
+    video_file: str, skip_subfolders: bool = False, abs_path: bool = False
 ) -> T.List[str]:
     files = iterate_files(video_file, not skip_subfolders)
     return sorted(

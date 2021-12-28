@@ -57,7 +57,7 @@ class ImageDescriptionEXIF(_SequenceOnly, Image, MetaProperties):
     pass
 
 
-class ImageDescriptionFile(ImageDescriptionEXIF, total=False):
+class ImageDescriptionFile(ImageDescriptionEXIF, total=True):
     # filename is required
     filename: str
 
@@ -155,7 +155,7 @@ ImageDescriptionEXIFSchema = {
 }
 
 
-def merge_schema(*schemas: T.Dict):
+def merge_schema(*schemas: T.Dict) -> T.Dict:
     for s in schemas:
         assert s.get("type") == "object", "must be all object schemas"
     properties = {}
@@ -191,7 +191,7 @@ ImageDescriptionFileSchema = merge_schema(
 )
 
 
-def validate_desc(desc: ImageDescriptionFile):
+def validate_desc(desc: ImageDescriptionFile) -> None:
     jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])

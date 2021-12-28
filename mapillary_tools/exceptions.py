@@ -1,3 +1,6 @@
+import typing as T
+
+
 class MapillaryUserError(Exception):
     exit_code: int
 
@@ -63,8 +66,7 @@ class MapillaryInvalidBlackVueVideoError(
     exit_code = 11
 
 
-# FIXME: sequence error
 class MapillaryDuplicationError(_MapillaryDescriptionError):
-    def __init__(self, message, desc):
+    def __init__(self, message: str, desc: T.Mapping) -> None:
         super().__init__(message)
         self.desc = desc

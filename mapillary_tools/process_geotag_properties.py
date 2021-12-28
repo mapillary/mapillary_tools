@@ -249,8 +249,8 @@ def process_finalize(
         heading = desc.setdefault(
             "MAPCompassHeading",
             {
-                "TrueHeading": 0,
-                "MagneticHeading": 0,
+                "TrueHeading": 0.0,
+                "MagneticHeading": 0.0,
             },
         )
         heading["TrueHeading"] = normalize_bearing(

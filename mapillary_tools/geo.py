@@ -46,7 +46,7 @@ def gps_distance(latlon_1: Tuple[float, float], latlon_2: Tuple[float, float]) -
     return dis
 
 
-def get_max_distance_from_start(latlons: List[Tuple[float, float]]):
+def get_max_distance_from_start(latlons: List[Tuple[float, float]]) -> float:
     """
     Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
     Takes a sequence of points as input
@@ -57,7 +57,9 @@ def get_max_distance_from_start(latlons: List[Tuple[float, float]]):
     return max(gps_distance(start, latlon) for latlon in latlons)
 
 
-def decimal_to_dms(value, precision):
+def decimal_to_dms(
+    value: float, precision: int
+) -> Tuple[Tuple[float, int], Tuple[float, int], Tuple[float, int]]:
     """
     Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
     """
@@ -68,7 +70,9 @@ def decimal_to_dms(value, precision):
     return (deg, 1), (min, 1), (sec, precision)
 
 
-def compute_bearing(start_lat, start_lon, end_lat, end_lon) -> float:
+def compute_bearing(
+    start_lat: float, start_lon: float, end_lat: float, end_lon: float
+) -> float:
     """
     Get the compass bearing from start to end.
 
@@ -98,7 +102,7 @@ def compute_bearing(start_lat, start_lon, end_lat, end_lon) -> float:
     return bearing
 
 
-def diff_bearing(b1, b2):
+def diff_bearing(b1: float, b2: float) -> float:
     """
     Compute difference between two bearings
     """
@@ -140,7 +144,7 @@ class Point(NamedTuple):
     angle: Optional[float]
 
 
-def interpolate_lat_lon(points: List[Point], t: datetime.datetime):
+def interpolate_lat_lon(points: List[Point], t: datetime.datetime) -> Point:
     if not points:
         raise ValueError("Expect non-empty points")
     # Make sure that points are sorted:
