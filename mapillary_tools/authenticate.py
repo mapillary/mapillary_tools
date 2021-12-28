@@ -1,7 +1,7 @@
 from . import login, api_v4, config, types
 
 
-def edit_config(
+def authenticate(
     user_name: str = None,
     user_email: str = None,
     user_password: str = None,
