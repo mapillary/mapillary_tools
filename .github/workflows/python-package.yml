@@ -74,6 +74,7 @@ jobs:
       with:
         draft: true
         generate_release_notes: true
+        fail_on_unmatched_files: false
         files: |
           ./dist/linux/mapillary_tools_linux
           ./dist/osx/mapillary_tools_osx
