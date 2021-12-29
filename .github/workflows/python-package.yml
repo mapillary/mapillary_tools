@@ -51,17 +51,28 @@ jobs:
     - name: Build with Pyinstaller on MacOS
       run: |
         ./script/build
-        ./dist/osx/mapillary_tools --version
+        mv ./dist/osx/mapillary_tools ./dist/osx/mapillary_tools_macos
+        ./dist/osx/mapillary_tools_macos --version
         # Could run full integration tests with below but the binary is too slow to start up
         # MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
       if: matrix.platform == 'macos-latest'
     - name: Build with Pyinstaller on Ubuntu
       run: |
         ./script/build_linux
-        ./dist/linux/mapillary_tools --version
+        mv ./dist/linux/mapillary_tools ./dist/linux/mapillary_tools_linux
+        ./dist/linux/mapillary_tools_linux --version
       if: matrix.platform == 'ubuntu-latest'
     - name: Build with Pyinstaller on Windows
       run: |
         ./script/build_win.bat
         ./dist/win/mapillary_tools.exe --version
       if: matrix.platform == 'windows-latest'
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/') && python-version == '3.8'
+      with:
+        files: |
+          ./dist/linux/mapillary_tools_linux
+          ./dist/osx/mapillary_tools_osx
+          ./dist/win/mapillary_tools.exe
