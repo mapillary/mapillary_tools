@@ -6,9 +6,10 @@ name: Python package
 on:
   push:
     branches: [ main, ci-release ]
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches: [ main ]
-  tags:
 
 jobs:
   build:
