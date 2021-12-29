@@ -20,7 +20,7 @@ mkdir -p dist/releases
 cp "$SOURCE" "$TARGET"
 
 # md5
-md5 -r ${TARGET} | tee ${TARGET}.md5
+md5sum ${TARGET} | tee ${TARGET}.md5
 
 # summary
 ls -l dist/releases
