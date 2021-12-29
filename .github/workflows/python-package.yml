@@ -72,6 +72,8 @@ jobs:
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == '3.8'
       with:
+        draft: true
+        generate_release_notes: true
         files: |
           ./dist/linux/mapillary_tools_linux
           ./dist/osx/mapillary_tools_osx
