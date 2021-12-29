@@ -1,10 +1,26 @@
 #!/bin/bash
 set -e
 
-SOURCE=dist/osx/mapillary_tools.app/Contents/MacOS/mapillary_tools
-TARGET=dist/mapillary_tools_osx.zip
+OS=osx
 
+# build
 mkdir -p dist
-rm -rf dist/osx
-pyinstaller --noconfirm --distpath dist/osx --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
+rm -rf dist/${OS}
+pyinstaller --noconfirm --distpath dist/${OS} --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
+
+# check
+SOURCE=dist/${OS}/mapillary_tools.app/Contents/MacOS/mapillary_tools
+$SOURCE --version
+VERSION=$($SOURCE --version | awk '{print $3}')
+ARCH=$(uname -m)
+TARGET=dist/releases/mapillary_tools-${VERSION}-${OS}-${ARCH}.zip
+
+# package
+mkdir -p dist/releases
 zip -j "$TARGET" "$SOURCE" README_osx_package.txt
+
+# md5
+md5 -r ${TARGET} | tee ${TARGET}.md5
+
+# summary
+ls -l dist/releases
