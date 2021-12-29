@@ -70,7 +70,7 @@ jobs:
 
     - name: Release
       uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/') && python-version == '3.8'
+      if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == '3.8'
       with:
         files: |
           ./dist/linux/mapillary_tools_linux
