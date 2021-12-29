@@ -19,8 +19,12 @@ TARGET=dist/releases/mapillary_tools-${VERSION}-${OS}-${ARCH}
 mkdir -p dist/releases
 cp "$SOURCE" "$TARGET"
 
-# md5
-md5sum ${TARGET} | tee ${TARGET}.md5
+# sha256
+TARGET_BASENAME=$(basename "$TARGET")
+# to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
+cd dist/releases
+shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256"
+cd ../../
 
 # summary
 ls -l dist/releases

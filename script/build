@@ -19,8 +19,12 @@ TARGET=dist/releases/mapillary_tools-${VERSION}-${OS}-${ARCH}.zip
 mkdir -p dist/releases
 zip -j "$TARGET" "$SOURCE" README_osx_package.txt
 
-# md5
-md5 -r ${TARGET} | tee ${TARGET}.md5
+# sha256
+TARGET_BASENAME=$(basename "$TARGET")
+# to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
+cd dist/releases
+shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256"
+cd ../../
 
 # summary
 ls -l dist/releases
