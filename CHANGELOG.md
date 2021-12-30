@@ -1,3 +1,43 @@
+# Changelog
+
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
+## [0.8.1](https://github.com/mapillary/mapillary_tools/compare/v0.8.0...v0.8.1) (2021-12-30)
+
+
+### Features
+* Add Upload API to README.md
+* Add upload history #464
+* Add direct upload support for BlackVue videos #462
+* Improve error handling (exit codes) and logging messages (#484)
+* Feature: support uploading multiple files/directories at once (#486)
+
+### Bug Fixes
+
+* Use image exif time for interpolation by default but provide options to sepcify gpx start time #445
+* Fix gpxpy's incompatible timezone-aware datetime #446
+* Login API returns error messages in en_US
+* Ensure zipping is deterministic
+* Default camera angle to 0 before applying offset_angle
+* Extract model/device from EXIF when geotag from gpx #469
+* Show tqdm when log level is lower than DEBUG (#479)
+* Process only specified video sample images in video_process (#480)
+* EXIF read related fixes (#490)
+  * Write MAPAltitude in image description
+  * Return None instead of 0, if the rational denominator is 0 when reading float values, e.g. GPS, directions, etc.
+  * A workaround that fixes GoPro HERO 9 subseconds reading
+* Delete invalid tags before writing exif ([#489](https://github.com/mapillary/mapillary_tools/issues/489)) ([b6a18ea](https://github.com/mapillary/mapillary_tools/commit/b6a18ea6135584d220e8f4a68471cc3244428daa))
+
+### Breaking changes
+
+* Rename environment variables
+  * rename `MAPILLARY_WEB_CLIENT_ID` to `MAPILLARY_CLIENT_TOKEN`
+  * rename `GLOBAL_CONFIG_FILEPATH` to `MAPILLARY_CONFIG_PATH`
+* Remove --organization_username
+
+### Improvement
+* Hide banner in ffmpeg and ffprobe (#474)
+
 ## 0.0.0 (2018-05-30)
 
 
