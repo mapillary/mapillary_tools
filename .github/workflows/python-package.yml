@@ -63,7 +63,7 @@ jobs:
     - name: Build with Pyinstaller on Windows
       if: matrix.platform == 'windows-latest'
       run: |
-        ./script/build_win.bat
+        ./script/build_win.ps1
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
