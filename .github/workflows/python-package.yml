@@ -6,6 +6,8 @@ name: Python package
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches: [ main ]
 
@@ -32,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements-dev.txt
+        python -m pip install -r requirements.txt -r requirements-dev.txt
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -49,19 +51,26 @@ jobs:
       run: |
         pytest tests
     - name: Build with Pyinstaller on MacOS
+      if: matrix.platform == 'macos-latest'
       run: |
         ./script/build
-        ./dist/osx/mapillary_tools --version
         # Could run full integration tests with below but the binary is too slow to start up
         # MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
-      if: matrix.platform == 'macos-latest'
     - name: Build with Pyinstaller on Ubuntu
+      if: matrix.platform == 'ubuntu-latest'
       run: |
         ./script/build_linux
-        ./dist/linux/mapillary_tools --version
-      if: matrix.platform == 'ubuntu-latest'
     - name: Build with Pyinstaller on Windows
-      run: |
-        ./script/build_win.bat
-        ./dist/win/mapillary_tools.exe --version
       if: matrix.platform == 'windows-latest'
+      run: |
+        ./script/build_win.ps1
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
+      with:
+        draft: true
+        generate_release_notes: true
+        fail_on_unmatched_files: false
+        files: |
+          ./dist/releases/*
+          ./dist/win/*.exe
