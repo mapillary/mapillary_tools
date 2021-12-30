@@ -2,7 +2,6 @@ $OS="win"
 
 # build
 mkdir -Force dist
-Remove-Item -Recurse -Force -Confirm:$false dist\win
 pyinstaller --noconfirm --distpath dist\win --onefile --windowed mapillary_tools.spec
 
 # check
