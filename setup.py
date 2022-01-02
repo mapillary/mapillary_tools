@@ -26,7 +26,7 @@ setup(
     packages=["mapillary_tools", "mapillary_tools.commands", "mapillary_tools.geotag"],
     entry_points="""
       [console_scripts]
-      mapillary_tools=mapillary_tools.__main__:main
+      mapillary_tools=mapillary_tools.commands.__main__:main
       """,
     install_requires=read_requirements(),
 )
