@@ -34,7 +34,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install -r requirements.txt -r requirements-dev.txt
+        python -m pip install .
+        python -m pip install -r requirements-dev.txt
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -48,7 +49,10 @@ jobs:
       run: |
         mypy mapillary_tools
     - name: Test with pytest
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools
       run: |
+        mapillary_tools --version
         pytest tests
     - name: Build with Pyinstaller on MacOS
       if: matrix.platform == 'macos-latest'

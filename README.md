@@ -27,14 +27,19 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 ## Quickstart
 
 Download the latest `mapillary_tools` binaries for your platform
-here: https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.1
-
+here: https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.1.
 See [more installation instructions](#installation) below.
 
-Upload imagery:
+Process and upload imagery:
 
 ```shell
 mapillary_tools process_and_upload "path/to/images/"
+```
+
+Upload BlackVue videos:
+
+```shell
+mapillary_tools upload "path/to/blackvue_videos/"
 ```
 
 ## Requirements
@@ -479,7 +484,7 @@ been addressed, otherwise, open an issue on GitHub.
 - Some devices do not store the camera direction properly, often storing only 0. Camera direction will get derived based
   on latitude and longitude only if the camera direction is not set or `--interpolate_directions` is specified. Before
   processing and uploading images, make sure that the camera direction is either correct or missing and in case it is
-  present but incorrect, you specify `-interpolate_directions`.
+  present but incorrect, you specify `--interpolate_directions`.
 
 ## Development
 
@@ -508,7 +513,7 @@ python3 -m pip install -r requirements.txt -r requirements-dev.txt
 Run the code from the repository:
 
 ```shell
-python3 -m mapillary_tools --version
+python3 -m mapillary_tools.commands --version
 ```
 
 Run tests:
