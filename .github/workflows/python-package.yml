@@ -49,9 +49,11 @@ jobs:
       run: |
         mypy mapillary_tools
     - name: Test with pytest
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools
       run: |
         mapillary_tools --version
-        MAPILLARY_TOOLS_EXECUTABLE=mapillary_tools pytest tests
+        pytest tests
     - name: Build with Pyinstaller on MacOS
       if: matrix.platform == 'macos-latest'
       run: |
