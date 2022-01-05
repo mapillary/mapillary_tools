@@ -39,7 +39,7 @@ mapillary_tools process_and_upload "path/to/images/"
 Upload BlackVue videos:
 
 ```shell
-mapillary_tools upload "path/to/blackvue_videos/"
+mapillary_tools upload "path/to/blackvue_videos/*.mp4"
 ```
 
 ## Requirements
