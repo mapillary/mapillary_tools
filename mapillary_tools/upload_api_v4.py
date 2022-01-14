@@ -14,7 +14,10 @@ from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-DEFAULT_CHUNK_SIZE = 1024 * 1024 * 64
+DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16
+REQUESTS_TIMEOUT = 60  # 1 minutes
+# Make sure the largest possible chunks can be uploaded before this timeout
+UPLOAD_REQUESTS_TIMEOUT = 10 * 60  # 10 minutes
 
 
 FileType = Literal["zip", "mly_blackvue_video"]
@@ -68,7 +71,9 @@ class UploadService:
             "Authorization": f"OAuth {self.user_access_token}",
         }
         resp = requests.get(
-            f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}", headers=headers
+            f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
+            headers=headers,
+            timeout=REQUESTS_TIMEOUT,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -110,6 +115,7 @@ class UploadService:
                 f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
                 headers=headers,
                 data=chunk,
+                timeout=UPLOAD_REQUESTS_TIMEOUT,
             )
             resp.raise_for_status()
             offset += len(chunk)
@@ -148,6 +154,7 @@ class UploadService:
             f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
             headers=headers,
             json=data,
+            timeout=REQUESTS_TIMEOUT,
         )
 
         resp.raise_for_status()
