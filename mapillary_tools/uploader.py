@@ -382,6 +382,8 @@ def _upload_fp(
 
     MAX_RETRIES = 200
 
+    offset = None
+
     while True:
         fp.seek(0, io.SEEK_SET)
         try:
@@ -404,9 +406,10 @@ def _upload_fp(
                 retries += 1
                 sleep_for = min(2 ** retries, 16)
                 LOG.warning(
-                    f"Error uploading offset %s chunk_size %d: %s: %s",
-                    mutable_payload.get("offset"),
+                    # use %s instead of %d because offset could be None
+                    f"Error uploading chunk_size %d at offset %s: %s: %s",
                     chunk_size,
+                    offset,
                     ex.__class__.__name__,
                     str(ex),
                 )
