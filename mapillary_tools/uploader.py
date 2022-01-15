@@ -97,7 +97,7 @@ class Uploader:
         self.dry_run = dry_run
         self.emitter = emitter
 
-    def upload_zipfile(self, zip_path: str) -> T.Optional[int]:
+    def upload_zipfile(self, zip_path: str) -> T.Optional[str]:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
 
@@ -123,7 +123,7 @@ class Uploader:
             except UploadCancelled:
                 return None
 
-    def upload_blackvue(self, blackvue_path: str) -> T.Optional[int]:
+    def upload_blackvue(self, blackvue_path: str) -> T.Optional[str]:
         try:
             return upload_blackvue(
                 blackvue_path,
@@ -136,10 +136,10 @@ class Uploader:
 
     def upload_images(
         self, descs: T.List[types.ImageDescriptionFile]
-    ) -> T.Dict[str, int]:
+    ) -> T.Dict[str, str]:
         _validate_descs(descs)
         sequences = _group_sequences_by_uuid(descs)
-        ret: T.Dict[str, int] = {}
+        ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
             event_payload: Progress = {
                 "sequence_idx": sequence_idx,
@@ -150,7 +150,7 @@ class Uploader:
             with tempfile.NamedTemporaryFile() as fp:
                 _zip_sequence_fp(images, fp)
                 try:
-                    cluster_id: T.Optional[int] = _upload_zipfile_fp(
+                    cluster_id: T.Optional[str] = _upload_zipfile_fp(
                         fp,
                         self.user_items,
                         emitter=self.emitter,
@@ -232,7 +232,7 @@ def _upload_zipfile_fp(
     event_payload: T.Optional[Progress] = None,
     emitter: T.Optional[EventEmitter] = None,
     dry_run=False,
-) -> int:
+) -> str:
     if event_payload is None:
         event_payload = {
             "sequence_idx": 0,
@@ -285,7 +285,7 @@ def upload_blackvue(
     user_items: types.UserItem,
     emitter: EventEmitter = None,
     dry_run=False,
-) -> int:
+) -> str:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
     with open(blackvue_path, "rb") as fp:
@@ -367,7 +367,7 @@ def _upload_fp(
     chunk_size: int,
     event_payload: Progress = None,
     emitter: EventEmitter = None,
-) -> int:
+) -> str:
     retries = 0
 
     if event_payload is None:
