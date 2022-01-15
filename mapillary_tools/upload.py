@@ -21,10 +21,10 @@ from .geo import get_max_distance_from_start
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
+# Disable if it's reset to empty
 MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
     "MAPILLARY_UPLOAD_HISTORY_PATH",
-    # To enable it by default
-    # os.path.join(config.DEFAULT_MAPILLARY_FOLDER, "upload_history"),
+    os.path.join(config.DEFAULT_MAPILLARY_FOLDER, "upload_history"),
 )
 
 
@@ -135,7 +135,7 @@ def _history_desc_path(md5sum: str) -> str:
 
 
 def is_uploaded(md5sum: str) -> bool:
-    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+    if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return False
     return os.path.isfile(_history_desc_path(md5sum))
 
@@ -146,7 +146,7 @@ def write_history(
     summary: T.Dict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
-    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+    if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return
     path = _history_desc_path(md5sum)
     LOG.debug(f"Writing upload history: {path}")
