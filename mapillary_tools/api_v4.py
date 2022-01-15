@@ -15,6 +15,7 @@ MAPILLARY_CLIENT_TOKEN = os.getenv(
 MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
     "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
 )
+REQUESTS_TIMEOUT = 60  # 1 minutes
 
 
 def get_upload_token(email: str, password: str) -> requests.Response:
@@ -22,6 +23,7 @@ def get_upload_token(email: str, password: str) -> requests.Response:
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
         params={"access_token": MAPILLARY_CLIENT_TOKEN},
         json={"email": email, "password": password, "locale": "en_US"},
+        timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
     return resp
@@ -38,6 +40,7 @@ def fetch_organization(
         headers={
             "Authorization": f"OAuth {user_access_token}",
         },
+        timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
     return resp
@@ -60,6 +63,7 @@ def logging(
         headers={
             "Authorization": f"OAuth {access_token}",
         },
+        timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
     return resp

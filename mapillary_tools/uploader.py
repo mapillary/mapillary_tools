@@ -380,6 +380,10 @@ def _upload_fp(
     if emitter:
         emitter.emit("upload_start", mutable_payload)
 
+    MAX_RETRIES = 200
+
+    offset = None
+
     while True:
         fp.seek(0, io.SEEK_SET)
         try:
@@ -396,14 +400,21 @@ def _upload_fp(
                 fp, chunk_size=chunk_size, offset=offset
             )
         except Exception as ex:
-            if retries < 200 and is_retriable_exception(ex):
+            if retries < MAX_RETRIES and is_retriable_exception(ex):
                 if emitter:
                     emitter.emit("upload_interrupted", mutable_payload)
                 retries += 1
                 sleep_for = min(2 ** retries, 16)
                 LOG.warning(
-                    f"Error uploading, resuming in {sleep_for} seconds",
-                    exc_info=True,
+                    # use %s instead of %d because offset could be None
+                    f"Error uploading chunk_size %d at offset %s: %s: %s",
+                    chunk_size,
+                    offset,
+                    ex.__class__.__name__,
+                    str(ex),
+                )
+                LOG.info(
+                    "Retrying in %d seconds (%d/%d)", sleep_for, retries, MAX_RETRIES
                 )
                 time.sleep(sleep_for)
             else:
