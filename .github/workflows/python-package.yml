@@ -54,8 +54,9 @@ jobs:
       run: |
         mapillary_tools --version
         pytest tests
-    - name: Build with Pyinstaller on MacOS
-      if: matrix.platform == 'macos-latest'
+    - name: Build with Pyinstaller on MacOS (Python 3.8 only)
+      # Enable for Python3.8 only because it often fails at codesign (subprocess timeout)
+      if: matrix.platform == 'macos-latest' && matrix.python-version == 3.8
       run: |
         ./script/build
         # Could run full integration tests with below but the binary is too slow to start up
