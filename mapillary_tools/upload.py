@@ -270,7 +270,7 @@ def _setup_ipc(emitter: uploader.EventEmitter):
         ipc.send(type, payload)
 
 
-class _APIStats(uploader.Progress):
+class _APIStats(uploader.Progress, total=False):
     # timestamp on upload_start
     upload_start_time: float
 
@@ -304,9 +304,12 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
 
     @emitter.on("upload_interrupted")
     def collect_interrupted(payload: _APIStats):
-        payload["upload_total_time"] += (
-            time.time() - payload["upload_last_restart_time"]
-        )
+        # could be None if it failed to fetch offset
+        restart_time = payload.get("upload_last_restart_time")
+        if restart_time is not None:
+            payload["upload_total_time"] += time.time() - restart_time
+            # reset the restart time
+            del payload["upload_last_restart_time"]
 
     @emitter.on("upload_end")
     def collect_end_time(payload: _APIStats) -> None:
@@ -324,7 +327,7 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     # note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
 
     total_uploaded_size = sum(
-        s["entity_size"] - s["upload_first_offset"] for s in stats
+        s["entity_size"] - s.get("upload_first_offset", 0) for s in stats
     )
     total_uploaded_size_mb = total_uploaded_size / (1024 * 1024)
 

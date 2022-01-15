@@ -223,6 +223,10 @@ class FakeUploadService(UploadService):
         return 0
 
     def fetch_offset(self) -> int:
+        if random.random() <= self._error_ratio:
+            raise requests.ConnectionError(
+                f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
+            )
         filename = os.path.join(self._upload_path, self.session_key)
         if not os.path.exists(filename):
             return 0
