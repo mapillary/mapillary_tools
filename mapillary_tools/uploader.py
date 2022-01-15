@@ -63,6 +63,9 @@ class Progress(types.TypedDict, total=False):
     # Path to the Zipfile/BlackVue
     import_path: str
 
+    # Cluster ID after finishing the upload
+    cluster_id: str
+
 
 class UploadCancelled(Exception):
     pass
@@ -435,6 +438,7 @@ def _upload_fp(
         raise upload_api_v4.wrap_http_exception(ex) from ex
 
     if emitter:
+        mutable_payload["cluster_id"] = cluster_id
         emitter.emit("upload_finished", mutable_payload)
 
     return cluster_id
