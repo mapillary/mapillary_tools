@@ -477,7 +477,8 @@ def upload(
     # Setup the emitter -- the order matters here
 
     # Put it first one to cancel early
-    _setup_cancel_due_to_duplication(emitter)
+    if not dry_run:
+        _setup_cancel_due_to_duplication(emitter)
 
     # This one set up tdqm
     _setup_tdqm(emitter)

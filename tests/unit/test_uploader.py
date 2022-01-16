@@ -5,7 +5,7 @@ import tempfile
 
 import py.path
 
-from mapillary_tools import uploader, exif_read, utils
+from mapillary_tools import uploader, exif_read
 
 
 def _validate_and_extract_zip(filename: str):
@@ -30,7 +30,8 @@ def _validate_and_extract_zip(filename: str):
 
 def _validate_zip_dir(zip_dir: py.path.local):
     for zip_path in zip_dir.listdir():
-        upload_md5sum = utils.file_md5sum(str(zip_path))
+        with zipfile.ZipFile(zip_path) as ziph:
+            upload_md5sum = uploader._hash_zipfile(ziph)
         assert (
             str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip"
         ), zip_path
@@ -83,7 +84,7 @@ def test_upload_images_multiple_sequences(tmpdir: py.path.local):
             "MAPLatitude": 59.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
-            "filename": "tests/unit/data/test_exif.jpg",
+            "filename": "tests/unit/data/fixed_exif.jpg",
             "MAPSequenceUUID": "sequence_2",
         },
     ]
