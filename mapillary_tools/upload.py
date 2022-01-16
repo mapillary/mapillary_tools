@@ -151,7 +151,7 @@ def write_history(
     path = _history_desc_path(md5sum)
     LOG.debug(f"Writing upload history: {path}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    history: T.Dict = {
+    history: T.Dict[str, T.Any] = {
         "params": params,
         "summary": summary,
     }
