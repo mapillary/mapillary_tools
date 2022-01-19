@@ -9,6 +9,8 @@ from . import (
     process_and_upload,
     sample_video,
     upload,
+    upload_blackvue,
+    upload_zip,
     video_process,
     video_process_and_upload,
     zip,
@@ -17,6 +19,8 @@ from . import (
 mapillary_tools_commands = [
     process,
     upload,
+    upload_blackvue,
+    upload_zip,
     sample_video,
     video_process,
     authenticate,
@@ -51,7 +55,7 @@ def add_general_arguments(parser, command):
             default=False,
             required=False,
         )
-    elif command in ["upload"]:
+    elif command in ["upload", "upload_blackvue", "upload_zip"]:
         parser.add_argument(
             "import_path",
             help="Path to your images",

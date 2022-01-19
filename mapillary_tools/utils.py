@@ -25,12 +25,12 @@ def file_md5sum(path: str) -> str:
 
 
 def is_image_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
+    _, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
 
 
 def is_video_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
+    _, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
 
 
@@ -52,6 +52,17 @@ def get_video_file_list(
         file if abs_path else os.path.relpath(file, video_file)
         for file in files
         if is_video_file(file)
+    )
+
+
+def get_zip_file_list(
+    video_file: str, skip_subfolders: bool = False, abs_path: bool = False
+) -> T.List[str]:
+    files = iterate_files(video_file, not skip_subfolders)
+    return sorted(
+        file if abs_path else os.path.relpath(file, video_file)
+        for file in files
+        if os.path.splitext(file)[1] in [".zip"]
     )
 
 

@@ -15,8 +15,11 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, api_v4, ipc, exceptions, config, authenticate
+from . import uploader, types, api_v4, ipc, exceptions, config, authenticate, utils
 from .geo import get_max_distance_from_start
+from .geotag import geotag_from_blackvue, utils as video_utils
+
+FileType = Literal["blackvue", "images", "zip"]
 
 
 LOG = logging.getLogger(__name__)
@@ -108,11 +111,6 @@ def fetch_user_items(
             types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
         )
     return user_items
-
-
-EventName = Literal[
-    "upload_start", "upload_fetch_offset", "upload_progress", "upload_end"
-]
 
 
 def _validate_hexdigits(md5sum: str):
@@ -221,9 +219,14 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
+        import_path = payload.get("import_path")
+        if import_path is None:
+            _desc = f"Uploading ({nth}/{total})"
+        else:
+            _desc = f"Uploading {os.path.basename(import_path)} ({nth}/{total})"
         upload_pbar = tqdm(
             total=payload["entity_size"],
-            desc=f"Uploading ({nth}/{total})",
+            desc=_desc,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
@@ -247,25 +250,25 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
-        type: EventName = "upload_start"
+        type: uploader.EventName = "upload_start"
         LOG.debug(f"Sending {type} via IPC: {payload}")
         ipc.send(type, payload)
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
-        type: EventName = "upload_fetch_offset"
+        type: uploader.EventName = "upload_fetch_offset"
         LOG.debug(f"Sending {type} via IPC: {payload}")
         ipc.send(type, payload)
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress):
-        type: EventName = "upload_progress"
+        type: uploader.EventName = "upload_progress"
         LOG.debug(f"Sending {type} via IPC: {payload}")
         ipc.send(type, payload)
 
     @emitter.on("upload_end")
     def upload_end(payload: uploader.Progress) -> None:
-        type: EventName = "upload_end"
+        type: uploader.EventName = "upload_end"
         LOG.debug(f"Sending {type} via IPC: {payload}")
         ipc.send(type, payload)
 
@@ -352,9 +355,24 @@ def _summarize(stats: T.List[_APIStats]) -> T.Dict:
     return upload_summary
 
 
-def _log_upload_summary(summary: T.Dict):
-    LOG.info("%8d  images uploaded", summary["images"])
-    LOG.info("%8d  sequences uploaded", summary["sequences"])
+def _log_upload_summary(summary: T.Dict, file_type: FileType):
+    if file_type == "images":
+        LOG.info(
+            "%8d  sequences (%d images) uploaded",
+            summary["sequences"],
+            summary["images"],
+        )
+    elif file_type == "blackvue":
+        LOG.info(
+            "%8d  BlackVue videos uploaded",
+            summary["sequences"],
+        )
+    elif file_type == "zip":
+        LOG.info(
+            "%8d  ZIP files uploaded",
+            summary["sequences"],
+        )
+
     LOG.info("%8.1fM data in total", summary["size"])
     LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
     LOG.info("%8.1fs upload time", summary["time"])
@@ -420,6 +438,7 @@ def _join_desc_path(
 
 def upload_multiple(
     import_path: T.Union[T.List[str], str],
+    file_type: FileType,
     desc_path: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
@@ -433,15 +452,7 @@ def upload_multiple(
 
     # Check and fail early
     for path in import_paths:
-        if os.path.isfile(path):
-            _, ext = os.path.splitext(path)
-            if ext.lower() not in [".zip", ".mp4"]:
-                raise exceptions.MapillaryUnknownFileTypeError(
-                    f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
-                )
-        elif os.path.isdir(path):
-            pass
-        else:
+        if not os.path.isfile(path) and not os.path.isdir(path):
             raise exceptions.MapillaryFileNotFoundError(
                 f"Import file or directory not found: {path}"
             )
@@ -453,6 +464,7 @@ def upload_multiple(
         LOG.info("Uploading import path: %s", path)
         stats = upload(
             path,
+            file_type,
             user_items,
             desc_path=desc_path,
             dry_run=dry_run,
@@ -461,13 +473,92 @@ def upload_multiple(
 
     upload_summary = _summarize(all_stats)
     if all_stats:
-        _log_upload_summary(upload_summary)
+        _log_upload_summary(upload_summary, file_type)
     else:
         LOG.info("Nothing uploaded. Bye.")
 
 
+def _check_blackvue(video_path: str) -> None:
+    # Skip in tests only because we don't have valid sample blackvue for tests
+    if os.environ.get("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
+        return
+
+    points = geotag_from_blackvue.get_points_from_bv(video_path)
+    if not points:
+        raise exceptions.MapillaryGPXEmptyError(
+            f"Empty GPS extracted from {video_path}"
+        )
+
+    stationary = video_utils.is_video_stationary(
+        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+    )
+    if stationary:
+        raise exceptions.MapillaryStationaryVideoError(
+            f"The video is stationary: {video_path}"
+        )
+
+
+def _upload_blackvues(
+    mly_uploader: uploader.Uploader, video_paths: T.List[str], stats: T.List[_APIStats]
+):
+    for idx, video_path in enumerate(video_paths):
+        event_payload: uploader.Progress = {
+            "total_sequence_count": len(video_paths),
+            "sequence_idx": idx,
+        }
+        try:
+            _check_blackvue(video_path)
+        except Exception as ex:
+            LOG.warning(f"Skipping due to: {ex}")
+            continue
+        try:
+            cluster_id = mly_uploader.upload_blackvue(
+                video_path, event_payload=event_payload
+            )
+        except Exception as exc:
+            if not mly_uploader.dry_run:
+                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
+            raise
+        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+
+
+def _upload_zipfiles(
+    mly_uploader: uploader.Uploader, zip_paths: T.List[str], stats: T.List[_APIStats]
+):
+    for idx, zip_path in enumerate(zip_paths):
+        event_payload: uploader.Progress = {
+            "total_sequence_count": len(zip_paths),
+            "sequence_idx": idx,
+        }
+        try:
+            cluster_id = mly_uploader.upload_zipfile(
+                zip_path, event_payload=event_payload
+            )
+        except Exception as exc:
+            if not mly_uploader.dry_run:
+                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
+            raise
+        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+
+
+def _upload_images(
+    mly_uploader: uploader.Uploader,
+    image_dir: str,
+    descs: T.List[types.ImageDescriptionFile],
+    stats: T.List[_APIStats],
+):
+    try:
+        clusters = mly_uploader.upload_images(_join_desc_path(image_dir, descs))
+    except Exception as exc:
+        if not mly_uploader.dry_run:
+            _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
+        raise
+    LOG.debug(f"Uploaded to cluster: {clusters}")
+
+
 def upload(
     import_path: str,
+    file_type: str,
     user_items: types.UserItem,
     desc_path: T.Optional[str] = None,
     dry_run=False,
@@ -477,7 +568,8 @@ def upload(
     # Setup the emitter -- the order matters here
 
     # Put it first one to cancel early
-    _setup_cancel_due_to_duplication(emitter)
+    if not dry_run:
+        _setup_cancel_due_to_duplication(emitter)
 
     # This one set up tdqm
     _setup_tdqm(emitter)
@@ -493,57 +585,14 @@ def upload(
         "desc_path": desc_path,
         "user_key": user_items.get("MAPSettingsUserKey"),
         "organization_key": user_items.get("MAPOrganizationKey"),
+        "file_type": file_type,
     }
 
-    if os.path.isfile(import_path):
-        _, ext = os.path.splitext(import_path)
-        if not dry_run:
-            _setup_write_upload_history(emitter, params)
-        mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
-        if ext.lower() in [".zip"]:
-            try:
-                cluster_id = mly_uploader.upload_zipfile(import_path)
-            except Exception as exc:
-                if not dry_run:
-                    _api_logging_failed(user_items, _summarize(stats), exc)
-                raise
-        elif ext.lower() in [".mp4"]:
-            from .geotag import geotag_from_blackvue, utils
-
-            points = geotag_from_blackvue.get_points_from_bv(import_path)
-            if not points:
-                raise exceptions.MapillaryGPXEmptyError(
-                    f"Empty GPS extracted from {import_path}"
-                )
-
-            stationary = utils.is_video_stationary(
-                get_max_distance_from_start([(p.lat, p.lon) for p in points])
-            )
-            if stationary:
-                raise exceptions.MapillaryStationaryVideoError(
-                    f"The video is stationary: {import_path}"
-                )
-
-            try:
-                cluster_id = mly_uploader.upload_blackvue(import_path)
-            except Exception as exc:
-                if not dry_run:
-                    _api_logging_failed(user_items, _summarize(stats), exc)
-                raise
-        else:
-            raise exceptions.MapillaryUnknownFileTypeError(
-                f"Unknown file type {ext}. Currently only imagery directories, BlackVue videos (.mp4) and ZipFile files (.zip) are supported"
-            )
-        LOG.debug(f"Uploaded to cluster: {cluster_id}")
-
-    elif os.path.isdir(import_path):
+    if os.path.isdir(import_path) and file_type == "images":
         if desc_path is None:
             desc_path = os.path.join(import_path, "mapillary_image_description.json")
 
         descs = read_image_descriptions(desc_path)
-        if not descs:
-            LOG.warning(f"No images found in {desc_path}")
-            return []
 
         # Make sure all descs have uuid assigned
         # It is used to find the right sequence when writing upload history
@@ -551,18 +600,51 @@ def upload(
         for desc in descs:
             if "MAPSequenceUUID" not in desc:
                 desc["MAPSequenceUUID"] = missing_sequence_uuid
+    else:
+        descs = []
 
-        if not dry_run:
-            _setup_write_upload_history(emitter, params, descs)
+    if not dry_run:
+        _setup_write_upload_history(emitter, params, descs)
 
-        mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
-        try:
-            clusters = mly_uploader.upload_images(_join_desc_path(import_path, descs))
-        except Exception as exc:
-            if not dry_run:
-                _api_logging_failed(user_items, _summarize(stats), exc)
-            raise
-        LOG.debug(f"Uploaded to cluster: {clusters}")
+    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
+
+    if os.path.isfile(import_path):
+        _, ext = os.path.splitext(import_path)
+        if (file_type == "images" and ext.lower() in [".zip"]) or file_type == "zip":
+            _upload_zipfiles(mly_uploader, [import_path], stats)
+        elif (
+            file_type == "images" and ext.lower() in [".mp4"]
+        ) or file_type == "blackvue":
+            _upload_blackvues(mly_uploader, [import_path], stats)
+        else:
+            LOG.warning(
+                f"Skipping unknown file %s. Only imagery directories, BlackVue videos (.mp4) and ZIP files (.zip) are supported",
+                import_path,
+            )
+
+    elif os.path.isdir(import_path):
+        if file_type == "images":
+            _upload_images(mly_uploader, import_path, descs, stats)
+
+        elif file_type == "blackvue":
+            _upload_blackvues(
+                mly_uploader,
+                utils.get_video_file_list(import_path, abs_path=True),
+                stats,
+            )
+
+        elif file_type == "zip":
+            _upload_zipfiles(
+                mly_uploader,
+                utils.get_zip_file_list(import_path, abs_path=True),
+                stats,
+            )
+
+        else:
+            raise exceptions.MapillaryBadParameterError(
+                f"Invalid file type {file_type}"
+            )
+
     else:
         raise exceptions.MapillaryFileNotFoundError(
             f"Import file or directory not found: {import_path}"
