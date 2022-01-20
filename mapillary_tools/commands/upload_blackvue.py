@@ -8,6 +8,11 @@ class Command:
     help = "upload BlackVue videos to Mapillary"
 
     def add_basic_arguments(self, parser):
+        parser.add_argument(
+            "import_path",
+            help="Path to your BlackVue videos",
+            nargs="+",
+        )
         group = parser.add_argument_group("upload options")
         group.add_argument(
             "--user_name", help="Upload to which Mapillary user account", required=False
