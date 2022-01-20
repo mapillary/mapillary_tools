@@ -656,8 +656,9 @@ def upload(
             )
 
     else:
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Import file or directory not found: {import_path}"
+        LOG.warning(
+            f"Import file or directory not found: %s",
+            import_path,
         )
 
     upload_summary = _summarize(stats)
