@@ -55,17 +55,6 @@ def get_video_file_list(
     )
 
 
-def get_zip_file_list(
-    video_file: str, skip_subfolders: bool = False, abs_path: bool = False
-) -> T.List[str]:
-    files = iterate_files(video_file, not skip_subfolders)
-    return sorted(
-        file if abs_path else os.path.relpath(file, video_file)
-        for file in files
-        if os.path.splitext(file)[1] in [".zip"]
-    )
-
-
 def get_image_file_list(
     import_path: str, skip_subfolders: bool = False, abs_path: bool = False
 ) -> T.List[str]:
