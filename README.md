@@ -39,7 +39,7 @@ mapillary_tools process_and_upload "path/to/images/"
 Upload BlackVue videos:
 
 ```shell
-mapillary_tools upload "path/to/blackvue_videos/*.mp4"
+mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 ```
 
 ## Requirements
@@ -175,9 +175,15 @@ Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` 
 . It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
-mapillary_tools upload "video_file_name.mp4" \
+mapillary_tools upload_blackvue "video_file_name.mp4" \
     --user_name "mly_user" \
     --organization_key "mly_organization_id"
+```
+
+Upload all BlackVue videos (*.mp4) under the folder:
+
+```shell
+mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 ```
 
 ### Video Process
@@ -374,17 +380,10 @@ Zip processed images in `path/to/images/` and write zip files in `path/to/zipped
 mapillary_tools zip "path/to/images/" "path/to/zipped_images/"
 ```
 
-Choose the image description file to write when zipping images:
+Upload all the zip files (*.zip) under the folder:
 
 ```shell
-mapillary_tools zip "path/to/images/" "path/to/zipped_images/" \
-    --desc_path "path/to/image_description.json"
-```
-
-Then upload the zip files separately:
-
-```shell
-mapillary_tools upload path/to/zipped_images/*.zip
+mapillary_tools upload_zip "path/to/zipped_images/"
 ```
 
 ### Upload API

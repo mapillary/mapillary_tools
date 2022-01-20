@@ -9,6 +9,8 @@ from . import (
     process_and_upload,
     sample_video,
     upload,
+    upload_blackvue,
+    upload_zip,
     video_process,
     video_process_and_upload,
     zip,
@@ -17,6 +19,8 @@ from . import (
 mapillary_tools_commands = [
     process,
     upload,
+    upload_blackvue,
+    upload_zip,
     sample_video,
     video_process,
     authenticate,
@@ -30,10 +34,8 @@ mapillary_tools_commands = [
 LOG = logging.getLogger("mapillary_tools")
 
 
+# Handle shared arguments/options here
 def add_general_arguments(parser, command):
-    if command == "authenticate":
-        return
-
     if command in ["sample_video", "video_process", "video_process_and_upload"]:
         parser.add_argument(
             "video_import_path",
@@ -57,16 +59,7 @@ def add_general_arguments(parser, command):
             help="Path to your images",
             nargs="+",
         )
-    elif command in ["zip"]:
-        parser.add_argument(
-            "import_path",
-            help="Path to your images",
-        )
-        parser.add_argument(
-            "zip_dir",
-            help="Path to store zipped images",
-        )
-    else:
+    elif command in ["process", "process_and_upload"]:
         parser.add_argument(
             "import_path",
             help="Path to your images",

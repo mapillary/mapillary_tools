@@ -10,6 +10,14 @@ class Command:
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
+            "import_path",
+            help="Path to your images",
+        )
+        parser.add_argument(
+            "zip_dir",
+            help="Path to store zipped images",
+        )
+        parser.add_argument(
             "--desc_path",
             help="Specify the path to read image description",
             default=None,

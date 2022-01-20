@@ -123,7 +123,10 @@ def find_camera_model(video_path: str) -> T.Optional[bytes]:
         eof = fd.tell()
         fd.seek(0)
         while fd.tell() < eof:
-            box = Box.parse_stream(fd)
+            try:
+                box = Box.parse_stream(fd)
+            except Exception as ex:
+                return None
             if box.type.decode("utf-8") == "free":
                 return T.cast(bytes, box.data[29:39])
         return None
@@ -147,10 +150,14 @@ def get_points_from_bv(
         while fd.tell() < eof:
             try:
                 box = Box.parse_stream(fd)
-            except (construct.core.RangeError, construct.core.ConstError):
+            except (construct.core.RangeError, construct.core.ConstError) as ex:
                 raise MapillaryInvalidBlackVueVideoError(
-                    f"Unable to parse the BlackVue video: {path}"
-                )
+                    f"Unable to parse the BlackVue video ({ex.__class__.__name__}: {ex}): {path}"
+                ) from ex
+            except IOError as ex:
+                raise MapillaryInvalidBlackVueVideoError(
+                    f"Unable to parse the BlackVue video ({ex.__class__.__name__}: {ex}): {path}"
+                ) from ex
 
             if box.type.decode("utf-8") == "free":
                 length = len(box.data)
