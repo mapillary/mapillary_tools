@@ -120,10 +120,9 @@ class Uploader:
             raise RuntimeError(f"The zip file {zip_path} is empty")
 
         if event_payload is None:
-            event_payload = T.cast(Progress, {})
+            event_payload = {}
 
         new_event_payload: Progress = {
-            **event_payload,
             "import_path": zip_path,
             "sequence_image_count": len(namelist),
         }
@@ -134,7 +133,9 @@ class Uploader:
                     fp,
                     len(namelist),
                     self.user_items,
-                    event_payload=new_event_payload,
+                    event_payload=T.cast(
+                        Progress, {**event_payload, **new_event_payload}
+                    ),
                     emitter=self.emitter,
                     dry_run=self.dry_run,
                 )
@@ -340,10 +341,9 @@ def upload_blackvue(
             )
 
         if event_payload is None:
-            event_payload = T.cast(Progress, {})
+            event_payload = {}
 
         new_event_payload: Progress = {
-            **event_payload,
             "entity_size": entity_size,
             "import_path": blackvue_path,
             "md5sum": upload_md5sum,
@@ -353,7 +353,7 @@ def upload_blackvue(
             upload_service,
             fp,
             chunk_size,
-            event_payload=new_event_payload,
+            event_payload=T.cast(Progress, {**event_payload, **new_event_payload}),
             emitter=emitter,
         )
 

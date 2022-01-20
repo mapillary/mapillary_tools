@@ -183,7 +183,7 @@ mapillary_tools upload_blackvue "video_file_name.mp4" \
 Upload all BlackVue videos (*.mp4) under the folder:
 
 ```shell
-mapillary_tools upload_blackvue "path/to/blackvue_videos"
+mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 ```
 
 ### Video Process
