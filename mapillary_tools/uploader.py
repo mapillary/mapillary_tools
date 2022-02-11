@@ -431,7 +431,7 @@ def _upload_fp(
                 if emitter:
                     emitter.emit("upload_interrupted", mutable_payload)
                 retries += 1
-                sleep_for = min(2 ** retries, 16)
+                sleep_for = min(2**retries, 16)
                 LOG.warning(
                     # use %s instead of %d because offset could be None
                     f"Error uploading chunk_size %d at offset %s: %s: %s",
