@@ -629,7 +629,7 @@ def upload(
         elif file_type == "blackvue":
             video_paths = [
                 path
-                for path in utils.iterate_files(import_path)
+                for path in utils.iterate_files(import_path, recursive=True)
                 if os.path.splitext(path)[1].lower() in [".mp4"]
             ]
             _upload_blackvues(
@@ -641,7 +641,7 @@ def upload(
         elif file_type == "zip":
             zip_paths = [
                 path
-                for path in utils.iterate_files(import_path)
+                for path in utils.iterate_files(import_path, recursive=True)
                 if os.path.splitext(path)[1].lower() in [".zip"]
             ]
             _upload_zipfiles(
