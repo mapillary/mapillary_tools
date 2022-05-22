@@ -1,3 +1,5 @@
+import itertools
+import re
 import typing as T
 import datetime
 import os
@@ -22,93 +24,151 @@ def sample_video(
     skip_sample_errors: bool = False,
     rerun: bool = False,
 ) -> None:
-    if not os.path.exists(video_import_path):
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Video file or directory not found: {video_import_path}"
-        )
-
     if os.path.isdir(video_import_path):
         video_list = utils.get_video_file_list(
             video_import_path, skip_subfolders, abs_path=True
         )
         video_dir = video_import_path
-    else:
+        LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
+    elif os.path.isfile(video_import_path):
         video_list = [video_import_path]
         video_dir = os.path.dirname(video_import_path)
-
-    LOG.debug(f"Found {len(video_list)} videos in {video_import_path}")
+    else:
+        raise exceptions.MapillaryFileNotFoundError(
+            f"Video file or directory not found: {video_import_path}"
+        )
 
     if rerun:
         for video_path in video_list:
             relpath = os.path.relpath(video_path, video_dir)
             video_sample_path = os.path.join(import_path, relpath)
-            LOG.info(f"Removing the sample directory {video_sample_path}")
+            LOG.info(f"Removing the sample directory %s", video_sample_path)
             if os.path.isdir(video_sample_path):
                 shutil.rmtree(video_sample_path)
             elif os.path.isfile(video_sample_path):
                 os.remove(video_sample_path)
 
-    for video_path in video_list:
-        video_start_time_dt: T.Optional[datetime.datetime] = None
-        if video_start_time is not None:
-            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+    video_start_time_dt: T.Optional[datetime.datetime] = None
+    if video_start_time is not None:
+        video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
 
+    cached_video_start_times = {}
+
+    geotag_type = None
+    if geotag_type == "gopro":
+        groups = _group_gopro_video_segments(video_list)
+        for group in groups:
+            if len(group) <= 1:
+                continue
+            start_time = video_start_time_dt
+            for video_path in group:
+                duration, creation_time = extract_duration_and_creation_time(video_path)
+                if start_time is None:
+                    start_time = creation_time - datetime.timedelta(seconds=duration)
+                cached_video_start_times[video_path] = start_time
+                start_time += datetime.timedelta(seconds=duration)
+
+    for video_path in video_list:
         relpath = os.path.relpath(video_path, video_dir)
         video_sample_path = os.path.join(import_path, relpath)
         if os.path.exists(video_sample_path):
             LOG.warning(
-                f"Skip sampling video {os.path.basename(video_path)} as it has been sampled in {video_sample_path}"
+                f"Skip sampling video %s as it has been sampled in %s",
+                os.path.basename(video_path),
+                video_sample_path,
             )
             continue
 
-        # extract frames in the temporary folder and then rename it
-        now = datetime.datetime.utcnow()
-        video_sample_path_temporary = os.path.join(
-            os.path.dirname(video_sample_path),
-            f"{os.path.basename(video_sample_path)}.{os.getpid()}.{int(now.timestamp())}",
-        )
-        os.makedirs(video_sample_path_temporary)
         try:
-            ffmpeg.extract_frames(
+            _sample_single_video(
                 video_path,
-                video_sample_path_temporary,
-                video_sample_interval,
+                video_sample_path,
+                cached_video_start_times.get(video_path, video_start_time_dt),
             )
-            if video_start_time_dt is None:
-                video_start_time_dt = extract_video_start_time(video_path)
-            insert_video_frame_timestamp(
-                os.path.basename(video_path),
-                video_sample_path_temporary,
-                video_start_time_dt,
-                video_sample_interval,
-                video_duration_ratio,
-            )
-        except (
-            exceptions.MapillaryFileNotFoundError,
-            exceptions.MapillaryFFmpegNotFoundError,
-        ):
+        except exceptions.MapillaryFFmpegNotFoundError:
+            # fatal errors
             raise
         except Exception:
             if skip_sample_errors:
-                LOG.warning(f"Skipping the error sampling {video_path}", exc_info=True)
+                LOG.warning(
+                    f"Skipping the error sampling %s", video_path, exc_info=True
+                )
             else:
                 raise
+
+
+def _group_gopro_video_segments(video_paths: T.List[str]) -> T.List[T.List[str]]:
+    pattern = re.compile(r"^(GH\d{2}|GOPR)(\d{4})$", flags=re.ASCII)
+
+    def _group_key(path: str):
+        base, _ = os.path.splitext(path)
+        matched = pattern.match(base)
+        if matched:
+            return matched[2]
         else:
-            LOG.debug(f"Renaming {video_sample_path_temporary} to {video_sample_path}")
-            try:
-                os.rename(video_sample_path_temporary, video_sample_path)
-            except IOError:
-                # video_sample_path might have been created by another process during the sampling
-                LOG.warning(
-                    f"Skip the error renaming {video_sample_path} to {video_sample_path}",
-                    exc_info=True,
-                )
-        finally:
-            if os.path.isdir(video_sample_path_temporary):
-                shutil.rmtree(video_sample_path_temporary)
+            return None
+
+    def _sort_key(path: str):
+        base, _ = os.path.splitext(path)
+        matched = pattern.match(base)
+        if matched is not None:
+            if matched[1] == "GOPR":
+                return "GH--"
+            else:
+                return matched[1]
+        else:
+            return "--"
+
+    return [
+        sorted(paths, key=_sort_key)
+        for _, paths in itertools.groupby(video_paths, _group_key)
+    ]
 
 
-def extract_video_start_time(video_path: str) -> datetime.datetime:
+def _sample_single_video(
+    video_path: str,
+    sample_path: str,
+    start_time: T.Optional[datetime.datetime] = None,
+    sample_interval: float = 2.0,
+    duration_ratio: float = 1.0,
+) -> None:
+    # extract frames in the temporary folder and then rename it
+    now = datetime.datetime.utcnow()
+    tmp_sample_path = os.path.join(
+        os.path.dirname(sample_path),
+        f"{os.path.basename(sample_path)}.{os.getpid()}.{int(now.timestamp())}",
+    )
+    os.makedirs(tmp_sample_path)
+
+    try:
+        if start_time is None:
+            duration, video_creation_time = extract_duration_and_creation_time(
+                video_path
+            )
+            start_time = video_creation_time - datetime.timedelta(seconds=duration)
+        ffmpeg.extract_frames(
+            video_path,
+            tmp_sample_path,
+            sample_interval,
+        )
+        insert_video_frame_timestamp(
+            os.path.basename(video_path),
+            tmp_sample_path,
+            start_time,
+            sample_interval,
+            duration_ratio,
+        )
+        if os.path.isdir(sample_path):
+            shutil.rmtree(sample_path)
+        os.rename(tmp_sample_path, sample_path)
+    finally:
+        if os.path.isdir(tmp_sample_path):
+            shutil.rmtree(tmp_sample_path)
+
+
+def extract_duration_and_creation_time(
+    video_path: str,
+) -> T.Tuple[float, datetime.datetime]:
     streams = ffmpeg.probe_video_streams(video_path)
     if not streams:
         raise exceptions.MapillaryVideoError(
@@ -123,14 +183,13 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
 
     stream = streams[0]
 
-    duration_str = stream["duration"]
+    duration_str = stream.get("duration")
     try:
         duration = float(duration_str)
     except (TypeError, ValueError) as exc:
         raise exceptions.MapillaryVideoError(
             f"Failed to find video stream duration {duration_str} from video {video_path}"
         ) from exc
-
     LOG.debug("Extracted video duration: %s", duration)
 
     time_string = stream.get("tags", {}).get("creation_time")
@@ -140,34 +199,34 @@ def extract_video_start_time(video_path: str) -> datetime.datetime:
         )
 
     try:
-        video_end_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
+        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
     except ValueError:
         try:
-            video_end_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
+            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
         except ValueError:
             raise exceptions.MapillaryVideoError(
                 f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
             )
 
-    LOG.debug("Extracted video end time (creation time): %s", video_end_time)
+    LOG.debug("Extracted video creation time: %s", creation_time)
 
-    return video_end_time - datetime.timedelta(seconds=duration)
+    return duration, creation_time
 
 
 def insert_video_frame_timestamp(
     video_basename: str,
-    video_sampling_path: str,
+    sample_path: str,
     start_time: datetime.datetime,
     sample_interval: float = constants.VIDEO_SAMPLE_INTERVAL,
     duration_ratio: float = constants.VIDEO_DURATION_RATIO,
 ) -> None:
-    for image in utils.get_image_file_list(video_sampling_path, abs_path=True):
+    for image in utils.get_image_file_list(sample_path, abs_path=True):
         idx = ffmpeg.extract_idx_from_frame_filename(
             video_basename,
             os.path.basename(image),
         )
         if idx is None:
-            LOG.warning(f"Unabele to extract timestamp from the sample image {image}")
+            LOG.warning(f"Unabele to find the sample index from %s", image)
             continue
 
         seconds = idx * sample_interval * duration_ratio

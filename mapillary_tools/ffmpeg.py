@@ -50,7 +50,7 @@ def probe_video_format_and_streams(video_path: str) -> T.Dict:
     return run_ffprobe_json(cmd)
 
 
-def probe_video_streams(video_path: str):
+def probe_video_streams(video_path: str) -> T.List[T.Dict]:
     if not os.path.isfile(video_path):
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file not found: {video_path}"
@@ -96,7 +96,7 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
 def extract_frames(
     video_path: str,
     sample_path: str,
-    video_sample_interval: float = 2.0,
+    video_sample_interval: float,
 ) -> None:
     if not os.path.isfile(video_path):
         raise exceptions.MapillaryFileNotFoundError(
