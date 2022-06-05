@@ -4,7 +4,7 @@ import datetime
 import uuid
 import itertools
 
-from . import types
+from . import types, constants
 from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
 from .exceptions import MapillaryDuplicationError
 
@@ -203,11 +203,11 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
 
 def process_sequence_properties(
     descs: T.List[types.ImageDescriptionFileOrError],
-    cutoff_distance=600.0,
-    cutoff_time=60.0,
+    cutoff_distance=constants.CUTOFF_DISTANCE,
+    cutoff_time=constants.CUTOFF_TIME,
     interpolate_directions=False,
-    duplicate_distance=0.1,
-    duplicate_angle=5,
+    duplicate_distance=constants.DUPLICATE_DISTANCE,
+    duplicate_angle=constants.DUPLICATE_ANGLE,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     groups = group_descs_by_folder(types.filter_out_errors(descs))
 

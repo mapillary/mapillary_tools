@@ -15,7 +15,17 @@ else:
 import requests
 from tqdm import tqdm
 
-from . import uploader, types, api_v4, ipc, exceptions, config, authenticate, utils
+from . import (
+    uploader,
+    types,
+    api_v4,
+    ipc,
+    exceptions,
+    config,
+    authenticate,
+    utils,
+    constants,
+)
 from .geo import get_max_distance_from_start
 from .geotag import blackvue_utils, utils as video_utils
 
@@ -69,7 +79,7 @@ def zip_images(
         )
 
     if desc_path is None:
-        desc_path = os.path.join(import_path, "mapillary_image_description.json")
+        desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
 
     descs = read_image_descriptions(desc_path)
 
@@ -480,7 +490,7 @@ def upload_multiple(
 
 def _check_blackvue(video_path: str) -> None:
     # Skip in tests only because we don't have valid sample blackvue for tests
-    if os.environ.get("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
+    if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
     points = blackvue_utils.parse_gps_points(video_path)
@@ -590,7 +600,7 @@ def upload(
 
     if os.path.isdir(import_path) and file_type == "images":
         if desc_path is None:
-            desc_path = os.path.join(import_path, "mapillary_image_description.json")
+            desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
 
         descs = read_image_descriptions(desc_path)
 

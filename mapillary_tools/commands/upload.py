@@ -1,5 +1,6 @@
 import inspect
 
+from .. import constants
 from ..upload import upload_multiple
 
 
@@ -7,30 +8,38 @@ class Command:
     name = "upload"
     help = "upload images to Mapillary"
 
-    def add_basic_arguments(self, parser):
-        group = parser.add_argument_group("upload options")
+    @staticmethod
+    def add_common_upload_options(group):
         group.add_argument(
-            "--user_name", help="Upload to which Mapillary user account", required=False
-        )
-        group.add_argument(
-            "--organization_key",
-            help="Specify organization ID",
-            default=None,
+            "--user_name",
+            help="The Mapillary user account to upload to. If you only have one account authorized, it will upload to that account by default.",
             required=False,
         )
         group.add_argument(
-            "--desc_path",
-            help="Specify the path to read image description. Applicable for uploading image directories only",
+            "--organization_key",
+            help="The Mapillary organization ID to upload to.",
             default=None,
             required=False,
         )
         group.add_argument(
             "--dry_run",
-            help="Disable actual upload. Used for debugging only",
+            help='Instead of uploading to the Mapillary server, simualte uploading to the local directory "mapillary_public_uploads" for debugging purposes.',
             action="store_true",
             default=False,
             required=False,
         )
+
+    def add_basic_arguments(self, parser):
+        group = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"
+        )
+        group.add_argument(
+            "--desc_path",
+            help=f"Path to the image description file. Only works for uploading image directories. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]",
+            default=None,
+            required=False,
+        )
+        Command.add_common_upload_options(group)
 
     def run(self, vars_args: dict):
         args = {
