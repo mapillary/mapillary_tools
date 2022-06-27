@@ -17,8 +17,8 @@ def find_camera_model(path: str) -> str:
 def parse_camera_model_from_free_box(stream: T.BinaryIO, maxsize: int) -> str:
     for h, s in parse_boxes(stream, maxsize=maxsize):
         if h.type == b"cprt":
-            # An example: b' Pittasoft Co., Ltd.;DR900S-1CH;'
             cprt = s.read(h.maxsize)
+            # An example cprt: b' Pittasoft Co., Ltd.;DR900S-1CH;'
             fields = cprt.split(b";")
             if 2 <= len(fields):
                 model: bytes = fields[1]
@@ -27,6 +27,8 @@ def parse_camera_model_from_free_box(stream: T.BinaryIO, maxsize: int) -> str:
                         return model.decode("utf8")
                     except UnicodeDecodeError:
                         return ""
+            else:
+                return ""
     return ""
 
 
