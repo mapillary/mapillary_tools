@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from . import uploader, types, api_v4, ipc, exceptions, config, authenticate, utils
 from .geo import get_max_distance_from_start
-from .geotag import geotag_from_blackvue, utils as video_utils
+from .geotag import blackvue_utils, utils as video_utils
 
 FileType = Literal["blackvue", "images", "zip"]
 
@@ -483,7 +483,7 @@ def _check_blackvue(video_path: str) -> None:
     if os.environ.get("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
-    points = geotag_from_blackvue.get_points_from_bv(video_path)
+    points = blackvue_utils.parse_gps_points(video_path)
     if not points:
         raise exceptions.MapillaryGPXEmptyError(
             f"Empty GPS extracted from {video_path}"

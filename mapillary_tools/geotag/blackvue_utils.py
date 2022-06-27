@@ -2,7 +2,7 @@ import typing as T
 
 from .. import types
 from .simple_mp4_parser import parse_boxes
-from .geotag_from_blackvue import _parse_gps_box
+from .blackvue_utils_pymp4 import _parse_gps_box
 from . import utils as geotag_utils
 
 
