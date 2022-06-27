@@ -28,7 +28,9 @@ def _size_remain(size: int, bound: int) -> int:
     return remaining
 
 
-def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
+def parse_box_header(
+    stream: T.BinaryIO, maxsize: int = -1, extend_eof: bool = False
+) -> Header:
     assert maxsize == -1 or 0 <= maxsize
 
     def _read(size: int) -> bytes:
@@ -42,14 +44,16 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
     offset_start = stream.tell()
 
     # box size
-    box_size = int.from_bytes(_read(4), "big", signed=False)
+    size32 = int.from_bytes(_read(4), "big", signed=False)
 
     # type
     box_type = _read(4)
 
     # large box size that follows box type
-    if box_size == 1:
+    if size32 == 1:
         box_size = int.from_bytes(_read(8), "big", signed=False)
+    else:
+        box_size = size32
 
     # header size
     offset_end = stream.tell()
@@ -57,7 +61,10 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
     header_size = offset_end - offset_start
 
     # maxsize
-    if box_size != 0:
+    if extend_eof and size32 == 0:
+        # extend to the EoF
+        maxsize = maxsize
+    else:
         data_size = _size_remain(header_size, box_size)
         _size_remain(data_size, maxsize)
         maxsize = data_size
@@ -73,12 +80,13 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
 def parse_boxes(
     stream: T.BinaryIO,
     maxsize: int = -1,
+    extend_eof: bool = False,
 ) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
     assert maxsize == -1 or 0 <= maxsize
 
     while True:
         offset = stream.tell()
-        header = parse_box_header(stream, maxsize=maxsize)
+        header = parse_box_header(stream, maxsize=maxsize, extend_eof=extend_eof)
 
         if not header.header_size:
             break
@@ -108,7 +116,7 @@ def parse_boxes_recursive(
     if recursive_types is None:
         recursive_types = set()
 
-    for header, box in parse_boxes(stream, maxsize=maxsize):
+    for header, box in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
         offset = box.tell()
         yield header, depth, stream
         if header.type in recursive_types:
