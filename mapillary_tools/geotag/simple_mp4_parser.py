@@ -149,9 +149,9 @@ if __name__ == "__main__":
                     utfh = str(h)
                 header = f"{utfh} {h.box_size}:"
                 if h.type in recursive_types:
-                    print(margin, header, s.read(h.maxsize)[:32])
-                else:
                     print(margin, header)
+                else:
+                    print(margin, header, s.read(h.maxsize)[:32])
 
     for path in sys.argv[1:]:
         if os.path.isdir(path):

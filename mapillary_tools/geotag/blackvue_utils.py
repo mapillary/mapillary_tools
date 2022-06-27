@@ -6,6 +6,30 @@ from .geotag_from_blackvue import _parse_gps_box
 from . import utils as geotag_utils
 
 
+def find_camera_model(path: str) -> str:
+    with open(path, "rb") as fp:
+        for header, stream in parse_boxes(fp):
+            if header.type == b"free":
+                return parse_camera_model_from_free_box(stream, maxsize=header.maxsize)
+    return ""
+
+
+def parse_camera_model_from_free_box(stream: T.BinaryIO, maxsize: int) -> str:
+    for h, s in parse_boxes(stream, maxsize=maxsize):
+        if h.type == b"cprt":
+            # An example: b' Pittasoft Co., Ltd.;DR900S-1CH;'
+            cprt = s.read(h.maxsize)
+            fields = cprt.split(b";")
+            if 2 <= len(fields):
+                model: bytes = fields[1]
+                if model:
+                    try:
+                        return model.decode("utf8")
+                    except UnicodeDecodeError:
+                        return ""
+    return ""
+
+
 def parse_gps_from_free_box(
     stream: T.BinaryIO, maxsize: int
 ) -> T.Optional[T.List[types.GPXPoint]]:
@@ -44,6 +68,8 @@ if __name__ == "__main__":
     def _concert(path: str):
         points = parse_gps_points(path)
         gpx = geotag_utils.convert_points_to_gpx(points)
+        model = find_camera_model(path)
+        gpx.description = f"Extracted from {model}"
         print(gpx.to_xml())
 
     for path in sys.argv[1:]:

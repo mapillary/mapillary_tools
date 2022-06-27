@@ -110,14 +110,14 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                     if not types.is_error(desc):
                         desc = T.cast(types.ImageDescriptionFile, desc)
                         desc["MAPDeviceMake"] = "Blackvue"
-                        if model is not None:
-                            desc["MAPDeviceModel"] = model.decode("utf-8")
+                        if model:
+                            desc["MAPDeviceModel"] = model
                     descs.append(desc)
 
         return descs
 
 
-def find_camera_model(video_path: str) -> T.Optional[bytes]:
+def find_camera_model(video_path: str) -> str:
     with open(video_path, "rb") as fd:
         fd.seek(0, io.SEEK_END)
         eof = fd.tell()
@@ -126,10 +126,14 @@ def find_camera_model(video_path: str) -> T.Optional[bytes]:
             try:
                 box = Box.parse_stream(fd)
             except Exception as ex:
-                return None
+                return ""
             if box.type.decode("utf-8") == "free":
-                return T.cast(bytes, box.data[29:39])
-        return None
+                bs = box.data[29:39]
+                try:
+                    return bs.decode("utf8")
+                except UnicodeDecodeError:
+                    return ""
+        return ""
 
 
 def _parse_gps_box(gps_data: bytes, use_nmea_stream_timestamp: bool):
@@ -312,6 +316,8 @@ if __name__ == "__main__":
     def _convert(path: str):
         points = get_points_from_bv(path)
         gpx = geotag_utils.convert_points_to_gpx(points)
+        model = find_camera_model(path)
+        gpx.description = f"Extracted from {model}"
         print(gpx.to_xml())
 
     for path in sys.argv[1:]:
