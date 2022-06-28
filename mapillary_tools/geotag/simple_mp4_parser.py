@@ -3,12 +3,14 @@ import typing as T
 
 
 class Header(T.NamedTuple):
-    # non-negative: 0 indicates no more boxes
+    # 0 indicates no more boxes
     header_size: int
     type: bytes
-    # positive: box size includes header; 0 indicates open ended
+    # 0, which is allowed only for a top-level atom, designates the last atom in the file and indicates that the atom extends to the end of the file
+    size32: int
+    # box size includes header
     box_size: int
-    # either -1 or positive: data size that can be passed to the read function; -1 indicates open ended
+    # either -1 or non-negative: data size that can be passed to the read function; -1 indicates open ended
     maxsize: int
 
 
@@ -24,11 +26,13 @@ def _size_remain(size: int, bound: int) -> int:
 
     remaining = bound - size
     if remaining < 0:
-        raise RangeError(f"request to read {size} bytes but {bound} bytes remain")
+        raise RangeError(f"request {size} bytes but {bound} bytes remain")
     return remaining
 
 
-def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
+def parse_box_header(
+    stream: T.BinaryIO, maxsize: int = -1, extend_eof: bool = False
+) -> Header:
     assert maxsize == -1 or 0 <= maxsize
 
     def _read(size: int) -> bytes:
@@ -42,14 +46,16 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
     offset_start = stream.tell()
 
     # box size
-    box_size = int.from_bytes(_read(4), "big", signed=False)
+    size32 = int.from_bytes(_read(4), "big", signed=False)
 
     # type
     box_type = _read(4)
 
     # large box size that follows box type
-    if box_size == 1:
+    if size32 == 1:
         box_size = int.from_bytes(_read(8), "big", signed=False)
+    else:
+        box_size = size32
 
     # header size
     offset_end = stream.tell()
@@ -57,7 +63,10 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
     header_size = offset_end - offset_start
 
     # maxsize
-    if box_size != 0:
+    if extend_eof and size32 == 0:
+        # extend to the EoF
+        maxsize = maxsize
+    else:
         data_size = _size_remain(header_size, box_size)
         _size_remain(data_size, maxsize)
         maxsize = data_size
@@ -65,6 +74,7 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
     return Header(
         header_size=header_size,
         type=box_type,
+        size32=size32,
         box_size=box_size,
         maxsize=maxsize,
     )
@@ -73,20 +83,21 @@ def parse_box_header(stream: T.BinaryIO, maxsize: int = -1) -> Header:
 def parse_boxes(
     stream: T.BinaryIO,
     maxsize: int = -1,
+    extend_eof: bool = False,
 ) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
     assert maxsize == -1 or 0 <= maxsize
 
     while True:
         offset = stream.tell()
-        header = parse_box_header(stream, maxsize=maxsize)
+        header = parse_box_header(stream, maxsize=maxsize, extend_eof=extend_eof)
 
         if not header.header_size:
             break
 
         yield header, stream
 
-        # ajust offset and maxsize for the next box parsing
-        if header.box_size == 0:
+        # adjust offset and maxsize for the next box parsing
+        if extend_eof and header.size32 == 0:
             if maxsize == -1:
                 stream.seek(0, io.SEEK_END)
             else:
@@ -95,6 +106,8 @@ def parse_boxes(
         else:
             stream.seek(offset + header.box_size, io.SEEK_SET)
             maxsize = _size_remain(header.box_size, maxsize)
+
+        assert offset < stream.tell(), "must move"
 
 
 def parse_boxes_recursive(
@@ -108,7 +121,7 @@ def parse_boxes_recursive(
     if recursive_types is None:
         recursive_types = set()
 
-    for header, box in parse_boxes(stream, maxsize=maxsize):
+    for header, box in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
         offset = box.tell()
         yield header, depth, stream
         if header.type in recursive_types:
