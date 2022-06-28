@@ -17,6 +17,8 @@ def convert_points_to_gpx(points: T.List[types.GPXPoint]) -> gpxpy.gpx.GPX:
     gpx_track.segments.append(gpx_segment)
     for point in points:
         gpx_segment.points.append(
-            gpxpy.gpx.GPXTrackPoint(point.lat, point.lon, elevation=point.alt)
+            gpxpy.gpx.GPXTrackPoint(
+                point.lat, point.lon, elevation=point.alt, time=point.time
+            )
         )
     return gpx

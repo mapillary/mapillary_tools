@@ -114,23 +114,23 @@ def parse_boxes_recursive(
     stream: T.BinaryIO,
     maxsize: int = -1,
     depth: int = 0,
-    recursive_types: T.Optional[T.Set[bytes]] = None,
+    box_list_types: T.Optional[T.Set[bytes]] = None,
 ) -> T.Generator[T.Tuple[Header, int, T.BinaryIO], None, None]:
     assert maxsize == -1 or 0 <= maxsize
 
-    if recursive_types is None:
-        recursive_types = set()
+    if box_list_types is None:
+        box_list_types = set()
 
     for header, box in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
         offset = box.tell()
         yield header, depth, stream
-        if header.type in recursive_types:
+        if header.type in box_list_types:
             box.seek(offset, io.SEEK_SET)
             yield from parse_boxes_recursive(
                 stream,
                 maxsize=header.maxsize,
                 depth=depth + 1,
-                recursive_types=recursive_types,
+                box_list_types=box_list_types,
             )
 
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     import sys, os
     from .. import utils
 
-    recursive_types = {
+    box_list_types = {
         b"moov",
         b"moof",
         b"traf",
@@ -154,14 +154,14 @@ if __name__ == "__main__":
 
     def _parse_file(path: str):
         with open(path, "rb") as fp:
-            for h, d, s in parse_boxes_recursive(fp, recursive_types=recursive_types):
+            for h, d, s in parse_boxes_recursive(fp, box_list_types=box_list_types):
                 margin = "\t" * d
                 try:
                     utfh = h.type.decode("utf8")
                 except UnicodeDecodeError:
                     utfh = str(h)
                 header = f"{utfh} {h.box_size}:"
-                if h.type in recursive_types:
+                if h.type in box_list_types:
                     print(margin, header)
                 else:
                     print(margin, header, s.read(h.maxsize)[:32])
