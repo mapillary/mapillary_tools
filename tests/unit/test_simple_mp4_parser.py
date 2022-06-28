@@ -5,7 +5,7 @@ from mapillary_tools.geotag import simple_mp4_parser as parser
 
 
 def _parse(data: bytes):
-    recursive_types = {
+    box_list_types = {
         b"moov",
         b"moof",
         b"traf",
@@ -20,11 +20,11 @@ def _parse(data: bytes):
     consumed_size = 0
     ret = []
     for h, _d, s in parser.parse_boxes_recursive(
-        io.BytesIO(data), recursive_types=recursive_types
+        io.BytesIO(data), box_list_types=box_list_types
     ):
         box_data = s.read(h.maxsize)
         ret.append((h, box_data))
-        if h.type not in recursive_types:
+        if h.type not in box_list_types:
             consumed_size += len(box_data)
         consumed_size += h.header_size
         # testing random seek in the iterator

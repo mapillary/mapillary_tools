@@ -95,7 +95,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 geotag = GeotagFromGPXWithProgress(
                     self.image_dir,
                     sample_images,
-                    points,
+                    T.cast(T.List[types.GPXPoint], points),
                     use_gpx_start_time=self.use_gpx_start_time,
                     offset_time=self.offset_time,
                     progress_bar=pbar,
