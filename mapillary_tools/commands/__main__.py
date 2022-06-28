@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from .. import VERSION, exceptions
+from .. import VERSION, exceptions, constants
 from . import (
     authenticate,
     process,
@@ -43,12 +43,12 @@ def add_general_arguments(parser, command):
         )
         parser.add_argument(
             "import_path",
-            help='Path to where the images from video sampling will be saved. If not specified, it will default to "mapillary_sampled_video_frames" under your video import path',
+            help=f"Path to where the images from video sampling will be saved. [default: {{VIDEO_IMPORT_PATH}}/{constants.SAMPLED_VIDEO_FRAMES_FILENAME}]",
             nargs="?",
         )
         parser.add_argument(
             "--skip_subfolders",
-            help="Skip all subfolders and import only the images in the given video_import_path",
+            help="Skip all subfolders and import only the images in the given VIDEO_IMPORT_PATH.",
             action="store_true",
             default=False,
             required=False,
@@ -56,17 +56,17 @@ def add_general_arguments(parser, command):
     elif command in ["upload"]:
         parser.add_argument(
             "import_path",
-            help="Path to your images",
+            help="Path to your images.",
             nargs="+",
         )
     elif command in ["process", "process_and_upload"]:
         parser.add_argument(
             "import_path",
-            help="Path to your images",
+            help="Path to your images.",
         )
         parser.add_argument(
             "--skip_subfolders",
-            help="Skip all subfolders and import only the images in the given import_path",
+            help="Skip all subfolders and import only the images in the given IMPORT_PATH.",
             action="store_true",
             default=False,
             required=False,

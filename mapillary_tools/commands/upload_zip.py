@@ -1,6 +1,8 @@
 import inspect
 
 from ..upload import upload_multiple
+from .. import constants
+from .upload import Command as UploadCommand
 
 
 class Command:
@@ -10,26 +12,13 @@ class Command:
     def add_basic_arguments(self, parser):
         parser.add_argument(
             "import_path",
-            help="Path to your ZIP files",
+            help="Path to your ZIP files.",
             nargs="+",
         )
-        group = parser.add_argument_group("upload options")
-        group.add_argument(
-            "--user_name", help="Upload to which Mapillary user account", required=False
+        group = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"
         )
-        group.add_argument(
-            "--organization_key",
-            help="Specify organization ID",
-            default=None,
-            required=False,
-        )
-        group.add_argument(
-            "--dry_run",
-            help="Disable actual upload. Used for debugging only",
-            action="store_true",
-            default=False,
-            required=False,
-        )
+        UploadCommand.add_common_upload_options(group)
 
     def run(self, vars_args: dict):
         args = {
