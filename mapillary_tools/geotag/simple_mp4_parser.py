@@ -3,12 +3,14 @@ import typing as T
 
 
 class Header(T.NamedTuple):
-    # non-negative: 0 indicates no more boxes
+    # 0 indicates no more boxes
     header_size: int
     type: bytes
-    # positive: box size includes header; 0 indicates open ended
+    # 0, which is allowed only for a top-level atom, designates the last atom in the file and indicates that the atom extends to the end of the file
+    size32: int
+    # box size includes header
     box_size: int
-    # either -1 or positive: data size that can be passed to the read function; -1 indicates open ended
+    # either -1 or non-negative: data size that can be passed to the read function; -1 indicates open ended
     maxsize: int
 
 
@@ -24,7 +26,7 @@ def _size_remain(size: int, bound: int) -> int:
 
     remaining = bound - size
     if remaining < 0:
-        raise RangeError(f"request to read {size} bytes but {bound} bytes remain")
+        raise RangeError(f"request {size} bytes but {bound} bytes remain")
     return remaining
 
 
@@ -72,6 +74,7 @@ def parse_box_header(
     return Header(
         header_size=header_size,
         type=box_type,
+        size32=size32,
         box_size=box_size,
         maxsize=maxsize,
     )
@@ -93,8 +96,8 @@ def parse_boxes(
 
         yield header, stream
 
-        # ajust offset and maxsize for the next box parsing
-        if header.box_size == 0:
+        # adjust offset and maxsize for the next box parsing
+        if extend_eof and header.size32 == 0:
             if maxsize == -1:
                 stream.seek(0, io.SEEK_END)
             else:
@@ -103,6 +106,8 @@ def parse_boxes(
         else:
             stream.seek(offset + header.box_size, io.SEEK_SET)
             maxsize = _size_remain(header.box_size, maxsize)
+
+        assert offset < stream.tell(), "must move"
 
 
 def parse_boxes_recursive(
