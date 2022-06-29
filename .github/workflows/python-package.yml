@@ -27,6 +27,10 @@ jobs:
         ffmpeg -version
       if: matrix.platform == 'ubuntu-latest'
     - uses: actions/checkout@v2
+    - uses: actions/checkout@v2
+    - uses: FedericoCarboni/setup-ffmpeg@v1
+      id: setup-ffmpeg
+    - run: ffmpeg -version
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
