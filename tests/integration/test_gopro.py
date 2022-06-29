@@ -90,7 +90,7 @@ def setup_data(tmpdir: py.path.local):
         tmpdir.remove(ignore_errors=True)
 
 
-def test_process_blackvue(
+def test_process_gopro_hero8(
     tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
 ):
     if not is_ffmpeg_installed:
@@ -112,11 +112,24 @@ def test_process_blackvue(
         # print(fp.read())
         descs = json.load(fp)
     for expected, actual in zip(expected_descs, descs):
-        assert expected["MAPLatitude"] == actual["MAPLatitude"]
-        assert expected["MAPLongitude"] == actual["MAPLongitude"]
+        assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0001
+        assert abs(expected["MAPLongitude"] - actual["MAPLongitude"]) < 0.0001
         assert expected["MAPCaptureTime"] == actual["MAPCaptureTime"]
-        assert expected["MAPAltitude"] == actual["MAPAltitude"]
-        assert expected["MAPCompassHeading"] == actual["MAPCompassHeading"]
+        assert abs(expected["MAPAltitude"] - actual["MAPAltitude"]) < 0.0001
+        assert (
+            abs(
+                expected["MAPCompassHeading"]["TrueHeading"]
+                - actual["MAPCompassHeading"]["TrueHeading"]
+            )
+            < 0.0001
+        )
+        assert (
+            abs(
+                expected["MAPCompassHeading"]["MagneticHeading"]
+                - actual["MAPCompassHeading"]["MagneticHeading"]
+            )
+            < 0.0001
+        )
         assert expected["filename"] == actual["filename"]
         assert {
             "strings": [{"key": "mapillary_tools_version", "value": "0.8.2"}]
