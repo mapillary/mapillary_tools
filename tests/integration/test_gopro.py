@@ -2,9 +2,10 @@ import os
 import json
 import subprocess
 
+import pytest
 import py.path
 
-from .test_process import setup_data, setup_config, EXECUTABLE, USERNAME
+from .test_process import setup_data, setup_config, EXECUTABLE, is_ffmpeg_installed
 
 
 expected_descs = [
@@ -80,6 +81,8 @@ expected_descs = [
 def test_process_blackvue(
     tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
 ):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
     os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
