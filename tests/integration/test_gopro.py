@@ -5,8 +5,10 @@ import subprocess
 import pytest
 import py.path
 
-from .test_process import setup_data, setup_config, EXECUTABLE, is_ffmpeg_installed
+from .test_process import setup_config, EXECUTABLE, is_ffmpeg_installed
 
+
+IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
 
 expected_descs = [
     {
@@ -76,6 +78,16 @@ expected_descs = [
         "filename": "hero8.mp4/hero8_000006.jpg",
     },
 ]
+
+
+@pytest.fixture
+def setup_data(tmpdir: py.path.local):
+    data_path = tmpdir.mkdir("data")
+    source = py.path.local(IMPORT_PATH)
+    source.copy(data_path)
+    yield data_path
+    if tmpdir.check():
+        tmpdir.remove(ignore_errors=True)
 
 
 def test_process_blackvue(
