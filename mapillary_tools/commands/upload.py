@@ -23,7 +23,7 @@ class Command:
         )
         group.add_argument(
             "--dry_run",
-            help='Instead of uploading to the Mapillary server, simualte uploading to the local directory "mapillary_public_uploads" for debugging purposes.',
+            help='Instead of uploading to the Mapillary server, simulate uploading to the local directory "mapillary_public_uploads" for debugging purposes.',
             action="store_true",
             default=False,
             required=False,
