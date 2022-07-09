@@ -25,12 +25,12 @@ def file_md5sum(path: str) -> str:
 
 
 def is_image_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
+    _, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
 
 
 def is_video_file(path: str) -> bool:
-    basename, ext = os.path.splitext(os.path.basename(path))
+    _, ext = os.path.splitext(os.path.basename(path))
     return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
 
 

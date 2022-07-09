@@ -659,23 +659,60 @@ def file_md5sum(path) -> str:
         return md5.hexdigest()
 
 
-def test_upload_mp4(
+def test_upload_multiple_mp4s_DEPRECATED(
     tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
 ):
     os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
+    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     video_path = setup_data.join("sample-5s.mp4")
     x = subprocess.run(
-        f"{EXECUTABLE} upload {video_path} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload {video_path} {video_path} --dry_run --user_name={USERNAME}",
         shell=True,
     )
-    assert x.returncode == 9, x.stderr
 
-    # TODO: disable because we don't have blackvue for testing yet
-    # assert 1 == len(upload_dir.listdir())
-    # assert {"mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4"} == {
-    #     os.path.basename(f) for f in upload_dir.listdir()
-    # }
-    # md5sum = file_md5sum(video_path)
-    # assert {md5sum} == {file_md5sum(f) for f in upload_dir.listdir()}
+    assert 1 == len(upload_dir.listdir())
+    assert {"mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4"} == {
+        os.path.basename(f) for f in upload_dir.listdir()
+    }
+    md5sum = file_md5sum(video_path)
+    assert {md5sum} == {file_md5sum(f) for f in upload_dir.listdir()}
+
+
+def test_upload_blackvue(
+    tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
+):
+    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
+    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
+    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
+    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
+
+    another_path = tmpdir.join("another_sub")
+
+    video_path2 = another_path.join("sub1 folder").join("sub2 folder").join("hello.mp4")
+    video_path2.write_text("hello", encoding="utf-8", ensure=True)
+
+    video_path_invalid_ext = (
+        another_path.join("sub1 folder").join("sub2 folder").join("hello.mp45")
+    )
+    video_path_invalid_ext.write_text("hello2", encoding="utf-8", ensure=True)
+
+    hidden_video_path3 = another_path.join(".subfolder").join("hello.mp4")
+    hidden_video_path3.write_text("world", encoding="utf-8", ensure=True)
+
+    video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
+    video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
+
+    x = subprocess.run(
+        f'{EXECUTABLE} upload_blackvue {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+
+    assert 3 == len(upload_dir.listdir())
+    assert {
+        "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
+        f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
+        f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",
+    } == {os.path.basename(f) for f in upload_dir.listdir()}

@@ -18,8 +18,8 @@ def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, flo
     Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
 
     """
-    a2 = WGS84_a ** 2
-    b2 = WGS84_b ** 2
+    a2 = WGS84_a**2
+    b2 = WGS84_b**2
     lat = math.radians(lat)
     lon = math.radians(lon)
     L = 1.0 / math.sqrt(a2 * math.cos(lat) ** 2 + b2 * math.sin(lat) ** 2)

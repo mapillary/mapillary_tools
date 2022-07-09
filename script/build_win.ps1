@@ -2,7 +2,7 @@ $OS="win"
 
 # build
 mkdir -Force dist
-pyinstaller --noconfirm --distpath dist\win --onefile --windowed mapillary_tools.spec
+pyinstaller --noconfirm --distpath dist\win mapillary_tools.spec
 
 # check
 $SOURCE="dist\win\mapillary_tools.exe"

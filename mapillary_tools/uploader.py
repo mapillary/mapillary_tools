@@ -1,3 +1,4 @@
+import sys
 import io
 import json
 import uuid
@@ -11,6 +12,11 @@ import zipfile
 
 import requests
 import jsonschema
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal
 
 from . import upload_api_v4, types, exif_write, utils
 
@@ -71,19 +77,29 @@ class UploadCancelled(Exception):
     pass
 
 
+EventName = Literal[
+    "upload_start",
+    "upload_fetch_offset",
+    "upload_progress",
+    "upload_end",
+    "upload_finished",
+    "upload_interrupted",
+]
+
+
 class EventEmitter:
-    events: T.Dict[str, T.List]
+    events: T.Dict[EventName, T.List]
 
     def __init__(self):
         self.events = {}
 
-    def on(self, event: str):
+    def on(self, event: EventName):
         def _wrap(callback):
             self.events.setdefault(event, []).append(callback)
 
         return _wrap
 
-    def emit(self, event: str, *args, **kwargs):
+    def emit(self, event: EventName, *args, **kwargs):
         for callback in self.events.get(event, []):
             callback(*args, **kwargs)
 
@@ -97,7 +113,9 @@ class Uploader:
         self.dry_run = dry_run
         self.emitter = emitter
 
-    def upload_zipfile(self, zip_path: str) -> T.Optional[str]:
+    def upload_zipfile(
+        self, zip_path: str, event_payload: T.Optional[Progress] = None
+    ) -> T.Optional[str]:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
             if not namelist:
@@ -105,11 +123,12 @@ class Uploader:
                 return None
             upload_md5sum = _hash_zipfile(ziph)
 
-        event_payload: Progress = {
+        if event_payload is None:
+            event_payload = {}
+
+        new_event_payload: Progress = {
             "import_path": zip_path,
-            "sequence_idx": 0,
             "sequence_image_count": len(namelist),
-            "total_sequence_count": 1,
         }
 
         with open(zip_path, "rb") as fp:
@@ -117,19 +136,25 @@ class Uploader:
                 return _upload_zipfile_fp(
                     fp,
                     upload_md5sum,
+                    len(namelist),
                     self.user_items,
-                    event_payload=event_payload,
+                    event_payload=T.cast(
+                        Progress, {**event_payload, **new_event_payload}
+                    ),
                     emitter=self.emitter,
                     dry_run=self.dry_run,
                 )
             except UploadCancelled:
                 return None
 
-    def upload_blackvue(self, blackvue_path: str) -> T.Optional[str]:
+    def upload_blackvue(
+        self, blackvue_path: str, event_payload: T.Optional[Progress] = None
+    ) -> T.Optional[str]:
         try:
             return upload_blackvue(
                 blackvue_path,
                 self.user_items,
+                event_payload=event_payload,
                 emitter=self.emitter,
                 dry_run=self.dry_run,
             )
@@ -155,6 +180,7 @@ class Uploader:
                     cluster_id: T.Optional[str] = _upload_zipfile_fp(
                         fp,
                         upload_md5sum,
+                        len(images),
                         self.user_items,
                         emitter=self.emitter,
                         event_payload=event_payload,
@@ -245,6 +271,7 @@ def _zip_sequence_fp(
 def _upload_zipfile_fp(
     fp: T.IO[bytes],
     upload_md5sum: str,
+    image_count: int,
     user_items: types.UserItem,
     event_payload: T.Optional[Progress] = None,
     emitter: T.Optional[EventEmitter] = None,
@@ -260,9 +287,7 @@ def _upload_zipfile_fp(
     entity_size = fp.tell()
 
     # chunk size
-    avg_image_size = int(
-        entity_size / max(event_payload.get("sequence_image_count", 1), 1)
-    )
+    avg_image_size = int(entity_size / image_count)
     chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
     if dry_run:
@@ -297,6 +322,7 @@ def _upload_zipfile_fp(
 def upload_blackvue(
     blackvue_path: str,
     user_items: types.UserItem,
+    event_payload: T.Optional[Progress] = None,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> str:
@@ -331,19 +357,20 @@ def upload_blackvue(
                 file_type="mly_blackvue_video",
             )
 
-        event_payload: Progress = {
+        if event_payload is None:
+            event_payload = {}
+
+        new_event_payload: Progress = {
             "entity_size": entity_size,
             "import_path": blackvue_path,
             "md5sum": upload_md5sum,
-            "sequence_idx": 0,
-            "total_sequence_count": 1,
         }
 
         return _upload_fp(
             upload_service,
             fp,
             chunk_size,
-            event_payload=event_payload,
+            event_payload=T.cast(Progress, {**event_payload, **new_event_payload}),
             emitter=emitter,
         )
 
@@ -421,7 +448,7 @@ def _upload_fp(
                 if emitter:
                     emitter.emit("upload_interrupted", mutable_payload)
                 retries += 1
-                sleep_for = min(2 ** retries, 16)
+                sleep_for = min(2**retries, 16)
                 LOG.warning(
                     # use %s instead of %d because offset could be None
                     f"Error uploading chunk_size %d at offset %s: %s: %s",

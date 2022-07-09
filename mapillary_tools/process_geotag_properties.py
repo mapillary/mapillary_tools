@@ -9,7 +9,7 @@ import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import types, exceptions, uploader, utils
+from . import types, exceptions, uploader, utils, constants
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
 from .geotag import (
@@ -236,7 +236,7 @@ def process_finalize(
     desc_path: str = None,
 ) -> None:
     if desc_path is None:
-        desc_path = os.path.join(import_path, "mapillary_image_description.json")
+        desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
 
     if offset_time:
         for desc in types.filter_out_errors(descs):

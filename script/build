@@ -6,7 +6,7 @@ OS=osx
 # build
 mkdir -p dist
 rm -rf dist/${OS}
-pyinstaller --noconfirm --distpath dist/${OS} --onefile --windowed mapillary_tools.spec --osx-bundle-identifier mapillary_tools
+pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools.spec
 
 # check
 SOURCE=dist/${OS}/mapillary_tools.app/Contents/MacOS/mapillary_tools

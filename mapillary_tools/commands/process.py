@@ -1,6 +1,7 @@
 import inspect
 import argparse
 
+from .. import constants
 from ..process_geotag_properties import process_geotag_properties, process_finalize
 from ..process_import_meta_properties import (
     process_import_meta_properties,
@@ -25,10 +26,12 @@ class Command:
             default=False,
             required=False,
         )
-        group = parser.add_argument_group("process EXIF options")
+        group = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}PROCESS EXIF OPTIONS{constants.ANSI_RESET_ALL}"
+        )
         group.add_argument(
             "--overwrite_all_EXIF_tags",
-            help="Overwrite the rest of the EXIF tags, whose values are changed during the processing. Default is False, which will result in the processed values to be inserted only in the EXIF Image Description tag.",
+            help="Overwrite all of the relevant EXIF tags with the values obtained in process. It is equivalent to supplying all the --overwrite_EXIF_*_tag flags.",
             action="store_true",
             default=False,
             required=False,
@@ -62,7 +65,9 @@ class Command:
             required=False,
         )
 
-        group_metadata = parser.add_argument_group("process metadata options")
+        group_metadata = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}PROCESS METADATA OPTIONS{constants.ANSI_RESET_ALL}"
+        )
         group_metadata.add_argument(
             "--device_make",
             help="Specify device manufacturer. Note this input has precedence over the input read from the import source file.",
@@ -77,19 +82,19 @@ class Command:
         )
         group_metadata.add_argument(
             "--add_file_name",
-            help="Add original file name to EXIF. Note this input has precedence over the input read from the import source file.",
+            help="Add original file name to EXIF.",
             action="store_true",
             required=False,
         )
         group_metadata.add_argument(
             "--exclude_import_path",
-            help="If local file name is to be added exclude import_path from the name.",
+            help="If local file name is to be added with --add_file_name, exclude IMPORT_PATH from the name.",
             action="store_true",
             required=False,
         )
         group_metadata.add_argument(
             "--exclude_path",
-            help="If local file name is to be added, specify the path to be excluded.",
+            help="If local file name is to be added with --add_file_name, specify the path to be excluded.",
             default=None,
             required=False,
         )
@@ -127,21 +132,23 @@ class Command:
         )
         group_metadata.add_argument(
             "--custom_meta_data",
-            help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234"',
+            help='Add custom meta data to all images. Required format of input is a string, consisting of the meta data name, type and value, separated by a comma for each entry, where entries are separated by semicolon. Supported types are long, double, string, boolean, date. Example for two meta data entries "random_name1,double,12.34;random_name2,long,1234".',
             default=None,
             required=False,
         )
 
-        group_geotagging = parser.add_argument_group("process geotagging options")
+        group_geotagging = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}PROCESS GEOTAGGING OPTIONS{constants.ANSI_RESET_ALL}"
+        )
         group_geotagging.add_argument(
             "--desc_path",
-            help="Specify the path to store mapillary image descriptions as JSON. By default it is {IMPORT_PATH}/mapillary_image_description.json",
+            help=f"Specify the path to store mapillary image descriptions as JSON. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]",
             default=None,
             required=False,
         )
         group_geotagging.add_argument(
             "--geotag_source",
-            help="Provide the source of date/time and GPS information needed for geotagging",
+            help="Provide the source of date/time and GPS information needed for geotagging. [default: %(default)s]",
             action="store",
             choices=geotag_sources,
             default="exif",
@@ -149,14 +156,14 @@ class Command:
         )
         group_geotagging.add_argument(
             "--geotag_source_path",
-            help="Provide the path to the file source of date/time and GPS information needed for geotagging",
+            help="Provide the path to the file source of date/time and GPS information needed for geotagging.",
             action="store",
             default=None,
             required=False,
         )
         group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",
-            help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Applicable for geotagging from {', '.join(geotag_gpx_based_sources)}",
+            help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}.",
             action="store_true",
             required=False,
         )
@@ -164,57 +171,59 @@ class Command:
             "--interpolation_offset_time",
             default=0.0,
             type=float,
-            help=f"Time offset, in seconds, that be added for GPX interpolation, which affects image locations. Note that it is applied after --interpolation_use_gpx_start_time. Applicable for geotagging from {', '.join(geotag_gpx_based_sources)}",
+            help=f"Time offset, in seconds, that will be added for GPX interpolation, which affects image locations. Note that it is applied after --interpolation_use_gpx_start_time. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}. [default %(default)s]",
             required=False,
         )
         group_geotagging.add_argument(
             "--offset_angle",
             default=0.0,
             type=float,
-            help="Camera angle offset, in degrees, that will be added to your image camera angles after geotagging/interpolation",
+            help="Camera angle offset, in degrees, that will be added to your image camera angles after geotagging/interpolation. [default: %(default)s]",
             required=False,
         )
         group_geotagging.add_argument(
             "--offset_time",
             default=0.0,
             type=float,
-            help="Time offset, in seconds, that will be added to your image timestamps after geotagging/interpolation",
+            help="Time offset, in seconds, that will be added to your image timestamps after geotagging/interpolation. [default: %(default)s]",
             required=False,
         )
 
-        group_sequence = parser.add_argument_group("process sequence options")
+        group_sequence = parser.add_argument_group(
+            f"{constants.ANSI_BOLD}PROCESS SEQUENCE OPTIONS{constants.ANSI_RESET_ALL}"
+        )
         group_sequence.add_argument(
             "--cutoff_distance",
-            default=600.0,
+            default=constants.CUTOFF_DISTANCE,
             type=float,
-            help="maximum GPS distance in meters within a sequence",
+            help="Cut a sequence from where the distance between adjacent images exceeds CUTOFF_DISTANCE. [default: %(default)s]",
             required=False,
         )
         group_sequence.add_argument(
             "--cutoff_time",
-            default=60.0,
+            default=constants.CUTOFF_TIME,
             type=float,
-            help="maximum time interval in seconds within a sequence",
+            help="Cut a sequence from where the capture time difference between adjacent images exceeds CUTOFF_TIME. [default: %(default)s]",
             required=False,
         )
         group_sequence.add_argument(
             "--interpolate_directions",
-            help="perform interploation of directions",
+            help="Change each image's camera angle to point to its next image.",
             action="store_true",
             required=False,
         )
         group_sequence.add_argument(
             "--duplicate_distance",
-            help="max distance for two images to be considered duplicates in meters",
+            help='The maximum distance that can be considered "too close" between two images. If both images also point in the same direction (see --duplicate_angle), the later image will be marked as duplicate and will not be upload. [default: %(default)s]',
             type=float,
-            default=0.1,
+            default=constants.DUPLICATE_DISTANCE,
             required=False,
         )
         group_sequence.add_argument(
             "--duplicate_angle",
-            help="max angle for two images to be considered duplicates in degrees",
+            help="The maximum camera angle difference between two images to be considered as heading in the same direction. If both images are also close to each other (see --duplicate_distance), the later image will be marked as duplicate and will not be upload. [default: %(default)s]",
             type=float,
-            default=5,
+            default=constants.DUPLICATE_ANGLE,
             required=False,
         )
 
