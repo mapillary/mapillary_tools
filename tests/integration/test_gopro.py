@@ -109,7 +109,6 @@ def test_process_gopro_hero8(
     )
     assert desc_path.exists()
     with open(desc_path) as fp:
-        # print(fp.read())
         descs = json.load(fp)
     for expected, actual in zip(expected_descs, descs):
         assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0001

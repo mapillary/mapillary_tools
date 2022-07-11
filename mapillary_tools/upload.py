@@ -34,10 +34,16 @@ FileType = Literal["blackvue", "images", "zip"]
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
-# Disable if it's reset to empty
+MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
+    "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
+)
+# Disable if it's set to empty
 MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
     "MAPILLARY_UPLOAD_HISTORY_PATH",
-    os.path.join(config.DEFAULT_MAPILLARY_FOLDER, "upload_history"),
+    os.path.join(
+        constants.USER_DATA_DIR,
+        "upload_history",
+    ),
 )
 
 
@@ -577,8 +583,12 @@ def upload(
 
     # Setup the emitter -- the order matters here
 
+    enable_history = MAPILLARY_UPLOAD_HISTORY_PATH and (
+        not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
+    )
+
     # Put it first one to cancel early
-    if not dry_run:
+    if enable_history:
         _setup_cancel_due_to_duplication(emitter)
 
     # This one set up tdqm
@@ -613,7 +623,7 @@ def upload(
     else:
         descs = []
 
-    if not dry_run:
+    if enable_history:
         _setup_write_upload_history(emitter, params, descs)
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)

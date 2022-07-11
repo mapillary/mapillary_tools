@@ -1,5 +1,7 @@
 import os
 
+import appdirs
+
 _ENV_PREFIX = "MAPILLARY_TOOLS_"
 
 ANSI_BOLD = "\033[1m"
@@ -16,3 +18,5 @@ IMAGE_DESCRIPTION_FILENAME = os.getenv(
 SAMPLED_VIDEO_FRAMES_FILENAME = os.getenv(
     _ENV_PREFIX + "SAMPLED_VIDEO_FRAMES_FILENAME", "mapillary_sampled_video_frames"
 )
+
+USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
