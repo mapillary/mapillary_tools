@@ -4,6 +4,7 @@ import zipfile
 import tempfile
 
 import py.path
+import pytest
 
 from mapillary_tools import uploader, exif_read
 
@@ -38,8 +39,19 @@ def _validate_zip_dir(zip_dir: py.path.local):
         _validate_and_extract_zip(str(zip_path))
 
 
-def test_upload_images(tmpdir: py.path.local):
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(tmpdir.join("uploaded"))
+@pytest.fixture
+def setup_upload(tmpdir: py.path.local):
+    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
+    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
+    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
+    yield upload_dir
+    if tmpdir.check():
+        tmpdir.remove(ignore_errors=True)
+    os.unsetenv("MAPILLARY_UPLOAD_PATH")
+    os.unsetenv("MAPILLARY__DISABLE_BLACKVUE_CHECK")
+
+
+def test_upload_images(setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
     )
@@ -59,12 +71,11 @@ def test_upload_images(tmpdir: py.path.local):
     ]
     resp = mly_uploader.upload_images(descs)
     assert len(resp) == 1
-    assert len(tmpdir.join("uploaded").listdir()) == 1
-    _validate_zip_dir(tmpdir.join("uploaded"))
+    assert len(setup_upload.listdir()) == 1
+    _validate_zip_dir(setup_upload)
 
 
-def test_upload_images_multiple_sequences(tmpdir: py.path.local):
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(tmpdir.join("uploaded"))
+def test_upload_images_multiple_sequences(setup_upload: py.path.local):
     descs = [
         {
             "MAPLatitude": 58.5927694,
@@ -98,12 +109,11 @@ def test_upload_images_multiple_sequences(tmpdir: py.path.local):
     )
     resp = mly_uploader.upload_images(descs)
     assert len(resp) == 2
-    assert len(tmpdir.join("uploaded").listdir()) == 2
-    _validate_zip_dir(tmpdir.join("uploaded"))
+    assert len(setup_upload.listdir()) == 2
+    _validate_zip_dir(setup_upload)
 
 
-def test_upload_zip(tmpdir: py.path.local, emitter=None):
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(tmpdir.join("uploaded"))
+def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=None):
     same_basename = tmpdir.join("text_exif.jpg")
     py.path.local("tests/unit/data/test_exif.jpg").copy(tmpdir.join("text_exif.jpg"))
     descs = [
@@ -146,11 +156,10 @@ def test_upload_zip(tmpdir: py.path.local, emitter=None):
     for zip_path in zip_dir.listdir():
         resp = mly_uploader.upload_zipfile(str(zip_path))
 
-    _validate_zip_dir(tmpdir.join("uploaded"))
+    _validate_zip_dir(setup_upload)
 
 
-def test_upload_blackvue(tmpdir: py.path.local):
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(tmpdir.join("uploaded"))
+def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
@@ -164,7 +173,7 @@ def test_upload_blackvue(tmpdir: py.path.local):
         fp.write(b"this is a fake video")
     resp = mly_uploader.upload_blackvue(str(blackvue_path))
     assert resp == "0"
-    for mp4_path in tmpdir.join("uploaded").listdir():
+    for mp4_path in setup_upload.listdir():
         basename = os.path.basename(mp4_path)
         assert str(basename).startswith("mly_tools_")
         assert str(basename).endswith(".mp4")
@@ -172,7 +181,7 @@ def test_upload_blackvue(tmpdir: py.path.local):
             assert fp.read() == b"this is a fake video"
 
 
-def test_upload_zip_with_emitter(tmpdir: py.path.local):
+def test_upload_zip_with_emitter(tmpdir: py.path.local, setup_upload: py.path.local):
     emitter = uploader.EventEmitter()
 
     stats = {}
@@ -203,6 +212,6 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local):
 
         assert payload["md5sum"] in stats
 
-    test_upload_zip(tmpdir, emitter=emitter)
+    test_upload_zip(tmpdir, setup_upload, emitter=emitter)
 
     assert len(stats) == 2

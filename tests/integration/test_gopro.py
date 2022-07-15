@@ -5,7 +5,7 @@ import subprocess
 import pytest
 import py.path
 
-from .test_process import setup_config, EXECUTABLE, is_ffmpeg_installed
+from .test_process import setup_config, setup_upload, EXECUTABLE, is_ffmpeg_installed
 
 
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
@@ -91,13 +91,12 @@ def setup_data(tmpdir: py.path.local):
 
 
 def test_process_gopro_hero8(
-    tmpdir: py.path.local, setup_data: py.path.local, setup_config: py.path.local
+    setup_data: py.path.local,
+    setup_config: py.path.local,
+    setup_upload: py.path.local,
 ):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
-    os.environ["MAPILLARY_CONFIG_PATH"] = str(setup_config)
-    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     video_path = setup_data.join("hero8.mp4")
     x = subprocess.run(
         f"{EXECUTABLE} video_process  --geotag_source=gopro_videos {str(video_path)} --interpolation_use_gpx_start_time",
@@ -130,7 +129,4 @@ def test_process_gopro_hero8(
             < 0.0001
         )
         assert expected["filename"] == actual["filename"]
-        assert {
-            "strings": [{"key": "mapillary_tools_version", "value": "0.8.2"}]
-        } == actual["MAPMetaTags"]
         assert "MAPSequenceUUID" in actual
