@@ -132,6 +132,6 @@ def test_process_gopro_hero8(
         )
         assert expected["filename"] == actual["filename"]
         assert {
-            "strings": [{"key": "mapillary_tools_version", "value": "0.8.2"}]
+            "strings": [{"key": "mapillary_tools_version", "value": "0.8.3-beta"}]
         } == actual["MAPMetaTags"]
         assert "MAPSequenceUUID" in actual
