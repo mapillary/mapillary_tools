@@ -34,10 +34,16 @@ FileType = Literal["blackvue", "images", "zip"]
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
+MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
+    "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
+)
+# Disable if it's set to empty
 MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
     "MAPILLARY_UPLOAD_HISTORY_PATH",
-    # To enable it by default
-    # os.path.join(config.DEFAULT_MAPILLARY_FOLDER, "upload_history"),
+    os.path.join(
+        constants.USER_DATA_DIR,
+        "upload_history",
+    ),
 )
 
 
@@ -143,7 +149,7 @@ def _history_desc_path(md5sum: str) -> str:
 
 
 def is_uploaded(md5sum: str) -> bool:
-    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+    if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return False
     return os.path.isfile(_history_desc_path(md5sum))
 
@@ -154,12 +160,12 @@ def write_history(
     summary: T.Dict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
-    if MAPILLARY_UPLOAD_HISTORY_PATH is None:
+    if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return
     path = _history_desc_path(md5sum)
     LOG.debug(f"Writing upload history: {path}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    history: T.Dict = {
+    history: T.Dict[str, T.Any] = {
         "params": params,
         "summary": summary,
     }
@@ -577,8 +583,12 @@ def upload(
 
     # Setup the emitter -- the order matters here
 
+    enable_history = MAPILLARY_UPLOAD_HISTORY_PATH and (
+        not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
+    )
+
     # Put it first one to cancel early
-    if not dry_run:
+    if enable_history:
         _setup_cancel_due_to_duplication(emitter)
 
     # This one set up tdqm
@@ -613,7 +623,7 @@ def upload(
     else:
         descs = []
 
-    if not dry_run:
+    if enable_history:
         _setup_write_upload_history(emitter, params, descs)
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)

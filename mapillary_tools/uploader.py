@@ -69,6 +69,9 @@ class Progress(types.TypedDict, total=False):
     # Path to the Zipfile/BlackVue
     import_path: str
 
+    # Cluster ID after finishing the upload
+    cluster_id: str
+
 
 class UploadCancelled(Exception):
     pass
@@ -112,12 +115,13 @@ class Uploader:
 
     def upload_zipfile(
         self, zip_path: str, event_payload: T.Optional[Progress] = None
-    ) -> T.Optional[int]:
+    ) -> T.Optional[str]:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
-
-        if not namelist:
-            raise RuntimeError(f"The zip file {zip_path} is empty")
+            if not namelist:
+                LOG.warning(f"Skipping empty zipfile: %s", zip_path)
+                return None
+            upload_md5sum = _hash_zipfile(ziph)
 
         if event_payload is None:
             event_payload = {}
@@ -131,6 +135,7 @@ class Uploader:
             try:
                 return _upload_zipfile_fp(
                     fp,
+                    upload_md5sum,
                     len(namelist),
                     self.user_items,
                     event_payload=T.cast(
@@ -144,7 +149,7 @@ class Uploader:
 
     def upload_blackvue(
         self, blackvue_path: str, event_payload: T.Optional[Progress] = None
-    ) -> T.Optional[int]:
+    ) -> T.Optional[str]:
         try:
             return upload_blackvue(
                 blackvue_path,
@@ -158,10 +163,10 @@ class Uploader:
 
     def upload_images(
         self, descs: T.List[types.ImageDescriptionFile]
-    ) -> T.Dict[str, int]:
+    ) -> T.Dict[str, str]:
         _validate_descs(descs)
         sequences = _group_sequences_by_uuid(descs)
-        ret: T.Dict[str, int] = {}
+        ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
             event_payload: Progress = {
                 "sequence_idx": sequence_idx,
@@ -170,10 +175,11 @@ class Uploader:
                 "sequence_uuid": sequence_uuid,
             }
             with tempfile.NamedTemporaryFile() as fp:
-                _zip_sequence_fp(images, fp)
+                upload_md5sum = _zip_sequence_fp(images, fp)
                 try:
-                    cluster_id: T.Optional[int] = _upload_zipfile_fp(
+                    cluster_id: T.Optional[str] = _upload_zipfile_fp(
                         fp,
+                        upload_md5sum,
                         len(images),
                         self.user_items,
                         emitter=self.emitter,
@@ -218,16 +224,25 @@ def zip_images(
             zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
-            _zip_sequence_fp(sequence, fp)
-        upload_md5sum = utils.file_md5sum(zip_filename_wip)
+            upload_md5sum = _zip_sequence_fp(sequence, fp)
         zip_filename = os.path.join(zip_dir, f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
+
+
+# Instead of hashing the zip file content, we hash the filename list,
+# because the zip content could be changed due to EXIF change
+# (e.g. changes in MAPMetaTag in image description)
+def _hash_zipfile(ziph: zipfile.ZipFile) -> str:
+    # namelist is List[str]
+    namelist = ziph.namelist()
+    concat = "".join(os.path.splitext(os.path.basename(name))[0] for name in namelist)
+    return utils.md5sum_bytes(concat.encode("utf-8"))
 
 
 def _zip_sequence_fp(
     sequence: T.Dict[str, types.ImageDescriptionFile],
     fp: T.IO[bytes],
-) -> None:
+) -> str:
     descs = list(sequence.values())
     descs.sort(
         key=lambda desc: (
@@ -238,33 +253,35 @@ def _zip_sequence_fp(
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
             edit = exif_write.ExifEdit(desc["filename"])
+            with open(desc["filename"], "rb") as fp:
+                md5sum = utils.md5sum_fp(fp)
             exif_desc = desc_file_to_exif(desc)
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
             # we use md5 as the name, and an constant as the modification time
-            _, ext = os.path.split(desc["filename"])
-            arcname = f"{utils.md5sum_bytes(image_bytes)}{ext.lower()}"
+            _, ext = os.path.splitext(desc["filename"])
+            arcname = f"{md5sum}{ext.lower()}"
             zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
             ziph.writestr(zipinfo, image_bytes)
+
+        return _hash_zipfile(ziph)
 
 
 def _upload_zipfile_fp(
     fp: T.IO[bytes],
+    upload_md5sum: str,
     image_count: int,
     user_items: types.UserItem,
     event_payload: T.Optional[Progress] = None,
     emitter: T.Optional[EventEmitter] = None,
     dry_run=False,
-) -> int:
+) -> str:
     if event_payload is None:
         event_payload = {
             "sequence_idx": 0,
             "total_sequence_count": 1,
         }
-
-    fp.seek(0, io.SEEK_SET)
-    upload_md5sum = utils.md5sum_fp(fp)
 
     fp.seek(0, io.SEEK_END)
     entity_size = fp.tell()
@@ -308,7 +325,7 @@ def upload_blackvue(
     event_payload: T.Optional[Progress] = None,
     emitter: EventEmitter = None,
     dry_run=False,
-) -> int:
+) -> str:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
     with open(blackvue_path, "rb") as fp:
@@ -391,7 +408,7 @@ def _upload_fp(
     chunk_size: int,
     event_payload: Progress = None,
     emitter: EventEmitter = None,
-) -> int:
+) -> str:
     retries = 0
 
     if event_payload is None:
@@ -462,6 +479,7 @@ def _upload_fp(
         raise upload_api_v4.wrap_http_exception(ex) from ex
 
     if emitter:
+        mutable_payload["cluster_id"] = cluster_id
         emitter.emit("upload_finished", mutable_payload)
 
     return cluster_id

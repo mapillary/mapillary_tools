@@ -145,7 +145,7 @@ class UploadService:
                 f"Upload server error: File handle not found in the upload response {resp.text}"
             )
 
-    def finish(self, file_handle: str) -> int:
+    def finish(self, file_handle: str) -> str:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
@@ -173,7 +173,7 @@ class UploadService:
                 f"Upload server error: failed to create the cluster {resp.text}"
             )
 
-        return T.cast(int, cluster_id)
+        return T.cast(str, cluster_id)
 
 
 import random
@@ -219,8 +219,8 @@ class FakeUploadService(UploadService):
                     callback(chunk, None)
         return self.session_key
 
-    def finish(self, _: str) -> int:
-        return 0
+    def finish(self, _: str) -> str:
+        return "0"
 
     def fetch_offset(self) -> int:
         if random.random() <= self._error_ratio:
