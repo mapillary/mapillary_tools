@@ -15,8 +15,8 @@ def setup_history_path(tmpdir: py.path.local):
     yield history_path
     if tmpdir.check():
         history_path.remove(ignore_errors=True)
-    os.unsetenv("MAPILLARY_UPLOAD_HISTORY_PATH")
-    os.unsetenv("MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN")
+    del os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"]
+    del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
 
 def test_upload_images(

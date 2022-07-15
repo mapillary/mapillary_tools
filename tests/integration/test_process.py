@@ -25,9 +25,9 @@ def setup_config(tmpdir: py.path.local):
     )
     assert x.returncode == 0, x.stderr
     yield config_path
-    os.unsetenv("MAPILLARY_CONFIG_PATH")
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
+    del os.environ["MAPILLARY_CONFIG_PATH"]
 
 
 @pytest.fixture
@@ -48,8 +48,8 @@ def setup_upload(tmpdir: py.path.local):
     yield upload_dir
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
-    os.unsetenv("MAPILLARY_UPLOAD_PATH")
-    os.unsetenv("MAPILLARY__DISABLE_BLACKVUE_CHECK")
+    del os.environ["MAPILLARY_UPLOAD_PATH"]
+    del os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"]
 
 
 def test_basic():
