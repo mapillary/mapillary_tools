@@ -113,6 +113,7 @@ class GeotagFromGPX(GeotagFromGeneric):
 
             if exif_time < sorted_points[0].time:
                 delta = sorted_points[0].time - exif_time
+                # with the tolerance of 1ms
                 if 0.001 < delta.total_seconds():
                     exc2 = MapillaryOutsideGPXTrackError(
                         f"The image timestamp is {round(delta.total_seconds(), 3)} seconds behind the GPX start point",
@@ -131,6 +132,7 @@ class GeotagFromGPX(GeotagFromGeneric):
 
             if sorted_points[-1].time < exif_time:
                 delta = exif_time - sorted_points[-1].time
+                # with the tolerance of 1ms
                 if 0.001 < delta.total_seconds():
                     exc2 = MapillaryOutsideGPXTrackError(
                         f"The image timestamp is {round(delta.total_seconds(), 3)} seconds beyond the GPX end point",
