@@ -1,5 +1,8 @@
 import io
+import datetime
 import typing as T
+
+import construct as C
 
 
 class Header(T.NamedTuple):
@@ -134,23 +137,313 @@ def parse_boxes_recursive(
             )
 
 
+def parse_path(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
+    if not path:
+        return
+    for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
+        if h.type == path[0]:
+            if len(path) == 1:
+                yield h, s
+            else:
+                yield from parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
+
+
+UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
+
+TrackHeaderBox = C.Struct(
+    # "type" / C.Const(b"tkhd"),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 1),
+    "creation_time"
+    / C.Default(C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub), 0),
+    "modification_time"
+    / C.Default(C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub), 0),
+    "track_ID" / C.Default(C.Int32ub, 1),
+    C.Padding(4),
+    "duration" / C.Default(C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub), 0),
+    C.Padding(8),
+    "layer" / C.Default(C.Int16sb, 0),
+    "alternate_group" / C.Default(C.Int16sb, 0),
+    "volume" / C.Default(C.Int16sb, 0),
+    C.Padding(2),
+    "matrix" / C.Default(C.Array(9, C.Int32sb), UNITY_MATRIX),
+    "width" / C.Default(C.Int32ub, 0),
+    "height" / C.Default(C.Int32ub, 0),
+)
+
+MediaHeaderBox = C.Struct(
+    # "type" / C.Const(b"mdhd"),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Const(0, C.Int24ub),
+    "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "timescale" / C.Int32ub,
+    "duration" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "language" / C.Int16ub,
+    C.Padding(2),
+)
+
+
+SampleEntryBox = C.Prefixed(
+    C.Int32ub,
+    C.Struct(
+        "format" / C.Bytes(4),
+        C.Padding(6),
+        "data_reference_index" / C.Default(C.Int16ub, 1),
+        "data" / C.GreedyBytes,
+    ),
+    includelength=True,
+)
+
+SampleDescriptionBox = C.Struct(
+    # "type" / C.Const(b"stsd"),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries" / C.PrefixedArray(C.Int32ub, SampleEntryBox),
+)
+
+
+SampleSizeBox = C.Struct(
+    # "type" / C.Const(b"stsz"),
+    "version" / C.Int8ub,
+    "flags" / C.Const(0, C.Int24ub),
+    "sample_size" / C.Int32ub,
+    "sample_count" / C.Int32ub,
+    "entry_sizes"
+    / C.If(C.this.sample_size == 0, C.Array(C.this.sample_count, C.Int32ub)),
+)
+
+ChunkOffsetBox = C.Struct(
+    # "type" / C.Const(b"stco"),
+    "version" / C.Const(0, C.Int8ub),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Struct(
+                "chunk_offset" / C.Int32ub,
+            ),
+        ),
+        [],
+    ),
+)
+
+ChunkLargeOffsetBox = C.Struct(
+    # "type" / C.Const(b"co64"),
+    "version" / C.Const(0, C.Int8ub),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries"
+    / C.PrefixedArray(
+        C.Int32ub,
+        C.Struct(
+            "chunk_offset" / C.Int64ub,
+        ),
+    ),
+)
+
+TimeToSampleBox = C.Struct(
+    # "type" / C.Const(b"stts"),
+    "version" / C.Const(0, C.Int8ub),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Struct(
+                "sample_count" / C.Int32ub,
+                "sample_delta" / C.Int32ub,
+            ),
+        ),
+        [],
+    ),
+)
+
+SampleToChunkBox = C.Struct(
+    # "type" / C.Const(b"stsc"),
+    "version" / C.Const(0, C.Int8ub),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Struct(
+                "first_chunk" / C.Int32ub,
+                "samples_per_chunk" / C.Int32ub,
+                "sample_description_index" / C.Int32ub,
+            ),
+        ),
+        [],
+    ),
+)
+
+
+class Sample(T.NamedTuple):
+    description: bytes
+    offset: int
+    size: int
+    delta: T.Union[int, float]
+
+
+def extract_samples(
+    descriptions: T.List,
+    sizes: T.List[int],
+    chunk_entries: T.List,
+    offsets: T.List[int],
+    time_deltas: T.List[int],
+):
+    assert chunk_entries, "empty chunk entries"
+    assert len(sizes) == len(
+        time_deltas
+    ), f"sample sizes {len(sizes)} != sample times {len(time_deltas)}"
+
+    sample_idx = 0
+    chunk_idx = 0
+
+    for entry_idx, entry in enumerate(chunk_entries):
+        if entry_idx + 1 < len(chunk_entries):
+            nbr_chunks = chunk_entries[entry_idx + 1].first_chunk - entry.first_chunk
+        else:
+            nbr_chunks = 1
+        for _ in range(nbr_chunks):
+            sample_offset = offsets[chunk_idx]
+            for _ in range(entry.samples_per_chunk):
+                yield Sample(
+                    description=descriptions[entry.sample_description_index - 1],
+                    offset=sample_offset,
+                    size=sizes[sample_idx],
+                    delta=time_deltas[sample_idx],
+                )
+                sample_offset += sizes[sample_idx]
+                sample_idx += 1
+            chunk_idx += 1
+
+    # If all the chunks have the same number of samples per chunk and use the same sample description, this table has one entry.
+    while sample_idx < len(time_deltas):
+        for _ in range(chunk_entries[-1].samples_per_chunk):
+            sample_offset = offsets[chunk_idx]
+            yield Sample(
+                description=descriptions[
+                    chunk_entries[-1].sample_description_index - 1
+                ],
+                offset=sample_offset,
+                size=sizes[sample_idx],
+                delta=time_deltas[sample_idx],
+            )
+            sample_offset += sizes[sample_idx]
+            sample_idx += 1
+        chunk_idx += 1
+
+
+def parse_samples_from_stbl(stbl: T.BinaryIO, maxsize: int = -1):
+    descriptions = []
+    sizes = []
+    offsets = []
+    chunk_entries = []
+    time_deltas: T.List[int] = []
+
+    for h, s in parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
+        if h.type == b"stsd":
+            box = SampleDescriptionBox.parse(s.read(h.maxsize))
+            descriptions = list(box.entries)
+        elif h.type == b"stsz":
+            box = SampleSizeBox.parse(s.read(h.maxsize))
+            sizes = list(box.entry_sizes)
+        elif h.type == b"stco":
+            box = ChunkOffsetBox.parse(s.read(h.maxsize))
+            offsets = [entry.chunk_offset for entry in box.entries]
+        elif h.type == b"co64":
+            box = ChunkLargeOffsetBox.parse(s.read(h.maxsize))
+            offsets = [entry.chunk_offset for entry in box.entries]
+        elif h.type == b"stsc":
+            box = SampleToChunkBox.parse(s.read(h.maxsize))
+            chunk_entries = list(box.entries)
+        elif h.type == b"stts":
+            box = TimeToSampleBox.parse(s.read(h.maxsize))
+            time_deltas = []
+            accumulated_delta = 0
+            for entry in box.entries:
+                for _ in range(entry.sample_count):
+                    # DT(n + 1) = DT(n) + STTS(n)
+                    time_deltas.append(accumulated_delta)
+                    accumulated_delta += entry.sample_delta
+
+    yield from extract_samples(descriptions, sizes, chunk_entries, offsets, time_deltas)
+
+
+def parse_samples_from_trak(trak: T.BinaryIO, maxsize: int = -1):
+    box = None
+
+    offset = trak.tell()
+    for h, s in parse_path(trak, [b"mdia", b"mdhd"], maxsize=maxsize):
+        box = MediaHeaderBox.parse(s.read(h.maxsize))
+        break
+
+    assert box is not None, "mdhd is required but not found"
+
+    trak.seek(offset, io.SEEK_SET)
+    for h, s in parse_path(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize):
+        for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
+            yield Sample(
+                description=sample.description,
+                offset=sample.offset,
+                size=sample.size,
+                delta=sample.delta / box.timescale,
+            )
+        break
+
+
+_DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)
+
+
+def to_datetime(seconds_since_1904: int) -> datetime.datetime:
+    """
+    Convert seconds since midnight, Jan. 1, 1904, in UTC time
+    """
+    return _DT_1904 + datetime.timedelta(seconds=seconds_since_1904)
+
+
 if __name__ == "__main__":
-    import sys, os
+    import os, argparse
     from .. import utils
 
     box_list_types = {
-        b"moov",
-        b"moof",
-        b"traf",
-        b"mvex",
-        b"trak",
+        b"dinf",
+        b"edts",
+        b"gmhd",
         b"mdia",
         b"minf",
-        b"dinf",
-        b"stbl",
+        b"moof",
+        b"moov",
+        b"mvex",
         b"schi",
-        b"gmhd",
+        b"stbl",
+        b"traf",
+        b"trak",
+        b"udta",
     }
+
+    def _validate_samples(path: str):
+        samples = []
+        with open(path, "rb") as fp:
+            for h, s in parse_path(fp, [b"moov", b"trak", b"mdia", b"minf", b"stbl"]):
+                samples.extend(list(parse_samples_from_stbl(s, maxsize=h.maxsize)))
+        samples.sort(key=lambda s: s.offset)
+        if not samples:
+            return
+        last_sample = None
+        last_read = samples[0].offset
+        for sample in samples:
+            if sample.offset < last_read:
+                print(f"overlap found:\n{last_sample}\n{sample}")
+            elif sample.offset == last_read:
+                pass
+            else:
+                print(f"gap found:\n{last_sample}\n{sample}")
+            last_read = sample.offset + sample.size
+            last_sample = sample
 
     def _parse_file(path: str):
         with open(path, "rb") as fp:
@@ -164,11 +457,46 @@ if __name__ == "__main__":
                 if h.type in box_list_types:
                     print(margin, header)
                 else:
-                    print(margin, header, s.read(h.maxsize)[:32])
+                    print(margin, header, s.read(min(h.maxsize, 32)))
 
-    for path in sys.argv[1:]:
+    def _parse_samples(path: str):
+        with open(path, "rb") as fp:
+            for h, s in parse_path(fp, [b"moov", b"trak"]):
+                offset = s.tell()
+                for h1, s1 in parse_path(s, [b"mdia", b"mdhd"], maxsize=h.maxsize):
+                    box = MediaHeaderBox.parse(s1.read(h.maxsize))
+                    print(box)
+                    print(to_datetime(box.creation_time))
+                    print(box.duration / box.timescale)
+                s.seek(offset, io.SEEK_SET)
+                for sample in parse_samples_from_trak(s, maxsize=h.maxsize):
+                    print(sample)
+
+    def _parse_args():
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--samples", action="store_true", default=False)
+        parser.add_argument("--validate", action="store_true", default=False)
+        parser.add_argument("--header", action="store_true", default=False)
+        parser.add_argument("path", nargs="+")
+        return parser.parse_args()
+
+    parsed = _parse_args()
+
+    def _process_path(path: str):
+        if parsed.validate:
+            print(f"validating {path}")
+            _validate_samples(path)
+
+        if parsed.samples:
+            print(f"sampling {path}")
+            _parse_samples(path)
+        else:
+            print(f"parsing {path}")
+            _parse_file(path)
+
+    for path in parsed.path:
         if os.path.isdir(path):
             for p in utils.get_video_file_list(path, abs_path=True):
-                _parse_file(p)
+                _process_path(p)
         else:
-            _parse_file(path)
+            _process_path(path)

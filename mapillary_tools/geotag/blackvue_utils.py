@@ -225,7 +225,7 @@ if __name__ == "__main__":
     from .. import utils, types
     from . import utils as geotag_utils
 
-    def _concert(path: str):
+    def _convert(path: str):
         points = parse_gps_points(path)
         gpx = geotag_utils.convert_points_to_gpx(T.cast(T.List[types.GPXPoint], points))
         model = find_camera_model(path)
@@ -235,6 +235,6 @@ if __name__ == "__main__":
     for path in sys.argv[1:]:
         if os.path.isdir(path):
             for p in utils.get_video_file_list(path, abs_path=True):
-                _concert(p)
+                _convert(p)
         else:
-            _concert(path)
+            _convert(path)

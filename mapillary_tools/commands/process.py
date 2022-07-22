@@ -14,8 +14,21 @@ class Command:
     help = "process images"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
-        geotag_sources = ["exif", "gpx", "gopro_videos", "nmea", "blackvue_videos"]
-        geotag_gpx_based_sources = ["gpx", "gopro_videos", "nmea", "blackvue_videos"]
+        geotag_sources = [
+            "exif",
+            "gpx",
+            "gopro_videos",
+            "nmea",
+            "blackvue_videos",
+            "camm",
+        ]
+        geotag_gpx_based_sources = [
+            "gpx",
+            "gopro_videos",
+            "nmea",
+            "blackvue_videos",
+            "camm",
+        ]
         for source in geotag_gpx_based_sources:
             assert source in geotag_sources
 

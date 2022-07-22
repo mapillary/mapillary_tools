@@ -24,6 +24,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         images: T.List[str],
         points: T.List[types.GPXPoint],
         use_gpx_start_time: bool = False,
+        use_image_start_time: bool = False,
         offset_time: float = 0.0,
     ):
         super().__init__()
@@ -31,6 +32,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.images = images
         self.points = points
         self.use_gpx_start_time = use_gpx_start_time
+        self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
 
     def read_image_capture_time(self, image: str) -> T.Optional[datetime.datetime]:
@@ -76,6 +78,19 @@ class GeotagFromGPX(GeotagFromGeneric):
         image_time_offset = self.offset_time
         LOG.debug("Initial time offset for interpolation: %s", image_time_offset)
 
+        if self.use_image_start_time:
+            epoch = datetime.datetime.utcfromtimestamp(0)
+            first_capture_time, _ = sorted_images[0]
+            track = [
+                types.GPXPoint(
+                    time=first_capture_time + (p.time - epoch),
+                    lat=p.lat,
+                    lon=p.lon,
+                    alt=p.alt,
+                )
+                for p in track
+            ]
+
         if self.use_gpx_start_time:
             if sorted_images and track:
                 # assume: the ordered image timestamps are [2, 3, 4, 5]
@@ -98,33 +113,41 @@ class GeotagFromGPX(GeotagFromGeneric):
 
             if exif_time < sorted_points[0].time:
                 delta = sorted_points[0].time - exif_time
-                exc2 = MapillaryOutsideGPXTrackError(
-                    f"The image timestamp is {round(delta.total_seconds(), 2)} seconds behind the GPX start point",
-                    image_time=types.datetime_to_map_capture_time(exif_time),
-                    gpx_start_time=types.datetime_to_map_capture_time(
-                        sorted_points[0].time
-                    ),
-                    gpx_end_time=types.datetime_to_map_capture_time(
-                        sorted_points[-1].time
-                    ),
-                )
-                descs.append({"error": types.describe_error(exc2), "filename": image})
-                continue
+                # with the tolerance of 1ms
+                if 0.001 < delta.total_seconds():
+                    exc2 = MapillaryOutsideGPXTrackError(
+                        f"The image timestamp is {round(delta.total_seconds(), 3)} seconds behind the GPX start point",
+                        image_time=types.datetime_to_map_capture_time(exif_time),
+                        gpx_start_time=types.datetime_to_map_capture_time(
+                            sorted_points[0].time
+                        ),
+                        gpx_end_time=types.datetime_to_map_capture_time(
+                            sorted_points[-1].time
+                        ),
+                    )
+                    descs.append(
+                        {"error": types.describe_error(exc2), "filename": image}
+                    )
+                    continue
 
             if sorted_points[-1].time < exif_time:
                 delta = exif_time - sorted_points[-1].time
-                exc2 = MapillaryOutsideGPXTrackError(
-                    f"The image timestamp is {round(delta.total_seconds(), 2)} seconds beyond the GPX end point",
-                    image_time=types.datetime_to_map_capture_time(exif_time),
-                    gpx_start_time=types.datetime_to_map_capture_time(
-                        sorted_points[0].time
-                    ),
-                    gpx_end_time=types.datetime_to_map_capture_time(
-                        sorted_points[-1].time
-                    ),
-                )
-                descs.append({"error": types.describe_error(exc2), "filename": image})
-                continue
+                # with the tolerance of 1ms
+                if 0.001 < delta.total_seconds():
+                    exc2 = MapillaryOutsideGPXTrackError(
+                        f"The image timestamp is {round(delta.total_seconds(), 3)} seconds beyond the GPX end point",
+                        image_time=types.datetime_to_map_capture_time(exif_time),
+                        gpx_start_time=types.datetime_to_map_capture_time(
+                            sorted_points[0].time
+                        ),
+                        gpx_end_time=types.datetime_to_map_capture_time(
+                            sorted_points[-1].time
+                        ),
+                    )
+                    descs.append(
+                        {"error": types.describe_error(exc2), "filename": image}
+                    )
+                    continue
 
             interpolated = interpolate_lat_lon(sorted_points, exif_time)
             point = types.GPXPointAngle(
@@ -154,6 +177,7 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
         images: T.List[str],
         points: T.List[types.GPXPoint],
         use_gpx_start_time: bool = False,
+        use_image_start_time: bool = False,
         offset_time: float = 0.0,
         progress_bar=None,
     ) -> None:
@@ -162,6 +186,7 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
             images,
             points,
             use_gpx_start_time=use_gpx_start_time,
+            use_image_start_time=use_image_start_time,
             offset_time=offset_time,
         )
         self._progress_bar = progress_bar
