@@ -120,7 +120,7 @@ sudo apt install ffmpeg
 
 The `process` command geotags images in the given directory. It extracts the required and optional metadata from image
 EXIF (or the other supported geotag sources), and writes all the metadata (or process errors) in
-an [image description](#image-description) file, which will be read during [upload](#upload).
+an [image description](#image-description) file, which will be read during [upload](#upload-images).
 
 #### Examples
 
@@ -226,7 +226,7 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
 ```
 
 **GoPro videos**: Sample GoPro videos in directory `path/to/videos/` into import path `path/to/sample_images/` at a
-sampling rate 0.5 seconds, i.e. two frames every second, reading geotag data from the GoPro videos in `path/to/videos/`.
+sampling rate 0.5 seconds, i.e. two frames every second, and process resulting video frames in `path/to/videos/sample_images/`.
 
 ```shell
 mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
@@ -235,13 +235,20 @@ mapillary_tools video_process "path/to/videos/" "path/to/sample_images/" \
     --video_sample_interval 0.5
 ```
 
-**BlackVue videos**: Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.2 seconds, i.e. 5 frames
-every second and process resulting video frames, reading geotag data from the BlackVue videos
-in `path/to/videos/mapillary_sampled_video_frames`.
+**BlackVue videos**: Sample BlackVue videos in directory `path/to/videos/` at a sampling rate 0.5 seconds, i.e. 2 frames
+every second, and process resulting video frames in `path/to/videos/mapillary_sampled_video_frames`.
 
 ```shell
 mapillary_tools video_process "path/to/videos/" \
-    --geotag_source "blackvue_videos"
+    --geotag_source "blackvue_videos" \
+    --video_sample_interval 0.5
+```
+
+**CAMM videos**: Sample [CAMM](https://developers.google.com/streetview/publish/camm-spec) videos in directory `path/to/videos/` at a sampling rate 2 seconds, i.e. 1 frame
+every 2 seconds, and process resulting video frames in `path/to/videos/mapillary_sampled_video_frames`.
+
+```shell
+mapillary_tools video_process "path/to/videos/" --geotag_source "camm"
 ```
 
 ### Authenticate
@@ -366,7 +373,7 @@ mapillary_tools upload "path/to/images/" --desc_path "description.json"
 
 ### Zip Images
 
-When [uploading](#upload) an image directory, internally the `upload` command will zip sequences in the temporary
+When [uploading](#upload-images) an image directory, internally the `upload` command will zip sequences in the temporary
 directory (`TMPDIR`) and then upload these zip files.
 
 Mapillary Tools provides `zip` command that allows users to specify where to store the zip files, usually somewhere with
