@@ -12,12 +12,11 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### Improvement
 
-* Clarify command line help (--help) docs https://github.com/mapillary/mapillary_tools/pull/509
+* Clarify a few command line options in the help page (--help) https://github.com/mapillary/mapillary_tools/pull/509
 * Remove pymp4 https://github.com/mapillary/mapillary_tools/pull/506
 
 ### Bug Fixes
 
-* extend to EoF only when the atom box is at the toplevel ([#507](https://github.com/mapillary/mapillary_tools/issues/507)) ([805796b](https://github.com/mapillary/mapillary_tools/commit/805796b03e98986323e91e0a3089924eba24cf66))
 * subprocess processing temporary file in Windows ([#510](https://github.com/mapillary/mapillary_tools/issues/510)) ([2902606](https://github.com/mapillary/mapillary_tools/commit/2902606ec8bbf3309761dd9dd9efaaf55a2d423b))
 * upload blackvue in subfolders ([#501](https://github.com/mapillary/mapillary_tools/issues/501)) ([4bfebf8](https://github.com/mapillary/mapillary_tools/commit/4bfebf8705d06d8568619cc0c6b83fd3d4fad95e))
 
