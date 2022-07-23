@@ -27,7 +27,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 ## Quickstart
 
 Download the latest `mapillary_tools` binaries for your platform
-here: https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.2.
+[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.0) first.
 See [more installation instructions](#installation) below.
 
 Process and upload imagery:
@@ -505,7 +505,7 @@ Set up the virtual environment. It is optional but recommended:
 
 ```shell
 python3 -m venv venv
-source venv/bin/activate # For Windows, run: .\venv\Scripts\activate
+source venv/bin/activate # for Windows, run: .\venv\Scripts\activate
 # verify if the venv is activated
 which python3
 ```
@@ -525,11 +525,20 @@ python3 -m mapillary_tools.commands --version
 Run tests:
 
 ```shell
-pytest tests
+python3 -m pytest -s -vv tests
 ```
 
 Run linting:
 
 ```shell
 black mapillary_tools tests
+```
+
+Release a new version:
+```shell
+# assume you are releasing v0.9.0
+git tag v0.9.0
+# trigger a draft release in CI with binaries built
+# in https://github.com/mapillary/mapillary_tools/releases
+git push origin --tags
 ```
