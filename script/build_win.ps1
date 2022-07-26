@@ -4,7 +4,7 @@ mkdir -Force dist
 
 # build
 python3 -m pip uninstall -y pyinstaller
-git clone --depth=1 --branch v5.2 git@github.com:pyinstaller/pyinstaller.git pyinstaller_git
+git clone --depth=1 --branch v5.2 https://github.com/pyinstaller/pyinstaller.git pyinstaller_git
 cd pyinstaller_git/bootloader
 python3 ./waf all
 cd ..
