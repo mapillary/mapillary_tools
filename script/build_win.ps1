@@ -5,16 +5,16 @@ mkdir -Force dist
 # build
 python3 -m pip uninstall -y pyinstaller
 git clone --depth=1 --branch v5.2 https://github.com/pyinstaller/pyinstaller.git pyinstaller_git
-cd pyinstaller_git/bootloader
+cd pyinstaller_git/bootloader # pwd: ./pyinstaller_git/bootloader
 python3 ./waf all
 git diff
-cd ..
+cd ..  # pwd: ./pyinstaller_git
 # Error: Building wheels requires the 'wheel' package. Please `pip install wheel` then try again.
 python3 -m pip install wheel
 python3 setup.py install
+cd ..  # pwd: ./
 pyinstaller --version
 pyinstaller --noconfirm --distpath dist\win mapillary_tools.spec
-cd ..
 
 # check
 $SOURCE="dist\win\mapillary_tools.exe"
