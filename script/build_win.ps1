@@ -1,8 +1,17 @@
 $OS="win"
 
-# build
 mkdir -Force dist
+
+# build
+python3 -m pip uninstall -y pyinstaller
+git clone --depth=1 --branch v5.2 git@github.com:pyinstaller/pyinstaller.git
+cd pyinstaller/bootloader
+python3 ./waf all
+cd ..
+python3 setup.py install
+pyinstaller --version
 pyinstaller --noconfirm --distpath dist\win mapillary_tools.spec
+cd ..
 
 # check
 $SOURCE="dist\win\mapillary_tools.exe"
@@ -16,7 +25,7 @@ mkdir -Force dist\releases
 Copy-Item "$SOURCE" "$TARGET"
 
 # sha256
-Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256"
+Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
 
 # summary
 Get-ChildItem dist\releases
