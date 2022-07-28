@@ -1,5 +1,13 @@
 $OS="win"
-$ARCH=(wmic OS get OSArchitecture)[2]
+# this is OS arch
+# $ARCH=(wmic OS get OSArchitecture)[2]
+$MAXSIZE32=python3 -c "import sys; print(sys.maxsize <= 2**32)"
+# -ceq case-sensitive equality https://docs.microsoft.com/en-us/powershell/scripting/learn/deep-dives/everything-about-if
+if ($MAXSIZE32 -ceq "True") {
+    $ARCH="32bit"
+} else {
+    $ARCH="64bit"
+}
 
 # build
 mkdir -Force dist

@@ -6,6 +6,7 @@ OS=linux
 # build
 mkdir -p dist
 rm -rf dist/${OS}
+pyinstaller --version
 pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools.spec
 
 # check
