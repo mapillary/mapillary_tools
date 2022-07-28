@@ -23,7 +23,7 @@ zip -j "$TARGET" "$SOURCE" README_osx_package.txt
 TARGET_BASENAME=$(basename "$TARGET")
 # to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
 cd dist/releases
-shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256"
+shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
 cd ../../
 
 # summary
