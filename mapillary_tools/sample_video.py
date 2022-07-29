@@ -1,5 +1,3 @@
-import itertools
-import re
 import typing as T
 import datetime
 import os
@@ -52,22 +50,6 @@ def sample_video(
     if video_start_time is not None:
         video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
 
-    cached_video_start_times = {}
-
-    geotag_type = None
-    if geotag_type == "gopro":
-        groups = _group_gopro_video_segments(video_list)
-        for group in groups:
-            if len(group) <= 1:
-                continue
-            start_time = video_start_time_dt
-            for video_path in group:
-                duration, creation_time = extract_duration_and_creation_time(video_path)
-                if start_time is None:
-                    start_time = creation_time - datetime.timedelta(seconds=duration)
-                cached_video_start_times[video_path] = start_time
-                start_time += datetime.timedelta(seconds=duration)
-
     for video_path in video_list:
         relpath = os.path.relpath(video_path, video_dir)
         video_sample_path = os.path.join(import_path, relpath)
@@ -85,9 +67,7 @@ def sample_video(
                 video_sample_path,
                 sample_interval=video_sample_interval,
                 duration_ratio=video_duration_ratio,
-                start_time=cached_video_start_times.get(
-                    video_path, video_start_time_dt
-                ),
+                start_time=video_start_time_dt,
             )
         except exceptions.MapillaryFFmpegNotFoundError:
             # fatal errors
@@ -99,34 +79,6 @@ def sample_video(
                 )
             else:
                 raise
-
-
-def _group_gopro_video_segments(video_paths: T.List[str]) -> T.List[T.List[str]]:
-    pattern = re.compile(r"^(GH\d{2}|GOPR)(\d{4})$", flags=re.ASCII)
-
-    def _group_key(path: str):
-        base, _ = os.path.splitext(path)
-        matched = pattern.match(base)
-        if matched:
-            return matched[2]
-        else:
-            return None
-
-    def _sort_key(path: str):
-        base, _ = os.path.splitext(path)
-        matched = pattern.match(base)
-        if matched is not None:
-            if matched[1] == "GOPR":
-                return "GH--"
-            else:
-                return matched[1]
-        else:
-            return "--"
-
-    return [
-        sorted(paths, key=_sort_key)
-        for _, paths in itertools.groupby(video_paths, _group_key)
-    ]
 
 
 def _sample_single_video(
@@ -180,7 +132,7 @@ def extract_duration_and_creation_time(
     # TODO: we should use the one with max resolution
     if 2 <= len(streams):
         LOG.warning(
-            "Found %d video streams -- will use the first stream",
+            "Found %d video streams -- will use the first one",
             len(streams),
         )
     stream = streams[0]
@@ -200,7 +152,6 @@ def extract_duration_and_creation_time(
         raise exceptions.MapillaryVideoError(
             f"Failed to find video creation_time in {video_path}"
         )
-
     try:
         creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
     except ValueError:
@@ -210,7 +161,6 @@ def extract_duration_and_creation_time(
             raise exceptions.MapillaryVideoError(
                 f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
             )
-
     LOG.debug("Extracted video creation time: %s", creation_time)
 
     return duration, creation_time
