@@ -21,7 +21,7 @@ def _run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
         output = subprocess.check_output(full_cmd)
     except FileNotFoundError:
         raise FFmpegNotFoundError(
-            f'The ffprobe command "{MAPILLARY_FFPROBE_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFPROBE_PATH'
+            f'The ffprobe command "{MAPILLARY_FFPROBE_PATH}" is not found in your $PATH or $MAPILLARY_FFPROBE_PATH'
         )
     try:
         return json.loads(output)
@@ -38,7 +38,7 @@ def _run_ffmpeg(cmd: T.List[str]) -> None:
         subprocess.check_call(full_cmd)
     except FileNotFoundError:
         raise FFmpegNotFoundError(
-            f'The ffmpeg command "{MAPILLARY_FFMPEG_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFMPEG_PATH'
+            f'The ffmpeg command "{MAPILLARY_FFMPEG_PATH}" is not found in your $PATH or $MAPILLARY_FFMPEG_PATH'
         )
 
 
