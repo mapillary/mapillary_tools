@@ -4,22 +4,24 @@ import os
 import subprocess
 import logging
 
-from . import exceptions
-
 LOG = logging.getLogger(__name__)
 MAPILLARY_FFPROBE_PATH = os.getenv("MAPILLARY_FFPROBE_PATH", "ffprobe")
 MAPILLARY_FFMPEG_PATH = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
 FRAME_EXT = ".jpg"
 
 
-def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
+class FFmpegNotFoundError(Exception):
+    pass
+
+
+def _run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
     full_cmd = [MAPILLARY_FFPROBE_PATH, "-print_format", "json", *cmd]
     LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
     try:
         output = subprocess.check_output(full_cmd)
     except FileNotFoundError:
-        raise exceptions.MapillaryFFmpegNotFoundError(
-            f'The ffprobe command "{MAPILLARY_FFPROBE_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFPROBE_PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions'
+        raise FFmpegNotFoundError(
+            f'The ffprobe command "{MAPILLARY_FFPROBE_PATH}" is not found in your $PATH or $MAPILLARY_FFPROBE_PATH'
         )
     try:
         return json.loads(output)
@@ -29,34 +31,24 @@ def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
         )
 
 
-def run_ffmpeg(cmd: T.List[str]) -> None:
+def _run_ffmpeg(cmd: T.List[str]) -> None:
     full_cmd = [MAPILLARY_FFMPEG_PATH, *cmd]
     LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
     try:
         subprocess.check_call(full_cmd)
     except FileNotFoundError:
-        raise exceptions.MapillaryFFmpegNotFoundError(
-            f'The ffmpeg command "{MAPILLARY_FFMPEG_PATH}" not found. Make sure it is installed in your $PATH or it is available in $MAPILLARY_FFMPEG_PATH. See https://github.com/mapillary/mapillary_tools#video-support for instructions'
+        raise FFmpegNotFoundError(
+            f'The ffmpeg command "{MAPILLARY_FFMPEG_PATH}" is not found in your $PATH or $MAPILLARY_FFMPEG_PATH'
         )
 
 
 def probe_video_format_and_streams(video_path: str) -> T.Dict:
-    if not os.path.isfile(video_path):
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Video file not found: {video_path}"
-        )
-
     cmd = ["-loglevel", "quiet", "-show_format", "-show_streams", video_path]
-    return run_ffprobe_json(cmd)
+    return _run_ffprobe_json(cmd)
 
 
-def probe_video_streams(video_path: str):
-    if not os.path.isfile(video_path):
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Video file not found: {video_path}"
-        )
-
-    output = run_ffprobe_json(
+def probe_video_streams(video_path: str) -> T.List[T.Dict]:
+    output = _run_ffprobe_json(
         [
             "-loglevel",
             "quiet",
@@ -70,9 +62,6 @@ def probe_video_streams(video_path: str):
 
 
 def extract_stream(source: str, dest: str, stream_id: int) -> None:
-    if not os.path.isfile(source):
-        raise exceptions.MapillaryFileNotFoundError(f"Video file not found: {source}")
-
     cmd = [
         "-i",
         source,
@@ -90,19 +79,14 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         dest,
     ]
 
-    run_ffmpeg(cmd)
+    _run_ffmpeg(cmd)
 
 
 def extract_frames(
     video_path: str,
     sample_path: str,
-    video_sample_interval: float = 2.0,
+    video_sample_interval: float,
 ) -> None:
-    if not os.path.isfile(video_path):
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Video file not found: {video_path}"
-        )
-
     video_basename_no_ext, ext = os.path.splitext(os.path.basename(video_path))
     frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
     cmd = [
@@ -117,7 +101,7 @@ def extract_frames(
         "-nostdin",
         f"{frame_path_prefix}_%06d{FRAME_EXT}",
     ]
-    run_ffmpeg(cmd)
+    _run_ffmpeg(cmd)
 
 
 def extract_idx_from_frame_filename(
