@@ -12,7 +12,7 @@ MAPILLARY_FFMPEG_PATH = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
 FRAME_EXT = ".jpg"
 
 
-def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
+def _run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
     full_cmd = [MAPILLARY_FFPROBE_PATH, "-print_format", "json", *cmd]
     LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
     try:
@@ -29,7 +29,7 @@ def run_ffprobe_json(cmd: T.List[str]) -> T.Dict:
         )
 
 
-def run_ffmpeg(cmd: T.List[str]) -> None:
+def _run_ffmpeg(cmd: T.List[str]) -> None:
     full_cmd = [MAPILLARY_FFMPEG_PATH, *cmd]
     LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
     try:
@@ -47,7 +47,7 @@ def probe_video_format_and_streams(video_path: str) -> T.Dict:
         )
 
     cmd = ["-loglevel", "quiet", "-show_format", "-show_streams", video_path]
-    return run_ffprobe_json(cmd)
+    return _run_ffprobe_json(cmd)
 
 
 def probe_video_streams(video_path: str) -> T.List[T.Dict]:
@@ -56,7 +56,7 @@ def probe_video_streams(video_path: str) -> T.List[T.Dict]:
             f"Video file not found: {video_path}"
         )
 
-    output = run_ffprobe_json(
+    output = _run_ffprobe_json(
         [
             "-loglevel",
             "quiet",
@@ -90,7 +90,7 @@ def extract_stream(source: str, dest: str, stream_id: int) -> None:
         dest,
     ]
 
-    run_ffmpeg(cmd)
+    _run_ffmpeg(cmd)
 
 
 def extract_frames(
@@ -117,7 +117,7 @@ def extract_frames(
         "-nostdin",
         f"{frame_path_prefix}_%06d{FRAME_EXT}",
     ]
-    run_ffmpeg(cmd)
+    _run_ffmpeg(cmd)
 
 
 def extract_idx_from_frame_filename(

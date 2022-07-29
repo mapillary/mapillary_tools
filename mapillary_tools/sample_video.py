@@ -19,8 +19,8 @@ def sample_video(
     import_path: str,
     skip_subfolders=False,
     video_sample_interval=constants.VIDEO_SAMPLE_INTERVAL,
-    video_start_time: T.Optional[str] = None,
     video_duration_ratio=constants.VIDEO_DURATION_RATIO,
+    video_start_time: T.Optional[str] = None,
     skip_sample_errors: bool = False,
     rerun: bool = False,
 ) -> None:
@@ -83,7 +83,11 @@ def sample_video(
             _sample_single_video(
                 video_path,
                 video_sample_path,
-                cached_video_start_times.get(video_path, video_start_time_dt),
+                sample_interval=video_sample_interval,
+                duration_ratio=video_duration_ratio,
+                start_time=cached_video_start_times.get(
+                    video_path, video_start_time_dt
+                ),
             )
         except exceptions.MapillaryFFmpegNotFoundError:
             # fatal errors
@@ -128,9 +132,9 @@ def _group_gopro_video_segments(video_paths: T.List[str]) -> T.List[T.List[str]]
 def _sample_single_video(
     video_path: str,
     sample_path: str,
+    sample_interval: float,
+    duration_ratio: float,
     start_time: T.Optional[datetime.datetime] = None,
-    sample_interval: float = 2.0,
-    duration_ratio: float = 1.0,
 ) -> None:
     # extract frames in the temporary folder and then rename it
     now = datetime.datetime.utcnow()
@@ -155,8 +159,8 @@ def _sample_single_video(
             os.path.basename(video_path),
             tmp_sample_path,
             start_time,
-            sample_interval,
-            duration_ratio,
+            sample_interval=sample_interval,
+            duration_ratio=duration_ratio,
         )
         if os.path.isdir(sample_path):
             shutil.rmtree(sample_path)
@@ -185,6 +189,9 @@ def extract_duration_and_creation_time(
 
     duration_str = stream.get("duration")
     try:
+        # for type checking
+        if duration_str is None:
+            raise TypeError
         duration = float(duration_str)
     except (TypeError, ValueError) as exc:
         raise exceptions.MapillaryVideoError(
@@ -217,8 +224,8 @@ def insert_video_frame_timestamp(
     video_basename: str,
     sample_path: str,
     start_time: datetime.datetime,
-    sample_interval: float = constants.VIDEO_SAMPLE_INTERVAL,
-    duration_ratio: float = constants.VIDEO_DURATION_RATIO,
+    sample_interval: float,
+    duration_ratio: float,
 ) -> None:
     for image in utils.get_image_file_list(sample_path, abs_path=True):
         idx = ffmpeg.extract_idx_from_frame_filename(
