@@ -48,7 +48,10 @@ def sample_video(
 
     video_start_time_dt: T.Optional[datetime.datetime] = None
     if video_start_time is not None:
-        video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+        try:
+            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+        except ValueError as ex:
+            raise exceptions.MapillaryBadParameterError(str(ex))
 
     for video_path in video_list:
         relpath = os.path.relpath(video_path, video_dir)
@@ -69,9 +72,9 @@ def sample_video(
                 duration_ratio=video_duration_ratio,
                 start_time=video_start_time_dt,
             )
-        except exceptions.MapillaryFFmpegNotFoundError:
+        except ffmpeg.FFmpegNotFoundError as ex:
             # fatal errors
-            raise
+            raise exceptions.MapillaryFFmpegNotFoundError(str(ex)) from ex
         except Exception:
             if skip_sample_errors:
                 LOG.warning(
@@ -95,6 +98,7 @@ def _sample_single_video(
         f"{os.path.basename(sample_path)}.{os.getpid()}.{int(now.timestamp())}",
     )
     os.makedirs(tmp_sample_path)
+    LOG.debug("Sampling in the temporary sample path %s", tmp_sample_path)
 
     try:
         if start_time is None:
@@ -119,6 +123,7 @@ def _sample_single_video(
         os.rename(tmp_sample_path, sample_path)
     finally:
         if os.path.isdir(tmp_sample_path):
+            LOG.debug("Cleaning up the temporary sample path %s", tmp_sample_path)
             shutil.rmtree(tmp_sample_path)
 
 
