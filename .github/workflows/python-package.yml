@@ -67,16 +67,20 @@ jobs:
       run: |
         ./script/build
         # Could run full integration tests with below but the binary is too slow to start up
-        # MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
+        MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
     - name: Build with Pyinstaller on Ubuntu
       if: matrix.platform == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_linux
+        # Could run full integration tests with below but the binary is too slow to start up
+        MAPILLARY_TOOLS_EXECUTABLE=./dist/linux/mapillary_tools pytest tests/integration
     - name: Build with Pyinstaller on Windows
       if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_bootloader.ps1
         ./script/build_win.ps1
+        # Could run full integration tests with below but the binary is too slow to start up
+        MAPILLARY_TOOLS_EXECUTABLE=./dist/win/mapillary_tools pytest tests/integration
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
