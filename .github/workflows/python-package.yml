@@ -65,7 +65,7 @@ jobs:
       # Enable for Python3.8 only because it often fails at codesign (subprocess timeout)
       if: matrix.platform == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
-        ./script/build
+        ./script/build_osx
         # Could run full integration tests with below but the binary is too slow to start up
         MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
     - name: Build with Pyinstaller on Ubuntu
