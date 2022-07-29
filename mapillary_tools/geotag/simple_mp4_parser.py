@@ -209,6 +209,7 @@ SampleSizeBox = C.Struct(
     # "type" / C.Const(b"stsz"),
     "version" / C.Int8ub,
     "flags" / C.Const(0, C.Int24ub),
+    # If this field is set to 0, then the samples have different sizes, and those sizes are stored in the sample size table.
     "sample_size" / C.Int32ub,
     "sample_count" / C.Int32ub,
     "entry_sizes"
@@ -350,7 +351,10 @@ def parse_samples_from_stbl(stbl: T.BinaryIO, maxsize: int = -1):
             descriptions = list(box.entries)
         elif h.type == b"stsz":
             box = SampleSizeBox.parse(s.read(h.maxsize))
-            sizes = list(box.entry_sizes)
+            if box.sample_size == 0:
+                sizes = list(box.entry_sizes)
+            else:
+                sizes = [box.sample_size for _ in range(box.sample_count)]
         elif h.type == b"stco":
             box = ChunkOffsetBox.parse(s.read(h.maxsize))
             offsets = [entry.chunk_offset for entry in box.entries]
