@@ -175,24 +175,20 @@ def extract_duration_and_creation_time(
 ) -> T.Tuple[float, datetime.datetime]:
     streams = ffmpeg.probe_video_streams(video_path)
     if not streams:
-        raise exceptions.MapillaryVideoError(
-            f"Failed to find video streams in {video_path}"
-        )
+        raise exceptions.MapillaryVideoError(f"No video streams found in {video_path}")
 
+    # TODO: we should use the one with max resolution
     if 2 <= len(streams):
         LOG.warning(
-            "Found more than one (%s) video streams -- will use the first stream",
+            "Found %d video streams -- will use the first stream",
             len(streams),
         )
-
     stream = streams[0]
 
     duration_str = stream.get("duration")
     try:
-        # for type checking
-        if duration_str is None:
-            raise TypeError
-        duration = float(duration_str)
+        # cast for type checking
+        duration = float(T.cast(str, duration_str))
     except (TypeError, ValueError) as exc:
         raise exceptions.MapillaryVideoError(
             f"Failed to find video stream duration {duration_str} from video {video_path}"
