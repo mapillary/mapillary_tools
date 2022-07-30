@@ -538,14 +538,15 @@ Release a new version:
 ```shell
 # Assume you are releasing v0.9.1-beta
 
-# Tag your local branch. Using -f here to replace the existing one
+# Tag your local branch
+# Use -f here to replace the existing one
 git tag -f v0.9.1-beta
 
 # Push the tagged commit first if you haven't done it yet
 git push origin
 
 # Push ALL local tags (TODO: How to push a specific tag?)
-# Using -f to replace the existing one in the remote repo
+# Use -f here to replace the existing tags in the remote repo
 git push origin --tags -f
 
 # The last step will trigger CI to publish a draft release with binaries built
