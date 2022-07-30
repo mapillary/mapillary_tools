@@ -84,9 +84,10 @@ jobs:
         ./script/build_bootloader.ps1
         ./script/build_win.ps1
         # Could run full integration tests with the binary (it might be slow)
+        cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOUR_HERE.exe
         pytest tests/integration
       env:
-        MAPILLARY_TOOLS_EXECUTABLE: ${GITHUB_WORKSPACE}\dist\win\mapillary_tools
+        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOUR_HERE.exe
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
