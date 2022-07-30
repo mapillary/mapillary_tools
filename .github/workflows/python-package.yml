@@ -86,7 +86,7 @@ jobs:
         # Could run full integration tests with the binary (it might be slow)
         pytest tests/integration
       env:
-        MAPILLARY_TOOLS_EXECUTABLE: ./dist/win/mapillary_tools
+        MAPILLARY_TOOLS_EXECUTABLE: dist/win/mapillary_tools
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8

@@ -536,9 +536,17 @@ black mapillary_tools tests
 
 Release a new version:
 ```shell
-# assume you are releasing v0.9.0
-git tag v0.9.0
-# trigger a draft release in CI with binaries built
-# in https://github.com/mapillary/mapillary_tools/releases
+# Assume you are releasing v0.9.1-beta
+
+# Tag your local branch. Using -f here to replace the existing one
+git tag -f v0.9.1-beta
+
+# If the tag existed remotely, you probably need to delete it first
+git push --delete origin v0.9.1-beta
+
+# Push all tags
 git push origin --tags
+
+# The last step will trigger CI to publish a draft release with binaries built
+# in https://github.com/mapillary/mapillary_tools/releases
 ```
