@@ -541,11 +541,12 @@ Release a new version:
 # Tag your local branch. Using -f here to replace the existing one
 git tag -f v0.9.1-beta
 
-# If the tag existed remotely, you probably need to delete it first
-git push --delete origin v0.9.1-beta
+# Push the tagged commit first if you haven't done it yet
+git push origin
 
-# Push all tags
-git push origin --tags
+# Push ALL local tags (TODO: How to push a specific tag?)
+# Using -f to replace the existing one in the remote repo
+git push origin --tags -f
 
 # The last step will trigger CI to publish a draft release with binaries built
 # in https://github.com/mapillary/mapillary_tools/releases
