@@ -61,26 +61,32 @@ jobs:
       run: |
         mapillary_tools --version
         pytest tests
-    - name: Build with Pyinstaller on MacOS (Python 3.8 only)
+    - name: Build with Pyinstaller on MacOS (Python {{ matrix.python-version }} only)
       # Enable for Python3.8 only because it often fails at codesign (subprocess timeout)
       if: matrix.platform == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_osx
-        # Could run full integration tests with below but the binary is too slow to start up
-        MAPILLARY_TOOLS_EXECUTABLE=./dist/osx/mapillary_tools pytest tests/integration
-    - name: Build with Pyinstaller on Ubuntu
+        # Could run full integration tests with the binary (it might be slow)
+        pytest tests/integration
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: ./dist/osx/mapillary_tools
+    - name: Build with Pyinstaller on Ubuntu (Python {{ matrix.python-version }} only)
       if: matrix.platform == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_linux
-        # Could run full integration tests with below but the binary is too slow to start up
-        MAPILLARY_TOOLS_EXECUTABLE=./dist/linux/mapillary_tools pytest tests/integration
-    - name: Build with Pyinstaller on Windows
+        # Could run full integration tests with the binary (it might be slow)
+        pytest tests/integration
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: ./dist/linux/mapillary_tools
+    - name: Build with Pyinstaller on Windows (Python {{ matrix.python-version }} only)
       if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_bootloader.ps1
         ./script/build_win.ps1
-        # Could run full integration tests with below but the binary is too slow to start up
-        MAPILLARY_TOOLS_EXECUTABLE=./dist/win/mapillary_tools pytest tests/integration
+        # Could run full integration tests with the binary (it might be slow)
+        pytest tests/integration
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: ./dist/win/mapillary_tools
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
