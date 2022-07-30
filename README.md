@@ -542,7 +542,7 @@ Release a new version:
 # Use -f here to replace the existing one
 git tag -f v0.9.1-beta
 
-# Push the tagged commit first if you haven't done it yet
+# Push the tagged commit first if it is not there yet
 git push origin
 
 # Push ALL local tags (TODO: How to push a specific tag?)

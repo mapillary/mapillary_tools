@@ -56,12 +56,12 @@ jobs:
       run: |
         mypy mapillary_tools
     - name: Test with pytest
-      env:
-        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools
       run: |
         mapillary_tools --version
         pytest tests
-    - name: Build with Pyinstaller on MacOS (Python ${{ matrix.python-version }} only)
+      env:
+        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools
+    - name: Build and test with Pyinstaller on MacOS (Python 3.8 only)
       # Enable for Python3.8 only because it often fails at codesign (subprocess timeout)
       if: matrix.platform == 'macos-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
@@ -70,7 +70,7 @@ jobs:
         pytest tests/integration
       env:
         MAPILLARY_TOOLS_EXECUTABLE: ./dist/osx/mapillary_tools
-    - name: Build with Pyinstaller on Ubuntu (Python ${{ matrix.python-version }} only)
+    - name: Build and test with Pyinstaller on Ubuntu (Python 3.8 only)
       if: matrix.platform == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_linux
@@ -78,16 +78,16 @@ jobs:
         pytest tests/integration
       env:
         MAPILLARY_TOOLS_EXECUTABLE: ./dist/linux/mapillary_tools
-    - name: Build with Pyinstaller on Windows (Python ${{ matrix.python-version }} only)
+    - name: Build and test with Pyinstaller on Windows (Python 3.8 only)
       if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
       run: |
         ./script/build_bootloader.ps1
         ./script/build_win.ps1
         # Could run full integration tests with the binary (it might be slow)
-        cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOUR_HERE.exe
+        cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
         pytest tests/integration
       env:
-        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOUR_HERE.exe
+        MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/') && matrix.python-version == 3.8
