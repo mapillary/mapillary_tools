@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import typing as T
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -53,7 +54,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = get_points_from_gpmf(video)
+            points = get_points_from_gpmf(Path(video))
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
@@ -92,7 +93,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         return descs
 
 
-def extract_and_parse_bin(path: str) -> T.List:
+def extract_and_parse_bin(path: Path) -> T.List:
     info = ffmpeg.probe_video_format_and_streams(path)
 
     format_name = info["format"]["format_name"].lower()
@@ -119,7 +120,7 @@ def extract_and_parse_bin(path: str) -> T.List:
     with tempfile.NamedTemporaryFile(delete=delete) as tmp:
         try:
             LOG.debug("Extracting GoPro stream %s to %s", stream_id, tmp.name)
-            ffmpeg.extract_stream(path, tmp.name, stream_id)
+            ffmpeg.extract_stream(path, Path(tmp.name), stream_id)
             LOG.debug("Parsing GoPro GPMF %s", tmp.name)
             return parse_bin(tmp.name)
         finally:
@@ -130,7 +131,7 @@ def extract_and_parse_bin(path: str) -> T.List:
                     pass
 
 
-def get_points_from_gpmf(path: str) -> T.List[types.GPXPoint]:
+def get_points_from_gpmf(path: Path) -> T.List[types.GPXPoint]:
     gpmf_data = extract_and_parse_bin(path)
 
     rows = len(gpmf_data)
@@ -163,7 +164,7 @@ def get_points_from_gpmf(path: str) -> T.List[types.GPXPoint]:
 if __name__ == "__main__":
     import sys
 
-    points = get_points_from_gpmf(sys.argv[1])
+    points = get_points_from_gpmf(Path(sys.argv[1]))
     gpx = geotag_utils.convert_points_to_gpx(points)
     print(gpx.to_xml())
 
