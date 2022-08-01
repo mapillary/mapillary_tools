@@ -2,6 +2,7 @@ import datetime
 import math
 import itertools
 import bisect
+import dataclasses
 
 from typing import List, Tuple, TypeVar, Iterable, Optional, NamedTuple
 
@@ -144,13 +145,17 @@ class Point(NamedTuple):
     angle: Optional[float]
 
 
-class TimeDeltaPoint(NamedTuple):
+@dataclasses.dataclass(order=True)
+class TimeDeltaPoint:
+    # For reducing object sizes
+    # dataclass(slots=True) not available until 3.10
+    __slots__ = ["delta", "lat", "lon", "alt", "angle"]
     # seconds since the beginning of the stream presentation
-    delta: float
-    lat: float
-    lon: float
-    alt: Optional[float]
-    angle: Optional[float]
+    delta: float = dataclasses.field(compare=True)
+    lat: float = dataclasses.field(compare=False)
+    lon: float = dataclasses.field(compare=False)
+    alt: Optional[float] = dataclasses.field(compare=False, default=None)
+    angle: Optional[float] = dataclasses.field(compare=False, default=None)
 
 
 def as_timestamp(dt: datetime.datetime):
@@ -192,9 +197,7 @@ def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
     # Make sure that points are sorted:
     # for cur, nex in pairwise(points):
     #     assert cur.time <= nex.time, "Points not sorted"
-    p = TimeDeltaPoint(
-        delta=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None
-    )
+    p = TimeDeltaPoint(delta=t, lat=float("-inf"), lon=float("-inf"))
     idx = bisect.bisect_left(points, p)
 
     if 0 < idx < len(points):
