@@ -149,7 +149,7 @@ class Point(NamedTuple):
 class TimeDeltaPoint:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
-    __slots__ = ["delta", "lat", "lon", "alt", "angle"]
+    __slots__ = ("delta", "lat", "lon", "alt", "angle",)
     # seconds since the beginning of the stream presentation
     delta: float = dataclasses.field(compare=True)
     lat: float = dataclasses.field(compare=False)
