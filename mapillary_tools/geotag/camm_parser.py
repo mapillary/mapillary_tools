@@ -4,6 +4,7 @@ import typing as T
 
 import construct as C
 
+from ..geo import TimeDeltaPoint
 from .simple_mp4_parser import Sample, parse_path, parse_samples_from_trak
 
 Float = C.Float32l
@@ -51,38 +52,32 @@ CAMMSampleData = C.Struct(
 )
 
 
-class DeltaPoint(T.NamedTuple):
-    # seconds since the beginning of the stream presentation
-    delta: float
-    lat: float
-    lon: float
-    alt: float
-
-
 def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
     for sample in samples:
         fp.seek(sample.offset, io.SEEK_SET)
         data = fp.read(sample.size)
         box = CAMMSampleData.parse(data)
         if box.type == 5:
-            yield DeltaPoint(
+            yield TimeDeltaPoint(
                 delta=sample.delta,
                 lat=box.data[0],
                 lon=box.data[1],
                 alt=box.data[2],
+                angle=None,
             )
         elif box.type == 6:
             # Not using box.data.time_gps_epoch as the point timestamp
             # because it is from another clock
-            yield DeltaPoint(
+            yield TimeDeltaPoint(
                 delta=sample.delta,
                 lat=box.data.latitude,
                 lon=box.data.longitude,
                 alt=box.data.altitude,
+                angle=None,
             )
 
 
-def parse_gpx(path: str) -> T.List[DeltaPoint]:
+def parse_gpx(path: str) -> T.List[TimeDeltaPoint]:
     with open(path, "rb") as fp:
         for h, s in parse_path(fp, [b"moov", b"trak"]):
             camm_samples = (
