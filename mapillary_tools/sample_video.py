@@ -34,7 +34,7 @@ def sample_video(
         LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
     elif os.path.isfile(video_import_path):
         video_list = [Path(video_import_path)]
-        video_dir = Path(import_path).parent
+        video_dir = Path(video_import_path).parent
     else:
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
