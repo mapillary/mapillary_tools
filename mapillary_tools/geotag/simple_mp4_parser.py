@@ -1,5 +1,5 @@
-import io
 import datetime
+import io
 import typing as T
 
 import construct as C

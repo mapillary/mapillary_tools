@@ -1,8 +1,8 @@
-import datetime
-import math
-import itertools
 import bisect
 import dataclasses
+import datetime
+import itertools
+import math
 
 from typing import List, Tuple, TypeVar, Iterable, Optional, NamedTuple
 
