@@ -1,6 +1,5 @@
 import datetime
 import os
-import typing as T
 import json
 import shutil
 from pathlib import Path
@@ -13,33 +12,33 @@ from mapillary_tools import sample_video, ffmpeg, exif_read, types, constants
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
 
-def mock_extract_frames(
-    video_path: str,
-    sample_path: str,
-    video_sample_interval: float,
-):
-    video_streams = mock_probe_video_streams(video_path)
-    duration = float(video_streams[0]["duration"])
-    video_basename_no_ext, _ = os.path.splitext(os.path.basename(video_path))
-    frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
-    src = os.path.join(_PWD, "data/test_exif.jpg")
-    for idx in range(0, int(duration / video_sample_interval)):
-        sample = f"{frame_path_prefix}_{idx + 1:06d}.jpg"
-        shutil.copyfile(src, sample)
+class MOCK_FFMPEG(ffmpeg.FFMPEG):
+    def extract_frames(
+        self,
+        video_path: Path,
+        sample_path: Path,
+        video_sample_interval: float,
+    ):
+        probe = self.probe_format_and_streams(video_path)
+        video_streams = [
+            s for s in probe.get("streams", []) if s.get("codec_type") == "video"
+        ]
+        duration = float(video_streams[0]["duration"])
+        video_basename_no_ext, _ = os.path.splitext(os.path.basename(video_path))
+        frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
+        src = os.path.join(_PWD, "data/test_exif.jpg")
+        for idx in range(0, int(duration / video_sample_interval)):
+            sample = f"{frame_path_prefix}_{idx + 1:06d}.jpg"
+            shutil.copyfile(src, sample)
 
-
-def mock_probe_video_streams(video_path: str) -> T.List[T.Dict]:
-    with open(video_path) as fp:
-        ffprobe_output = json.load(fp)
-    streams = ffprobe_output.get("streams", [])
-    return [s for s in streams if s["codec_type"] == "video"]
+    def probe_format_and_streams(self, video_path: Path) -> ffmpeg.ProbeOutput:
+        with open(video_path) as fp:
+            return json.load(fp)
 
 
 @pytest.fixture
 def setup_mock(monkeypatch):
-    monkeypatch.setattr(ffmpeg, "extract_frames", mock_extract_frames)
-    monkeypatch.setattr(ffmpeg, "probe_video_streams", mock_probe_video_streams)
-    pass
+    monkeypatch.setattr(ffmpeg, "FFMPEG", MOCK_FFMPEG)
 
 
 def _validate(samples, video_start_time):

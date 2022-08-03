@@ -13,7 +13,7 @@ from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
 from . import utils as geotag_utils
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from .. import types, ffmpeg, exceptions, utils
+from .. import types, ffmpeg as ffmpeglib, exceptions, utils, constants
 
 
 LOG = logging.getLogger(__name__)
@@ -94,14 +94,15 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
 
 def extract_and_parse_bin(path: Path) -> T.List:
-    info = ffmpeg.probe_video_format_and_streams(path)
+    ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
+    probe = ffmpeg.probe_format_and_streams(path)
 
-    format_name = info["format"]["format_name"].lower()
+    format_name = probe["format"]["format_name"].lower()
     if "mp4" not in format_name:
         raise IOError("File must be an mp4")
 
     stream_id = None
-    for stream in info["streams"]:
+    for stream in probe["streams"]:
         if (
             "codec_tag_string" in stream
             and "gpmd" in stream["codec_tag_string"].lower()

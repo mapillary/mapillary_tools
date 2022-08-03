@@ -1,15 +1,15 @@
-import typing as T
 import datetime
+import logging
 import os
 import shutil
-import logging
+import time
+import typing as T
 from pathlib import Path
+from contextlib import contextmanager
 
-from . import utils, ffmpeg, types, exceptions, constants
+from . import utils, ffmpeg as ffmpeglib, types, exceptions, constants
 from .exif_write import ExifEdit
 
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-TIME_FORMAT_2 = "%Y-%m-%dT%H:%M:%S.000000Z"
 LOG = logging.getLogger(__name__)
 
 
@@ -74,7 +74,7 @@ def sample_video(
                 duration_ratio=video_duration_ratio,
                 start_time=video_start_time_dt,
             )
-        except ffmpeg.FFmpegNotFoundError as ex:
+        except ffmpeglib.FFmpegNotFoundError as ex:
             # fatal error
             raise exceptions.MapillaryFFmpegNotFoundError(str(ex)) from ex
 
@@ -87,6 +87,28 @@ def sample_video(
                 raise
 
 
+@contextmanager
+def wip_dir_context(wip_dir: Path, done_dir: Path):
+    assert wip_dir != done_dir, "should not be the same dir"
+    shutil.rmtree(wip_dir, ignore_errors=True)
+    os.makedirs(wip_dir)
+    try:
+        yield wip_dir
+        shutil.rmtree(done_dir, ignore_errors=True)
+        wip_dir.rename(done_dir)
+    finally:
+        shutil.rmtree(wip_dir, ignore_errors=True)
+
+
+def wip_sample_dir(sample_dir: Path) -> Path:
+    pid = os.getpid()
+    timestamp = int(time.time())
+    # prefix with .mly_ffmpeg_ to avoid samples being scanned by "mapillary_tools process"
+    return sample_dir.parent.joinpath(
+        f".mly_ffmpeg_{sample_dir.name}.{pid}.{timestamp}"
+    )
+
+
 def _sample_single_video(
     video_path: Path,
     sample_dir: Path,
@@ -94,57 +116,20 @@ def _sample_single_video(
     duration_ratio: float,
     start_time: T.Optional[datetime.datetime] = None,
 ) -> None:
+    ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
+
     if start_time is None:
-        duration, video_creation_time = extract_duration_and_creation_time(video_path)
-        start_time = video_creation_time - datetime.timedelta(seconds=duration)
-
-    for idx, sample in ffmpeg.sample_video_wip(video_path, sample_dir, sample_interval):
-        seconds = idx * sample_interval * duration_ratio
-        timestamp = start_time + datetime.timedelta(seconds=seconds)
-        exif_edit = ExifEdit(str(sample))
-        exif_edit.add_date_time_original(timestamp)
-        exif_edit.write()
-
-
-def extract_duration_and_creation_time(
-    video_path: Path,
-) -> T.Tuple[float, datetime.datetime]:
-    streams = ffmpeg.probe_video_streams(video_path)
-    if not streams:
-        raise exceptions.MapillaryVideoError(f"No video streams found in {video_path}")
-
-    # TODO: we should use the one with max resolution
-    if 2 <= len(streams):
-        LOG.warning(
-            "Found %d video streams -- will use the first one",
-            len(streams),
-        )
-    stream = streams[0]
-
-    duration_str = stream.get("duration")
-    try:
-        # cast for type checking
-        duration = float(T.cast(str, duration_str))
-    except (TypeError, ValueError) as exc:
-        raise exceptions.MapillaryVideoError(
-            f"Failed to find video stream duration {duration_str} from video {video_path}"
-        ) from exc
-    LOG.debug("Extracted video duration: %s", duration)
-
-    time_string = stream.get("tags", {}).get("creation_time")
-    if time_string is None:
-        raise exceptions.MapillaryVideoError(
-            f"Failed to find video creation_time in {video_path}"
-        )
-    try:
-        creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT)
-    except ValueError:
-        try:
-            creation_time = datetime.datetime.strptime(time_string, TIME_FORMAT_2)
-        except ValueError:
+        start_time = ffmpeg.probe_video_start_time(video_path)
+        if start_time is None:
             raise exceptions.MapillaryVideoError(
-                f"Failed to parse {time_string} as {TIME_FORMAT} or {TIME_FORMAT_2}"
+                f"Unable to extract video start time from {video_path}"
             )
-    LOG.debug("Extracted video creation time: %s", creation_time)
 
-    return duration, creation_time
+    with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
+        ffmpeg.extract_frames(video_path, wip_dir, sample_interval)
+        for idx, sample in ffmpeglib.list_samples(wip_dir, video_path):
+            seconds = idx * sample_interval * duration_ratio
+            timestamp = start_time + datetime.timedelta(seconds=seconds)
+            exif_edit = ExifEdit(str(sample))
+            exif_edit.add_date_time_original(timestamp)
+            exif_edit.write()
