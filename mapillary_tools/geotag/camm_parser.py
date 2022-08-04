@@ -5,7 +5,7 @@ from enum import Enum
 import construct as C
 
 from . import geo
-from .simple_mp4_parser import Sample, parse_path, parse_samples_from_trak
+from .simple_mp4_parser import parse_path, parse_samples_from_trak, Sample
 
 
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
