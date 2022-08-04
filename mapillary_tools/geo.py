@@ -149,7 +149,6 @@ class Point:
         "alt",
         "angle",
     )
-    # seconds since the beginning of the stream presentation
     time: float
     lat: float
     lon: float
@@ -167,7 +166,7 @@ def as_timestamp(dt: datetime.datetime):
 
 def interpolate(points: T.List[Point], t: float) -> Point:
     """
-    Extrapolating the point at time t along the sequence of points (sorted by time)
+    Interpolate or extrapolate the point at time t along the sequence of points (sorted by time)
     """
     if not points:
         raise ValueError("Expect non-empty points")

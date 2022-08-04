@@ -126,6 +126,11 @@ class FFMPEG:
         self._run_ffmpeg(cmd)
 
     def probe_video_start_time(self, video_path: Path) -> T.Optional[datetime.datetime]:
+        """
+        Find video start time of the given video.
+        It searches video creation time and duration in video streams first and then the other streams.
+        Once found, return stream creation time - stream duration as the video start time.
+        """
         probe = self.probe_format_and_streams(video_path)
         streams = probe.get("streams", [])
 
@@ -190,6 +195,9 @@ def _extract_idx_from_frame_filename(
 
 
 def list_samples(sample_dir: Path, video_path: Path) -> T.List[T.Tuple[int, Path]]:
+    """
+    Return a generator that lists sample index (0-based) and sample path.
+    """
     samples = []
     for sample_path in sample_dir.iterdir():
         idx = _extract_idx_from_frame_filename(sample_path.name, video_path.name)
