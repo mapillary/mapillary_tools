@@ -1,17 +1,30 @@
+from enum import Enum
 import io
 import typing as T
 
 import construct as C
 
 from . import geo
-from .simple_mp4_parser import Sample, parse_path, parse_samples_from_trak
+from .simple_mp4_parser import parse_path, parse_samples_from_trak, Sample
+
+
+# Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
+class CAMMType(Enum):
+    ANGLE_AXIS = 0
+    EXPOSURE_TIME = 1
+    GYRO = 2
+    ACCELERATION = 3
+    POSITION = 4
+    MIN_GPS = 5
+    GPS = 6
+    MAGNETIC_FIELD = 7
+
 
 # All fields are little-endian
 Float = C.Float32l
 Double = C.Float64l
 
 
-# Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
 CAMMSampleData = C.Struct(
     C.Padding(2),
     "type" / C.Int16ul,
@@ -20,20 +33,20 @@ CAMMSampleData = C.Struct(
         C.this.type,
         {
             # angle_axis
-            0: Float[3],
-            1: C.Struct(
+            CAMMType.ANGLE_AXIS: Float[3],
+            CAMMType.EXPOSURE_TIME: C.Struct(
                 "pixel_exposure_time" / C.Int32sl,
                 "rolling_shutter_skew_time" / C.Int32sl,
             ),
             # gyro
-            2: Float[3],
+            CAMMType.GYRO: Float[3],
             # acceleration
-            3: Float[3],
+            CAMMType.ACCELERATION: Float[3],
             # position
-            4: Float[3],
+            CAMMType.POSITION: Float[3],
             # lat, lon, alt
-            5: Double[3],
-            6: C.Struct(
+            CAMMType.MIN_GPS: Double[3],
+            CAMMType.GPS: C.Struct(
                 "time_gps_epoch" / Double,
                 "gps_fix_type" / C.Int32sl,
                 "latitude" / Double,
@@ -47,7 +60,7 @@ CAMMSampleData = C.Struct(
                 "speed_accuracy" / Float,
             ),
             # magnetic_field
-            7: Float[3],
+            CAMMType.MAGNETIC_FIELD: Float[3],
         },
     ),
 )
@@ -58,7 +71,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
         fp.seek(sample.offset, io.SEEK_SET)
         data = fp.read(sample.size)
         box = CAMMSampleData.parse(data)
-        if box.type == 5:
+        if box.type == CAMMType.MIN_GPS:
             yield geo.TimeDeltaPoint(
                 time=sample.delta,
                 lat=box.data[0],
@@ -66,7 +79,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
                 alt=box.data[2],
                 angle=None,
             )
-        elif box.type == 6:
+        elif box.type == CAMMType.GPS:
             # Not using box.data.time_gps_epoch as the point timestamp
             # because it is from another clock
             yield geo.TimeDeltaPoint(

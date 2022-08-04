@@ -1,9 +1,9 @@
-import typing as T
 import bisect
 import dataclasses
 import datetime
 import itertools
 import math
+import typing as T
 
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
@@ -200,6 +200,9 @@ def interpolate_lat_lon(
 
 
 def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
+    """
+    Extrapolating the point at time t along the sequence of points (sorted by time)
+    """
     if not points:
         raise ValueError("Expect non-empty points")
 
@@ -216,13 +219,13 @@ def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
         before = points[idx - 1]
         after = points[idx]
     elif idx <= 0:
-        # interpolated behind the range
+        # extrapolating behind the range
         if 2 <= len(points):
             before, after = points[0], points[1]
         else:
             before, after = points[0], points[0]
     else:
-        # interpolated beyond the range
+        # extrapolating beyond the range
         assert len(points) <= idx
         if 2 <= len(points):
             before, after = points[-2], points[-1]
