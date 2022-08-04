@@ -226,8 +226,12 @@ def filter_out_errors(
     )
 
 
-def datetime_to_map_capture_time(time: datetime.datetime) -> str:
-    return datetime.datetime.strftime(time, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
+def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
+    if isinstance(time, (float, int)):
+        dt = datetime.datetime.utcfromtimestamp(time)
+    else:
+        dt = time
+    return datetime.datetime.strftime(dt, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
 
 
 def map_capture_time_to_datetime(time: str) -> datetime.datetime:

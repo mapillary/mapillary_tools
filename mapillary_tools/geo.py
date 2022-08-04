@@ -138,14 +138,6 @@ def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
     return zip(a, b)
 
 
-class DateTimePoint(T.NamedTuple):
-    time: datetime.datetime
-    lat: float
-    lon: float
-    alt: T.Optional[float]
-    angle: T.Optional[float]
-
-
 @dataclasses.dataclass(order=True)
 class Point:
     # For reducing object sizes
@@ -171,32 +163,6 @@ def as_timestamp(dt: datetime.datetime):
     else:
         aware_dt = dt
     return aware_dt.timestamp()
-
-
-# Deprecated, use interpolate below
-def interpolate_lat_lon(
-    points: T.List[DateTimePoint], t: datetime.datetime
-) -> DateTimePoint:
-    p = interpolate(
-        [
-            Point(
-                time=as_timestamp(p.time),
-                lat=p.lat,
-                lon=p.lon,
-                alt=p.alt,
-                angle=p.angle,
-            )
-            for p in points
-        ],
-        as_timestamp(t),
-    )
-    return DateTimePoint(
-        time=datetime.datetime.utcfromtimestamp(p.time),
-        lat=p.lat,
-        lon=p.lon,
-        alt=p.alt,
-        angle=p.angle,
-    )
 
 
 def interpolate(points: T.List[Point], t: float) -> Point:
