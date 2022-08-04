@@ -1,16 +1,15 @@
+import typing as T
 import bisect
 import dataclasses
 import datetime
 import itertools
 import math
 
-from typing import List, Tuple, TypeVar, Iterable, Optional, NamedTuple
-
 WGS84_a = 6378137.0
 WGS84_b = 6356752.314245
 
 
-def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, float]:
+def ecef_from_lla(lat: float, lon: float, alt: float) -> T.Tuple[float, float, float]:
     """
     Compute ECEF XYZ from latitude, longitude and altitude.
 
@@ -30,7 +29,9 @@ def ecef_from_lla(lat: float, lon: float, alt: float) -> Tuple[float, float, flo
     return x, y, z
 
 
-def gps_distance(latlon_1: Tuple[float, float], latlon_2: Tuple[float, float]) -> float:
+def gps_distance(
+    latlon_1: T.Tuple[float, float], latlon_2: T.Tuple[float, float]
+) -> float:
     """
     Distance between two (lat,lon) pairs.
 
@@ -47,7 +48,7 @@ def gps_distance(latlon_1: Tuple[float, float], latlon_2: Tuple[float, float]) -
     return dis
 
 
-def get_max_distance_from_start(latlons: List[Tuple[float, float]]) -> float:
+def get_max_distance_from_start(latlons: T.List[T.Tuple[float, float]]) -> float:
     """
     Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
     Takes a sequence of points as input
@@ -60,7 +61,7 @@ def get_max_distance_from_start(latlons: List[Tuple[float, float]]) -> float:
 
 def decimal_to_dms(
     value: float, precision: int
-) -> Tuple[Tuple[float, int], Tuple[float, int], Tuple[float, int]]:
+) -> T.Tuple[T.Tuple[float, int], T.Tuple[float, int], T.Tuple[float, int]]:
     """
     Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
     """
@@ -126,23 +127,23 @@ def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
     return bearing
 
 
-_IT = TypeVar("_IT")
+_IT = T.TypeVar("_IT")
 
 
 # http://stackoverflow.com/a/5434936
-def pairwise(iterable: Iterable[_IT]) -> Iterable[Tuple[_IT, _IT]]:
+def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
     """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
 
 
-class DateTimePoint(NamedTuple):
+class DateTimePoint(T.NamedTuple):
     time: datetime.datetime
     lat: float
     lon: float
-    alt: Optional[float]
-    angle: Optional[float]
+    alt: T.Optional[float]
+    angle: T.Optional[float]
 
 
 @dataclasses.dataclass(order=True)
@@ -160,8 +161,8 @@ class TimeDeltaPoint:
     time: float
     lat: float
     lon: float
-    alt: Optional[float]
-    angle: Optional[float]
+    alt: T.Optional[float]
+    angle: T.Optional[float]
 
 
 def as_timestamp(dt: datetime.datetime):
@@ -174,7 +175,7 @@ def as_timestamp(dt: datetime.datetime):
 
 # Deprecated, use interpolate below
 def interpolate_lat_lon(
-    points: List[DateTimePoint], t: datetime.datetime
+    points: T.List[DateTimePoint], t: datetime.datetime
 ) -> DateTimePoint:
     p = interpolate(
         [
@@ -198,7 +199,7 @@ def interpolate_lat_lon(
     )
 
 
-def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
+def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
     if not points:
         raise ValueError("Expect non-empty points")
 
@@ -235,8 +236,9 @@ def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
     lat = before.lat + (after.lat - before.lat) * weight
     lon = before.lon + (after.lon - before.lon) * weight
     angle = compute_bearing(before.lat, before.lon, after.lat, after.lon)
+    alt: T.Optional[float]
     if before.alt is not None and after.alt is not None:
-        alt: Optional[float] = before.alt + (after.alt - before.alt) * weight
+        alt = before.alt + (after.alt - before.alt) * weight
     else:
         alt = None
     return TimeDeltaPoint(time=t, lat=lat, lon=lon, alt=alt, angle=angle)

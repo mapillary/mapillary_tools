@@ -1,4 +1,3 @@
-import datetime
 import io
 import typing as T
 
@@ -91,30 +90,3 @@ def parse_gpx(path: str) -> T.List[geo.TimeDeltaPoint]:
             if points:
                 return points
     return []
-
-
-if __name__ == "__main__":
-    import sys, os
-    from .. import utils, types
-    from . import utils as geotag_utils
-
-    def _convert(path: str):
-        delta_points = parse_gpx(path)
-        points = [
-            types.GPXPoint(
-                time=datetime.datetime.utcfromtimestamp(p.time),
-                lat=p.lat,
-                lon=p.lon,
-                alt=p.alt,
-            )
-            for p in delta_points
-        ]
-        gpx = geotag_utils.convert_points_to_gpx(points)
-        print(gpx.to_xml())
-
-    for path in sys.argv[1:]:
-        if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
-                _convert(p)
-        else:
-            _convert(path)
