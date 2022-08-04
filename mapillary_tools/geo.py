@@ -147,7 +147,7 @@ class DateTimePoint(T.NamedTuple):
 
 
 @dataclasses.dataclass(order=True)
-class TimeDeltaPoint:
+class Point:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
     __slots__ = (
@@ -179,7 +179,7 @@ def interpolate_lat_lon(
 ) -> DateTimePoint:
     p = interpolate(
         [
-            TimeDeltaPoint(
+            Point(
                 time=as_timestamp(p.time),
                 lat=p.lat,
                 lon=p.lon,
@@ -199,7 +199,7 @@ def interpolate_lat_lon(
     )
 
 
-def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
+def interpolate(points: T.List[Point], t: float) -> Point:
     """
     Extrapolating the point at time t along the sequence of points (sorted by time)
     """
@@ -209,9 +209,7 @@ def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
     # Make sure that points are sorted:
     # for cur, nex in pairwise(points):
     #     assert cur.time <= nex.time, "Points not sorted"
-    p = TimeDeltaPoint(
-        time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None
-    )
+    p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
     idx = bisect.bisect_left(points, p)
 
     if 0 < idx < len(points):
@@ -244,4 +242,4 @@ def interpolate(points: T.List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
         alt = before.alt + (after.alt - before.alt) * weight
     else:
         alt = None
-    return TimeDeltaPoint(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
+    return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
