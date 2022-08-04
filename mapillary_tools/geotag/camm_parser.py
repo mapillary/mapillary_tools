@@ -1,11 +1,11 @@
-from enum import Enum
 import io
 import typing as T
+from enum import Enum
 
 import construct as C
 
 from . import geo
-from .simple_mp4_parser import parse_path, parse_samples_from_trak, Sample
+from .simple_mp4_parser import Sample, parse_path, parse_samples_from_trak
 
 
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
