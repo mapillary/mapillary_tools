@@ -24,6 +24,37 @@ class CAMMType(Enum):
 Float = C.Float32l
 Double = C.Float64l
 
+_SWITCH: T.Dict[int, C.Struct] = {
+    # angle_axis
+    CAMMType.ANGLE_AXIS.value: Float[3],
+    CAMMType.EXPOSURE_TIME.value: C.Struct(
+        "pixel_exposure_time" / C.Int32sl,
+        "rolling_shutter_skew_time" / C.Int32sl,
+    ),
+    # gyro
+    CAMMType.GYRO.value: Float[3],
+    # acceleration
+    CAMMType.ACCELERATION.value: Float[3],
+    # position
+    CAMMType.POSITION.value: Float[3],
+    # lat, lon, alt
+    CAMMType.MIN_GPS.value: Double[3],
+    CAMMType.GPS.value: C.Struct(
+        "time_gps_epoch" / Double,
+        "gps_fix_type" / C.Int32sl,
+        "latitude" / Double,
+        "longitude" / Double,
+        "altitude" / Float,
+        "horizontal_accuracy" / Float,
+        "vertical_accuracy" / Float,
+        "velocity_east" / Float,
+        "velocity_north" / Float,
+        "velocity_up" / Float,
+        "speed_accuracy" / Float,
+    ),
+    # magnetic_field
+    CAMMType.MAGNETIC_FIELD.value: Float[3],
+}
 
 CAMMSampleData = C.Struct(
     C.Padding(2),
@@ -31,37 +62,7 @@ CAMMSampleData = C.Struct(
     "data"
     / C.Switch(
         C.this.type,
-        {
-            # angle_axis
-            CAMMType.ANGLE_AXIS: Float[3],
-            CAMMType.EXPOSURE_TIME: C.Struct(
-                "pixel_exposure_time" / C.Int32sl,
-                "rolling_shutter_skew_time" / C.Int32sl,
-            ),
-            # gyro
-            CAMMType.GYRO: Float[3],
-            # acceleration
-            CAMMType.ACCELERATION: Float[3],
-            # position
-            CAMMType.POSITION: Float[3],
-            # lat, lon, alt
-            CAMMType.MIN_GPS: Double[3],
-            CAMMType.GPS: C.Struct(
-                "time_gps_epoch" / Double,
-                "gps_fix_type" / C.Int32sl,
-                "latitude" / Double,
-                "longitude" / Double,
-                "altitude" / Float,
-                "horizontal_accuracy" / Float,
-                "vertical_accuracy" / Float,
-                "velocity_east" / Float,
-                "velocity_north" / Float,
-                "velocity_up" / Float,
-                "speed_accuracy" / Float,
-            ),
-            # magnetic_field
-            CAMMType.MAGNETIC_FIELD: Float[3],
-        },
+        _SWITCH,
     ),
 )
 
@@ -71,7 +72,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
         fp.seek(sample.offset, io.SEEK_SET)
         data = fp.read(sample.size)
         box = CAMMSampleData.parse(data)
-        if box.type == CAMMType.MIN_GPS:
+        if box.type == CAMMType.MIN_GPS.value:
             yield geo.TimeDeltaPoint(
                 time=sample.delta,
                 lat=box.data[0],
@@ -79,7 +80,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
                 alt=box.data[2],
                 angle=None,
             )
-        elif box.type == CAMMType.GPS:
+        elif box.type == CAMMType.GPS.value:
             # Not using box.data.time_gps_epoch as the point timestamp
             # because it is from another clock
             yield geo.TimeDeltaPoint(
