@@ -581,29 +581,32 @@ def test_sample_video(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
 
+    root_sample_dir = setup_data.join("mapillary_sampled_video_frames")
+
     for input_path in [setup_data, setup_data.join("sample-5s.mp4")]:
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --rerun {input_path}",
             shell=True,
         )
         assert x.returncode != 0, x.stderr
-        assert len(setup_data.join("mapillary_sampled_video_frames").listdir()) == 0
+        if root_sample_dir.exists():
+            assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --skip_sample_errors --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
-        assert len(setup_data.join("mapillary_sampled_video_frames").listdir()) == 0
+        if root_sample_dir.exists():
+            assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
-        sample_path = setup_data.join("mapillary_sampled_video_frames")
-        assert len(sample_path.listdir()) == 1
-        samples = sample_path.join("sample-5s.mp4").listdir()
+        assert len(root_sample_dir.listdir()) == 1
+        samples = root_sample_dir.join("sample-5s.mp4").listdir()
         samples.sort()
         times = []
         for s in samples:

@@ -41,6 +41,8 @@ def iterate_files(root: str, recursive: bool = False) -> T.Generator[str, None, 
         else:
             dirnames[:] = [name for name in dirnames if not name.startswith(".")]
         for file in files:
+            if file.startswith("."):
+                continue
             yield os.path.join(dirpath, file)
 
 

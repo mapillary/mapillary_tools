@@ -78,7 +78,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
                     sample_images,
                     [
                         types.GPXPoint(
-                            time=datetime.datetime.utcfromtimestamp(p.delta),
+                            time=datetime.datetime.utcfromtimestamp(p.time),
                             lat=p.lat,
                             lon=p.lon,
                             alt=p.alt,
