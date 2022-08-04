@@ -7,10 +7,12 @@ import construct as C
 from . import geo
 from .simple_mp4_parser import Sample, parse_path, parse_samples_from_trak
 
+# All fields are little-endian
 Float = C.Float32l
 Double = C.Float64l
 
 
+# Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
 CAMMSampleData = C.Struct(
     C.Padding(2),
     "type" / C.Int16ul,
@@ -59,7 +61,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
         box = CAMMSampleData.parse(data)
         if box.type == 5:
             yield geo.TimeDeltaPoint(
-                delta=sample.delta,
+                time=sample.delta,
                 lat=box.data[0],
                 lon=box.data[1],
                 alt=box.data[2],
@@ -69,7 +71,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
             # Not using box.data.time_gps_epoch as the point timestamp
             # because it is from another clock
             yield geo.TimeDeltaPoint(
-                delta=sample.delta,
+                time=sample.delta,
                 lat=box.data.latitude,
                 lon=box.data.longitude,
                 alt=box.data.altitude,
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         delta_points = parse_gpx(path)
         points = [
             types.GPXPoint(
-                time=datetime.datetime.utcfromtimestamp(p.delta),
+                time=datetime.datetime.utcfromtimestamp(p.time),
                 lat=p.lat,
                 lon=p.lon,
                 alt=p.alt,

@@ -150,14 +150,14 @@ class TimeDeltaPoint:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
     __slots__ = (
-        "delta",
+        "time",
         "lat",
         "lon",
         "alt",
         "angle",
     )
     # seconds since the beginning of the stream presentation
-    delta: float
+    time: float
     lat: float
     lon: float
     alt: Optional[float]
@@ -173,11 +173,13 @@ def as_timestamp(dt: datetime.datetime):
 
 
 # Deprecated, use interpolate below
-def interpolate_lat_lon(points: List[DateTimePoint], t: datetime.datetime) -> DateTimePoint:
+def interpolate_lat_lon(
+    points: List[DateTimePoint], t: datetime.datetime
+) -> DateTimePoint:
     p = interpolate(
         [
             TimeDeltaPoint(
-                delta=as_timestamp(p.time),
+                time=as_timestamp(p.time),
                 lat=p.lat,
                 lon=p.lon,
                 alt=p.alt,
@@ -188,7 +190,7 @@ def interpolate_lat_lon(points: List[DateTimePoint], t: datetime.datetime) -> Da
         as_timestamp(t),
     )
     return DateTimePoint(
-        time=datetime.datetime.utcfromtimestamp(p.delta),
+        time=datetime.datetime.utcfromtimestamp(p.time),
         lat=p.lat,
         lon=p.lon,
         alt=p.alt,
@@ -204,7 +206,7 @@ def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
     # for cur, nex in pairwise(points):
     #     assert cur.time <= nex.time, "Points not sorted"
     p = TimeDeltaPoint(
-        delta=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None
+        time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None
     )
     idx = bisect.bisect_left(points, p)
 
@@ -226,10 +228,10 @@ def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
         else:
             before, after = points[-1], points[-1]
 
-    if before.delta == after.delta:
+    if before.time == after.time:
         weight = 0.0
     else:
-        weight = (t - before.delta) / (after.delta - before.delta)
+        weight = (t - before.time) / (after.time - before.time)
     lat = before.lat + (after.lat - before.lat) * weight
     lon = before.lon + (after.lon - before.lon) * weight
     angle = compute_bearing(before.lat, before.lon, after.lat, after.lon)
@@ -237,4 +239,4 @@ def interpolate(points: List[TimeDeltaPoint], t: float) -> TimeDeltaPoint:
         alt: Optional[float] = before.alt + (after.alt - before.alt) * weight
     else:
         alt = None
-    return TimeDeltaPoint(delta=t, lat=lat, lon=lon, alt=alt, angle=angle)
+    return TimeDeltaPoint(time=t, lat=lat, lon=lon, alt=alt, angle=angle)

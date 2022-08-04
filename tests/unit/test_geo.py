@@ -1,7 +1,7 @@
 import datetime
 import typing as T
 
-from mapillary_tools.geo import interpolate_lat_lon, Point
+from mapillary_tools.geo import interpolate_lat_lon, DateTimePoint as Point
 
 
 # lat, lon, bearing, alt
