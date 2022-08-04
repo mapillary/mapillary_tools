@@ -137,7 +137,7 @@ def pairwise(iterable: Iterable[_IT]) -> Iterable[Tuple[_IT, _IT]]:
     return zip(a, b)
 
 
-class Point(NamedTuple):
+class DateTimePoint(NamedTuple):
     time: datetime.datetime
     lat: float
     lon: float
@@ -173,7 +173,7 @@ def as_timestamp(dt: datetime.datetime):
 
 
 # Deprecated, use interpolate below
-def interpolate_lat_lon(points: List[Point], t: datetime.datetime) -> Point:
+def interpolate_lat_lon(points: List[DateTimePoint], t: datetime.datetime) -> DateTimePoint:
     p = interpolate(
         [
             TimeDeltaPoint(
@@ -187,7 +187,7 @@ def interpolate_lat_lon(points: List[Point], t: datetime.datetime) -> Point:
         ],
         as_timestamp(t),
     )
-    return Point(
+    return DateTimePoint(
         time=datetime.datetime.utcfromtimestamp(p.delta),
         lat=p.lat,
         lon=p.lon,

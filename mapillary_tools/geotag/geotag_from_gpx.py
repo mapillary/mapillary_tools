@@ -11,7 +11,7 @@ from ..exceptions import (
     MapillaryGPXEmptyError,
 )
 from ..exif_read import ExifRead
-from ..geo import interpolate_lat_lon, Point
+from ..geo import interpolate_lat_lon, DateTimePoint
 
 
 LOG = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ class GeotagFromGPX(GeotagFromGeneric):
 
         # same thing but different type
         sorted_points = [
-            Point(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time, angle=None)
+            DateTimePoint(lat=p.lat, lon=p.lon, alt=p.alt, time=p.time, angle=None)
             for p in track
         ]
 
