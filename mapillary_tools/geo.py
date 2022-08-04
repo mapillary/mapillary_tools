@@ -166,19 +166,20 @@ def as_timestamp(dt: datetime.datetime):
 
 def interpolate(points: T.List[Point], t: float) -> Point:
     """
-    Interpolate or extrapolate the point at time t along the sequence of points (sorted by time)
+    Interpolate or extrapolate the point at time t along the sequence of points (sorted by time).
     """
     if not points:
         raise ValueError("Expect non-empty points")
 
-    # Make sure that points are sorted:
+    # Make sure that points are sorted (disabled because the check costs O(N)):
     # for cur, nex in pairwise(points):
     #     assert cur.time <= nex.time, "Points not sorted"
+
     p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
     idx = bisect.bisect_left(points, p)
 
     if 0 < idx < len(points):
-        # interpolated within the range
+        # interpolating within the range
         before = points[idx - 1]
         after = points[idx]
     elif idx <= 0:
