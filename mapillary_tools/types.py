@@ -9,6 +9,8 @@ else:
 
 import jsonschema
 
+from . import geo
+
 
 class UserItem(TypedDict, total=False):
     MAPOrganizationKey: T.Union[int, str]
@@ -238,36 +240,20 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
     return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
 
 
-class GPXPoint(T.NamedTuple):
-    # Put it first for sorting
-    time: datetime.datetime
-    lat: float
-    lon: float
-    alt: T.Optional[float]
-
-    def as_desc(self) -> Image:
-        desc: Image = {
-            "MAPLatitude": self.lat,
-            "MAPLongitude": self.lon,
-            "MAPCaptureTime": datetime_to_map_capture_time(self.time),
+def as_desc(point: geo.Point) -> Image:
+    desc: Image = {
+        "MAPLatitude": point.lat,
+        "MAPLongitude": point.lon,
+        "MAPCaptureTime": datetime_to_map_capture_time(point.time),
+    }
+    if point.alt is not None:
+        desc["MAPAltitude"] = point.alt
+    if point.angle is not None:
+        desc["MAPCompassHeading"] = {
+            "TrueHeading": point.angle,
+            "MagneticHeading": point.angle,
         }
-        if self.alt is not None:
-            desc["MAPAltitude"] = self.alt
-        return desc
-
-
-class GPXPointAngle(T.NamedTuple):
-    point: GPXPoint
-    angle: T.Optional[float]
-
-    def as_desc(self) -> Image:
-        desc = self.point.as_desc()
-        if self.angle is not None:
-            desc["MAPCompassHeading"] = {
-                "TrueHeading": self.angle,
-                "MagneticHeading": self.angle,
-            }
-        return desc
+    return desc
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 import typing as T
 import gpxpy
+import datetime
 
-from .. import types
+from .. import geo
 
 
 def is_video_stationary(max_distance_from_start: float) -> bool:
@@ -9,7 +10,7 @@ def is_video_stationary(max_distance_from_start: float) -> bool:
     return max_distance_from_start < radius_threshold
 
 
-def convert_points_to_gpx(points: T.List[types.GPXPoint]) -> gpxpy.gpx.GPX:
+def convert_points_to_gpx(points: T.List[geo.Point]) -> gpxpy.gpx.GPX:
     gpx = gpxpy.gpx.GPX()
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx.tracks.append(gpx_track)
@@ -18,7 +19,10 @@ def convert_points_to_gpx(points: T.List[types.GPXPoint]) -> gpxpy.gpx.GPX:
     for point in points:
         gpx_segment.points.append(
             gpxpy.gpx.GPXTrackPoint(
-                point.lat, point.lon, elevation=point.alt, time=point.time
+                point.lat,
+                point.lon,
+                elevation=point.alt,
+                time=datetime.datetime.utcfromtimestamp(point.time),
             )
         )
     return gpx

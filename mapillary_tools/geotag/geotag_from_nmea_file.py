@@ -4,7 +4,7 @@ import datetime
 import pynmea2
 
 from .geotag_from_gpx import GeotagFromGPX
-from .. import types
+from .. import geo
 
 
 class GeotagFromNMEAFile(GeotagFromGPX):
@@ -26,7 +26,7 @@ class GeotagFromNMEAFile(GeotagFromGPX):
         )
 
 
-def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[types.GPXPoint]:
+def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[geo.Point]:
     with open(nmea_file, "r") as f:
         lines = f.readlines()
         lines = [l.rstrip("\n\r") for l in lines]
@@ -47,9 +47,13 @@ def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[types.GPXPoint]:
 
         if "$GPGGA" in l:
             data = pynmea2.parse(l)
-            timestamp = datetime.datetime.combine(date, data.timestamp)
+            dt = datetime.datetime.combine(date, data.timestamp)
             lat, lon, alt = data.latitude, data.longitude, data.altitude
-            points.append(types.GPXPoint(time=timestamp, lat=lat, lon=lon, alt=alt))
+            points.append(
+                geo.Point(
+                    time=geo.as_unix_time(dt), lat=lat, lon=lon, alt=alt, angle=None
+                )
+            )
 
     points.sort()
     return points
