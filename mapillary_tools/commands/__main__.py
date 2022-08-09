@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from .. import constants, exceptions, VERSION
+from .. import VERSION, exceptions, constants
 from . import (
     authenticate,
     process,

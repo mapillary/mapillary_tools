@@ -1,17 +1,17 @@
-import datetime
-import logging
 import os
 import typing as T
-
-from .. import geo, types
-from ..exceptions import (
-    MapillaryGeoTaggingError,
-    MapillaryGPXEmptyError,
-    MapillaryOutsideGPXTrackError,
-)
-from ..exif_read import ExifRead
+import datetime
+import logging
 
 from .geotag_from_generic import GeotagFromGeneric
+from .. import types
+from ..exceptions import (
+    MapillaryGeoTaggingError,
+    MapillaryOutsideGPXTrackError,
+    MapillaryGPXEmptyError,
+)
+from .. import geo
+from ..exif_read import ExifRead
 
 
 LOG = logging.getLogger(__name__)

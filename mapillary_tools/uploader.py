@@ -1,25 +1,24 @@
+import sys
 import io
 import json
-import logging
+import uuid
+import typing as T
 import os
-import sys
 import tempfile
+import logging
 
 import time
-import typing as T
-import uuid
 import zipfile
 
-import jsonschema
-
 import requests
+import jsonschema
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
 else:
     from typing_extensions import Literal
 
-from . import exif_write, types, upload_api_v4, utils
+from . import upload_api_v4, types, exif_write, utils
 
 
 MIN_CHUNK_SIZE = 1024 * 1024  # 1MB

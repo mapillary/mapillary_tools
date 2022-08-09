@@ -4,15 +4,15 @@ import typing as T
 
 from tqdm import tqdm
 
-from .. import types, utils
+from .. import utils, types
 from ..exceptions import (
-    MapillaryInvalidBlackVueVideoError,
     MapillaryStationaryVideoError,
+    MapillaryInvalidBlackVueVideoError,
 )
 from ..geo import get_max_distance_from_start
-from . import blackvue_utils, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
+from . import utils as geotag_utils, blackvue_utils
 
 LOG = logging.getLogger(__name__)
 

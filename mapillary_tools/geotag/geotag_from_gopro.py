@@ -1,20 +1,19 @@
+import sys
 import datetime
 import logging
 import os
-import sys
 import tempfile
 import typing as T
 from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import constants, exceptions, ffmpeg as ffmpeglib, types, utils
-from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from . import utils as geotag_utils
-from .geotag_from_generic import GeotagFromGeneric
-
 from .geotag_from_gpx import GeotagFromGPXWithProgress
-from .gpmf import interpolate_times, parse_bin
+from .geotag_from_generic import GeotagFromGeneric
+from .gpmf import parse_bin, interpolate_times
+from . import utils as geotag_utils
+from ..geo import get_max_distance_from_start, gps_distance, pairwise
+from .. import types, ffmpeg as ffmpeglib, exceptions, utils, constants
 
 
 LOG = logging.getLogger(__name__)

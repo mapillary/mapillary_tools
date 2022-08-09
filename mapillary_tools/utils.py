@@ -1,6 +1,6 @@
-import hashlib
 import os
 import typing as T
+import hashlib
 
 
 def md5sum_fp(fp: T.IO[bytes]) -> str:

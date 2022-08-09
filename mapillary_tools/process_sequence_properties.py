@@ -1,12 +1,12 @@
-import datetime
-import itertools
 import os
 import typing as T
+import datetime
 import uuid
+import itertools
 
-from . import constants, types
+from . import types, constants
+from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
 from .exceptions import MapillaryDuplicationError
-from .geo import compute_bearing, diff_bearing, gps_distance, pairwise
 
 MAX_SEQUENCE_LENGTH = 500
 

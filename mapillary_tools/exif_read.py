@@ -1,7 +1,7 @@
+import sys
+from typing import List, Optional, Tuple, Type, Union, Any
 import datetime
 import os
-import sys
-from typing import Any, List, Optional, Tuple, Type, Union
 
 import exifread
 from exifread.utils import Ratio

@@ -1,8 +1,8 @@
+import typing as T
 import os
 import time
-import typing as T
 
-from . import exceptions, types, VERSION
+from . import VERSION, types, exceptions
 from .types import MetaProperties
 
 

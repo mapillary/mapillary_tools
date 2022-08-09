@@ -1,11 +1,10 @@
-import datetime
 import typing as T
+import datetime
 
 import pynmea2
 
-from .. import types
-
 from .geotag_from_gpx import GeotagFromGPX
+from .. import types
 
 
 class GeotagFromNMEAFile(GeotagFromGPX):

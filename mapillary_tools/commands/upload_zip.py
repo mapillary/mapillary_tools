@@ -1,8 +1,7 @@
 import inspect
 
-from .. import constants
-
 from ..upload import upload_multiple
+from .. import constants
 from .upload import Command as UploadCommand
 
 

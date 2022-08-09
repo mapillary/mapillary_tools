@@ -1,6 +1,6 @@
-import argparse
-import inspect
 import os
+import inspect
+import argparse
 
 from .. import constants
 from ..sample_video import sample_video
