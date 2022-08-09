@@ -20,5 +20,5 @@ IMAGE_DESCRIPTION_FILENAME = os.getenv(
 SAMPLED_VIDEO_FRAMES_FILENAME = os.getenv(
     _ENV_PREFIX + "SAMPLED_VIDEO_FRAMES_FILENAME", "mapillary_sampled_video_frames"
 )
-
+MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 500))
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")

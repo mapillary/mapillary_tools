@@ -1,12 +1,10 @@
-import datetime
 import os
 import typing as T
 import logging
 
 from tqdm import tqdm
 
-from .. import types, utils, exceptions
-from ..geo import get_max_distance_from_start
+from .. import types, utils, exceptions, geo
 from . import camm_parser, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
@@ -51,7 +49,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
-                get_max_distance_from_start([(p.lat, p.lon) for p in points])
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
             ):
                 LOG.warning(
                     "Fail %d sample images due to stationary video %s",
@@ -76,15 +74,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
                 geotag = GeotagFromGPXWithProgress(
                     self.image_dir,
                     sample_images,
-                    [
-                        types.GPXPoint(
-                            time=datetime.datetime.utcfromtimestamp(p.time),
-                            lat=p.lat,
-                            lon=p.lon,
-                            alt=p.alt,
-                        )
-                        for p in points
-                    ],
+                    points,
                     use_gpx_start_time=False,
                     use_image_start_time=True,
                     offset_time=self.offset_time,

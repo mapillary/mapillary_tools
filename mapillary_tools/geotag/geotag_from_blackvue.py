@@ -4,7 +4,7 @@ import typing as T
 
 from tqdm import tqdm
 
-from .. import utils, types
+from .. import utils, types, geo
 from ..exceptions import (
     MapillaryStationaryVideoError,
     MapillaryInvalidBlackVueVideoError,
@@ -95,7 +95,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 geotag = GeotagFromGPXWithProgress(
                     self.image_dir,
                     sample_images,
-                    T.cast(T.List[types.GPXPoint], points),
+                    points,
                     use_gpx_start_time=self.use_gpx_start_time,
                     offset_time=self.offset_time,
                     progress_bar=pbar,

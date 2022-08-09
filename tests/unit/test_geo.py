@@ -2,7 +2,7 @@ import dataclasses
 import datetime
 import typing as T
 
-from mapillary_tools.geo import interpolate, Point, as_timestamp
+from mapillary_tools.geo import interpolate, Point, as_unix_time
 
 
 # lat, lon, bearing, alt
@@ -85,4 +85,4 @@ def test_point_sorting():
 
 def test_timestamp():
     t = datetime.datetime.utcfromtimestamp(123)
-    assert as_timestamp(t) == 123
+    assert as_unix_time(t) == 123

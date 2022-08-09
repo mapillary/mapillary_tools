@@ -8,7 +8,7 @@ from tqdm import tqdm
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 
-from .. import types, exif_read
+from .. import types, exif_read, geo
 
 
 LOG = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 len(tracks),
                 source_path,
             )
-        self.points: T.List[types.GPXPoint] = sum(tracks, [])
+        self.points: T.List[geo.Point] = sum(tracks, [])
         self.image_dir = image_dir
         self.images = images
         self.source_path = source_path
@@ -96,7 +96,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
         )
 
 
-Track = T.List[types.GPXPoint]
+Track = T.List[geo.Point]
 
 
 def parse_gpx(gpx_file: str) -> T.List[Track]:
@@ -110,11 +110,12 @@ def parse_gpx(gpx_file: str) -> T.List[Track]:
             tracks.append([])
             for point in segment.points:
                 tracks[-1].append(
-                    types.GPXPoint(
-                        point.time.replace(tzinfo=None),
+                    geo.Point(
+                        time=geo.as_unix_time(point.time),
                         lat=point.latitude,
                         lon=point.longitude,
                         alt=point.elevation,
+                        angle=None,
                     )
                 )
 
