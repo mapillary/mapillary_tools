@@ -1,11 +1,12 @@
-import os
 import json
+import os
 import subprocess
 
-import pytest
 import py.path
 
-from .test_process import setup_config, setup_upload, EXECUTABLE, is_ffmpeg_installed
+import pytest
+
+from .test_process import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
 
 
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"

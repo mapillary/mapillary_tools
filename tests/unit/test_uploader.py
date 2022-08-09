@@ -1,12 +1,12 @@
 import json
 import os
-import zipfile
 import tempfile
+import zipfile
 
 import py.path
 import pytest
 
-from mapillary_tools import uploader, exif_read
+from mapillary_tools import exif_read, uploader
 
 
 def _validate_and_extract_zip(filename: str):

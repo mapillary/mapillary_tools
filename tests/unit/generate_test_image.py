@@ -1,6 +1,7 @@
 import argparse
 import io
 import os
+
 import piexif
 
 
