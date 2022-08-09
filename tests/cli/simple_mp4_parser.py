@@ -1,10 +1,10 @@
-import typing as T
-import logging
-import sys
-import os
 import argparse
 import io
+import logging
+import os
 import pathlib
+import sys
+import typing as T
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import simple_mp4_parser

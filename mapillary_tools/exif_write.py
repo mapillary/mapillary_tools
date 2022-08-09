@@ -1,8 +1,8 @@
 import datetime
-import json
 import io
-import typing as T
+import json
 import logging
+import typing as T
 
 import piexif
 

@@ -1,7 +1,7 @@
-import typing as T
 import datetime
-import re
 import logging
+import re
+import typing as T
 
 import pynmea2
 
@@ -163,8 +163,9 @@ def parse_gps_points(path: str) -> T.List[geo.Point]:
 
 
 if __name__ == "__main__":
-    import sys, os
-    from .. import utils, types, geo
+    import os, sys
+
+    from .. import geo, types, utils
     from . import utils as geotag_utils
 
     def _convert(path: str):

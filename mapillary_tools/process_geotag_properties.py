@@ -1,15 +1,15 @@
+import collections
+import datetime
+import json
 import logging
 import os
 import typing as T
-import json
-import datetime
-import collections
 
 import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import types, exceptions, uploader, utils, constants
+from . import constants, exceptions, types, uploader, utils
 from .exif_write import ExifEdit
 from .geo import normalize_bearing
 from .geotag import (

@@ -4,10 +4,10 @@ import os
 import shutil
 import time
 import typing as T
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
-from . import utils, ffmpeg as ffmpeglib, types, exceptions, constants
+from . import constants, exceptions, ffmpeg as ffmpeglib, types, utils
 from .exif_write import ExifEdit
 
 LOG = logging.getLogger(__name__)

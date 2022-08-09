@@ -1,7 +1,7 @@
-import uuid
 import datetime
 import itertools
 import typing as T
+import uuid
 
 from mapillary_tools import process_sequence_properties as psp, types
 

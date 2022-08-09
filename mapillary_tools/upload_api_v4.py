@@ -1,8 +1,9 @@
-import requests
-import os
 import io
+import os
 import sys
 import typing as T
+
+import requests
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
@@ -247,7 +248,8 @@ def _file_stats(fp: T.IO[bytes]):
 
 
 if __name__ == "__main__":
-    import sys, hashlib, os
+    import hashlib, os, sys
+
     import tqdm
 
     user_access_token = os.getenv("MAPILLARY_TOOLS_USER_ACCESS_TOKEN")

@@ -1,7 +1,9 @@
-from . import authenticate
-from . import process
-from . import process_and_upload
-from . import sample_video
-from . import upload
-from . import video_process
-from . import video_process_and_upload
+from . import (
+    authenticate,
+    process,
+    process_and_upload,
+    sample_video,
+    upload,
+    video_process,
+    video_process_and_upload,
+)

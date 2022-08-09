@@ -1,7 +1,8 @@
 import os
 import unittest
-from PIL import Image, ExifTags
+
 from mapillary_tools.exif_read import ExifRead
+from PIL import ExifTags, Image
 
 """Initialize all the neccessary data"""
 
