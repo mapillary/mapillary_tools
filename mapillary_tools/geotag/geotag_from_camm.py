@@ -1,11 +1,11 @@
 import datetime
+import logging
 import os
 import typing as T
-import logging
 
 from tqdm import tqdm
 
-from .. import types, utils, exceptions
+from .. import exceptions, types, utils
 from ..geo import get_max_distance_from_start
 from . import camm_parser, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric

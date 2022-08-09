@@ -1,4 +1,5 @@
 import typing as T
+
 import gpxpy
 
 from .. import types

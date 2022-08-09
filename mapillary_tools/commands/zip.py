@@ -1,5 +1,5 @@
-import inspect
 import argparse
+import inspect
 
 from ..upload import zip_images
 

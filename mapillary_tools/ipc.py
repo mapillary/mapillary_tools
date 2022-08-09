@@ -1,7 +1,7 @@
 import json
+import logging
 import os
 import struct
-import logging
 
 
 LOG = logging.getLogger(__name__)
