@@ -156,8 +156,11 @@ class Point:
     angle: T.Optional[float]
 
 
-def as_timestamp(dt: datetime.datetime):
+def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
+    if isinstance(dt, (int, float)):
+        return dt
     if dt.tzinfo is None:
+        # assume UTC if no timezone is given
         aware_dt = dt.replace(tzinfo=datetime.timezone.utc)
     else:
         aware_dt = dt

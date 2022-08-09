@@ -1,44 +1,44 @@
+import dataclasses
+import itertools
 import os
 import typing as T
-import datetime
 import uuid
-import itertools
 
-from . import types, constants
-from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
+from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
 
-MAX_SEQUENCE_LENGTH = 500
 
-
-class _GPXPoint:
-    desc: types.ImageDescriptionFile
+@dataclasses.dataclass
+class DescPoint(geo.Point):
+    _desc: types.ImageDescriptionFile
+    sequence_uuid: T.Optional[str] = None
 
     def __init__(self, desc: types.ImageDescriptionFile):
-        self.desc = desc
+        self._desc = desc
+        super().__init__(
+            time=geo.as_unix_time(
+                types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+            ),
+            lat=desc["MAPLatitude"],
+            lon=desc["MAPLongitude"],
+            alt=desc.get("MAPAltitude"),
+            angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
+        )
 
-    @property
-    def filename(self) -> str:
-        return self.desc["filename"]
-
-    @property
-    def lat(self) -> float:
-        return self.desc["MAPLatitude"]
-
-    @property
-    def lon(self) -> float:
-        return self.desc["MAPLongitude"]
-
-    @property
-    def time(self) -> datetime.datetime:
-        return types.map_capture_time_to_datetime(self.desc["MAPCaptureTime"])
-
-    @property
-    def angle(self) -> T.Optional[float]:
-        return self.desc.get("MAPCompassHeading", {}).get("TrueHeading")
+    def as_desc(self) -> types.ImageDescriptionFile:
+        new_desc = T.cast(
+            types.ImageDescriptionFile,
+            {
+                **self._desc,
+                **types.as_desc(self),
+            },
+        )
+        if self.sequence_uuid is not None:
+            new_desc["MAPSequenceUUID"] = self.sequence_uuid
+        return new_desc
 
 
-GPXSequence = T.List[_GPXPoint]
+GPXSequence = T.List[geo.Point]
 
 
 def cut_sequences(
@@ -46,21 +46,21 @@ def cut_sequences(
     cutoff_distance: float,
     cutoff_time: float,
 ) -> T.List[GPXSequence]:
-    sequences: T.List[T.List[_GPXPoint]] = []
+    sequences: T.List[GPXSequence] = []
 
     if sequence:
         sequences.append([sequence[0]])
 
-    for prev, cur in pairwise(sequence):
+    for prev, cur in geo.pairwise(sequence):
         # invariant: prev is processed
-        distance = gps_distance(
+        distance = geo.gps_distance(
             (prev.lat, prev.lon),
             (cur.lat, cur.lon),
         )
         if cutoff_distance <= distance:
             sequences.append([cur])
             continue
-        time_diff = (cur.time - prev.time).total_seconds()
+        time_diff = cur.time - prev.time
         if cutoff_time <= time_diff:
             sequences.append([cur])
             continue
@@ -82,14 +82,14 @@ def find_duplicates(
     sequence_iter = iter(sequence)
     prev = next(sequence_iter)
     for idx, cur in enumerate(sequence_iter):
-        distance = gps_distance(
+        distance = geo.gps_distance(
             (prev.lat, prev.lon),
             (cur.lat, cur.lon),
         )
         distance_duplicated = distance <= duplicate_distance
 
         if prev.angle is not None and cur.angle is not None:
-            bearing_delta = diff_bearing(prev.angle, cur.angle)
+            bearing_delta = geo.diff_bearing(prev.angle, cur.angle)
             angle_duplicated = bearing_delta <= duplicate_angle
         else:
             angle_duplicated = False
@@ -103,6 +103,41 @@ def find_duplicates(
     return duplicates
 
 
+def duplication_check(
+    sequence: GPXSequence,
+    duplicate_distance: float,
+    duplicate_angle: float,
+) -> T.Tuple[GPXSequence, GPXSequence]:
+    dup_indices = find_duplicates(
+        sequence,
+        duplicate_distance=duplicate_distance,
+        duplicate_angle=duplicate_angle,
+    )
+    dup_set = set(dup_indices)
+    dedups = [image for idx, image in enumerate(sequence) if idx not in dup_set]
+    dups = [image for idx, image in enumerate(sequence) if idx in dup_set]
+    return dedups, dups
+
+
+def interpolate_directions_if_none(sequence: GPXSequence) -> None:
+    for cur, nex in geo.pairwise(sequence):
+        if cur.angle is None:
+            cur.angle = geo.compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
+
+    if 2 <= len(sequence):
+        if sequence[-1].angle is None:
+            sequence[-1].angle = sequence[-2].angle
+
+
+def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
+    sequences: T.List[GPXSequence] = []
+    for idx in range(0, len(sequence), constants.MAX_SEQUENCE_LENGTH):
+        sequences.append([])
+        for image in sequence[idx : idx + constants.MAX_SEQUENCE_LENGTH]:
+            sequences[-1].append(image)
+    return sequences
+
+
 def group_descs_by_folder(
     descs: T.List[types.ImageDescriptionFile],
 ) -> T.List[T.List[types.ImageDescriptionFile]]:
@@ -114,93 +149,6 @@ def group_descs_by_folder(
     return sequences
 
 
-def duplication_check(
-    sequence: GPXSequence,
-    duplicate_distance: float,
-    duplicate_angle: float,
-) -> T.Tuple[GPXSequence, T.List[types.ImageDescriptionFileError]]:
-    dup_indices = find_duplicates(
-        sequence,
-        duplicate_distance=duplicate_distance,
-        duplicate_angle=duplicate_angle,
-    )
-    dup_set = set(dup_indices)
-    dups = [image for idx, image in enumerate(sequence) if idx in dup_set]
-    failures: T.List[types.ImageDescriptionFileError] = []
-    for image in dups:
-        error: types.ImageDescriptionFileError = {
-            "error": types.describe_error(
-                MapillaryDuplicationError("duplicated", image.desc)
-            ),
-            "filename": image.filename,
-        }
-
-        failures.append(error)
-
-    dedups = [image for idx, image in enumerate(sequence) if idx not in dup_set]
-    return dedups, failures
-
-
-def interpolate(sequence: GPXSequence, interpolate_directions: bool) -> GPXSequence:
-    interpolated: GPXSequence = []
-    for cur, nex in pairwise(sequence):
-        # should interpolate or not
-        if interpolate_directions or cur.angle is None:
-            new_bearing = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
-            new_desc = T.cast(
-                types.ImageDescriptionFile,
-                {
-                    **cur.desc,
-                    "MAPCompassHeading": {
-                        "TrueHeading": new_bearing,
-                        "MagneticHeading": new_bearing,
-                    },
-                },
-            )
-            interpolated.append(_GPXPoint(new_desc))
-        else:
-            interpolated.append(cur)
-
-    if interpolated:
-        assert len(interpolated) == len(sequence) - 1
-    else:
-        assert len(sequence) <= 1
-
-    # interpolate the last image's angle
-    # can interpolate or not
-    if 2 <= len(sequence) and interpolated[-1] is not None:
-        # should interpolate or not
-        if interpolate_directions or sequence[-1] is None:
-            new_desc = T.cast(
-                types.ImageDescriptionFile,
-                {
-                    **sequence[-1].desc,
-                    "MAPCompassHeading": {
-                        "TrueHeading": interpolated[-1].angle,
-                        "MagneticHeading": interpolated[-1].angle,
-                    },
-                },
-            )
-            interpolated.append(_GPXPoint(new_desc))
-        else:
-            interpolated.append(sequence[-1])
-    else:
-        interpolated.append(sequence[-1])
-
-    assert len(interpolated) == len(sequence)
-
-    return interpolated
-
-
-def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
-    sequences: T.List[GPXSequence] = []
-    for idx in range(0, len(sequence), MAX_SEQUENCE_LENGTH):
-        sequences.append([])
-        for image in sequence[idx : idx + MAX_SEQUENCE_LENGTH]:
-            sequences[-1].append(image)
-    return sequences
-
-
 def process_sequence_properties(
     descs: T.List[types.ImageDescriptionFileOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
@@ -209,44 +157,61 @@ def process_sequence_properties(
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    groups = group_descs_by_folder(types.filter_out_errors(descs))
+    error_descs: T.List[types.ImageDescriptionFileError] = []
+    good_descs: T.List[types.ImageDescriptionFile] = []
+    processed_descs: T.List[types.ImageDescriptionFile] = []
 
+    for desc in descs:
+        if types.is_error(desc):
+            error_descs.append(T.cast(types.ImageDescriptionFileError, desc))
+        else:
+            good_descs.append(T.cast(types.ImageDescriptionFile, desc))
+
+    groups = group_descs_by_folder(good_descs)
+
+    # cut sequences
     sequences = []
     for group in groups:
-        sequences.extend(
-            cut_sequences(
-                [_GPXPoint(desc) for desc in group], cutoff_distance, cutoff_time
-            )
-        )
-
-    processed = [desc for desc in descs if types.is_error(desc)]
+        s: GPXSequence = [DescPoint(desc) for desc in group]
+        sequences.extend(cut_sequences(s, cutoff_distance, cutoff_time))
+    assert len(good_descs) == sum(len(s) for s in sequences)
 
     for sequence in sequences:
         # duplication check
-        passed, failed = duplication_check(
+        sequence, dups = duplication_check(
             sequence,
             duplicate_distance=duplicate_distance,
             duplicate_angle=duplicate_angle,
         )
-        for desc in failed:
-            processed.append(desc)
+        for dup in dups:
+            desc = T.cast(DescPoint, dup).as_desc()
+            error_descs.append(
+                {
+                    "error": types.describe_error(
+                        MapillaryDuplicationError("duplicated", desc)
+                    ),
+                    "filename": desc["filename"],
+                }
+            )
 
         # interpolate angles
-        interpolated = interpolate(passed, interpolate_directions)
+        if interpolate_directions:
+            for p in sequence:
+                p.angle = None
+        interpolate_directions_if_none(sequence)
 
         # cut sequence per MAX_SEQUENCE_LENGTH images
-        capped = cap_sequence(interpolated)
+        capped = cap_sequence(sequence)
 
+        # assign sequence UUIDs
         for s in capped:
             sequence_uuid = str(uuid.uuid4())
-            for p in s:
-                processed.append(
-                    T.cast(
-                        types.ImageDescriptionFile,
-                        {**p.desc, "MAPSequenceUUID": sequence_uuid},
-                    )
-                )
+            for p in T.cast(T.List[DescPoint], s):
+                p.sequence_uuid = sequence_uuid
+                processed_descs.append(p.as_desc())
 
-    assert len(descs) == len(processed)
+    assert len(descs) == len(error_descs) + len(processed_descs)
 
-    return processed
+    return T.cast(T.List[types.ImageDescriptionFileOrError], error_descs) + T.cast(
+        T.List[types.ImageDescriptionFileOrError], processed_descs
+    )

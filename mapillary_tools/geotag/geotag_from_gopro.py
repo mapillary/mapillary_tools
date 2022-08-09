@@ -13,7 +13,7 @@ from .geotag_from_generic import GeotagFromGeneric
 from .gpmf import parse_bin, interpolate_times
 from . import utils as geotag_utils
 from ..geo import get_max_distance_from_start, gps_distance, pairwise
-from .. import types, ffmpeg as ffmpeglib, exceptions, utils, constants
+from .. import types, ffmpeg as ffmpeglib, exceptions, utils, constants, geo
 
 
 LOG = logging.getLogger(__name__)
@@ -132,12 +132,12 @@ def extract_and_parse_bin(path: Path) -> T.List:
                     pass
 
 
-def get_points_from_gpmf(path: Path) -> T.List[types.GPXPoint]:
+def get_points_from_gpmf(path: Path) -> T.List[geo.Point]:
     gpmf_data = extract_and_parse_bin(path)
 
     rows = len(gpmf_data)
 
-    points: T.List[types.GPXPoint] = []
+    points: T.List[geo.Point] = []
     for i, frame in enumerate(gpmf_data):
         t = frame["time"]
 
@@ -150,12 +150,12 @@ def get_points_from_gpmf(path: Path) -> T.List[types.GPXPoint]:
 
         for point in frame["gps"]:
             points.append(
-                types.GPXPoint(
-                    time=point["time"],
+                geo.Point(
+                    time=geo.as_unix_time(point["time"]),
                     lat=point["lat"],
                     lon=point["lon"],
                     alt=point["alt"],
-                    # frame["gps_fix"],
+                    angle=None,
                 )
             )
 
