@@ -1,11 +1,10 @@
 import os
 import subprocess
 
+import pytest
 import py.path
 
-import pytest
-
-from .test_process import EXECUTABLE, setup_config, setup_data, setup_upload, USERNAME
+from .test_process import EXECUTABLE, USERNAME, setup_data, setup_config, setup_upload
 
 
 @pytest.fixture

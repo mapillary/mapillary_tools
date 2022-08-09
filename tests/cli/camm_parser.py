@@ -1,8 +1,7 @@
 import datetime
-import os, sys
-
-from mapillary_tools import types, utils
-from mapillary_tools.geotag import camm_parser, utils as geotag_utils
+import sys, os
+from mapillary_tools import utils, types
+from mapillary_tools.geotag import utils as geotag_utils, camm_parser
 
 if __name__ == "__main__":
 

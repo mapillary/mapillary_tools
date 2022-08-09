@@ -1,13 +1,12 @@
-import hashlib
 import json
 import os
 import subprocess
 import zipfile
-
-import exifread
-import py.path
+import hashlib
 
 import pytest
+import py.path
+import exifread
 
 EXECUTABLE = os.getenv(
     "MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools.commands"

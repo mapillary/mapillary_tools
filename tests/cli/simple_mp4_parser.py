@@ -1,6 +1,6 @@
+import os
 import argparse
 import io
-import os
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import simple_mp4_parser

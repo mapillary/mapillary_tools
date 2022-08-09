@@ -1,13 +1,13 @@
 import datetime
-import json
 import os
+import json
 import shutil
 from pathlib import Path
 
 import py.path
 import pytest
 
-from mapillary_tools import constants, exif_read, ffmpeg, sample_video, types
+from mapillary_tools import sample_video, ffmpeg, exif_read, types, constants
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
