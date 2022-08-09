@@ -48,7 +48,7 @@ def _parse_gps_box(gps_data: bytes) -> T.List[geo.Point]:
                 )
 
         if not found_first_gps_date:
-            if "GPRMC" in m:
+            if "$GPRMC" in m:
                 try:
                     data = pynmea2.parse(m)
                     if data.is_valid:
