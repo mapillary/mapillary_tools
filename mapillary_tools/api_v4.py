@@ -1,8 +1,9 @@
-import typing as T
-import sys
 import os
-import requests
+import sys
+import typing as T
 from typing import Union
+
+import requests
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module

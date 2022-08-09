@@ -4,10 +4,11 @@ import typing as T
 
 from tqdm import tqdm
 
-from .geotag_from_generic import GeotagFromGeneric
 from .. import types
-from ..exif_read import ExifRead
 from ..exceptions import MapillaryGeoTaggingError
+from ..exif_read import ExifRead
+
+from .geotag_from_generic import GeotagFromGeneric
 
 LOG = logging.getLogger(__name__)
 

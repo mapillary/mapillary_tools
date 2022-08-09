@@ -8,3 +8,4 @@ flake8
 types-requests
 types-appdirs
 types-dataclasses; python_version<='3.6'
+usort

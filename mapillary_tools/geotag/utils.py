@@ -1,6 +1,7 @@
-import typing as T
-import gpxpy
 import datetime
+import typing as T
+
+import gpxpy
 
 from .. import geo
 

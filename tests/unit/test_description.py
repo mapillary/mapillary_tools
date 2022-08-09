@@ -1,8 +1,9 @@
 import json
 import os
+
 import jsonschema
 
-from mapillary_tools.types import validate_desc, ImageDescriptionFileSchema
+from mapillary_tools.types import ImageDescriptionFileSchema, validate_desc
 
 
 def test_validate_descs_ok():

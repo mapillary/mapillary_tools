@@ -5,10 +5,10 @@ import typing as T
 import gpxpy
 from tqdm import tqdm
 
+from .. import exif_read, geo, types
+
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
-
-from .. import types, exif_read, geo
 
 
 LOG = logging.getLogger(__name__)

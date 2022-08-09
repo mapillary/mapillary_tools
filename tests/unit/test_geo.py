@@ -2,7 +2,7 @@ import dataclasses
 import datetime
 import typing as T
 
-from mapillary_tools.geo import interpolate, Point, as_unix_time
+from mapillary_tools.geo import as_unix_time, interpolate, Point
 
 
 # lat, lon, bearing, alt

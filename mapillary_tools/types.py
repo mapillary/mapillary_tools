@@ -3,9 +3,9 @@ import sys
 import typing as T
 
 if sys.version_info >= (3, 8):
-    from typing import TypedDict, Literal  # pylint: disable=no-name-in-module
+    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
 else:
-    from typing_extensions import TypedDict, Literal
+    from typing_extensions import Literal, TypedDict
 
 import jsonschema
 

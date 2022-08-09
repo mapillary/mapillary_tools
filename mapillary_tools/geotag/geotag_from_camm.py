@@ -1,10 +1,10 @@
+import logging
 import os
 import typing as T
-import logging
 
 from tqdm import tqdm
 
-from .. import types, utils, exceptions, geo
+from .. import exceptions, geo, types, utils
 from . import camm_parser, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress

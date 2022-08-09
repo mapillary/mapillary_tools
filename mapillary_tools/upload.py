@@ -1,11 +1,11 @@
-import os
-import sys
-import typing as T
 import json
 import logging
-import time
-import uuid
+import os
 import string
+import sys
+import time
+import typing as T
+import uuid
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
@@ -16,15 +16,15 @@ import requests
 from tqdm import tqdm
 
 from . import (
-    uploader,
-    types,
     api_v4,
-    ipc,
-    exceptions,
-    config,
     authenticate,
-    utils,
+    config,
     constants,
+    exceptions,
+    ipc,
+    types,
+    uploader,
+    utils,
 )
 from .geo import get_max_distance_from_start
 from .geotag import blackvue_utils, utils as video_utils

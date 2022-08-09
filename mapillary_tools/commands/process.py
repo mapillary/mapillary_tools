@@ -1,11 +1,9 @@
-import inspect
 import argparse
+import inspect
 
 from .. import constants
-from ..process_geotag_properties import process_geotag_properties, process_finalize
-from ..process_import_meta_properties import (
-    process_import_meta_properties,
-)
+from ..process_geotag_properties import process_finalize, process_geotag_properties
+from ..process_import_meta_properties import process_import_meta_properties
 from ..process_sequence_properties import process_sequence_properties
 
 
