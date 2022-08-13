@@ -294,7 +294,7 @@ def extract_samples(
     chunk_entries: T.List,
     offsets: T.List[int],
     time_deltas: T.List[int],
-):
+) -> T.Generator[Sample, None, None]:
     assert chunk_entries, "empty chunk entries"
     assert len(sizes) == len(
         time_deltas
@@ -338,7 +338,9 @@ def extract_samples(
         chunk_idx += 1
 
 
-def parse_samples_from_stbl(stbl: T.BinaryIO, maxsize: int = -1):
+def parse_samples_from_stbl(
+    stbl: T.BinaryIO, maxsize: int = -1
+) -> T.Generator[Sample, None, None]:
     descriptions = []
     sizes = []
     offsets = []
@@ -377,15 +379,16 @@ def parse_samples_from_stbl(stbl: T.BinaryIO, maxsize: int = -1):
     yield from extract_samples(descriptions, sizes, chunk_entries, offsets, time_deltas)
 
 
-def parse_samples_from_trak(trak: T.BinaryIO, maxsize: int = -1):
-    box = None
-
+def parse_samples_from_trak(
+    trak: T.BinaryIO, maxsize: int = -1
+) -> T.Generator[Sample, None, None]:
     offset = trak.tell()
-    for h, s in parse_path(trak, [b"mdia", b"mdhd"], maxsize=maxsize):
-        box = MediaHeaderBox.parse(s.read(h.maxsize))
-        break
 
-    assert box is not None, "mdhd is required but not found"
+    mdhd = None
+    for h, s in parse_path(trak, [b"mdia", b"mdhd"], maxsize=maxsize):
+        mdhd = MediaHeaderBox.parse(s.read(h.maxsize))
+        break
+    assert mdhd is not None, "mdhd is required but not found"
 
     trak.seek(offset, io.SEEK_SET)
     for h, s in parse_path(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize):
@@ -394,7 +397,7 @@ def parse_samples_from_trak(trak: T.BinaryIO, maxsize: int = -1):
                 description=sample.description,
                 offset=sample.offset,
                 size=sample.size,
-                delta=sample.delta / box.timescale,
+                delta=sample.delta / mdhd.timescale,
             )
         break
 
