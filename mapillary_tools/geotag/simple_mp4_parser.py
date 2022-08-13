@@ -281,20 +281,36 @@ SampleToChunkBox = C.Struct(
 )
 
 
-class Sample(T.NamedTuple):
-    description: bytes
+class RawSample(T.NamedTuple):
+    # 1-based index
+    description_idx: int
+    # sample offset
     offset: int
+    # sample size
     size: int
-    delta: T.Union[int, float]
+    # sample_delta read from stts entries,
+    # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
+    time_delta: int
 
 
-def extract_samples(
-    descriptions: T.List,
+class Sample(T.NamedTuple):
+    # reference to the sample description
+    description: T.Any
+    # sample offset
+    offset: int
+    # sample size
+    size: int
+    # accumulated sample_delta,
+    # i.e. DT(n) in the forumula DT(n+1) = DT(n) + STTS(n)
+    time_offset: T.Union[int, float]
+
+
+def extract_raw_samples(
     sizes: T.List[int],
     chunk_entries: T.List,
     offsets: T.List[int],
     time_deltas: T.List[int],
-) -> T.Generator[Sample, None, None]:
+) -> T.Generator[RawSample, None, None]:
     assert chunk_entries, "empty chunk entries"
     assert len(sizes) == len(
         time_deltas
@@ -311,11 +327,11 @@ def extract_samples(
         for _ in range(nbr_chunks):
             sample_offset = offsets[chunk_idx]
             for _ in range(entry.samples_per_chunk):
-                yield Sample(
-                    description=descriptions[entry.sample_description_index - 1],
+                yield RawSample(
+                    description_idx=entry.sample_description_index,
                     offset=sample_offset,
                     size=sizes[sample_idx],
-                    delta=time_deltas[sample_idx],
+                    time_delta=time_deltas[sample_idx],
                 )
                 sample_offset += sizes[sample_idx]
                 sample_idx += 1
@@ -325,22 +341,35 @@ def extract_samples(
     while sample_idx < len(time_deltas):
         for _ in range(chunk_entries[-1].samples_per_chunk):
             sample_offset = offsets[chunk_idx]
-            yield Sample(
-                description=descriptions[
-                    chunk_entries[-1].sample_description_index - 1
-                ],
+            yield RawSample(
+                description_idx=chunk_entries[-1].sample_description_index - 1,
                 offset=sample_offset,
                 size=sizes[sample_idx],
-                delta=time_deltas[sample_idx],
+                time_delta=time_deltas[sample_idx],
             )
             sample_offset += sizes[sample_idx]
             sample_idx += 1
         chunk_idx += 1
 
 
-def parse_samples_from_stbl(
-    stbl: T.BinaryIO, maxsize: int = -1
+def extract_samples(
+    descriptions: T.List,
+    raw_samples: T.Iterator[RawSample],
 ) -> T.Generator[Sample, None, None]:
+    acc_delta = 0
+    for raw_sample in raw_samples:
+        yield Sample(
+            description=descriptions[raw_sample.description_idx - 1],
+            offset=raw_sample.offset,
+            size=raw_sample.size,
+            time_offset=acc_delta,
+        )
+        acc_delta += raw_sample.time_delta
+
+
+def parse_raw_samples_from_stbl(
+    stbl: T.BinaryIO, maxsize: int = -1
+) -> T.Tuple[T.List[bytes], T.Generator[RawSample, None, None]]:
     descriptions = []
     sizes = []
     offsets = []
@@ -367,16 +396,21 @@ def parse_samples_from_stbl(
             box = SampleToChunkBox.parse(s.read(h.maxsize))
             chunk_entries = list(box.entries)
         elif h.type == b"stts":
-            box = TimeToSampleBox.parse(s.read(h.maxsize))
             time_deltas = []
-            accumulated_delta = 0
+            box = TimeToSampleBox.parse(s.read(h.maxsize))
             for entry in box.entries:
                 for _ in range(entry.sample_count):
-                    # DT(n + 1) = DT(n) + STTS(n)
-                    time_deltas.append(accumulated_delta)
-                    accumulated_delta += entry.sample_delta
+                    time_deltas.append(entry.sample_delta)
 
-    yield from extract_samples(descriptions, sizes, chunk_entries, offsets, time_deltas)
+    raw_samples = extract_raw_samples(sizes, chunk_entries, offsets, time_deltas)
+    return descriptions, raw_samples
+
+
+def parse_samples_from_stbl(
+    stbl: T.BinaryIO, maxsize: int = -1
+) -> T.Generator[Sample, None, None]:
+    descriptions, raw_samples = parse_raw_samples_from_stbl(stbl, maxsize)
+    yield from extract_samples(descriptions, raw_samples)
 
 
 def parse_samples_from_trak(
@@ -397,7 +431,7 @@ def parse_samples_from_trak(
                 description=sample.description,
                 offset=sample.offset,
                 size=sample.size,
-                delta=sample.delta / mdhd.timescale,
+                time_offset=sample.time_offset / mdhd.timescale,
             )
         break
 
