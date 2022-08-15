@@ -1,4 +1,5 @@
 import io
+import typing as T
 
 import mapillary_tools.geotag.simple_mp4_builder as builder
 import mapillary_tools.geotag.simple_mp4_parser as parser
@@ -13,45 +14,58 @@ def test_build_moov():
     builder.MP4.build(parsed)
 
 
-def test_build_stbl():
-    samples = [
-        builder.RawSample(1, 1, 1, 2),
-        builder.RawSample(1, 1, 1, 2),
+def _build_and_parse_stbl(
+    descriptions: T.List[T.Any], expected_samples: T.List[builder.RawSample]
+):
+    s = builder.build_stbl_from_raw_samples(
+        descriptions,
+        expected_samples,
+    )
+    d = builder.Box.build(s)
+    x = parser.parse_path_first(io.BytesIO(d), [b"stbl"])
+    assert x, "must found"
+    h, s = x
+    ss = s.read(h.maxsize)
+    assert d[8:] == ss
+    _, parsed_samples = parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
+    assert expected_samples == list(parsed_samples)
+
+
+def test_build_stbl_happy():
+    descriptions = [
+        {"format": b"camm", "data": b""},
+        {"format": b"gopr", "data": b""},
     ]
-    s = builder.build_stbl_from_raw_samples(
-        [{"format": b"camm", "data": b""}],
-        samples,
-    )
-    d = builder.Box.build(s)
-    found = False
-    for h, s in parser.parse_path(io.BytesIO(d), [b"stbl"]):
-        ss = s.read(h.maxsize)
-        assert d[8:] == ss
-        descriptions, parsed_samples = parser.parse_raw_samples_from_stbl(
-            io.BytesIO(ss)
-        )
-        print(descriptions, list(parsed_samples))
-        found = True
-        break
-    assert found
 
+    samples = [
+        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
+        builder.RawSample(description_idx=1, offset=2, size=9, timedelta=2),
+    ]
+    _build_and_parse_stbl(descriptions, samples)
 
-def test_build_empty_stbl():
+    samples = [
+        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
+        builder.RawSample(description_idx=1, offset=2, size=2, timedelta=2),
+        # another chunk here due to a 1-byte break
+        builder.RawSample(description_idx=1, offset=5, size=1, timedelta=2),
+        builder.RawSample(description_idx=1, offset=6, size=9, timedelta=2),
+    ]
+    _build_and_parse_stbl(descriptions, samples)
+
+    samples = [
+        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
+        builder.RawSample(description_idx=1, offset=2, size=2, timedelta=2),
+        # another chunk here
+        builder.RawSample(description_idx=2, offset=4, size=1, timedelta=2),
+        # another chunk here
+        builder.RawSample(description_idx=1, offset=5, size=9, timedelta=2),
+    ]
+    _build_and_parse_stbl(descriptions, samples)
+
+    samples = [
+        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
+    ]
+    _build_and_parse_stbl(descriptions, samples)
+
     samples = []
-    s = builder.build_stbl_from_raw_samples(
-        [{"format": b"camm", "data": b""}],
-        samples,
-    )
-    d = builder.Box.build(s)
-    found = False
-    for h, s in parser.parse_path(io.BytesIO(d), [b"stbl"]):
-        ss = s.read(h.maxsize)
-        assert d[8:] == ss
-        descriptions, parsed_samples = parser.parse_raw_samples_from_stbl(
-            io.BytesIO(ss)
-        )
-        x = list(parsed_samples)
-        assert not x, x
-        found = True
-        break
-    assert found
+    _build_and_parse_stbl(descriptions, [])

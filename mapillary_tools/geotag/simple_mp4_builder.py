@@ -95,11 +95,10 @@ def _build_stsz(sizes: T.Sequence[int]) -> BoxDict:
 
 @dataclasses.dataclass
 class _SampleChunk:
-    __slots__ = ("first_chunk", "samples_per_chunk", "sample_description_index")
-    # make sure dataclasses.asdict() produce the result as SampleToChunkBox expects
-    first_chunk: int
+    __slots__ = ("samples_per_chunk", "sample_description_index", "offset")
     samples_per_chunk: int
     sample_description_index: int
+    offset: int
 
 
 def _build_chunks(raw_samples: T.Iterable[RawSample]) -> T.List[_SampleChunk]:
@@ -122,13 +121,11 @@ def _build_chunks(raw_samples: T.Iterable[RawSample]) -> T.List[_SampleChunk]:
             # add this sample to the current chunk
             chunks[-1].samples_per_chunk += 1
         else:
-            # 1-based first_chunk
-            first_chunk = len(chunks) + 1
-            chunks.append(_SampleChunk(first_chunk, 1, raw_sample.description_idx))
+            chunks.append(
+                _SampleChunk(1, raw_sample.description_idx, raw_sample.offset)
+            )
 
         prev_raw_sample = raw_sample
-
-    # TODO: compress chunks here
 
     return chunks
 
@@ -138,7 +135,14 @@ def _build_stsc(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     return {
         "type": b"stsc",
         "data": {
-            "entries": [dataclasses.asdict(chunk) for chunk in chunks],
+            "entries": [
+                {
+                    "first_chunk": idx + 1,
+                    "samples_per_chunk": chunk.samples_per_chunk,
+                    "sample_description_index": chunk.sample_description_index,
+                }
+                for idx, chunk in enumerate(chunks)
+            ],
         },
     }
 
@@ -168,12 +172,14 @@ def _build_stts(sample_deltas: T.Iterable[int]) -> BoxDict:
     }
 
 
-def _build_stco_or_co64(offsets: T.Sequence[int]) -> BoxDict:
-    is_co64 = any(UINT32_MAX < offset for offset in offsets)
+def _build_stco_or_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
+    chunks = _build_chunks(raw_samples)
+    chunk_offsets = [chunk.offset for chunk in chunks]
+    is_co64 = any(UINT32_MAX < offset for offset in chunk_offsets)
     return {
         "type": b"co64" if is_co64 else b"stco",
         "data": {
-            "entries": offsets,
+            "entries": chunk_offsets,
         },
     }
 
@@ -188,7 +194,7 @@ def build_stbl_from_raw_samples(
         "data": [
             _build_stsd(descriptions),
             _build_stsz([s.size for s in raw_samples]),
-            _build_stco_or_co64([s.offset for s in raw_samples]),
+            _build_stco_or_co64(raw_samples),
             _build_stts((s.timedelta for s in raw_samples)),
             _build_stsc(raw_samples),
         ],

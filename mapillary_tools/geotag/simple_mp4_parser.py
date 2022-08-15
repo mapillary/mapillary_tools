@@ -153,6 +153,19 @@ def parse_path(
                 yield from parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
 
 
+def parse_path_first(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> T.Optional[T.Tuple[Header, T.BinaryIO]]:
+    if not path:
+        return None
+    for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
+        if h.type == path[0]:
+            if len(path) == 1:
+                return h, s
+            else:
+                return parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
+
+
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
 # moov -> trak -> tkhd
