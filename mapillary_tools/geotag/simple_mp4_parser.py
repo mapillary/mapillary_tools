@@ -5,6 +5,9 @@ import typing as T
 import construct as C
 
 
+UINT32_MAX = 2**32 - 1
+
+
 class Header(T.NamedTuple):
     # 0 indicates no more boxes
     header_size: int
@@ -150,11 +153,14 @@ def parse_path(
                 yield from parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
 
 
-UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
+_UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
+# moov -> trak -> tkhd
 TrackHeaderBox = C.Struct(
     # "type" / C.Const(b"tkhd"),
     "version" / C.Default(C.Int8ub, 0),
+    # Track_enabled: Indicates that the track is enabled. Flag value is 0x000001.
+    # A disabled track (the low bit is zero) is treated as if it were not present.
     "flags" / C.Default(C.Int24ub, 1),
     "creation_time"
     / C.Default(C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub), 0),
@@ -168,11 +174,15 @@ TrackHeaderBox = C.Struct(
     "alternate_group" / C.Default(C.Int16sb, 0),
     "volume" / C.Default(C.Int16sb, 0),
     C.Padding(2),
-    "matrix" / C.Default(C.Array(9, C.Int32sb), UNITY_MATRIX),
+    "matrix" / C.Default(C.Array(9, C.Int32sb), _UNITY_MATRIX),
     "width" / C.Default(C.Int32ub, 0),
     "height" / C.Default(C.Int32ub, 0),
 )
 
+# moov -> trak -> mdia -> mdhd
+# Box Type: ‘mdhd’
+# Container: Media Box (‘mdia’) Mandatory: Yes
+# Quantity: Exactly one
 MediaHeaderBox = C.Struct(
     # "type" / C.Const(b"mdhd"),
     "version" / C.Default(C.Int8ub, 0),
@@ -197,6 +207,10 @@ SampleEntryBox = C.Prefixed(
     includelength=True,
 )
 
+# moov -> trak -> stbl -> stsd
+# BoxTypes: ‘stsd’
+# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Quantity: Exactly one
 SampleDescriptionBox = C.Struct(
     # "type" / C.Const(b"stsd"),
     "version" / C.Default(C.Int8ub, 0),
@@ -205,17 +219,29 @@ SampleDescriptionBox = C.Struct(
 )
 
 
+# moov -> trak -> stbl -> stsz
+# Box Type: ‘stsz’, ‘stz2’
+# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Quantity: Exactly one variant must be present
 SampleSizeBox = C.Struct(
     # "type" / C.Const(b"stsz"),
-    "version" / C.Int8ub,
+    "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Const(0, C.Int24ub),
     # If this field is set to 0, then the samples have different sizes, and those sizes are stored in the sample size table.
     "sample_size" / C.Int32ub,
     "sample_count" / C.Int32ub,
-    "entry_sizes"
-    / C.If(C.this.sample_size == 0, C.Array(C.this.sample_count, C.Int32ub)),
+    "entries"
+    / C.IfThenElse(
+        C.this.sample_size == 0,
+        C.Array(C.this.sample_count, C.Int32ub),
+        C.Array(0, C.Int32ub),
+    ),
 )
 
+# moov -> trak -> stbl -> stco
+# Box Type: ‘stco’, ‘co64’
+# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Quantity: Exactly one variant must be present
 ChunkOffsetBox = C.Struct(
     # "type" / C.Const(b"stco"),
     "version" / C.Const(0, C.Int8ub),
@@ -224,14 +250,14 @@ ChunkOffsetBox = C.Struct(
     / C.Default(
         C.PrefixedArray(
             C.Int32ub,
-            C.Struct(
-                "chunk_offset" / C.Int32ub,
-            ),
+            # chunk offset
+            C.Int32ub,
         ),
         [],
     ),
 )
 
+# moov -> trak -> stbl -> co64
 ChunkLargeOffsetBox = C.Struct(
     # "type" / C.Const(b"co64"),
     "version" / C.Const(0, C.Int8ub),
@@ -239,12 +265,15 @@ ChunkLargeOffsetBox = C.Struct(
     "entries"
     / C.PrefixedArray(
         C.Int32ub,
-        C.Struct(
-            "chunk_offset" / C.Int64ub,
-        ),
+        # chunk offset
+        C.Int64ub,
     ),
 )
 
+# moov -> trak -> stbl -> stts
+# Box Type: ‘stts’
+# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Quantity: Exactly one
 TimeToSampleBox = C.Struct(
     # "type" / C.Const(b"stts"),
     "version" / C.Const(0, C.Int8ub),
@@ -262,6 +291,10 @@ TimeToSampleBox = C.Struct(
     ),
 )
 
+# moov -> trak -> stbl -> stsc
+# Box Type: ‘stsc’
+# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Quantity: Exactly one
 SampleToChunkBox = C.Struct(
     # "type" / C.Const(b"stsc"),
     "version" / C.Const(0, C.Int8ub),
@@ -290,7 +323,7 @@ class RawSample(T.NamedTuple):
     size: int
     # sample_delta read from stts entries,
     # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
-    time_delta: int
+    timedelta: int
 
 
 class Sample(T.NamedTuple):
@@ -308,13 +341,15 @@ class Sample(T.NamedTuple):
 def extract_raw_samples(
     sizes: T.List[int],
     chunk_entries: T.List,
-    offsets: T.List[int],
-    time_deltas: T.List[int],
+    chunk_offsets: T.List[int],
+    timedeltas: T.List[int],
 ) -> T.Generator[RawSample, None, None]:
-    assert chunk_entries, "empty chunk entries"
+    if not chunk_entries:
+        return
+
     assert len(sizes) == len(
-        time_deltas
-    ), f"sample sizes {len(sizes)} != sample times {len(time_deltas)}"
+        timedeltas
+    ), f"sample sizes {len(sizes)} and sample times {len(timedeltas)} must have equal length"
 
     sample_idx = 0
     chunk_idx = 0
@@ -325,27 +360,27 @@ def extract_raw_samples(
         else:
             nbr_chunks = 1
         for _ in range(nbr_chunks):
-            sample_offset = offsets[chunk_idx]
+            sample_offset = chunk_offsets[chunk_idx]
             for _ in range(entry.samples_per_chunk):
                 yield RawSample(
                     description_idx=entry.sample_description_index,
                     offset=sample_offset,
                     size=sizes[sample_idx],
-                    time_delta=time_deltas[sample_idx],
+                    timedelta=timedeltas[sample_idx],
                 )
                 sample_offset += sizes[sample_idx]
                 sample_idx += 1
             chunk_idx += 1
 
     # If all the chunks have the same number of samples per chunk and use the same sample description, this table has one entry.
-    while sample_idx < len(time_deltas):
+    while sample_idx < len(timedeltas):
         for _ in range(chunk_entries[-1].samples_per_chunk):
-            sample_offset = offsets[chunk_idx]
+            sample_offset = chunk_offsets[chunk_idx]
             yield RawSample(
                 description_idx=chunk_entries[-1].sample_description_index - 1,
                 offset=sample_offset,
                 size=sizes[sample_idx],
-                time_delta=time_deltas[sample_idx],
+                timedelta=timedeltas[sample_idx],
             )
             sample_offset += sizes[sample_idx]
             sample_idx += 1
@@ -364,7 +399,7 @@ def extract_samples(
             size=raw_sample.size,
             time_offset=acc_delta,
         )
-        acc_delta += raw_sample.time_delta
+        acc_delta += raw_sample.timedelta
 
 
 def parse_raw_samples_from_stbl(
@@ -372,9 +407,9 @@ def parse_raw_samples_from_stbl(
 ) -> T.Tuple[T.List[bytes], T.Generator[RawSample, None, None]]:
     descriptions = []
     sizes = []
-    offsets = []
+    chunk_offsets = []
     chunk_entries = []
-    time_deltas: T.List[int] = []
+    timedeltas: T.List[int] = []
 
     for h, s in parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
         if h.type == b"stsd":
@@ -383,26 +418,26 @@ def parse_raw_samples_from_stbl(
         elif h.type == b"stsz":
             box = SampleSizeBox.parse(s.read(h.maxsize))
             if box.sample_size == 0:
-                sizes = list(box.entry_sizes)
+                sizes = list(box.entries)
             else:
                 sizes = [box.sample_size for _ in range(box.sample_count)]
         elif h.type == b"stco":
             box = ChunkOffsetBox.parse(s.read(h.maxsize))
-            offsets = [entry.chunk_offset for entry in box.entries]
+            chunk_offsets = list(box.entries)
         elif h.type == b"co64":
             box = ChunkLargeOffsetBox.parse(s.read(h.maxsize))
-            offsets = [entry.chunk_offset for entry in box.entries]
+            chunk_offsets = list(box.entries)
         elif h.type == b"stsc":
             box = SampleToChunkBox.parse(s.read(h.maxsize))
             chunk_entries = list(box.entries)
         elif h.type == b"stts":
-            time_deltas = []
+            timedeltas = []
             box = TimeToSampleBox.parse(s.read(h.maxsize))
             for entry in box.entries:
                 for _ in range(entry.sample_count):
-                    time_deltas.append(entry.sample_delta)
+                    timedeltas.append(entry.sample_delta)
 
-    raw_samples = extract_raw_samples(sizes, chunk_entries, offsets, time_deltas)
+    raw_samples = extract_raw_samples(sizes, chunk_entries, chunk_offsets, timedeltas)
     return descriptions, raw_samples
 
 
