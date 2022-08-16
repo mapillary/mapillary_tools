@@ -10,8 +10,8 @@ def test_build_moov():
         "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
     )
     with open(simple_mp4, "rb") as fp:
-        parsed = builder.MP4.parse_stream(fp)
-    builder.MP4.build(parsed)
+        parsed = builder.FullMP464.parse_stream(fp)
+    builder.FullMP464.build(parsed)
 
 
 def _build_and_parse_stbl(
@@ -21,10 +21,8 @@ def _build_and_parse_stbl(
         descriptions,
         expected_samples,
     )
-    d = builder.Box.build(s)
-    x = parser.parse_path_first(io.BytesIO(d), [b"stbl"])
-    assert x, "must found"
-    h, s = x
+    d = builder.FullBox32.build(s)
+    h, s = parser.parse_path_firstx(io.BytesIO(d), [b"stbl"])
     ss = s.read(h.maxsize)
     assert d[8:] == ss
     _, parsed_samples = parser.parse_raw_samples_from_stbl(io.BytesIO(ss))

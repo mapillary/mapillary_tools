@@ -24,44 +24,129 @@ from .simple_mp4_parser import (
 UINT32_MAX = 2**32 - 1
 
 
-Box: C.Struct
-
-LazyBox = C.LazyBound(lambda: C.GreedyRange(Box))
-
-# The struct is for building only.
-# For parsing we should use the utils provided in simple_mp4_parser.
-# Because it does not handle the extended size,
-# although normally a moov struct won't have an extended size.
-Box = C.Prefixed(
-    C.Int32ub,
-    C.Struct(
-        "type" / C.Bytes(4),
-        "data"
-        / C.Switch(
-            C.this.type,
-            {
-                b"moov": LazyBox,
-                b"trak": LazyBox,
-                b"tkhd": TrackHeaderBox,
-                b"stbl": LazyBox,
-                b"mdia": LazyBox,
-                b"mdhd": MediaHeaderBox,
-                # TODO: b"hdlr": MediaHeaderBox,
-                b"minf": LazyBox,
-                b"stsc": SampleToChunkBox,
-                b"stts": TimeToSampleBox,
-                b"co64": ChunkLargeOffsetBox,
-                b"stco": ChunkOffsetBox,
-                b"stsd": SampleDescriptionBox,
-                b"stsz": SampleSizeBox,
-            },
-            C.GreedyBytes,
-        ),
-    ),
-    includelength=True,
+BoxHeader32 = C.Struct(
+    "size" / C.Int32ub,
+    "type" / C.Bytes(4),
 )
 
-MP4 = C.GreedyRange(Box)
+BoxHeader64 = C.Struct(
+    "size32" / C.Const(1, C.Int32ub),
+    "type" / C.Bytes(4),
+    "size" / C.Int64ub,
+)
+
+
+class BoxBuilder64:
+    """
+    Make a box struct that can parse MP4 boxes with both 32-bit and 64-bit sizes.
+
+    It does not construct boxes. For construction, use BoxBuilder32.Box instead.
+    """
+
+    _box: C.Struct
+
+    def __init__(
+        self, switch_map: T.Dict[bytes, C.Struct], lazy_box_types: T.Sequence[bytes]
+    ) -> None:
+        self._box = None
+        self._box_type_switch_map = {**switch_map}
+        lazy_box = C.LazyBound(lambda: C.GreedyRange(self.Box))
+        for box_type in lazy_box_types:
+            self._box_type_switch_map[box_type] = lazy_box
+        self._switch = C.Switch(
+            C.this.type,
+            self._box_type_switch_map,
+            C.GreedyBytes,
+        )
+
+    @property
+    def Box(self) -> C.Struct:
+        if self._box is None:
+            BoxData32 = C.Struct(
+                "data"
+                / C.FixedSized(
+                    C.this.size - 8,
+                    self._switch,
+                )
+            )
+
+            BoxData64 = C.Struct(
+                "data"
+                / C.FixedSized(
+                    C.this.size - 16,
+                    self._switch,
+                )
+            )
+
+            self._box = C.Select(BoxHeader32 + BoxData32, BoxHeader64 + BoxData64)
+
+        return self._box
+
+
+class BoxBuilder32(BoxBuilder64):
+    """
+    Make a box struct that can parse or construct MP4 boxes with 32-bit size only.
+
+    The struct does not handle extended size correctly.
+    To parse boxes with extended size, use BoxBuilder64.Box instead.
+    """
+
+    @property
+    def Box(self) -> C.Struct:
+        if self._box is None:
+            self._box = C.Prefixed(
+                C.Int32ub,
+                C.Struct("type" / C.Bytes(4), "data" / self._switch),
+                includelength=True,
+            )
+
+        return self._box
+
+
+_full_switch_map = {
+    b"tkhd": TrackHeaderBox,
+    b"mdhd": MediaHeaderBox,
+    # TODO: b"hdlr": MediaHeaderBox,
+    b"stsc": SampleToChunkBox,
+    b"stts": TimeToSampleBox,
+    b"co64": ChunkLargeOffsetBox,
+    b"stco": ChunkOffsetBox,
+    b"stsd": SampleDescriptionBox,
+    b"stsz": SampleSizeBox,
+}
+_full_lazy_box_types = [
+    b"moov",
+    b"trak",
+    b"stbl",
+    b"mdia",
+    b"minf",
+]
+
+FullBox32 = BoxBuilder32(_full_switch_map, _full_lazy_box_types).Box
+FullMP432 = C.GreedyRange(FullBox32)
+
+FullBox64 = BoxBuilder64(_full_switch_map, _full_lazy_box_types).Box
+FullMP464 = C.GreedyRange(FullBox64)
+
+_switch_map = {
+    b"tkhd": TrackHeaderBox,
+    b"mdhd": MediaHeaderBox,
+    # TODO: b"hdlr": MediaHeaderBox,
+}
+
+_lazy_box_types = [
+    b"moov",
+    b"trak",
+    b"stbl",
+    b"mdia",
+    b"minf",
+]
+
+QuickBox32 = BoxBuilder32(_switch_map, _lazy_box_types).Box
+QuickMP432 = C.GreedyRange(QuickBox32)
+
+QuickBox64 = BoxBuilder64(_switch_map, _lazy_box_types).Box
+QuickMP464 = C.GreedyRange(QuickBox64)
 
 
 class BoxDict(TypedDict, total=False):
