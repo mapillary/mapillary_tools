@@ -1,5 +1,11 @@
+import sys
 import dataclasses
 import typing as T
+
+if sys.version_info >= (3, 8):
+    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal, TypedDict
 
 import construct as C
 
@@ -58,7 +64,7 @@ Box = C.Prefixed(
 MP4 = C.GreedyRange(Box)
 
 
-class BoxDict(T.TypedDict, total=False):
+class BoxDict(TypedDict, total=False):
     type: bytes
     data: T.Union[T.List, T.Dict[str, T.Any]]
 
