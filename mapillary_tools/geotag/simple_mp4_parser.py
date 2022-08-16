@@ -163,7 +163,16 @@ def parse_path_first(
             if len(path) == 1:
                 return h, s
             else:
-                return parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
+                return parse_path_first(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
+    return None
+
+
+def parse_path_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> T.Tuple[Header, T.BinaryIO]:
+    parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
+    assert parsed is not None, f"unable find box at path {path}"
+    return parsed
 
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
@@ -464,24 +473,20 @@ def parse_samples_from_stbl(
 def parse_samples_from_trak(
     trak: T.BinaryIO, maxsize: int = -1
 ) -> T.Generator[Sample, None, None]:
-    offset = trak.tell()
+    trak_start_offset = trak.tell()
 
-    mdhd = None
-    for h, s in parse_path(trak, [b"mdia", b"mdhd"], maxsize=maxsize):
-        mdhd = MediaHeaderBox.parse(s.read(h.maxsize))
-        break
-    assert mdhd is not None, "mdhd is required but not found"
+    h, s = parse_path_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
+    mdhd = MediaHeaderBox.parse(s.read(h.maxsize))
 
-    trak.seek(offset, io.SEEK_SET)
-    for h, s in parse_path(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize):
-        for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
-            yield Sample(
-                description=sample.description,
-                offset=sample.offset,
-                size=sample.size,
-                time_offset=sample.time_offset / mdhd.timescale,
-            )
-        break
+    trak.seek(trak_start_offset, io.SEEK_SET)
+    h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
+    for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
+        yield Sample(
+            description=sample.description,
+            offset=sample.offset,
+            size=sample.size,
+            time_offset=sample.time_offset / mdhd.timescale,
+        )
 
 
 _DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)
