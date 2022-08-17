@@ -36,7 +36,7 @@ BoxHeader64 = C.Struct(
 )
 
 
-class BoxBuilder64:
+class Box64StructBuilder:
     """
     Make a box struct that can parse MP4 boxes with both 32-bit and 64-bit sizes.
 
@@ -83,7 +83,7 @@ class BoxBuilder64:
         return self._box
 
 
-class BoxBuilder32(BoxBuilder64):
+class Box32StructBuilder(Box64StructBuilder):
     """
     Make a box struct that can parse or construct MP4 boxes with 32-bit size only.
 
@@ -122,36 +122,35 @@ _full_lazy_box_types = [
     b"minf",
 ]
 
-FullBox32 = BoxBuilder32(_full_switch_map, _full_lazy_box_types).Box
-FullMP432 = C.GreedyRange(FullBox32)
+FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types).Box
+FullMP4Struct32 = C.GreedyRange(FullBoxStruct32)
 
-FullBox64 = BoxBuilder64(_full_switch_map, _full_lazy_box_types).Box
-FullMP464 = C.GreedyRange(FullBox64)
+FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types).Box
+FullMP4Struct64 = C.GreedyRange(FullBoxStruct64)
 
-_switch_map = {
+_quick_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
     # TODO: b"hdlr": MediaHeaderBox,
 }
 
-_lazy_box_types = [
+_quick_lazy_box_types = [
     b"moov",
     b"trak",
-    b"stbl",
     b"mdia",
     b"minf",
 ]
 
-QuickBox32 = BoxBuilder32(_switch_map, _lazy_box_types).Box
-QuickMP432 = C.GreedyRange(QuickBox32)
+QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types).Box
+QuickMP4Struct32 = C.GreedyRange(QuickBoxStruct32)
 
-QuickBox64 = BoxBuilder64(_switch_map, _lazy_box_types).Box
-QuickMP464 = C.GreedyRange(QuickBox64)
+QuickBoxStruct64 = Box64StructBuilder(_quick_switch_map, _quick_lazy_box_types).Box
+QuickMP4Struct64 = C.GreedyRange(QuickBoxStruct64)
 
 
 class BoxDict(TypedDict, total=False):
     type: bytes
-    data: T.Union[T.List, T.Dict[str, T.Any]]
+    data: T.Union[T.List, T.Dict[str, T.Any], bytes]
 
 
 def _build_stsd(descriptions: T.Sequence[T.Any]) -> BoxDict:
@@ -277,16 +276,13 @@ def _build_stco_or_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
 
 def build_stbl_from_raw_samples(
     descriptions: T.Sequence[T.Any], raw_samples: T.Iterable[RawSample]
-) -> BoxDict:
+) -> T.List[BoxDict]:
     # raw_samples could be iterator so convert to list
     raw_samples = list(raw_samples)
-    return {
-        "type": b"stbl",
-        "data": [
-            _build_stsd(descriptions),
-            _build_stsz([s.size for s in raw_samples]),
-            _build_stco_or_co64(raw_samples),
-            _build_stts((s.timedelta for s in raw_samples)),
-            _build_stsc(raw_samples),
-        ],
-    }
+    return [
+        _build_stsd(descriptions),
+        _build_stsz([s.size for s in raw_samples]),
+        _build_stco_or_co64(raw_samples),
+        _build_stts((s.timedelta for s in raw_samples)),
+        _build_stsc(raw_samples),
+    ]
