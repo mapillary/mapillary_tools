@@ -130,9 +130,14 @@ _full_switch_map = {
 _full_lazy_box_types = [
     b"moov",
     b"trak",
-    b"stbl",
+    b"edts",
     b"mdia",
     b"minf",
+    b"stbl",
+    b"mvex",
+    b"moof",
+    b"traf",
+    b"mfra",
 ]
 
 FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types).Box
@@ -152,6 +157,7 @@ _quick_lazy_box_types = [
     b"trak",
     b"mdia",
     b"minf",
+    b"mvex",
 ]
 
 QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types).Box

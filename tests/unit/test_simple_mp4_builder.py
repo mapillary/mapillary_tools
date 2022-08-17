@@ -5,13 +5,41 @@ import mapillary_tools.geotag.simple_mp4_builder as builder
 import mapillary_tools.geotag.simple_mp4_parser as parser
 
 
-def test_build_moov():
+def _test_build(b, path):
+    with open(path, "rb") as fp:
+        parsed = b.parse_stream(fp)
+    with open(path, "rb") as fp:
+        expected_data = fp.read()
+    actual_data = b.build(parsed)
+    assert expected_data == actual_data
+
+
+def test_build_sample_5s():
     simple_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
     )
-    with open(simple_mp4, "rb") as fp:
-        parsed = builder.FullMP4Struct64.parse_stream(fp)
-    builder.FullMP4Struct64.build(parsed)
+    b = builder.FullMP4Struct32
+    _test_build(b, simple_mp4)
+    b = builder.QuickMP4Struct32
+    _test_build(b, simple_mp4)
+    b = builder.FullMP4Struct64
+    _test_build(b, simple_mp4)
+    b = builder.QuickMP4Struct64
+    _test_build(b, simple_mp4)
+
+
+def test_build_hero():
+    hero_mp4 = (
+        "tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4"
+    )
+    b = builder.FullMP4Struct32
+    _test_build(b, hero_mp4)
+    b = builder.QuickMP4Struct32
+    _test_build(b, hero_mp4)
+    b = builder.FullMP4Struct64
+    _test_build(b, hero_mp4)
+    b = builder.QuickMP4Struct64
+    _test_build(b, hero_mp4)
 
 
 def _build_and_parse_stbl(

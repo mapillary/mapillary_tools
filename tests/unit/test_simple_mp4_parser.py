@@ -1,7 +1,14 @@
 import io
 import typing
 
-from mapillary_tools.geotag import simple_mp4_parser as parser
+from mapillary_tools.geotag import (
+    simple_mp4_parser as parser,
+    simple_mp4_builder as builder,
+)
+
+
+def _construct_parser(data: bytes):
+    return builder.FullMP4Struct64.parse(data)
 
 
 def _parse(data: bytes):
@@ -72,6 +79,9 @@ def test_zeros_parse_2():
     assert len(parsed) == 1
     assert parsed[0][0].type == b"hell"
     assert parsed[0][1] == b"world"
+    cr = _construct_parser(b"\x00\x00\x00\x00hellworld")[0]
+    assert cr["type"] == b"hell"
+    assert cr["data"] == b"world"
 
 
 def test_zeros_parse_3():
@@ -79,24 +89,33 @@ def test_zeros_parse_3():
     assert len(parsed) == 1
     assert parsed[0][0].type == b"hell"
     assert parsed[0][1] == b"world"
+    cr = _construct_parser(b"\x00\x00\x00\x01hell\x00\x00\x00\x00\x00\x00\x00\x15world")
 
 
 def test_tenc_parse():
     data = b"\x00\x00\x00 tenc\x00\x00\x00\x00\x00\x00\x01\x083{\x96C!\xb6CU\x9eY>\xcc\xb4l~\xf7"
     parsed = _parse(data)
     _assert_box_type(data, parsed, b"tenc")
+    cr = _construct_parser(data)[0]
+    assert cr["type"] == b"tenc"
+    assert (
+        cr["data"]
+        == b"\x00\x00\x00\x00\x00\x00\x01\x083{\x96C!\xb6CU\x9eY>\xcc\xb4l~\xf7"
+    )
 
 
 def test_ftyp_parse():
     data = b"\x00\x00\x00\x18ftypiso5\x00\x00\x00\x01iso5avc1"
     parsed = _parse(data)
     _assert_box_type(data, parsed, b"ftyp")
+    _construct_parser(data)
 
 
 def test_mdhd_parse():
     data = b"\x00\x00\x00\x20mdhd\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0fB@\x00\x00\x00\x00U\xc4\x00\x00"
     parsed = _parse(data)
     _assert_box_type(data, parsed, b"mdhd")
+    _construct_parser(data)
 
 
 def test_moov_parse():
@@ -112,6 +131,24 @@ def test_moov_parse():
     assert {b"moov", b"mvex", b"mehd", b"trex", b"box1", b"box2"} == set(
         header.type for header, _ in parsed
     )
+    cr = _construct_parser(data)
+    first_box = cr[0]
+    assert first_box["type"] == b"moov"
+    assert first_box["data"][0]["type"] == b"mvex"
+    assert first_box["data"][0]["data"][0]["type"] == b"mehd"
+    assert (
+        first_box["data"][0]["data"][0]["data"] == b"\x00\x00\x00\x00\x00\x00\x00\x00"
+    )
+    assert first_box["data"][0]["data"][1]["type"] == b"trex"
+    assert (
+        first_box["data"][0]["data"][1]["data"]
+        == b"\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    )
+    assert first_box["data"][0]["data"][2]["type"] == b"box1"
+    assert (
+        first_box["data"][0]["data"][2]["data"]
+        == b"\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    )
 
 
 def test_eof_parse():
@@ -120,6 +157,7 @@ def test_eof_parse():
     data += b"\x00\x00\x00\x18box2iso5\x00\x00\x00\x01iso5avc1"
     parsed = _parse(data)
     assert {b"ftyp", b"box1"} == set(header.type for header, _ in parsed)
+    _construct_parser(data)
 
 
 def test_wide_parse():
@@ -129,3 +167,5 @@ def test_wide_parse():
     data += b"\x00\x00\x00\x08box2"
     parsed = _parse(data)
     assert {b"mdat", b"box1", b"box2"} == set(header.type for header, _ in parsed)
+    cr = _construct_parser(data)
+    assert {b"mdat", b"box1", b"box2"} == set(r["type"] for r in cr)
