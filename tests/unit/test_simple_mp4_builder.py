@@ -36,32 +36,54 @@ def test_build_stbl_happy():
     ]
 
     samples = [
-        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
-        builder.RawSample(description_idx=1, offset=2, size=9, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+        ),
+        builder.RawSample(
+            description_idx=1, offset=2, size=9, timedelta=2, is_sync=False
+        ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
-        builder.RawSample(description_idx=1, offset=2, size=2, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+        ),
+        builder.RawSample(
+            description_idx=1, offset=2, size=2, timedelta=2, is_sync=False
+        ),
         # another chunk here due to a 1-byte break
-        builder.RawSample(description_idx=1, offset=5, size=1, timedelta=2),
-        builder.RawSample(description_idx=1, offset=6, size=9, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=5, size=1, timedelta=2, is_sync=True
+        ),
+        builder.RawSample(
+            description_idx=1, offset=6, size=9, timedelta=2, is_sync=False
+        ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
-        builder.RawSample(description_idx=1, offset=2, size=2, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=1, size=1, timedelta=2, is_sync=False
+        ),
+        builder.RawSample(
+            description_idx=1, offset=2, size=2, timedelta=2, is_sync=True
+        ),
         # another chunk here
-        builder.RawSample(description_idx=2, offset=4, size=1, timedelta=2),
+        builder.RawSample(
+            description_idx=2, offset=4, size=1, timedelta=2, is_sync=True
+        ),
         # another chunk here
-        builder.RawSample(description_idx=1, offset=5, size=9, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=5, size=9, timedelta=2, is_sync=True
+        ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        builder.RawSample(description_idx=1, offset=1, size=1, timedelta=2),
+        builder.RawSample(
+            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+        ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 

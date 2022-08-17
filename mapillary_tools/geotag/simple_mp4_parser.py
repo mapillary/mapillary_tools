@@ -229,7 +229,7 @@ SampleEntryBox = C.Prefixed(
     includelength=True,
 )
 
-# moov -> trak -> stbl -> stsd
+# moov -> trak -> mdia -> minf -> stbl -> stsd
 # BoxTypes: ‘stsd’
 # Container: Sample Table Box (‘stbl’) Mandatory: Yes
 # Quantity: Exactly one
@@ -241,7 +241,7 @@ SampleDescriptionBox = C.Struct(
 )
 
 
-# moov -> trak -> stbl -> stsz
+# moov -> trak -> mdia -> minf -> stbl -> stsz
 # Box Type: ‘stsz’, ‘stz2’
 # Container: Sample Table Box (‘stbl’) Mandatory: Yes
 # Quantity: Exactly one variant must be present
@@ -279,7 +279,7 @@ ChunkOffsetBox = C.Struct(
     ),
 )
 
-# moov -> trak -> stbl -> co64
+# moov -> trak -> mdia -> minf -> stbl -> co64
 ChunkLargeOffsetBox = C.Struct(
     # "type" / C.Const(b"co64"),
     "version" / C.Const(0, C.Int8ub),
@@ -292,7 +292,7 @@ ChunkLargeOffsetBox = C.Struct(
     ),
 )
 
-# moov -> trak -> stbl -> stts
+# moov -> trak -> mdia -> minf -> stbl -> stts
 # Box Type: ‘stts’
 # Container: Sample Table Box (‘stbl’) Mandatory: Yes
 # Quantity: Exactly one
@@ -313,7 +313,7 @@ TimeToSampleBox = C.Struct(
     ),
 )
 
-# moov -> trak -> stbl -> stsc
+# moov -> trak -> mdia -> minf -> stbl -> stsc
 # Box Type: ‘stsc’
 # Container: Sample Table Box (‘stbl’) Mandatory: Yes
 # Quantity: Exactly one
@@ -335,6 +335,27 @@ SampleToChunkBox = C.Struct(
     ),
 )
 
+# moov -> trak -> mdia -> minf -> stbl -> stss
+# Box Type: ‘stss’
+# Container: Sample Table Box (‘stbl’) No
+# Mandatory: No
+# Quantity: Zero or one
+
+# This box provides a compact marking of the random access points within the stream. The table is arranged in strictly increasing order of sample number.
+# If the sync sample box is not present, every sample is a random access point.
+SyncSampleBox = C.Struct(
+    "version" / C.Const(0, C.Int8ub),
+    "flags" / C.Const(0, C.Int24ub),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Int32ub,
+        ),
+        [],
+    ),
+)
+
 
 class RawSample(T.NamedTuple):
     # 1-based index
@@ -346,6 +367,8 @@ class RawSample(T.NamedTuple):
     # sample_delta read from stts entries,
     # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
     timedelta: int
+    # if it is a sync sample
+    is_sync: bool
 
 
 class Sample(T.NamedTuple):
@@ -365,6 +388,7 @@ def extract_raw_samples(
     chunk_entries: T.List,
     chunk_offsets: T.List[int],
     timedeltas: T.List[int],
+    syncs: T.Optional[T.Set[int]],
 ) -> T.Generator[RawSample, None, None]:
     if not chunk_entries:
         return
@@ -384,11 +408,13 @@ def extract_raw_samples(
         for _ in range(nbr_chunks):
             sample_offset = chunk_offsets[chunk_idx]
             for _ in range(entry.samples_per_chunk):
+                is_sync = syncs is None or (sample_idx + 1) in syncs
                 yield RawSample(
                     description_idx=entry.sample_description_index,
                     offset=sample_offset,
                     size=sizes[sample_idx],
                     timedelta=timedeltas[sample_idx],
+                    is_sync=is_sync,
                 )
                 sample_offset += sizes[sample_idx]
                 sample_idx += 1
@@ -398,11 +424,13 @@ def extract_raw_samples(
     while sample_idx < len(timedeltas):
         for _ in range(chunk_entries[-1].samples_per_chunk):
             sample_offset = chunk_offsets[chunk_idx]
+            is_sync = syncs is None or (sample_idx + 1) in syncs
             yield RawSample(
                 description_idx=chunk_entries[-1].sample_description_index - 1,
                 offset=sample_offset,
                 size=sizes[sample_idx],
                 timedelta=timedeltas[sample_idx],
+                is_sync=is_sync,
             )
             sample_offset += sizes[sample_idx]
             sample_idx += 1
@@ -432,6 +460,7 @@ def parse_raw_samples_from_stbl(
     chunk_offsets = []
     chunk_entries = []
     timedeltas: T.List[int] = []
+    syncs: T.Optional[T.Set[int]] = None
 
     for h, s in parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
         if h.type == b"stsd":
@@ -458,8 +487,13 @@ def parse_raw_samples_from_stbl(
             for entry in box.entries:
                 for _ in range(entry.sample_count):
                     timedeltas.append(entry.sample_delta)
+        elif h.type == b"stss":
+            box = SyncSampleBox.parse(s.read(h.maxsize))
+            syncs = set(box.entries)
 
-    raw_samples = extract_raw_samples(sizes, chunk_entries, chunk_offsets, timedeltas)
+    raw_samples = extract_raw_samples(
+        sizes, chunk_entries, chunk_offsets, timedeltas, syncs
+    )
     return descriptions, raw_samples
 
 

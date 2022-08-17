@@ -19,6 +19,7 @@ from .simple_mp4_parser import (
     SampleToChunkBox,
     TimeToSampleBox,
     TrackHeaderBox,
+    SyncSampleBox,
 )
 
 UINT32_MAX = 2**32 - 1
@@ -113,6 +114,7 @@ _full_switch_map = {
     b"stco": ChunkOffsetBox,
     b"stsd": SampleDescriptionBox,
     b"stsz": SampleSizeBox,
+    b"stss": SyncSampleBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -274,15 +276,27 @@ def _build_stco_or_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     }
 
 
+def _build_stss(raw_samples: T.Iterable[RawSample]):
+    return {
+        "type": b"stss",
+        "data": {
+            "entries": [idx + 1 for idx, s in enumerate(raw_samples) if s.is_sync],
+        },
+    }
+
+
 def build_stbl_from_raw_samples(
     descriptions: T.Sequence[T.Any], raw_samples: T.Iterable[RawSample]
 ) -> T.List[BoxDict]:
     # raw_samples could be iterator so convert to list
     raw_samples = list(raw_samples)
-    return [
+    boxes = [
         _build_stsd(descriptions),
         _build_stsz([s.size for s in raw_samples]),
         _build_stco_or_co64(raw_samples),
         _build_stts((s.timedelta for s in raw_samples)),
         _build_stsc(raw_samples),
     ]
+    if any(not s.is_sync for s in raw_samples):
+        boxes.append(_build_stss(raw_samples))
+    return boxes
