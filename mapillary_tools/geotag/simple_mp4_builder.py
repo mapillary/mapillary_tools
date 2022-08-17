@@ -25,6 +25,11 @@ from .simple_mp4_parser import (
 UINT32_MAX = 2**32 - 1
 
 
+BoxHeader0 = C.Struct(
+    "size32" / C.Const(0, C.Int32ub),
+    "type" / C.Bytes(4),
+)
+
 BoxHeader32 = C.Struct(
     "size" / C.Int32ub,
     "type" / C.Bytes(4),
@@ -79,7 +84,13 @@ class Box64StructBuilder:
                 )
             )
 
-            self._box = C.Select(BoxHeader32 + BoxData32, BoxHeader64 + BoxData64)
+            BoxData0 = C.Struct(
+                "data" / self._switch,
+            )
+
+            self._box = C.Select(
+                BoxHeader32 + BoxData32, BoxHeader64 + BoxData64, BoxHeader0 + BoxData0
+            )
 
         return self._box
 
