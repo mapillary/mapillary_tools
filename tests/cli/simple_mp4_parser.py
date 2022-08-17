@@ -66,7 +66,12 @@ def _parse_structs(fp: T.BinaryIO):
         fp, box_list_types=box_list_types
     ):
         margin = "\t" * d
-        header = f"{str(h.type)} {h.box_size}:"
+        if h.size32 == 0:
+            header = f"{str(h.type)} {h.box_size} (open-ended):"
+        elif h.size32 == 1:
+            header = f"{str(h.type)} {h.box_size} (extended):"
+        else:
+            header = f"{str(h.type)} {h.box_size}:"
         if h.type in box_list_types:
             print(margin, header)
         else:
