@@ -18,28 +18,20 @@ def test_build_sample_5s():
     simple_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
     )
-    b = builder.FullMP4Struct32
-    _test_build(b, simple_mp4)
-    b = builder.QuickMP4Struct32
-    _test_build(b, simple_mp4)
-    b = builder.FullMP4Struct64
-    _test_build(b, simple_mp4)
-    b = builder.QuickMP4Struct64
-    _test_build(b, simple_mp4)
+    _test_build(builder.FullBoxStruct32.BoxList, simple_mp4)
+    _test_build(builder.QuickBoxStruct32.BoxList, simple_mp4)
+    _test_build(builder.FullBoxStruct64.BoxList, simple_mp4)
+    _test_build(builder.QuickBoxStruct64.BoxList, simple_mp4)
 
 
 def test_build_hero():
     hero_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4"
     )
-    b = builder.FullMP4Struct32
-    _test_build(b, hero_mp4)
-    b = builder.QuickMP4Struct32
-    _test_build(b, hero_mp4)
-    b = builder.FullMP4Struct64
-    _test_build(b, hero_mp4)
-    b = builder.QuickMP4Struct64
-    _test_build(b, hero_mp4)
+    _test_build(builder.FullBoxStruct32.BoxList, hero_mp4)
+    _test_build(builder.QuickBoxStruct32.BoxList, hero_mp4)
+    _test_build(builder.FullBoxStruct64.BoxList, hero_mp4)
+    _test_build(builder.QuickBoxStruct64.BoxList, hero_mp4)
 
 
 def _build_and_parse_stbl(
@@ -49,7 +41,7 @@ def _build_and_parse_stbl(
         descriptions,
         expected_samples,
     )
-    d = builder.FullBoxStruct32.build({"type": b"stbl", "data": s})
+    d = builder.FullBoxStruct32.Box.build({"type": b"stbl", "data": s})
     h, s = parser.parse_path_firstx(io.BytesIO(d), [b"stbl"])
     ss = s.read(h.maxsize)
     assert d[8:] == ss

@@ -44,9 +44,9 @@ BoxHeader64 = C.Struct(
 
 class Box64StructBuilder:
     """
-    Make a box struct that can parse MP4 boxes with both 32-bit and 64-bit sizes.
+    Build a box struct that **parses** MP4 boxes with both 32-bit and 64-bit sizes.
 
-    It does not construct boxes. For construction, use BoxBuilder32.Box instead.
+    NOTE: Do not build data with this struct. For building, use Box32StructBuilder instead.
     """
 
     _box: C.Struct
@@ -94,13 +94,17 @@ class Box64StructBuilder:
 
         return self._box
 
+    @property
+    def BoxList(self) -> C.Struct:
+        return C.GreedyRange(self.Box)
+
 
 class Box32StructBuilder(Box64StructBuilder):
     """
-    Make a box struct that can parse or construct MP4 boxes with 32-bit size only.
+    Build a box struct that parses or builds MP4 boxes with 32-bit size only.
 
-    The struct does not handle extended size correctly.
-    To parse boxes with extended size, use BoxBuilder64.Box instead.
+    NOTE: The struct does not handle extended size correctly.
+    To parse boxes with extended size, use Box64StructBuilder instead.
     """
 
     @property
@@ -140,11 +144,8 @@ _full_lazy_box_types = [
     b"mfra",
 ]
 
-FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types).Box
-FullMP4Struct32 = C.GreedyRange(FullBoxStruct32)
-
-FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types).Box
-FullMP4Struct64 = C.GreedyRange(FullBoxStruct64)
+FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types)
+FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types)
 
 _quick_switch_map = {
     b"tkhd": TrackHeaderBox,
@@ -160,11 +161,8 @@ _quick_lazy_box_types = [
     b"mvex",
 ]
 
-QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types).Box
-QuickMP4Struct32 = C.GreedyRange(QuickBoxStruct32)
-
-QuickBoxStruct64 = Box64StructBuilder(_quick_switch_map, _quick_lazy_box_types).Box
-QuickMP4Struct64 = C.GreedyRange(QuickBoxStruct64)
+QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types)
+QuickBoxStruct64 = Box64StructBuilder(_quick_switch_map, _quick_lazy_box_types)
 
 
 class BoxDict(TypedDict, total=False):

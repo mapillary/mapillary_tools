@@ -8,7 +8,7 @@ from mapillary_tools.geotag import (
 
 
 def _construct_parser(data: bytes):
-    return builder.FullMP4Struct64.parse(data)
+    return builder.FullBoxStruct64.BoxList.parse(data)
 
 
 def _parse(data: bytes):
