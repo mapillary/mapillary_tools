@@ -2,8 +2,8 @@ import io
 import typing
 
 from mapillary_tools.geotag import (
-    simple_mp4_parser as parser,
     simple_mp4_builder as builder,
+    simple_mp4_parser as parser,
 )
 
 

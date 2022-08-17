@@ -1,5 +1,5 @@
-import sys
 import dataclasses
+import sys
 import typing as T
 
 if sys.version_info >= (3, 8):
@@ -17,9 +17,9 @@ from .simple_mp4_parser import (
     SampleDescriptionBox,
     SampleSizeBox,
     SampleToChunkBox,
+    SyncSampleBox,
     TimeToSampleBox,
     TrackHeaderBox,
-    SyncSampleBox,
 )
 
 UINT32_MAX = 2**32 - 1
