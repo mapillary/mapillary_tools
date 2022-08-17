@@ -208,7 +208,7 @@ TrackHeaderBox = C.Struct(
 MediaHeaderBox = C.Struct(
     # "type" / C.Const(b"mdhd"),
     "version" / C.Default(C.Int8ub, 0),
-    "flags" / C.Const(0, C.Int24ub),
+    "flags" / C.Default(C.Int24ub, 0),
     "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
     "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
     "timescale" / C.Int32ub,
@@ -236,7 +236,7 @@ SampleEntryBox = C.Prefixed(
 SampleDescriptionBox = C.Struct(
     # "type" / C.Const(b"stsd"),
     "version" / C.Default(C.Int8ub, 0),
-    "flags" / C.Const(0, C.Int24ub),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries" / C.PrefixedArray(C.Int32ub, SampleEntryBox),
 )
 
@@ -248,7 +248,7 @@ SampleDescriptionBox = C.Struct(
 SampleSizeBox = C.Struct(
     # "type" / C.Const(b"stsz"),
     "version" / C.Default(C.Int8ub, 0),
-    "flags" / C.Const(0, C.Int24ub),
+    "flags" / C.Default(C.Int24ub, 0),
     # If this field is set to 0, then the samples have different sizes, and those sizes are stored in the sample size table.
     "sample_size" / C.Int32ub,
     "sample_count" / C.Int32ub,
@@ -266,8 +266,8 @@ SampleSizeBox = C.Struct(
 # Quantity: Exactly one variant must be present
 ChunkOffsetBox = C.Struct(
     # "type" / C.Const(b"stco"),
-    "version" / C.Const(0, C.Int8ub),
-    "flags" / C.Const(0, C.Int24ub),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries"
     / C.Default(
         C.PrefixedArray(
@@ -282,8 +282,8 @@ ChunkOffsetBox = C.Struct(
 # moov -> trak -> mdia -> minf -> stbl -> co64
 ChunkLargeOffsetBox = C.Struct(
     # "type" / C.Const(b"co64"),
-    "version" / C.Const(0, C.Int8ub),
-    "flags" / C.Const(0, C.Int24ub),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries"
     / C.PrefixedArray(
         C.Int32ub,
@@ -298,8 +298,8 @@ ChunkLargeOffsetBox = C.Struct(
 # Quantity: Exactly one
 TimeToSampleBox = C.Struct(
     # "type" / C.Const(b"stts"),
-    "version" / C.Const(0, C.Int8ub),
-    "flags" / C.Const(0, C.Int24ub),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries"
     / C.Default(
         C.PrefixedArray(
@@ -319,8 +319,8 @@ TimeToSampleBox = C.Struct(
 # Quantity: Exactly one
 SampleToChunkBox = C.Struct(
     # "type" / C.Const(b"stsc"),
-    "version" / C.Const(0, C.Int8ub),
-    "flags" / C.Const(0, C.Int24ub),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries"
     / C.Default(
         C.PrefixedArray(
@@ -344,8 +344,8 @@ SampleToChunkBox = C.Struct(
 # This box provides a compact marking of the random access points within the stream. The table is arranged in strictly increasing order of sample number.
 # If the sync sample box is not present, every sample is a random access point.
 SyncSampleBox = C.Struct(
-    "version" / C.Const(0, C.Int8ub),
-    "flags" / C.Const(0, C.Int24ub),
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
     "entries"
     / C.Default(
         C.PrefixedArray(

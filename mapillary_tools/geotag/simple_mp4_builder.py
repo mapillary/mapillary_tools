@@ -290,12 +290,14 @@ def build_stbl_from_raw_samples(
 ) -> T.List[BoxDict]:
     # raw_samples could be iterator so convert to list
     raw_samples = list(raw_samples)
+    # It is recommended that the boxes within the Sample Table Box be in the following order:
+    # Sample Description, Time to Sample, Sample to Chunk, Sample Size, Chunk Offset.
     boxes = [
         _build_stsd(descriptions),
-        _build_stsz([s.size for s in raw_samples]),
-        _build_stco_or_co64(raw_samples),
         _build_stts((s.timedelta for s in raw_samples)),
         _build_stsc(raw_samples),
+        _build_stsz([s.size for s in raw_samples]),
+        _build_stco_or_co64(raw_samples),
     ]
     if any(not s.is_sync for s in raw_samples):
         boxes.append(_build_stss(raw_samples))
