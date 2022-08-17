@@ -74,7 +74,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
         box = CAMMSampleData.parse(data)
         if box.type == CAMMType.MIN_GPS.value:
             yield geo.Point(
-                time=sample.delta,
+                time=sample.time_offset,
                 lat=box.data[0],
                 lon=box.data[1],
                 alt=box.data[2],
@@ -84,7 +84,7 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
             # Not using box.data.time_gps_epoch as the point timestamp
             # because it is from another clock
             yield geo.Point(
-                time=sample.delta,
+                time=sample.time_offset,
                 lat=box.data.latitude,
                 lon=box.data.longitude,
                 alt=box.data.altitude,
