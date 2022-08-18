@@ -238,6 +238,6 @@ def test_parse_raw_samples_from_stbl():
             "data": {"entries": [1, 2, 3, 3], "sample_count": 4, "sample_size": 0},
             "type": b"stsz",
         },
-        {"data": {"entries": [1, 5]}, "type": b"co64"},
+        {"data": {"entries": [1, 5]}, "type": b"stco"},
         {"data": {"entries": [1, 3]}, "type": b"stss"},
     ]
