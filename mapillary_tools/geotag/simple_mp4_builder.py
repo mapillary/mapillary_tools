@@ -12,6 +12,7 @@ import construct as C
 from .simple_mp4_parser import (
     ChunkLargeOffsetBox,
     ChunkOffsetBox,
+    HandlerReferenceBox,
     MediaHeaderBox,
     RawSample,
     SampleDescriptionBox,
@@ -122,7 +123,6 @@ class Box32StructBuilder(Box64StructBuilder):
 _full_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
-    # TODO: b"hdlr": MediaHeaderBox,
     b"stsc": SampleToChunkBox,
     b"stts": TimeToSampleBox,
     b"co64": ChunkLargeOffsetBox,
@@ -130,6 +130,7 @@ _full_switch_map = {
     b"stsd": SampleDescriptionBox,
     b"stsz": SampleSizeBox,
     b"stss": SyncSampleBox,
+    b"hdlr": HandlerReferenceBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -150,7 +151,7 @@ FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types)
 _quick_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
-    # TODO: b"hdlr": MediaHeaderBox,
+    b"hdlr": HandlerReferenceBox,
 }
 
 _quick_lazy_box_types = [
