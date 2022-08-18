@@ -109,3 +109,135 @@ def test_build_stbl_happy():
 
     samples = []
     _build_and_parse_stbl(descriptions, [])
+
+
+def test_parse_raw_samples_from_stbl():
+    # building a stbl with 4 samples
+    # chunk 1
+    #     sample 1: offset=1, size=1, timedelta=20, is_sync=True
+    #     sample 2: offset=2, size=2, timedelta=30, is_sync=False
+    # chunk 2
+    #     sample 3: offset=5, size=3, timedelta=30, is_sync=True
+    #     sample 4: offset=8, size=3, timedelta=50, is_sync=False
+    stbl_bytes = builder.FullBoxStruct32.BoxList.build(
+        [
+            {
+                "type": b"stsd",
+                "data": {
+                    "entries": [
+                        {
+                            "format": b"mp4a",
+                            "data_reference_index": 1,
+                            "data": b"\x00\x00\x00\x00",
+                        }
+                    ]
+                },
+            },
+            {
+                "type": b"stsc",
+                "data": {
+                    "entries": [
+                        {
+                            "first_chunk": 1,
+                            "samples_per_chunk": 2,
+                            "sample_description_index": 1,
+                        }
+                    ]
+                },
+            },
+            {
+                "type": b"stsz",
+                "data": {
+                    "sample_size": 0,
+                    "sample_count": 4,
+                    "entries": [1, 2, 3, 3],
+                },
+            },
+            {
+                # timedelta
+                "type": b"stts",
+                "data": {
+                    "entries": [
+                        {
+                            "sample_count": 1,
+                            "sample_delta": 20,
+                        },
+                        {
+                            "sample_count": 2,
+                            "sample_delta": 30,
+                        },
+                        {
+                            "sample_count": 1,
+                            "sample_delta": 50,
+                        },
+                    ],
+                },
+            },
+            {
+                # chunk offsets
+                "type": b"stco",
+                "data": {
+                    "entries": [1, 5],
+                },
+            },
+            {
+                # sync sample table
+                "type": b"stss",
+                "data": {
+                    "entries": [1, 3],
+                },
+            },
+        ]
+    )
+    descs, sample_iter = parser.parse_raw_samples_from_stbl(io.BytesIO(stbl_bytes))
+    samples = list(sample_iter)
+    assert [
+        parser.RawSample(
+            description_idx=1, offset=1, size=1, timedelta=20, is_sync=True
+        ),
+        parser.RawSample(
+            description_idx=1, offset=2, size=2, timedelta=30, is_sync=False
+        ),
+        parser.RawSample(
+            description_idx=1, offset=5, size=3, timedelta=30, is_sync=True
+        ),
+        parser.RawSample(
+            description_idx=1, offset=8, size=3, timedelta=50, is_sync=False
+        ),
+    ] == samples
+    d = builder.build_stbl_from_raw_samples(descs, samples)
+    assert d[1:] == [
+        {
+            "data": {
+                "entries": [
+                    {"sample_count": 1, "sample_delta": 20},
+                    {"sample_count": 2, "sample_delta": 30},
+                    {"sample_count": 1, "sample_delta": 50},
+                ]
+            },
+            "type": b"stts",
+        },
+        {
+            "data": {
+                "entries": [
+                    {
+                        "first_chunk": 1,
+                        "sample_description_index": 1,
+                        "samples_per_chunk": 2,
+                    },
+                    {
+                        "first_chunk": 2,
+                        "sample_description_index": 1,
+                        "samples_per_chunk": 2,
+                    },
+                ]
+            },
+            "type": b"stsc",
+        },
+        {
+            "data": {"entries": [1, 2, 3, 3], "sample_count": 4, "sample_size": 0},
+            "type": b"stsz",
+        },
+        {"data": {"entries": [1, 5]}, "type": b"co64"},
+        {"data": {"entries": [1, 3]}, "type": b"stss"},
+    ]
