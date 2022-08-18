@@ -420,13 +420,14 @@ def extract_raw_samples(
                 sample_idx += 1
             chunk_idx += 1
 
-    # If all the chunks have the same number of samples per chunk and use the same sample description, this table has one entry.
+    # If all the chunks have the same number of samples per chunk and use the same sample description,
+    # this table has one entry.
     while sample_idx < len(timedeltas):
+        sample_offset = chunk_offsets[chunk_idx]
         for _ in range(chunk_entries[-1].samples_per_chunk):
-            sample_offset = chunk_offsets[chunk_idx]
             is_sync = syncs is None or (sample_idx + 1) in syncs
             yield RawSample(
-                description_idx=chunk_entries[-1].sample_description_index - 1,
+                description_idx=chunk_entries[-1].sample_description_index,
                 offset=sample_offset,
                 size=sizes[sample_idx],
                 timedelta=timedeltas[sample_idx],
