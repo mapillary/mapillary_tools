@@ -11,7 +11,7 @@ def is_video_stationary(max_distance_from_start: float) -> bool:
     return max_distance_from_start < radius_threshold
 
 
-def convert_points_to_gpx(points: T.List[geo.Point]) -> gpxpy.gpx.GPX:
+def convert_points_to_gpx(points: T.Sequence[geo.Point]) -> gpxpy.gpx.GPX:
     gpx = gpxpy.gpx.GPX()
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx.tracks.append(gpx_track)

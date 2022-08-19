@@ -167,7 +167,7 @@ def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
     return aware_dt.timestamp()
 
 
-def interpolate(points: T.List[Point], t: float) -> Point:
+def interpolate(points: T.Sequence[Point], t: float) -> Point:
     """
     Interpolate or extrapolate the point at time t along the sequence of points (sorted by time).
     """

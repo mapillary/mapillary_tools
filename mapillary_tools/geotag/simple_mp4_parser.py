@@ -384,16 +384,29 @@ class RawSample(T.NamedTuple):
     is_sync: bool
 
 
+# TODO: can not inherit RawSample?
 class Sample(T.NamedTuple):
-    # reference to the sample description
-    description: T.Any
+    # copied from RawSample
+
+    # 1-based index
+    description_idx: int
     # sample offset
     offset: int
     # sample size
     size: int
+    # sample_delta read from stts entries,
+    # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
+    timedelta: int
+    # if it is a sync sample
+    is_sync: bool
+
+    # extended fields below
+
     # accumulated sample_delta,
     # i.e. DT(n) in the forumula DT(n+1) = DT(n) + STTS(n)
     time_offset: T.Union[int, float]
+    # reference to the sample description
+    description: T.Any
 
 
 def extract_raw_samples(
@@ -413,13 +426,17 @@ def extract_raw_samples(
     sample_idx = 0
     chunk_idx = 0
 
+    # iterate compressed chunks
     for entry_idx, entry in enumerate(chunk_entries):
         if entry_idx + 1 < len(chunk_entries):
             nbr_chunks = chunk_entries[entry_idx + 1].first_chunk - entry.first_chunk
         else:
             nbr_chunks = 1
+
+        # iterate chunks
         for _ in range(nbr_chunks):
             sample_offset = chunk_offsets[chunk_idx]
+            # iterate samples in this chunk
             for _ in range(entry.samples_per_chunk):
                 is_sync = syncs is None or (sample_idx + 1) in syncs
                 yield RawSample(
@@ -433,10 +450,14 @@ def extract_raw_samples(
                 sample_idx += 1
             chunk_idx += 1
 
-    # If all the chunks have the same number of samples per chunk and use the same sample description,
-    # this table has one entry.
+    # below handles the single-entry case:
+    # If all the chunks have the same number of samples per chunk
+    # and use the same sample description, this table has one entry.
+
+    # iterate chunks
     while sample_idx < len(timedeltas):
         sample_offset = chunk_offsets[chunk_idx]
+        # iterate samples in this chunk
         for _ in range(chunk_entries[-1].samples_per_chunk):
             is_sync = syncs is None or (sample_idx + 1) in syncs
             yield RawSample(
@@ -458,9 +479,12 @@ def extract_samples(
     acc_delta = 0
     for raw_sample in raw_samples:
         yield Sample(
-            description=descriptions[raw_sample.description_idx - 1],
+            description_idx=raw_sample.description_idx,
             offset=raw_sample.offset,
             size=raw_sample.size,
+            timedelta=raw_sample.timedelta,
+            is_sync=raw_sample.is_sync,
+            description=descriptions[raw_sample.description_idx - 1],
             time_offset=acc_delta,
         )
         acc_delta += raw_sample.timedelta
@@ -530,10 +554,13 @@ def parse_samples_from_trak(
     h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
     for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
         yield Sample(
-            description=sample.description,
+            description_idx=sample.description_idx,
             offset=sample.offset,
             size=sample.size,
+            timedelta=sample.timedelta / mdhd.timescale,
+            is_sync=sample.is_sync,
             time_offset=sample.time_offset / mdhd.timescale,
+            description=sample.description,
         )
 
 
