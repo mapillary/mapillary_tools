@@ -238,6 +238,42 @@ def test_parse_raw_samples_from_stbl():
             "data": {"entries": [1, 2, 3, 3], "sample_count": 4, "sample_size": 0},
             "type": b"stsz",
         },
-        {"data": {"entries": [1, 5]}, "type": b"stco"},
+        {"data": {"entries": [1, 5]}, "type": b"co64"},
         {"data": {"entries": [1, 3]}, "type": b"stss"},
     ]
+
+
+def test_box_header_0_building():
+    data = builder.BoxHeader0.build(
+        {
+            "type": b"ftyp",
+        }
+    )
+    assert data == b"\x00\x00\x00\x00ftyp"
+    p = builder.BoxHeader0.parse(data)
+    assert p["size32"] == 0
+
+
+def test_box_header_32_building():
+    data = builder.BoxHeader32.build(
+        {
+            "size": 123,
+            "type": b"ftyp",
+        }
+    )
+    assert data == b"\x00\x00\x00{ftyp"
+    p = builder.BoxHeader32.parse(data)
+    assert p["size"] == 123
+
+
+def test_box_header_64_building():
+    data = builder.BoxHeader64.build(
+        {
+            "size": 123,
+            "type": b"ftyp",
+        }
+    )
+    assert data == b"\x00\x00\x00\x01ftyp\x00\x00\x00\x00\x00\x00\x00{"
+    p = builder.BoxHeader64.parse(data)
+    assert p["size"] == 123
+    assert p["size32"] == 1

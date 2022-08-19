@@ -179,7 +179,6 @@ _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
 # moov -> trak -> tkhd
 TrackHeaderBox = C.Struct(
-    # "type" / C.Const(b"tkhd"),
     "version" / C.Default(C.Int8ub, 0),
     # Track_enabled: Indicates that the track is enabled. Flag value is 0x000001.
     # A disabled track (the low bit is zero) is treated as if it were not present.
@@ -203,10 +202,10 @@ TrackHeaderBox = C.Struct(
 
 # moov -> trak -> mdia -> mdhd
 # Box Type: ‘mdhd’
-# Container: Media Box (‘mdia’) Mandatory: Yes
+# Container: Media Box (‘mdia’)
+# Mandatory: Yes
 # Quantity: Exactly one
 MediaHeaderBox = C.Struct(
-    # "type" / C.Const(b"mdhd"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
@@ -218,11 +217,26 @@ MediaHeaderBox = C.Struct(
 )
 
 
-SampleEntryBox = C.Prefixed(
+# moov -> trak -> mdia -> hdlr
+# Box Type: ‘hdlr’
+# Container: Media Box (‘mdia’) or Meta Box (‘meta’)
+# Mandatory: Yes
+# Quantity: Exactly one
+HandlerReferenceBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "pre_defined" / C.Int32ub,
+    "handler_type" / C.Bytes(4),
+    "reserved" / C.Int32ub[3],
+    "name" / C.GreedyString("utf8"),
+)
+
+_SampleEntryBox = C.Prefixed(
     C.Int32ub,
     C.Struct(
         "format" / C.Bytes(4),
         C.Padding(6),
+        # reference entry in dinf/dref
         "data_reference_index" / C.Default(C.Int16ub, 1),
         "data" / C.GreedyBytes,
     ),
@@ -234,19 +248,18 @@ SampleEntryBox = C.Prefixed(
 # Container: Sample Table Box (‘stbl’) Mandatory: Yes
 # Quantity: Exactly one
 SampleDescriptionBox = C.Struct(
-    # "type" / C.Const(b"stsd"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
-    "entries" / C.PrefixedArray(C.Int32ub, SampleEntryBox),
+    "entries" / C.PrefixedArray(C.Int32ub, _SampleEntryBox),
 )
 
 
 # moov -> trak -> mdia -> minf -> stbl -> stsz
 # Box Type: ‘stsz’, ‘stz2’
-# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: Yes
 # Quantity: Exactly one variant must be present
 SampleSizeBox = C.Struct(
-    # "type" / C.Const(b"stsz"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     # If this field is set to 0, then the samples have different sizes, and those sizes are stored in the sample size table.
@@ -262,10 +275,10 @@ SampleSizeBox = C.Struct(
 
 # moov -> trak -> stbl -> stco
 # Box Type: ‘stco’, ‘co64’
-# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: Yes
 # Quantity: Exactly one variant must be present
 ChunkOffsetBox = C.Struct(
-    # "type" / C.Const(b"stco"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     "entries"
@@ -281,7 +294,6 @@ ChunkOffsetBox = C.Struct(
 
 # moov -> trak -> mdia -> minf -> stbl -> co64
 ChunkLargeOffsetBox = C.Struct(
-    # "type" / C.Const(b"co64"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     "entries"
@@ -294,10 +306,10 @@ ChunkLargeOffsetBox = C.Struct(
 
 # moov -> trak -> mdia -> minf -> stbl -> stts
 # Box Type: ‘stts’
-# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: Yes
 # Quantity: Exactly one
 TimeToSampleBox = C.Struct(
-    # "type" / C.Const(b"stts"),
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     "entries"
@@ -315,7 +327,8 @@ TimeToSampleBox = C.Struct(
 
 # moov -> trak -> mdia -> minf -> stbl -> stsc
 # Box Type: ‘stsc’
-# Container: Sample Table Box (‘stbl’) Mandatory: Yes
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: Yes
 # Quantity: Exactly one
 SampleToChunkBox = C.Struct(
     # "type" / C.Const(b"stsc"),
@@ -337,7 +350,7 @@ SampleToChunkBox = C.Struct(
 
 # moov -> trak -> mdia -> minf -> stbl -> stss
 # Box Type: ‘stss’
-# Container: Sample Table Box (‘stbl’) No
+# Container: Sample Table Box (‘stbl’)
 # Mandatory: No
 # Quantity: Zero or one
 

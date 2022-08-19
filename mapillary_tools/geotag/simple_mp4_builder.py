@@ -12,6 +12,7 @@ import construct as C
 from .simple_mp4_parser import (
     ChunkLargeOffsetBox,
     ChunkOffsetBox,
+    HandlerReferenceBox,
     MediaHeaderBox,
     RawSample,
     SampleDescriptionBox,
@@ -122,7 +123,6 @@ class Box32StructBuilder(Box64StructBuilder):
 _full_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
-    # TODO: b"hdlr": MediaHeaderBox,
     b"stsc": SampleToChunkBox,
     b"stts": TimeToSampleBox,
     b"co64": ChunkLargeOffsetBox,
@@ -130,6 +130,7 @@ _full_switch_map = {
     b"stsd": SampleDescriptionBox,
     b"stsz": SampleSizeBox,
     b"stss": SyncSampleBox,
+    b"hdlr": HandlerReferenceBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -150,7 +151,7 @@ FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types)
 _quick_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
-    # TODO: b"hdlr": MediaHeaderBox,
+    b"hdlr": HandlerReferenceBox,
 }
 
 _quick_lazy_box_types = [
@@ -279,14 +280,12 @@ def _build_stts(sample_deltas: T.Iterable[int]) -> BoxDict:
     }
 
 
-def _build_stco_or_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
+def _build_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     chunks = _build_chunks(raw_samples)
-    chunk_offsets = [chunk.offset for chunk in chunks]
-    is_co64 = any(UINT32_MAX < offset for offset in chunk_offsets)
     return {
-        "type": b"co64" if is_co64 else b"stco",
+        "type": b"co64",
         "data": {
-            "entries": chunk_offsets,
+            "entries": [chunk.offset for chunk in chunks],
         },
     }
 
@@ -312,7 +311,9 @@ def build_stbl_from_raw_samples(
         _build_stts((s.timedelta for s in raw_samples)),
         _build_stsc(raw_samples),
         _build_stsz([s.size for s in raw_samples]),
-        _build_stco_or_co64(raw_samples),
+        # always build as co64 to make sure moov box size is independent of chunk offsets for the same sample list
+        # so we can calculate the moov box size in advance
+        _build_co64(raw_samples),
     ]
     if any(not s.is_sync for s in raw_samples):
         boxes.append(_build_stss(raw_samples))
