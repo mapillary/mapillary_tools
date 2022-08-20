@@ -2,6 +2,7 @@ import dataclasses
 import io
 import pathlib
 import typing as T
+from enum import Enum, unique
 
 import construct as C
 
@@ -11,27 +12,41 @@ from .simple_mp4_parser import parse_path, parse_samples_from_trak, Sample
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser
 
-From my observation, A GPS record in GPMF has the following structure:
+A GPS GPMF sample has the following structure:
 - DEVC: Each connected device starts with DEVC.
     - DVID: Auto generated unique-ID for managing a large number of connect devices
     - STRM: Metadata streams are each nested with STRM
          - GPS5: latitude, longitude, altitude (WGS 84), 2D ground speed, and 3D speed
-         - GPSA: not sure what it is -- not documented in the GPMF spec
+         - GPSA: not documented in the spec
          - GPSF: Within the GPS stream: 0 - no lock, 2 or 3 - 2D or 3D Lock.
          - GPSP: GPS Precision - Dilution of Precision (DOP x100). Under 500 is good.
          - GPSU: UTC time and data from GPS. The time is read from from another clock so it is not in use.
          - SCAL: Scaling factor (divisor) for GPS5
 
-
 NOTE:
-- There might be multiple DEVC streams. Check all of them and found the streams containing GPS5 KLVs.
+- There might be multiple DEVC streams.
 - Only GPS5 and SCAL are required. The others are optional.
 - GPSU is not in use. We use the video clock to make sure frames and GPS are in sync.
-- We should skip records with GPSF==0 or GPSP >= 500
+- We should skip samples with GPSF==0 or GPSP > 500
 """
 
 
-GPMF: C.GreedyRange
+@unique
+class GPSFix(Enum):
+    NO_FIX = 0
+    FIX_2D = 2
+    FIX_3D = 3
+
+
+class KLVDict(T.TypedDict):
+    key: bytes
+    type: bytes
+    structure_size: int
+    repeat: int
+    data: T.List[T.Any]
+
+
+GPMFSampleData: C.GreedyRange
 
 
 KLV = C.Struct(
@@ -111,7 +126,8 @@ KLV = C.Struct(
             # ?	data structure is complex	TYPE	Structure is defined with a preceding TYPE
             # null	Nested metadata	uint32_t	The data within is GPMF structured KLV data
             b"\x00": C.FixedSized(
-                (C.this.repeat * C.this.structure_size), C.LazyBound(lambda: GPMF)
+                (C.this.repeat * C.this.structure_size),
+                C.LazyBound(lambda: GPMFSampleData),
             ),
         },
         C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
@@ -124,19 +140,57 @@ KLV = C.Struct(
 )
 
 
-GPMF = C.GreedyRange(KLV)
+GPMFSampleData = C.GreedyRange(KLV)
 
 
 @dataclasses.dataclass
-class Point(geo.Point):
-    gps_fix: int
-    gps_precision: float
+class PointWithFix(geo.Point):
+    gps_fix: T.Optional[GPSFix]
+    gps_precision: T.Optional[float]
 
 
-def gps_from_stream(stream: T.Sequence[T.Any]) -> T.Generator[Point, None, None]:
-    indexed = {}
-    for klv in stream:
-        indexed[klv["key"]] = klv["data"]
+# A GPS5 stream example:
+#     key = b'STRM' type = b'\x00' structure_size =  1 repeat = 400
+#     data = ListContainer:
+#         Container:
+#             key = b'STMP' type = b'J' structure_size =  8 repeat = 1
+#             data = [[60315]]
+#         Container:
+#             key = b'TSMP' type = b'L' structure_size =  4 repeat = 1
+#             data = [[10]]
+#         Container:
+#             key = b'STNM' type = b'c' structure_size = 43 repeat = 1
+#             data = [b'GPS (Lat., Long., Alt., 2D speed, 3D speed)']
+#         Container:
+#             key = b'GPSF' type = b'L' structure_size =  4 repeat = 1
+#             data = [[3]]
+#         Container:
+#             key = b'GPSU' type = b'U' structure_size = 16 repeat = 1
+#             data = [[b'220731002523.200']]
+#         Container:
+#             key = b'GPSP' type = b'S' structure_size =  2 repeat = 1
+#             data = [[342]]
+#         Container:
+#             key = b'UNIT' type = b'c' structure_size =  3 repeat = 5
+#             data = [b'deg', b'deg', b'm\x00\x00', b'm/s', b'm/s']
+#         Container:
+#             key = b'SCAL' type = b'l' structure_size =  4 repeat = 5
+#             data = [[10000000], [10000000], [1000], [1000], [100]]
+#         Container:
+#             key = b'GPSA' type = b'F' structure_size =  4 repeat = 1
+#             data = [[b'MSLV']]
+#         Container:
+#             key = b'GPS5' type = b'l' structure_size = 20 repeat = 2
+#             data = [
+#                 [378081666, -1224280064, 9621, 1492, 138],
+#                 [378081662, -1224280049, 9592, 1476, 150],
+#             ]
+def gps_from_stream(
+    stream: T.Sequence[KLVDict],
+) -> T.Generator[PointWithFix, None, None]:
+    indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
+        klv["key"]: klv["data"] for klv in stream
+    }
 
     gps5 = indexed.get(b"GPS5")
     if gps5 is None:
@@ -145,10 +199,13 @@ def gps_from_stream(stream: T.Sequence[T.Any]) -> T.Generator[Point, None, None]
     scal = indexed.get(b"SCAL")
     if scal is None:
         return
+    scal_values = [s[0] for s in scal]
+    if any(s == 0 for s in scal_values):
+        return
 
     gpsf = indexed.get(b"GPSF")
     if gpsf is not None:
-        gpsf_value = gpsf[0][0]
+        gpsf_value = GPSFix(gpsf[0][0])
     else:
         gpsf_value = None
 
@@ -159,15 +216,11 @@ def gps_from_stream(stream: T.Sequence[T.Any]) -> T.Generator[Point, None, None]
         gpsp_value = None
 
     for point in gps5:
-        try:
-            lat, lon, alt, _ground_speed, _speed_3d = [
-                v / s[0] for v, s in zip(point, scal)
-            ]
-        except ZeroDivisionError:
-            return None
-
-        yield Point(
-            # will figure out the timestamp later
+        lat, lon, alt, _ground_speed, _speed_3d = [
+            v / s for v, s in zip(point, scal_values)
+        ]
+        yield PointWithFix(
+            # will figure out the actual timestamp later
             time=0,
             lat=lat,
             lon=lon,
@@ -178,51 +231,73 @@ def gps_from_stream(stream: T.Sequence[T.Any]) -> T.Generator[Point, None, None]
         )
 
 
-def _extract_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
-    # There might be multiple GPS devices
-    # This table is to make sure GPS points are not mixed
-    # (i.e. points from device 1 and device 2 are added to the same track)
-    dvid_points: T.Dict[int, T.List[Point]] = {}
+def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
+    device_id = None
 
-    # The default value is for grouping points for those streams without DVID found,
-    # it does not matter what value it is, however, to be safe, make sure it is larger than
-    # DVID's type 32-bit unsigned integer (uint32_t)
-    DEFAULT_DEVICE_ID = 2**32
+    for klv in stream:
+        if klv["key"] == b"DVID":
+            device_id = klv["data"][0][0]
+            break
+
+    if device_id is None:
+        # The default value is for grouping points for those streams without DVID found,
+        # make sure it is larger than DVID's type 32-bit unsigned integer (uint32_t)
+        device_id = 2**32
+
+    return device_id
+
+
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[PointWithFix]:
+    sample_points: T.List[PointWithFix] = []
+
+    for klv in stream:
+        if klv["key"] == b"STRM":
+            sample_points = list(gps_from_stream(klv["data"]))
+            if sample_points:
+                break
+
+    return sample_points
+
+
+def _extract_points(
+    fp: T.BinaryIO, samples: T.Iterable[Sample]
+) -> T.List[PointWithFix]:
+    # To keep GPS points from different devices separated
+    points_by_device: T.Dict[int, T.List[PointWithFix]] = {}
 
     for sample in samples:
         fp.seek(sample.offset, io.SEEK_SET)
         data = fp.read(sample.size)
-        klvs = GPMF.parse(data)
+        gpmf_sample = GPMFSampleData.parse(data)
 
         # iterate devices
-        devices = (klv for klv in klvs if klv["key"] == b"DEVC")
+        devices = (klv for klv in gpmf_sample if klv["key"] == b"DEVC")
         for device in devices:
-            device_id = DEFAULT_DEVICE_ID
-            sample_points = []
+            sample_points = _find_first_gps_stream(device["data"])
+            if sample_points:
+                # interpolate timestamps in between
+                avg_timedelta = sample.timedelta / len(sample_points)
+                for idx, point in enumerate(sample_points):
+                    point.time = sample.time_offset + avg_timedelta * idx
 
-            # iterate KLVs in the device
-            for klv in device["data"]:
-                if klv["key"] == b"DVID":
-                    device_id = klv["data"][0][0]
-                elif klv["key"] == b"STRM":
-                    sample_points = list(gps_from_stream(klv["data"]))
+                device_id = _find_first_device_id(device["data"])
+                device_points = points_by_device.setdefault(device_id, [])
 
-                # return points in the first stream with GPS data found in the device
-                if sample_points:
-                    # calculate and update the timestamp based on current sample time offset
-                    avg_timedelta_in_gps5 = sample.timedelta / len(sample_points)
-                    for idx, point in enumerate(sample_points):
-                        point.time = sample.time_offset + avg_timedelta_in_gps5 * idx
-                    dvid_points.setdefault(device_id, []).extend(sample_points)
-                    break
+                # remove points with the same lat/lon
+                for point in sample_points:
+                    if device_points:
+                        prev_latlon = device_points[-1].lat, device_points[-1].lon
+                        cur_latlon = point.lat, point.lon
+                        if prev_latlon != cur_latlon:
+                            device_points.append(point)
+                    else:
+                        device_points.append(point)
 
-    if dvid_points:
-        return list(dvid_points.values())[0]
-    else:
-        return []
+    values = list(points_by_device.values())
+    return values[0] if values else []
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[Point]:
+def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
     with open(path, "rb") as fp:
         for h, s in parse_path(fp, [b"moov", b"trak"]):
             gpmd_samples = (

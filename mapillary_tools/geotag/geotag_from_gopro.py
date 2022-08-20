@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, geo, types, utils
+from .. import constants, exceptions, geo, types, utils
 from . import gpmf_parser, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 
@@ -49,6 +49,30 @@ class GeotagFromGoPro(GeotagFromGeneric):
                 continue
 
             points = gpmf_parser.parse_gpx(Path(video))
+
+            num_points = len(points)
+            points = [p for p in points if p.gps_fix != gpmf_parser.GPSFix.NO_FIX]
+            if len(points) < num_points:
+                LOG.warning(
+                    "Removed %d points with no GPS fix from %s",
+                    num_points - len(points),
+                    video,
+                )
+
+            num_points = len(points)
+            points = [
+                p
+                for p in points
+                if p.gps_precision is not None
+                and p.gps_precision <= constants.MAX_GOPRO_GPS_PRECISION
+            ]
+            if len(points) < num_points:
+                LOG.warning(
+                    "Removed %d points with DoP value higher than %d from %s",
+                    num_points - len(points),
+                    constants.MAX_GOPRO_GPS_PRECISION,
+                    video,
+                )
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(

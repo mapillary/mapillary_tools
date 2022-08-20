@@ -10,14 +10,16 @@ import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.utils as utils
 
 
-def convert_points_to_gpx(points: T.Sequence[gpmf_parser.Point]) -> gpxpy.gpx.GPXTrack:
+def _convert_points_to_gpx_track(
+    points: T.Sequence[gpmf_parser.PointWithFix],
+) -> gpxpy.gpx.GPXTrack:
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gpx_track.segments.append(gpx_segment)
     gps_fix_map = {
-        0: "none",
-        2: "2d",
-        3: "3d",
+        gpmf_parser.GPSFix.NO_FIX: "none",
+        gpmf_parser.GPSFix.FIX_2D: "2d",
+        gpmf_parser.GPSFix.FIX_3D: "3d",
     }
     for point in points:
         gpxp = gpxpy.gpx.GPXTrackPoint(
@@ -27,7 +29,8 @@ def convert_points_to_gpx(points: T.Sequence[gpmf_parser.Point]) -> gpxpy.gpx.GP
             time=datetime.datetime.utcfromtimestamp(point.time),
             comment=f"precision: {point.gps_precision}",
         )
-        gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
+        if point.gps_fix is not None:
+            gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
         gpx_segment.points.append(gpxp)
 
     return gpx_track
@@ -40,10 +43,13 @@ def _convert(gpx: gpxpy.gpx.GPX, path: pathlib.Path, gps_fix=None, max_precision
     points = [
         p
         for p in points
-        if (gps_fix is None or p.gps_fix in gps_fix)
-        and (max_precision is None or p.gps_precision <= max_precision)
+        if (gps_fix is None or (p.gps_fix is None or p.gps_fix.value in gps_fix))
+        and (
+            max_precision is None
+            or (p.gps_precision is None or p.gps_precision <= max_precision)
+        )
     ]
-    gpx_track = convert_points_to_gpx(points)
+    gpx_track = _convert_points_to_gpx_track(points)
     gpx_track.name = path.name
     gpx.tracks.append(gpx_track)
 
@@ -54,7 +60,7 @@ def _parse_args():
     parser.add_argument(
         "--max_precision",
         type=int,
-        help="Show GPS points under this precision",
+        help="Show GPS points under this Dilution of Precision (DOP x100)",
     )
     parser.add_argument("--gps_fix", help="Show GPS points with this GPS fix")
     return parser.parse_args()

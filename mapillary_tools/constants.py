@@ -22,3 +22,6 @@ SAMPLED_VIDEO_FRAMES_FILENAME = os.getenv(
 )
 MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 500))
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
+# This is DoP value, the lower the better
+# See https://github.com/gopro/gpmf-parser#hero5-black-with-gps-enabled-adds
+MAX_GOPRO_GPS_PRECISION = int(os.getenv(_ENV_PREFIX + "MAX_GOPRO_GPS_PRECISION", 1000))
