@@ -1,4 +1,5 @@
 import io
+import pathlib
 import typing as T
 from enum import Enum
 
@@ -92,8 +93,8 @@ def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
             )
 
 
-def parse_gpx(path: str) -> T.List[geo.Point]:
-    with open(path, "rb") as fp:
+def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
+    with path.open("rb") as fp:
         for h, s in parse_path(fp, [b"moov", b"trak"]):
             camm_samples = (
                 sample

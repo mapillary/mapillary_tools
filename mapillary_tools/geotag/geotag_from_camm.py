@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 import typing as T
 
 from tqdm import tqdm
@@ -45,7 +46,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = camm_parser.parse_gpx(video)
+            points = camm_parser.parse_gpx(pathlib.Path(video))
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
