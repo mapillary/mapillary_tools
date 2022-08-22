@@ -1,7 +1,7 @@
 import dataclasses
 import io
-import sys
 import pathlib
+import sys
 import typing as T
 from enum import Enum, unique
 
