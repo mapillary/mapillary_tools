@@ -1,3 +1,4 @@
+import typing as T
 import os
 
 import appdirs
@@ -24,4 +25,7 @@ MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 500))
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
 # This is DoP value, the lower the better
 # See https://github.com/gopro/gpmf-parser#hero5-black-with-gps-enabled-adds
-MAX_GOPRO_GPS_PRECISION = int(os.getenv(_ENV_PREFIX + "MAX_GOPRO_GPS_PRECISION", 1000))
+GOPRO_MAX_GPS_PRECISION = int(os.getenv(_ENV_PREFIX + "GOPRO_MAX_GPS_PRECISION", 1000))
+GOPRO_GPS_FIXES: T.Set[int] = set(
+    int(fix) for fix in os.getenv(_ENV_PREFIX + "GOPRO_GPS_FIXES", "2,3").split(",")
+)

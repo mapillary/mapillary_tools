@@ -31,6 +31,38 @@ class GeotagFromGoPro(GeotagFromGeneric):
         self.offset_time = offset_time
         super().__init__()
 
+    def _filter_noisy_points(self, points, video):
+        num_points = len(points)
+        points = [
+            p
+            for p in points
+            if p.gps_fix is not None and p.gps_fix.value in constants.GOPRO_GPS_FIXES
+        ]
+        if len(points) < num_points:
+            LOG.warning(
+                "Removed %d points with the GPS fix not in %s from %s",
+                num_points - len(points),
+                constants.GOPRO_GPS_FIXES,
+                video,
+            )
+
+        num_points = len(points)
+        points = [
+            p
+            for p in points
+            if p.gps_precision is not None
+            and p.gps_precision <= constants.GOPRO_MAX_GPS_PRECISION
+        ]
+        if len(points) < num_points:
+            LOG.warning(
+                "Removed %d points with DoP value higher than %d from %s",
+                num_points - len(points),
+                constants.GOPRO_MAX_GPS_PRECISION,
+                video,
+            )
+
+        return points
+
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
@@ -50,29 +82,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
             points = gpmf_parser.parse_gpx(Path(video))
 
-            num_points = len(points)
-            points = [p for p in points if p.gps_fix != gpmf_parser.GPSFix.NO_FIX]
-            if len(points) < num_points:
-                LOG.warning(
-                    "Removed %d points with no GPS fix from %s",
-                    num_points - len(points),
-                    video,
-                )
-
-            num_points = len(points)
-            points = [
-                p
-                for p in points
-                if p.gps_precision is not None
-                and p.gps_precision <= constants.MAX_GOPRO_GPS_PRECISION
-            ]
-            if len(points) < num_points:
-                LOG.warning(
-                    "Removed %d points with DoP value higher than %d from %s",
-                    num_points - len(points),
-                    constants.MAX_GOPRO_GPS_PRECISION,
-                    video,
-                )
+            points = self._filter_noisy_points(points, video)
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
