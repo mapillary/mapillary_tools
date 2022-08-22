@@ -1,5 +1,5 @@
-import sys
 import pprint
+import sys
 
 from mapillary_tools.exif_read import ExifRead
 
