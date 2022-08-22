@@ -196,7 +196,8 @@ def _extract_idx_from_frame_filename(
 
 def list_samples(sample_dir: Path, video_path: Path) -> T.List[T.Tuple[int, Path]]:
     """
-    Return a generator that lists sample index (0-based) and sample path.
+    Return a list of tuples: (sample index (0-based), sample path).
+    Sample indices are sorted in ascending order.
     """
     samples = []
     for sample_path in sample_dir.iterdir():
