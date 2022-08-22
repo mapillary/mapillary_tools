@@ -218,9 +218,7 @@ def verify_exif_write(
         edit = ExifEdit(fp.read())
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescriptionEXIF"; expected "Dict[str, Any]"
-    edit.add_image_description(
-        T.cast(T.Dict[str, T.Any], uploader.desc_file_to_exif(desc))
-    )
+    edit.add_image_description(T.cast(T.Dict, uploader.desc_file_to_exif(desc)))
     try:
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:

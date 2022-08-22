@@ -20,7 +20,7 @@ class ExifEdit:
         self._filename_or_bytes = filename_or_bytes
         self._ef = piexif.load(filename_or_bytes)
 
-    def add_image_description(self, data: T.Dict[str, T.Any]) -> None:
+    def add_image_description(self, data: T.Dict) -> None:
         """Add a dict to image description."""
         self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 
