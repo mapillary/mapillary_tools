@@ -7,7 +7,6 @@ import typing as T
 import piexif
 
 from .geo import decimal_to_dms
-from .types import ImageDescriptionEXIF
 
 
 LOG = logging.getLogger(__name__)
@@ -21,7 +20,7 @@ class ExifEdit:
         self._filename_or_bytes = filename_or_bytes
         self._ef = piexif.load(filename_or_bytes)
 
-    def add_image_description(self, data: ImageDescriptionEXIF) -> None:
+    def add_image_description(self, data: T.Dict[str, T.Any]) -> None:
         """Add a dict to image description."""
         self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 
@@ -151,15 +150,3 @@ class ExifEdit:
                 img = fp.read()
 
         piexif.insert(exif_bytes, img, filename)
-
-
-if __name__ == "__main__":
-    import sys
-
-    LOG.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(logging.DEBUG)
-    LOG.addHandler(handler)
-    for image in sys.argv[1:]:
-        edit = ExifEdit(image)
-        edit.dump_image_bytes()
