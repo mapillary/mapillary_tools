@@ -7,7 +7,7 @@ import sys
 import typing as T
 
 from mapillary_tools import utils
-from mapillary_tools.geotag import simple_mp4_parser
+from mapillary_tools.geotag import simple_mp4_builder as builder, simple_mp4_parser
 
 LOG = logging.getLogger(__name__)
 
@@ -146,6 +146,18 @@ def _parse_args():
         help="dump as bytes or not",
     )
     parser.add_argument(
+        "--full",
+        action="store_true",
+        default=False,
+        help="parse MP4 with the full parser or not, otherwise parse with the quick parser",
+    )
+    parser.add_argument(
+        "--simple",
+        action="store_true",
+        default=False,
+        help="parse MP4 with the simple parser or not, otherwise parse with the quick parser",
+    )
+    parser.add_argument(
         "--box_path",
         required=False,
         help="show box data at path like this: moov/trak/minf",
@@ -187,8 +199,17 @@ def _process_path(path: pathlib.Path):
                 _dump_box_data_at(fp, box_path)
         else:
             LOG.info(f"parsing {path}")
-            with open(path, "rb") as fp:
-                _parse_structs(fp)
+            if parsed_args.simple:
+                with open(path, "rb") as fp:
+                    _parse_structs(fp)
+            elif parsed_args.full:
+                with open(path, "rb") as fp:
+                    boxes = builder.FullBoxStruct64.BoxList.parse_stream(fp)
+                    print(boxes)
+            else:
+                with open(path, "rb") as fp:
+                    boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
+                    print(boxes)
 
 
 def main():

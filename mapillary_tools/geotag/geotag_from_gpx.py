@@ -20,8 +20,8 @@ class GeotagFromGPX(GeotagFromGeneric):
     def __init__(
         self,
         image_dir: str,
-        images: T.List[str],
-        points: T.List[geo.Point],
+        images: T.Sequence[str],
+        points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
@@ -172,8 +172,8 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
     def __init__(
         self,
         image_dir: str,
-        images: T.List[str],
-        points: T.List[geo.Point],
+        images: T.Sequence[str],
+        points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,

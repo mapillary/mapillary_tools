@@ -14,7 +14,7 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
-    def __init__(self, image_dir: str, images: T.List[str]):
+    def __init__(self, image_dir: str, images: T.Sequence[str]):
         self.image_dir = image_dir
         self.images = images
         super().__init__()

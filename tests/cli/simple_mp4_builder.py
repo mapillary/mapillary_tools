@@ -40,7 +40,7 @@ def _filter_trak_boxes(
 
 def _is_video_trak(box: BoxDict) -> bool:
     hdlr = _find_box_at_pathx(box, [b"trak", b"mdia", b"hdlr"])
-    return hdlr["data"]["handler_type"] == b"vide"
+    return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
 
 def _filter_moov_children_boxes(

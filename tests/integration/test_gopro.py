@@ -1,5 +1,4 @@
 import json
-import os
 import subprocess
 
 import py.path
@@ -13,69 +12,69 @@ IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_d
 
 expected_descs = [
     {
-        "MAPLatitude": 42.0266244,
-        "MAPLongitude": -129.2943386,
-        "MAPCaptureTime": "2019_11_18_23_42_08_645",
         "MAPAltitude": 9540.24,
+        "MAPCaptureTime": "2019_11_18_15_41_12_354",
         "MAPCompassHeading": {
             "TrueHeading": 123.93587938690177,
             "MagneticHeading": 123.93587938690177,
         },
+        "MAPLatitude": 42.0266244,
+        "MAPLongitude": -129.2943386,
         "filename": "hero8.mp4/hero8_000001.jpg",
     },
     {
-        "MAPLatitude": 38.40647030477047,
-        "MAPLongitude": -127.91879935228401,
-        "MAPCaptureTime": "2019_11_18_23_42_10_645",
-        "MAPAltitude": 8210.638894516123,
+        "MAPAltitude": 7112.573717404068,
+        "MAPCaptureTime": "2019_11_18_15_41_14_354",
         "MAPCompassHeading": {
-            "TrueHeading": 164.2783143490891,
-            "MagneticHeading": 164.2783143490891,
+            "TrueHeading": 140.8665026186285,
+            "MagneticHeading": 140.8665026186285,
         },
+        "MAPLatitude": 35.33318621742755,
+        "MAPLongitude": -126.85929159704702,
         "filename": "hero8.mp4/hero8_000002.jpg",
     },
     {
-        "MAPLatitude": 35.33045525508525,
-        "MAPLongitude": -126.85656645076101,
-        "MAPCaptureTime": "2019_11_18_23_42_12_645",
-        "MAPAltitude": 7111.61486484729,
+        "MAPAltitude": 7463.642846094319,
+        "MAPCaptureTime": "2019_11_18_15_41_16_354",
         "MAPCompassHeading": {
-            "TrueHeading": 140.84083032165609,
-            "MagneticHeading": 140.84083032165609,
+            "TrueHeading": 138.44255851085705,
+            "MagneticHeading": 138.44255851085705,
         },
+        "MAPLatitude": 36.32681619054138,
+        "MAPLongitude": -127.18475264566939,
         "filename": "hero8.mp4/hero8_000003.jpg",
     },
     {
-        "MAPLatitude": 35.67994968324376,
-        "MAPLongitude": -126.96633932025631,
-        "MAPCaptureTime": "2019_11_18_23_42_14_645",
-        "MAPAltitude": 7234.620097836571,
+        "MAPAltitude": 6909.8168472111465,
+        "MAPCaptureTime": "2019_11_18_15_41_18_354",
         "MAPCompassHeading": {
-            "TrueHeading": 139.9975566712228,
-            "MagneticHeading": 139.9975566712228,
+            "TrueHeading": 142.23462669862568,
+            "MagneticHeading": 142.23462669862568,
         },
+        "MAPLatitude": 34.7537270390268,
+        "MAPLongitude": -126.65905680405231,
         "filename": "hero8.mp4/hero8_000004.jpg",
     },
     {
-        "MAPLatitude": 36.62692461557483,
-        "MAPLongitude": -127.27854373218855,
-        "MAPCaptureTime": "2019_11_18_23_42_16_645",
-        "MAPAltitude": 7570.467814029364,
+        "MAPAltitude": 7212.594480737465,
+        "MAPCaptureTime": "2019_11_18_15_41_20_354",
         "MAPCompassHeading": {
-            "TrueHeading": 137.69409398454923,
-            "MagneticHeading": 137.69409398454923,
+            "TrueHeading": 164.70819093235514,
+            "MagneticHeading": 164.70819093235514,
         },
+        "MAPLatitude": 35.61583820322709,
+        "MAPLongitude": -126.93688762007304,
         "filename": "hero8.mp4/hero8_000005.jpg",
     },
     {
-        "MAPLatitude": 36.9141600088776,
-        "MAPLongitude": -127.37008598994919,
-        "MAPCaptureTime": "2019_11_18_23_42_18_645",
-        "MAPAltitude": 7673.03659529988,
+        "MAPAltitude": 7274.361994963208,
+        "MAPCaptureTime": "2019_11_18_15_41_22_354",
         "MAPCompassHeading": {
-            "TrueHeading": 344.835906081436,
-            "MagneticHeading": 344.835906081436,
+            "TrueHeading": 139.71549328876722,
+            "MagneticHeading": 139.71549328876722,
         },
+        "MAPLatitude": 35.79255093264954,
+        "MAPLongitude": -126.98833423074615,
         "filename": "hero8.mp4/hero8_000006.jpg",
     },
 ]
@@ -99,8 +98,11 @@ def test_process_gopro_hero8(
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
     video_path = setup_data.join("hero8.mp4")
+    # this sample hero8.mp4 doesn't have any good GPS points,
+    # so we do not filter out bad GPS points
+    envars = "MAPILLARY_TOOLS_GOPRO_GPS_FIXES=0,2,3 MAPILLARY_TOOLS_GOPRO_MAX_GPS_PRECISION=100000"
     x = subprocess.run(
-        f"{EXECUTABLE} video_process  --geotag_source=gopro_videos {str(video_path)} --interpolation_use_gpx_start_time",
+        f"{envars} {EXECUTABLE} video_process --geotag_source=gopro_videos {str(video_path)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

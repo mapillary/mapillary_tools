@@ -12,7 +12,7 @@ class GeotagFromNMEAFile(GeotagFromGPX):
     def __init__(
         self,
         image_dir: str,
-        images: T.List[str],
+        images: T.Sequence[str],
         source_path: str,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
