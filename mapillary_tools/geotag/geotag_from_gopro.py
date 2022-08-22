@@ -31,7 +31,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
         self.offset_time = offset_time
         super().__init__()
 
-    def _filter_noisy_points(self, points, video):
+    def _filter_noisy_points(
+        self, points: T.Sequence[gpmf_parser.PointWithFix], video: Path
+    ) -> T.Sequence[gpmf_parser.PointWithFix]:
         num_points = len(points)
         points = [
             p
@@ -80,9 +82,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = gpmf_parser.parse_gpx(Path(video))
-
-            points = self._filter_noisy_points(points, video)
+            points = self._filter_noisy_points(
+                gpmf_parser.parse_gpx(Path(video)), Path(video)
+            )
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
