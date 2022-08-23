@@ -52,6 +52,13 @@ class KLVDict(TypedDict):
     data: T.List[T.Any]
 
 
+@dataclasses.dataclass
+class PointWithFix(geo.Point):
+    gps_fix: T.Optional[GPSFix]
+    gps_precision: T.Optional[float]
+    gps_ground_speed: T.Optional[float]
+
+
 GPMFSampleData: C.GreedyRange
 
 
@@ -149,12 +156,6 @@ KLV = C.Struct(
 GPMFSampleData = C.GreedyRange(KLV)
 
 
-@dataclasses.dataclass
-class PointWithFix(geo.Point):
-    gps_fix: T.Optional[GPSFix]
-    gps_precision: T.Optional[float]
-
-
 # A GPS5 stream example:
 #     key = b'STRM' type = b'\x00' structure_size =  1 repeat = 400
 #     data = ListContainer:
@@ -222,7 +223,7 @@ def gps_from_stream(
         gpsp_value = None
 
     for point in gps5:
-        lat, lon, alt, _ground_speed, _speed_3d = [
+        lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
         yield PointWithFix(
@@ -233,6 +234,7 @@ def gps_from_stream(
             alt=alt,
             gps_fix=gpsf_value,
             gps_precision=gpsp_value,
+            gps_ground_speed=ground_speed,
             angle=None,
         )
 
@@ -315,3 +317,17 @@ def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
             if points:
                 return points
     return []
+
+
+def dump_samples(path: pathlib.Path):
+    with open(path, "rb") as fp:
+        for h, s in parse_path(fp, [b"moov", b"trak"]):
+            gpmd_samples = (
+                sample
+                for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
+                if sample.description.format == b"gpmd"
+            )
+            for sample in gpmd_samples:
+                fp.seek(sample.offset, io.SEEK_SET)
+                data = fp.read(sample.size)
+                yield GPMFSampleData.parse(data)

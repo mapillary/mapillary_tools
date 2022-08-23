@@ -6,9 +6,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import constants, exceptions, geo, types, utils
-from . import gpmf_parser, utils as geotag_utils
+from . import gpmf_parser, utils as geotag_utils, gps_filter
 from .geotag_from_generic import GeotagFromGeneric
-
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 
 
@@ -30,6 +29,39 @@ class GeotagFromGoPro(GeotagFromGeneric):
             self.videos = [source_path]
         self.offset_time = offset_time
         super().__init__()
+
+    def _filter_out_outliers(
+        self, points: T.List[gpmf_parser.PointWithFix]
+    ) -> T.List[gpmf_parser.PointWithFix]:
+        distances = [
+            geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
+            for left, right in geo.pairwise(points)
+        ]
+        if len(distances) < 2:
+            return points
+
+        max_distance = gps_filter.upper_whisker(distances)
+        max_distance = max(15 + 15, max_distance)
+        groups = gps_filter.split_if(
+            T.cast(T.List[geo.Point], points),
+            gps_filter.farther_than(max_distance),
+        )
+
+        ground_speeds = [
+            point.gps_ground_speed
+            for point in points
+            if point.gps_ground_speed is not None
+        ]
+        if len(ground_speeds) < 2:
+            return points
+
+        max_speed = gps_filter.upper_whisker(ground_speeds)
+        merged = gps_filter.dbscan(groups, gps_filter.slower_than(max_speed))
+
+        return T.cast(
+            T.List[gpmf_parser.PointWithFix],
+            gps_filter.find_majority(merged.values()),
+        )
 
     def _filter_noisy_points(
         self, points: T.Sequence[gpmf_parser.PointWithFix], video: Path
@@ -62,6 +94,8 @@ class GeotagFromGoPro(GeotagFromGeneric):
                 constants.GOPRO_MAX_GPS_PRECISION,
                 video,
             )
+
+        points = self._filter_out_outliers(points)
 
         return points
 
