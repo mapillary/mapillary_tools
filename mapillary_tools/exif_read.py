@@ -1,15 +1,13 @@
 import datetime
 import os
-import sys
 from typing import Any, List, Optional, Tuple, Type, Union
 
 import exifread
-from exifread.utils import Ratio
 
 from .geo import normalize_bearing
 
 
-def eval_frac(value: Ratio) -> float:
+def eval_frac(value: exifread.utils.Ratio) -> float:
     return float(value.num) / float(value.den)
 
 
@@ -35,7 +33,9 @@ def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
     return date_time, subseconds
 
 
-def gps_to_decimal(values: List[Ratio], reference: str) -> Optional[float]:
+def gps_to_decimal(
+    values: List[exifread.utils.Ratio], reference: str
+) -> Optional[float]:
     sign = 1 if reference in "NE" else -1
     deg, min, sec = values
     try:
@@ -299,21 +299,3 @@ class ExifRead:
             fields, default="", field_type=str
         )
         return sub_sec
-
-
-if __name__ == "__main__":
-    import pprint
-
-    for filename in sys.argv[1:]:
-        exif = ExifRead(filename, details=True)
-        pprint.pprint(
-            {
-                "capture_time": exif.extract_capture_time(),
-                "gps_time": exif.extract_gps_time(),
-                "direction": exif.extract_direction(),
-                "model": exif.extract_model(),
-                "make": exif.extract_make(),
-                "lon_lat": exif.extract_lon_lat(),
-                "altitude": exif.extract_altitude(),
-            }
-        )

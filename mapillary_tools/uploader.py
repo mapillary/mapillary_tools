@@ -256,7 +256,8 @@ def _zip_sequence_fp(
             edit = exif_write.ExifEdit(desc["filename"])
             with open(desc["filename"], "rb") as fp:
                 md5sum = utils.md5sum_fp(fp)
-            exif_desc = desc_file_to_exif(desc)
+            # The cast is to fix the type checker error
+            exif_desc = T.cast(T.Dict, desc_file_to_exif(desc))
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
