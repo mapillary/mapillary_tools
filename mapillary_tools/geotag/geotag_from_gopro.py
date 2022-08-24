@@ -41,12 +41,18 @@ class GeotagFromGoPro(GeotagFromGeneric):
             return points
 
         max_distance = gps_filter.upper_whisker(distances)
+        LOG.debug("max distance: %f", max_distance)
         max_distance = max(
-            constants.GOPRO_GPS_PRECISION + constants.GOPRO_GPS_PRECISION, max_distance
+            # distance between two points hence double
+            constants.GOPRO_GPS_PRECISION + constants.GOPRO_GPS_PRECISION,
+            max_distance,
         )
-        groups = gps_filter.split_if(
+        sequences = gps_filter.split_if(
             T.cast(T.List[geo.Point], points),
             gps_filter.farther_than(max_distance),
+        )
+        LOG.debug(
+            "Split to %d sequences with max distance %f", len(sequences), max_distance
         )
 
         ground_speeds = [
@@ -58,7 +64,10 @@ class GeotagFromGoPro(GeotagFromGeneric):
             return points
 
         max_speed = gps_filter.upper_whisker(ground_speeds)
-        merged = gps_filter.dbscan(groups, gps_filter.slower_than(max_speed))
+        merged = gps_filter.dbscan(sequences, gps_filter.slower_than(max_speed))
+        LOG.debug(
+            "Found %d sequences after merging with max speed %f", len(merged), max_speed
+        )
 
         return T.cast(
             T.List[gpmf_parser.PointWithFix],
@@ -97,7 +106,14 @@ class GeotagFromGoPro(GeotagFromGeneric):
                 video,
             )
 
+        num_points = len(points)
         points = self._filter_out_outliers(points)
+        if len(points) < num_points:
+            LOG.warning(
+                "Removed %d outlier points from %s",
+                num_points - len(points),
+                video,
+            )
 
         return points
 
