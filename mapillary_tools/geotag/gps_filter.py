@@ -61,9 +61,11 @@ def split_if(
     return sequences
 
 
-def farther_than(
+def distance_gt(
     max_distance: float,
 ) -> Decider:
+    """Return a callable that checks if two points are farther than the given distance."""
+
     def _split_or_not(p1, p2):
         distance = geo.gps_distance((p1.lat, p1.lon), (p2.lat, p2.lon))
         return distance > max_distance
@@ -71,7 +73,9 @@ def farther_than(
     return _split_or_not
 
 
-def slower_than(max_speed: float) -> Decider:
+def speed_le(max_speed: float) -> Decider:
+    """Return a callable that checks if the speed between two points are slower than the given speed."""
+
     def _split_or_not(p1, p2):
         speed = calculate_point_speed(p1, p2)
         return speed <= max_speed

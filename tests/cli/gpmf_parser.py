@@ -64,7 +64,7 @@ def _filter_outliers(points: T.Sequence[gpmf_parser.PointWithFix]):
     )
     subseqs = gps_filter.split_if(
         T.cast(T.List[geo.Point], points),
-        gps_filter.farther_than(max_distance),
+        gps_filter.distance_gt(max_distance),
     )
 
     ground_speeds = [
@@ -74,7 +74,7 @@ def _filter_outliers(points: T.Sequence[gpmf_parser.PointWithFix]):
         return points
 
     max_speed = gps_filter.upper_whisker(ground_speeds)
-    merged = gps_filter.dbscan(subseqs, gps_filter.slower_than(max_speed))
+    merged = gps_filter.dbscan(subseqs, gps_filter.speed_le(max_speed))
 
     return T.cast(
         T.List[gpmf_parser.PointWithFix],

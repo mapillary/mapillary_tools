@@ -49,7 +49,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         )
         sequences = gps_filter.split_if(
             T.cast(T.List[geo.Point], points),
-            gps_filter.farther_than(max_distance),
+            gps_filter.distance_gt(max_distance),
         )
         LOG.debug(
             "Split to %d sequences with max distance %f", len(sequences), max_distance
@@ -64,7 +64,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
             return points
 
         max_speed = gps_filter.upper_whisker(ground_speeds)
-        merged = gps_filter.dbscan(sequences, gps_filter.slower_than(max_speed))
+        merged = gps_filter.dbscan(sequences, gps_filter.speed_le(max_speed))
         LOG.debug(
             "Found %d sequences after merging with max speed %f", len(merged), max_speed
         )
