@@ -41,7 +41,9 @@ class GeotagFromGoPro(GeotagFromGeneric):
             return points
 
         max_distance = gps_filter.upper_whisker(distances)
-        max_distance = max(15 + 15, max_distance)
+        max_distance = max(
+            constants.GOPRO_GPS_PRECISION + constants.GOPRO_GPS_PRECISION, max_distance
+        )
         groups = gps_filter.split_if(
             T.cast(T.List[geo.Point], points),
             gps_filter.farther_than(max_distance),
@@ -85,13 +87,13 @@ class GeotagFromGoPro(GeotagFromGeneric):
             p
             for p in points
             if p.gps_precision is not None
-            and p.gps_precision <= constants.GOPRO_MAX_GPS_PRECISION
+            and p.gps_precision <= constants.GOPRO_MAX_DOP100
         ]
         if len(points) < num_points:
             LOG.warning(
                 "Removed %d points with DoP value higher than %d from %s",
                 num_points - len(points),
-                constants.GOPRO_MAX_GPS_PRECISION,
+                constants.GOPRO_MAX_DOP100,
                 video,
             )
 

@@ -11,6 +11,7 @@ import mapillary_tools.geo as geo
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
 import mapillary_tools.utils as utils
+from mapillary_tools import constants
 
 
 def _convert_points_to_gpx_track(
@@ -58,7 +59,9 @@ def _filter_outliers(points: T.Sequence[gpmf_parser.PointWithFix]):
         return points
 
     max_distance = gps_filter.upper_whisker(distances)
-    max_distance = max(15 + 15, max_distance)
+    max_distance = max(
+        constants.GOPRO_GPS_PRECISION + constants.GOPRO_GPS_PRECISION, max_distance
+    )
     subseqs = gps_filter.split_if(
         T.cast(T.List[geo.Point], points),
         gps_filter.farther_than(max_distance),
