@@ -1,5 +1,5 @@
-import pathlib
 import os, sys
+import pathlib
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import camm_parser, utils as geotag_utils

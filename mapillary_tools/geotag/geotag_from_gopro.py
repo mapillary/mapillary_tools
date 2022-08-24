@@ -6,7 +6,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import constants, exceptions, geo, types, utils
-from . import gpmf_parser, utils as geotag_utils, gps_filter
+from . import gpmf_parser, gps_filter, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 

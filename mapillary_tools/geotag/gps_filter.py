@@ -1,5 +1,5 @@
-import typing as T
 import statistics
+import typing as T
 
 from .. import geo
 
