@@ -100,7 +100,7 @@ def test_process_gopro_hero8(
     video_path = setup_data.join("hero8.mp4")
     # this sample hero8.mp4 doesn't have any good GPS points,
     # so we do not filter out bad GPS points
-    envars = "MAPILLARY_TOOLS_GOPRO_GPS_FIXES=0,2,3 MAPILLARY_TOOLS_GOPRO_MAX_GPS_PRECISION=100000"
+    envars = "MAPILLARY_TOOLS_GOPRO_GPS_FIXES=0,2,3 MAPILLARY_TOOLS_GOPRO_MAX_DOP100=100000 MAPILLARY_TOOLS_GOPRO_GPS_PRECISION=10000000"
     x = subprocess.run(
         f"{envars} {EXECUTABLE} video_process --geotag_source=gopro_videos {str(video_path)}",
         shell=True,
