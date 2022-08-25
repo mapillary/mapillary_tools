@@ -1,0 +1,118 @@
+import argparse
+import sys
+import typing as T
+
+import gpxpy
+
+from mapillary_tools import constants, geo
+from mapillary_tools.geotag import gpmf_parser, gps_filter
+
+from .gpmf_parser import _convert_points_to_gpx_track_segment
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--max_dop",
+        type=int,
+        help="Filter points by its position dilution, see https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation). [default: %(default)s]",
+        default=constants.GOPRO_MAX_DOP100,
+    )
+    parser.add_argument(
+        "--gps_fix",
+        help="Filter points by GPS fix types (0=none, 2=2D, 3=3D). Multiple values are separate by commas, e.g. 2,3. [default: %(default)s]",
+        default=",".join(map(str, constants.GOPRO_GPS_FIXES)),
+    )
+    return parser.parse_args()
+
+
+def _gpx_track_segment_to_points(
+    segment: gpxpy.gpx.GPXTrackSegment,
+) -> T.List[gpmf_parser.PointWithFix]:
+    gps_fix_map = {
+        "none": gpmf_parser.GPSFix.NO_FIX,
+        "2d": gpmf_parser.GPSFix.FIX_2D,
+        "3d": gpmf_parser.GPSFix.FIX_3D,
+    }
+    return [
+        gpmf_parser.PointWithFix(
+            time=geo.as_unix_time(p.time),
+            lat=p.latitude,
+            lon=p.longitude,
+            alt=p.elevation,
+            angle=None,
+            gps_fix=gps_fix_map[p.type_of_gpx_fix]
+            if p.type_of_gpx_fix is not None
+            else None,
+            gps_precision=p.position_dilution,
+            gps_ground_speed=p.speed,
+        )
+        for p in segment.points
+    ]
+
+
+def _filter_noise(
+    points: T.Sequence[gpmf_parser.PointWithFix],
+    gps_fix: T.Set[int],
+    max_dop: float,
+) -> T.List[gpmf_parser.PointWithFix]:
+    return [
+        p
+        for p in points
+        if (p.gps_fix is None or p.gps_fix.value in gps_fix)
+        and (p.gps_precision is None or p.gps_precision <= max_dop)
+    ]
+
+
+def _filter_outliers(
+    points: T.List[gpmf_parser.PointWithFix],
+    gpx_precision: float = constants.GOPRO_GPS_PRECISION,
+) -> T.List[gpmf_parser.PointWithFix]:
+    distances = [
+        geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
+        for left, right in geo.pairwise(points)
+    ]
+    if len(distances) < 2:
+        return points
+
+    max_distance = gps_filter.upper_whisker(distances)
+    max_distance = max(gpx_precision + gpx_precision, max_distance)
+    subseqs = gps_filter.split_if(
+        T.cast(T.List[geo.Point], points),
+        gps_filter.distance_gt(max_distance),
+    )
+
+    ground_speeds = [
+        point.gps_ground_speed for point in points if point.gps_ground_speed is not None
+    ]
+    if len(ground_speeds) < 2:
+        return points
+
+    max_speed = gps_filter.upper_whisker(ground_speeds)
+    merged = gps_filter.dbscan(subseqs, gps_filter.speed_le(max_speed))
+
+    return T.cast(
+        T.List[gpmf_parser.PointWithFix],
+        gps_filter.find_majority(merged.values()),
+    )
+
+
+def main():
+    parsed_args = _parse_args()
+    gps_fix = set(int(x) for x in parsed_args.gps_fix.split(","))
+
+    gpx = gpxpy.parse(sys.stdin)
+    for track in gpx.tracks:
+        new_segs = []
+        for seg in track.segments:
+            points = _gpx_track_segment_to_points(seg)
+            points = _filter_noise(points, gps_fix, parsed_args.max_dop)
+            points = _filter_outliers(points)
+            new_seg = _convert_points_to_gpx_track_segment(points)
+            new_segs.append(new_seg)
+        track.segments = new_segs
+    print(gpx.to_xml())
+
+
+if __name__ == "__main__":
+    main()
