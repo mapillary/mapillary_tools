@@ -14,14 +14,20 @@ def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--max_dop",
-        type=int,
-        help="Filter points by its position dilution, see https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation). [default: %(default)s]",
+        type=float,
+        help='Filter points by its position dilution, see https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation). Set it "inf" to disable it. [default: %(default)s]',
         default=constants.GOPRO_MAX_DOP100,
     )
     parser.add_argument(
         "--gps_fix",
-        help="Filter points by GPS fix types (0=none, 2=2D, 3=3D). Multiple values are separate by commas, e.g. 2,3. [default: %(default)s]",
+        help="Filter points by GPS fix types (0=none, 2=2D, 3=3D). Multiple values are separate by commas, e.g. 2,3. Set 0,2,3 to disable it. [default: %(default)s]",
         default=",".join(map(str, constants.GOPRO_GPS_FIXES)),
+    )
+    parser.add_argument(
+        "--gps_precision",
+        type=float,
+        help="Filter outlier points by GPS precision. Set 0 to disable it. [default: %(default)s]",
+        default=constants.GOPRO_GPS_PRECISION,
     )
     return parser.parse_args()
 
@@ -66,7 +72,7 @@ def _filter_noise(
 
 def _filter_outliers(
     points: T.List[gpmf_parser.PointWithFix],
-    gpx_precision: float = constants.GOPRO_GPS_PRECISION,
+    gps_precision: float,
 ) -> T.List[gpmf_parser.PointWithFix]:
     distances = [
         geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
@@ -76,7 +82,7 @@ def _filter_outliers(
         return points
 
     max_distance = gps_filter.upper_whisker(distances)
-    max_distance = max(gpx_precision + gpx_precision, max_distance)
+    max_distance = max(gps_precision + gps_precision, max_distance)
     subseqs = gps_filter.split_if(
         T.cast(T.List[geo.Point], points),
         gps_filter.distance_gt(max_distance),
@@ -107,7 +113,7 @@ def main():
         for seg in track.segments:
             points = _gpx_track_segment_to_points(seg)
             points = _filter_noise(points, gps_fix, parsed_args.max_dop)
-            points = _filter_outliers(points)
+            points = _filter_outliers(points, parsed_args.gps_precision)
             new_seg = _convert_points_to_gpx_track_segment(points)
             new_segs.append(new_seg)
         track.segments = new_segs
