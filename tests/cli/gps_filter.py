@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 import typing as T
 
@@ -40,8 +41,19 @@ def _gpx_track_segment_to_points(
         "2d": gpmf_parser.GPSFix.FIX_2D,
         "3d": gpmf_parser.GPSFix.FIX_3D,
     }
-    return [
-        gpmf_parser.PointWithFix(
+    points = []
+    for p in segment.points:
+        try:
+            comment_json = json.loads(p.comment)
+        except json.JSONDecodeError:
+            comment_json = None
+
+        if comment_json is not None:
+            ground_speed = comment_json.get("ground_speed")
+        else:
+            ground_speed = None
+
+        point = gpmf_parser.PointWithFix(
             time=geo.as_unix_time(p.time),
             lat=p.latitude,
             lon=p.longitude,
@@ -51,10 +63,10 @@ def _gpx_track_segment_to_points(
             if p.type_of_gpx_fix is not None
             else None,
             gps_precision=p.position_dilution,
-            gps_ground_speed=p.speed,
+            gps_ground_speed=ground_speed,
         )
-        for p in segment.points
-    ]
+        points.append(point)
+    return points
 
 
 def _filter_noise(
@@ -74,6 +86,9 @@ def _filter_outliers(
     points: T.List[gpmf_parser.PointWithFix],
     gps_precision: float,
 ) -> T.List[gpmf_parser.PointWithFix]:
+    if gps_precision == 0:
+        return points
+
     distances = [
         geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
         for left, right in geo.pairwise(points)
@@ -83,6 +98,7 @@ def _filter_outliers(
 
     max_distance = gps_filter.upper_whisker(distances)
     max_distance = max(gps_precision + gps_precision, max_distance)
+
     subseqs = gps_filter.split_if(
         T.cast(T.List[geo.Point], points),
         gps_filter.distance_gt(max_distance),

@@ -33,14 +33,23 @@ def _convert_points_to_gpx_track_segment(
         else:
             distance = 0.0
             speed = 0
+
+        # GPX spec has no speed https://www.topografix.com/GPX/1/1/#type_wptType
+        # so write them in comment as JSON
+        comment = json.dumps(
+            {
+                "distance_between": distance,
+                "speed_between": speed,
+                "ground_speed": point.gps_ground_speed,
+            }
+        )
         gpxp = gpxpy.gpx.GPXTrackPoint(
             point.lat,
             point.lon,
             elevation=point.alt,
             time=datetime.datetime.utcfromtimestamp(point.time),
-            speed=point.gps_ground_speed,
             position_dilution=point.gps_precision,
-            comment=f"distance: {distance}; speed: {speed}",
+            comment=comment,
         )
         if point.gps_fix is not None:
             gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
