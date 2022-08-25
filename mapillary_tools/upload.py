@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pathlib
 import string
 import sys
 import time
@@ -499,7 +500,7 @@ def _check_blackvue(video_path: str) -> None:
     if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
-    points = blackvue_utils.parse_gps_points(video_path)
+    points = blackvue_utils.parse_gps_points(pathlib.Path(video_path))
     if not points:
         raise exceptions.MapillaryGPXEmptyError(
             f"Empty GPS extracted from {video_path}"

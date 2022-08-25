@@ -68,40 +68,47 @@ CAMMSampleData = C.Struct(
 )
 
 
-def _extract_delta_points(fp: T.BinaryIO, samples: T.Iterable[Sample]):
-    for sample in samples:
-        fp.seek(sample.offset, io.SEEK_SET)
-        data = fp.read(sample.size)
-        box = CAMMSampleData.parse(data)
-        if box.type == CAMMType.MIN_GPS.value:
-            yield geo.Point(
-                time=sample.time_offset,
-                lat=box.data[0],
-                lon=box.data[1],
-                alt=box.data[2],
-                angle=None,
-            )
-        elif box.type == CAMMType.GPS.value:
-            # Not using box.data.time_gps_epoch as the point timestamp
-            # because it is from another clock
-            yield geo.Point(
-                time=sample.time_offset,
-                lat=box.data.latitude,
-                lon=box.data.longitude,
-                alt=box.data.altitude,
-                angle=None,
-            )
+def _parse_point_from_sample(fp: T.BinaryIO, sample: Sample) -> T.Optional[geo.Point]:
+    fp.seek(sample.offset, io.SEEK_SET)
+    data = fp.read(sample.size)
+    box = CAMMSampleData.parse(data)
+    if box.type == CAMMType.MIN_GPS.value:
+        return geo.Point(
+            time=sample.time_offset,
+            lat=box.data[0],
+            lon=box.data[1],
+            alt=box.data[2],
+            angle=None,
+        )
+    elif box.type == CAMMType.GPS.value:
+        # Not using box.data.time_gps_epoch as the point timestamp
+        # because it is from another clock
+        return geo.Point(
+            time=sample.time_offset,
+            lat=box.data.latitude,
+            lon=box.data.longitude,
+            alt=box.data.altitude,
+            angle=None,
+        )
+    return None
+
+
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    for h, s in parse_path(fp, [b"moov", b"trak"]):
+        points_with_nones = (
+            _parse_point_from_sample(fp, sample)
+            for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
+            if sample.description.format == b"camm"
+        )
+        points = [p for p in points_with_nones if p is not None]
+        if points:
+            return points
+    return None
 
 
 def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
     with path.open("rb") as fp:
-        for h, s in parse_path(fp, [b"moov", b"trak"]):
-            camm_samples = (
-                sample
-                for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description.format == b"camm"
-            )
-            points = list(_extract_delta_points(fp, camm_samples))
-            if points:
-                return points
-    return []
+        points = extract_points(fp)
+    if points is None:
+        return []
+    return points

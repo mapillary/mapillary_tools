@@ -1,12 +1,13 @@
 import datetime
 import logging
+import pathlib
 import re
 import typing as T
 
 import pynmea2
 
 from .. import geo
-from .simple_mp4_parser import parse_boxes
+from . import simple_mp4_parser
 
 
 LOG = logging.getLogger(__name__)
@@ -105,57 +106,37 @@ def _parse_gps_box(gps_data: bytes) -> T.List[geo.Point]:
     return points
 
 
-def find_camera_model(path: str) -> str:
-    with open(path, "rb") as fp:
-        for header, stream in parse_boxes(fp, extend_eof=True):
-            if header.type == b"free":
-                return _parse_camera_model_from_free_box(stream, maxsize=header.maxsize)
+def find_camera_model(path: pathlib.Path) -> str:
+    with path.open("rb") as fp:
+        cprt_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
+        if cprt_data is None:
+            return ""
+        fields = cprt_data.split(b";")
+        if 2 <= len(fields):
+            model: bytes = fields[1]
+            if model:
+                try:
+                    return model.decode("utf8")
+                except UnicodeDecodeError:
+                    return ""
+        else:
+            return ""
     return ""
 
 
-def _parse_camera_model_from_free_box(stream: T.BinaryIO, maxsize: int) -> str:
-    for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=False):
-        if h.type == b"cprt":
-            cprt = s.read(h.maxsize)
-            # An example cprt: b' Pittasoft Co., Ltd.;DR900S-1CH;'
-            fields = cprt.split(b";")
-            if 2 <= len(fields):
-                model: bytes = fields[1]
-                if model:
-                    try:
-                        return model.decode("utf8")
-                    except UnicodeDecodeError:
-                        return ""
-            else:
-                return ""
-    return ""
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    gps_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"gps "])
+    if gps_data is None:
+        return None
+    return _parse_gps_box(gps_data)
 
 
-def _parse_gps_from_free_box(
-    stream: T.BinaryIO, maxsize: int
-) -> T.Optional[T.List[geo.Point]]:
-    points = None
-    for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=False):
-        if h.type == b"gps ":
-            gps_data = s.read(h.maxsize)
-            if points is None:
-                points = []
-            points.extend(_parse_gps_box(gps_data))
-    return points
-
-
-def parse_gps_points(path: str) -> T.List[geo.Point]:
-    points = None
-
-    with open(path, "rb") as fp:
-        for header, stream in parse_boxes(fp, extend_eof=True):
-            if header.type == b"free":
-                points = _parse_gps_from_free_box(stream, maxsize=header.maxsize)
-                if points is not None:
-                    break
+def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
+    with path.open("rb") as fp:
+        points = extract_points(fp)
 
     if points is None:
-        points = []
+        return []
 
     points.sort()
 
@@ -168,7 +149,7 @@ if __name__ == "__main__":
     from .. import geo, types, utils
     from . import utils as geotag_utils
 
-    def _convert(path: str):
+    def _convert(path: pathlib.Path):
         points = parse_gps_points(path)
         gpx = geotag_utils.convert_points_to_gpx(points)
         model = find_camera_model(path)
@@ -178,6 +159,6 @@ if __name__ == "__main__":
     for path in sys.argv[1:]:
         if os.path.isdir(path):
             for p in utils.get_video_file_list(path, abs_path=True):
-                _convert(p)
+                _convert(pathlib.Path(p))
         else:
-            _convert(path)
+            _convert(pathlib.Path(path))

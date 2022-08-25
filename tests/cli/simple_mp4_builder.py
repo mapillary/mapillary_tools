@@ -4,8 +4,14 @@ import pathlib
 import typing as T
 from dataclasses import dataclass
 
-import mapillary_tools.geotag.simple_mp4_builder as builder
-import mapillary_tools.geotag.simple_mp4_parser as parser
+import mapillary_tools.geo as geo
+from mapillary_tools.geotag import (
+    blackvue_utils,
+    camm_parser,
+    gpmf_parser,
+    simple_mp4_builder as builder,
+    simple_mp4_parser as parser,
+)
 from mapillary_tools.geotag.simple_mp4_builder import BoxDict
 
 
@@ -133,6 +139,25 @@ class SampleReader(Reader):
     def read(self):
         self.fp.seek(self.offset)
         return self.fp.read(self.size)
+
+
+def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
+    offset = fp.tell()
+    points = camm_parser.extract_points(fp)
+    if points:
+        return "camm", points
+
+    fp.seek(offset)
+    points_with_fix = gpmf_parser.extract_points(fp)
+    if points_with_fix:
+        return "gopro", T.cast(T.List[geo.Point], points_with_fix)
+
+    fp.seek(offset)
+    points = blackvue_utils.extract_points(fp)
+    if points:
+        return "blackvue", points
+
+    return "unknown", []
 
 
 def transform_mp4(src_path: pathlib.Path, target_path: pathlib.Path):

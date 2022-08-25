@@ -267,7 +267,7 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[PointWithFix]:
     return sample_points
 
 
-def _extract_points(
+def _extract_points_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[Sample]
 ) -> T.List[PointWithFix]:
     # To keep GPS points from different devices separated
@@ -305,18 +305,25 @@ def _extract_points(
     return values[0] if values else []
 
 
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
+    for h, s in parse_path(fp, [b"moov", b"trak"]):
+        gpmd_samples = (
+            sample
+            for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
+            if sample.description.format == b"gpmd"
+        )
+        points = list(_extract_points_from_samples(fp, gpmd_samples))
+        if points:
+            return points
+    return None
+
+
 def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
     with open(path, "rb") as fp:
-        for h, s in parse_path(fp, [b"moov", b"trak"]):
-            gpmd_samples = (
-                sample
-                for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description.format == b"gpmd"
-            )
-            points = list(_extract_points(fp, gpmd_samples))
-            if points:
-                return points
-    return []
+        points = extract_points(fp)
+    if points is None:
+        return []
+    return points
 
 
 def dump_samples(path: pathlib.Path):

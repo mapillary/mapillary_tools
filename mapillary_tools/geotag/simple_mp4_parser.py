@@ -24,6 +24,10 @@ class RangeError(Exception):
     pass
 
 
+class BoxNotFoundError(Exception):
+    pass
+
+
 def _size_remain(size: int, bound: int) -> int:
     assert 0 <= size and (bound == -1 or 0 <= bound), f"got size={size} bound={bound}"
 
@@ -167,12 +171,32 @@ def parse_path_first(
     return None
 
 
+def parse_data_first(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> T.Optional[bytes]:
+    parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
+    if parsed is None:
+        return None
+    h, s = parsed
+    return s.read(h.maxsize)
+
+
 def parse_path_firstx(
     stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
 ) -> T.Tuple[Header, T.BinaryIO]:
     parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
-    assert parsed is not None, f"unable find box at path {path}"
+    if parsed is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
     return parsed
+
+
+def parse_data_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> bytes:
+    data = parse_data_first(stream, path, maxsize=maxsize, depth=depth)
+    if data is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
+    return data
 
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
