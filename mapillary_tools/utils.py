@@ -31,7 +31,15 @@ def is_image_file(path: str) -> bool:
 
 def is_video_file(path: str) -> bool:
     _, ext = os.path.splitext(os.path.basename(path))
-    return ext.lower() in (".mp4", ".avi", ".tavi", ".mov", ".mkv")
+    return ext.lower() in (
+        ".mp4",
+        ".avi",
+        ".tavi",
+        ".mov",
+        ".mkv",
+        # GoPro Max video filename extension
+        ".360",
+    )
 
 
 def iterate_files(root: str, recursive: bool = False) -> T.Generator[str, None, None]:
