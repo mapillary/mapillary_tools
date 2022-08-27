@@ -169,3 +169,39 @@ def test_wide_parse():
     assert {b"mdat", b"box1", b"box2"} == set(header.type for header, _ in parsed)
     cr = _construct_parser(data)
     assert {b"mdat", b"box1", b"box2"} == set(r["type"] for r in cr)
+
+
+def test_dref():
+    data = (
+        b"\x00"  # version
+        + b"\x00\x00\x00"  # flags
+        + b"\x00\x00\x00\x01"  # entry_count
+        + b"\x00\x00\x00\x0c"  # size
+        + b"alis"  # type
+        + b"\x00"  # version
+        + b"\x00\x00\x01"  # flags
+    )
+    actual = parser.DataReferenceBox.parse(data)
+    assert 0 == actual["version"]
+    assert 0 == actual["flags"]
+    assert b"alis" == actual["entries"][0]["type"]
+    assert b"\x00\x00\x00\x01" == actual["entries"][0]["data"]
+    assert {"type": b"alis", "data": b"\x00\x00\x00\x01"} == actual["entries"][0]
+
+
+def test_dref2():
+    data = (
+        b"\x00"  # version
+        + b"\x00\x00\x00"  # flags
+        + b"\x00\x00\x00\x01"  # entry_count
+        + b"\x00\x00\x00\x0c"  # size
+        + b"url "  # type
+        + b"\x00"  # version
+        + b"\x00\x00\x01"  # flags
+    )
+    actual = parser.DataReferenceBox.parse(data)
+    assert 0 == actual["version"]
+    assert 0 == actual["flags"]
+    assert b"url " == actual["entries"][0]["type"]
+    assert 1 == actual["entries"][0]["data"]["flags"]
+    assert b"" == actual["entries"][0]["data"]["data"]

@@ -12,6 +12,9 @@ import construct as C
 from .simple_mp4_parser import (
     ChunkLargeOffsetBox,
     ChunkOffsetBox,
+    DataEntryUrlBox,
+    DataEntryUrnBox,
+    DataReferenceBox,
     HandlerReferenceBox,
     MediaHeaderBox,
     RawSample,
@@ -131,6 +134,9 @@ _full_switch_map = {
     b"stsz": SampleSizeBox,
     b"stss": SyncSampleBox,
     b"hdlr": HandlerReferenceBox,
+    b"dref": DataReferenceBox,
+    b"urn ": DataEntryUrnBox,
+    b"url ": DataEntryUrlBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -143,6 +149,7 @@ _full_lazy_box_types = [
     b"moof",
     b"traf",
     b"mfra",
+    b"dinf",
 ]
 
 FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types)

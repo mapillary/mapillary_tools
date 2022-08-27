@@ -249,10 +249,54 @@ MediaHeaderBox = C.Struct(
 HandlerReferenceBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
-    "pre_defined" / C.Int32ub,
+    C.Padding(4),  # "pre_defined" / C.Default(C.Int32ub, 0),
     "handler_type" / C.Bytes(4),
-    "reserved" / C.Int32ub[3],
+    C.Padding(3 * 4),  # "reserved" / C.Default(C.Int32ub[3], [0, 0, 0]),
     "name" / C.GreedyString("utf8"),
+)
+
+# BoxTypes: ‘url ‘,‘urn ‘,‘dref’
+# Container: Data Information Box (‘dinf’)
+# Mandatory: Yes
+# Quantity: Exactly one
+DataEntryUrlBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    # the data entry contains URL location which should be utf8 string
+    # but for compability we parse or build it as bytes
+    "data" / C.GreedyBytes,
+)
+
+DataEntryUrnBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    # the data entry contains URN name and location which should be utf8 string
+    # but for compability we parse or build it as bytes
+    "data" / C.GreedyBytes,
+)
+
+DataReferenceEntryBox = C.Prefixed(
+    C.Int32ub,
+    C.Struct(
+        "type" / C.Bytes(4),
+        "data"
+        / C.Switch(
+            C.this.type,
+            {b"urn ": DataEntryUrnBox, b"url ": DataEntryUrlBox},
+            C.GreedyBytes,
+        ),
+    ),
+    includelength=True,
+)
+
+DataReferenceBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.PrefixedArray(
+        C.Int32ub,
+        DataReferenceEntryBox,
+    ),
 )
 
 _SampleEntryBox = C.Prefixed(
