@@ -533,7 +533,7 @@ def parse_raw_samples_from_stbl(
             syncs = set(box.entries)
 
     # some stbl have less timedeltas than the sample count i.e. len(sizes),
-    # in this case fill up timedeltas with 0's
+    # in this case append 0's to timedeltas
     while len(timedeltas) < len(sizes):
         timedeltas.append(0)
 
