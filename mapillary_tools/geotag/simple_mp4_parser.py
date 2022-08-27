@@ -410,18 +410,21 @@ class Sample(T.NamedTuple):
 
 
 def extract_raw_samples(
-    sizes: T.List[int],
-    chunk_entries: T.List,
-    chunk_offsets: T.List[int],
-    timedeltas: T.List[int],
+    sizes: T.Sequence[int],
+    chunk_entries: T.Sequence,
+    chunk_offsets: T.Sequence[int],
+    timedeltas: T.Sequence[int],
     syncs: T.Optional[T.Set[int]],
 ) -> T.Generator[RawSample, None, None]:
+    if not sizes:
+        return
+
     if not chunk_entries:
         return
 
-    assert len(sizes) == len(
+    assert len(sizes) <= len(
         timedeltas
-    ), f"sample sizes {len(sizes)} and sample times {len(timedeltas)} must have equal length"
+    ), f"got less ({len(timedeltas)}) sample time deltas (stts) than expected ({len(sizes)})"
 
     sample_idx = 0
     chunk_idx = 0
@@ -455,7 +458,7 @@ def extract_raw_samples(
     # and use the same sample description, this table has one entry.
 
     # iterate chunks
-    while sample_idx < len(timedeltas):
+    while sample_idx < len(sizes):
         sample_offset = chunk_offsets[chunk_idx]
         # iterate samples in this chunk
         for _ in range(chunk_entries[-1].samples_per_chunk):
@@ -528,6 +531,11 @@ def parse_raw_samples_from_stbl(
         elif h.type == b"stss":
             box = SyncSampleBox.parse(s.read(h.maxsize))
             syncs = set(box.entries)
+
+    # some stbl have less timedeltas than the sample count i.e. len(sizes),
+    # in this case append 0's to timedeltas
+    while len(timedeltas) < len(sizes):
+        timedeltas.append(0)
 
     raw_samples = extract_raw_samples(
         sizes, chunk_entries, chunk_offsets, timedeltas, syncs

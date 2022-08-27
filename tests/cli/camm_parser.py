@@ -1,19 +1,35 @@
-import os, sys
+import argparse
+import os
 import pathlib
+
+import gpxpy
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import camm_parser, utils as geotag_utils
 
-if __name__ == "__main__":
 
-    def _convert(path: pathlib.Path):
-        points = camm_parser.parse_gpx(path)
-        gpx = geotag_utils.convert_points_to_gpx(points)
-        print(gpx.to_xml())
+def _convert(path: pathlib.Path):
+    points = camm_parser.parse_gpx(path)
+    track = gpxpy.gpx.GPXTrack()
+    track.name = path.name
+    track.segments.append(geotag_utils.convert_points_to_gpx_segment(points))
+    return track
 
-    for path in sys.argv[1:]:
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("camm_video_path", nargs="+")
+    parsed = parser.parse_args()
+
+    gpx = gpxpy.gpx.GPX()
+    for path in parsed.camm_video_path:
         if os.path.isdir(path):
             for p in utils.get_video_file_list(path, abs_path=True):
-                _convert(pathlib.Path(p))
+                gpx.tracks.append(_convert(pathlib.Path(p)))
         else:
-            _convert(pathlib.Path(path))
+            gpx.tracks.append(_convert(pathlib.Path(path)))
+    print(gpx.to_xml())
+
+
+if __name__ == "__main__":
+    main()
