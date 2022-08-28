@@ -1,12 +1,15 @@
 import argparse
 import io
+import itertools
 import pathlib
+import time
 import typing as T
 from dataclasses import dataclass
 
 import mapillary_tools.geo as geo
 from mapillary_tools.geotag import (
     blackvue_utils,
+    camm_builder,
     camm_parser,
     gpmf_parser,
     simple_mp4_builder as builder,
@@ -85,6 +88,162 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
     return sample_offset
 
 
+def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
+    # an integer that uniquely identifies this track over the entire life-time of this presentation.
+    # Track IDs are never re-used and cannot be zero.
+    track_id = 1
+
+    # tracks with lower numbers are closer to the viewer.
+    # 0 is the normal value, and -1 would be in front of track 0, and so on.
+    layer = 0
+
+    for box in _filter_trak_boxes(moov_chilren):
+        tkhd = _find_box_at_pathx(box, [b"trak", b"tkhd"])
+        d = T.cast(T.Dict[str, T.Any], tkhd["data"])
+        d["track_id"] = track_id
+        track_id += 1
+        d["layer"] = layer
+        layer += 1
+    mvhd = _find_box_at_pathx(moov_chilren, [b"mvhd"])
+    T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
+
+
+def _convert_points_to_raw_samples(
+    points: T.Sequence[geo.Point], timescale: int
+) -> T.Generator[parser.RawSample, None, None]:
+    for idx, point in enumerate(points):
+        camm_sample_data = camm_builder.build_camm_sample(point)
+
+        if idx + 1 < len(points):
+            timedelta = int((points[idx + 1].time - point.time) * timescale)
+        else:
+            timedelta = 0
+        assert timedelta <= builder.UINT32_MAX
+
+        yield parser.RawSample(
+            # will update later
+            description_idx=1,
+            # will update later
+            offset=0,
+            size=len(camm_sample_data),
+            timedelta=timedelta,
+            is_sync=True,
+        )
+
+
+def _create_camm_stbl(raw_samples: T.Iterable[parser.RawSample]) -> BoxDict:
+    descriptions = [
+        {
+            "format": b"camm",
+            "data_reference_index": 1,
+            "data": b"",
+        }
+    ]
+
+    stbl_children_boxes = builder.build_stbl_from_raw_samples(descriptions, raw_samples)
+
+    stbl_data = builder.FullBoxStruct32.BoxList.build(stbl_children_boxes)
+    return {
+        "type": b"stbl",
+        "data": stbl_data,
+    }
+
+
+_SELF_REFERENCE_DREF_BOX_DATA: bytes = builder.FullBoxStruct32.Box.build(
+    {
+        "type": b"dref",
+        "data": {
+            "entries": [
+                {
+                    "type": b"url ",
+                    "data": {
+                        "flags": 1,
+                        "data": b"",
+                    },
+                }
+            ],
+        },
+    }
+)
+
+
+def _create_camm_trak(
+    raw_samples: T.Sequence[parser.RawSample],
+    media_timescale: int,
+) -> BoxDict:
+    stbl = _create_camm_stbl(raw_samples)
+
+    hdlr = {
+        "type": b"hdlr",
+        "data": {
+            "handler_type": b"camm",
+            "name": "CameraMetadataMotionHandler",
+        },
+    }
+
+    now = int(time.time())
+
+    media_duration = sum(s.timedelta for s in raw_samples)
+
+    # Media Header Box
+    mdhd = {
+        "type": b"mdhd",
+        "data": {
+            "creation_time": now,
+            "modification_time": now,
+            "timescale": media_timescale,
+            "duration": media_duration,
+            "language": 21956,
+        },
+    }
+
+    dinf: BoxDict = {
+        "type": b"dinf",
+        "data": _SELF_REFERENCE_DREF_BOX_DATA,
+    }
+
+    minf: BoxDict = {
+        "type": b"minf",
+        "data": [
+            dinf,
+            stbl,
+        ],
+    }
+
+    tkhd: BoxDict = {
+        "type": b"tkhd",
+        "data": {
+            # use 32-bit version of the box
+            "version": 0,
+            "creation_time": now,
+            "modification_time": now,
+            # will update later
+            "track_ID": 0,
+            # If the duration of this track cannot be determined then duration is set to all 1s (32-bit maxint).
+            "duration": 0xFFFFFFFF,
+            # will update later
+            "layer": 0,
+        },
+    }
+
+    mdia: BoxDict = {
+        "type": b"mdia",
+        "data": [
+            mdhd,
+            hdlr,
+            minf,
+        ],
+    }
+
+    return {
+        "type": b"trak",
+        "data": [
+            tkhd,
+            mdia,
+        ],
+    }
+
+
 def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
     return builder.QuickBoxStruct32.Box.build(
         {
@@ -141,6 +300,17 @@ class SampleReader(Reader):
         return self.fp.read(self.size)
 
 
+@dataclass
+class CAMMPointReader(Reader):
+    __slots__ = ("point",)
+
+    def __init__(self, point: geo.Point):
+        self.point = point
+
+    def read(self):
+        return camm_builder.build_camm_sample(self.point)
+
+
 def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
     offset = fp.tell()
     points = camm_parser.extract_points(fp)
@@ -162,27 +332,52 @@ def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
 
 def transform_mp4(src_path: pathlib.Path, target_path: pathlib.Path):
     with open(src_path, "rb") as src_fp:
-        h, s = parser.parse_path_firstx(src_fp, [b"ftyp"])
+        # extract ftyp
+        src_fp.seek(0)
+        source_ftyp_box_data = parser.parse_data_firstx(src_fp, [b"ftyp"])
         source_ftyp_data = builder.QuickBoxStruct32.Box.build(
-            {"type": b"ftyp", "data": s.read(h.maxsize)}
+            {"type": b"ftyp", "data": source_ftyp_box_data}
         )
 
-        h, s = parser.parse_path_firstx(src_fp, [b"moov"])
-        moov_boxes = builder.QuickBoxStruct64.BoxList.parse(s.read(h.maxsize))
+        # extract moov
+        src_fp.seek(0)
+        src_moov_data = parser.parse_data_firstx(src_fp, [b"moov"])
+        moov_children = builder.QuickBoxStruct64.BoxList.parse(src_moov_data)
 
-        moov_boxes = list(_filter_moov_children_boxes(moov_boxes))
+        # filter tracks in moov
+        moov_children = list(_filter_moov_children_boxes(moov_children))
 
-        # moov_boxes should be immutable since here
-        source_samples = list(iterate_samples(moov_boxes))
-        sample_readers = (
+        # extract video samples
+        source_samples = list(iterate_samples(moov_children))
+        video_sample_readers = (
             SampleReader(src_fp, sample.offset, sample.size)
             for sample in source_samples
         )
 
+        # append CAMM samples
+        src_fp.seek(0)
+        _, points = extract_points(src_fp)
+        if not points:
+            raise ValueError("no points found")
+
+        media_timescale = 10000
+        camm_samples = list(_convert_points_to_raw_samples(points, media_timescale))
+        camm_trak = _create_camm_trak(camm_samples, media_timescale)
+        moov_children.append(camm_trak)
+        _update_all_trak_tkhd(moov_children)
+
+        camm_sample_readers = (CAMMPointReader(point) for point in points)
+        sample_readers: T.Iterator[Reader] = itertools.chain(
+            video_sample_readers, camm_sample_readers
+        )
+
+        # moov_boxes should be immutable since here
         with open(target_path, "wb") as target_fp:
             target_fp.write(source_ftyp_data)
-            target_fp.write(rewrite_moov(target_fp.tell(), moov_boxes))
-            mdat_body_size = sum(sample.size for sample in iterate_samples(moov_boxes))
+            target_fp.write(rewrite_moov(target_fp.tell(), moov_children))
+            mdat_body_size = sum(
+                sample.size for sample in iterate_samples(moov_children)
+            )
             write_mdat(target_fp, mdat_body_size, sample_readers)
 
 
@@ -208,9 +403,7 @@ def rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
     return moov_data
 
 
-def write_mdat(
-    fp: T.BinaryIO, mdat_body_size: int, sample_readers: T.Iterable[SampleReader]
-):
+def write_mdat(fp: T.BinaryIO, mdat_body_size: int, sample_readers: T.Iterable[Reader]):
     mdat_header = _build_mdat_header_bytes(mdat_body_size)
     fp.write(mdat_header)
     for reader in sample_readers:
