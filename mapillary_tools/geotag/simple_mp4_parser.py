@@ -485,7 +485,7 @@ class Sample(T.NamedTuple):
     size: int
     # sample_delta read from stts entries,
     # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
-    timedelta: int
+    timedelta: float
     # if it is a sync sample
     is_sync: bool
 
@@ -565,8 +565,9 @@ def extract_raw_samples(
 
 
 def extract_samples(
-    descriptions: T.List,
     raw_samples: T.Iterator[RawSample],
+    descriptions: T.List,
+    timescale: int,
 ) -> T.Generator[Sample, None, None]:
     acc_delta = 0
     for raw_sample in raw_samples:
@@ -574,17 +575,17 @@ def extract_samples(
             description_idx=raw_sample.description_idx,
             offset=raw_sample.offset,
             size=raw_sample.size,
-            timedelta=raw_sample.timedelta,
+            timedelta=raw_sample.timedelta / timescale,
             is_sync=raw_sample.is_sync,
             description=descriptions[raw_sample.description_idx - 1],
-            time_offset=acc_delta,
+            time_offset=acc_delta / timescale,
         )
         acc_delta += raw_sample.timedelta
 
 
 def parse_raw_samples_from_stbl(
     stbl: T.BinaryIO, maxsize: int = -1
-) -> T.Tuple[T.List[bytes], T.Generator[RawSample, None, None]]:
+) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
     descriptions = []
     sizes = []
     chunk_offsets = []
@@ -632,33 +633,18 @@ def parse_raw_samples_from_stbl(
     return descriptions, raw_samples
 
 
-def parse_samples_from_stbl(
-    stbl: T.BinaryIO, maxsize: int = -1
-) -> T.Generator[Sample, None, None]:
-    descriptions, raw_samples = parse_raw_samples_from_stbl(stbl, maxsize)
-    yield from extract_samples(descriptions, raw_samples)
-
-
 def parse_samples_from_trak(
     trak: T.BinaryIO, maxsize: int = -1
 ) -> T.Generator[Sample, None, None]:
     trak_start_offset = trak.tell()
 
-    h, s = parse_path_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
-    mdhd = MediaHeaderBox.parse(s.read(h.maxsize))
+    mdhd_box = parse_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
+    mdhd = MediaHeaderBox.parse(mdhd_box)
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
-    for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
-        yield Sample(
-            description_idx=sample.description_idx,
-            offset=sample.offset,
-            size=sample.size,
-            timedelta=sample.timedelta / mdhd.timescale,
-            is_sync=sample.is_sync,
-            time_offset=sample.time_offset / mdhd.timescale,
-            description=sample.description,
-        )
+    descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
+    yield from extract_samples(raw_samples, descriptions, mdhd.timescale)
 
 
 _DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)

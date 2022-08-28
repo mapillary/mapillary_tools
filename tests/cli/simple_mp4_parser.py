@@ -31,19 +31,20 @@ box_list_types = {
 def _validate_samples(
     path: pathlib.Path, filters: T.Optional[T.Container[bytes]] = None
 ):
-    samples = []
+    samples: T.List[simple_mp4_parser.RawSample] = []
+
     with open(path, "rb") as fp:
         for h, s in simple_mp4_parser.parse_path(
             fp, [b"moov", b"trak", b"mdia", b"minf", b"stbl"]
         ):
+            descriptions, raw_samples = simple_mp4_parser.parse_raw_samples_from_stbl(
+                s, maxsize=h.maxsize
+            )
             samples.extend(
-                list(
-                    sample
-                    for sample in simple_mp4_parser.parse_samples_from_stbl(
-                        s, maxsize=h.maxsize
-                    )
-                    if filters is None or sample.description.format in filters
-                )
+                sample
+                for sample in raw_samples
+                if filters is None
+                or descriptions[sample.description_idx]["format"] in filters
             )
     samples.sort(key=lambda s: s.offset)
     if not samples:
