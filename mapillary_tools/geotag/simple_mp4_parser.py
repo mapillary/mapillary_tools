@@ -201,6 +201,27 @@ def parse_data_firstx(
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
+
+# Box Type: ‘mvhd’
+# Container: Movie Box (‘moov’)
+# Mandatory: Yes
+# Quantity: Exactly one
+MovieHeaderBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "timescale" / C.Int32ub,
+    "duration" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "rate" / C.Default(C.Int32sb, 0x00010000),
+    "volume" / C.Default(C.Int16sb, 0x0100),
+    C.Padding(2),  # const bit(16) reserved = 0;
+    C.Padding(8),  # const unsigned int(32)[2] reserved = 0;
+    "matrix" / C.Default(C.Int32sb[9], _UNITY_MATRIX),
+    C.Padding(24),  # bit(32)[6]  pre_defined = 0;
+    "next_track_ID" / C.Default(C.Int32ub, 0xFFFFFFFF),
+)
+
 # moov -> trak -> tkhd
 TrackHeaderBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),

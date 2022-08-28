@@ -17,6 +17,7 @@ from .simple_mp4_parser import (
     DataReferenceBox,
     HandlerReferenceBox,
     MediaHeaderBox,
+    MovieHeaderBox,
     RawSample,
     SampleDescriptionBox,
     SampleSizeBox,
@@ -137,6 +138,7 @@ _full_switch_map = {
     b"dref": DataReferenceBox,
     b"urn ": DataEntryUrnBox,
     b"url ": DataEntryUrlBox,
+    b"mvhd": MovieHeaderBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -159,6 +161,7 @@ _quick_switch_map = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
     b"hdlr": HandlerReferenceBox,
+    b"mvhd": MovieHeaderBox,
 }
 
 _quick_lazy_box_types = [
