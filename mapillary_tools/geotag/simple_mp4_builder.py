@@ -15,6 +15,7 @@ from .simple_mp4_parser import (
     DataEntryUrlBox,
     DataEntryUrnBox,
     DataReferenceBox,
+    EditBox,
     HandlerReferenceBox,
     MediaHeaderBox,
     MovieHeaderBox,
@@ -139,6 +140,7 @@ _full_switch_map = {
     b"urn ": DataEntryUrnBox,
     b"url ": DataEntryUrlBox,
     b"mvhd": MovieHeaderBox,
+    b"elst": EditBox,
 }
 _full_lazy_box_types = [
     b"moov",
@@ -152,6 +154,7 @@ _full_lazy_box_types = [
     b"traf",
     b"mfra",
     b"dinf",
+    b"edts",
 ]
 
 FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types)
@@ -162,6 +165,7 @@ _quick_switch_map = {
     b"mdhd": MediaHeaderBox,
     b"hdlr": HandlerReferenceBox,
     b"mvhd": MovieHeaderBox,
+    b"elst": EditBox,
 }
 
 _quick_lazy_box_types = [
@@ -170,6 +174,7 @@ _quick_lazy_box_types = [
     b"mdia",
     b"minf",
     b"mvex",
+    b"edts",
 ]
 
 QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types)

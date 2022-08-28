@@ -245,6 +245,28 @@ TrackHeaderBox = C.Struct(
     "height" / C.Default(C.Int32ub, 0),
 )
 
+# Box Type: ‘elst’
+# Container: Edit Box (‘edts’)
+# Mandatory: No
+# Quantity: Zero or one
+EditBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.PrefixedArray(
+        C.Int32ub,
+        C.Struct(
+            "segment_duration"
+            / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
+            "media_time" / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
+            # "segment_duration" / C.Int32sb,
+            # "media_time" / C.Int32sb,
+            "media_rate_integer" / C.Int16sb,
+            "media_rate_fraction" / C.Int16sb,
+        ),
+    ),
+)
+
 # moov -> trak -> mdia -> mdhd
 # Box Type: ‘mdhd’
 # Container: Media Box (‘mdia’)
