@@ -270,9 +270,11 @@ MediaHeaderBox = C.Struct(
 HandlerReferenceBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
-    C.Padding(4),  # "pre_defined" / C.Default(C.Int32ub, 0),
+    # Tests fail if using C.Padding(4),
+    "_pre_defined" / C.Default(C.Int32ub, 0),
     "handler_type" / C.Bytes(4),
-    C.Padding(3 * 4),  # "reserved" / C.Default(C.Int32ub[3], [0, 0, 0]),
+    # Tests fail if using C.Padding(3 * 4),
+    "_reserved" / C.Default(C.Int32ub[3], [0, 0, 0]),
     "name" / C.GreedyString("utf8"),
 )
 
