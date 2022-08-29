@@ -145,12 +145,20 @@ def parse_boxes_recursive(
 
 
 def parse_path(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+    stream: T.BinaryIO,
+    path: T.Sequence[T.Union[bytes, T.Sequence[bytes]]],
+    maxsize: int = -1,
+    depth: int = 0,
 ) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
     if not path:
         return
+
     for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
-        if h.type == path[0]:
+        if isinstance(path[0], bytes):
+            first_paths = {path[0]}
+        else:
+            first_paths = set(path[0])
+        if h.type in first_paths:
             if len(path) == 1:
                 yield h, s
             else:
@@ -256,11 +264,11 @@ EditBox = C.Struct(
     / C.PrefixedArray(
         C.Int32ub,
         C.Struct(
+            # in units of the timescale in the Movie Header Box
             "segment_duration"
             / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
+            # in media time scale units, in composition time
             "media_time" / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
-            # "segment_duration" / C.Int32sb,
-            # "media_time" / C.Int32sb,
             "media_rate_integer" / C.Int16sb,
             "media_rate_fraction" / C.Int16sb,
         ),
@@ -591,7 +599,7 @@ def extract_raw_samples(
 def extract_samples(
     raw_samples: T.Iterator[RawSample],
     descriptions: T.List,
-    timescale: int,
+    media_timescale: int,
 ) -> T.Generator[Sample, None, None]:
     acc_delta = 0
     for raw_sample in raw_samples:
@@ -599,10 +607,10 @@ def extract_samples(
             description_idx=raw_sample.description_idx,
             offset=raw_sample.offset,
             size=raw_sample.size,
-            timedelta=raw_sample.timedelta / timescale,
+            timedelta=raw_sample.timedelta / media_timescale,
             is_sync=raw_sample.is_sync,
             description=descriptions[raw_sample.description_idx - 1],
-            time_offset=acc_delta / timescale,
+            time_offset=acc_delta / media_timescale,
         )
         acc_delta += raw_sample.timedelta
 
@@ -658,7 +666,8 @@ def parse_raw_samples_from_stbl(
 
 
 def parse_samples_from_trak(
-    trak: T.BinaryIO, maxsize: int = -1
+    trak: T.BinaryIO,
+    maxsize: int = -1,
 ) -> T.Generator[Sample, None, None]:
     trak_start_offset = trak.tell()
 
@@ -668,6 +677,7 @@ def parse_samples_from_trak(
     trak.seek(trak_start_offset, io.SEEK_SET)
     h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
+
     yield from extract_samples(raw_samples, descriptions, mdhd.timescale)
 
 
