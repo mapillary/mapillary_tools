@@ -141,24 +141,3 @@ def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
     points.sort()
 
     return points
-
-
-if __name__ == "__main__":
-    import os, sys
-
-    from .. import geo, types, utils
-    from . import utils as geotag_utils
-
-    def _convert(path: pathlib.Path):
-        points = parse_gps_points(path)
-        gpx = geotag_utils.convert_points_to_gpx(points)
-        model = find_camera_model(path)
-        gpx.description = f"Extracted from {model}"
-        print(gpx.to_xml())
-
-    for path in sys.argv[1:]:
-        if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
-                _convert(pathlib.Path(p))
-        else:
-            _convert(pathlib.Path(path))
