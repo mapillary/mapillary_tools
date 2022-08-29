@@ -149,7 +149,6 @@ def process_geotag_properties(
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             import_path,
             geotag_source_path,
-            use_gpx_start_time=interpolation_use_gpx_start_time,
             offset_time=interpolation_offset_time,
         )
     elif geotag_source == "camm":
