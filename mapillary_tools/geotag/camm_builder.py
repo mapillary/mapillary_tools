@@ -5,7 +5,7 @@ import typing as T
 from .. import geo
 
 from . import (
-    blackvue_utils,
+    blackvue_parser,
     camm_parser,
     gpmf_parser,
     simple_mp4_builder as builder,
@@ -248,7 +248,7 @@ def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
         return "gopro", T.cast(T.List[geo.Point], points_with_fix)
 
     fp.seek(start_offset)
-    points = blackvue_utils.extract_points(fp)
+    points = blackvue_parser.extract_points(fp)
     if points:
         # TODO: remove if when we fixed it at the parsing side
         first_time = points[0].time

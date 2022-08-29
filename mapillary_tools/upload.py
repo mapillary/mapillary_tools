@@ -28,7 +28,7 @@ from . import (
     utils,
 )
 from .geo import get_max_distance_from_start
-from .geotag import blackvue_utils, utils as video_utils
+from .geotag import blackvue_parser, utils as video_utils
 
 FileType = Literal["blackvue", "images", "zip"]
 
@@ -500,7 +500,7 @@ def _check_blackvue(video_path: str) -> None:
     if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
-    points = blackvue_utils.parse_gps_points(pathlib.Path(video_path))
+    points = blackvue_parser.parse_gps_points(pathlib.Path(video_path))
     if not points:
         raise exceptions.MapillaryGPXEmptyError(
             f"Empty GPS extracted from {video_path}"

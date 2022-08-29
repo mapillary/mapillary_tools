@@ -11,7 +11,7 @@ from ..exceptions import (
     MapillaryStationaryVideoError,
 )
 from ..geo import get_max_distance_from_start
-from . import blackvue_utils, utils as geotag_utils
+from . import blackvue_parser, utils as geotag_utils
 from .geotag_from_generic import GeotagFromGeneric
 from .geotag_from_gpx import GeotagFromGPXWithProgress
 
@@ -55,7 +55,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 continue
 
             try:
-                points = blackvue_utils.parse_gps_points(pathlib.Path(blackvue_video))
+                points = blackvue_parser.parse_gps_points(pathlib.Path(blackvue_video))
             except MapillaryInvalidBlackVueVideoError:
                 for image in sample_images:
                     err = types.describe_error(
@@ -82,7 +82,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                     descs.append({"error": err, "filename": image})
                 continue
 
-            model = blackvue_utils.find_camera_model(pathlib.Path(blackvue_video))
+            model = blackvue_parser.find_camera_model(pathlib.Path(blackvue_video))
             LOG.debug(
                 f"Found BlackVue camera model %s from video %s", model, blackvue_video
             )
