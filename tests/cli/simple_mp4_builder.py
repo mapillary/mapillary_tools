@@ -93,19 +93,72 @@ def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
     # Track IDs are never re-used and cannot be zero.
     track_id = 1
 
-    # tracks with lower numbers are closer to the viewer.
-    # 0 is the normal value, and -1 would be in front of track 0, and so on.
-    layer = 0
-
     for box in _filter_trak_boxes(moov_chilren):
         tkhd = _find_box_at_pathx(box, [b"trak", b"tkhd"])
         d = T.cast(T.Dict[str, T.Any], tkhd["data"])
         d["track_id"] = track_id
         track_id += 1
-        d["layer"] = layer
-        layer += 1
+
     mvhd = _find_box_at_pathx(moov_chilren, [b"mvhd"])
     T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
+
+
+def _create_edit_list(
+    point_segments: T.Sequence[T.Sequence[geo.Point]],
+    movie_timescale: int,
+    media_timescale: int,
+) -> BoxDict:
+    entries: T.List[T.Dict] = []
+
+    for idx, points in enumerate(point_segments):
+        if not points:
+            entries = [
+                {
+                    "media_time": 0,
+                    "segment_duration": 0,
+                    "media_rate_integer": 1,
+                    "media_rate_fraction": 0,
+                }
+            ]
+            break
+
+        assert (
+            0 <= points[0].time
+        ), f"expect non-negative point time but got {points[0]}"
+        assert (
+            points[0].time <= points[-1].time
+        ), f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+
+        if idx == 0:
+            if 0 < points[0].time:
+                segment_duration = int(points[0].time * movie_timescale)
+                entries.append(
+                    {
+                        "media_time": -1,
+                        "segment_duration": segment_duration,
+                        "media_rate_integer": 1,
+                        "media_rate_fraction": 0,
+                    }
+                )
+        else:
+            assert point_segments[-1][-1].time <= points[0].time
+            media_time = int(points[0].time * media_timescale)
+            segment_duration = int((points[-1].time - points[0].time) * movie_timescale)
+            entries.append(
+                {
+                    "media_time": media_time,
+                    "segment_duration": segment_duration,
+                    "media_rate_integer": 1,
+                    "media_rate_fraction": 0,
+                }
+            )
+
+    return {
+        "type": b"elst",
+        "data": {
+            "entries": entries,
+        },
+    }
 
 
 def _convert_points_to_raw_samples(
@@ -118,7 +171,9 @@ def _convert_points_to_raw_samples(
             timedelta = int((points[idx + 1].time - point.time) * timescale)
         else:
             timedelta = 0
-        assert timedelta <= builder.UINT32_MAX
+        assert (
+            0 <= timedelta <= builder.UINT32_MAX
+        ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
 
         yield parser.RawSample(
             # will update later
@@ -184,11 +239,14 @@ def _create_camm_trak(
     now = int(time.time())
 
     media_duration = sum(s.timedelta for s in raw_samples)
+    assert media_timescale <= builder.UINT64_MAX
 
     # Media Header Box
     mdhd = {
         "type": b"mdhd",
         "data": {
+            # use 64-bit version
+            "version": 1,
             "creation_time": now,
             "modification_time": now,
             "timescale": media_timescale,
@@ -217,11 +275,10 @@ def _create_camm_trak(
             "version": 0,
             "creation_time": now,
             "modification_time": now,
-            # will update later
+            # will update the track ID later
             "track_ID": 0,
             # If the duration of this track cannot be determined then duration is set to all 1s (32-bit maxint).
             "duration": 0xFFFFFFFF,
-            # will update later
             "layer": 0,
         },
     }
@@ -312,22 +369,31 @@ class CAMMPointReader(Reader):
 
 
 def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
-    offset = fp.tell()
+    start_offset = fp.tell()
     points = camm_parser.extract_points(fp)
     if points:
         return "camm", points
 
-    fp.seek(offset)
+    fp.seek(start_offset)
     points_with_fix = gpmf_parser.extract_points(fp)
     if points_with_fix:
         return "gopro", T.cast(T.List[geo.Point], points_with_fix)
 
-    fp.seek(offset)
+    fp.seek(start_offset)
     points = blackvue_utils.extract_points(fp)
     if points:
+        # TODO: remove if when we fixed it at the parsing side
+        first_time = points[0].time
+        for p in points:
+            p.time -= first_time
         return "blackvue", points
 
     return "unknown", []
+
+
+def _find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
+    mvhd = _find_box_at_pathx(moov_children, [b"mvhd"])
+    return T.cast(T.Dict, mvhd["data"])["timescale"]
 
 
 def transform_mp4(src_path: pathlib.Path, target_path: pathlib.Path):
@@ -360,9 +426,19 @@ def transform_mp4(src_path: pathlib.Path, target_path: pathlib.Path):
         if not points:
             raise ValueError("no points found")
 
-        media_timescale = 10000
+        movie_timescale = _find_movie_timescale(moov_children)
+        # make sure the precision of timedeltas not lower than 0.001 (1ms)
+        media_timescale = max(1000, movie_timescale)
         camm_samples = list(_convert_points_to_raw_samples(points, media_timescale))
         camm_trak = _create_camm_trak(camm_samples, media_timescale)
+        elst = _create_edit_list([points], movie_timescale, media_timescale)
+        if T.cast(T.Dict, elst["data"])["entries"]:
+            T.cast(T.List[BoxDict], camm_trak["data"]).append(
+                {
+                    "type": b"edts",
+                    "data": [elst],
+                }
+            )
         moov_children.append(camm_trak)
         _update_all_trak_tkhd(moov_children)
 
