@@ -33,7 +33,11 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
         nmea_line_bytes = match.group(2)
         if nmea_line_bytes.startswith(b"$GPGGA"):
             try:
-                nmea = pynmea2.parse(nmea_line_bytes.decode("utf8"))
+                nmea_line = nmea_line_bytes.decode("utf8")
+            except UnicodeDecodeError:
+                continue
+            try:
+                nmea = pynmea2.parse(nmea_line)
             except pynmea2.nmea.ParseError:
                 continue
             if not nmea.is_valid:

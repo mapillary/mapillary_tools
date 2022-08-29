@@ -250,10 +250,6 @@ def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
     fp.seek(start_offset)
     points = blackvue_parser.extract_points(fp)
     if points:
-        # TODO: remove if when we fixed it at the parsing side
-        first_time = points[0].time
-        for p in points:
-            p.time -= first_time
         return "blackvue", points
 
     return "unknown", []
