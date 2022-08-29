@@ -1,4 +1,3 @@
-import datetime
 import logging
 import pathlib
 import re
@@ -11,101 +10,45 @@ from . import simple_mp4_parser
 
 
 LOG = logging.getLogger(__name__)
+# An example: [1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]
+NMEA_LINE_REGEX = re.compile(
+    rb"""
+    ^\s*
+    \[(\d+)\] # timestamp
+    \s*
+    (\$\w{5}.*) # nmea line
+    \s*
+    (\[\d+\])? # strange timestamp
+    \s*$
+    """,
+    re.X,
+)
 
 
-def _parse_gps_box(gps_data: bytes) -> T.List[geo.Point]:
-    points = []
-    first_gps_date: T.Optional[datetime.date] = None
-    first_gps_time: T.Optional[datetime.time] = None
-    found_first_gps_date = False
-    found_first_gps_time = False
-
-    lines = gps_data
-
-    # Parse GPS trace
-    for line_bytes in lines.splitlines():
-        line = line_bytes.decode("utf-8")
-        m = line.lstrip("[]0123456789")
-
-        # By default, use camera timestamp. Only use GPS Timestamp if camera was not set up correctly and date/time is wrong
-        if "$GPGGA" in m:
-            match = re.search("\[([0-9]+)\]", line)
-            if match:
-                epoch_in_local_time = int(match.group(1)) / 1000.0
-
-            data = pynmea2.parse(m)
-            if data.is_valid:
-                if not found_first_gps_time:
-                    first_gps_time = data.timestamp
-                    found_first_gps_time = True
-                points.append(
-                    geo.Point(
-                        time=epoch_in_local_time,
-                        lat=data.latitude,
-                        lon=data.longitude,
-                        alt=data.altitude,
-                        angle=None,
-                    )
-                )
-
-        if not found_first_gps_date:
-            if "$GPRMC" in m:
-                try:
-                    data = pynmea2.parse(m)
-                    if data.is_valid:
-                        date = data.datetime.date()
-                        if not found_first_gps_date:
-                            first_gps_date = date
-                            found_first_gps_date = True
-                except pynmea2.ChecksumError:
-                    # There are often Checksum errors in the GPS stream, better not to show errors to user
-                    pass
-                except Exception:
-                    LOG.warning(
-                        "Warning: Error in parsing gps trace to extract date information, nmea parsing failed"
-                    )
-
-    # If there are no points after parsing just return empty vector
-    if not points:
-        return []
-
-    if first_gps_date is not None and first_gps_time is not None:
-        # After parsing all points, fix timedate issues
-        # If we use the camera timestamp, we need to get the timezone offset, since Mapillary backend expects UTC timestamps
-        first_gps_timestamp = geo.as_unix_time(
-            datetime.datetime.combine(
-                T.cast(datetime.date, first_gps_date),
-                T.cast(datetime.time, first_gps_time),
-            )
-        )
-        delta_t = points[0].time - first_gps_timestamp
-        if delta_t > 0:
-            hours_diff_to_utc = round(delta_t / 3600)
-        else:
-            hours_diff_to_utc = round(delta_t / 3600) * -1
-    else:
-        hours_diff_to_utc = 0
-
-    utc_points = []
-    for point in points:
-        # Compensate for solution age when location gets timestamped by camera clock. Value is empirical from various cameras/recordings
-        delay_compensation = -1.8
-        new_timestamp = point.time + hours_diff_to_utc * 3600 + delay_compensation
-        utc_points.append(
-            geo.Point(
-                time=new_timestamp,
-                lat=point.lat,
-                lon=point.lon,
-                alt=point.alt,
+def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
+    for line_bytes in gps_data.splitlines():
+        match = NMEA_LINE_REGEX.match(line_bytes)
+        if match is None:
+            continue
+        nmea_line_bytes = match.group(2)
+        if nmea_line_bytes.startswith(b"$GPGGA"):
+            try:
+                nmea = pynmea2.parse(nmea_line_bytes.decode("utf8"))
+            except pynmea2.nmea.ParseError:
+                continue
+            if not nmea.is_valid:
+                continue
+            epoch_ms = int(match.group(1))
+            yield geo.Point(
+                time=epoch_ms,
+                lat=nmea.latitude,
+                lon=nmea.longitude,
+                alt=nmea.altitude,
                 angle=None,
             )
-        )
-
-    points = utc_points
-
-    return points
 
 
+# TODO: what it failed to parse free/cprt
 def find_camera_model(path: pathlib.Path) -> str:
     with path.open("rb") as fp:
         cprt_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
@@ -125,10 +68,22 @@ def find_camera_model(path: pathlib.Path) -> str:
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    # TODO: what it failed to parse free/gps
     gps_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"gps "])
     if gps_data is None:
         return None
-    return _parse_gps_box(gps_data)
+
+    points = list(_parse_gps_box(gps_data))
+    if not points:
+        return points
+
+    points.sort(key=lambda p: p.time)
+
+    first_point_time = points[0].time
+    for p in points:
+        p.time = (p.time - first_point_time) / 1000
+
+    return points
 
 
 def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
@@ -137,7 +92,5 @@ def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
 
     if points is None:
         return []
-
-    points.sort()
 
     return points
