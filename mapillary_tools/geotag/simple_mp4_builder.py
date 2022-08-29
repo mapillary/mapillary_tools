@@ -1,7 +1,6 @@
 import dataclasses
 import io
 import itertools
-import pathlib
 import sys
 import typing as T
 
@@ -487,47 +486,42 @@ class SampleReader(Reader):
 
 
 def transform_mp4(
-    src_path: pathlib.Path,
-    target_path: pathlib.Path,
+    src_fp: T.BinaryIO,
+    target_fp: T.BinaryIO,
     sample_generator: T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[Reader]],
 ):
-    with open(src_path, "rb") as src_fp:
-        # extract ftyp
-        src_fp.seek(0)
-        source_ftyp_box_data = parser.parse_data_firstx(src_fp, [b"ftyp"])
-        source_ftyp_data = QuickBoxStruct32.Box.build(
-            {"type": b"ftyp", "data": source_ftyp_box_data}
-        )
+    # extract ftyp
+    src_fp.seek(0)
+    source_ftyp_box_data = parser.parse_data_firstx(src_fp, [b"ftyp"])
+    source_ftyp_data = QuickBoxStruct32.Box.build(
+        {"type": b"ftyp", "data": source_ftyp_box_data}
+    )
 
-        # extract moov
-        src_fp.seek(0)
-        src_moov_data = parser.parse_data_firstx(src_fp, [b"moov"])
-        moov_children = QuickBoxStruct64.BoxList.parse(src_moov_data)
+    # extract moov
+    src_fp.seek(0)
+    src_moov_data = parser.parse_data_firstx(src_fp, [b"moov"])
+    moov_children = QuickBoxStruct64.BoxList.parse(src_moov_data)
 
-        # filter tracks in moov
-        moov_children = list(_filter_moov_children_boxes(moov_children))
+    # filter tracks in moov
+    moov_children = list(_filter_moov_children_boxes(moov_children))
 
-        # extract video samples
-        source_samples = list(iterate_samples(moov_children))
-        movie_sample_readers = (
-            SampleReader(src_fp, sample.offset, sample.size)
-            for sample in source_samples
-        )
+    # extract video samples
+    source_samples = list(iterate_samples(moov_children))
+    movie_sample_readers = (
+        SampleReader(src_fp, sample.offset, sample.size) for sample in source_samples
+    )
 
-        sample_readers = itertools.chain(
-            movie_sample_readers, sample_generator(src_fp, moov_children)
-        )
+    sample_readers = itertools.chain(
+        movie_sample_readers, sample_generator(src_fp, moov_children)
+    )
 
-        _update_all_trak_tkhd(moov_children)
+    _update_all_trak_tkhd(moov_children)
 
-        # moov_boxes should be immutable since here
-        with open(target_path, "wb") as target_fp:
-            target_fp.write(source_ftyp_data)
-            target_fp.write(rewrite_moov(target_fp.tell(), moov_children))
-            mdat_body_size = sum(
-                sample.size for sample in iterate_samples(moov_children)
-            )
-            write_mdat(target_fp, mdat_body_size, sample_readers)
+    # moov_boxes should be immutable since here
+    target_fp.write(source_ftyp_data)
+    target_fp.write(rewrite_moov(target_fp.tell(), moov_children))
+    mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
+    write_mdat(target_fp, mdat_body_size, sample_readers)
 
 
 def rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:

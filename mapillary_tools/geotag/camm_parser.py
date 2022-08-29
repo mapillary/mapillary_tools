@@ -168,12 +168,15 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
                 )
                 mdhd = parser.MediaHeaderBox.parse(mdhd_data)
                 media_timescale = mdhd["timescale"]
-                break
         else:
             assert h.type == b"mvhd"
-            if movie_timescale:
+            if not movie_timescale:
                 mvhd = parser.MovieHeaderBox.parse(s.read(h.maxsize))
                 movie_timescale = mvhd["timescale"]
+
+        # exit when both found
+        if movie_timescale is not None and points:
+            break
 
     if points and movie_timescale and media_timescale and elst_entries:
         segments = [

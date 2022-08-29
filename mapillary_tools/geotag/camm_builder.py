@@ -146,7 +146,7 @@ _SELF_REFERENCE_DREF_BOX_DATA: bytes = builder.FullBoxStruct32.Box.build(
 )
 
 
-def _create_camm_trak(
+def create_camm_trak(
     raw_samples: T.Sequence[parser.RawSample],
     media_timescale: int,
 ) -> BoxDict:
@@ -259,30 +259,39 @@ def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
     return "unknown", []
 
 
+def camm_sample_generator2(points: T.Sequence[geo.Point]):
+    def _f(
+        fp: T.BinaryIO,
+        moov_children: T.List[BoxDict],
+    ) -> T.Generator[builder.Reader, None, None]:
+        movie_timescale = builder._find_movie_timescale(moov_children)
+        # make sure the precision of timedeltas not lower than 0.001 (1ms)
+        media_timescale = max(1000, movie_timescale)
+        camm_samples = list(convert_points_to_raw_samples(points, media_timescale))
+        camm_trak = create_camm_trak(camm_samples, media_timescale)
+        elst = _create_edit_list([points], movie_timescale, media_timescale)
+        if T.cast(T.Dict, elst["data"])["entries"]:
+            T.cast(T.List[BoxDict], camm_trak["data"]).append(
+                {
+                    "type": b"edts",
+                    "data": [elst],
+                }
+            )
+        moov_children.append(camm_trak)
+
+        # if yield, the moov_children will not be modified
+        return (CAMMPointReader(point) for point in points)
+
+    return _f
+
+
 def camm_sample_generator(
     fp: T.BinaryIO,
     moov_children: T.List[BoxDict],
-) -> T.Generator[builder.Reader, None, None]:
-    # append CAMM samples
+) -> T.Iterator[builder.Reader]:
     fp.seek(0)
     _, points = extract_points(fp)
     if not points:
         raise ValueError("no points found")
 
-    movie_timescale = builder._find_movie_timescale(moov_children)
-    # make sure the precision of timedeltas not lower than 0.001 (1ms)
-    media_timescale = max(1000, movie_timescale)
-    camm_samples = list(convert_points_to_raw_samples(points, media_timescale))
-    camm_trak = _create_camm_trak(camm_samples, media_timescale)
-    elst = _create_edit_list([points], movie_timescale, media_timescale)
-    if T.cast(T.Dict, elst["data"])["entries"]:
-        T.cast(T.List[BoxDict], camm_trak["data"]).append(
-            {
-                "type": b"edts",
-                "data": [elst],
-            }
-        )
-    moov_children.append(camm_trak)
-
-    for point in points:
-        yield CAMMPointReader(point)
+    return camm_sample_generator2(points)(fp, moov_children)
