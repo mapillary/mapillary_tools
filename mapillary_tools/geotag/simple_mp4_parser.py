@@ -215,7 +215,7 @@ _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 # Mandatory: Yes
 # Quantity: Exactly one
 MovieHeaderBox = C.Struct(
-    "version" / C.Default(C.Int8ub, 0),
+    "version" / C.Default(C.Int8ub, 1),
     "flags" / C.Default(C.Int24ub, 0),
     "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
     "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
@@ -232,7 +232,7 @@ MovieHeaderBox = C.Struct(
 
 # moov -> trak -> tkhd
 TrackHeaderBox = C.Struct(
-    "version" / C.Default(C.Int8ub, 0),
+    "version" / C.Default(C.Int8ub, 1),
     # Track_enabled: Indicates that the track is enabled. Flag value is 0x000001.
     # A disabled track (the low bit is zero) is treated as if it were not present.
     "flags" / C.Default(C.Int24ub, 1),
@@ -281,7 +281,7 @@ EditBox = C.Struct(
 # Mandatory: Yes
 # Quantity: Exactly one
 MediaHeaderBox = C.Struct(
-    "version" / C.Default(C.Int8ub, 0),
+    "version" / C.Default(C.Int8ub, 1),
     "flags" / C.Default(C.Int24ub, 0),
     "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
     "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
