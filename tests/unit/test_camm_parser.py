@@ -1,7 +1,6 @@
 import dataclasses
 
 from mapillary_tools import geo
-
 from mapillary_tools.geotag import camm_parser
 
 

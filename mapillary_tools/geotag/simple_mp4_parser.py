@@ -5,9 +5,6 @@ import typing as T
 import construct as C
 
 
-UINT32_MAX = 2**32 - 1
-
-
 class Header(T.NamedTuple):
     # 0 indicates no more boxes
     header_size: int
