@@ -1,7 +1,10 @@
+# pyre-ignore-all-errors[5, 16, 24, 58]
+
 import datetime
 import io
 import typing as T
 
+# pyre-ignore[21]: Could not find a module corresponding to import `construct`
 import construct as C
 
 
@@ -524,12 +527,12 @@ class Sample(T.NamedTuple):
     # i.e. DT(n) in the forumula DT(n+1) = DT(n) + STTS(n)
     time_offset: T.Union[int, float]
     # reference to the sample description
-    description: T.Any
+    description: T.Dict
 
 
 def extract_raw_samples(
     sizes: T.Sequence[int],
-    chunk_entries: T.Sequence,
+    chunk_entries: T.Sequence[T.Dict],
     chunk_offsets: T.Sequence[int],
     timedeltas: T.Sequence[int],
     syncs: T.Optional[T.Set[int]],
@@ -550,7 +553,9 @@ def extract_raw_samples(
     # iterate compressed chunks
     for entry_idx, entry in enumerate(chunk_entries):
         if entry_idx + 1 < len(chunk_entries):
-            nbr_chunks = chunk_entries[entry_idx + 1].first_chunk - entry.first_chunk
+            nbr_chunks = (
+                chunk_entries[entry_idx + 1]["first_chunk"] - entry["first_chunk"]
+            )
         else:
             nbr_chunks = 1
 
@@ -558,10 +563,10 @@ def extract_raw_samples(
         for _ in range(nbr_chunks):
             sample_offset = chunk_offsets[chunk_idx]
             # iterate samples in this chunk
-            for _ in range(entry.samples_per_chunk):
+            for _ in range(entry["samples_per_chunk"]):
                 is_sync = syncs is None or (sample_idx + 1) in syncs
                 yield RawSample(
-                    description_idx=entry.sample_description_index,
+                    description_idx=entry["sample_description_index"],
                     offset=sample_offset,
                     size=sizes[sample_idx],
                     timedelta=timedeltas[sample_idx],
@@ -579,10 +584,10 @@ def extract_raw_samples(
     while sample_idx < len(sizes):
         sample_offset = chunk_offsets[chunk_idx]
         # iterate samples in this chunk
-        for _ in range(chunk_entries[-1].samples_per_chunk):
+        for _ in range(chunk_entries[-1]["samples_per_chunk"]):
             is_sync = syncs is None or (sample_idx + 1) in syncs
             yield RawSample(
-                description_idx=chunk_entries[-1].sample_description_index,
+                description_idx=chunk_entries[-1]["sample_description_index"],
                 offset=sample_offset,
                 size=sizes[sample_idx],
                 timedelta=timedeltas[sample_idx],

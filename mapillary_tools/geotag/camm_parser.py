@@ -1,9 +1,12 @@
+# pyre-ignore-all-errors[5, 24, 58]
+
 import dataclasses
 import io
 import pathlib
 import typing as T
 from enum import Enum
 
+# pyre-ignore[21]: Could not find a module corresponding to import `construct`
 import construct as C
 
 from . import geo, simple_mp4_parser as parser
@@ -25,6 +28,7 @@ class CAMMType(Enum):
 Float = C.Float32l
 Double = C.Float64l
 
+# pyre-ignore[11]: Annotation `C.Struct` is not defined as a type
 _SWITCH: T.Dict[int, C.Struct] = {
     # angle_axis
     CAMMType.ANGLE_AXIS.value: Float[3],
@@ -97,7 +101,7 @@ def _parse_point_from_sample(
 
 def filter_points_by_elst(
     points: T.Iterable[geo.Point], elst: T.Sequence[T.Tuple[float, float]]
-):
+) -> T.Generator[geo.Point, None, None]:
     empty_elst = [entry for entry in elst if entry[0] == -1]
     if empty_elst:
         offset = empty_elst[-1][1]
@@ -150,7 +154,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
             points_with_nones = (
                 _parse_point_from_sample(fp, sample)
                 for sample in parser.parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description.format == b"camm"
+                if sample.description["format"] == b"camm"
             )
 
             points = [p for p in points_with_nones if p is not None]
