@@ -1,5 +1,6 @@
 import argparse
 import inspect
+from pathlib import Path
 
 from .. import constants
 from ..process_geotag_properties import process_finalize, process_geotag_properties
@@ -153,7 +154,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--desc_path",
-            help=f"Specify the path to store mapillary image descriptions as JSON. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]",
+            help=f'Specify the path to store mapillary image descriptions as JSON. If it is "-", then write to STDOUT. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]',
             default=None,
             required=False,
         )
@@ -171,6 +172,7 @@ class Command:
             action="store",
             default=None,
             required=False,
+            type=Path,
         )
         group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",

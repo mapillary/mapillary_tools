@@ -17,12 +17,12 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGoPro(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: str,
-        source_path: str,
+        image_dir: Path,
+        source_path: Path,
         offset_time: float = 0.0,
     ):
         self.image_dir = image_dir
-        if os.path.isdir(source_path):
+        if source_path.is_dir():
             self.videos = utils.get_video_file_list(source_path, abs_path=True)
         else:
             # it is okay to not suffix with .mp4
@@ -124,7 +124,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         for video in self.videos:
             LOG.debug("Processing GoPro video: %s", video)
 
-            sample_images = utils.filter_video_samples(images, video)
+            sample_images = list(utils.filter_video_samples(images, video))
             LOG.debug(
                 "Found %d sample images from video %s",
                 len(sample_images),
@@ -134,9 +134,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = self._filter_noisy_points(
-                gpmf_parser.parse_gpx(Path(video)), Path(video)
-            )
+            points = self._filter_noisy_points(gpmf_parser.parse_gpx(video), video)
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
@@ -153,12 +151,12 @@ class GeotagFromGoPro(GeotagFromGeneric):
                             "Stationary GoPro video"
                         )
                     )
-                    descs.append({"error": err, "filename": image})
+                    descs.append({"error": err, "filename": str(image)})
                 continue
 
             with tqdm(
                 total=len(sample_images),
-                desc=f"Interpolating {os.path.basename(video)}",
+                desc=f"Interpolating {video.name}",
                 unit="images",
                 disable=LOG.getEffectiveLevel() <= logging.DEBUG,
             ) as pbar:

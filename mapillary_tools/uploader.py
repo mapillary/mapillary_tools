@@ -4,11 +4,11 @@ import logging
 import os
 import sys
 import tempfile
-
 import time
 import typing as T
 import uuid
 import zipfile
+from pathlib import Path
 
 import jsonschema
 
@@ -115,7 +115,7 @@ class Uploader:
         self.emitter = emitter
 
     def upload_zipfile(
-        self, zip_path: str, event_payload: T.Optional[Progress] = None
+        self, zip_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
@@ -128,11 +128,11 @@ class Uploader:
             event_payload = {}
 
         new_event_payload: Progress = {
-            "import_path": zip_path,
+            "import_path": str(zip_path),
             "sequence_image_count": len(namelist),
         }
 
-        with open(zip_path, "rb") as fp:
+        with zip_path.open("rb") as fp:
             try:
                 return _upload_zipfile_fp(
                     fp,
@@ -149,7 +149,7 @@ class Uploader:
                 return None
 
     def upload_blackvue(
-        self, blackvue_path: str, event_payload: T.Optional[Progress] = None
+        self, blackvue_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         try:
             return upload_blackvue(
@@ -215,18 +215,18 @@ def _validate_descs(descs: T.List[types.ImageDescriptionFile]):
 
 def zip_images(
     descs: T.List[types.ImageDescriptionFile],
-    zip_dir: str,
+    zip_dir: Path,
 ):
     _validate_descs(descs)
     sequences = _group_sequences_by_uuid(descs)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
-        zip_filename_wip = os.path.join(
-            zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
+        zip_filename_wip = zip_dir.joinpath(
+            f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
             upload_md5sum = _zip_sequence_fp(sequence, fp)
-        zip_filename = os.path.join(zip_dir, f"mly_tools_{upload_md5sum}.zip")
+        zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 
@@ -322,7 +322,7 @@ def _upload_zipfile_fp(
 
 
 def upload_blackvue(
-    blackvue_path: str,
+    blackvue_path: Path,
     user_items: types.UserItem,
     event_payload: T.Optional[Progress] = None,
     emitter: EventEmitter = None,
@@ -330,7 +330,7 @@ def upload_blackvue(
 ) -> str:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
-    with open(blackvue_path, "rb") as fp:
+    with blackvue_path.open("rb") as fp:
         upload_md5sum = utils.md5sum_fp(fp)
 
         fp.seek(0, io.SEEK_END)
@@ -364,7 +364,7 @@ def upload_blackvue(
 
         new_event_payload: Progress = {
             "entity_size": entity_size,
-            "import_path": blackvue_path,
+            "import_path": str(blackvue_path),
             "md5sum": upload_md5sum,
         }
 

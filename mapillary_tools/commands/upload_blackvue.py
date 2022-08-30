@@ -1,4 +1,5 @@
 import inspect
+from pathlib import Path
 
 from .. import constants
 from ..upload import upload_multiple
@@ -14,6 +15,7 @@ class Command:
             "import_path",
             help="Path to your BlackVue videos.",
             nargs="+",
+            type=Path,
         )
         group = parser.add_argument_group(
             f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"

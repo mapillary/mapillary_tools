@@ -1,7 +1,9 @@
 import json
 import os
 import tempfile
+import typing as T
 import zipfile
+from pathlib import Path
 
 import py.path
 import pytest
@@ -69,7 +71,7 @@ def test_upload_images(setup_upload: py.path.local):
             "filename": "tests/unit/data/test_exif.jpg",
         },
     ]
-    resp = mly_uploader.upload_images(descs)
+    resp = mly_uploader.upload_images(T.cast(T.Any, descs))
     assert len(resp) == 1
     assert len(setup_upload.listdir()) == 1
     _validate_zip_dir(setup_upload)
@@ -107,7 +109,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
         },
         dry_run=True,
     )
-    resp = mly_uploader.upload_images(descs)
+    resp = mly_uploader.upload_images(T.cast(T.Any, descs))
     assert len(resp) == 2
     assert len(setup_upload.listdir()) == 2
     _validate_zip_dir(setup_upload)
@@ -140,7 +142,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
         },
     ]
     zip_dir = tmpdir.mkdir("zip_dir")
-    uploader.zip_images(descs, str(zip_dir))
+    uploader.zip_images(T.cast(T.Any, descs), Path(zip_dir))
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
     _validate_zip_dir(zip_dir)
 
@@ -154,7 +156,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
-        resp = mly_uploader.upload_zipfile(str(zip_path))
+        resp = mly_uploader.upload_zipfile(Path(zip_path))
 
     _validate_zip_dir(setup_upload)
 
@@ -171,7 +173,7 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     blackvue_path = tmpdir.join("blackvue.mp4")
     with open(blackvue_path, "wb") as fp:
         fp.write(b"this is a fake video")
-    resp = mly_uploader.upload_blackvue(str(blackvue_path))
+    resp = mly_uploader.upload_blackvue(Path(blackvue_path))
     assert resp == "0"
     for mp4_path in setup_upload.listdir():
         basename = os.path.basename(mp4_path)

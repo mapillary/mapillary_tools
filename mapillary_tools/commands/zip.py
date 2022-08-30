@@ -1,5 +1,6 @@
 import argparse
 import inspect
+from pathlib import Path
 
 from ..upload import zip_images
 
@@ -11,15 +12,17 @@ class Command:
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
             "import_path",
-            help="Path to your images",
+            help="Path to your images.",
+            type=Path,
         )
         parser.add_argument(
             "zip_dir",
-            help="Path to store zipped images",
+            help="Path to store zipped images.",
+            type=Path,
         )
         parser.add_argument(
             "--desc_path",
-            help="Specify the path to read image description",
+            help='Specify the path to read image description. If it is "-", then read from STDIN.',
             default=None,
             required=False,
         )

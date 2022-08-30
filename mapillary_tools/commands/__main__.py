@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from .. import constants, exceptions, VERSION
 from . import (
@@ -40,11 +41,13 @@ def add_general_arguments(parser, command):
         parser.add_argument(
             "video_import_path",
             help="Path to a video or directory with one or more video files.",
+            type=Path,
         )
         parser.add_argument(
             "import_path",
             help=f"Path to where the images from video sampling will be saved. [default: {{VIDEO_IMPORT_PATH}}/{constants.SAMPLED_VIDEO_FRAMES_FILENAME}]",
             nargs="?",
+            type=Path,
         )
         parser.add_argument(
             "--skip_subfolders",
@@ -58,11 +61,13 @@ def add_general_arguments(parser, command):
             "import_path",
             help="Path to your images.",
             nargs="+",
+            type=Path,
         )
     elif command in ["process", "process_and_upload"]:
         parser.add_argument(
             "import_path",
             help="Path to your images.",
+            type=Path,
         )
         parser.add_argument(
             "--skip_subfolders",

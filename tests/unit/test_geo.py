@@ -7,7 +7,7 @@ from mapillary_tools.geo import as_unix_time, interpolate, Point
 
 # lat, lon, bearing, alt
 def approximate(a: Point, b: T.Tuple[float, float, float, float]):
-    x = a.lat, a.lon, a.angle, a.alt
+    x: T.List[float] = [a.lat, a.lon, a.angle or 0, a.alt or 0]
     for i, j in zip(x, b):
         assert abs(i - j) <= 0.00001
 

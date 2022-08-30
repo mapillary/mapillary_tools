@@ -1,4 +1,5 @@
 import inspect
+from pathlib import Path
 
 from .. import constants
 
@@ -15,6 +16,7 @@ class Command:
             "import_path",
             help="Path to your ZIP files.",
             nargs="+",
+            type=Path,
         )
         group = parser.add_argument_group(
             f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"
