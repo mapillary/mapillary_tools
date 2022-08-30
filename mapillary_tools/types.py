@@ -78,12 +78,6 @@ def describe_error(exc: Exception) -> ErrorObject:
         "message": str(exc),
     }
     exc_vars = vars(exc)
-    # make sure it is JSON serializable
-    exc_vars = {
-        k: v
-        for k, v in exc_vars.items()
-        if isinstance(k, (str, int, float)) and isinstance(v, (str, int, float))
-    }
     if exc_vars:
         desc["vars"] = exc_vars
     return desc
