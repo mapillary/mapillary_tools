@@ -1,4 +1,5 @@
 import datetime
+import json
 import sys
 import typing as T
 
@@ -82,12 +83,21 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
         "type": exc.__class__.__name__,
         "message": str(exc),
     }
+
     exc_vars = vars(exc)
+
     if exc_vars:
-        desc["vars"] = exc_vars
+        # handle unserializable exceptions
+        try:
+            vars_json = json.dumps(exc_vars)
+        except Exception:
+            vars_json = ""
+        if vars_json:
+            desc["vars"] = json.loads(vars_json)
+
     return {
-        "filename": filename,
         "error": desc,
+        "filename": filename,
     }
 
 
@@ -260,6 +270,4 @@ def as_desc(point: geo.Point) -> Image:
 
 
 if __name__ == "__main__":
-    import json
-
     print(json.dumps(ImageDescriptionFileSchema, indent=4))
