@@ -59,19 +59,6 @@ def get_max_distance_from_start(latlons: T.List[T.Tuple[float, float]]) -> float
     return max(gps_distance(start, latlon) for latlon in latlons)
 
 
-def decimal_to_dms(
-    value: float, precision: int
-) -> T.Tuple[T.Tuple[float, int], T.Tuple[float, int], T.Tuple[float, int]]:
-    """
-    Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
-    """
-    deg = math.floor(value)
-    min = math.floor((value - deg) * 60)
-    sec = math.floor((value - deg - min / 60) * 3600 * precision)
-
-    return (deg, 1), (min, 1), (sec, precision)
-
-
 def compute_bearing(
     start_lat: float, start_lon: float, end_lat: float, end_lon: float
 ) -> float:
@@ -113,20 +100,6 @@ def diff_bearing(b1: float, b2: float) -> float:
     return d
 
 
-def normalize_bearing(bearing: float, check_hex: bool = False) -> float:
-    """
-    Normalize bearing and convert from hex if
-    """
-    if bearing > 360 and check_hex:
-        # fix negative value wrongly parsed in exifread
-        # -360 degree -> 4294966935 when converting from hex
-        bearing1 = bin(int(bearing))[2:]
-        bearing2 = "".join([str(int(int(a) == 0)) for a in bearing1])
-        bearing = -float(int(bearing2, 2))
-    bearing %= 360
-    return bearing
-
-
 _IT = T.TypeVar("_IT")
 
 
@@ -142,6 +115,7 @@ def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
 class Point:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
+    # pyre-ignore[4]: Attribute `__slots__` of class `Point` has type `T.Tuple[str, str, str, str, str]` but no type is specified
     __slots__ = (
         "time",
         "lat",

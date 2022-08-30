@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 from . import constants, exceptions, types, uploader, utils
 from .exif_write import ExifEdit
-from .geo import normalize_bearing
 from .geotag import (
     geotag_from_blackvue,
     geotag_from_camm,
@@ -266,12 +265,8 @@ def process_finalize(
                 "MagneticHeading": 0.0,
             },
         )
-        heading["TrueHeading"] = normalize_bearing(
-            heading["TrueHeading"] + offset_angle
-        )
-        heading["MagneticHeading"] = normalize_bearing(
-            heading["MagneticHeading"] + offset_angle
-        )
+        heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
+        heading["MagneticHeading"] = (heading["MagneticHeading"] + offset_angle) % 360
 
     descs = list(types.map_descs(validate_and_fail_desc, descs))
 

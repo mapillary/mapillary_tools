@@ -1,12 +1,14 @@
+# pyre-ignore-all-errors[5, 24]
+
 import datetime
+import math
 import io
 import json
 import logging
 import typing as T
 
+# pyre-ignore[21]: Could not find a module corresponding to import `piexif`
 import piexif
-
-from .geo import decimal_to_dms
 
 
 LOG = logging.getLogger(__name__)
@@ -15,10 +17,23 @@ LOG = logging.getLogger(__name__)
 class ExifEdit:
     _filename_or_bytes: T.Union[str, bytes]
 
-    def __init__(self, filename_or_bytes: T.Union[str, bytes]):
+    def __init__(self, filename_or_bytes: T.Union[str, bytes]) -> None:
         """Initialize the object"""
         self._filename_or_bytes = filename_or_bytes
-        self._ef = piexif.load(filename_or_bytes)
+        self._ef: T.Dict = piexif.load(filename_or_bytes)
+
+    @staticmethod
+    def decimal_to_dms(
+        value: float, precision: int
+    ) -> T.Tuple[T.Tuple[float, int], T.Tuple[float, int], T.Tuple[float, int]]:
+        """
+        Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
+        """
+        deg = math.floor(value)
+        min = math.floor((value - deg) * 60)
+        sec = math.floor((value - deg - min / 60) * 3600 * precision)
+
+        return (deg, 1), (min, 1), (sec, precision)
 
     def add_image_description(self, data: T.Dict) -> None:
         """Add a dict to image description."""
@@ -32,19 +47,19 @@ class ExifEdit:
 
     def add_date_time_original(
         self, date_time: datetime.datetime, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
-    ):
+    ) -> None:
         """Add date time original."""
         DateTimeOriginal = date_time.strftime(time_format)[:-3]
         self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
 
-    def add_lat_lon(self, lat: float, lon: float, precision: float = 1e7):
+    def add_lat_lon(self, lat: float, lon: float, precision: float = 1e7) -> None:
         """Add lat, lon to gps (lat, lon in float)."""
         self._ef["GPS"][piexif.GPSIFD.GPSLatitudeRef] = "N" if lat > 0 else "S"
         self._ef["GPS"][piexif.GPSIFD.GPSLongitudeRef] = "E" if lon > 0 else "W"
-        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = decimal_to_dms(
+        self._ef["GPS"][piexif.GPSIFD.GPSLongitude] = ExifEdit.decimal_to_dms(
             abs(lon), int(precision)
         )
-        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = decimal_to_dms(
+        self._ef["GPS"][piexif.GPSIFD.GPSLatitude] = ExifEdit.decimal_to_dms(
             abs(lat), int(precision)
         )
 
@@ -57,7 +72,9 @@ class ExifEdit:
         )
         self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
 
-    def add_direction(self, direction, ref="T", precision=100):
+    def add_direction(
+        self, direction: float, ref: str = "T", precision: int = 100
+    ) -> None:
         """Add image direction."""
         # normalize direction
         direction = direction % 360.0
@@ -133,7 +150,7 @@ class ExifEdit:
         piexif.insert(exif_bytes, self._filename_or_bytes, output)
         return output.read()
 
-    def write(self, filename=None):
+    def write(self, filename: T.Optional[str] = None) -> None:
         """Save exif data to file."""
         if filename is None:
             if isinstance(self._filename_or_bytes, str):

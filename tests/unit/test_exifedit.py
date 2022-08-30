@@ -6,7 +6,6 @@ import unittest
 import py.path
 
 from mapillary_tools.exif_write import ExifEdit
-from mapillary_tools.geo import decimal_to_dms
 from PIL import ExifTags, Image, TiffImagePlugin
 
 """Initialize all the neccessary data"""
@@ -113,8 +112,8 @@ def add_lat_lon_general(test_obj, filename):
 
     test_obj.assertEqual(
         (
-            decimal_to_dms(abs(test_latitude), precision),
-            decimal_to_dms(abs(test_longitude), precision),
+            ExifEdit.decimal_to_dms(abs(test_latitude), precision),
+            ExifEdit.decimal_to_dms(abs(test_longitude), precision),
             "N",
             "E",
         ),
@@ -292,12 +291,12 @@ class ExifEditTests(unittest.TestCase):
         exif_data = load_exif()
         exif_gps_info = exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])
 
-        assert decimal_to_dms(abs(test_latitude), precision) == rational_to_tuple(
-            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitude"]]
-        )
-        assert decimal_to_dms(abs(test_longitude), precision) == rational_to_tuple(
-            exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitude"]]
-        )
+        assert ExifEdit.decimal_to_dms(
+            abs(test_latitude), precision
+        ) == rational_to_tuple(exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitude"]])
+        assert ExifEdit.decimal_to_dms(
+            abs(test_longitude), precision
+        ) == rational_to_tuple(exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitude"]])
         assert "S" == exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]]
         assert "W" == exif_gps_info[EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]]
 
