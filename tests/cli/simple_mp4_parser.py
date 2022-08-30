@@ -112,14 +112,14 @@ def _parse_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = Non
             LOG.info(box.duration / box.timescale)
         s.seek(offset, io.SEEK_SET)
         for sample in simple_mp4_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
-            if filters is None or sample.description.format in filters:
+            if filters is None or sample.description["format"] in filters:
                 print(sample)
 
 
 def _dump_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
     for h, s in simple_mp4_parser.parse_path(fp, [b"moov", b"trak"]):
         for sample in simple_mp4_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
-            if filters is None or sample.description.format in filters:
+            if filters is None or sample.description["format"] in filters:
                 fp.seek(sample.offset, io.SEEK_SET)
                 data = fp.read(sample.size)
                 sys.stdout.buffer.write(data)

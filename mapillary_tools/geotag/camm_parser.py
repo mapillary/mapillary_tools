@@ -1,3 +1,5 @@
+# pyre-ignore-all-errors[5, 11, 16, 21, 24, 58]
+
 import dataclasses
 import io
 import pathlib
@@ -97,7 +99,7 @@ def _parse_point_from_sample(
 
 def filter_points_by_elst(
     points: T.Iterable[geo.Point], elst: T.Sequence[T.Tuple[float, float]]
-):
+) -> T.Generator[geo.Point, None, None]:
     empty_elst = [entry for entry in elst if entry[0] == -1]
     if empty_elst:
         offset = empty_elst[-1][1]
@@ -150,7 +152,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
             points_with_nones = (
                 _parse_point_from_sample(fp, sample)
                 for sample in parser.parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description.format == b"camm"
+                if sample.description["format"] == b"camm"
             )
 
             points = [p for p in points_with_nones if p is not None]

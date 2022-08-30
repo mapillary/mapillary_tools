@@ -1,3 +1,5 @@
+# pyre-ignore-all-errors[5, 24]
+
 import datetime
 import json
 import logging
@@ -47,7 +49,9 @@ class FFmpegNotFoundError(Exception):
 
 
 class FFMPEG:
-    def __init__(self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"):
+    def __init__(
+        self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"
+    ) -> None:
         self.ffmpeg_path = ffmpeg_path
         self.ffprobe_path = ffprobe_path
 

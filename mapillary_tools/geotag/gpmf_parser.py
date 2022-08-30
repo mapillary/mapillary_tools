@@ -310,7 +310,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
         gpmd_samples = (
             sample
             for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
-            if sample.description.format == b"gpmd"
+            if sample.description["format"] == b"gpmd"
         )
         points = list(_extract_points_from_samples(fp, gpmd_samples))
         if points:
@@ -332,7 +332,7 @@ def dump_samples(path: pathlib.Path):
             gpmd_samples = (
                 sample
                 for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description.format == b"gpmd"
+                if sample.description["format"] == b"gpmd"
             )
             for sample in gpmd_samples:
                 fp.seek(sample.offset, io.SEEK_SET)

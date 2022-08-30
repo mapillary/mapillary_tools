@@ -4,8 +4,6 @@ from typing import Any, List, Optional, Tuple, Type, Union
 
 import exifread
 
-from .geo import normalize_bearing
-
 
 def eval_frac(value: exifread.utils.Ratio) -> float:
     return float(value.num) / float(value.den)
@@ -190,7 +188,13 @@ class ExifRead:
         )
 
         if direction is not None:
-            direction = normalize_bearing(direction, check_hex=True)
+            if direction > 360:
+                # fix negative value wrongly parsed in exifread
+                # -360 degree -> 4294966935 when converting from hex
+                bearing1 = bin(int(direction))[2:]
+                bearing2 = "".join([str(int(int(a) == 0)) for a in bearing1])
+                direction = -float(int(bearing2, 2))
+            direction %= 360
 
         return direction
 
