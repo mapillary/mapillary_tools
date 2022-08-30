@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import typing as T
+from pathlib import Path
 
 import jsonschema
 import piexif
@@ -40,11 +41,11 @@ def validate_and_fail_desc(
 
 
 def process_geotag_properties(
-    import_path: str,
+    import_path: Path,
     geotag_source: str,
     skip_subfolders=False,
-    video_import_path: T.Optional[str] = None,
-    geotag_source_path: T.Optional[str] = None,
+    video_import_path: T.Optional[Path] = None,
+    geotag_source_path: T.Optional[Path] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
@@ -78,8 +79,10 @@ def process_geotag_properties(
                 import_path,
                 skip_subfolders=False,
             )
-            images = utils.filter_video_samples(
-                images, video_import_path, skip_subfolders=skip_subfolders
+            images = list(
+                utils.filter_video_samples(
+                    images, video_import_path, skip_subfolders=skip_subfolders
+                )
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag = geotag_from_gpx_file.GeotagFromGPXFile(
@@ -107,8 +110,10 @@ def process_geotag_properties(
                 import_path,
                 skip_subfolders=False,
             )
-            images = utils.filter_video_samples(
-                images, video_import_path, skip_subfolders=skip_subfolders
+            images = list(
+                utils.filter_video_samples(
+                    images, video_import_path, skip_subfolders=skip_subfolders
+                )
             )
         LOG.debug(f"Found {len(images)} images in {import_path}")
         geotag = geotag_from_nmea_file.GeotagFromNMEAFile(

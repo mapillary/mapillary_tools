@@ -1,12 +1,12 @@
 import json
 import logging
 import os
-import pathlib
 import string
 import sys
 import time
 import typing as T
 import uuid
+from pathlib import Path
 
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
@@ -48,7 +48,7 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 )
 
 
-def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
+def read_image_descriptions(desc_path: Path) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
         raise exceptions.MapillaryFileNotFoundError(
             f"Image description file {desc_path} not found. Please process the image directory first"
@@ -76,9 +76,9 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
 
 
 def zip_images(
-    import_path: str,
-    zip_dir: str,
-    desc_path: T.Optional[str] = None,
+    import_path: Path,
+    zip_dir: Path,
+    desc_path: T.Optional[Path] = None,
 ):
     if not os.path.isdir(import_path):
         raise exceptions.MapillaryFileNotFoundError(
@@ -86,7 +86,7 @@ def zip_images(
         )
 
     if desc_path is None:
-        desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
+        desc_path = import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
 
     descs = read_image_descriptions(desc_path)
 
@@ -341,7 +341,7 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
     return all_stats
 
 
-def _summarize(stats: T.List[_APIStats]) -> T.Dict:
+def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
     total_image_count = sum(s.get("sequence_image_count", 0) for s in stats)
     total_uploaded_sequence_count = len(stats)
     # note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
@@ -442,31 +442,25 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
 
 
 def _join_desc_path(
-    image_dir: str, descs: T.List[types.ImageDescriptionFile]
+    image_dir: Path, descs: T.Sequence[types.ImageDescriptionFile]
 ) -> T.List[types.ImageDescriptionFile]:
     return [
         T.cast(
             types.ImageDescriptionFile,
-            {**d, "filename": os.path.join(image_dir, d["filename"])},
+            {**d, "filename": str(image_dir.joinpath(d["filename"]))},
         )
         for d in descs
     ]
 
 
 def upload_multiple(
-    import_path: T.Union[T.List[str], str],
+    import_paths: T.Sequence[Path],
     file_type: FileType,
-    desc_path: T.Optional[str] = None,
+    desc_path: T.Optional[Path] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     dry_run=False,
 ):
-    if isinstance(import_path, str):
-        import_paths = [import_path]
-    else:
-        assert isinstance(import_path, list)
-        import_paths = import_path
-
     # Check and fail early
     for path in import_paths:
         if not os.path.isfile(path) and not os.path.isdir(path):
@@ -495,12 +489,12 @@ def upload_multiple(
         LOG.info("Nothing uploaded. Bye.")
 
 
-def _check_blackvue(video_path: str) -> None:
+def _check_blackvue(video_path: Path) -> None:
     # Skip in tests only because we don't have valid sample blackvue for tests
     if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
-    points = blackvue_parser.parse_gps_points(pathlib.Path(video_path))
+    points = blackvue_parser.parse_gps_points(video_path)
     if not points:
         raise exceptions.MapillaryGPXEmptyError(
             f"Empty GPS extracted from {video_path}"
@@ -516,7 +510,9 @@ def _check_blackvue(video_path: str) -> None:
 
 
 def _upload_blackvues(
-    mly_uploader: uploader.Uploader, video_paths: T.List[str], stats: T.List[_APIStats]
+    mly_uploader: uploader.Uploader,
+    video_paths: T.Sequence[Path],
+    stats: T.Sequence[_APIStats],
 ):
     for idx, video_path in enumerate(video_paths):
         event_payload: uploader.Progress = {
@@ -540,7 +536,9 @@ def _upload_blackvues(
 
 
 def _upload_zipfiles(
-    mly_uploader: uploader.Uploader, zip_paths: T.List[str], stats: T.List[_APIStats]
+    mly_uploader: uploader.Uploader,
+    zip_paths: T.Sequence[Path],
+    stats: T.List[_APIStats],
 ):
     for idx, zip_path in enumerate(zip_paths):
         event_payload: uploader.Progress = {
@@ -560,9 +558,9 @@ def _upload_zipfiles(
 
 def _upload_images(
     mly_uploader: uploader.Uploader,
-    image_dir: str,
-    descs: T.List[types.ImageDescriptionFile],
-    stats: T.List[_APIStats],
+    image_dir: Path,
+    descs: T.Sequence[types.ImageDescriptionFile],
+    stats: T.Sequence[_APIStats],
 ):
     try:
         clusters = mly_uploader.upload_images(_join_desc_path(image_dir, descs))
@@ -574,10 +572,10 @@ def _upload_images(
 
 
 def upload(
-    import_path: str,
+    import_path: Path,
     file_type: str,
     user_items: types.UserItem,
-    desc_path: T.Optional[str] = None,
+    desc_path: T.Optional[Path] = None,
     dry_run=False,
 ) -> T.List[_APIStats]:
     emitter = uploader.EventEmitter()
@@ -611,7 +609,7 @@ def upload(
 
     if os.path.isdir(import_path) and file_type == "images":
         if desc_path is None:
-            desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
+            desc_path = import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
 
         descs = read_image_descriptions(desc_path)
 

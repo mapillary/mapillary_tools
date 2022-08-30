@@ -1,6 +1,6 @@
 import logging
-import os
 import typing as T
+from pathlib import Path
 
 from .. import geo, types
 from ..exceptions import (
@@ -19,8 +19,8 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGPX(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: str,
-        images: T.Sequence[str],
+        image_dir: Path,
+        images: T.Sequence[Path],
         points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
@@ -34,9 +34,9 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
 
-    def read_image_time(self, image: str) -> T.Optional[float]:
-        image_path = os.path.join(self.image_dir, image)
-        image_time = ExifRead(image_path).extract_capture_time()
+    def read_image_time(self, image: Path) -> T.Optional[float]:
+        image_path = self.image_dir.joinpath(image)
+        image_time = ExifRead(str(image_path)).extract_capture_time()
         if image_time is None:
             return None
         return geo.as_unix_time(image_time)
@@ -54,7 +54,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                 descs.append(
                     {
                         "error": types.describe_error(exc),
-                        "filename": image,
+                        "filename": str(image),
                     }
                 )
             assert len(self.images) == len(descs)
@@ -66,7 +66,9 @@ class GeotagFromGPX(GeotagFromGeneric):
             try:
                 image_time = self.read_image_time(image)
             except Exception as exc:
-                descs.append({"error": types.describe_error(exc), "filename": image})
+                descs.append(
+                    {"error": types.describe_error(exc), "filename": str(image)}
+                )
                 continue
 
             if image_time is None:
@@ -75,7 +77,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         "No data time found from the image EXIF for interpolation"
                     )
                 )
-                descs.append({"error": error, "filename": image})
+                descs.append({"error": error, "filename": str(image)})
             else:
                 image_pairs.append((image_time, image))
 
@@ -132,7 +134,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         ),
                     )
                     descs.append(
-                        {"error": types.describe_error(exc2), "filename": image}
+                        {"error": types.describe_error(exc2), "filename": str(image)}
                     )
                     continue
 
@@ -151,7 +153,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         ),
                     )
                     descs.append(
-                        {"error": types.describe_error(exc2), "filename": image}
+                        {"error": types.describe_error(exc2), "filename": str(image)}
                     )
                     continue
 
@@ -171,8 +173,8 @@ class GeotagFromGPX(GeotagFromGeneric):
 class GeotagFromGPXWithProgress(GeotagFromGPX):
     def __init__(
         self,
-        image_dir: str,
-        images: T.Sequence[str],
+        image_dir: Path,
+        images: T.Sequence[Path],
         points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
@@ -189,7 +191,7 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
         )
         self._progress_bar = progress_bar
 
-    def read_image_time(self, image: str) -> T.Optional[float]:
+    def read_image_time(self, image: Path) -> T.Optional[float]:
         try:
             image_time = super().read_image_time(image)
         finally:

@@ -17,8 +17,8 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGoPro(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: str,
-        source_path: str,
+        image_dir: Path,
+        source_path: Path,
         offset_time: float = 0.0,
     ):
         self.image_dir = image_dir
@@ -124,7 +124,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         for video in self.videos:
             LOG.debug("Processing GoPro video: %s", video)
 
-            sample_images = utils.filter_video_samples(images, video)
+            sample_images = list(utils.filter_video_samples(images, video))
             LOG.debug(
                 "Found %d sample images from video %s",
                 len(sample_images),
@@ -153,7 +153,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
                             "Stationary GoPro video"
                         )
                     )
-                    descs.append({"error": err, "filename": image})
+                    descs.append({"error": err, "filename": str(image)})
                 continue
 
             with tqdm(

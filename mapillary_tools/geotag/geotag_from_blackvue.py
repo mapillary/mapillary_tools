@@ -1,7 +1,7 @@
 import logging
 import os
-import pathlib
 import typing as T
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -16,8 +16,8 @@ LOG = logging.getLogger(__name__)
 class GeotagFromBlackVue(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: str,
-        source_path: str,
+        image_dir: Path,
+        source_path: Path,
         offset_time: float = 0.0,
     ):
         self.image_dir = image_dir
@@ -36,7 +36,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
         for video in self.videos:
             LOG.debug("Processing BlackVue video: %s", video)
 
-            sample_images = utils.filter_video_samples(images, video)
+            sample_images = list(utils.filter_video_samples(images, video))
             LOG.debug(
                 "Found %d sample images from video %s",
                 len(sample_images),
@@ -46,7 +46,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = blackvue_parser.parse_gps_points(pathlib.Path(video))
+            points = blackvue_parser.parse_gps_points(video)
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
@@ -63,10 +63,10 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                             "Stationary BlackVue video"
                         )
                     )
-                    descs.append({"error": err, "filename": image})
+                    descs.append({"error": err, "filename": str(image)})
                 continue
 
-            model = blackvue_parser.find_camera_model(pathlib.Path(video))
+            model = blackvue_parser.find_camera_model(video)
             LOG.debug(f"Found BlackVue camera model %s from video %s", model, video)
 
             with tqdm(

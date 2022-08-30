@@ -1,5 +1,6 @@
 import datetime
 import typing as T
+from pathlib import Path
 
 import pynmea2
 
@@ -11,9 +12,9 @@ from .geotag_from_gpx import GeotagFromGPX
 class GeotagFromNMEAFile(GeotagFromGPX):
     def __init__(
         self,
-        image_dir: str,
-        images: T.Sequence[str],
-        source_path: str,
+        image_dir: Path,
+        images: T.Sequence[Path],
+        source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
@@ -27,8 +28,8 @@ class GeotagFromNMEAFile(GeotagFromGPX):
         )
 
 
-def get_lat_lon_time_from_nmea(nmea_file: str) -> T.List[geo.Point]:
-    with open(nmea_file, "r") as f:
+def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
+    with nmea_file.open("r") as f:
         lines = f.readlines()
         lines = [l.rstrip("\n\r") for l in lines]
 

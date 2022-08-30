@@ -1,6 +1,7 @@
 import logging
 import os
 import typing as T
+from pathlib import Path
 
 import gpxpy
 from tqdm import tqdm
@@ -17,9 +18,9 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGPXFile(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: str,
-        images: T.List[str],
-        source_path: str,
+        image_dir: Path,
+        images: T.Sequence[Path],
+        source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
@@ -99,8 +100,8 @@ class GeotagFromGPXFile(GeotagFromGeneric):
 Track = T.List[geo.Point]
 
 
-def parse_gpx(gpx_file: str) -> T.List[Track]:
-    with open(gpx_file, "r") as f:
+def parse_gpx(gpx_file: Path) -> T.List[Track]:
+    with gpx_file.open("r") as f:
         gpx = gpxpy.parse(f)
 
     tracks: T.List[Track] = []

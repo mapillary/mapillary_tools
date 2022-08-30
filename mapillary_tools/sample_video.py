@@ -14,8 +14,8 @@ LOG = logging.getLogger(__name__)
 
 
 def sample_video(
-    video_import_path: str,
-    import_path: str,
+    video_import_path: Path,
+    import_path: Path,
     skip_subfolders=False,
     video_sample_interval=constants.VIDEO_SAMPLE_INTERVAL,
     video_duration_ratio=constants.VIDEO_DURATION_RATIO,
@@ -23,18 +23,18 @@ def sample_video(
     skip_sample_errors: bool = False,
     rerun: bool = False,
 ) -> None:
-    if os.path.isdir(video_import_path):
+    if video_import_path.is_dir():
         video_list = [
-            Path(path)
+            path
             for path in utils.get_video_file_list(
                 video_import_path, skip_subfolders, abs_path=True
             )
         ]
-        video_dir = Path(video_import_path)
+        video_dir = video_import_path
         LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
-    elif os.path.isfile(video_import_path):
-        video_list = [Path(video_import_path)]
-        video_dir = Path(video_import_path).parent
+    elif video_import_path.is_file():
+        video_list = [video_import_path]
+        video_dir = video_import_path.parent
     else:
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
