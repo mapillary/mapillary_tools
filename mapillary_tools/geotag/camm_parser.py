@@ -1,4 +1,4 @@
-# pyre-ignore-all-errors[5, 24, 58]
+# pyre-ignore-all-errors[5, 16, 24, 58]
 
 import dataclasses
 import io
@@ -6,7 +6,6 @@ import pathlib
 import typing as T
 from enum import Enum
 
-# pyre-ignore[21]: Could not find a module corresponding to import `construct`
 import construct as C
 
 from . import geo, simple_mp4_parser as parser

@@ -115,7 +115,6 @@ def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
 class Point:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
-    # pyre-ignore[4]: Attribute `__slots__` of class `Point` has type `T.Tuple[str, str, str, str, str]` but no type is specified
     __slots__ = (
         "time",
         "lat",

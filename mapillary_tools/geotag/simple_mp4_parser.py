@@ -4,7 +4,6 @@ import datetime
 import io
 import typing as T
 
-# pyre-ignore[21]: Could not find a module corresponding to import `construct`
 import construct as C
 
 
