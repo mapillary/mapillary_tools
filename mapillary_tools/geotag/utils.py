@@ -23,11 +23,3 @@ def convert_points_to_gpx_segment(points: T.Sequence[geo.Point]):
             )
         )
     return gpx_segment
-
-
-def convert_points_to_gpx(points: T.Sequence[geo.Point]) -> gpxpy.gpx.GPX:
-    gpx = gpxpy.gpx.GPX()
-    gpx_track = gpxpy.gpx.GPXTrack()
-    gpx.tracks.append(gpx_track)
-    gpx_track.segments.append(convert_points_to_gpx_segment(points))
-    return gpx

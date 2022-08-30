@@ -5,9 +5,6 @@ import typing as T
 import construct as C
 
 
-UINT32_MAX = 2**32 - 1
-
-
 class Header(T.NamedTuple):
     # 0 indicates no more boxes
     header_size: int
@@ -21,6 +18,10 @@ class Header(T.NamedTuple):
 
 
 class RangeError(Exception):
+    pass
+
+
+class BoxNotFoundError(Exception):
     pass
 
 
@@ -141,12 +142,20 @@ def parse_boxes_recursive(
 
 
 def parse_path(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+    stream: T.BinaryIO,
+    path: T.Sequence[T.Union[bytes, T.Sequence[bytes]]],
+    maxsize: int = -1,
+    depth: int = 0,
 ) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
     if not path:
         return
+
     for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
-        if h.type == path[0]:
+        if isinstance(path[0], bytes):
+            first_paths = {path[0]}
+        else:
+            first_paths = set(path[0])
+        if h.type in first_paths:
             if len(path) == 1:
                 yield h, s
             else:
@@ -167,19 +176,60 @@ def parse_path_first(
     return None
 
 
+def parse_data_first(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> T.Optional[bytes]:
+    parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
+    if parsed is None:
+        return None
+    h, s = parsed
+    return s.read(h.maxsize)
+
+
 def parse_path_firstx(
     stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
 ) -> T.Tuple[Header, T.BinaryIO]:
     parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
-    assert parsed is not None, f"unable find box at path {path}"
+    if parsed is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
     return parsed
+
+
+def parse_data_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+) -> bytes:
+    data = parse_data_first(stream, path, maxsize=maxsize, depth=depth)
+    if data is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
+    return data
 
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
+
+# Box Type: ‘mvhd’
+# Container: Movie Box (‘moov’)
+# Mandatory: Yes
+# Quantity: Exactly one
+MovieHeaderBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 1),
+    "flags" / C.Default(C.Int24ub, 0),
+    "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "timescale" / C.Int32ub,
+    "duration" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
+    "rate" / C.Default(C.Int32sb, 0x00010000),
+    "volume" / C.Default(C.Int16sb, 0x0100),
+    C.Padding(2),  # const bit(16) reserved = 0;
+    C.Padding(8),  # const unsigned int(32)[2] reserved = 0;
+    "matrix" / C.Default(C.Int32sb[9], _UNITY_MATRIX),
+    C.Padding(24),  # bit(32)[6]  pre_defined = 0;
+    "next_track_ID" / C.Default(C.Int32ub, 0xFFFFFFFF),
+)
+
 # moov -> trak -> tkhd
 TrackHeaderBox = C.Struct(
-    "version" / C.Default(C.Int8ub, 0),
+    "version" / C.Default(C.Int8ub, 1),
     # Track_enabled: Indicates that the track is enabled. Flag value is 0x000001.
     # A disabled track (the low bit is zero) is treated as if it were not present.
     "flags" / C.Default(C.Int24ub, 1),
@@ -200,13 +250,35 @@ TrackHeaderBox = C.Struct(
     "height" / C.Default(C.Int32ub, 0),
 )
 
+# Box Type: ‘elst’
+# Container: Edit Box (‘edts’)
+# Mandatory: No
+# Quantity: Zero or one
+EditBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.PrefixedArray(
+        C.Int32ub,
+        C.Struct(
+            # in units of the timescale in the Movie Header Box
+            "segment_duration"
+            / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
+            # in media time scale units, in composition time
+            "media_time" / C.IfThenElse(C.this._._.version == 1, C.Int64sb, C.Int32sb),
+            "media_rate_integer" / C.Int16sb,
+            "media_rate_fraction" / C.Int16sb,
+        ),
+    ),
+)
+
 # moov -> trak -> mdia -> mdhd
 # Box Type: ‘mdhd’
 # Container: Media Box (‘mdia’)
 # Mandatory: Yes
 # Quantity: Exactly one
 MediaHeaderBox = C.Struct(
-    "version" / C.Default(C.Int8ub, 0),
+    "version" / C.Default(C.Int8ub, 1),
     "flags" / C.Default(C.Int24ub, 0),
     "creation_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
     "modification_time" / C.IfThenElse(C.this.version == 1, C.Int64ub, C.Int32ub),
@@ -225,10 +297,56 @@ MediaHeaderBox = C.Struct(
 HandlerReferenceBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
-    "pre_defined" / C.Int32ub,
+    # Tests fail if using C.Padding(4),
+    "_pre_defined" / C.Default(C.Int32ub, 0),
     "handler_type" / C.Bytes(4),
-    "reserved" / C.Int32ub[3],
+    # Tests fail if using C.Padding(3 * 4),
+    "_reserved" / C.Default(C.Int32ub[3], [0, 0, 0]),
     "name" / C.GreedyString("utf8"),
+)
+
+# BoxTypes: ‘url ‘,‘urn ‘,‘dref’
+# Container: Data Information Box (‘dinf’)
+# Mandatory: Yes
+# Quantity: Exactly one
+DataEntryUrlBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    # the data entry contains URL location which should be utf8 string
+    # but for compability we parse or build it as bytes
+    "data" / C.GreedyBytes,
+)
+
+DataEntryUrnBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    # the data entry contains URN name and location which should be utf8 string
+    # but for compability we parse or build it as bytes
+    "data" / C.GreedyBytes,
+)
+
+DataReferenceEntryBox = C.Prefixed(
+    C.Int32ub,
+    C.Struct(
+        "type" / C.Bytes(4),
+        "data"
+        / C.Switch(
+            C.this.type,
+            {b"urn ": DataEntryUrnBox, b"url ": DataEntryUrlBox},
+            C.GreedyBytes,
+        ),
+    ),
+    includelength=True,
+)
+
+DataReferenceBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.PrefixedArray(
+        C.Int32ub,
+        DataReferenceEntryBox,
+    ),
 )
 
 _SampleEntryBox = C.Prefixed(
@@ -396,7 +514,7 @@ class Sample(T.NamedTuple):
     size: int
     # sample_delta read from stts entries,
     # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
-    timedelta: int
+    timedelta: float
     # if it is a sync sample
     is_sync: bool
 
@@ -476,8 +594,9 @@ def extract_raw_samples(
 
 
 def extract_samples(
-    descriptions: T.List,
     raw_samples: T.Iterator[RawSample],
+    descriptions: T.List,
+    media_timescale: int,
 ) -> T.Generator[Sample, None, None]:
     acc_delta = 0
     for raw_sample in raw_samples:
@@ -485,17 +604,17 @@ def extract_samples(
             description_idx=raw_sample.description_idx,
             offset=raw_sample.offset,
             size=raw_sample.size,
-            timedelta=raw_sample.timedelta,
+            timedelta=raw_sample.timedelta / media_timescale,
             is_sync=raw_sample.is_sync,
             description=descriptions[raw_sample.description_idx - 1],
-            time_offset=acc_delta,
+            time_offset=acc_delta / media_timescale,
         )
         acc_delta += raw_sample.timedelta
 
 
 def parse_raw_samples_from_stbl(
     stbl: T.BinaryIO, maxsize: int = -1
-) -> T.Tuple[T.List[bytes], T.Generator[RawSample, None, None]]:
+) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
     descriptions = []
     sizes = []
     chunk_offsets = []
@@ -543,33 +662,20 @@ def parse_raw_samples_from_stbl(
     return descriptions, raw_samples
 
 
-def parse_samples_from_stbl(
-    stbl: T.BinaryIO, maxsize: int = -1
-) -> T.Generator[Sample, None, None]:
-    descriptions, raw_samples = parse_raw_samples_from_stbl(stbl, maxsize)
-    yield from extract_samples(descriptions, raw_samples)
-
-
 def parse_samples_from_trak(
-    trak: T.BinaryIO, maxsize: int = -1
+    trak: T.BinaryIO,
+    maxsize: int = -1,
 ) -> T.Generator[Sample, None, None]:
     trak_start_offset = trak.tell()
 
-    h, s = parse_path_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
-    mdhd = MediaHeaderBox.parse(s.read(h.maxsize))
+    mdhd_box = parse_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
+    mdhd = MediaHeaderBox.parse(mdhd_box)
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
-    for sample in parse_samples_from_stbl(s, maxsize=h.maxsize):
-        yield Sample(
-            description_idx=sample.description_idx,
-            offset=sample.offset,
-            size=sample.size,
-            timedelta=sample.timedelta / mdhd.timescale,
-            is_sync=sample.is_sync,
-            time_offset=sample.time_offset / mdhd.timescale,
-            description=sample.description,
-        )
+    descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
+
+    yield from extract_samples(raw_samples, descriptions, mdhd.timescale)
 
 
 _DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)
