@@ -1,5 +1,4 @@
 import logging
-import os
 import typing as T
 from pathlib import Path
 
@@ -42,10 +41,10 @@ class GeotagFromGPXFile(GeotagFromGeneric):
     def _attach_exif(
         self, desc: types.ImageDescriptionFile
     ) -> types.ImageDescriptionFileOrError:
-        image_path = os.path.join(self.image_dir, desc["filename"])
+        image_path = self.image_dir.joinpath(desc["filename"])
 
         try:
-            exif = exif_read.ExifRead(image_path)
+            exif = exif_read.ExifRead(str(image_path))
         except Exception as exc:
             LOG.warning(
                 "Unknown error reading EXIF from image %s",

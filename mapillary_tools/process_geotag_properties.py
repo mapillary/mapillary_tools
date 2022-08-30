@@ -2,7 +2,6 @@ import collections
 import datetime
 import json
 import logging
-import os
 import typing as T
 from pathlib import Path
 
@@ -49,7 +48,7 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    if not os.path.isdir(import_path):
+    if not import_path.is_dir():
         raise exceptions.MapillaryFileNotFoundError(
             f"Import directory not found: {import_path}"
         )
@@ -66,7 +65,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
-        if not os.path.isfile(geotag_source_path):
+        if not geotag_source_path.is_file():
             raise exceptions.MapillaryFileNotFoundError(
                 f"GPX file not found: {geotag_source_path}"
             )
@@ -97,7 +96,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
-        if not os.path.isfile(geotag_source_path):
+        if not geotag_source_path.is_file():
             raise exceptions.MapillaryFileNotFoundError(
                 f"NMEA file not found: {geotag_source_path}"
             )
@@ -130,7 +129,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
-        if not os.path.exists(geotag_source_path):
+        if not geotag_source_path.exists():
             raise exceptions.MapillaryFileNotFoundError(
                 f"GoPro video file or directory not found: {geotag_source_path}"
             )
@@ -146,7 +145,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
-        if not os.path.exists(geotag_source_path):
+        if not geotag_source_path.exists():
             raise exceptions.MapillaryFileNotFoundError(
                 f"BlackVue video file or directory not found: {geotag_source_path}"
             )
@@ -162,7 +161,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
-        if not os.path.exists(geotag_source_path):
+        if not geotag_source_path.exists():
             raise exceptions.MapillaryFileNotFoundError(
                 f"CAMM video file or directory not found: {geotag_source_path}"
             )
@@ -178,7 +177,7 @@ def process_geotag_properties(
 
 
 def overwrite_exif_tags(
-    image_path: str,
+    image_path: Path,
     desc: types.ImageDescriptionEXIF,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
@@ -186,7 +185,7 @@ def overwrite_exif_tags(
     overwrite_EXIF_direction_tag: bool = False,
     overwrite_EXIF_orientation_tag: bool = False,
 ) -> None:
-    image_exif = ExifEdit(image_path)
+    image_exif = ExifEdit(str(image_path))
 
     # also try to set time and gps so image can be placed on the map for testing and
     # qc purposes
@@ -213,11 +212,11 @@ def overwrite_exif_tags(
 
 
 def verify_exif_write(
-    import_path: str,
+    import_path: Path,
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionFileOrError:
-    image_path = os.path.join(import_path, desc["filename"])
-    with open(image_path, "rb") as fp:
+    image_path = import_path.joinpath(desc["filename"])
+    with image_path.open("rb") as fp:
         edit = ExifEdit(fp.read())
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescriptionEXIF"; expected "Dict[str, Any]"
@@ -290,7 +289,7 @@ def process_finalize(
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
-            image = os.path.join(import_path, desc["filename"])
+            image = import_path.joinpath(desc["filename"])
             try:
                 overwrite_exif_tags(
                     image,
@@ -303,7 +302,7 @@ def process_finalize(
                 )
             except Exception:
                 LOG.warning(
-                    f"Failed to overwrite EXIF for image {image}", exc_info=True
+                    "Failed to overwrite EXIF for image %s", image, exc_info=True
                 )
 
     with tqdm(

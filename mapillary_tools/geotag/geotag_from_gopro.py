@@ -22,7 +22,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         offset_time: float = 0.0,
     ):
         self.image_dir = image_dir
-        if os.path.isdir(source_path):
+        if source_path.is_dir():
             self.videos = utils.get_video_file_list(source_path, abs_path=True)
         else:
             # it is okay to not suffix with .mp4
@@ -158,7 +158,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
             with tqdm(
                 total=len(sample_images),
-                desc=f"Interpolating {os.path.basename(video)}",
+                desc=f"Interpolating {video.name}",
                 unit="images",
                 disable=LOG.getEffectiveLevel() <= logging.DEBUG,
             ) as pbar:

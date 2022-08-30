@@ -221,12 +221,12 @@ def zip_images(
     sequences = _group_sequences_by_uuid(descs)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
-        zip_filename_wip = os.path.join(
-            zip_dir, f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
+        zip_filename_wip = zip_dir.joinpath(
+            f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
         with open(zip_filename_wip, "wb") as fp:
             upload_md5sum = _zip_sequence_fp(sequence, fp)
-        zip_filename = os.path.join(zip_dir, f"mly_tools_{upload_md5sum}.zip")
+        zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 

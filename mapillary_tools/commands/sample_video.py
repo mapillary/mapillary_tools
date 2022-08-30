@@ -1,7 +1,7 @@
-from pathlib import Path
 import argparse
 import inspect
 import os
+from pathlib import Path
 
 from .. import constants
 from ..sample_video import sample_video

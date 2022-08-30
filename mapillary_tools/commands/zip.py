@@ -1,6 +1,6 @@
 import argparse
-from pathlib import Path
 import inspect
+from pathlib import Path
 
 from ..upload import zip_images
 
@@ -18,6 +18,7 @@ class Command:
         parser.add_argument(
             "zip_dir",
             help="Path to store zipped images.",
+            type=Path,
         )
         parser.add_argument(
             "--desc_path",

@@ -49,12 +49,8 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
-    if not os.path.isfile(desc_path):
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Image description file {desc_path} not found. Please process the image directory first"
-        )
-
     descs: T.List[types.ImageDescriptionFile] = []
+
     if desc_path == "-":
         try:
             descs = json.load(sys.stdin)
@@ -63,6 +59,10 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
                 f"Invalid JSON stream from stdin: {ex}"
             )
     else:
+        if not os.path.isfile(desc_path):
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Image description file {desc_path} not found. Please process the image directory first"
+            )
         with open(desc_path) as fp:
             try:
                 descs = json.load(fp)
@@ -70,6 +70,7 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
                 raise exceptions.MapillaryInvalidDescriptionFile(
                     f"Invalid JSON file {desc_path}: {ex}"
                 )
+
     return types.filter_out_errors(
         T.cast(T.List[types.ImageDescriptionFileOrError], descs)
     )
@@ -139,20 +140,24 @@ def _validate_hexdigits(md5sum: str):
         raise ValueError(f"Invalid md5sum {md5sum}")
 
 
-def _history_desc_path(md5sum: str) -> str:
+def _history_desc_path(md5sum: str) -> Path:
     assert MAPILLARY_UPLOAD_HISTORY_PATH is not None
     _validate_hexdigits(md5sum)
     subfolder = md5sum[:2]
     assert subfolder, f"Invalid md5sum {md5sum}"
     basename = md5sum[2:]
     assert basename, f"Invalid md5sum {md5sum}"
-    return os.path.join(MAPILLARY_UPLOAD_HISTORY_PATH, subfolder, f"{basename}.json")
+    return (
+        Path(MAPILLARY_UPLOAD_HISTORY_PATH)
+        .joinpath(subfolder)
+        .joinpath(f"{basename}.json")
+    )
 
 
 def is_uploaded(md5sum: str) -> bool:
     if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return False
-    return os.path.isfile(_history_desc_path(md5sum))
+    return _history_desc_path(md5sum).is_file()
 
 
 def write_history(
@@ -165,7 +170,7 @@ def write_history(
         return
     path = _history_desc_path(md5sum)
     LOG.debug("Writing upload history: %s", path)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    path.parent.mkdir(exist_ok=True)
     history: T.Dict[str, T.Any] = {
         "params": params,
         "summary": summary,
@@ -240,7 +245,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
-        import_path = payload.get("import_path")
+        import_path: T.Optional[str] = payload.get("import_path")
         if import_path is None:
             _desc = f"Uploading ({nth}/{total})"
         else:
@@ -473,7 +478,7 @@ def upload_multiple(
 
     # Check and fail early
     for path in import_paths:
-        if not os.path.isfile(path) and not os.path.isdir(path):
+        if not path.is_file() and not path.is_dir():
             raise exceptions.MapillaryFileNotFoundError(
                 f"Import file or directory not found: {path}"
             )
@@ -617,7 +622,7 @@ def upload(
         "file_type": file_type,
     }
 
-    if os.path.isdir(import_path) and file_type == "images":
+    if import_path.is_dir() and file_type == "images":
         if desc_path is None:
             desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
 
@@ -637,12 +642,13 @@ def upload(
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
 
-    if os.path.isfile(import_path):
-        _, ext = os.path.splitext(import_path)
-        if (file_type == "images" and ext.lower() in [".zip"]) or file_type == "zip":
+    if import_path.is_file():
+        if (
+            file_type == "images" and import_path.suffix.lower() in [".zip"]
+        ) or file_type == "zip":
             _upload_zipfiles(mly_uploader, [import_path], stats)
         elif (
-            file_type == "images" and ext.lower() in [".mp4"]
+            file_type == "images" and import_path.suffix.lower() in [".mp4"]
         ) or file_type == "blackvue":
             _upload_blackvues(mly_uploader, [import_path], stats)
         else:
@@ -651,7 +657,7 @@ def upload(
                 import_path,
             )
 
-    elif os.path.isdir(import_path):
+    elif import_path.is_dir():
         if file_type == "images":
             _upload_images(mly_uploader, import_path, descs, stats)
 
@@ -659,7 +665,7 @@ def upload(
             video_paths = [
                 path
                 for path in utils.iterate_files(import_path, recursive=True)
-                if os.path.splitext(path)[1].lower() in [".mp4"]
+                if path.suffix.lower() in [".mp4"]
             ]
             _upload_blackvues(
                 mly_uploader,
@@ -671,7 +677,7 @@ def upload(
             zip_paths = [
                 path
                 for path in utils.iterate_files(import_path, recursive=True)
-                if os.path.splitext(path)[1].lower() in [".zip"]
+                if path.suffix.lower() in [".zip"]
             ]
             _upload_zipfiles(
                 mly_uploader,
