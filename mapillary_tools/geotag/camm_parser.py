@@ -1,4 +1,4 @@
-# pyre-ignore-all-errors[5, 16, 21, 24, 58]
+# pyre-ignore-all-errors[5, 11, 16, 21, 24, 58]
 
 import dataclasses
 import io
@@ -27,7 +27,6 @@ class CAMMType(Enum):
 Float = C.Float32l
 Double = C.Float64l
 
-# pyre-ignore[11]: Annotation `C.Struct` is not defined as a type
 _SWITCH: T.Dict[int, C.Struct] = {
     # angle_axis
     CAMMType.ANGLE_AXIS.value: Float[3],

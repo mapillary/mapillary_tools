@@ -315,7 +315,7 @@ DataEntryUrlBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     # the data entry contains URL location which should be utf8 string
-    # but for compability we parse or build it as bytes
+    # but for compatibility we parse or build it as bytes
     "data" / C.GreedyBytes,
 )
 
@@ -323,7 +323,7 @@ DataEntryUrnBox = C.Struct(
     "version" / C.Default(C.Int8ub, 0),
     "flags" / C.Default(C.Int24ub, 0),
     # the data entry contains URN name and location which should be utf8 string
-    # but for compability we parse or build it as bytes
+    # but for compatibility we parse or build it as bytes
     "data" / C.GreedyBytes,
 )
 
