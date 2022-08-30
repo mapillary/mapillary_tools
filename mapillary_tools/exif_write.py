@@ -7,7 +7,6 @@ import logging
 import math
 import typing as T
 
-# pyre-ignore[21]: Could not find a module corresponding to import `piexif`
 import piexif
 
 
