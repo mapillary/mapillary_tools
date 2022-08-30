@@ -1,7 +1,8 @@
 import io
 
-from mapillary_tools.geotag import blackvue_parser, simple_mp4_builder as builder
 import mapillary_tools.geo as geo
+
+from mapillary_tools.geotag import blackvue_parser, simple_mp4_builder as builder
 
 
 def test_parse_points():
