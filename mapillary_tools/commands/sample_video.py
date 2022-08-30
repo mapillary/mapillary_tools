@@ -1,3 +1,4 @@
+from pathlib import Path
 import argparse
 import inspect
 import os
@@ -57,18 +58,16 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        video_import_path = vars_args["video_import_path"]
+        video_import_path: Path = vars_args["video_import_path"]
         import_path = vars_args["import_path"]
         if import_path is None:
-            if os.path.isdir(video_import_path):
-                import_path = os.path.join(
-                    video_import_path,
-                    constants.SAMPLED_VIDEO_FRAMES_FILENAME,
+            if video_import_path.is_dir():
+                import_path = video_import_path.joinpath(
+                    constants.SAMPLED_VIDEO_FRAMES_FILENAME
                 )
             else:
-                import_path = os.path.join(
-                    os.path.dirname(video_import_path),
-                    constants.SAMPLED_VIDEO_FRAMES_FILENAME,
+                import_path = video_import_path.parent.joinpath(
+                    constants.SAMPLED_VIDEO_FRAMES_FILENAME
                 )
             vars_args["import_path"] = import_path
 

@@ -240,7 +240,7 @@ def verify_exif_write(
 
 
 def process_finalize(
-    import_path: str,
+    import_path: Path,
     descs: T.List[types.ImageDescriptionFileOrError],
     skip_process_errors=False,
     overwrite_all_EXIF_tags=False,
@@ -253,7 +253,7 @@ def process_finalize(
     desc_path: str = None,
 ) -> None:
     if desc_path is None:
-        desc_path = os.path.join(import_path, constants.IMAGE_DESCRIPTION_FILENAME)
+        desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
 
     if offset_time:
         for desc in types.filter_out_errors(descs):

@@ -31,7 +31,7 @@ from .geo import get_max_distance_from_start
 from .geotag import blackvue_parser, utils as video_utils
 
 FileType = Literal["blackvue", "images", "zip"]
-
+JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -48,7 +48,7 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
 )
 
 
-def read_image_descriptions(desc_path: Path) -> T.List[types.ImageDescriptionFile]:
+def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     if not os.path.isfile(desc_path):
         raise exceptions.MapillaryFileNotFoundError(
             f"Image description file {desc_path} not found. Please process the image directory first"
@@ -78,20 +78,20 @@ def read_image_descriptions(desc_path: Path) -> T.List[types.ImageDescriptionFil
 def zip_images(
     import_path: Path,
     zip_dir: Path,
-    desc_path: T.Optional[Path] = None,
+    desc_path: T.Optional[str] = None,
 ):
-    if not os.path.isdir(import_path):
+    if not import_path.is_dir():
         raise exceptions.MapillaryFileNotFoundError(
             f"Import directory not found: {import_path}"
         )
 
     if desc_path is None:
-        desc_path = import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+        desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
 
     descs = read_image_descriptions(desc_path)
 
     if not descs:
-        LOG.warning(f"No images found in {desc_path}")
+        LOG.warning("No images found in %s", desc_path)
         return
 
     uploader.zip_images(_join_desc_path(import_path, descs), zip_dir)
@@ -123,7 +123,7 @@ def fetch_user_items(
         except requests.HTTPError as ex:
             raise authenticate.wrap_http_exception(ex) from ex
         org = resp.json()
-        LOG.info(f"Uploading to organization: {json.dumps(org)}")
+        LOG.info("Uploading to organization: %s", json.dumps(org))
         user_items = T.cast(
             types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
         )
@@ -157,14 +157,14 @@ def is_uploaded(md5sum: str) -> bool:
 
 def write_history(
     md5sum: str,
-    params: T.Dict,
-    summary: T.Dict,
+    params: JSONDict,
+    summary: JSONDict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
     if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return
     path = _history_desc_path(md5sum)
-    LOG.debug(f"Writing upload history: {path}")
+    LOG.debug("Writing upload history: %s", path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     history: T.Dict[str, T.Any] = {
         "params": params,
@@ -185,18 +185,22 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
             if sequence_uuid is None:
                 basename = os.path.basename(payload.get("import_path", ""))
                 LOG.info(
-                    f"File {basename} has been uploaded already. Check the upload history at {_history_desc_path(md5sum)}"
+                    "File %s has been uploaded already. Check the upload history at %s",
+                    basename,
+                    _history_desc_path(md5sum),
                 )
             else:
                 LOG.info(
-                    f"Sequence {sequence_uuid} has been uploaded already. Check the upload history at {_history_desc_path(md5sum)}"
+                    "Sequence %s has been uploaded already. Check the upload history at %s",
+                    sequence_uuid,
+                    _history_desc_path(md5sum),
                 )
             raise uploader.UploadCancelled()
 
 
 def _setup_write_upload_history(
     emitter: uploader.EventEmitter,
-    params: T.Dict,
+    params: JSONDict,
     descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
 ) -> None:
     @emitter.on("upload_finished")
@@ -217,11 +221,11 @@ def _setup_write_upload_history(
             write_history(
                 md5sum,
                 params,
-                T.cast(T.Dict, payload),
+                T.cast(JSONDict, payload),
                 sequence,
             )
         except OSError:
-            LOG.warning(f"Error writing upload history {md5sum}", exc_info=True)
+            LOG.warning("Error writing upload history %s", md5sum, exc_info=True)
 
 
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
@@ -268,25 +272,25 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
         type: uploader.EventName = "upload_start"
-        LOG.debug(f"Sending {type} via IPC: {payload}")
+        LOG.debug("Sending %s via IPC: %s", type, payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_fetch_offset"
-        LOG.debug(f"Sending {type} via IPC: {payload}")
+        LOG.debug("Sending %s via IPC: %s", type, payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress):
         type: uploader.EventName = "upload_progress"
-        LOG.debug(f"Sending {type} via IPC: {payload}")
+        LOG.debug("Sending %s via IPC: %s", type, payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_end")
     def upload_end(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_end"
-        LOG.debug(f"Sending {type} via IPC: {payload}")
+        LOG.debug("Sending %s via IPC: %s", type, payload)
         ipc.send(type, payload)
 
 
@@ -454,13 +458,19 @@ def _join_desc_path(
 
 
 def upload_multiple(
-    import_paths: T.Sequence[Path],
+    import_path: T.Union[Path, T.Sequence[Path]],
     file_type: FileType,
-    desc_path: T.Optional[Path] = None,
+    desc_path: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     dry_run=False,
 ):
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        assert isinstance(import_path, list)
+        import_paths = import_path
+
     # Check and fail early
     for path in import_paths:
         if not os.path.isfile(path) and not os.path.isdir(path):
@@ -575,7 +585,7 @@ def upload(
     import_path: Path,
     file_type: str,
     user_items: types.UserItem,
-    desc_path: T.Optional[Path] = None,
+    desc_path: T.Optional[str] = None,
     dry_run=False,
 ) -> T.List[_APIStats]:
     emitter = uploader.EventEmitter()
@@ -599,8 +609,8 @@ def upload(
     # Send the progress as well as the log stats collected above
     _setup_ipc(emitter)
 
-    params = {
-        "import_path": import_path,
+    params: JSONDict = {
+        "import_path": str(import_path),
         "desc_path": desc_path,
         "user_key": user_items.get("MAPSettingsUserKey"),
         "organization_key": user_items.get("MAPOrganizationKey"),
@@ -609,7 +619,7 @@ def upload(
 
     if os.path.isdir(import_path) and file_type == "images":
         if desc_path is None:
-            desc_path = import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+            desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
 
         descs = read_image_descriptions(desc_path)
 

@@ -22,6 +22,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
+        image: Path
         for image in tqdm(
             self.images,
             desc=f"Processing",
@@ -69,7 +70,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 "MAPLatitude": lat,
                 "MAPLongitude": lon,
                 "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),
-                "filename": image,
+                "filename": str(image),
             }
             if angle is not None:
                 desc["MAPCompassHeading"] = {

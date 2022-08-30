@@ -35,7 +35,7 @@ class Command:
         )
         group.add_argument(
             "--desc_path",
-            help=f"Path to the image description file. Only works for uploading image directories. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]",
+            help=f'Path to the image description file. If it is "-", then read from STDIN. Only works for uploading image directories. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]',
             default=None,
             required=False,
         )

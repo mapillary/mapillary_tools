@@ -1,5 +1,6 @@
 import json
 import subprocess
+import typing as T
 
 import py.path
 
@@ -10,7 +11,7 @@ from .test_process import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_u
 
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
 
-expected_descs = [
+expected_descs: T.List[T.Any] = [
     {
         "MAPAltitude": 9540.24,
         "MAPCaptureTime": "2019_11_18_15_41_12_354",

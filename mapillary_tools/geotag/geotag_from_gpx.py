@@ -162,7 +162,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             descs.append(
                 T.cast(
                     types.ImageDescriptionFile,
-                    {**types.as_desc(interpolated), "filename": image},
+                    {**types.as_desc(interpolated), "filename": str(image)},
                 )
             )
 
