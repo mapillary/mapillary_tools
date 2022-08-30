@@ -1,4 +1,4 @@
-# pyre-ignore-all-errors[5, 24]
+# pyre-ignore-all-errors[5, 21, 24]
 
 import datetime
 import io

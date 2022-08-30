@@ -1,3 +1,5 @@
+# pyre-ignore-all-errors[4]
+
 import bisect
 import dataclasses
 import datetime

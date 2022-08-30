@@ -1,4 +1,4 @@
-# pyre-ignore-all-errors[5, 16, 24, 58]
+# pyre-ignore-all-errors[5, 16, 21, 24, 58]
 
 import dataclasses
 import io
