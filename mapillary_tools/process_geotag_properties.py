@@ -31,10 +31,7 @@ def validate_and_fail_desc(
     try:
         types.validate_desc(desc)
     except jsonschema.ValidationError as exc:
-        return T.cast(
-            types.ImageDescriptionFileError,
-            {"error": types.describe_error(exc), "filename": desc["filename"]},
-        )
+        return types.describe_error(exc, desc["filename"])
     else:
         return desc
 
@@ -224,16 +221,10 @@ def verify_exif_write(
     try:
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:
-        return {
-            "error": types.describe_error(exc),
-            "filename": desc["filename"],
-        }
+        return types.describe_error(exc, desc["filename"])
     except Exception as exc:
         LOG.warning("Unknown error test writing image %s", image_path, exc_info=True)
-        return {
-            "error": types.describe_error(exc),
-            "filename": desc["filename"],
-        }
+        return types.describe_error(exc, desc["filename"])
     else:
         return desc
 

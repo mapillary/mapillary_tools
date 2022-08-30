@@ -186,12 +186,9 @@ def process_sequence_properties(
         for dup in dups:
             desc = T.cast(DescPoint, dup).as_desc()
             error_descs.append(
-                {
-                    "error": types.describe_error(
-                        MapillaryDuplicationError("duplicated", desc)
-                    ),
-                    "filename": desc["filename"],
-                }
+                types.describe_error(
+                    MapillaryDuplicationError("duplicated", desc), desc["filename"]
+                ),
             )
 
         # interpolate angles

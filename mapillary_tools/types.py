@@ -72,7 +72,12 @@ class ErrorObject(TypedDict, total=False):
     vars: T.Dict
 
 
-def describe_error(exc: Exception) -> ErrorObject:
+class ImageDescriptionFileError(TypedDict):
+    filename: str
+    error: ErrorObject
+
+
+def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
     desc: ErrorObject = {
         "type": exc.__class__.__name__,
         "message": str(exc),
@@ -80,12 +85,10 @@ def describe_error(exc: Exception) -> ErrorObject:
     exc_vars = vars(exc)
     if exc_vars:
         desc["vars"] = exc_vars
-    return desc
-
-
-class ImageDescriptionFileError(TypedDict):
-    filename: str
-    error: ErrorObject
+    return {
+        "filename": filename,
+        "error": desc,
+    }
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]

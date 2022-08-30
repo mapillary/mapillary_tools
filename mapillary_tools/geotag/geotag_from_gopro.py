@@ -146,12 +146,13 @@ class GeotagFromGoPro(GeotagFromGeneric):
                     video,
                 )
                 for image in sample_images:
-                    err = types.describe_error(
+                    err_desc = types.describe_error(
                         exceptions.MapillaryStationaryVideoError(
                             "Stationary GoPro video"
-                        )
+                        ),
+                        str(image),
                     )
-                    descs.append({"error": err, "filename": str(image)})
+                    descs.append(err_desc)
                 continue
 
             with tqdm(
