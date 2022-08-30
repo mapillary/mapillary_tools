@@ -134,9 +134,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_images:
                 continue
 
-            points = self._filter_noisy_points(
-                gpmf_parser.parse_gpx(Path(video)), Path(video)
-            )
+            points = self._filter_noisy_points(gpmf_parser.parse_gpx(video), video)
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
