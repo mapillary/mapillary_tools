@@ -141,6 +141,7 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
 def group_descs_by_folder(
     descs: T.List[types.ImageDescriptionFile],
 ) -> T.List[T.List[types.ImageDescriptionFile]]:
+    # TODO: use absolute path?
     descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
     group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
     sequences = []

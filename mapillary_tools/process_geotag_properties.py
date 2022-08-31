@@ -1,3 +1,4 @@
+import os
 import collections
 import datetime
 import json
@@ -9,8 +10,7 @@ import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import constants, exceptions, types, uploader, utils
-from .exif_write import ExifEdit
+from . import constants, exceptions, exif_write, types, uploader, utils
 from .geotag import (
     geotag_from_blackvue,
     geotag_from_camm,
@@ -25,7 +25,7 @@ from .geotag import (
 LOG = logging.getLogger(__name__)
 
 
-def validate_and_fail_desc(
+def _validate_and_fail_desc(
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionFileOrError:
     try:
@@ -36,8 +36,31 @@ def validate_and_fail_desc(
         return desc
 
 
+def _deduplicate_paths(paths: T.Sequence[Path]) -> T.List[Path]:
+    resolved_path: T.Set[Path] = set()
+    dedups: T.List[Path] = []
+    for p in paths:
+        resolved = p.resolve()
+        if resolved not in resolved_path:
+            resolved_path.add(resolved)
+            dedups.append(p)
+    return dedups
+
+
+def _find_images(import_paths: T.Sequence[Path], skip_subfolders: bool) -> T.List[Path]:
+    image_paths = []
+    for path in import_paths:
+        if path.is_dir():
+            image_paths.extend(
+                utils.get_image_file_list(path, skip_subfolders=skip_subfolders)
+            )
+        else:
+            image_paths.append(path)
+    return _deduplicate_paths(image_paths)
+
+
 def process_geotag_properties(
-    import_path: Path,
+    import_path: T.Union[Path, T.Sequence[Path]],
     geotag_source: str,
     skip_subfolders=False,
     video_import_path: T.Optional[Path] = None,
@@ -45,17 +68,21 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    if not import_path.is_dir():
-        raise exceptions.MapillaryFileNotFoundError(
-            f"Import directory not found: {import_path}"
-        )
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        import_paths = import_path
+    import_paths = _deduplicate_paths(import_paths)
+    if not import_paths:
+        return []
+
+    geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
-        images = utils.get_image_file_list(import_path, skip_subfolders=skip_subfolders)
-        LOG.debug(f"Found {len(images)} images in {import_path}")
-        geotag: geotag_from_generic.GeotagFromGeneric = geotag_from_exif.GeotagFromEXIF(
-            import_path, images
-        )
+        image_paths = _find_images(import_paths, skip_subfolders)
+        LOG.debug("Found %d images in %s", len(image_paths), import_path)
+        geotag = geotag_from_exif.GeotagFromEXIF(image_paths)
 
     elif geotag_source == "gpx":
         if geotag_source_path is None:
@@ -67,23 +94,17 @@ def process_geotag_properties(
                 f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            images = utils.get_image_file_list(
-                import_path, skip_subfolders=skip_subfolders
-            )
+            image_paths = _find_images(import_paths, skip_subfolders)
         else:
-            images = utils.get_image_file_list(
-                import_path,
-                skip_subfolders=False,
-            )
-            images = list(
+            image_paths = _find_images(import_paths, False)
+            image_paths = list(
                 utils.filter_video_samples(
-                    images, video_import_path, skip_subfolders=skip_subfolders
+                    image_paths, video_import_path, skip_subfolders=skip_subfolders
                 )
             )
-        LOG.debug(f"Found {len(images)} images in {import_path}")
+        LOG.debug(f"Found %d images in %s", len(image_paths), import_path)
         geotag = geotag_from_gpx_file.GeotagFromGPXFile(
-            import_path,
-            images,
+            image_paths,
             geotag_source_path,
             use_gpx_start_time=interpolation_use_gpx_start_time,
             offset_time=interpolation_offset_time,
@@ -93,28 +114,24 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
             )
+
         if not geotag_source_path.is_file():
             raise exceptions.MapillaryFileNotFoundError(
                 f"NMEA file not found: {geotag_source_path}"
             )
+
         if video_import_path is None:
-            images = utils.get_image_file_list(
-                import_path, skip_subfolders=skip_subfolders
-            )
+            image_paths = _find_images(import_paths, skip_subfolders=skip_subfolders)
         else:
-            images = utils.get_image_file_list(
-                import_path,
-                skip_subfolders=False,
-            )
-            images = list(
+            image_paths = _find_images(import_paths, skip_subfolders=False)
+            image_paths = list(
                 utils.filter_video_samples(
-                    images, video_import_path, skip_subfolders=skip_subfolders
+                    image_paths, video_import_path, skip_subfolders=skip_subfolders
                 )
             )
-        LOG.debug(f"Found {len(images)} images in {import_path}")
+        LOG.debug(f"Found %d images in %s", len(image_paths), import_path)
         geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
-            import_path,
-            images,
+            image_paths,
             geotag_source_path,
             use_gpx_start_time=interpolation_use_gpx_start_time,
             offset_time=interpolation_offset_time,
@@ -130,8 +147,9 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"GoPro video file or directory not found: {geotag_source_path}"
             )
+        image_paths = _find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_gopro.GeotagFromGoPro(
-            import_path,
+            image_paths,
             geotag_source_path,
             offset_time=interpolation_offset_time,
         )
@@ -146,8 +164,9 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"BlackVue video file or directory not found: {geotag_source_path}"
             )
+        image_paths = _find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
-            import_path,
+            image_paths,
             geotag_source_path,
             offset_time=interpolation_offset_time,
         )
@@ -162,59 +181,23 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"CAMM video file or directory not found: {geotag_source_path}"
             )
+        image_paths = _find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_camm.GeotagFromCAMM(
-            import_path,
+            image_paths,
             geotag_source_path,
             offset_time=interpolation_offset_time,
         )
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    return list(types.map_descs(validate_and_fail_desc, geotag.to_description()))
+    return list(types.map_descs(_validate_and_fail_desc, geotag.to_description()))
 
 
-def overwrite_exif_tags(
-    image_path: Path,
-    desc: types.ImageDescriptionEXIF,
-    overwrite_all_EXIF_tags: bool = False,
-    overwrite_EXIF_time_tag: bool = False,
-    overwrite_EXIF_gps_tag: bool = False,
-    overwrite_EXIF_direction_tag: bool = False,
-    overwrite_EXIF_orientation_tag: bool = False,
-) -> None:
-    image_exif = ExifEdit(str(image_path))
-
-    # also try to set time and gps so image can be placed on the map for testing and
-    # qc purposes
-    if overwrite_all_EXIF_tags or overwrite_EXIF_time_tag:
-        dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-        image_exif.add_date_time_original(dt)
-
-    if overwrite_all_EXIF_tags or overwrite_EXIF_gps_tag:
-        image_exif.add_lat_lon(
-            desc["MAPLatitude"],
-            desc["MAPLongitude"],
-        )
-
-    if overwrite_all_EXIF_tags or overwrite_EXIF_direction_tag:
-        heading = desc.get("MAPCompassHeading")
-        if heading is not None:
-            image_exif.add_direction(heading["TrueHeading"])
-
-    if overwrite_all_EXIF_tags or overwrite_EXIF_orientation_tag:
-        if "MAPOrientation" in desc:
-            image_exif.add_orientation(desc["MAPOrientation"])
-
-    image_exif.write()
-
-
-def verify_exif_write(
-    import_path: Path,
+def _verify_exif_write(
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionFileOrError:
-    image_path = import_path.joinpath(desc["filename"])
-    with image_path.open("rb") as fp:
-        edit = ExifEdit(fp.read())
+    with open(desc["filename"], "rb") as fp:
+        edit = exif_write.ExifEdit(fp.read())
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescriptionEXIF"; expected "Dict[str, Any]"
     edit.add_image_description(T.cast(T.Dict, uploader.desc_file_to_exif(desc)))
@@ -223,28 +206,19 @@ def verify_exif_write(
     except piexif.InvalidImageDataError as exc:
         return types.describe_error(exc, desc["filename"])
     except Exception as exc:
-        LOG.warning("Unknown error test writing image %s", image_path, exc_info=True)
+        LOG.warning(
+            "Unknown error test writing image %s", desc["filename"], exc_info=True
+        )
         return types.describe_error(exc, desc["filename"])
     else:
         return desc
 
 
-def process_finalize(
-    import_path: Path,
-    descs: T.List[types.ImageDescriptionFileOrError],
-    skip_process_errors=False,
-    overwrite_all_EXIF_tags=False,
-    overwrite_EXIF_time_tag=False,
-    overwrite_EXIF_gps_tag=False,
-    overwrite_EXIF_direction_tag=False,
-    overwrite_EXIF_orientation_tag=False,
+def _apply_offsets(
+    descs: T.Sequence[types.ImageDescriptionFileOrError],
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
-    desc_path: str = None,
 ) -> None:
-    if desc_path is None:
-        desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
-
     if offset_time:
         for desc in types.filter_out_errors(descs):
             dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
@@ -263,39 +237,66 @@ def process_finalize(
         heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
         heading["MagneticHeading"] = (heading["MagneticHeading"] + offset_angle) % 360
 
-    descs = list(types.map_descs(validate_and_fail_desc, descs))
 
-    if any(
+def _overwrite_exif_tags(
+    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    all_tags=False,
+    time_tag=False,
+    gps_tag=False,
+    direction_tag=False,
+    orientation_tag=False,
+) -> None:
+    should_write = any(
         [
-            overwrite_all_EXIF_tags,
-            overwrite_EXIF_time_tag,
-            overwrite_EXIF_gps_tag,
-            overwrite_EXIF_direction_tag,
-            overwrite_EXIF_orientation_tag,
+            all_tags,
+            time_tag,
+            gps_tag,
+            direction_tag,
+            orientation_tag,
         ]
+    )
+
+    if not should_write:
+        return
+
+    for desc in tqdm(
+        types.filter_out_errors(descs),
+        desc="Overwriting EXIF",
+        unit="images",
+        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ):
-        for desc in tqdm(
-            types.filter_out_errors(descs),
-            desc="Overwriting EXIF",
-            unit="images",
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-        ):
-            image = import_path.joinpath(desc["filename"])
-            try:
-                overwrite_exif_tags(
-                    image,
-                    T.cast(types.ImageDescriptionEXIF, desc),
-                    overwrite_all_EXIF_tags,
-                    overwrite_EXIF_time_tag,
-                    overwrite_EXIF_gps_tag,
-                    overwrite_EXIF_direction_tag,
-                    overwrite_EXIF_orientation_tag,
-                )
-            except Exception:
-                LOG.warning(
-                    "Failed to overwrite EXIF for image %s", image, exc_info=True
+        try:
+            image_exif = exif_write.ExifEdit(desc["filename"])
+
+            if all_tags or time_tag:
+                dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
+                image_exif.add_date_time_original(dt)
+
+            if all_tags or gps_tag:
+                image_exif.add_lat_lon(
+                    desc["MAPLatitude"],
+                    desc["MAPLongitude"],
                 )
 
+            if all_tags or direction_tag:
+                heading = desc.get("MAPCompassHeading")
+                if heading is not None:
+                    image_exif.add_direction(heading["TrueHeading"])
+
+            if all_tags or orientation_tag:
+                if "MAPOrientation" in desc:
+                    image_exif.add_orientation(desc["MAPOrientation"])
+
+            image_exif.write()
+        except Exception:
+            LOG.warning(
+                "Failed to overwrite EXIF for image %s",
+                desc["filename"],
+                exc_info=True,
+            )
+
+
+def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]):
     with tqdm(
         total=len(types.filter_out_errors(descs)),
         desc="Test EXIF writing",
@@ -304,21 +305,53 @@ def process_finalize(
     ) as pbar:
 
         def _update(desc):
-            new_desc = verify_exif_write(import_path, desc)
+            new_desc = _verify_exif_write(desc)
             pbar.update(1)
             return new_desc
 
         descs = list(types.map_descs(_update, descs))
+
+
+def _write_descs(
+    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    desc_path: str,
+    import_path: T.Optional[Path] = None,
+):
+    """
+    For backward-compatibilities, import_path is used to find the relative path of the desc["filename"].
+    If it is not provided, then it will be resolved as an absolute path.
+    """
+    if import_path:
+        descs = [
+            T.cast(
+                types.ImageDescriptionFileOrError,
+                {**d, "filename": os.path.relpath(d["filename"], import_path)},
+            )
+            for d in descs
+        ]
+    else:
+        descs = [
+            T.cast(
+                types.ImageDescriptionFileOrError,
+                {**d, "filename": str(Path(d["filename"]).resolve())},
+            )
+            for d in descs
+        ]
 
     if desc_path == "-":
         print(json.dumps(descs, indent=4))
     else:
         with open(desc_path, "w") as fp:
             json.dump(descs, fp, indent=4)
+    LOG.info("Check the image description file for details: %s", desc_path)
 
+
+def _show_stats(
+    descs: T.Sequence[types.ImageDescriptionFileOrError], skip_process_errors: bool
+):
     processed_images = types.filter_out_errors(descs)
     not_processed_images = T.cast(
-        T.List[types.ImageDescriptionFileError],
+        T.Sequence[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
     assert len(processed_images) + len(not_processed_images) == len(descs)
@@ -348,11 +381,74 @@ def process_finalize(
             else:
                 LOG.warning("%8d images failed due to %s", count, error_code)
 
-    LOG.info("Check the image description file for details: %s", desc_path)
-
     failed_count = len(not_processed_images) - duplicated_image_count
 
     if failed_count and not skip_process_errors:
         raise exceptions.MapillaryProcessError(
             f"Failed to process {failed_count} images. To skip these errors, specify --skip_process_errors"
         )
+
+
+def process_finalize(
+    import_path: T.Union[T.Sequence[Path], Path],
+    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    skip_process_errors=False,
+    overwrite_all_EXIF_tags=False,
+    overwrite_EXIF_time_tag=False,
+    overwrite_EXIF_gps_tag=False,
+    overwrite_EXIF_direction_tag=False,
+    overwrite_EXIF_orientation_tag=False,
+    offset_time: float = 0.0,
+    offset_angle: float = 0.0,
+    desc_path: str = None,
+) -> None:
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        import_paths = import_path
+    import_paths = _deduplicate_paths(import_paths)
+    if not import_paths:
+        return
+
+    # for back-compatibilities, we write relative filenames when a single import path directory
+    # provided
+    write_relative_filenames = len(import_paths) == 1 and import_paths[0].is_dir()
+    if desc_path is None:
+        if write_relative_filenames:
+            desc_path = str(
+                import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+            )
+        else:
+            desc_path = "-"
+            if 1 < len(import_paths):
+                LOG.warning(
+                    "Writing image descriptions to STDOUT by default, because multiple import paths are specified"
+                )
+            else:
+                LOG.warning(
+                    'Writing image descriptions to STDOUT by default, because the import path "%s" is a file',
+                    import_paths[0],
+                )
+
+    _apply_offsets(descs, offset_time=offset_time, offset_angle=offset_angle)
+
+    descs = list(types.map_descs(_validate_and_fail_desc, descs))
+
+    _overwrite_exif_tags(
+        descs,
+        all_tags=overwrite_all_EXIF_tags,
+        time_tag=overwrite_EXIF_time_tag,
+        gps_tag=overwrite_EXIF_gps_tag,
+        direction_tag=overwrite_EXIF_direction_tag,
+        orientation_tag=overwrite_EXIF_orientation_tag,
+    )
+
+    _test_exif_writing(descs)
+
+    if write_relative_filenames:
+        _write_descs(descs, desc_path, import_paths[0])
+    else:
+        _write_descs(descs, desc_path)
+
+    _show_stats(descs, skip_process_errors=skip_process_errors)

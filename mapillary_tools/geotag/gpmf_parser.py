@@ -319,7 +319,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
 
 
 def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
-    with open(path, "rb") as fp:
+    with path.open("rb") as fp:
         points = extract_points(fp)
     if points is None:
         return []
@@ -327,7 +327,7 @@ def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
 
 
 def dump_samples(path: pathlib.Path):
-    with open(path, "rb") as fp:
+    with path.open("rb") as fp:
         for h, s in parse_path(fp, [b"moov", b"trak"]):
             gpmd_samples = (
                 sample

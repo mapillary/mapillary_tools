@@ -21,7 +21,7 @@ def md5sum_bytes(data: bytes) -> str:
 
 
 def file_md5sum(path: Path) -> str:
-    with open(path, "rb") as fp:
+    with path.open("rb") as fp:
         return md5sum_fp(fp)
 
 
@@ -65,14 +65,10 @@ def get_video_file_list(
 
 
 def get_image_file_list(
-    import_path: Path, skip_subfolders: bool = False, abs_path: bool = False
+    import_path: Path, skip_subfolders: bool = False
 ) -> T.List[Path]:
     files = iterate_files(import_path, not skip_subfolders)
-    return sorted(
-        file if abs_path else file.relative_to(import_path)
-        for file in files
-        if is_image_file(file)
-    )
+    return sorted(file for file in files if is_image_file(file))
 
 
 def filter_video_samples(

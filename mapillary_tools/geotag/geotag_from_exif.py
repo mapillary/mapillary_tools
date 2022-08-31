@@ -14,8 +14,7 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
-    def __init__(self, image_dir: Path, images: T.Sequence[Path]):
-        self.image_dir = image_dir
+    def __init__(self, images: T.Sequence[Path]):
         self.images = images
         super().__init__()
 
@@ -29,14 +28,12 @@ class GeotagFromEXIF(GeotagFromGeneric):
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
-            image_path = self.image_dir.joinpath(image)
-
             try:
-                exif = ExifRead(str(image_path))
+                exif = ExifRead(str(image))
             except Exception as exc0:
                 LOG.warning(
                     "Unknown error reading EXIF from image %s",
-                    image_path,
+                    image,
                     exc_info=True,
                 )
                 descs.append(types.describe_error(exc0, str(image)))

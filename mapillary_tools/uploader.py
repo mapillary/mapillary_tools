@@ -224,7 +224,7 @@ def zip_images(
         zip_filename_wip = zip_dir.joinpath(
             f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
-        with open(zip_filename_wip, "wb") as fp:
+        with zip_filename_wip.open("wb") as fp:
             upload_md5sum = _zip_sequence_fp(sequence, fp)
         zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)

@@ -17,7 +17,6 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGPXFile(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: Path,
         images: T.Sequence[Path],
         source_path: Path,
         use_gpx_start_time: bool = False,
@@ -32,7 +31,6 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 source_path,
             )
         self.points: T.List[geo.Point] = sum(tracks, [])
-        self.image_dir = image_dir
         self.images = images
         self.source_path = source_path
         self.use_gpx_start_time = use_gpx_start_time
@@ -41,14 +39,12 @@ class GeotagFromGPXFile(GeotagFromGeneric):
     def _attach_exif(
         self, desc: types.ImageDescriptionFile
     ) -> types.ImageDescriptionFileOrError:
-        image_path = self.image_dir.joinpath(desc["filename"])
-
         try:
-            exif = exif_read.ExifRead(str(image_path))
+            exif = exif_read.ExifRead(desc["filename"])
         except Exception as exc:
             LOG.warning(
                 "Unknown error reading EXIF from image %s",
-                image_path,
+                desc["filename"],
                 exc_info=True,
             )
             return types.describe_error(exc, desc["filename"])
@@ -74,7 +70,6 @@ class GeotagFromGPXFile(GeotagFromGeneric):
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
             geotag = GeotagFromGPXWithProgress(
-                self.image_dir,
                 self.images,
                 self.points,
                 use_gpx_start_time=self.use_gpx_start_time,

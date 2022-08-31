@@ -67,6 +67,7 @@ def add_general_arguments(parser, command):
         parser.add_argument(
             "import_path",
             help="Path to your images.",
+            nargs="+",
             type=Path,
         )
         parser.add_argument(

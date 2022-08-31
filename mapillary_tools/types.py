@@ -222,7 +222,7 @@ def is_error(desc: ImageDescriptionFileOrError) -> bool:
 
 def map_descs(
     func: T.Callable[[ImageDescriptionFile], ImageDescriptionFileOrError],
-    descs: T.List[ImageDescriptionFileOrError],
+    descs: T.Sequence[ImageDescriptionFileOrError],
 ) -> T.Iterator[ImageDescriptionFileOrError]:
     def _f(desc: ImageDescriptionFileOrError) -> ImageDescriptionFileOrError:
         if is_error(desc):
@@ -234,7 +234,7 @@ def map_descs(
 
 
 def filter_out_errors(
-    descs: T.List[ImageDescriptionFileOrError],
+    descs: T.Sequence[ImageDescriptionFileOrError],
 ) -> T.List[ImageDescriptionFile]:
     return T.cast(
         T.List[ImageDescriptionFile], [desc for desc in descs if not is_error(desc)]
