@@ -39,9 +39,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     image_path,
                     exc_info=True,
                 )
-                descs.append(
-                    {"error": types.describe_error(exc0), "filename": str(image)}
-                )
+                descs.append(types.describe_error(exc0, str(image)))
                 continue
 
             lon, lat = exif.extract_lon_lat()
@@ -49,9 +47,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
-                descs.append(
-                    {"error": types.describe_error(exc), "filename": str(image)}
-                )
+                descs.append(types.describe_error(exc, str(image)))
                 continue
 
             timestamp = exif.extract_capture_time()
@@ -59,9 +55,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
-                descs.append(
-                    {"error": types.describe_error(exc), "filename": str(image)}
-                )
+                descs.append(types.describe_error(exc, str(image)))
                 continue
 
             angle = exif.extract_direction()

@@ -1,4 +1,5 @@
 import datetime
+import json
 import sys
 import typing as T
 
@@ -72,20 +73,32 @@ class ErrorObject(TypedDict, total=False):
     vars: T.Dict
 
 
-def describe_error(exc: Exception) -> ErrorObject:
+class ImageDescriptionFileError(TypedDict):
+    filename: str
+    error: ErrorObject
+
+
+def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
     desc: ErrorObject = {
         "type": exc.__class__.__name__,
         "message": str(exc),
     }
+
     exc_vars = vars(exc)
+
     if exc_vars:
-        desc["vars"] = exc_vars
-    return desc
+        # handle unserializable exceptions
+        try:
+            vars_json = json.dumps(exc_vars)
+        except Exception:
+            vars_json = ""
+        if vars_json:
+            desc["vars"] = json.loads(vars_json)
 
-
-class ImageDescriptionFileError(TypedDict):
-    filename: str
-    error: ErrorObject
+    return {
+        "error": desc,
+        "filename": filename,
+    }
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
@@ -257,6 +270,4 @@ def as_desc(point: geo.Point) -> Image:
 
 
 if __name__ == "__main__":
-    import json
-
     print(json.dumps(ImageDescriptionFileSchema, indent=4))

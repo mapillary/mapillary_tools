@@ -52,10 +52,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
             for image in self.images:
                 descs.append(
-                    {
-                        "error": types.describe_error(exc),
-                        "filename": str(image),
-                    }
+                    types.describe_error(exc, str(image)),
                 )
             assert len(self.images) == len(descs)
             return descs
@@ -67,17 +64,19 @@ class GeotagFromGPX(GeotagFromGeneric):
                 image_time = self.read_image_time(image)
             except Exception as exc:
                 descs.append(
-                    {"error": types.describe_error(exc), "filename": str(image)}
+                    types.describe_error(exc, str(image)),
                 )
                 continue
 
             if image_time is None:
-                error = types.describe_error(
-                    MapillaryGeoTaggingError(
-                        "No data time found from the image EXIF for interpolation"
+                descs.append(
+                    types.describe_error(
+                        MapillaryGeoTaggingError(
+                            "No data time found from the image EXIF for interpolation"
+                        ),
+                        str(image),
                     )
                 )
-                descs.append({"error": error, "filename": str(image)})
             else:
                 image_pairs.append((image_time, image))
 
@@ -133,9 +132,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                             sorted_points[-1].time
                         ),
                     )
-                    descs.append(
-                        {"error": types.describe_error(exc2), "filename": str(image)}
-                    )
+                    descs.append(types.describe_error(exc2, str(image)))
                     continue
 
             if sorted_points[-1].time < image_time:
@@ -153,7 +150,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         ),
                     )
                     descs.append(
-                        {"error": types.describe_error(exc2), "filename": str(image)}
+                        types.describe_error(exc2, str(image)),
                     )
                     continue
 
