@@ -37,7 +37,7 @@ Process and upload imagery:
 mapillary_tools process_and_upload "path/to/images/"
 ```
 
-Upload CAMM videos:
+Upload [CAMM](https://developers.google.com/streetview/publish/camm-spec) videos:
 
 ```shell
 mapillary_tools upload_camm "path/to/camm_videos/"
@@ -174,7 +174,7 @@ mapillary_tools upload "path/to/images/" \
 
 ### Upload BlackVue Videos
 
-BlackVue videos can be uploaded with the `upload_blackvue` command and will be processed on Mapillary servers.
+BlackVue videos can be uploaded with the `upload_blackvue` command directly, and they will be processed on Mapillary servers.
 
 #### Examples
 
@@ -195,7 +195,8 @@ mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 
 ### Upload CAMM Videos
 
-[CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command and will be processed on Mapillary servers.
+[CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command directly,
+and will be processed on Mapillary servers.
 
 #### Examples
 
