@@ -43,9 +43,12 @@ def _gpx_track_segment_to_points(
     }
     points = []
     for p in segment.points:
-        try:
-            comment_json = json.loads(p.comment)
-        except json.JSONDecodeError:
+        if p.comment:
+            try:
+                comment_json = json.loads(p.comment)
+            except json.JSONDecodeError:
+                comment_json = None
+        else:
             comment_json = None
 
         if comment_json is not None:
