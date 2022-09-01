@@ -411,11 +411,11 @@ def process_finalize(
     if not import_paths:
         return
 
-    # for back-compatibilities, we write relative filenames when a single import path directory
-    # provided
-    write_relative_filenames = len(import_paths) == 1 and import_paths[0].is_dir()
+    # for back-compatibilities, we write relative filenames in mapillary image description
+    # when a single import path directory provided
+    use_relative_filename = len(import_paths) == 1 and import_paths[0].is_dir()
     if desc_path is None:
-        if write_relative_filenames:
+        if use_relative_filename:
             desc_path = str(
                 import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
             )
@@ -446,7 +446,7 @@ def process_finalize(
 
     _test_exif_writing(descs)
 
-    if write_relative_filenames:
+    if use_relative_filename:
         _write_descs(descs, desc_path, import_paths[0])
     else:
         _write_descs(descs, desc_path)
