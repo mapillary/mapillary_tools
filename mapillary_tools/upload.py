@@ -506,7 +506,7 @@ def upload_multiple(
 
 def _check_blackvue(video_path: Path) -> None:
     # Skip in tests only because we don't have valid sample blackvue for tests
-    if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
+    if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
 
     points = blackvue_parser.parse_gps_points(video_path)

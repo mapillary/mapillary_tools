@@ -46,13 +46,13 @@ class Progress(types.TypedDict, total=False):
     # How many bytes has been uploaded so far since "upload_start"
     offset: int
 
-    # Size in bytes of the zipfile/BlackVue
+    # Size in bytes of the zipfile/BlackVue/CAMM
     entity_size: int
 
-    # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue
+    # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue/CAMM
     total_sequence_count: int
 
-    # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue
+    # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue/CAMM
     sequence_idx: int
 
     # How many images in the sequence. It's available only when uploading directories/Zipfiles
@@ -64,10 +64,10 @@ class Progress(types.TypedDict, total=False):
     # An "upload_interrupted" will increase it. Reset to 0 if if the chunk is uploaded
     retries: int
 
-    # md5sum of the zipfile/BlackVue in uploading
+    # md5sum of the zipfile/BlackVue/CAMM in uploading
     md5sum: str
 
-    # Path to the Zipfile/BlackVue
+    # Path to the Zipfile/BlackVue/CAMM
     import_path: str
 
     # Cluster ID after finishing the upload
