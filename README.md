@@ -12,6 +12,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
   - [Process](#process)
   - [Upload Images](#upload-images)
   - [Upload BlackVue Videos](#upload-blackvue-videos)
+  - [Upload CAMM Videos](#upload-camm-videos)
   - [Video Process](#video-process)
   - [Authenticate](#authenticate)
   - [Aliases](#aliases)
@@ -34,6 +35,12 @@ Process and upload imagery:
 
 ```shell
 mapillary_tools process_and_upload "path/to/images/"
+```
+
+Upload CAMM videos:
+
+```shell
+mapillary_tools upload_camm "path/to/camm_videos/"
 ```
 
 Upload BlackVue videos:
@@ -167,12 +174,12 @@ mapillary_tools upload "path/to/images/" \
 
 ### Upload BlackVue Videos
 
-BlackVue videos can be uploaded with the `upload` command and will be processed on Mapillary servers.
+BlackVue videos can be uploaded with the `upload_blackvue` command and will be processed on Mapillary servers.
 
 #### Examples
 
-Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`
-. It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
 mapillary_tools upload_blackvue "video_file_name.mp4" \
@@ -184,6 +191,27 @@ Upload all BlackVue videos (\*.mp4) under the folder:
 
 ```shell
 mapillary_tools upload_blackvue "path/to/blackvue_videos/"
+```
+
+### Upload CAMM Videos
+
+CAMM videos can be uploaded with the `upload_camm` command and will be processed on Mapillary servers.
+
+#### Examples
+
+Upload a CAMM video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+
+```shell
+mapillary_tools upload_camm "video_file_name.mp4" \
+    --user_name "mly_user" \
+    --organization_key "mly_organization_id"
+```
+
+Upload all CAMM videos (\*.mp4) under the folder:
+
+```shell
+mapillary_tools upload_camm "path/to/camm_videos/"
 ```
 
 ### Video Process
@@ -308,8 +336,8 @@ mapillary_tools process_and_upload "path/to/videos/mapillary_sampled_video_frame
 As the output, the `procss` command generates `mapillary_image_description.json` under the image directory by default.
 The file contains an array of objects, each of which records the metadata of one image in the image directory. The
 metadata is validated
-by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json)
-. Here is a minimal example:
+by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json).
+Here is a minimal example:
 
 ```json
 [
