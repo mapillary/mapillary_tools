@@ -46,13 +46,13 @@ class Progress(types.TypedDict, total=False):
     # How many bytes has been uploaded so far since "upload_start"
     offset: int
 
-    # Size in bytes of the zipfile/BlackVue
+    # Size in bytes of the zipfile/BlackVue/CAMM
     entity_size: int
 
-    # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue
+    # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue/CAMM
     total_sequence_count: int
 
-    # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue
+    # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue/CAMM
     sequence_idx: int
 
     # How many images in the sequence. It's available only when uploading directories/Zipfiles
@@ -64,10 +64,10 @@ class Progress(types.TypedDict, total=False):
     # An "upload_interrupted" will increase it. Reset to 0 if if the chunk is uploaded
     retries: int
 
-    # md5sum of the zipfile/BlackVue in uploading
+    # md5sum of the zipfile/BlackVue/CAMM in uploading
     md5sum: str
 
-    # Path to the Zipfile/BlackVue
+    # Path to the Zipfile/BlackVue/CAMM
     import_path: str
 
     # Cluster ID after finishing the upload
@@ -152,9 +152,25 @@ class Uploader:
         self, blackvue_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         try:
-            return upload_blackvue(
+            return upload_video(
                 blackvue_path,
                 self.user_items,
+                "mly_blackvue_video",
+                event_payload=event_payload,
+                emitter=self.emitter,
+                dry_run=self.dry_run,
+            )
+        except UploadCancelled:
+            return None
+
+    def upload_camm(
+        self, camm_path: Path, event_payload: T.Optional[Progress] = None
+    ) -> T.Optional[str]:
+        try:
+            return upload_video(
+                camm_path,
+                self.user_items,
+                "mly_camm_video",
                 event_payload=event_payload,
                 emitter=self.emitter,
                 dry_run=self.dry_run,
@@ -321,16 +337,17 @@ def _upload_zipfile_fp(
     )
 
 
-def upload_blackvue(
-    blackvue_path: Path,
+def upload_video(
+    video_path: Path,
     user_items: types.UserItem,
+    file_type: upload_api_v4.FileType,
     event_payload: T.Optional[Progress] = None,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> str:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
-    with blackvue_path.open("rb") as fp:
+    with video_path.open("rb") as fp:
         upload_md5sum = utils.md5sum_fp(fp)
 
         fp.seek(0, io.SEEK_END)
@@ -347,7 +364,7 @@ def upload_blackvue(
                     session_key=f"mly_tools_{upload_md5sum}.mp4",
                     entity_size=entity_size,
                     organization_id=user_items.get("MAPOrganizationKey"),
-                    file_type="mly_blackvue_video",
+                    file_type=file_type,
                 )
             )
         else:
@@ -356,7 +373,7 @@ def upload_blackvue(
                 session_key=f"mly_tools_{upload_md5sum}.mp4",
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
-                file_type="mly_blackvue_video",
+                file_type=file_type,
             )
 
         if event_payload is None:
@@ -364,7 +381,7 @@ def upload_blackvue(
 
         new_event_payload: Progress = {
             "entity_size": entity_size,
-            "import_path": str(blackvue_path),
+            "import_path": str(video_path),
             "md5sum": upload_md5sum,
         }
 
