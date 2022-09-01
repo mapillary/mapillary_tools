@@ -9,7 +9,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 - [Installation](#installation)
 - [Video Support](#video-support)
 - [Usage](#usage)
-  - [Process](#process)
+  - [Image Process](#image-process)
   - [Upload Images](#upload-images)
   - [Upload BlackVue Videos](#upload-blackvue-videos)
   - [Upload CAMM Videos](#upload-camm-videos)
@@ -123,7 +123,7 @@ sudo apt install ffmpeg
 
 ## Usage
 
-### Process
+### Image Process
 
 The `process` command geotags images in the given directory. It extracts the required and optional metadata from image
 EXIF (or the other supported geotag sources), and writes all the metadata (or process errors) in
@@ -195,11 +195,11 @@ mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 
 ### Upload CAMM Videos
 
-CAMM videos can be uploaded with the `upload_camm` command and will be processed on Mapillary servers.
+[CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command and will be processed on Mapillary servers.
 
 #### Examples
 
-Upload a CAMM video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+Upload a [CAMM](https://developers.google.com/streetview/publish/camm-spec) video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
 It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
