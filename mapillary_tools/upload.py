@@ -464,12 +464,14 @@ def _join_desc_path(
 
 def upload_multiple(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_type: FileType,
+    file_types: FileType,
     desc_path: T.Optional[str] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     dry_run=False,
+    skip_subfolders=False,
 ):
+    import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
     else:
@@ -483,22 +485,95 @@ def upload_multiple(
                 f"Import file or directory not found: {path}"
             )
 
+    if "images" in file_types:
+        if desc_path is None:
+            if len(import_paths) == 1 and import_paths[0].is_dir():
+                desc_path = str(
+                    import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+                )
+            else:
+                if 1 < len(import_paths):
+                    raise exceptions.MapillaryBadParameterError()
+                else:
+                    raise exceptions.MapillaryBadParameterError()
+
     user_items = fetch_user_items(user_name, organization_key)
 
-    all_stats = []
-    for path in import_paths:
-        LOG.info("Uploading import path: %s", path)
-        stats = upload(
-            path,
-            file_type,
-            user_items,
-            desc_path=desc_path,
-            dry_run=dry_run,
-        )
-        all_stats.extend(stats)
+    # Setup the emitter -- the order matters here
 
-    upload_summary = _summarize(all_stats)
-    if all_stats:
+    emitter = uploader.EventEmitter()
+
+    enable_history = MAPILLARY_UPLOAD_HISTORY_PATH and (
+        not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
+    )
+
+    # Put it first one to cancel early
+    if enable_history:
+        _setup_cancel_due_to_duplication(emitter)
+
+    # This one set up tdqm
+    _setup_tdqm(emitter)
+
+    # Now stats is empty but it will collect during upload
+    stats = _setup_api_stats(emitter)
+
+    # Send the progress as well as the log stats collected above
+    _setup_ipc(emitter)
+
+    params: JSONDict = {
+        "import_path": str(import_path),
+        "desc_path": desc_path,
+        "user_key": user_items.get("MAPSettingsUserKey"),
+        "organization_key": user_items.get("MAPOrganizationKey"),
+    }
+
+    if import_path.is_dir() and file_type == "images":
+        if desc_path is None:
+            desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
+
+        descs = read_image_descriptions(desc_path)
+
+        # Make sure all descs have uuid assigned
+        # It is used to find the right sequence when writing upload history
+        missing_sequence_uuid = str(uuid.uuid4())
+        for desc in descs:
+            if "MAPSequenceUUID" not in desc:
+                desc["MAPSequenceUUID"] = missing_sequence_uuid
+    else:
+        descs = []
+
+    if enable_history:
+        _setup_write_upload_history(emitter, params, descs)
+
+    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
+
+    if "images" in file_types:
+        image_paths = utils.find_images(
+            import_paths, skip_subfolders=skip_subfolders, ensure_suffix=True
+        )
+        # find descs
+        _upload_images(mly_uploader, descs)
+
+    if "gopro" in file_types:
+        video_paths = utils.find_videos(
+            import_paths, skip_subfolders=skip_subfolders, ensure_suffix=True
+        )
+        _upload_videos(mly_uploader, video_paths)
+
+    if "blackvue_legacy" in file_types:
+        video_paths = utils.find_videos(
+            import_paths, skip_subfolders=skip_subfolders, ensure_suffix=True
+        )
+        _upload_blackvues_legacy(mly_uploader, video_paths)
+
+    if "zip" in file_types:
+        zip_paths = utils.find_zipfiles(
+            import_paths, skip_subfolders=skip_subfolders, ensure_suffix=True
+        )
+        _upload_zipfiles(mly_uploader, zip_paths)
+
+    upload_summary = _summarize(stats)
+    if stats:
         _log_upload_summary(upload_summary, file_type)
     else:
         LOG.info("Nothing uploaded. Bye.")
@@ -524,21 +599,22 @@ def _check_blackvue(video_path: Path) -> None:
         )
 
 
-def _upload_blackvues(
+def _upload_blackvues_legacy(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
-    stats: T.Sequence[_APIStats],
 ):
     for idx, video_path in enumerate(video_paths):
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
         }
+
         try:
             _check_blackvue(video_path)
         except Exception as ex:
             LOG.warning(f"Skipping due to: {ex}")
             continue
+
         try:
             cluster_id = mly_uploader.upload_blackvue(
                 video_path, event_payload=event_payload
@@ -553,7 +629,6 @@ def _upload_blackvues(
 def _upload_zipfiles(
     mly_uploader: uploader.Uploader,
     zip_paths: T.Sequence[Path],
-    stats: T.List[_APIStats],
 ):
     for idx, zip_path in enumerate(zip_paths):
         event_payload: uploader.Progress = {
@@ -568,139 +643,90 @@ def _upload_zipfiles(
             if not mly_uploader.dry_run:
                 _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
             raise
+
         LOG.debug(f"Uploaded to cluster: {cluster_id}")
 
 
 def _upload_images(
     mly_uploader: uploader.Uploader,
-    image_dir: Path,
     descs: T.Sequence[types.ImageDescriptionFile],
-    stats: T.Sequence[_APIStats],
 ):
     try:
-        clusters = mly_uploader.upload_images(_join_desc_path(image_dir, descs))
+        clusters = mly_uploader.upload_images(descs)
     except Exception as exc:
         if not mly_uploader.dry_run:
             _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
         raise
+
     LOG.debug(f"Uploaded to cluster: {clusters}")
 
 
-def upload(
-    import_path: Path,
-    file_type: str,
-    user_items: types.UserItem,
-    desc_path: T.Optional[str] = None,
-    dry_run=False,
-) -> T.List[_APIStats]:
-    emitter = uploader.EventEmitter()
+# def upload(
+#     import_path: Path,
+#     file_type: str,
+#     user_items: types.UserItem,
+#     desc_path: T.Optional[str] = None,
+#     dry_run=False,
+# ) -> T.List[_APIStats]:
+#     if import_path.is_file():
+#         if (
+#             file_type == "images" and import_path.suffix.lower() in [".zip"]
+#         ) or file_type == "zip":
+#             _upload_zipfiles(mly_uploader, [import_path], stats)
+#         elif (
+#             file_type == "images" and import_path.suffix.lower() in [".mp4"]
+#         ) or file_type == "blackvue":
+#             _upload_blackvues(mly_uploader, [import_path], stats)
+#         else:
+#             LOG.warning(
+#                 f"Skipping unknown file %s. Only imagery directories, BlackVue videos (.mp4) and ZIP files (.zip) are supported",
+#                 import_path,
+#             )
 
-    # Setup the emitter -- the order matters here
+#     elif import_path.is_dir():
+#         if file_type == "images":
+#             _upload_images(mly_uploader, import_path, descs, stats)
 
-    enable_history = MAPILLARY_UPLOAD_HISTORY_PATH and (
-        not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
-    )
+#         elif file_type == "blackvue":
+#             video_paths = [
+#                 path
+#                 for path in utils.iterate_files(import_path, recursive=True)
+#                 if path.suffix.lower() in [".mp4"]
+#             ]
+#             _upload_blackvues(
+#                 mly_uploader,
+#                 video_paths,
+#                 stats,
+#             )
 
-    # Put it first one to cancel early
-    if enable_history:
-        _setup_cancel_due_to_duplication(emitter)
+#         elif file_type == "zip":
+#             zip_paths = [
+#                 path
+#                 for path in utils.iterate_files(import_path, recursive=True)
+#                 if path.suffix.lower() in [".zip"]
+#             ]
+#             _upload_zipfiles(
+#                 mly_uploader,
+#                 zip_paths,
+#                 stats,
+#             )
 
-    # This one set up tdqm
-    _setup_tdqm(emitter)
+#         else:
+#             raise exceptions.MapillaryBadParameterError(
+#                 f"Invalid file type {file_type}"
+#             )
 
-    # Now stats is empty but it will collect during upload
-    stats = _setup_api_stats(emitter)
+#     else:
+#         LOG.warning(
+#             f"Import file or directory not found: %s",
+#             import_path,
+#         )
 
-    # Send the progress as well as the log stats collected above
-    _setup_ipc(emitter)
+#     upload_summary = _summarize(stats)
+#     LOG.debug("Upload summary: %s", upload_summary)
 
-    params: JSONDict = {
-        "import_path": str(import_path),
-        "desc_path": desc_path,
-        "user_key": user_items.get("MAPSettingsUserKey"),
-        "organization_key": user_items.get("MAPOrganizationKey"),
-        "file_type": file_type,
-    }
+#     # If there is something uploaded
+#     if stats and not dry_run:
+#         _api_logging_finished(user_items, upload_summary)
 
-    if import_path.is_dir() and file_type == "images":
-        if desc_path is None:
-            desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
-
-        descs = read_image_descriptions(desc_path)
-
-        # Make sure all descs have uuid assigned
-        # It is used to find the right sequence when writing upload history
-        missing_sequence_uuid = str(uuid.uuid4())
-        for desc in descs:
-            if "MAPSequenceUUID" not in desc:
-                desc["MAPSequenceUUID"] = missing_sequence_uuid
-    else:
-        descs = []
-
-    if enable_history:
-        _setup_write_upload_history(emitter, params, descs)
-
-    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
-
-    if import_path.is_file():
-        if (
-            file_type == "images" and import_path.suffix.lower() in [".zip"]
-        ) or file_type == "zip":
-            _upload_zipfiles(mly_uploader, [import_path], stats)
-        elif (
-            file_type == "images" and import_path.suffix.lower() in [".mp4"]
-        ) or file_type == "blackvue":
-            _upload_blackvues(mly_uploader, [import_path], stats)
-        else:
-            LOG.warning(
-                f"Skipping unknown file %s. Only imagery directories, BlackVue videos (.mp4) and ZIP files (.zip) are supported",
-                import_path,
-            )
-
-    elif import_path.is_dir():
-        if file_type == "images":
-            _upload_images(mly_uploader, import_path, descs, stats)
-
-        elif file_type == "blackvue":
-            video_paths = [
-                path
-                for path in utils.iterate_files(import_path, recursive=True)
-                if path.suffix.lower() in [".mp4"]
-            ]
-            _upload_blackvues(
-                mly_uploader,
-                video_paths,
-                stats,
-            )
-
-        elif file_type == "zip":
-            zip_paths = [
-                path
-                for path in utils.iterate_files(import_path, recursive=True)
-                if path.suffix.lower() in [".zip"]
-            ]
-            _upload_zipfiles(
-                mly_uploader,
-                zip_paths,
-                stats,
-            )
-
-        else:
-            raise exceptions.MapillaryBadParameterError(
-                f"Invalid file type {file_type}"
-            )
-
-    else:
-        LOG.warning(
-            f"Import file or directory not found: %s",
-            import_path,
-        )
-
-    upload_summary = _summarize(stats)
-    LOG.debug("Upload summary: %s", upload_summary)
-
-    # If there is something uploaded
-    if stats and not dry_run:
-        _api_logging_finished(user_items, upload_summary)
-
-    return stats
+#     return stats

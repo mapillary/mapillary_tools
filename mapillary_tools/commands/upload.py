@@ -47,5 +47,5 @@ class Command:
             for k, v in vars_args.items()
             if k in inspect.getfullargspec(upload_multiple).args
         }
-        args["file_type"] = "images"
+        args["file_types"] = "images"
         upload_multiple(**args)

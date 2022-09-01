@@ -36,29 +36,6 @@ def _validate_and_fail_desc(
         return desc
 
 
-def _deduplicate_paths(paths: T.Sequence[Path]) -> T.List[Path]:
-    resolved_path: T.Set[Path] = set()
-    dedups: T.List[Path] = []
-    for p in paths:
-        resolved = p.resolve()
-        if resolved not in resolved_path:
-            resolved_path.add(resolved)
-            dedups.append(p)
-    return dedups
-
-
-def _find_images(import_paths: T.Sequence[Path], skip_subfolders: bool) -> T.List[Path]:
-    image_paths = []
-    for path in import_paths:
-        if path.is_dir():
-            image_paths.extend(
-                utils.get_image_file_list(path, skip_subfolders=skip_subfolders)
-            )
-        else:
-            image_paths.append(path)
-    return _deduplicate_paths(image_paths)
-
-
 def process_geotag_properties(
     import_path: T.Union[Path, T.Sequence[Path]],
     geotag_source: str,
@@ -73,14 +50,14 @@ def process_geotag_properties(
         import_paths = [import_path]
     else:
         import_paths = import_path
-    import_paths = _deduplicate_paths(import_paths)
+    import_paths = utils.deduplicate_paths(import_paths)
     if not import_paths:
         return []
 
     geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
-        image_paths = _find_images(import_paths, skip_subfolders)
+        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
         LOG.debug("Found %d images in %s", len(image_paths), import_path)
         geotag = geotag_from_exif.GeotagFromEXIF(image_paths)
 
@@ -94,9 +71,11 @@ def process_geotag_properties(
                 f"GPX file not found: {geotag_source_path}"
             )
         if video_import_path is None:
-            image_paths = _find_images(import_paths, skip_subfolders)
+            image_paths = utils.find_images(
+                import_paths, skip_subfolders=skip_subfolders
+            )
         else:
-            image_paths = _find_images(import_paths, False)
+            image_paths = utils.find_images(import_paths, skip_subfolders=False)
             image_paths = list(
                 utils.filter_video_samples(
                     image_paths, video_import_path, skip_subfolders=skip_subfolders
@@ -121,9 +100,11 @@ def process_geotag_properties(
             )
 
         if video_import_path is None:
-            image_paths = _find_images(import_paths, skip_subfolders=skip_subfolders)
+            image_paths = utils.find_images(
+                import_paths, skip_subfolders=skip_subfolders
+            )
         else:
-            image_paths = _find_images(import_paths, skip_subfolders=False)
+            image_paths = utils.find_images(import_paths, skip_subfolders=False)
             image_paths = list(
                 utils.filter_video_samples(
                     image_paths, video_import_path, skip_subfolders=skip_subfolders
@@ -147,7 +128,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"GoPro video file or directory not found: {geotag_source_path}"
             )
-        image_paths = _find_images(import_paths, skip_subfolders=False)
+        image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_gopro.GeotagFromGoPro(
             image_paths,
             geotag_source_path,
@@ -164,7 +145,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"BlackVue video file or directory not found: {geotag_source_path}"
             )
-        image_paths = _find_images(import_paths, skip_subfolders=False)
+        image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             image_paths,
             geotag_source_path,
@@ -181,7 +162,7 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"CAMM video file or directory not found: {geotag_source_path}"
             )
-        image_paths = _find_images(import_paths, skip_subfolders=False)
+        image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_camm.GeotagFromCAMM(
             image_paths,
             geotag_source_path,
@@ -315,29 +296,11 @@ def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]):
 def _write_descs(
     descs: T.Sequence[types.ImageDescriptionFileOrError],
     desc_path: str,
-    import_path: T.Optional[Path] = None,
 ):
     """
     For backward-compatibilities, import_path is used to find the relative path of the desc["filename"].
     If it is not provided, then it will be resolved as an absolute path.
     """
-    if import_path:
-        descs = [
-            T.cast(
-                types.ImageDescriptionFileOrError,
-                {**d, "filename": os.path.relpath(d["filename"], import_path)},
-            )
-            for d in descs
-        ]
-    else:
-        descs = [
-            T.cast(
-                types.ImageDescriptionFileOrError,
-                {**d, "filename": str(Path(d["filename"]).resolve())},
-            )
-            for d in descs
-        ]
-
     if desc_path == "-":
         print(json.dumps(descs, indent=4))
     else:
@@ -407,15 +370,12 @@ def process_finalize(
         import_paths = [import_path]
     else:
         import_paths = import_path
-    import_paths = _deduplicate_paths(import_paths)
+    import_paths = utils.deduplicate_paths(import_paths)
     if not import_paths:
         return
 
-    # for back-compatibilities, we write relative filenames in mapillary image description
-    # when a single import path directory provided
-    use_relative_filename = len(import_paths) == 1 and import_paths[0].is_dir()
     if desc_path is None:
-        if use_relative_filename:
+        if len(import_paths) == 1 and import_paths[0].is_dir():
             desc_path = str(
                 import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
             )
@@ -446,9 +406,6 @@ def process_finalize(
 
     _test_exif_writing(descs)
 
-    if use_relative_filename:
-        _write_descs(descs, desc_path, import_paths[0])
-    else:
-        _write_descs(descs, desc_path)
+    _write_descs(descs, desc_path)
 
     _show_stats(descs, skip_process_errors=skip_process_errors)

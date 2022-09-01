@@ -54,14 +54,10 @@ def iterate_files(root: Path, recursive: bool = False) -> T.Generator[Path, None
 
 
 def get_video_file_list(
-    video_file: Path, skip_subfolders: bool = False, abs_path: bool = False
+    video_file: Path, skip_subfolders: bool = False
 ) -> T.List[Path]:
     files = iterate_files(video_file, not skip_subfolders)
-    return sorted(
-        file if abs_path else file.relative_to(video_file)
-        for file in files
-        if is_video_file(file)
-    )
+    return sorted(file for file in files if is_video_file(file))
 
 
 def get_image_file_list(
@@ -72,7 +68,7 @@ def get_image_file_list(
 
 
 def filter_video_samples(
-    images: T.Sequence[Path],
+    image_paths: T.Sequence[Path],
     video_path: Path,
     skip_subfolders: bool = False,
 ) -> T.Generator[Path, None, None]:
@@ -84,9 +80,60 @@ def filter_video_samples(
     else:
         video_basenames = {video_path.name}
 
-    for image in images:
-        image_dirname = image.absolute().parent.name
+    for image_path in image_paths:
+        image_dirname = image_path.resolve().parent.name
         if image_dirname in video_basenames:
             root, _ = os.path.splitext(image_dirname)
-            if image.name.startswith(root + "_"):
-                yield image
+            if image_path.name.startswith(root + "_"):
+                yield image_path
+
+
+def deduplicate_paths(paths: T.Sequence[Path]) -> T.List[Path]:
+    resolved_path: T.Set[Path] = set()
+    dedups: T.List[Path] = []
+    for p in paths:
+        resolved = p.resolve()
+        if resolved not in resolved_path:
+            resolved_path.add(resolved)
+            dedups.append(p)
+    return dedups
+
+
+def find_images(
+    import_paths: T.Sequence[Path],
+    skip_subfolders: bool = False,
+    ensure_suffix: bool = False,
+) -> T.List[Path]:
+    image_paths = []
+    for path in import_paths:
+        if path.is_dir():
+            image_paths.extend(
+                get_image_file_list(path, skip_subfolders=skip_subfolders)
+            )
+        else:
+            if ensure_suffix:
+                if is_image_file(path):
+                    image_paths.append(path)
+            else:
+                image_paths.append(path)
+    return deduplicate_paths(image_paths)
+
+
+def find_videos(
+    import_paths: T.Sequence[Path],
+    skip_subfolders: bool = False,
+    ensure_suffix: bool = False,
+) -> T.List[Path]:
+    video_paths = []
+    for path in import_paths:
+        if path.is_dir():
+            video_paths.extend(
+                get_video_file_list(path, skip_subfolders=skip_subfolders)
+            )
+        else:
+            if ensure_suffix:
+                if is_video_file(path):
+                    video_paths.append(path)
+            else:
+                video_paths.append(path)
+    return deduplicate_paths(video_paths)
