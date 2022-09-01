@@ -4,30 +4,30 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 
 <!--ts-->
 
-* [Quickstart](#quickstart)
-* [Requirements](#requirements)
-* [Installation](#installation)
-* [Video Support](#video-support)
-* [Usage](#usage)
-    - [Process](#process)
-    - [Upload Images](#upload-images)
-    - [Upload BlackVue Videos](#upload-blackvue-videos)
-    - [Video Process](#video-process)
-    - [Authenticate](#authenticate)
-    - [Aliases](#aliases)
-* [Advanced Usage](#advanced-usage)
-    - [Image Description](#image-description)
-    - [Zip Images](#zip-images)
-    - [Upload API](#upload-api)
-* [Troubleshooting](#troubleshooting)
-* [Development](#development)
+- [Quickstart](#quickstart)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Video Support](#video-support)
+- [Usage](#usage)
+  - [Process](#process)
+  - [Upload Images](#upload-images)
+  - [Upload BlackVue Videos](#upload-blackvue-videos)
+  - [Video Process](#video-process)
+  - [Authenticate](#authenticate)
+  - [Aliases](#aliases)
+- [Advanced Usage](#advanced-usage)
+  - [Image Description](#image-description)
+  - [Zip Images](#zip-images)
+  - [Upload API](#upload-api)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
 
 <!--te-->
 
 ## Quickstart
 
 Download the latest `mapillary_tools` binaries for your platform
-[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.0) first.
+[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2) first.
 See [more installation instructions](#installation) below.
 
 Process and upload imagery:
@@ -180,7 +180,7 @@ mapillary_tools upload_blackvue "video_file_name.mp4" \
     --organization_key "mly_organization_id"
 ```
 
-Upload all BlackVue videos (*.mp4) under the folder:
+Upload all BlackVue videos (\*.mp4) under the folder:
 
 ```shell
 mapillary_tools upload_blackvue "path/to/blackvue_videos/"
@@ -387,7 +387,7 @@ Zip processed images in `path/to/images/` and write zip files in `path/to/zipped
 mapillary_tools zip "path/to/images/" "path/to/zipped_images/"
 ```
 
-Upload all the zip files (*.zip) under the folder:
+Upload all the zip files (\*.zip) under the folder:
 
 ```shell
 mapillary_tools upload_zip "path/to/zipped_images/"
@@ -535,6 +535,7 @@ black mapillary_tools tests
 ```
 
 Release a new version:
+
 ```shell
 # Assume you are releasing v0.9.1-beta
 
