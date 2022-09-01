@@ -156,6 +156,8 @@ mapillary_tools upload "path/to/images/" \
 
 BlackVue videos can be uploaded with the `upload_blackvue` command directly, and they will be processed on Mapillary servers.
 
+New in version [v0.8.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.2).
+
 #### Examples
 
 Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
@@ -177,6 +179,8 @@ mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 
 [CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command directly,
 and will be processed on Mapillary servers.
+
+New in version [v0.9.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2).
 
 #### Examples
 
