@@ -199,9 +199,12 @@ mapillary_tools upload_camm "path/to/camm_videos/"
 
 ### Client-side Video Process
 
-#### Video Support
+Client-side video processing allows users to process and upload other videos that can't be uploaded directly,
+and configure sample intervals, or the other processing parameters.
 
-To [process videos locally](#video-process), you will also need to install `ffmpeg`.
+#### Install FFmpeg
+
+To [process videos locally](#video-process), you will need to install `ffmpeg`.
 
 You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
 downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
@@ -220,7 +223,7 @@ sudo apt install ffmpeg
 
 #### Video Process
 
-Local video process involves two commands:
+Client-side video process involves two commands:
 
 1. `sample_video`: sample videos into images, and insert capture times to the image EXIF. Capture time is calculated
    based on the video start time and sampling interval. This is where `ffmpeg` is being used.
