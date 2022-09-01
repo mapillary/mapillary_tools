@@ -7,14 +7,14 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 - [Quickstart](#quickstart)
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Video Support](#video-support)
 - [Usage](#usage)
   - [Image Process](#image-process)
   - [Upload Images](#upload-images)
   - [Upload BlackVue Videos](#upload-blackvue-videos)
   - [Upload CAMM Videos](#upload-camm-videos)
 - [Advanced Usage](#advanced-usage)
-  - [Video Process](#video-process)
+  - [Video Support](#video-support)
+  - [Local Video Process](#local-video-process)
   - [Authenticate](#authenticate)
   - [Aliases](#aliases)
   - [Image Description](#image-description)
@@ -100,25 +100,6 @@ Termux:
 
 ```shell
 mv -v storage/dcim/mapillaryimages mapillaryimages
-```
-
-## Video Support
-
-To [process videos](#video-process), you will also need to install `ffmpeg`.
-
-You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
-downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
-
-On macOS, use [Homebrew](https://brew.sh/):
-
-```shell
-brew install ffmpeg
-```
-
-On Debian/Ubuntu:
-
-```shell
-sudo apt install ffmpeg
 ```
 
 ## Usage
@@ -217,7 +198,26 @@ mapillary_tools upload_camm "path/to/camm_videos/"
 
 ## Advanced Usage
 
-### Video Process
+### Video Support
+
+To [process videos](#video-process), you will also need to install `ffmpeg`.
+
+You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
+downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
+
+On macOS, use [Homebrew](https://brew.sh/):
+
+```shell
+brew install ffmpeg
+```
+
+On Debian/Ubuntu:
+
+```shell
+sudo apt install ffmpeg
+```
+
+### Local Video Process
 
 Video process involves two commands:
 
