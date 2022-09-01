@@ -81,6 +81,8 @@ def filter_video_samples(
         video_basenames = {video_path.name}
 
     for image_path in image_paths:
+        # If you want to walk an arbitrary filesystem path upwards,
+        # it is recommended to first call Path.resolve() so as to resolve symlinks and eliminate “..” components.
         image_dirname = image_path.resolve().parent.name
         if image_dirname in video_basenames:
             root, _ = os.path.splitext(image_dirname)
@@ -102,7 +104,7 @@ def deduplicate_paths(paths: T.Sequence[Path]) -> T.List[Path]:
 def find_images(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool = False,
-    ensure_suffix: bool = False,
+    check_all_paths: bool = False,
 ) -> T.List[Path]:
     image_paths = []
     for path in import_paths:
@@ -111,7 +113,7 @@ def find_images(
                 get_image_file_list(path, skip_subfolders=skip_subfolders)
             )
         else:
-            if ensure_suffix:
+            if check_all_paths:
                 if is_image_file(path):
                     image_paths.append(path)
             else:
@@ -122,7 +124,7 @@ def find_images(
 def find_videos(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool = False,
-    ensure_suffix: bool = False,
+    check_all_paths: bool = False,
 ) -> T.List[Path]:
     video_paths = []
     for path in import_paths:
@@ -131,9 +133,31 @@ def find_videos(
                 get_video_file_list(path, skip_subfolders=skip_subfolders)
             )
         else:
-            if ensure_suffix:
+            if check_all_paths:
                 if is_video_file(path):
                     video_paths.append(path)
             else:
                 video_paths.append(path)
     return deduplicate_paths(video_paths)
+
+
+def find_zipfiles(
+    import_paths: T.Sequence[Path],
+    skip_subfolders: bool = False,
+    check_all_paths: bool = False,
+) -> T.List[Path]:
+    zip_paths: T.List[Path] = []
+    for path in import_paths:
+        if path.is_dir():
+            zip_paths.extend(
+                file
+                for file in iterate_files(path, not skip_subfolders)
+                if file.suffix.lower() in [".zip"]
+            )
+        else:
+            if check_all_paths:
+                if path.suffix.lower() in [".zip"]:
+                    zip_paths.append(path)
+            else:
+                zip_paths.append(path)
+    return deduplicate_paths(zip_paths)

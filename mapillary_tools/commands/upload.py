@@ -1,7 +1,7 @@
 import inspect
 
 from .. import constants
-from ..upload import upload_multiple
+from ..upload import upload
 
 
 class Command:
@@ -45,7 +45,7 @@ class Command:
         args = {
             k: v
             for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload_multiple).args
+            if k in inspect.getfullargspec(upload).args
         }
-        args["file_types"] = "images"
-        upload_multiple(**args)
+        args["file_type"] = "images"
+        upload(**args)

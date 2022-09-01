@@ -22,7 +22,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
     ):
         self.image_paths = image_paths
         if video_path.is_dir():
-            self.video_paths = utils.get_video_file_list(video_path, abs_path=True)
+            self.video_paths = utils.get_video_file_list(video_path)
         else:
             # it is okay to not suffix with .mp4
             self.video_paths = [video_path]
