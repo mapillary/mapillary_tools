@@ -27,7 +27,7 @@ REQUESTS_TIMEOUT = 60  # 1 minutes
 UPLOAD_REQUESTS_TIMEOUT = 10 * 60  # 10 minutes
 
 
-FileType = Literal["zip", "mly_blackvue_video"]
+FileType = Literal["zip", "mly_blackvue_video", "mly_camm_video"]
 
 
 class UploadHTTPError(Exception):
@@ -63,7 +63,7 @@ class UploadService:
         if entity_size <= 0:
             raise ValueError(f"Expect positive entity size but got {entity_size}")
 
-        if file_type.lower() not in ["zip", "mly_blackvue_video"]:
+        if file_type.lower() not in ["zip", "mly_blackvue_video", "mly_camm_video"]:
             raise ValueError(f"Invalid file type {file_type}")
 
         self.user_access_token = user_access_token
@@ -101,6 +101,7 @@ class UploadService:
         entity_type_map: T.Dict[FileType, str] = {
             "zip": "application/zip",
             "mly_blackvue_video": "video/mp4",
+            "mly_camm_video": "video/mp4",
         }
 
         entity_type = entity_type_map[self.file_type]
