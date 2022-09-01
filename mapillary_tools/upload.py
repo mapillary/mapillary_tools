@@ -697,6 +697,10 @@ def upload(
             file_type == "images" and import_path.suffix.lower() in [".mp4"]
         ) or file_type == "blackvue":
             _upload_blackvues(mly_uploader, [import_path], stats)
+        elif (
+            file_type == "images" and import_path.suffix.lower() in [".mp4"]
+        ) or file_type == "camm":
+            _upload_camm(mly_uploader, [import_path], stats)
         else:
             LOG.warning(
                 f"Skipping unknown file %s. Only imagery directories, BlackVue videos (.mp4) and ZIP files (.zip) are supported",
@@ -714,6 +718,18 @@ def upload(
                 if path.suffix.lower() in [".mp4"]
             ]
             _upload_blackvues(
+                mly_uploader,
+                video_paths,
+                stats,
+            )
+
+        elif file_type == "camm":
+            video_paths = [
+                path
+                for path in utils.iterate_files(import_path, recursive=True)
+                if path.suffix.lower() in [".mp4"]
+            ]
+            _upload_camm(
                 mly_uploader,
                 video_paths,
                 stats,
