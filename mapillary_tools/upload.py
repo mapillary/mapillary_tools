@@ -28,9 +28,9 @@ from . import (
     utils,
 )
 from .geo import get_max_distance_from_start
-from .geotag import blackvue_parser, utils as video_utils
+from .geotag import blackvue_parser, camm_parser, utils as video_utils
 
-FileType = Literal["blackvue", "images", "zip"]
+FileType = Literal["blackvue", "images", "zip", "camm"]
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
@@ -506,10 +506,30 @@ def upload_multiple(
 
 def _check_blackvue(video_path: Path) -> None:
     # Skip in tests only because we don't have valid sample blackvue for tests
-    if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
+    if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
         return
 
     points = blackvue_parser.parse_gps_points(video_path)
+    if not points:
+        raise exceptions.MapillaryGPXEmptyError(
+            f"Empty GPS extracted from {video_path}"
+        )
+
+    stationary = video_utils.is_video_stationary(
+        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+    )
+    if stationary:
+        raise exceptions.MapillaryStationaryVideoError(
+            f"The video is stationary: {video_path}"
+        )
+
+
+def _check_camm(video_path: Path) -> None:
+    # Skip in tests only because we don't have valid sample CAMM for tests
+    if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
+        return
+
+    points = camm_parser.parse_gpx(video_path)
     if not points:
         raise exceptions.MapillaryGPXEmptyError(
             f"Empty GPS extracted from {video_path}"
@@ -541,6 +561,32 @@ def _upload_blackvues(
             continue
         try:
             cluster_id = mly_uploader.upload_blackvue(
+                video_path, event_payload=event_payload
+            )
+        except Exception as exc:
+            if not mly_uploader.dry_run:
+                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
+            raise
+        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+
+
+def _upload_camm(
+    mly_uploader: uploader.Uploader,
+    video_paths: T.Sequence[Path],
+    stats: T.Sequence[_APIStats],
+):
+    for idx, video_path in enumerate(video_paths):
+        event_payload: uploader.Progress = {
+            "total_sequence_count": len(video_paths),
+            "sequence_idx": idx,
+        }
+        try:
+            _check_camm(video_path)
+        except Exception as ex:
+            LOG.warning(f"Skipping due to: {ex}")
+            continue
+        try:
+            cluster_id = mly_uploader.upload_camm(
                 video_path, event_payload=event_payload
             )
         except Exception as exc:

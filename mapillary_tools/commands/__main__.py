@@ -11,6 +11,7 @@ from . import (
     sample_video,
     upload,
     upload_blackvue,
+    upload_camm,
     upload_zip,
     video_process,
     video_process_and_upload,
@@ -20,6 +21,7 @@ from . import (
 mapillary_tools_commands = [
     process,
     upload,
+    upload_camm,
     upload_blackvue,
     upload_zip,
     sample_video,

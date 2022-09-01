@@ -152,9 +152,25 @@ class Uploader:
         self, blackvue_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         try:
-            return upload_blackvue(
+            return upload_video(
                 blackvue_path,
                 self.user_items,
+                "mly_blackvue_video",
+                event_payload=event_payload,
+                emitter=self.emitter,
+                dry_run=self.dry_run,
+            )
+        except UploadCancelled:
+            return None
+
+    def upload_camm(
+        self, camm_path: Path, event_payload: T.Optional[Progress] = None
+    ) -> T.Optional[str]:
+        try:
+            return upload_video(
+                camm_path,
+                self.user_items,
+                "mly_camm_video",
                 event_payload=event_payload,
                 emitter=self.emitter,
                 dry_run=self.dry_run,
@@ -321,16 +337,17 @@ def _upload_zipfile_fp(
     )
 
 
-def upload_blackvue(
-    blackvue_path: Path,
+def upload_video(
+    video_path: Path,
     user_items: types.UserItem,
+    file_type: upload_api_v4.FileType,
     event_payload: T.Optional[Progress] = None,
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> str:
     jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
-    with blackvue_path.open("rb") as fp:
+    with video_path.open("rb") as fp:
         upload_md5sum = utils.md5sum_fp(fp)
 
         fp.seek(0, io.SEEK_END)
@@ -347,7 +364,7 @@ def upload_blackvue(
                     session_key=f"mly_tools_{upload_md5sum}.mp4",
                     entity_size=entity_size,
                     organization_id=user_items.get("MAPOrganizationKey"),
-                    file_type="mly_blackvue_video",
+                    file_type=file_type,
                 )
             )
         else:
@@ -356,7 +373,7 @@ def upload_blackvue(
                 session_key=f"mly_tools_{upload_md5sum}.mp4",
                 entity_size=entity_size,
                 organization_id=user_items.get("MAPOrganizationKey"),
-                file_type="mly_blackvue_video",
+                file_type=file_type,
             )
 
         if event_payload is None:
@@ -364,7 +381,7 @@ def upload_blackvue(
 
         new_event_payload: Progress = {
             "entity_size": entity_size,
-            "import_path": str(blackvue_path),
+            "import_path": str(video_path),
             "md5sum": upload_md5sum,
         }
 
