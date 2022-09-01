@@ -13,10 +13,10 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
   - [Upload Images](#upload-images)
   - [Upload BlackVue Videos](#upload-blackvue-videos)
   - [Upload CAMM Videos](#upload-camm-videos)
+- [Advanced Usage](#advanced-usage)
   - [Video Process](#video-process)
   - [Authenticate](#authenticate)
   - [Aliases](#aliases)
-- [Advanced Usage](#advanced-usage)
   - [Image Description](#image-description)
   - [Zip Images](#zip-images)
   - [Upload API](#upload-api)
@@ -215,6 +215,8 @@ Upload all CAMM videos (\*.mp4) under the folder:
 mapillary_tools upload_camm "path/to/camm_videos/"
 ```
 
+## Advanced Usage
+
 ### Video Process
 
 Video process involves two commands:
@@ -329,8 +331,6 @@ required and optional arguments. It is equivalent to:
 mapillary_tools sample_video "path/to/videos/" "path/to/videos/mapillary_sampled_video_frames/"
 mapillary_tools process_and_upload "path/to/videos/mapillary_sampled_video_frames/"
 ```
-
-## Advanced Usage
 
 ### Image Description
 
