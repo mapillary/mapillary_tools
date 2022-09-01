@@ -184,7 +184,7 @@ New in version [v0.9.2](https://github.com/mapillary/mapillary_tools/releases/ta
 
 #### Examples
 
-Upload a [CAMM](https://developers.google.com/streetview/publish/camm-spec) video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+Upload a CAMM video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
 It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
