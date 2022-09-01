@@ -13,8 +13,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
   - [Upload BlackVue Videos](#upload-blackvue-videos)
   - [Upload CAMM Videos](#upload-camm-videos)
 - [Advanced Usage](#advanced-usage)
-  - [Video Support](#video-support)
-  - [Local Video Process](#local-video-process)
+  - [Client-side Video Process](#client-side-video-process)
   - [Authenticate](#authenticate)
   - [Aliases](#aliases)
   - [Image Description](#image-description)
@@ -198,9 +197,11 @@ mapillary_tools upload_camm "path/to/camm_videos/"
 
 ## Advanced Usage
 
-### Video Support
+### Client-side Video Process
 
-To [process videos](#video-process), you will also need to install `ffmpeg`.
+#### Video Support
+
+To [process videos locally](#video-process), you will also need to install `ffmpeg`.
 
 You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
 downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
@@ -217,9 +218,9 @@ On Debian/Ubuntu:
 sudo apt install ffmpeg
 ```
 
-### Local Video Process
+#### Video Process
 
-Video process involves two commands:
+Local video process involves two commands:
 
 1. `sample_video`: sample videos into images, and insert capture times to the image EXIF. Capture time is calculated
    based on the video start time and sampling interval. This is where `ffmpeg` is being used.
