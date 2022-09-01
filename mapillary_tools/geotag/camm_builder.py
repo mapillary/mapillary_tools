@@ -1,5 +1,4 @@
 import dataclasses
-import time
 import typing as T
 
 from .. import geo
@@ -160,8 +159,6 @@ def create_camm_trak(
         },
     }
 
-    now = int(time.time())
-
     media_duration = sum(s.timedelta for s in raw_samples)
     assert media_timescale <= builder.UINT64_MAX
 
@@ -171,8 +168,11 @@ def create_camm_trak(
         "data": {
             # use 64-bit version
             "version": 1,
-            "creation_time": now,
-            "modification_time": now,
+            # TODO: find timestamps from mvhd?
+            # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
+            # make sure the md5 of the new mp4 file unchanged
+            "creation_time": 0,
+            "modification_time": 0,
             "timescale": media_timescale,
             "duration": media_duration,
             "language": 21956,
@@ -197,8 +197,11 @@ def create_camm_trak(
         "data": {
             # use 32-bit version of the box
             "version": 0,
-            "creation_time": now,
-            "modification_time": now,
+            # TODO: find timestamps from mvhd?
+            # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
+            # make sure the md5 of the new mp4 file unchanged
+            "creation_time": 0,
+            "modification_time": 0,
             # will update the track ID later
             "track_ID": 0,
             # If the duration of this track cannot be determined then duration is set to all 1s (32-bit maxint).
