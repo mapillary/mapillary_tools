@@ -28,5 +28,5 @@ class Command:
             for k, v in vars_args.items()
             if k in inspect.getfullargspec(upload).args
         }
-        args["file_type"] = "blackvue"
+        args["file_type"] = "raw_blackvue"
         upload(**args)

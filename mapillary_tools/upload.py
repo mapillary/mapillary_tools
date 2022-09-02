@@ -30,7 +30,7 @@ from . import (
 from .geo import get_max_distance_from_start
 from .geotag import blackvue_parser, camm_parser, utils as video_utils
 
-FileType = Literal["blackvue", "images", "zip", "camm"]
+FileType = Literal["raw_blackvue", "images", "zip", "raw_camm"]
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
@@ -381,16 +381,21 @@ def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
     return upload_summary
 
 
-def _log_upload_summary(summary: T.Dict, file_type: FileType):
+def _show_upload_summary(summary: T.Dict, file_type: FileType):
     if file_type == "images":
         LOG.info(
             "%8d  sequences (%d images) uploaded",
             summary["sequences"],
             summary["images"],
         )
-    elif file_type == "blackvue":
+    elif file_type == "raw_blackvue":
         LOG.info(
             "%8d  BlackVue videos uploaded",
+            summary["sequences"],
+        )
+    elif file_type == "raw_camm":
+        LOG.info(
+            "%8d  CAMM videos uploaded",
             summary["sequences"],
         )
     elif file_type == "zip":
@@ -398,6 +403,8 @@ def _log_upload_summary(summary: T.Dict, file_type: FileType):
             "%8d  ZIP files uploaded",
             summary["sequences"],
         )
+    else:
+        assert False, f"unknown file_type: {file_type}"
 
     LOG.info("%8.1fM data in total", summary["size"])
     LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
@@ -473,6 +480,7 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
+    # find image descriptions
     if file_type == "images":
         if desc_path is None:
             if len(import_paths) == 1 and import_paths[0].is_dir():
@@ -546,13 +554,13 @@ def upload(
         ]
         _upload_images(mly_uploader, specified_descs, stats)
 
-    elif file_type == "blackvue_legacy":
+    elif file_type == "raw_blackvue":
         video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-        _upload_blackvues_legacy(mly_uploader, video_paths, stats)
+        _upload_raw_blackvues(mly_uploader, video_paths, stats)
 
-    elif file_type == "camm":
+    elif file_type == "raw_camm":
         video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-        _upload_camm(mly_uploader, video_paths, stats)
+        _upload_raw_camm(mly_uploader, video_paths, stats)
 
     elif file_type == "zip":
         zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
@@ -561,9 +569,11 @@ def upload(
     else:
         raise RuntimeError(f"Invalid file_type: {file_type}")
 
-    upload_summary = _summarize(stats)
     if stats:
-        _log_upload_summary(upload_summary, file_type)
+        upload_summary = _summarize(stats)
+        if not dry_run:
+            _api_logging_finished(user_items, upload_summary)
+        _show_upload_summary(upload_summary, file_type)
     else:
         LOG.info("Nothing uploaded. Bye.")
 
@@ -608,7 +618,7 @@ def _check_camm(video_path: Path) -> None:
         )
 
 
-def _upload_blackvues_legacy(
+def _upload_raw_blackvues(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
     stats: T.Sequence[_APIStats],
@@ -622,7 +632,7 @@ def _upload_blackvues_legacy(
         try:
             _check_blackvue(video_path)
         except Exception as ex:
-            LOG.warning(f"Skipping due to: {ex}")
+            LOG.warning(f"Skipping due to: %s", ex)
             continue
 
         try:
@@ -633,10 +643,10 @@ def _upload_blackvues_legacy(
             if not mly_uploader.dry_run:
                 _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
             raise
-        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
-def _upload_camm(
+def _upload_raw_camm(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
     stats: T.Sequence[_APIStats],
@@ -649,7 +659,7 @@ def _upload_camm(
         try:
             _check_camm(video_path)
         except Exception as ex:
-            LOG.warning(f"Skipping due to: {ex}")
+            LOG.warning(f"Skipping due to: %s", ex)
             continue
         try:
             cluster_id = mly_uploader.upload_camm(
@@ -659,7 +669,7 @@ def _upload_camm(
             if not mly_uploader.dry_run:
                 _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
             raise
-        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _upload_zipfiles(
@@ -681,7 +691,7 @@ def _upload_zipfiles(
                 _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
             raise
 
-        LOG.debug(f"Uploaded to cluster: {cluster_id}")
+        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _upload_images(
@@ -696,4 +706,4 @@ def _upload_images(
             _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
         raise
 
-    LOG.debug(f"Uploaded to cluster: {clusters}")
+    LOG.debug(f"Uploaded to cluster: %s", clusters)

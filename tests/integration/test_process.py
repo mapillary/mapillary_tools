@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import zipfile
+from pathlib import Path
 
 import exifread
 import py.path
@@ -192,7 +193,7 @@ def test_upload_zip(
     assert x.returncode == 0, x.stderr
     for zfile in zip_dir.listdir():
         x = subprocess.run(
-            f"{EXECUTABLE} upload {zfile} --dry_run --user_name={USERNAME}",
+            f"{EXECUTABLE} upload_zip {zfile} --dry_run --user_name={USERNAME}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -233,7 +234,7 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"], desc
 
     # after offset
     x = subprocess.run(
@@ -253,7 +254,7 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
 
     # after offset
     x = subprocess.run(
@@ -273,7 +274,7 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
 
 
 def test_angle(setup_data: py.path.local):
@@ -293,15 +294,13 @@ def test_angle(setup_data: py.path.local):
     }
     for desc in descs:
         assert "filename" in desc
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
         assert (
-            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
-            < 0.00001
+            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
         )
         assert (
-            abs(
-                expected[desc["filename"]]
-                - desc["MAPCompassHeading"]["MagneticHeading"]
-            )
+            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
             < 0.00001
         )
 
@@ -320,16 +319,14 @@ def test_angle(setup_data: py.path.local):
         "V0370574.JPG": 1.5,
     }
     for desc in descs:
-        assert "filename" in desc
+        assert "filename" in desc, desc
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
         assert (
-            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
-            < 0.00001
+            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
         )
         assert (
-            abs(
-                expected[desc["filename"]]
-                - desc["MAPCompassHeading"]["MagneticHeading"]
-            )
+            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
             < 0.00001
         )
 
@@ -431,18 +428,22 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat.get(basename, [])[0] == desc["MAPCaptureTime"]
         assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
+            abs(expected_lonlat.get(basename, [])[1] - desc["MAPLongitude"]) < 0.00001
         )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
@@ -475,18 +476,19 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
@@ -513,18 +515,20 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        basename = Path(desc["filename"]).name
+        assert Path(desc["filename"]).is_file(), desc
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
@@ -554,16 +558,18 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
     desc_path = setup_data.join("mapillary_image_description.json")
     with open(desc_path) as fp:
         descs = json.load(fp)
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def ffmpeg_installed():
@@ -659,7 +665,8 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
     for d in descs:
-        assert d["filename"].startswith("sample-5s.mp4/")
+        assert Path(d["filename"]).is_file(), d["filename"]
+        assert "sample-5s.mp4/" in d["filename"]
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
 
@@ -683,7 +690,7 @@ def test_upload_multiple_mp4s_DEPRECATED(
 ):
     video_path = setup_data.join("sample-5s.mp4")
     x = subprocess.run(
-        f"{EXECUTABLE} upload {video_path} {video_path} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {video_path} {video_path} --dry_run --user_name={USERNAME}",
         shell=True,
     )
 
