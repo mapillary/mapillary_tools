@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .. import constants
 
-from ..upload import upload_multiple
+from ..upload import upload
 from .upload import Command as UploadCommand
 
 
@@ -27,7 +27,7 @@ class Command:
         args = {
             k: v
             for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload_multiple).args
+            if k in inspect.getfullargspec(upload).args
         }
         args["file_type"] = "zip"
-        upload_multiple(**args)
+        upload(**args)

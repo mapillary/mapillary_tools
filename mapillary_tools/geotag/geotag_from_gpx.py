@@ -19,23 +19,20 @@ LOG = logging.getLogger(__name__)
 class GeotagFromGPX(GeotagFromGeneric):
     def __init__(
         self,
-        image_dir: Path,
-        images: T.Sequence[Path],
+        image_paths: T.Sequence[Path],
         points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
     ):
         super().__init__()
-        self.image_dir = image_dir
-        self.images = images
+        self.image_paths = image_paths
         self.points = points
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
 
-    def read_image_time(self, image: Path) -> T.Optional[float]:
-        image_path = self.image_dir.joinpath(image)
+    def read_image_time(self, image_path: Path) -> T.Optional[float]:
         image_time = ExifRead(str(image_path)).extract_capture_time()
         if image_time is None:
             return None
@@ -44,27 +41,27 @@ class GeotagFromGPX(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        if not self.images:
-            assert len(self.images) == len(descs)
+        if not self.image_paths:
+            assert len(self.image_paths) == len(descs)
             return descs
 
         if not self.points:
             exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
-            for image in self.images:
+            for image_path in self.image_paths:
                 descs.append(
-                    types.describe_error(exc, str(image)),
+                    types.describe_error(exc, str(image_path)),
                 )
-            assert len(self.images) == len(descs)
+            assert len(self.image_paths) == len(descs)
             return descs
 
         # pairing the time and the image for sorting
         image_pairs = []
-        for image in self.images:
+        for image_path in self.image_paths:
             try:
-                image_time = self.read_image_time(image)
+                image_time = self.read_image_time(image_path)
             except Exception as exc:
                 descs.append(
-                    types.describe_error(exc, str(image)),
+                    types.describe_error(exc, str(image_path)),
                 )
                 continue
 
@@ -74,14 +71,14 @@ class GeotagFromGPX(GeotagFromGeneric):
                         MapillaryGeoTaggingError(
                             "No data time found from the image EXIF for interpolation"
                         ),
-                        str(image),
+                        str(image_path),
                     )
                 )
             else:
-                image_pairs.append((image_time, image))
+                image_pairs.append((image_time, image_path))
 
         if not image_pairs:
-            assert len(self.images) == len(descs)
+            assert len(self.image_paths) == len(descs)
             return descs
 
         sorted_points = sorted(self.points)
@@ -115,7 +112,7 @@ class GeotagFromGPX(GeotagFromGeneric):
 
         LOG.debug("Final time offset for interpolation: %s", image_time_offset)
 
-        for image_time, image in sorted_images:
+        for image_time, image_path in sorted_images:
             image_time = image_time + image_time_offset
 
             if image_time < sorted_points[0].time:
@@ -132,7 +129,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                             sorted_points[-1].time
                         ),
                     )
-                    descs.append(types.describe_error(exc2, str(image)))
+                    descs.append(types.describe_error(exc2, str(image_path)))
                     continue
 
             if sorted_points[-1].time < image_time:
@@ -150,7 +147,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         ),
                     )
                     descs.append(
-                        types.describe_error(exc2, str(image)),
+                        types.describe_error(exc2, str(image_path)),
                     )
                     continue
 
@@ -159,19 +156,18 @@ class GeotagFromGPX(GeotagFromGeneric):
             descs.append(
                 T.cast(
                     types.ImageDescriptionFile,
-                    {**types.as_desc(interpolated), "filename": str(image)},
+                    {**types.as_desc(interpolated), "filename": str(image_path)},
                 )
             )
 
-        assert len(self.images) == len(descs)
+        assert len(self.image_paths) == len(descs)
         return descs
 
 
 class GeotagFromGPXWithProgress(GeotagFromGPX):
     def __init__(
         self,
-        image_dir: Path,
-        images: T.Sequence[Path],
+        image_paths: T.Sequence[Path],
         points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
@@ -179,8 +175,7 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
         progress_bar=None,
     ) -> None:
         super().__init__(
-            image_dir,
-            images,
+            image_paths,
             points,
             use_gpx_start_time=use_gpx_start_time,
             use_image_start_time=use_image_start_time,
@@ -188,9 +183,9 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
         )
         self._progress_bar = progress_bar
 
-    def read_image_time(self, image: Path) -> T.Optional[float]:
+    def read_image_time(self, image_path: Path) -> T.Optional[float]:
         try:
-            image_time = super().read_image_time(image)
+            image_time = super().read_image_time(image_path)
         finally:
             if self._progress_bar:
                 self._progress_bar.update(1)

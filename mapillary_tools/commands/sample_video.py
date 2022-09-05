@@ -66,7 +66,7 @@ class Command:
                     constants.SAMPLED_VIDEO_FRAMES_FILENAME
                 )
             else:
-                import_path = video_import_path.parent.joinpath(
+                import_path = video_import_path.resolve().parent.joinpath(
                     constants.SAMPLED_VIDEO_FRAMES_FILENAME
                 )
             vars_args["import_path"] = import_path

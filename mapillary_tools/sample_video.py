@@ -24,17 +24,14 @@ def sample_video(
     rerun: bool = False,
 ) -> None:
     if video_import_path.is_dir():
-        video_list = [
-            path
-            for path in utils.get_video_file_list(
-                video_import_path, skip_subfolders, abs_path=True
-            )
-        ]
+        video_list = utils.find_videos(
+            [video_import_path], skip_subfolders=skip_subfolders
+        )
         video_dir = video_import_path
         LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
     elif video_import_path.is_file():
         video_list = [video_import_path]
-        video_dir = video_import_path.parent
+        video_dir = video_import_path.resolve().parent
     else:
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
@@ -104,7 +101,7 @@ def wip_sample_dir(sample_dir: Path) -> Path:
     pid = os.getpid()
     timestamp = int(time.time())
     # prefix with .mly_ffmpeg_ to avoid samples being scanned by "mapillary_tools process"
-    return sample_dir.parent.joinpath(
+    return sample_dir.resolve().parent.joinpath(
         f".mly_ffmpeg_{sample_dir.name}.{pid}.{timestamp}"
     )
 

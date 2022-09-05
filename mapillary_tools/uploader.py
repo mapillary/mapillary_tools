@@ -28,7 +28,7 @@ LOG = logging.getLogger(__name__)
 
 
 def _group_sequences_by_uuid(
-    descs: T.List[types.ImageDescriptionFile],
+    descs: T.Sequence[types.ImageDescriptionFile],
 ) -> T.Dict[str, T.Dict[str, types.ImageDescriptionFile]]:
     sequences: T.Dict[str, T.Dict[str, types.ImageDescriptionFile]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
@@ -179,7 +179,7 @@ class Uploader:
             return None
 
     def upload_images(
-        self, descs: T.List[types.ImageDescriptionFile]
+        self, descs: T.Sequence[types.ImageDescriptionFile]
     ) -> T.Dict[str, str]:
         _validate_descs(descs)
         sequences = _group_sequences_by_uuid(descs)
@@ -222,7 +222,7 @@ def desc_file_to_exif(
     return T.cast(types.ImageDescriptionEXIF, removed)
 
 
-def _validate_descs(descs: T.List[types.ImageDescriptionFile]):
+def _validate_descs(descs: T.Sequence[types.ImageDescriptionFile]):
     for desc in descs:
         types.validate_desc(desc)
         if not os.path.isfile(desc["filename"]):
@@ -240,7 +240,7 @@ def zip_images(
         zip_filename_wip = zip_dir.joinpath(
             f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
-        with open(zip_filename_wip, "wb") as fp:
+        with zip_filename_wip.open("wb") as fp:
             upload_md5sum = _zip_sequence_fp(sequence, fp)
         zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)

@@ -12,7 +12,6 @@ from .geotag_from_gpx import GeotagFromGPX
 class GeotagFromNMEAFile(GeotagFromGPX):
     def __init__(
         self,
-        image_dir: Path,
         images: T.Sequence[Path],
         source_path: Path,
         use_gpx_start_time: bool = False,
@@ -20,7 +19,6 @@ class GeotagFromNMEAFile(GeotagFromGPX):
     ):
         points = get_lat_lon_time_from_nmea(source_path)
         super().__init__(
-            image_dir,
             images,
             points,
             use_gpx_start_time=use_gpx_start_time,

@@ -1,6 +1,6 @@
 import time
+import os
 import typing as T
-from pathlib import Path
 
 from . import exceptions, types, VERSION
 from .types import MetaProperties
@@ -69,7 +69,6 @@ def format_orientation(orientation: int) -> int:
 
 
 def process_import_meta_properties(
-    import_path: Path,
     descs: T.List[types.ImageDescriptionFileOrError],
     orientation=None,
     device_make=None,
@@ -79,13 +78,8 @@ def process_import_meta_properties(
     add_import_date=False,
     custom_meta_data=None,
     camera_uuid=None,
-    windows_path=False,
-    exclude_import_path=False,
-    exclude_path=None,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     for desc in types.filter_out_errors(descs):
-        image = import_path.joinpath(desc["filename"])
-
         if orientation is not None:
             desc["MAPOrientation"] = format_orientation(orientation)
 
@@ -102,19 +96,7 @@ def process_import_meta_properties(
             desc["MAPCameraUUID"] = camera_uuid
 
         if add_file_name:
-            image_path = str(image)
-            if exclude_import_path:
-                image_path = (
-                    image_path.replace(str(import_path), "").lstrip("\\").lstrip("/")
-                )
-            elif exclude_path:
-                image_path = (
-                    image_path.replace(exclude_path, "").lstrip("\\").lstrip("/")
-                )
-            if windows_path:
-                image_path = image_path.replace("/", "\\")
-
-            desc["MAPFilename"] = image_path
+            desc["MAPFilename"] = os.path.basename(desc["filename"])
 
         if add_import_date:
             add_meta_tag(

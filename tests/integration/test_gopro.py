@@ -1,6 +1,7 @@
 import json
 import subprocess
 import typing as T
+from pathlib import Path
 
 import py.path
 
@@ -132,5 +133,6 @@ def test_process_gopro_hero8(
             )
             < 0.0001
         )
-        assert expected["filename"] == actual["filename"]
+        assert Path(actual["filename"]).is_file(), actual["filename"]
+        assert actual["filename"].endswith(expected["filename"])
         assert "MAPSequenceUUID" in actual
