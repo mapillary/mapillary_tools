@@ -706,6 +706,33 @@ def test_video_process(setup_data: py.path.local):
     assert 2 == len(filter_out_errors(descs))
 
 
+def test_video_process_and_upload(
+    setup_config: py.path.local, setup_upload: py.path.local, setup_data: py.path.local
+):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    gpx_file = setup_data.join("test.gpx")
+    # desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process_and_upload --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode != 0, x.stderr
+    assert 0 == len(setup_upload.listdir())
+
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process_and_upload --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert 2 == len(setup_upload.listdir())
+    for z in setup_upload.listdir():
+        validate_and_extract_zip(str(z))
+
+
 def test_video_process_multiple_videos(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
