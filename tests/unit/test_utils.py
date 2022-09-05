@@ -65,7 +65,7 @@ def test_filter_all(tmpdir: py.path.local):
             ]
         )
     )
-    assert {"foo/world.mp4", "foo/.foo"} == set(
+    actual = set(
         str(p.relative_to(tmpdir))
         for p in utils.find_videos(
             [
@@ -76,3 +76,8 @@ def test_filter_all(tmpdir: py.path.local):
             ]
         )
     )
+    # some platform filenames are case sensitive?
+    assert {"foo/world.MP4", "foo/.foo"} == actual or {
+        "foo/world.mp4",
+        "foo/.foo",
+    } == actual
