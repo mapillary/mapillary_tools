@@ -289,7 +289,7 @@ class Command:
             ),
         )
 
-        process_finalize(
+        descs = process_finalize(
             descs=descs,
             **(
                 {
@@ -299,3 +299,6 @@ class Command:
                 }
             ),
         )
+
+        # running video_process will pass the descs to the upload command
+        vars_args["_descs_from_process"] = descs

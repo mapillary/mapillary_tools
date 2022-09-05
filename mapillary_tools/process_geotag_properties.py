@@ -2,7 +2,6 @@ import collections
 import datetime
 import json
 import logging
-import os
 import typing as T
 from pathlib import Path
 
@@ -51,8 +50,16 @@ def process_geotag_properties(
     else:
         import_paths = import_path
     import_paths = utils.deduplicate_paths(import_paths)
+
     if not import_paths:
         return []
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
 
     geotag: geotag_from_generic.GeotagFromGeneric
 
@@ -277,7 +284,7 @@ def _overwrite_exif_tags(
             )
 
 
-def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]):
+def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]) -> None:
     with tqdm(
         total=len(types.filter_out_errors(descs)),
         desc="Test EXIF writing",
@@ -296,7 +303,7 @@ def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]):
 def _write_descs(
     descs: T.Sequence[types.ImageDescriptionFileOrError],
     desc_path: str,
-):
+) -> None:
     """
     For backward-compatibilities, import_path is used to find the relative path of the desc["filename"].
     If it is not provided, then it will be resolved as an absolute path.
@@ -311,7 +318,7 @@ def _write_descs(
 
 def _show_stats(
     descs: T.Sequence[types.ImageDescriptionFileOrError], skip_process_errors: bool
-):
+) -> None:
     processed_images = types.filter_out_errors(descs)
     not_processed_images = T.cast(
         T.Sequence[types.ImageDescriptionFileError],
@@ -355,41 +362,33 @@ def _show_stats(
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
     descs: T.Sequence[types.ImageDescriptionFileOrError],
-    skip_process_errors=False,
-    overwrite_all_EXIF_tags=False,
-    overwrite_EXIF_time_tag=False,
-    overwrite_EXIF_gps_tag=False,
-    overwrite_EXIF_direction_tag=False,
-    overwrite_EXIF_orientation_tag=False,
+    skip_process_errors: bool = False,
+    overwrite_all_EXIF_tags: bool = False,
+    overwrite_EXIF_time_tag: bool = False,
+    overwrite_EXIF_gps_tag: bool = False,
+    overwrite_EXIF_direction_tag: bool = False,
+    overwrite_EXIF_orientation_tag: bool = False,
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
-    desc_path: str = None,
-) -> None:
+    desc_path: T.Optional[str] = None,
+) -> T.List[types.ImageDescriptionFileOrError]:
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
     else:
+        assert isinstance(import_path, list)
         import_paths = import_path
     import_paths = utils.deduplicate_paths(import_paths)
-    if not import_paths:
-        return
 
-    if desc_path is None:
-        if len(import_paths) == 1 and import_paths[0].is_dir():
-            desc_path = str(
-                import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+    if not import_paths:
+        return []
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
             )
-        else:
-            desc_path = "-"
-            if 1 < len(import_paths):
-                LOG.warning(
-                    "Writing image descriptions to STDOUT by default, because multiple import paths are specified"
-                )
-            else:
-                LOG.warning(
-                    'Writing image descriptions to STDOUT by default, because the import path "%s" is a file',
-                    import_paths[0],
-                )
 
     _apply_offsets(descs, offset_time=offset_time, offset_angle=offset_angle)
 
@@ -406,6 +405,27 @@ def process_finalize(
 
     _test_exif_writing(descs)
 
-    _write_descs(descs, desc_path)
+    if desc_path is None:
+        if len(import_paths) == 1 and import_paths[0].is_dir():
+            desc_path = str(
+                import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+            )
+        else:
+            if 1 < len(import_paths):
+                LOG.warning(
+                    "Writing image descriptions to STDOUT, because multiple import paths are specified"
+                )
+            else:
+                LOG.warning(
+                    'Writing image descriptions to STDOUT, because the import path "%s" is a file',
+                    import_paths[0],
+                )
+            desc_path = "-"
+
+    if desc_path != "\x00":
+        # write descs first because _show_stats() may raise an exception
+        _write_descs(descs, desc_path)
 
     _show_stats(descs, skip_process_errors=skip_process_errors)
+
+    return descs

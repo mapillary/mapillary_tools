@@ -457,31 +457,14 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def upload(
-    import_path: T.Union[Path, T.Sequence[Path]],
-    file_type: FileType,
-    desc_path: T.Optional[str] = None,
-    user_name: T.Optional[str] = None,
-    organization_key: T.Optional[str] = None,
-    dry_run=False,
-    skip_subfolders=False,
-):
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
+def _load_descs_for_images(
+    _descs_from_process: T.Optional[T.Sequence[types.ImageDescriptionFileOrError]],
+    desc_path: T.Optional[str],
+    import_paths: T.Sequence[Path],
+) -> T.List[types.ImageDescriptionFile]:
+    if _descs_from_process is not None:
+        new_descs = types.filter_out_errors(_descs_from_process)
     else:
-        assert isinstance(import_path, list)
-        import_paths = import_path
-
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
-            )
-
-    # find image descriptions
-    if file_type == "images":
         if desc_path is None:
             if len(import_paths) == 1 and import_paths[0].is_dir():
                 desc_path = str(
@@ -496,15 +479,53 @@ def upload(
                     raise exceptions.MapillaryBadParameterError(
                         "desc_path is required if the import path is not a directory"
                     )
+        else:
+            assert desc_path != "\x00"
 
-            descs = read_image_descriptions(desc_path)
+        new_descs = read_image_descriptions(desc_path)
 
-            # Make sure all descs have uuid assigned
-            # It is used to find the right sequence when writing upload history
-            missing_sequence_uuid = str(uuid.uuid4())
-            for desc in descs:
-                if "MAPSequenceUUID" not in desc:
-                    desc["MAPSequenceUUID"] = missing_sequence_uuid
+    # Make sure all descs have uuid assigned
+    # It is used to find the right sequence when writing upload history
+    missing_sequence_uuid = str(uuid.uuid4())
+    for desc in new_descs:
+        if "MAPSequenceUUID" not in desc:
+            desc["MAPSequenceUUID"] = missing_sequence_uuid
+
+    return new_descs
+
+
+def upload(
+    import_path: T.Union[Path, T.Sequence[Path]],
+    file_type: FileType,
+    desc_path: T.Optional[str] = None,
+    _descs_from_process: T.Optional[
+        T.Sequence[types.ImageDescriptionFileOrError]
+    ] = None,
+    user_name: T.Optional[str] = None,
+    organization_key: T.Optional[str] = None,
+    dry_run=False,
+    skip_subfolders=False,
+) -> None:
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        assert isinstance(import_path, list)
+        import_paths = import_path
+    import_paths = utils.deduplicate_paths(import_paths)
+
+    if not import_paths:
+        return
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
+
+    if file_type == "images":
+        descs = _load_descs_for_images(_descs_from_process, desc_path, import_paths)
     else:
         descs = None
 
