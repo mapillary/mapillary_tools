@@ -127,14 +127,20 @@ def main():
     LOG.setLevel(log_level)
 
     argvars = vars(args)
-    params = {k: v for k, v in argvars.items() if v is not None and not callable(v)}
-    for k, v in params.items():
-        LOG.debug(f"CLI param: {k}: {v}")
+    for k, v in argvars.items():
+        if v is None:
+            continue
+        if callable(v):
+            continue
+        if k in ["jwt", "user_password"]:
+            assert isinstance(v, str), type(v)
+            v = "******"
+        LOG.debug("CLI param: %s: %s", k, v)
 
     try:
         args.func(argvars)
     except exceptions.MapillaryUserError as exc:
-        LOG.error(f"{exc.__class__.__name__}: {exc}")
+        LOG.error(f"%s: %s", exc.__class__.__name__, exc)
         sys.exit(exc.exit_code)
 
 
