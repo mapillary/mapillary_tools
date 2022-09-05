@@ -4,36 +4,42 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 
 <!--ts-->
 
-* [Quickstart](#quickstart)
-* [Requirements](#requirements)
-* [Installation](#installation)
-* [Video Support](#video-support)
-* [Usage](#usage)
-    - [Process](#process)
-    - [Upload Images](#upload-images)
-    - [Upload BlackVue Videos](#upload-blackvue-videos)
-    - [Video Process](#video-process)
-    - [Authenticate](#authenticate)
-    - [Aliases](#aliases)
-* [Advanced Usage](#advanced-usage)
-    - [Image Description](#image-description)
-    - [Zip Images](#zip-images)
-    - [Upload API](#upload-api)
-* [Troubleshooting](#troubleshooting)
-* [Development](#development)
+- [Quickstart](#quickstart)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Image Process](#image-process)
+  - [Upload Images](#upload-images)
+  - [Upload BlackVue Videos](#upload-blackvue-videos)
+  - [Upload CAMM Videos](#upload-camm-videos)
+- [Advanced Usage](#advanced-usage)
+  - [Client-side Video Process](#client-side-video-process)
+  - [Authenticate](#authenticate)
+  - [Aliases](#aliases)
+  - [Image Description](#image-description)
+  - [Zip Images](#zip-images)
+  - [Upload API](#upload-api)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
 
 <!--te-->
 
 ## Quickstart
 
 Download the latest `mapillary_tools` binaries for your platform
-[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.0) first.
+[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2) first.
 See [more installation instructions](#installation) below.
 
 Process and upload imagery:
 
 ```shell
 mapillary_tools process_and_upload "path/to/images/"
+```
+
+Upload [CAMM](https://developers.google.com/streetview/publish/camm-spec) videos:
+
+```shell
+mapillary_tools upload_camm "path/to/camm_videos/"
 ```
 
 Upload BlackVue videos:
@@ -95,28 +101,9 @@ Termux:
 mv -v storage/dcim/mapillaryimages mapillaryimages
 ```
 
-## Video Support
-
-To [process videos](#video-process), you will also need to install `ffmpeg`.
-
-You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
-downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
-
-On macOS, use [Homebrew](https://brew.sh/):
-
-```shell
-brew install ffmpeg
-```
-
-On Debian/Ubuntu:
-
-```shell
-sudo apt install ffmpeg
-```
-
 ## Usage
 
-### Process
+### Image Process
 
 The `process` command geotags images in the given directory. It extracts the required and optional metadata from image
 EXIF (or the other supported geotag sources), and writes all the metadata (or process errors) in
@@ -167,12 +154,14 @@ mapillary_tools upload "path/to/images/" \
 
 ### Upload BlackVue Videos
 
-BlackVue videos can be uploaded with the `upload` command and will be processed on Mapillary servers.
+BlackVue videos can be uploaded with the `upload_blackvue` command directly, and they will be processed on Mapillary servers.
+
+New in version [v0.8.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.2).
 
 #### Examples
 
-Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`
-. It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
 mapillary_tools upload_blackvue "video_file_name.mp4" \
@@ -180,15 +169,65 @@ mapillary_tools upload_blackvue "video_file_name.mp4" \
     --organization_key "mly_organization_id"
 ```
 
-Upload all BlackVue videos (*.mp4) under the folder:
+Upload all BlackVue videos (\*.mp4) under the folder:
 
 ```shell
 mapillary_tools upload_blackvue "path/to/blackvue_videos/"
 ```
 
-### Video Process
+### Upload CAMM Videos
 
-Video process involves two commands:
+[CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command directly,
+and will be processed on Mapillary servers.
+
+New in version [v0.9.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2).
+
+#### Examples
+
+Upload a CAMM video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
+It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+
+```shell
+mapillary_tools upload_camm "video_file_name.mp4" \
+    --user_name "mly_user" \
+    --organization_key "mly_organization_id"
+```
+
+Upload all CAMM videos (\*.mp4) under the folder:
+
+```shell
+mapillary_tools upload_camm "path/to/camm_videos/"
+```
+
+## Advanced Usage
+
+### Client-side Video Process
+
+Client-side video processing allows users to process and upload other videos that can't be uploaded directly,
+and configure sample intervals, or the other processing parameters.
+
+#### Install FFmpeg
+
+To [process videos locally](#video-process), you will need to install `ffmpeg`.
+
+You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
+downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
+
+On macOS, use [Homebrew](https://brew.sh/):
+
+```shell
+brew install ffmpeg
+```
+
+On Debian/Ubuntu:
+
+```shell
+sudo apt install ffmpeg
+```
+
+#### Video Process
+
+Client-side video process involves two commands:
 
 1. `sample_video`: sample videos into images, and insert capture times to the image EXIF. Capture time is calculated
    based on the video start time and sampling interval. This is where `ffmpeg` is being used.
@@ -301,15 +340,13 @@ mapillary_tools sample_video "path/to/videos/" "path/to/videos/mapillary_sampled
 mapillary_tools process_and_upload "path/to/videos/mapillary_sampled_video_frames/"
 ```
 
-## Advanced Usage
-
 ### Image Description
 
 As the output, the `procss` command generates `mapillary_image_description.json` under the image directory by default.
 The file contains an array of objects, each of which records the metadata of one image in the image directory. The
 metadata is validated
-by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json)
-. Here is a minimal example:
+by [the image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json).
+Here is a minimal example:
 
 ```json
 [
@@ -387,7 +424,7 @@ Zip processed images in `path/to/images/` and write zip files in `path/to/zipped
 mapillary_tools zip "path/to/images/" "path/to/zipped_images/"
 ```
 
-Upload all the zip files (*.zip) under the folder:
+Upload all the zip files (\*.zip) under the folder:
 
 ```shell
 mapillary_tools upload_zip "path/to/zipped_images/"
@@ -535,6 +572,7 @@ black mapillary_tools tests
 ```
 
 Release a new version:
+
 ```shell
 # Assume you are releasing v0.9.1-beta
 

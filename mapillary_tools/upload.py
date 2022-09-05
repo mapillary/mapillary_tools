@@ -565,11 +565,11 @@ def upload(
     if file_type == "images":
         image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
         # find descs that match the image paths from the import paths
-        resolved_import_paths = set(p.resolve() for p in image_paths)
+        resolved_image_paths = set(p.resolve() for p in image_paths)
         specified_descs = [
             d
             for d in (descs or [])
-            if Path(d["filename"]).resolve() in resolved_import_paths
+            if Path(d["filename"]).resolve() in resolved_image_paths
         ]
         _upload_images(mly_uploader, specified_descs, stats)
 
