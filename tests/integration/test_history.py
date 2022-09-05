@@ -11,7 +11,7 @@ from .test_process import EXECUTABLE, setup_config, setup_data, setup_upload, US
 @pytest.fixture
 def setup_history_path(tmpdir: py.path.local):
     os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
-    history_path = tmpdir.mkdir("history")
+    history_path = tmpdir.join("history")
     os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
     yield history_path
     if tmpdir.check():
