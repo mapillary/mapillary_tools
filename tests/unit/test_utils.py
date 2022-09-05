@@ -77,7 +77,13 @@ def test_filter_all(tmpdir: py.path.local):
         )
     )
     # some platform filenames are case sensitive?
-    assert {"foo/world.MP4", "foo/.foo"} == actual or {
-        "foo/world.mp4",
-        "foo/.foo",
-    } == actual
+    assert (
+        {"foo/world.MP4", "foo/.foo"} == actual
+        or {
+            "foo/world.mp4",
+            "foo/world.MP4",
+            "foo/.foo",
+        }
+        == actual
+        or {"foo/world.mp4", "foo/.foo"} == actual
+    )
