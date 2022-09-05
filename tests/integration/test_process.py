@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import zipfile
+from pathlib import Path
 
 import exifread
 import py.path
@@ -14,6 +15,7 @@ EXECUTABLE = os.getenv(
 )
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
+PROCESS_FLAGS = "--add_import_date --add_file_name"
 
 
 @pytest.fixture
@@ -46,6 +48,7 @@ def setup_upload(tmpdir: py.path.local):
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
+    os.environ["MAPILLARY__DISABLE_CAMM_CHECK"] = "YES"
     yield upload_dir
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
@@ -61,7 +64,7 @@ def test_basic():
 
 def test_process(setup_data: py.path.local):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -93,6 +96,7 @@ def validate_and_extract_zip(filename: str):
                     assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
                     assert isinstance(desc.get("MAPCaptureTime"), str), desc
                     assert isinstance(desc.get("MAPCompassHeading"), dict), desc
+                    assert isinstance(desc.get("MAPFilename"), str), desc
                     for key in desc.keys():
                         assert key.startswith("MAP"), key
                     ret[name] = desc
@@ -102,7 +106,7 @@ def validate_and_extract_zip(filename: str):
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     zip_dir = tmpdir.mkdir("zip_dir")
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -123,7 +127,7 @@ def test_upload_image_dir(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -143,10 +147,11 @@ def test_upload_image_dir_twice(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
+    desc_path = setup_data.join("mapillary_image_description.json")
 
     md5sum_map = {}
 
@@ -162,7 +167,7 @@ def test_upload_image_dir_twice(
 
     # expect the second upload to not produce new uploads
     x = subprocess.run(
-        f"{EXECUTABLE} upload {setup_data} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload --desc_path={desc_path} {setup_data} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -181,7 +186,7 @@ def test_upload_zip(
 ):
     zip_dir = tmpdir.mkdir("zip_dir")
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -192,7 +197,7 @@ def test_upload_zip(
     assert x.returncode == 0, x.stderr
     for zfile in zip_dir.listdir():
         x = subprocess.run(
-            f"{EXECUTABLE} upload {zfile} --dry_run --user_name={USERNAME}",
+            f"{EXECUTABLE} upload_zip {zfile} {zfile} --dry_run --user_name={USERNAME}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -207,7 +212,22 @@ def test_process_and_upload(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {setup_data} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload {PROCESS_FLAGS} {setup_data} --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert not setup_data.join("mapillary_image_description.json").exists()
+    for file in setup_upload.listdir():
+        validate_and_extract_zip(str(file))
+
+
+def test_process_and_upload_multiple_import_paths(
+    setup_config: py.path.local,
+    setup_data: py.path.local,
+    setup_upload: py.path.local,
+):
+    x = subprocess.run(
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -215,10 +235,53 @@ def test_process_and_upload(
         validate_and_extract_zip(str(file))
 
 
+def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
+    setup_config: py.path.local,
+    setup_data: py.path.local,
+    setup_upload: py.path.local,
+):
+    x = subprocess.run(
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --desc_path=- --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    for file in setup_upload.listdir():
+        validate_and_extract_zip(str(file))
+
+
+def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
+    tmpdir: py.path.local,
+    setup_config: py.path.local,
+    setup_data: py.path.local,
+    setup_upload: py.path.local,
+):
+    desc_path = tmpdir.join("hello.json")
+    x = subprocess.run(
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/DSC00001.JPG --desc_path={desc_path} --dry_run --user_name={USERNAME}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    with open(desc_path, "r") as fp:
+        descs = json.load(fp)
+
+    expected = {
+        "DSC00001.JPG": "2018_06_08_13_24_10_000",
+        "DSC00497.JPG": "2018_06_08_13_32_28_000",
+        "V0370574.JPG": "2018_07_27_11_32_14_000",
+    }
+
+    for desc in descs:
+        assert "filename" in desc
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"], desc
+
+    for file in setup_upload.listdir():
+        validate_and_extract_zip(str(file))
+
+
 def test_time(setup_data: py.path.local):
     # before offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     desc_path = setup_data.join("mapillary_image_description.json")
@@ -233,11 +296,11 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"], desc
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_time=2.5",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_time=2.5",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -253,11 +316,11 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_time=-1.0",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_time=-1.0",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -273,13 +336,13 @@ def test_time(setup_data: py.path.local):
 
     for desc in descs:
         assert "filename" in desc
-        assert expected[desc["filename"]] == desc["MAPCaptureTime"]
+        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
 
 
 def test_angle(setup_data: py.path.local):
     # before offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -293,21 +356,19 @@ def test_angle(setup_data: py.path.local):
     }
     for desc in descs:
         assert "filename" in desc
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
         assert (
-            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
-            < 0.00001
+            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
         )
         assert (
-            abs(
-                expected[desc["filename"]]
-                - desc["MAPCompassHeading"]["MagneticHeading"]
-            )
+            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
             < 0.00001
         )
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_angle=2.5",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_angle=2.5",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -320,16 +381,14 @@ def test_angle(setup_data: py.path.local):
         "V0370574.JPG": 1.5,
     }
     for desc in descs:
-        assert "filename" in desc
+        assert "filename" in desc, desc
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
         assert (
-            abs(expected[desc["filename"]] - desc["MAPCompassHeading"]["TrueHeading"])
-            < 0.00001
+            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
         )
         assert (
-            abs(
-                expected[desc["filename"]]
-                - desc["MAPCompassHeading"]["MagneticHeading"]
-            )
+            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
             < 0.00001
         )
 
@@ -340,7 +399,6 @@ def test_process_boolean_options(
     boolean_options = [
         "--add_file_name",
         "--add_import_date",
-        "--exclude_import_path",
         "--interpolate_directions",
         "--overwrite_EXIF_direction_tag",
         "--overwrite_EXIF_gps_tag",
@@ -348,17 +406,16 @@ def test_process_boolean_options(
         "--overwrite_EXIF_time_tag",
         "--overwrite_all_EXIF_tags",
         "--skip_subfolders",
-        "--windows_path",
     ]
     for option in boolean_options:
         x = subprocess.run(
-            f"{EXECUTABLE} process {setup_data} {option}",
+            f"{EXECUTABLE} process {PROCESS_FLAGS} {option} {setup_data}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
     all_options = " ".join(boolean_options)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} {all_options}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {all_options} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -408,7 +465,7 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -431,18 +488,22 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat.get(basename, [])[0] == desc["MAPCaptureTime"]
         assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
+            abs(expected_lonlat.get(basename, [])[1] - desc["MAPLongitude"]) < 0.00001
         )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
@@ -451,7 +512,7 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -475,18 +536,19 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
@@ -494,7 +556,7 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -513,18 +575,20 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     with open(desc_path) as fp:
         descs = json.load(fp)
 
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
 
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
 
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        basename = Path(desc["filename"]).name
+        assert Path(desc["filename"]).is_file(), desc
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
@@ -532,7 +596,7 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -554,16 +618,18 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
     desc_path = setup_data.join("mapillary_image_description.json")
     with open(desc_path) as fp:
         descs = json.load(fp)
-    assert {"V0370574.JPG"} == {d["filename"] for d in find_desc_errors(descs)}
+    assert {"V0370574.JPG"} == {
+        Path(d["filename"]).name for d in find_desc_errors(descs)
+    }
     for desc in find_desc_errors(descs):
         assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
     for desc in filter_out_errors(descs):
-        assert expected_lonlat[desc["filename"]][0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat[desc["filename"]][1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[desc["filename"]][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[desc["filename"]][3] - desc["MAPAltitude"]) < 0.00001
+        assert Path(desc["filename"]).is_file(), desc
+        basename = Path(desc["filename"]).name
+        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
+        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
 def ffmpeg_installed():
@@ -630,7 +696,7 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
@@ -638,6 +704,33 @@ def test_video_process(setup_data: py.path.local):
         descs = json.load(fp)
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
+
+
+def test_video_process_and_upload(
+    setup_config: py.path.local, setup_upload: py.path.local, setup_data: py.path.local
+):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    gpx_file = setup_data.join("test.gpx")
+    # desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    with gpx_file.open("w") as fp:
+        fp.write(GPX_CONTENT)
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode != 0, x.stderr
+    assert 0 == len(setup_upload.listdir())
+
+    x = subprocess.run(
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert 2 == len(setup_upload.listdir())
+    for z in setup_upload.listdir():
+        validate_and_extract_zip(str(z))
 
 
 def test_video_process_multiple_videos(setup_data: py.path.local):
@@ -652,14 +745,15 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     with open(desc_path) as fp:
         descs = json.load(fp)
     for d in descs:
-        assert d["filename"].startswith("sample-5s.mp4/")
+        assert Path(d["filename"]).is_file(), d["filename"]
+        assert "sample-5s.mp4/" in d["filename"]
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
 
@@ -683,7 +777,7 @@ def test_upload_multiple_mp4s_DEPRECATED(
 ):
     video_path = setup_data.join("sample-5s.mp4")
     x = subprocess.run(
-        f"{EXECUTABLE} upload {video_path} {video_path} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {video_path} {video_path} --dry_run --user_name={USERNAME}",
         shell=True,
     )
 
@@ -719,6 +813,42 @@ def test_upload_blackvue(
 
     x = subprocess.run(
         f'{EXECUTABLE} upload_blackvue {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+
+    assert 3 == len(setup_upload.listdir())
+    assert {
+        "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
+        f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
+        f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",
+    } == {os.path.basename(f) for f in setup_upload.listdir()}
+
+
+def test_upload_camm(
+    tmpdir: py.path.local,
+    setup_data: py.path.local,
+    setup_config: py.path.local,
+    setup_upload: py.path.local,
+):
+    another_path = tmpdir.join("another_sub")
+
+    video_path2 = another_path.join("sub1 folder").join("sub2 folder").join("hello.mp4")
+    video_path2.write_text("hello", encoding="utf-8", ensure=True)
+
+    video_path_invalid_ext = (
+        another_path.join("sub1 folder").join("sub2 folder").join("hello.mp45")
+    )
+    video_path_invalid_ext.write_text("hello2", encoding="utf-8", ensure=True)
+
+    hidden_video_path3 = another_path.join(".subfolder").join("hello.mp4")
+    hidden_video_path3.write_text("world", encoding="utf-8", ensure=True)
+
+    video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
+    video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
+
+    x = subprocess.run(
+        f'{EXECUTABLE} upload_camm {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
