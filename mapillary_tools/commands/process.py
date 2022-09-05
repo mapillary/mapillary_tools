@@ -99,26 +99,8 @@ class Command:
             required=False,
         )
         group_metadata.add_argument(
-            "--exclude_import_path",
-            help="If local file name is to be added with --add_file_name, exclude IMPORT_PATH from the name.",
-            action="store_true",
-            required=False,
-        )
-        group_metadata.add_argument(
-            "--exclude_path",
-            help="If local file name is to be added with --add_file_name, specify the path to be excluded.",
-            default=None,
-            required=False,
-        )
-        group_metadata.add_argument(
             "--add_import_date",
             help="Add import date.",
-            action="store_true",
-            required=False,
-        )
-        group_metadata.add_argument(
-            "--windows_path",
-            help="If local file name is to be added with --add_file_name, added it as a windows path.",
             action="store_true",
             required=False,
         )

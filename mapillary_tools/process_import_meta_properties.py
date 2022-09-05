@@ -1,3 +1,4 @@
+import time
 import os
 import typing as T
 
@@ -73,6 +74,8 @@ def process_import_meta_properties(
     device_make=None,
     device_model=None,
     GPS_accuracy=None,
+    add_file_name=False,
+    add_import_date=False,
     custom_meta_data=None,
     camera_uuid=None,
 ) -> T.List[types.ImageDescriptionFileOrError]:
@@ -92,7 +95,16 @@ def process_import_meta_properties(
         if camera_uuid is not None:
             desc["MAPCameraUUID"] = camera_uuid
 
-        desc["MAPFilename"] = os.path.basename(desc["filename"])
+        if add_file_name:
+            desc["MAPFilename"] = os.path.basename(desc["filename"])
+
+        if add_import_date:
+            add_meta_tag(
+                desc,
+                "dates",
+                "import_date",
+                int(round(time.time() * 1000)),
+            )
 
         add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
 

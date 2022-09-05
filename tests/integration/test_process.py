@@ -15,6 +15,7 @@ EXECUTABLE = os.getenv(
 )
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
+PROCESS_FLAGS = "--add_import_date --add_file_name"
 
 
 @pytest.fixture
@@ -63,7 +64,7 @@ def test_basic():
 
 def test_process(setup_data: py.path.local):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -95,6 +96,7 @@ def validate_and_extract_zip(filename: str):
                     assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
                     assert isinstance(desc.get("MAPCaptureTime"), str), desc
                     assert isinstance(desc.get("MAPCompassHeading"), dict), desc
+                    assert isinstance(desc.get("MAPFilename"), str), desc
                     for key in desc.keys():
                         assert key.startswith("MAP"), key
                     ret[name] = desc
@@ -104,7 +106,7 @@ def validate_and_extract_zip(filename: str):
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     zip_dir = tmpdir.mkdir("zip_dir")
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -125,7 +127,7 @@ def test_upload_image_dir(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -145,7 +147,7 @@ def test_upload_image_dir_twice(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -184,7 +186,7 @@ def test_upload_zip(
 ):
     zip_dir = tmpdir.mkdir("zip_dir")
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -210,7 +212,7 @@ def test_process_and_upload(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {setup_data} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload {PROCESS_FLAGS} {setup_data} --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -225,7 +227,7 @@ def test_process_and_upload_multiple_import_paths(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -239,7 +241,7 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload {setup_data} {setup_data}/DSC00001.JPG --desc_path=- --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --desc_path=- --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -255,7 +257,7 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
 ):
     desc_path = tmpdir.join("hello.json")
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload {setup_data} {setup_data} {setup_data}/DSC00001.JPG --desc_path={desc_path} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} --verbose process_and_upload {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/DSC00001.JPG --desc_path={desc_path} --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -279,7 +281,7 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
 def test_time(setup_data: py.path.local):
     # before offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     desc_path = setup_data.join("mapillary_image_description.json")
@@ -298,7 +300,7 @@ def test_time(setup_data: py.path.local):
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_time=2.5",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_time=2.5",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -318,7 +320,7 @@ def test_time(setup_data: py.path.local):
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_time=-1.0",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_time=-1.0",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -340,7 +342,7 @@ def test_time(setup_data: py.path.local):
 def test_angle(setup_data: py.path.local):
     # before offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -366,7 +368,7 @@ def test_angle(setup_data: py.path.local):
 
     # after offset
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --offset_angle=2.5",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --offset_angle=2.5",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -397,7 +399,6 @@ def test_process_boolean_options(
     boolean_options = [
         "--add_file_name",
         "--add_import_date",
-        "--exclude_import_path",
         "--interpolate_directions",
         "--overwrite_EXIF_direction_tag",
         "--overwrite_EXIF_gps_tag",
@@ -405,17 +406,16 @@ def test_process_boolean_options(
         "--overwrite_EXIF_time_tag",
         "--overwrite_all_EXIF_tags",
         "--skip_subfolders",
-        "--windows_path",
     ]
     for option in boolean_options:
         x = subprocess.run(
-            f"{EXECUTABLE} process {setup_data} {option}",
+            f"{EXECUTABLE} process {PROCESS_FLAGS} {option} {setup_data}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
     all_options = " ".join(boolean_options)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} {all_options}",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {all_options} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -465,7 +465,7 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -512,7 +512,7 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -556,7 +556,7 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -596,7 +596,7 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} process {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
+        f"{EXECUTABLE} process {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -696,7 +696,7 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
@@ -717,14 +717,14 @@ def test_video_process_and_upload(
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     assert 0 == len(setup_upload.listdir())
 
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -745,7 +745,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
