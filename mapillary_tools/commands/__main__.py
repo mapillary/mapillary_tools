@@ -133,6 +133,7 @@ def main():
         if callable(v):
             continue
         if k in ["jwt", "user_password"]:
+            assert isinstance(v, str), type(v)
             v = "******"
         LOG.debug("CLI param: %s: %s", k, v)
 
