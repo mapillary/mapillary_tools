@@ -27,7 +27,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 ## Quickstart
 
 Download the latest `mapillary_tools` binaries for your platform
-[here](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2) first.
+[here](https://github.com/mapillary/mapillary_tools/releases) first.
 See [more installation instructions](#installation) below.
 
 Process and upload imagery:
