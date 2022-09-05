@@ -188,7 +188,7 @@ class FakeUploadService(UploadService):
         self._upload_path = os.getenv(
             "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
         )
-        self._error_ratio = 0.2
+        self._error_ratio = 0.1
 
     def upload(
         self,

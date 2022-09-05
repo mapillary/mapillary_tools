@@ -16,15 +16,11 @@ class GeotagFromBlackVue(GeotagFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
-        video_path: Path,
+        video_paths: T.Sequence[Path],
         offset_time: float = 0.0,
     ):
         self.image_paths = image_paths
-        if video_path.is_dir():
-            self.video_paths = utils.get_video_file_list(video_path)
-        else:
-            # it is okay to not suffix with .mp4
-            self.video_paths = [video_path]
+        self.video_paths = video_paths
         self.offset_time = offset_time
         super().__init__()
 

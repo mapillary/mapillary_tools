@@ -24,7 +24,9 @@ def sample_video(
     rerun: bool = False,
 ) -> None:
     if video_import_path.is_dir():
-        video_list = utils.get_video_file_list(video_import_path, skip_subfolders)
+        video_list = utils.find_videos(
+            [video_import_path], skip_subfolders=skip_subfolders
+        )
         video_dir = video_import_path
         LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
     elif video_import_path.is_file():

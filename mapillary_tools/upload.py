@@ -479,8 +479,6 @@ def _load_descs_for_images(
                     raise exceptions.MapillaryBadParameterError(
                         "desc_path is required if the import path is not a directory"
                     )
-        else:
-            assert desc_path != "\x00"
 
         new_descs = read_image_descriptions(desc_path)
 
@@ -512,7 +510,7 @@ def upload(
     else:
         assert isinstance(import_path, list)
         import_paths = import_path
-    import_paths = utils.deduplicate_paths(import_paths)
+    import_paths = list(utils.deduplicate_paths(import_paths))
 
     if not import_paths:
         return

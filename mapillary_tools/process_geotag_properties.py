@@ -49,7 +49,7 @@ def process_geotag_properties(
         import_paths = [import_path]
     else:
         import_paths = import_path
-    import_paths = utils.deduplicate_paths(import_paths)
+    import_paths = list(utils.deduplicate_paths(import_paths))
 
     if not import_paths:
         return []
@@ -65,7 +65,7 @@ def process_geotag_properties(
 
     if geotag_source == "exif":
         image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-        LOG.debug("Found %d images in %s", len(image_paths), import_path)
+        LOG.debug("Found %d images in total", len(image_paths))
         geotag = geotag_from_exif.GeotagFromEXIF(image_paths)
 
     elif geotag_source == "gpx":
@@ -88,7 +88,7 @@ def process_geotag_properties(
                     image_paths, video_import_path, skip_subfolders=skip_subfolders
                 )
             )
-        LOG.debug(f"Found %d images in %s", len(image_paths), import_path)
+        LOG.debug(f"Found %d images in total", len(image_paths))
         geotag = geotag_from_gpx_file.GeotagFromGPXFile(
             image_paths,
             geotag_source_path,
@@ -117,7 +117,7 @@ def process_geotag_properties(
                     image_paths, video_import_path, skip_subfolders=skip_subfolders
                 )
             )
-        LOG.debug(f"Found %d images in %s", len(image_paths), import_path)
+        LOG.debug(f"Found %d images in total", len(image_paths))
         geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
             image_paths,
             geotag_source_path,
@@ -138,7 +138,7 @@ def process_geotag_properties(
         image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_gopro.GeotagFromGoPro(
             image_paths,
-            geotag_source_path,
+            utils.find_videos([geotag_source_path]),
             offset_time=interpolation_offset_time,
         )
     elif geotag_source == "blackvue_videos":
@@ -155,7 +155,7 @@ def process_geotag_properties(
         image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_blackvue.GeotagFromBlackVue(
             image_paths,
-            geotag_source_path,
+            utils.find_videos([geotag_source_path]),
             offset_time=interpolation_offset_time,
         )
     elif geotag_source == "camm":
@@ -172,7 +172,7 @@ def process_geotag_properties(
         image_paths = utils.find_images(import_paths, skip_subfolders=False)
         geotag = geotag_from_camm.GeotagFromCAMM(
             image_paths,
-            geotag_source_path,
+            utils.find_videos([geotag_source_path]),
             offset_time=interpolation_offset_time,
         )
     else:
@@ -304,10 +304,6 @@ def _write_descs(
     descs: T.Sequence[types.ImageDescriptionFileOrError],
     desc_path: str,
 ) -> None:
-    """
-    For backward-compatibilities, import_path is used to find the relative path of the desc["filename"].
-    If it is not provided, then it will be resolved as an absolute path.
-    """
     if desc_path == "-":
         print(json.dumps(descs, indent=4))
     else:
@@ -378,7 +374,7 @@ def process_finalize(
     else:
         assert isinstance(import_path, list)
         import_paths = import_path
-    import_paths = utils.deduplicate_paths(import_paths)
+    import_paths = list(utils.deduplicate_paths(import_paths))
 
     if not import_paths:
         return []
@@ -418,7 +414,7 @@ def process_finalize(
             else:
                 LOG.warning(
                     'Writing image descriptions to STDOUT, because the import path "%s" is a file',
-                    import_paths[0],
+                    str(import_paths[0]),
                 )
             desc_path = "-"
 
