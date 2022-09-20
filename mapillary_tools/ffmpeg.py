@@ -62,7 +62,7 @@ class FFMPEG:
             output = subprocess.check_output(full_cmd)
         except FileNotFoundError:
             raise FFmpegNotFoundError(
-                f'The ffprobe command "{self.ffmpeg_path}" not found'
+                f'The ffprobe command "{self.ffprobe_path}" not found'
             )
         try:
             return json.loads(output)

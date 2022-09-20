@@ -1,3 +1,4 @@
+import os
 import json
 import subprocess
 import typing as T
@@ -92,19 +93,30 @@ def setup_data(tmpdir: py.path.local):
         tmpdir.remove(ignore_errors=True)
 
 
+@pytest.fixture
+def setup_envvars():
+    os.environ["MAPILLARY_TOOLS_GOPRO_GPS_FIXES"] = "0,2,3"
+    os.environ["MAPILLARY_TOOLS_GOPRO_MAX_DOP100"] = "100000"
+    os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"] = "10000000"
+    yield
+    del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_FIXES"]
+    del os.environ["MAPILLARY_TOOLS_GOPRO_MAX_DOP100"]
+    del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"]
+
+
 def test_process_gopro_hero8(
     setup_data: py.path.local,
     setup_config: py.path.local,
     setup_upload: py.path.local,
+    setup_envvars: T.Any,
 ):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
     video_path = setup_data.join("hero8.mp4")
     # this sample hero8.mp4 doesn't have any good GPS points,
     # so we do not filter out bad GPS points
-    envars = "MAPILLARY_TOOLS_GOPRO_GPS_FIXES=0,2,3 MAPILLARY_TOOLS_GOPRO_MAX_DOP100=100000 MAPILLARY_TOOLS_GOPRO_GPS_PRECISION=10000000"
     x = subprocess.run(
-        f"{envars} {EXECUTABLE} video_process --geotag_source=gopro_videos {str(video_path)}",
+        f"{EXECUTABLE} video_process --geotag_source=gopro_videos {str(video_path)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
