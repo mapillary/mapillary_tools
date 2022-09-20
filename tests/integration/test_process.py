@@ -753,7 +753,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
         descs = json.load(fp)
     for d in descs:
         assert Path(d["filename"]).is_file(), d["filename"]
-        assert "sample-5s.mp4/" in d["filename"]
+        assert "sample-5s.mp4" in d["filename"]
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
 
