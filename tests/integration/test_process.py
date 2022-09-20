@@ -633,9 +633,12 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
 
 
 def ffmpeg_installed():
-    ffmpeg_path = os.getenv("MAPILLARY_FFMPEG_PATH", "ffmpeg")
+    ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
+    ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
         subprocess.run([ffmpeg_path, "-version"])
+        # In Windows, ffmpeg is installed but ffprobe is not?
+        subprocess.run([ffprobe_path, "-version"])
     except FileNotFoundError:
         return False
     return True
