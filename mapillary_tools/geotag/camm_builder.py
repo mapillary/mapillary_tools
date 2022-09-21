@@ -7,7 +7,6 @@ from . import (
     blackvue_parser,
     camm_parser,
     gpmf_parser,
-    io_utils,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
 )
@@ -253,7 +252,7 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
         fp: T.BinaryIO,
         moov_children: T.List[BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
-        movie_timescale = builder._find_movie_timescale(moov_children)
+        movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
         camm_samples = list(convert_points_to_raw_samples(points, media_timescale))

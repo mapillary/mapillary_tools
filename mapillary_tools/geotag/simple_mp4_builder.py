@@ -453,7 +453,7 @@ def _filter_moov_children_boxes(
             yield box
 
 
-def _find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
+def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
     mvhd = _find_box_at_pathx(moov_children, [b"mvhd"])
     return T.cast(T.Dict, mvhd["data"])["timescale"]
 
@@ -501,7 +501,7 @@ def transform_mp4(
     return io_utils.ChainedIO(
         [
             io.BytesIO(source_ftyp_data),
-            io.BytesIO(rewrite_moov(len(source_ftyp_data), moov_children)),
+            io.BytesIO(_rewrite_moov(len(source_ftyp_data), moov_children)),
             io.BytesIO(_build_mdat_header_bytes(mdat_body_size)),
             *movie_sample_readers,
             *sample_readers,
@@ -509,7 +509,7 @@ def transform_mp4(
     )
 
 
-def rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
+def _rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
     # build moov for calculating moov size
     sample_offset = 0
     for box in _filter_trak_boxes(moov_boxes):
