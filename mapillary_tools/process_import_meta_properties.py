@@ -1,5 +1,5 @@
-import time
 import os
+import time
 import typing as T
 
 from . import exceptions, types, VERSION

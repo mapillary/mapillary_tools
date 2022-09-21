@@ -7,9 +7,9 @@ from . import (
     blackvue_parser,
     camm_parser,
     gpmf_parser,
+    io_utils,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
-    io_utils,
 )
 from .simple_mp4_builder import BoxDict
 

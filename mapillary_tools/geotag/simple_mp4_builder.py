@@ -11,7 +11,7 @@ else:
 
 import construct as C
 
-from . import simple_mp4_parser as parser, io_utils
+from . import io_utils, simple_mp4_parser as parser
 from .simple_mp4_parser import (
     ChunkLargeOffsetBox,
     ChunkOffsetBox,

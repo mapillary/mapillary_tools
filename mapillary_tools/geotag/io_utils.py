@@ -1,5 +1,5 @@
-import typing as T
 import io
+import typing as T
 
 
 class ChainedIO(io.IOBase):
