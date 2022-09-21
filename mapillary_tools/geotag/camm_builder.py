@@ -1,4 +1,4 @@
-import dataclasses
+import io
 import typing as T
 
 from .. import geo
@@ -9,6 +9,7 @@ from . import (
     gpmf_parser,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
+    io_utils,
 )
 from .simple_mp4_builder import BoxDict
 
@@ -228,17 +229,6 @@ def create_camm_trak(
     }
 
 
-@dataclasses.dataclass
-class CAMMPointReader(builder.Reader):
-    __slots__ = ("point",)
-
-    def __init__(self, point: geo.Point):
-        self.point = point
-
-    def read(self):
-        return build_camm_sample(self.point)
-
-
 def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
     start_offset = fp.tell()
     points = camm_parser.extract_points(fp)
@@ -262,7 +252,7 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
     def _f(
         fp: T.BinaryIO,
         moov_children: T.List[BoxDict],
-    ) -> T.Generator[builder.Reader, None, None]:
+    ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder._find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
@@ -279,7 +269,7 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
         moov_children.append(camm_trak)
 
         # if yield, the moov_children will not be modified
-        return (CAMMPointReader(point) for point in points)
+        return (io.BytesIO(build_camm_sample(point)) for point in points)
 
     return _f
 
@@ -287,7 +277,7 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
 def camm_sample_generator(
     fp: T.BinaryIO,
     moov_children: T.List[BoxDict],
-) -> T.Iterator[builder.Reader]:
+) -> T.Iterator[io.IOBase]:
     fp.seek(0)
     _, points = extract_points(fp)
     if not points:

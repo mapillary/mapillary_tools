@@ -52,13 +52,11 @@ def build_mp4(points: T.List[geo.Point]) -> T.Optional[T.List[geo.Point]]:
         {"type": b"moov", "data": [mvhd]},
     ]
     src = simple_mp4_builder.QuickBoxStruct32.BoxList.build(empty_mp4)
-    target_fp = io.BytesIO()
-    simple_mp4_builder.transform_mp4(
-        io.BytesIO(src), target_fp, camm_builder.camm_sample_generator2(points)
+    target_fp = simple_mp4_builder.transform_mp4(
+        io.BytesIO(src), camm_builder.camm_sample_generator2(points)
     )
 
-    target_fp.seek(0)
-    return camm_parser.extract_points(target_fp)
+    return camm_parser.extract_points(T.cast(T.BinaryIO, target_fp))
 
 
 def approximate(expected, actual):
