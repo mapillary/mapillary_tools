@@ -11,7 +11,7 @@ else:
 
 import construct as C
 
-from . import simple_mp4_parser as parser
+from . import io_utils, simple_mp4_parser as parser
 from .simple_mp4_parser import (
     ChunkLargeOffsetBox,
     ChunkOffsetBox,
@@ -453,7 +453,7 @@ def _filter_moov_children_boxes(
             yield box
 
 
-def _find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
+def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
     mvhd = _find_box_at_pathx(moov_children, [b"mvhd"])
     return T.cast(T.Dict, mvhd["data"])["timescale"]
 
@@ -467,29 +467,10 @@ def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
     )
 
 
-class Reader:
-    def read(self):
-        raise NotImplementedError
-
-
-@dataclasses.dataclass
-class SampleReader(Reader):
-    __slots__ = ("fp", "offset", "size")
-
-    fp: T.BinaryIO
-    offset: int
-    size: int
-
-    def read(self):
-        self.fp.seek(self.offset)
-        return self.fp.read(self.size)
-
-
 def transform_mp4(
     src_fp: T.BinaryIO,
-    target_fp: T.BinaryIO,
-    sample_generator: T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[Reader]],
-):
+    sample_generator: T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[io.IOBase]],
+) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
     source_ftyp_box_data = parser.parse_data_firstx(src_fp, [b"ftyp"])
@@ -507,24 +488,28 @@ def transform_mp4(
 
     # extract video samples
     source_samples = list(iterate_samples(moov_children))
-    movie_sample_readers = (
-        SampleReader(src_fp, sample.offset, sample.size) for sample in source_samples
-    )
-
-    sample_readers = itertools.chain(
-        movie_sample_readers, sample_generator(src_fp, moov_children)
-    )
+    movie_sample_readers = [
+        io_utils.SlicedIO(src_fp, sample.offset, sample.size)
+        for sample in source_samples
+    ]
+    sample_readers = list(sample_generator(src_fp, moov_children))
 
     _update_all_trak_tkhd(moov_children)
 
     # moov_boxes should be immutable since here
-    target_fp.write(source_ftyp_data)
-    target_fp.write(rewrite_moov(target_fp.tell(), moov_children))
     mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
-    write_mdat(target_fp, mdat_body_size, sample_readers)
+    return io_utils.ChainedIO(
+        [
+            io.BytesIO(source_ftyp_data),
+            io.BytesIO(_rewrite_moov(len(source_ftyp_data), moov_children)),
+            io.BytesIO(_build_mdat_header_bytes(mdat_body_size)),
+            *movie_sample_readers,
+            *sample_readers,
+        ]
+    )
 
 
-def rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
+def _rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
     # build moov for calculating moov size
     sample_offset = 0
     for box in _filter_trak_boxes(moov_boxes):
@@ -544,10 +529,3 @@ def rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
     assert len(moov_data) == moov_data_size, f"{len(moov_data)} != {moov_data_size}"
 
     return moov_data
-
-
-def write_mdat(fp: T.BinaryIO, mdat_body_size: int, sample_readers: T.Iterable[Reader]):
-    mdat_header = _build_mdat_header_bytes(mdat_body_size)
-    fp.write(mdat_header)
-    for reader in sample_readers:
-        fp.write(reader.read())
