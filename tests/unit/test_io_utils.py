@@ -53,11 +53,14 @@ def test_chained():
     assert s.read() == b""
     assert s.read(1) == b""
 
+    assert s.seek(0, io.SEEK_END) == len(data)
+    assert c.seek(0, io.SEEK_END) == len(data)
+
     c.seek(0)
     s.seek(0)
     for _ in range(10000):
         whence = random.choice([io.SEEK_SET, io.SEEK_CUR, io.SEEK_END])
-        offset = random.randint(0, 10)
+        offset = random.randint(0, 30)
         assert s.tell() == c.tell()
         thrown_x = None
         try:
@@ -109,3 +112,12 @@ def test_sliced():
         n = random.randint(-1, 20)
         assert sliced.read(n) == c.read(n)
         assert sliced.tell() == c.tell()
+
+
+def test_truncate():
+    c = io.BytesIO(b"helloworld")
+    c.truncate(3)
+    assert c.read() == b"hel"
+    s = SlicedIO(c, 1, 5)
+    assert s.read() == b"el"
+    assert s.read() == b""

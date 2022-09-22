@@ -123,6 +123,8 @@ class ChainedIO(io.IOBase):
 
 
 class SlicedIO(io.IOBase):
+    __slots__ = ("_source", "_begin_offset", "_rel_offset", "_size")
+
     _source: T.BinaryIO
     _begin_offset: int
     _rel_offset: int
@@ -141,8 +143,8 @@ class SlicedIO(io.IOBase):
     def read(self, n: int = -1) -> bytes:
         if self._rel_offset < self._size:
             self._source.seek(self._begin_offset + self._rel_offset, io.SEEK_SET)
-            remain = self._size - self._rel_offset
-            max_read = remain if n == -1 else min(n, remain)
+            remaining = self._size - self._rel_offset
+            max_read = remaining if n == -1 else min(n, remaining)
             data = self._source.read(max_read)
             self._rel_offset += len(data)
             return data
