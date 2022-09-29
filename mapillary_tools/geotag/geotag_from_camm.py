@@ -30,16 +30,16 @@ class GeotagFromCAMM(GeotagFromGeneric):
         for video_path in self.video_paths:
             LOG.debug("Processing CAMM video: %s", video_path)
 
-            sample_images = list(
+            sample_image_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
             )
             LOG.debug(
                 "Found %d sample images from video %s",
-                len(sample_images),
+                len(sample_image_paths),
                 video_path,
             )
 
-            if not sample_images:
+            if not sample_image_paths:
                 continue
 
             points = camm_parser.parse_gpx(video_path)
@@ -50,10 +50,10 @@ class GeotagFromCAMM(GeotagFromGeneric):
             ):
                 LOG.warning(
                     "Fail %d sample images due to stationary video %s",
-                    len(sample_images),
+                    len(sample_image_paths),
                     video_path,
                 )
-                for image_path in sample_images:
+                for image_path in sample_image_paths:
                     err_desc = types.describe_error(
                         exceptions.MapillaryStationaryVideoError(
                             "Stationary CAMM video"
@@ -64,13 +64,13 @@ class GeotagFromCAMM(GeotagFromGeneric):
                 continue
 
             with tqdm(
-                total=len(sample_images),
+                total=len(sample_image_paths),
                 desc=f"Interpolating {video_path.name}",
                 unit="images",
                 disable=LOG.getEffectiveLevel() <= logging.DEBUG,
             ) as pbar:
                 geotag = GeotagFromGPXWithProgress(
-                    sample_images,
+                    sample_image_paths,
                     points,
                     use_gpx_start_time=False,
                     use_image_start_time=True,

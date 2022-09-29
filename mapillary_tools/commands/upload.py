@@ -1,7 +1,7 @@
 import inspect
 
 from .. import constants
-from ..upload import upload
+from ..upload import upload, FileType
 
 
 class Command:
@@ -34,6 +34,13 @@ class Command:
             f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"
         )
         group.add_argument(
+            "--file_types",
+            help=f"Upload files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
+            type=lambda option: set(FileType(t) for t in option.split(",")),
+            default=FileType.IMAGE.value,
+            required=False,
+        )
+        group.add_argument(
             "--desc_path",
             help=f'Path to the image description file. If it is "-", then read from STDIN. Only works for uploading image directories. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]',
             default=None,
@@ -47,5 +54,4 @@ class Command:
             for k, v in vars_args.items()
             if k in inspect.getfullargspec(upload).args
         }
-        args["file_type"] = "images"
         upload(**args)

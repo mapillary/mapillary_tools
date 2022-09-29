@@ -14,29 +14,29 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
-    def __init__(self, images: T.Sequence[Path]):
-        self.images = images
+    def __init__(self, image_paths: T.Sequence[Path]):
+        self.image_paths = image_paths
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
         descs: T.List[types.ImageDescriptionFileOrError] = []
 
-        image: Path
-        for image in tqdm(
-            self.images,
+        image_path: Path
+        for image_path in tqdm(
+            self.image_paths,
             desc=f"Processing",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             try:
-                exif = ExifRead(str(image))
+                exif = ExifRead(str(image_path))
             except Exception as exc0:
                 LOG.warning(
                     "Unknown error reading EXIF from image %s",
-                    image,
+                    image_path,
                     exc_info=True,
                 )
-                descs.append(types.describe_error(exc0, str(image)))
+                descs.append(types.describe_error(exc0, str(image_path)))
                 continue
 
             lon, lat = exif.extract_lon_lat()
@@ -44,7 +44,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
-                descs.append(types.describe_error(exc, str(image)))
+                descs.append(types.describe_error(exc, str(image_path)))
                 continue
 
             timestamp = exif.extract_capture_time()
@@ -52,7 +52,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
-                descs.append(types.describe_error(exc, str(image)))
+                descs.append(types.describe_error(exc, str(image_path)))
                 continue
 
             angle = exif.extract_direction()
@@ -61,7 +61,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 "MAPLatitude": lat,
                 "MAPLongitude": lon,
                 "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),
-                "filename": str(image),
+                "filename": str(image_path),
             }
             if angle is not None:
                 desc["MAPCompassHeading"] = {
