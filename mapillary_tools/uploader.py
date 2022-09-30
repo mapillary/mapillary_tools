@@ -205,18 +205,23 @@ class Uploader:
             return None
 
     def upload_images(
-        self, descs: T.Sequence[types.ImageDescriptionFile]
+        self,
+        descs: T.Sequence[types.ImageDescriptionFile],
+        event_payload: T.Optional[Progress] = None,
     ) -> T.Dict[str, str]:
+        if event_payload is None:
+            event_payload = {}
         _validate_descs(descs)
         sequences = _group_sequences_by_uuid(descs)
         ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
-            event_payload: Progress = {
+            final_event_payload: Progress = {
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
                 "sequence_image_count": len(images),
                 "sequence_uuid": sequence_uuid,
             }
+            final_event_payload.update(event_payload)
             with tempfile.NamedTemporaryFile() as fp:
                 upload_md5sum = _zip_sequence_fp(images, fp)
                 try:
@@ -226,7 +231,7 @@ class Uploader:
                         len(images),
                         self.user_items,
                         emitter=self.emitter,
-                        event_payload=event_payload,
+                        event_payload=final_event_payload,
                         dry_run=self.dry_run,
                     )
                 except UploadCancelled:

@@ -1,7 +1,7 @@
 import inspect
 from pathlib import Path
 
-from .. import constants
+from .. import constants, utils
 
 from ..upload import upload
 from .upload import Command as UploadCommand
@@ -29,5 +29,7 @@ class Command:
             for k, v in vars_args.items()
             if k in inspect.getfullargspec(upload).args
         }
-        args["file_type"] = "zip"
-        upload(**args)
+        upload(
+            **args,
+            file_types={utils.FileType.ZIP},
+        )

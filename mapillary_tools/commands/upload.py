@@ -1,7 +1,7 @@
 import inspect
 
 from .. import constants
-from ..upload import upload, FileType
+from ..upload import FileType, upload
 
 
 class Command:

@@ -28,15 +28,15 @@ from . import (
     uploader,
     utils,
 )
-from .utils import FileType
 from .geo import get_max_distance_from_start
 from .geotag import (
     blackvue_parser,
     camm_builder,
     camm_parser,
-    utils as video_utils,
     simple_mp4_builder,
+    utils as video_utils,
 )
+from .utils import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
@@ -614,7 +614,9 @@ def upload(
                 for d in (descs or [])
                 if Path(d["filename"]).resolve() in resolved_image_paths
             ]
-            clusters = mly_uploader.upload_images(specified_descs)
+            clusters = mly_uploader.upload_images(
+                specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+            )
             LOG.debug(f"Uploaded to cluster: %s", clusters)
 
         supported = CAMM_CONVERTABLES.intersection(file_types)
