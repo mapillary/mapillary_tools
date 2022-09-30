@@ -1,4 +1,3 @@
-import itertools
 import json
 import logging
 import os
@@ -23,12 +22,12 @@ from . import (
     config,
     constants,
     exceptions,
+    geo,
     ipc,
     types,
     uploader,
     utils,
 )
-from .geo import get_max_distance_from_start
 from .geotag import (
     blackvue_parser,
     camm_builder,
@@ -260,10 +259,13 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
         import_path: T.Optional[str] = payload.get("import_path")
+        file_type = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading ({nth}/{total})"
+            _desc = f"Uploading {file_type} ({nth}/{total})"
         else:
-            _desc = f"Uploading {os.path.basename(import_path)} ({nth}/{total})"
+            _desc = (
+                f"Uploading {file_type} {os.path.basename(import_path)} ({nth}/{total})"
+            )
         upload_pbar = tqdm(
             total=payload["entity_size"],
             desc=_desc,
@@ -398,39 +400,20 @@ def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
 def _show_upload_summary(stats: T.Sequence[_APIStats]):
     grouped: T.Dict[str, T.List[_APIStats]] = {}
     for stat in stats:
-        grouped.setdefault(stat["file_type"], []).append(stat)
+        grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
 
     for file_type, typed_stats in grouped.items():
         if file_type == FileType.IMAGE.value:
             LOG.info(
-                "%8d  image sequences uploaded",
+                "%8d  %s sequences uploaded",
                 len(typed_stats),
-            )
-        elif file_type == FileType.RAW_BLACKVUE.value:
-            LOG.info(
-                "%8d  BlackVue videos uploaded",
-                len(typed_stats),
-            )
-        elif file_type == FileType.RAW_CAMM.value:
-            LOG.info(
-                "%8d  CAMM videos uploaded",
-                len(typed_stats),
-            )
-        elif file_type == FileType.GOPRO.value:
-            LOG.info(
-                "%8d  GoPro videos uploaded",
-                len(typed_stats),
-            )
-        elif file_type == FileType.ZIP.value:
-            LOG.info(
-                "%8d  ZIP files uploaded",
-                len(typed_stats),
+                file_type.upper(),
             )
         else:
             LOG.info(
                 "%8d  %s files uploaded",
                 len(typed_stats),
-                file_type,
+                file_type.upper(),
             )
 
     summary = _summarize(stats)
@@ -651,12 +634,29 @@ def _convert_and_upload_camm(
     file_types: T.Set[FileType],
 ) -> None:
     for idx, video_path in enumerate(video_paths):
-        with open(video_path, "rb") as fp:
-            file_type, points = camm_builder.extract_points(fp, file_types)
+        with open(video_path, "rb") as src_fp:
+            file_type, points = camm_builder.extract_points(src_fp, file_types)
             if file_type is None:
+                LOG.warning(
+                    f"Skipping %s due to: No GPS found in the video (file types: %s)",
+                    video_path.name,
+                    file_types,
+                )
                 continue
+
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            )
+            if stationary:
+                LOG.warning(
+                    f"Skipping %s %s due to: Stationary video",
+                    file_type.value.upper(),
+                    video_path.name,
+                )
+                continue
+
             generator = camm_builder.camm_sample_generator2(points)
-            camm_fp = simple_mp4_builder.transform_mp4(fp, generator)
+            camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
             event_payload: uploader.Progress = {
                 "total_sequence_count": len(video_paths),
                 "sequence_idx": idx,
@@ -678,17 +678,13 @@ def _check_blackvue(video_path: Path) -> None:
 
     points = blackvue_parser.parse_gps_points(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(
-            f"Empty GPS extracted from {video_path}"
-        )
+        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the BlackVue video")
 
     stationary = video_utils.is_video_stationary(
-        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(
-            f"The video is stationary: {video_path}"
-        )
+        raise exceptions.MapillaryStationaryVideoError(f"Stationary BlackVue video")
 
 
 def _upload_raw_blackvues(
@@ -705,7 +701,12 @@ def _upload_raw_blackvues(
         try:
             _check_blackvue(video_path)
         except Exception as ex:
-            LOG.warning(f"Skipping due to: %s", ex)
+            LOG.warning(
+                f"Skipping %s %s due to: %s",
+                FileType.RAW_BLACKVUE.value.upper(),
+                video_path.name,
+                ex,
+            )
             continue
 
         try:
@@ -724,17 +725,13 @@ def _check_camm(video_path: Path) -> None:
 
     points = camm_parser.parse_gpx(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(
-            f"Empty GPS extracted from {video_path}"
-        )
+        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the CAMM video")
 
     stationary = video_utils.is_video_stationary(
-        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(
-            f"The video is stationary: {video_path}"
-        )
+        raise exceptions.MapillaryStationaryVideoError(f"Stationary CAMM video")
 
 
 def _upload_raw_camm(
@@ -750,7 +747,12 @@ def _upload_raw_camm(
         try:
             _check_camm(video_path)
         except Exception as ex:
-            LOG.warning(f"Skipping due to: %s", ex)
+            LOG.warning(
+                f"Skipping %s %s due to: %s",
+                FileType.RAW_CAMM.value.upper(),
+                video_path.name,
+                ex,
+            )
             continue
         try:
             cluster_id = mly_uploader.upload_camm(
