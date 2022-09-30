@@ -22,15 +22,21 @@ from . import (
     config,
     constants,
     exceptions,
+    geo,
     ipc,
     types,
     uploader,
     utils,
 )
-from .geo import get_max_distance_from_start
-from .geotag import blackvue_parser, camm_parser, utils as video_utils
+from .geotag import (
+    blackvue_parser,
+    camm_builder,
+    camm_parser,
+    simple_mp4_builder,
+    utils as video_utils,
+)
+from .utils import FileType
 
-FileType = Literal["raw_blackvue", "images", "zip", "raw_camm"]
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
@@ -46,6 +52,13 @@ MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
         "upload_history",
     ),
 )
+CAMM_CONVERTABLES = {FileType.CAMM, FileType.BLACKVUE, FileType.GOPRO}
+
+
+class UploadError(Exception):
+    def __init__(self, inner_ex) -> None:
+        self.inner_ex = inner_ex
+        super().__init__(str(inner_ex))
 
 
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
@@ -246,10 +259,13 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
         import_path: T.Optional[str] = payload.get("import_path")
+        file_type = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading ({nth}/{total})"
+            _desc = f"Uploading {file_type} ({nth}/{total})"
         else:
-            _desc = f"Uploading {os.path.basename(import_path)} ({nth}/{total})"
+            _desc = (
+                f"Uploading {file_type} {os.path.basename(import_path)} ({nth}/{total})"
+            )
         upload_pbar = tqdm(
             total=payload["entity_size"],
             desc=_desc,
@@ -381,31 +397,26 @@ def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
     return upload_summary
 
 
-def _show_upload_summary(summary: T.Dict, file_type: FileType):
-    if file_type == "images":
-        LOG.info(
-            "%8d  sequences (%d images) uploaded",
-            summary["sequences"],
-            summary["images"],
-        )
-    elif file_type == "raw_blackvue":
-        LOG.info(
-            "%8d  BlackVue videos uploaded",
-            summary["sequences"],
-        )
-    elif file_type == "raw_camm":
-        LOG.info(
-            "%8d  CAMM videos uploaded",
-            summary["sequences"],
-        )
-    elif file_type == "zip":
-        LOG.info(
-            "%8d  ZIP files uploaded",
-            summary["sequences"],
-        )
-    else:
-        assert False, f"unknown file_type: {file_type}"
+def _show_upload_summary(stats: T.Sequence[_APIStats]):
+    grouped: T.Dict[str, T.List[_APIStats]] = {}
+    for stat in stats:
+        grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
 
+    for file_type, typed_stats in grouped.items():
+        if file_type == FileType.IMAGE.value:
+            LOG.info(
+                "%8d  %s sequences uploaded",
+                len(typed_stats),
+                file_type.upper(),
+            )
+        else:
+            LOG.info(
+                "%8d  %s files uploaded",
+                len(typed_stats),
+                file_type.upper(),
+            )
+
+    summary = _summarize(stats)
     LOG.info("%8.1fM data in total", summary["size"])
     LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
     LOG.info("%8.1fs upload time", summary["time"])
@@ -494,7 +505,7 @@ def _load_descs_for_images(
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_type: FileType,
+    file_types: T.Set[FileType],
     desc_path: T.Optional[str] = None,
     _descs_from_process: T.Optional[
         T.Sequence[types.ImageDescriptionFileOrError]
@@ -504,6 +515,17 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
+    if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+        raise exceptions.MapillaryBadParameterError(
+            f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+        )
+
+    if FileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
+        raise exceptions.MapillaryBadParameterError(
+            f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
+        )
+    file_types = set(file_types)
+
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
@@ -522,7 +544,7 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
-    if file_type == "images":
+    if FileType.IMAGE in file_types:
         descs = _load_descs_for_images(_descs_from_process, desc_path, import_paths)
     else:
         descs = None
@@ -562,39 +584,91 @@ def upload(
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
 
-    if file_type == "images":
-        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-        # find descs that match the image paths from the import paths
-        resolved_image_paths = set(p.resolve() for p in image_paths)
-        specified_descs = [
-            d
-            for d in (descs or [])
-            if Path(d["filename"]).resolve() in resolved_image_paths
-        ]
-        _upload_images(mly_uploader, specified_descs, stats)
+    image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
+    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
 
-    elif file_type == "raw_blackvue":
-        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-        _upload_raw_blackvues(mly_uploader, video_paths, stats)
+    try:
+        if FileType.IMAGE in file_types:
+            # find descs that match the image paths from the import paths
+            resolved_image_paths = set(p.resolve() for p in image_paths)
+            specified_descs = [
+                d
+                for d in (descs or [])
+                if Path(d["filename"]).resolve() in resolved_image_paths
+            ]
+            clusters = mly_uploader.upload_images(
+                specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+            )
+            LOG.debug(f"Uploaded to cluster: %s", clusters)
 
-    elif file_type == "raw_camm":
-        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-        _upload_raw_camm(mly_uploader, video_paths, stats)
+        supported = CAMM_CONVERTABLES.intersection(file_types)
+        if supported:
+            _convert_and_upload_camm(mly_uploader, video_paths, supported)
 
-    elif file_type == "zip":
-        zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-        _upload_zipfiles(mly_uploader, zip_paths, stats)
+        if FileType.RAW_BLACKVUE in file_types:
+            _upload_raw_blackvues(mly_uploader, video_paths)
 
-    else:
-        raise RuntimeError(f"Invalid file_type: {file_type}")
+        if FileType.RAW_CAMM in file_types:
+            _upload_raw_camm(mly_uploader, video_paths)
+
+        if FileType.ZIP in file_types:
+            _upload_zipfiles(mly_uploader, zip_paths)
+
+    except UploadError as ex:
+        if not dry_run:
+            _api_logging_failed(mly_uploader.user_items, _summarize(stats), ex.inner_ex)
+        raise ex
 
     if stats:
-        upload_summary = _summarize(stats)
         if not dry_run:
-            _api_logging_finished(user_items, upload_summary)
-        _show_upload_summary(upload_summary, file_type)
+            _api_logging_finished(user_items, _summarize(stats))
+        _show_upload_summary(stats)
     else:
         LOG.info("Nothing uploaded. Bye.")
+
+
+def _convert_and_upload_camm(
+    mly_uploader: uploader.Uploader,
+    video_paths: T.Sequence[Path],
+    file_types: T.Set[FileType],
+) -> None:
+    for idx, video_path in enumerate(video_paths):
+        with open(video_path, "rb") as src_fp:
+            file_type, points = camm_builder.extract_points(src_fp, file_types)
+            if file_type is None:
+                LOG.warning(
+                    f"Skipping %s due to: No GPS found in the video (file types: %s)",
+                    video_path.name,
+                    file_types,
+                )
+                continue
+
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            )
+            if stationary:
+                LOG.warning(
+                    f"Skipping %s %s due to: Stationary video",
+                    file_type.value.upper(),
+                    video_path.name,
+                )
+                continue
+
+            generator = camm_builder.camm_sample_generator2(points)
+            camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
+            event_payload: uploader.Progress = {
+                "total_sequence_count": len(video_paths),
+                "sequence_idx": idx,
+                "file_type": file_type.value,
+            }
+            try:
+                cluster_id = mly_uploader.upload_camm_fp(
+                    T.cast(T.BinaryIO, camm_fp), video_path, event_payload=event_payload
+                )
+            except Exception as ex:
+                raise UploadError(ex) from ex
+        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _check_blackvue(video_path: Path) -> None:
@@ -604,17 +678,44 @@ def _check_blackvue(video_path: Path) -> None:
 
     points = blackvue_parser.parse_gps_points(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(
-            f"Empty GPS extracted from {video_path}"
-        )
+        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the BlackVue video")
 
     stationary = video_utils.is_video_stationary(
-        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(
-            f"The video is stationary: {video_path}"
-        )
+        raise exceptions.MapillaryStationaryVideoError(f"Stationary BlackVue video")
+
+
+def _upload_raw_blackvues(
+    mly_uploader: uploader.Uploader,
+    video_paths: T.Sequence[Path],
+) -> None:
+    for idx, video_path in enumerate(video_paths):
+        event_payload: uploader.Progress = {
+            "total_sequence_count": len(video_paths),
+            "sequence_idx": idx,
+            "file_type": FileType.RAW_BLACKVUE.value,
+        }
+
+        try:
+            _check_blackvue(video_path)
+        except Exception as ex:
+            LOG.warning(
+                f"Skipping %s %s due to: %s",
+                FileType.RAW_BLACKVUE.value.upper(),
+                video_path.name,
+                ex,
+            )
+            continue
+
+        try:
+            cluster_id = mly_uploader.upload_blackvue(
+                video_path, event_payload=event_payload
+            )
+        except Exception as ex:
+            raise UploadError(ex) from ex
+        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _check_camm(video_path: Path) -> None:
@@ -624,105 +725,59 @@ def _check_camm(video_path: Path) -> None:
 
     points = camm_parser.parse_gpx(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(
-            f"Empty GPS extracted from {video_path}"
-        )
+        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the CAMM video")
 
     stationary = video_utils.is_video_stationary(
-        get_max_distance_from_start([(p.lat, p.lon) for p in points])
+        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(
-            f"The video is stationary: {video_path}"
-        )
-
-
-def _upload_raw_blackvues(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-    stats: T.Sequence[_APIStats],
-):
-    for idx, video_path in enumerate(video_paths):
-        event_payload: uploader.Progress = {
-            "total_sequence_count": len(video_paths),
-            "sequence_idx": idx,
-        }
-
-        try:
-            _check_blackvue(video_path)
-        except Exception as ex:
-            LOG.warning(f"Skipping due to: %s", ex)
-            continue
-
-        try:
-            cluster_id = mly_uploader.upload_blackvue(
-                video_path, event_payload=event_payload
-            )
-        except Exception as exc:
-            if not mly_uploader.dry_run:
-                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
-            raise
-        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
+        raise exceptions.MapillaryStationaryVideoError(f"Stationary CAMM video")
 
 
 def _upload_raw_camm(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
-    stats: T.Sequence[_APIStats],
-):
+) -> None:
     for idx, video_path in enumerate(video_paths):
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
+            "file_type": FileType.RAW_CAMM.value,
         }
         try:
             _check_camm(video_path)
         except Exception as ex:
-            LOG.warning(f"Skipping due to: %s", ex)
+            LOG.warning(
+                f"Skipping %s %s due to: %s",
+                FileType.RAW_CAMM.value.upper(),
+                video_path.name,
+                ex,
+            )
             continue
         try:
             cluster_id = mly_uploader.upload_camm(
                 video_path, event_payload=event_payload
             )
-        except Exception as exc:
-            if not mly_uploader.dry_run:
-                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
-            raise
+        except Exception as ex:
+            raise UploadError(ex) from ex
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _upload_zipfiles(
     mly_uploader: uploader.Uploader,
     zip_paths: T.Sequence[Path],
-    stats: T.Sequence[_APIStats],
-):
+) -> None:
     for idx, zip_path in enumerate(zip_paths):
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
+            "file_type": FileType.ZIP.value,
         }
         try:
             cluster_id = mly_uploader.upload_zipfile(
                 zip_path, event_payload=event_payload
             )
-        except Exception as exc:
-            if not mly_uploader.dry_run:
-                _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
-            raise
+        except Exception as ex:
+            raise UploadError(ex) from ex
 
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
-
-
-def _upload_images(
-    mly_uploader: uploader.Uploader,
-    descs: T.Sequence[types.ImageDescriptionFile],
-    stats: T.Sequence[_APIStats],
-):
-    try:
-        clusters = mly_uploader.upload_images(descs)
-    except Exception as exc:
-        if not mly_uploader.dry_run:
-            _api_logging_failed(mly_uploader.user_items, _summarize(stats), exc)
-        raise
-
-    LOG.debug(f"Uploaded to cluster: %s", clusters)

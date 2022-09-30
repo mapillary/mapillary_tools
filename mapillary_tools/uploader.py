@@ -43,6 +43,9 @@ class Progress(types.TypedDict, total=False):
     # The size of the chunk, in bytes, that has been uploaded in the last request
     chunk_size: int
 
+    # File type
+    file_type: str
+
     # How many bytes has been uploaded so far since "upload_start"
     offset: int
 
@@ -61,7 +64,7 @@ class Progress(types.TypedDict, total=False):
     # MAPSequenceUUID. It is only available for directory uploading
     sequence_uuid: str
 
-    # An "upload_interrupted" will increase it. Reset to 0 if if the chunk is uploaded
+    # An "upload_interrupted" will increase it. Reset to 0 if the chunk is uploaded
     retries: int
 
     # md5sum of the zipfile/BlackVue/CAMM in uploading
@@ -152,14 +155,16 @@ class Uploader:
         self, blackvue_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         try:
-            return upload_video(
-                blackvue_path,
-                self.user_items,
-                "mly_blackvue_video",
-                event_payload=event_payload,
-                emitter=self.emitter,
-                dry_run=self.dry_run,
-            )
+            with blackvue_path.open("rb") as fp:
+                return _upload_video_fp(
+                    fp,
+                    blackvue_path,
+                    self.user_items,
+                    "mly_blackvue_video",
+                    event_payload=event_payload,
+                    emitter=self.emitter,
+                    dry_run=self.dry_run,
+                )
         except UploadCancelled:
             return None
 
@@ -167,7 +172,28 @@ class Uploader:
         self, camm_path: Path, event_payload: T.Optional[Progress] = None
     ) -> T.Optional[str]:
         try:
-            return upload_video(
+            with camm_path.open("rb") as fp:
+                return _upload_video_fp(
+                    fp,
+                    camm_path,
+                    self.user_items,
+                    "mly_camm_video",
+                    event_payload=event_payload,
+                    emitter=self.emitter,
+                    dry_run=self.dry_run,
+                )
+        except UploadCancelled:
+            return None
+
+    def upload_camm_fp(
+        self,
+        fp: T.IO[bytes],
+        camm_path: Path,
+        event_payload: T.Optional[Progress] = None,
+    ) -> T.Optional[str]:
+        try:
+            return _upload_video_fp(
+                fp,
                 camm_path,
                 self.user_items,
                 "mly_camm_video",
@@ -179,18 +205,23 @@ class Uploader:
             return None
 
     def upload_images(
-        self, descs: T.Sequence[types.ImageDescriptionFile]
+        self,
+        descs: T.Sequence[types.ImageDescriptionFile],
+        event_payload: T.Optional[Progress] = None,
     ) -> T.Dict[str, str]:
+        if event_payload is None:
+            event_payload = {}
         _validate_descs(descs)
         sequences = _group_sequences_by_uuid(descs)
         ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
-            event_payload: Progress = {
+            final_event_payload: Progress = {
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
                 "sequence_image_count": len(images),
                 "sequence_uuid": sequence_uuid,
             }
+            final_event_payload.update(event_payload)
             with tempfile.NamedTemporaryFile() as fp:
                 upload_md5sum = _zip_sequence_fp(images, fp)
                 try:
@@ -200,7 +231,7 @@ class Uploader:
                         len(images),
                         self.user_items,
                         emitter=self.emitter,
-                        event_payload=event_payload,
+                        event_payload=final_event_payload,
                         dry_run=self.dry_run,
                     )
                 except UploadCancelled:
@@ -337,7 +368,8 @@ def _upload_zipfile_fp(
     )
 
 
-def upload_video(
+def _upload_video_fp(
+    fp: T.IO[bytes],
     video_path: Path,
     user_items: types.UserItem,
     file_type: upload_api_v4.FileType,
@@ -345,53 +377,48 @@ def upload_video(
     emitter: EventEmitter = None,
     dry_run=False,
 ) -> str:
-    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
+    upload_md5sum = utils.md5sum_fp(fp)
 
-    with video_path.open("rb") as fp:
-        upload_md5sum = utils.md5sum_fp(fp)
+    fp.seek(0, io.SEEK_END)
+    entity_size = fp.tell()
 
-        fp.seek(0, io.SEEK_END)
-        entity_size = fp.tell()
+    # chunk size
+    avg_image_size = entity_size
+    chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
 
-        # chunk size
-        avg_image_size = entity_size
-        chunk_size = min(max(avg_image_size, MIN_CHUNK_SIZE), MAX_CHUNK_SIZE)
-
-        if dry_run:
-            upload_service: upload_api_v4.UploadService = (
-                upload_api_v4.FakeUploadService(
-                    user_access_token=user_items["user_upload_token"],
-                    session_key=f"mly_tools_{upload_md5sum}.mp4",
-                    entity_size=entity_size,
-                    organization_id=user_items.get("MAPOrganizationKey"),
-                    file_type=file_type,
-                )
-            )
-        else:
-            upload_service = upload_api_v4.UploadService(
-                user_access_token=user_items["user_upload_token"],
-                session_key=f"mly_tools_{upload_md5sum}.mp4",
-                entity_size=entity_size,
-                organization_id=user_items.get("MAPOrganizationKey"),
-                file_type=file_type,
-            )
-
-        if event_payload is None:
-            event_payload = {}
-
-        new_event_payload: Progress = {
-            "entity_size": entity_size,
-            "import_path": str(video_path),
-            "md5sum": upload_md5sum,
-        }
-
-        return _upload_fp(
-            upload_service,
-            fp,
-            chunk_size,
-            event_payload=T.cast(Progress, {**event_payload, **new_event_payload}),
-            emitter=emitter,
+    if dry_run:
+        upload_service: upload_api_v4.UploadService = upload_api_v4.FakeUploadService(
+            user_access_token=user_items["user_upload_token"],
+            session_key=f"mly_tools_{upload_md5sum}.mp4",
+            entity_size=entity_size,
+            organization_id=user_items.get("MAPOrganizationKey"),
+            file_type=file_type,
         )
+    else:
+        upload_service = upload_api_v4.UploadService(
+            user_access_token=user_items["user_upload_token"],
+            session_key=f"mly_tools_{upload_md5sum}.mp4",
+            entity_size=entity_size,
+            organization_id=user_items.get("MAPOrganizationKey"),
+            file_type=file_type,
+        )
+
+    if event_payload is None:
+        event_payload = {}
+
+    new_event_payload: Progress = {
+        "entity_size": entity_size,
+        "import_path": str(video_path),
+        "md5sum": upload_md5sum,
+    }
+
+    return _upload_fp(
+        upload_service,
+        fp,
+        chunk_size,
+        event_payload=T.cast(Progress, {**event_payload, **new_event_payload}),
+        emitter=emitter,
+    )
 
 
 def is_retriable_exception(ex: Exception):

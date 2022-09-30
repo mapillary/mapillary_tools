@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from .. import geo
+from .. import geo, utils
 
 from . import (
     blackvue_parser,
@@ -228,23 +228,30 @@ def create_camm_trak(
     }
 
 
-def extract_points(fp: T.BinaryIO) -> T.Tuple[str, T.List[geo.Point]]:
+def extract_points(
+    fp: T.BinaryIO,
+    file_types: T.Optional[T.Set[utils.FileType]] = None,
+) -> T.Tuple[T.Optional[utils.FileType], T.List[geo.Point]]:
     start_offset = fp.tell()
-    points = camm_parser.extract_points(fp)
-    if points:
-        return "camm", points
 
-    fp.seek(start_offset)
-    points_with_fix = gpmf_parser.extract_points(fp)
-    if points_with_fix:
-        return "gopro", T.cast(T.List[geo.Point], points_with_fix)
+    if file_types is None or utils.FileType.CAMM in file_types:
+        points = camm_parser.extract_points(fp)
+        if points:
+            return utils.FileType.CAMM, points
 
-    fp.seek(start_offset)
-    points = blackvue_parser.extract_points(fp)
-    if points:
-        return "blackvue", points
+    if file_types is None or utils.FileType.GOPRO in file_types:
+        fp.seek(start_offset)
+        points_with_fix = gpmf_parser.extract_points(fp)
+        if points_with_fix:
+            return utils.FileType.GOPRO, T.cast(T.List[geo.Point], points_with_fix)
 
-    return "unknown", []
+    if file_types is None or utils.FileType.BLACKVUE in file_types:
+        fp.seek(start_offset)
+        points = blackvue_parser.extract_points(fp)
+        if points:
+            return utils.FileType.BLACKVUE, points
+
+    return None, []
 
 
 def camm_sample_generator2(points: T.Sequence[geo.Point]):
