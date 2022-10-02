@@ -140,7 +140,7 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
     return sequences
 
 
-def group_and_sort_descs(
+def group_and_sort_descs_by_folder(
     descs: T.List[types.ImageDescriptionFile],
 ) -> T.List[T.List[types.ImageDescriptionFile]]:
     # group descs by parent directory
@@ -181,7 +181,7 @@ def process_sequence_properties(
         else:
             good_descs.append(T.cast(types.ImageDescriptionFile, desc))
 
-    groups = group_and_sort_descs(good_descs)
+    groups = group_and_sort_descs_by_folder(good_descs)
     # make sure they are sorted
     for group in groups:
         for cur, nxt in geo.pairwise(group):
