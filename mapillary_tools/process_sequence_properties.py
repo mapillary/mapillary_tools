@@ -1,5 +1,4 @@
 import dataclasses
-import itertools
 import os
 import typing as T
 import uuid
