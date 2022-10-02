@@ -1,8 +1,8 @@
 import dataclasses
-import itertools
 import os
 import typing as T
 import uuid
+from pathlib import Path
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
@@ -61,6 +61,7 @@ def cut_sequences(
             sequences.append([cur])
             continue
         time_diff = cur.time - prev.time
+        assert 0 <= time_diff, "sequence must be sorted by capture times"
         if cutoff_time <= time_diff:
             sequences.append([cur])
             continue
@@ -138,15 +139,26 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
     return sequences
 
 
-def group_descs_by_folder(
+def group_and_sort_descs_by_folder(
     descs: T.List[types.ImageDescriptionFile],
 ) -> T.List[T.List[types.ImageDescriptionFile]]:
-    # TODO: use absolute path?
-    descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
-    group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
-    sequences = []
-    for _, sequence in group:
-        sequences.append(list(sequence))
+    # group descs by parent directory
+    sequences_by_parent: T.Dict[str, T.List[types.ImageDescriptionFile]] = {}
+    for desc in descs:
+        filename = Path(desc["filename"]).resolve()
+        sequences_by_parent.setdefault(str(filename.parent), []).append(desc)
+
+    sequences = list(sequences_by_parent.values())
+    for sequence in sequences:
+        # Sort images in a sequence by capture time
+        # and then filename (in case capture times are the same)
+        sequence.sort(
+            key=lambda desc: (
+                types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
+                os.path.basename(desc["filename"]),
+            )
+        )
+
     return sequences
 
 
@@ -168,7 +180,15 @@ def process_sequence_properties(
         else:
             good_descs.append(T.cast(types.ImageDescriptionFile, desc))
 
-    groups = group_descs_by_folder(good_descs)
+    groups = group_and_sort_descs_by_folder(good_descs)
+    # make sure they are sorted
+    for group in groups:
+        for cur, nxt in geo.pairwise(group):
+            assert types.map_capture_time_to_datetime(
+                cur["MAPCaptureTime"]
+            ) <= types.map_capture_time_to_datetime(
+                nxt["MAPCaptureTime"]
+            ), "sequence must be sorted"
 
     # cut sequences
     sequences = []
@@ -178,6 +198,7 @@ def process_sequence_properties(
     assert len(good_descs) == sum(len(s) for s in sequences)
 
     for sequence in sequences:
+
         # duplication check
         sequence, dups = duplication_check(
             sequence,
