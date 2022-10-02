@@ -105,17 +105,6 @@ def find_duplicates(
     return duplicates
 
 
-def group_descs_by_folder(
-    descs: T.List[types.ImageDescriptionFile],
-) -> T.List[T.List[types.ImageDescriptionFile]]:
-    descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
-    group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
-    sequences = []
-    for _, sequence in group:
-        sequences.append(list(sequence))
-    return sequences
-
-
 def duplication_check(
     sequence: GPXSequence,
     duplicate_distance: float,
@@ -234,7 +223,7 @@ def process_sequence_properties(
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    groups = group_descs_by_folder(types.filter_out_errors(descs))
+    groups = group_and_sort_descs_by_folder(types.filter_out_errors(descs))
 
     # make sure they are sorted
     for group in groups:
