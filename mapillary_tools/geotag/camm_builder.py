@@ -235,19 +235,28 @@ def extract_points(
     start_offset = fp.tell()
 
     if file_types is None or utils.FileType.CAMM in file_types:
-        points = camm_parser.extract_points(fp)
+        try:
+            points = camm_parser.extract_points(fp)
+        except (parser.BoxNotFoundError, parser.RangeError):
+            points = []
         if points:
             return utils.FileType.CAMM, points
 
     if file_types is None or utils.FileType.GOPRO in file_types:
         fp.seek(start_offset)
-        points_with_fix = gpmf_parser.extract_points(fp)
+        try:
+            points_with_fix = gpmf_parser.extract_points(fp)
+        except (parser.BoxNotFoundError, parser.RangeError):
+            points = []
         if points_with_fix:
             return utils.FileType.GOPRO, T.cast(T.List[geo.Point], points_with_fix)
 
     if file_types is None or utils.FileType.BLACKVUE in file_types:
         fp.seek(start_offset)
-        points = blackvue_parser.extract_points(fp)
+        try:
+            points = blackvue_parser.extract_points(fp)
+        except (parser.BoxNotFoundError, parser.RangeError):
+            points = []
         if points:
             return utils.FileType.BLACKVUE, points
 

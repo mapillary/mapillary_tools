@@ -638,9 +638,8 @@ def _convert_and_upload_camm(
             file_type, points = camm_builder.extract_points(src_fp, file_types)
             if file_type is None:
                 LOG.warning(
-                    f"Skipping %s due to: No GPS found in the video (file types: %s)",
+                    f"Skipping %s due to: No GPS found in the video",
                     video_path.name,
-                    file_types,
                 )
                 continue
 
