@@ -3,6 +3,7 @@ import typing as T
 import datetime
 import uuid
 import itertools
+from pathlib import Path
 
 from . import types, constants
 from .geo import compute_bearing, gps_distance, diff_bearing, pairwise
@@ -61,6 +62,7 @@ def cut_sequences(
             sequences.append([cur])
             continue
         time_diff = (cur.time - prev.time).total_seconds()
+        assert 0 <= time_diff, "sequence must be sorted by capture times"
         if cutoff_time <= time_diff:
             sequences.append([cur])
             continue
@@ -101,17 +103,6 @@ def find_duplicates(
         prev = cur
 
     return duplicates
-
-
-def group_descs_by_folder(
-    descs: T.List[types.ImageDescriptionFile],
-) -> T.List[T.List[types.ImageDescriptionFile]]:
-    descs.sort(key=lambda desc: os.path.dirname(desc["filename"]))
-    group = itertools.groupby(descs, key=lambda desc: os.path.dirname(desc["filename"]))
-    sequences = []
-    for _, sequence in group:
-        sequences.append(list(sequence))
-    return sequences
 
 
 def duplication_check(
@@ -201,6 +192,29 @@ def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
     return sequences
 
 
+def group_and_sort_descs_by_folder(
+    descs: T.List[types.ImageDescriptionFile],
+) -> T.List[T.List[types.ImageDescriptionFile]]:
+    # group descs by parent directory
+    sequences_by_parent: T.Dict[str, T.List[types.ImageDescriptionFile]] = {}
+    for desc in descs:
+        filename = Path(desc["filename"]).resolve()
+        sequences_by_parent.setdefault(str(filename.parent), []).append(desc)
+
+    sequences = list(sequences_by_parent.values())
+    for sequence in sequences:
+        # Sort images in a sequence by capture time
+        # and then filename (in case capture times are the same)
+        sequence.sort(
+            key=lambda desc: (
+                types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
+                os.path.basename(desc["filename"]),
+            )
+        )
+
+    return sequences
+
+
 def process_sequence_properties(
     descs: T.List[types.ImageDescriptionFileOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
@@ -209,7 +223,16 @@ def process_sequence_properties(
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    groups = group_descs_by_folder(types.filter_out_errors(descs))
+    groups = group_and_sort_descs_by_folder(types.filter_out_errors(descs))
+
+    # make sure they are sorted
+    for group in groups:
+        for cur, nxt in pairwise(group):
+            assert types.map_capture_time_to_datetime(
+                cur["MAPCaptureTime"]
+            ) <= types.map_capture_time_to_datetime(
+                nxt["MAPCaptureTime"]
+            ), "sequence must be sorted"
 
     sequences = []
     for group in groups:
@@ -222,6 +245,7 @@ def process_sequence_properties(
     processed = [desc for desc in descs if types.is_error(desc)]
 
     for sequence in sequences:
+
         # duplication check
         passed, failed = duplication_check(
             sequence,
