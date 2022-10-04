@@ -99,15 +99,18 @@ class ExifRead:
         """
         for field in fields:
             if field in self.tags:
+                values = self.tags[field].values
                 if field_type is float:
-                    try:
-                        return eval_frac(self.tags[field].values[0]), field
-                    except ZeroDivisionError:
-                        pass
+                    if values:
+                        try:
+                            return eval_frac(values[0]), field
+                        except ZeroDivisionError:
+                            pass
                 elif field_type is str:
-                    return str(self.tags[field].values), field
+                    return str(values), field
                 elif field_type is int:
-                    return int(self.tags[field].values[0]), field
+                    if values:
+                        return int(values[0]), field
                 else:
                     raise ValueError(f"Invalid field type {field_type}")
         return default, None
