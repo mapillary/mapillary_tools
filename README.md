@@ -35,7 +35,7 @@ Process and upload imagery:
 mapillary_tools process_and_upload "path/to/images/"
 ```
 
-Upload all videos that mapillary_tools [supports]($upload-videos):
+Upload all videos that mapillary_tools [supports](#upload-videos):
 
 ```shell
 mapillary_tools upload --file_types=gopro,camm,blackvue "path/to/videos/"
