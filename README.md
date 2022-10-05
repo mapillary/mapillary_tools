@@ -10,8 +10,7 @@ Mapillary Tools is a library for processing and uploading images to [Mapillary](
 - [Usage](#usage)
   - [Image Process](#image-process)
   - [Upload Images](#upload-images)
-  - [Upload BlackVue Videos](#upload-blackvue-videos)
-  - [Upload CAMM Videos](#upload-camm-videos)
+  - [Upload Videos](#upload-videos)
 - [Advanced Usage](#advanced-usage)
   - [Client-side Video Process](#client-side-video-process)
   - [Authenticate](#authenticate)
@@ -36,16 +35,10 @@ Process and upload imagery:
 mapillary_tools process_and_upload "path/to/images/"
 ```
 
-Upload [CAMM](https://developers.google.com/streetview/publish/camm-spec) videos:
+Upload all videos that mapillary_tools [supports](#upload-videos):
 
 ```shell
-mapillary_tools upload_camm "path/to/camm_videos/"
-```
-
-Upload BlackVue videos:
-
-```shell
-mapillary_tools upload_blackvue "path/to/blackvue_videos/"
+mapillary_tools upload --file_types=gopro,camm,blackvue "path/to/videos/"
 ```
 
 ## Requirements
@@ -144,7 +137,6 @@ Images that have been successfully processed can be uploaded with the `upload` c
 #### Examples
 
 Upload all processed images in the directory `path/to/images/` to user `mly_user` for organization `mly_organization_id`
-. It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
 
 ```shell
 mapillary_tools upload "path/to/images/" \
@@ -152,51 +144,25 @@ mapillary_tools upload "path/to/images/" \
     --organization_key "mly_organization_id"
 ```
 
-### Upload BlackVue Videos
+### Upload Videos
 
-BlackVue videos can be uploaded with the `upload_blackvue` command directly, and they will be processed on Mapillary servers.
+Videos of the following formats can be uploaded to Mapillary Server directly without local video procesisng:
 
-New in version [v0.8.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.8.2).
+1. [CAMM](https://developers.google.com/streetview/publish/camm-spec)
+2. [BlackVue](https://blackvue.com/)
+3. [GoPro](https://gopro.com/)
 
-#### Examples
-
-Upload a BlackVue video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
-It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
-
-```shell
-mapillary_tools upload_blackvue "video_file_name.mp4" \
-    --user_name "mly_user" \
-    --organization_key "mly_organization_id"
-```
-
-Upload all BlackVue videos (\*.mp4) under the folder:
-
-```shell
-mapillary_tools upload_blackvue "path/to/blackvue_videos/"
-```
-
-### Upload CAMM Videos
-
-[CAMM](https://developers.google.com/streetview/publish/camm-spec) videos can be uploaded with the `upload_camm` command directly,
-and will be processed on Mapillary servers.
-
-New in version [v0.9.2](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.2).
+New in version [v0.9.3](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.3).
 
 #### Examples
 
-Upload a CAMM video with file name `video_file_name.mp4` to user `mly_user` for organization `mly_organization_id`.
-It is optional to specify `--user_name` if you have only one user [authenticated](#authenticate).
+Upload all recognizable videos in the directory `path/to/videos/` to user `mly_user` for organization `mly_organization_id`.
 
 ```shell
-mapillary_tools upload_camm "video_file_name.mp4" \
+mapillary_tools upload "path/to/videos/" \
+    --file_types=gopro,blackvue,camm \
     --user_name "mly_user" \
     --organization_key "mly_organization_id"
-```
-
-Upload all CAMM videos (\*.mp4) under the folder:
-
-```shell
-mapillary_tools upload_camm "path/to/camm_videos/"
 ```
 
 ## Advanced Usage
