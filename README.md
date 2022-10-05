@@ -148,9 +148,9 @@ mapillary_tools upload "path/to/images/" \
 
 Videos of the following formats can be uploaded to Mapillary Server directly without local video procesisng:
 
-1. CAMM
-2. BlackVue
-3. GoPro
+1. [CAMM](https://developers.google.com/streetview/publish/camm-spec)
+2. [BlackVue](https://blackvue.com/)
+3. [GoPro](https://gopro.com/)
 
 New in version [v0.9.3](https://github.com/mapillary/mapillary_tools/releases/tag/v0.9.3).
 
