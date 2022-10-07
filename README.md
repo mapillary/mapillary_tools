@@ -534,23 +534,29 @@ pipenv run python3 -m mapillary_tools.commands --version
 Run tests:
 
 ```shell
+# test all cases
 pipenv run python3 -m pytest -s -vv tests
+# or test a single case specifically:
+pipenv run python3 -m pytest -s -vv tests/unit/test_camm_parser.py::test_build_and_parse
 ```
 
 Run linting:
 
 ```shell
+# format code
 pipenv run black mapillary_tools tests
+# sort imports
+pipenv run usort format mapillary_tools tests
 ```
 
 Release a new version:
 
 ```shell
-# Assume you are releasing v0.9.1-beta
+# Assume you are releasing v0.9.1a2 (alpha2)
 
 # Tag your local branch
 # Use -f here to replace the existing one
-git tag -f v0.9.1-beta
+git tag -f v0.9.1a2
 
 # Push the tagged commit first if it is not there yet
 git push origin
