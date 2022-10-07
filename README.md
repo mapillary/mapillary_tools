@@ -64,7 +64,7 @@ To install or upgrade to the latest stable version:
 python3 -m pip install --upgrade mapillary_tools
 ```
 
-If you can't wait for the latest features in development, you can install from GitHub:
+If you can't wait for the latest features in development, install it from GitHub:
 
 ```shell
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
@@ -180,21 +180,23 @@ and configure sample intervals, or the other processing parameters.
 
 #### Install FFmpeg
 
-To [process videos locally](#video-process), you will need to install `ffmpeg`.
+To [process videos locally](#video-process), you will need to install `ffmpeg` and `ffprobe`.
 
-You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
-downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
+You can download `ffmpeg` and `ffprobe` from [here](https://ffmpeg.org/download.html).
+Make sure they are executable and placed in your `$PATH`.
 
-On macOS, use [Homebrew](https://brew.sh/):
+You can also install it with your favourite package manager. For example:
+
+For macOS:
 
 ```shell
 brew install ffmpeg
 ```
 
-On Debian/Ubuntu:
+For Debian/Ubuntu:
 
 ```shell
-sudo apt install ffmpeg
+apt install ffmpeg
 ```
 
 #### Video Process
