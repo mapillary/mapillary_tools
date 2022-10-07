@@ -1,6 +1,6 @@
-## Mapillary Tools
+[![Mapillary Tools Logo](https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png)](https://github.com/mapillary/mapillary_tools)
 
-Mapillary Tools is a library for processing and uploading images to [Mapillary](https://www.mapillary.com/).
+<h2 align="center">Process and upload images/videos to [Mapillary](https://www.mapillary.com/)</h2>
 
 <!--ts-->
 
