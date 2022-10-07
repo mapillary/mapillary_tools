@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/mapillary/mapillary_tools/">
-    <img src="https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png">
+    <img src="https://raw.githubusercontent.com/mapillary/mapillary_tools/main/docs/images/logo.png">
   </a>
 </p>
 
