@@ -536,7 +536,7 @@ Run tests:
 ```shell
 # test all cases
 pipenv run python3 -m pytest -s -vv tests
-# or test a single case specifically:
+# or test a single case specifically
 pipenv run python3 -m pytest -s -vv tests/unit/test_camm_parser.py::test_build_and_parse
 ```
 
