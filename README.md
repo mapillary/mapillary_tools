@@ -1,6 +1,6 @@
 [![Mapillary Tools Logo](https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png)](https://github.com/mapillary/mapillary_tools)
 
-<h2 align="center">Process and upload images/videos to <a href="https://www.mapillary.com/">Mapillary</a></h2>
+<h2 align="center">Command line tools for processing and uploading Mapillary imagery</h2>
 
 <!--ts-->
 
