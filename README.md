@@ -1,4 +1,4 @@
-[![Mapillary Tools Logo](https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png)](https://github.com/mapillary/mapillary_tools)
+<img align="center">https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png</img>
 
 <h2 align="center">Command line tools for processing and uploading Mapillary imagery</h2>
 
