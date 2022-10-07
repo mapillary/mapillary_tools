@@ -1,4 +1,6 @@
-<img align="center" src="https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png">
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mapillary/mapillary_tools/chore-pypi/docs/images/logo.png">
+</p>
 
 <h2 align="center">Command line tools for processing and uploading Mapillary imagery</h2>
 
