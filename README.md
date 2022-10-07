@@ -515,34 +515,32 @@ cd mapillary_tools
 Set up the virtual environment. It is optional but recommended:
 
 ```shell
-python3 -m venv venv
-source venv/bin/activate # for Windows, run: .\venv\Scripts\activate
-# verify if the venv is activated
-which python3
+python3 -m pip install pipenv
 ```
 
 Install dependencies:
 
 ```shell
-python3 -m pip install -r requirements.txt -r requirements-dev.txt
+pipenv install -r requirements.txt
+pipenv install -r requirements-dev.txt
 ```
 
 Run the code from the repository:
 
 ```shell
-python3 -m mapillary_tools.commands --version
+pipenv run python3 -m mapillary_tools.commands --version
 ```
 
 Run tests:
 
 ```shell
-python3 -m pytest -s -vv tests
+pipenv run python3 -m pytest -s -vv tests
 ```
 
 Run linting:
 
 ```shell
-black mapillary_tools tests
+pipenv run black mapillary_tools tests
 ```
 
 Release a new version:
