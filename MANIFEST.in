@@ -1,1 +1,2 @@
 include schema/*.json
+include requirements.txt

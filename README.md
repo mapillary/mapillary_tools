@@ -58,7 +58,13 @@ information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geo
 
 ### Installing via Pip
 
-Python (3.6 and above) and git are required:
+To install or upgrade to the latest stable version:
+
+```shell
+python3 -m pip install --upgrade mapillary_tools
+```
+
+If you can't wait for the latest features in development, you can install from GitHub:
 
 ```shell
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
@@ -75,7 +81,7 @@ commands will install Python 3, pip3, git, and all required libraries for mapill
 ```shell
 pkg install python git build-essential libgeos openssl libjpeg-turbo
 python3 -m pip install --upgrade pip wheel
-python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+python3 -m pip install --upgrade mapillary_tools
 ```
 
 Termux must access the device's internal storage to process and upload images. To do this, use the following command:

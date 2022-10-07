@@ -16,10 +16,17 @@ with open(os.path.join(here, "mapillary_tools", "__init__.py"), "r") as f:
     exec(f.read(), about)
 
 
+def readme():
+    with open("README.md") as f:
+        return f.read()
+
+
 setup(
     name="mapillary_tools",
     version=about["VERSION"],
     description="Mapillary Image/Video Import Pipeline",
+    long_description=readme(),
+    long_description_content_type="text/markdown",
     url="https://github.com/mapillary/mapillary_tools",
     author="Mapillary",
     license="BSD",
