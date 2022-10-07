@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h2 align="center">Command line tools for processing and uploading Mapillary imagery</h2>
+<h2 align="center">Process and upload Mapillary imagery</h2>
 
 <!--ts-->
 
