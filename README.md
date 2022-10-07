@@ -1,6 +1,18 @@
-## Mapillary Tools
+<p align="center">
+  <a href="https://github.com/mapillary/mapillary_tools/">
+    <img src="https://raw.githubusercontent.com/mapillary/mapillary_tools/main/docs/images/logo.png">
+  </a>
+</p>
 
-Mapillary Tools is a library for processing and uploading images to [Mapillary](https://www.mapillary.com/).
+<h2 align="center">Process and upload Mapillary imagery</h2>
+
+<p align="center">
+<a href="https://pypi.org/project/mapillary_tools/"><img alt="PyPI" src="https://img.shields.io/pypi/v/mapillary_tools"></a>
+<a href="https://github.com/mapillary/mapillary_tools/actions"><img alt="Actions Status" src="https://github.com/mapillary/mapillary_tools/actions/workflows/python-package.yml/badge.svg"></a>
+<a href="https://github.com/mapillary/mapillary_tools/blob/main/LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/mapillary/mapillary_tools"></a>
+<a href="https://github.com/mapillary/mapillary_tools/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/mapillary/mapillary_tools"></a>
+<a href="https://pepy.tech/project/mapillary_tools"><img alt="Downloads" src="https://pepy.tech/badge/mapillary_tools"></a>
+</p>
 
 <!--ts-->
 
@@ -58,7 +70,13 @@ information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geo
 
 ### Installing via Pip
 
-Python (3.6 and above) and git are required:
+To install or upgrade to the latest stable version:
+
+```shell
+python3 -m pip install --upgrade mapillary_tools
+```
+
+If you can't wait for the latest features in development, install it from GitHub:
 
 ```shell
 python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
@@ -75,7 +93,7 @@ commands will install Python 3, pip3, git, and all required libraries for mapill
 ```shell
 pkg install python git build-essential libgeos openssl libjpeg-turbo
 python3 -m pip install --upgrade pip wheel
-python3 -m pip install --upgrade git+https://github.com/mapillary/mapillary_tools
+python3 -m pip install --upgrade mapillary_tools
 ```
 
 Termux must access the device's internal storage to process and upload images. To do this, use the following command:
@@ -174,21 +192,23 @@ and configure sample intervals, or the other processing parameters.
 
 #### Install FFmpeg
 
-To [process videos locally](#video-process), you will need to install `ffmpeg`.
+To [process videos locally](#video-process), you will need to install `ffmpeg` and `ffprobe`.
 
-You can download `ffmpeg` from [here](https://ffmpeg.org/download.html). Make sure it is executable and put the
-downloaded binaries in your `$PATH`. You can also install `ffmpeg` with your favourite package manager. For example:
+You can download `ffmpeg` and `ffprobe` from [here](https://ffmpeg.org/download.html).
+Make sure they are executable and placed in your `$PATH`.
 
-On macOS, use [Homebrew](https://brew.sh/):
+You can also install it with your favourite package manager. For example:
+
+For macOS:
 
 ```shell
 brew install ffmpeg
 ```
 
-On Debian/Ubuntu:
+For Debian/Ubuntu:
 
 ```shell
-sudo apt install ffmpeg
+apt install ffmpeg
 ```
 
 #### Video Process
@@ -507,44 +527,48 @@ cd mapillary_tools
 Set up the virtual environment. It is optional but recommended:
 
 ```shell
-python3 -m venv venv
-source venv/bin/activate # for Windows, run: .\venv\Scripts\activate
-# verify if the venv is activated
-which python3
+python3 -m pip install pipenv
 ```
 
 Install dependencies:
 
 ```shell
-python3 -m pip install -r requirements.txt -r requirements-dev.txt
+pipenv install -r requirements.txt
+pipenv install -r requirements-dev.txt
 ```
 
 Run the code from the repository:
 
 ```shell
-python3 -m mapillary_tools.commands --version
+pipenv run python3 -m mapillary_tools.commands --version
 ```
 
 Run tests:
 
 ```shell
-python3 -m pytest -s -vv tests
+# test all cases
+pipenv run python3 -m pytest -s -vv tests
+# or test a single case specifically
+pipenv run python3 -m pytest -s -vv tests/unit/test_camm_parser.py::test_build_and_parse
 ```
 
 Run linting:
 
 ```shell
-black mapillary_tools tests
+# format code
+pipenv run black mapillary_tools tests
+# sort imports
+pipenv run usort format mapillary_tools tests
 ```
 
 Release a new version:
 
 ```shell
-# Assume you are releasing v0.9.1-beta
+# Assume you are releasing v0.9.1a2 (alpha2)
 
 # Tag your local branch
 # Use -f here to replace the existing one
-git tag -f v0.9.1-beta
+git tag -f v0.9.1a2
 
 # Push the tagged commit first if it is not there yet
 git push origin

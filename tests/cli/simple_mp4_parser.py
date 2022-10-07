@@ -167,10 +167,7 @@ def _parse_args():
     return parser.parse_args()
 
 
-parsed_args = _parse_args()
-
-
-def _process_path(path: pathlib.Path):
+def _process_path(parsed_args, path: pathlib.Path):
     if parsed_args.filter_samples is None:
         filter_samples = None
     else:
@@ -214,12 +211,14 @@ def _process_path(path: pathlib.Path):
 
 
 def main():
+    parsed_args = _parse_args()
+
     for path in parsed_args.path:
         if os.path.isdir(path):
             for p in utils.get_video_file_list(path, abs_path=True):
-                _process_path(pathlib.Path(p))
+                _process_path(parsed_args, pathlib.Path(p))
         else:
-            _process_path(pathlib.Path(path))
+            _process_path(parsed_args, pathlib.Path(path))
 
 
 if __name__ == "__main__":
