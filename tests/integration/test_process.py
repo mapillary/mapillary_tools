@@ -15,7 +15,7 @@ EXECUTABLE = os.getenv(
 )
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
-PROCESS_FLAGS = "--add_import_date --add_file_name"
+PROCESS_FLAGS = "--add_import_date"
 
 
 @pytest.fixture
