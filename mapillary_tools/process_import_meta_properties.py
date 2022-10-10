@@ -1,9 +1,13 @@
+import logging
 import os
 import time
 import typing as T
 
 from . import exceptions, types, VERSION
 from .types import MetaProperties
+
+
+LOG = logging.getLogger(__name__)
 
 
 def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) -> None:
@@ -79,6 +83,11 @@ def process_import_meta_properties(
     custom_meta_data=None,
     camera_uuid=None,
 ) -> T.List[types.ImageDescriptionFileOrError]:
+    if add_file_name:
+        LOG.warning(
+            "The option --add_file_name is not needed any more since v0.9.4, because image filenames will be added automatically"
+        )
+
     for desc in types.filter_out_errors(descs):
         if orientation is not None:
             desc["MAPOrientation"] = format_orientation(orientation)
@@ -95,8 +104,10 @@ def process_import_meta_properties(
         if camera_uuid is not None:
             desc["MAPCameraUUID"] = camera_uuid
 
-        if add_file_name:
-            desc["MAPFilename"] = os.path.basename(desc["filename"])
+        # Because image filenames will be renamed to image md5sums
+        # when adding to the zip, so we keep the original filename
+        # here
+        desc["MAPFilename"] = os.path.basename(desc["filename"])
 
         if add_import_date:
             add_meta_tag(

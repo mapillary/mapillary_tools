@@ -94,7 +94,7 @@ class Command:
         )
         group_metadata.add_argument(
             "--add_file_name",
-            help="Add original file name to EXIF.",
+            help="[DEPRECATED since v0.9.4] Add original file name to EXIF.",
             action="store_true",
             required=False,
         )
