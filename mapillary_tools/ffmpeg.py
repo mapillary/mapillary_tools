@@ -34,52 +34,106 @@ class Stream(TypedDict):
     width: int
 
 
-class ProbeFormat(TypedDict):
-    filename: str
-    duration: str
-
-
 class ProbeOutput(TypedDict):
     streams: T.List[Stream]
-    format: T.Dict
 
 
 class FFmpegNotFoundError(Exception):
     pass
 
 
+_MAX_STDERR_LENGTH = 2048
+
+
+def _truncate_begin(s: str) -> str:
+    if _MAX_STDERR_LENGTH < len(s):
+        return "..." + s[-_MAX_STDERR_LENGTH:]
+    else:
+        return s
+
+
+def _truncate_end(s: str) -> str:
+    if _MAX_STDERR_LENGTH < len(s):
+        return s[:_MAX_STDERR_LENGTH] + "..."
+    else:
+        return s
+
+
+class FFmpegCalledProcessError(Exception):
+    def __init__(self, ex: subprocess.CalledProcessError):
+        self.inner_ex = ex
+
+    def __str__(self) -> str:
+        msg = str(self.inner_ex)
+        if self.inner_ex.stderr is not None:
+            try:
+                stderr = self.inner_ex.stderr.decode("utf-8")
+            except UnicodeDecodeError:
+                stderr = str(self.inner_ex.stderr)
+            msg += f"\nSTDERR: {_truncate_begin(stderr)}"
+        return msg
+
+
 class FFMPEG:
     def __init__(
-        self, ffmpeg_path: str = "ffmpeg", ffprobe_path: str = "ffprobe"
+        self,
+        ffmpeg_path: str = "ffmpeg",
+        ffprobe_path: str = "ffprobe",
+        stderr: T.Optional[int] = None,
     ) -> None:
         self.ffmpeg_path = ffmpeg_path
         self.ffprobe_path = ffprobe_path
+        self.stderr = stderr
 
     def _run_ffprobe_json(self, cmd: T.List[str]) -> T.Dict:
         full_cmd = [self.ffprobe_path, "-print_format", "json", *cmd]
         LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
         try:
-            output = subprocess.check_output(full_cmd)
+            completed = subprocess.run(
+                full_cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=self.stderr,
+            )
         except FileNotFoundError:
             raise FFmpegNotFoundError(
                 f'The ffprobe command "{self.ffprobe_path}" not found'
             )
+        except subprocess.CalledProcessError as ex:
+            raise FFmpegCalledProcessError(ex) from ex
+
         try:
-            return json.loads(output)
+            stdout = completed.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            raise RuntimeError(
+                f"Error decoding ffprobe output as unicode: {_truncate_end(stdout)}"
+            )
+
+        try:
+            output = json.loads(stdout)
         except json.JSONDecodeError:
             raise RuntimeError(
-                f"Error JSON decoding ffprobe output: {output.decode('utf-8')}"
+                f"Error JSON decoding ffprobe output: {_truncate_end(stdout)}"
             )
+
+        if not output:
+            raise RuntimeError(
+                f"Empty JSON ffprobe output with STDERR: {_truncate_begin(str(completed.stderr))}"
+            )
+
+        return output
 
     def _run_ffmpeg(self, cmd: T.List[str]) -> None:
         full_cmd = [self.ffmpeg_path, *cmd]
         LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
         try:
-            subprocess.check_call(full_cmd)
+            subprocess.run(full_cmd, check=True, stderr=self.stderr)
         except FileNotFoundError:
             raise FFmpegNotFoundError(
                 f'The ffmpeg command "{self.ffmpeg_path}" not found'
             )
+        except subprocess.CalledProcessError as ex:
+            raise FFmpegCalledProcessError(ex) from ex
 
     def probe_format_and_streams(self, video_path: Path) -> ProbeOutput:
         cmd = [
@@ -89,24 +143,6 @@ class FFMPEG:
             str(video_path),
         ]
         return T.cast(ProbeOutput, self._run_ffprobe_json(cmd))
-
-    def extract_stream(self, source: Path, dest: Path, stream_id: int) -> None:
-        cmd = [
-            "-hide_banner",
-            "-i",
-            str(source),
-            "-y",  # overwrite - potentially dangerous
-            "-nostats",
-            "-codec",
-            "copy",
-            "-map",
-            f"0:{stream_id}",
-            "-f",
-            "rawvideo",
-            str(dest),
-        ]
-
-        self._run_ffmpeg(cmd)
 
     def extract_frames(
         self,
