@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -647,6 +648,24 @@ def ffmpeg_installed():
 is_ffmpeg_installed = ffmpeg_installed()
 
 
+def test_sample_video_relpath():
+    with tempfile.TemporaryDirectory() as dir:
+        x = subprocess.run(
+            f"{EXECUTABLE} sample_video --rerun tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4 {dir}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+
+
+def test_sample_video_relpath_dir():
+    with tempfile.TemporaryDirectory() as dir:
+        x = subprocess.run(
+            f"{EXECUTABLE} sample_video --rerun --video_start_time 2021_10_10_10_10_10_123 tests/integration {dir}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+
+
 def test_sample_video(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
@@ -699,10 +718,10 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
         shell=True,
     )
-    assert x.returncode != 0, x.stderr
+    assert x.returncode == 0, x.stderr
     with open(desc_path) as fp:
         descs = json.load(fp)
     assert 1 == len(find_desc_errors(descs))
