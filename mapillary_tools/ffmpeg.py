@@ -81,6 +81,11 @@ class FFMPEG:
         ffprobe_path: str = "ffprobe",
         stderr: T.Optional[int] = None,
     ) -> None:
+        """
+        ffmpeg_path: path to ffmpeg binary
+        ffprobe_path: path to ffprobe binary
+        stderr: param passed to subprocess.run to control whether to capture stderr
+        """
         self.ffmpeg_path = ffmpeg_path
         self.ffprobe_path = ffprobe_path
         self.stderr = stderr
@@ -116,6 +121,12 @@ class FFMPEG:
                 f"Error JSON decoding ffprobe output: {_truncate_end(stdout)}"
             )
 
+        # This check is for macOS:
+        # ffprobe -hide_banner -print_format json not_exists
+        # you will get exit code == 0 with the following stdout and stderr:
+        # {
+        # }
+        # not_exists: No such file or directory
         if not output:
             raise RuntimeError(
                 f"Empty JSON ffprobe output with STDERR: {_truncate_begin(str(completed.stderr))}"
