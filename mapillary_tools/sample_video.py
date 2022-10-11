@@ -46,7 +46,10 @@ def sample_video(
 
     if rerun:
         for video_path in video_list:
-            sample_dir = Path(import_path).joinpath(video_path.relative_to(video_dir))
+            # need to resolve video_path because video_dir might be absolute
+            sample_dir = Path(import_path).joinpath(
+                video_path.resolve().relative_to(video_dir)
+            )
             LOG.info(f"Removing the sample directory %s", sample_dir)
             if sample_dir.is_dir():
                 shutil.rmtree(sample_dir)
@@ -54,7 +57,10 @@ def sample_video(
                 os.remove(sample_dir)
 
     for video_path in video_list:
-        sample_dir = Path(import_path).joinpath(video_path.relative_to(video_dir))
+        # need to resolve video_path because video_dir might be absolute
+        sample_dir = Path(import_path).joinpath(
+            video_path.resolve().relative_to(video_dir)
+        )
         if sample_dir.exists():
             LOG.warning(
                 f"Skip sampling video %s as it has been sampled in %s",
