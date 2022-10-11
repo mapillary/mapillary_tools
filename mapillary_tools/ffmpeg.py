@@ -111,7 +111,7 @@ class FFMPEG:
             stdout = completed.stdout.decode("utf-8")
         except UnicodeDecodeError:
             raise RuntimeError(
-                f"Error decoding ffprobe output as unicode: {_truncate_end(stdout)}"
+                f"Error decoding ffprobe output as unicode: {_truncate_end(str(completed.stdout))}"
             )
 
         try:
