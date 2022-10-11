@@ -27,7 +27,7 @@ def sample_video(
         video_list = utils.find_videos(
             [video_import_path], skip_subfolders=skip_subfolders
         )
-        video_dir = video_import_path
+        video_dir = video_import_path.resolve()
         LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
     elif video_import_path.is_file():
         video_list = [video_import_path]
@@ -36,6 +36,7 @@ def sample_video(
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
         )
+    assert video_dir.is_absolute(), f"video_dir must be absolute here: {str(video_dir)}"
 
     video_start_time_dt: T.Optional[datetime.datetime] = None
     if video_start_time is not None:
