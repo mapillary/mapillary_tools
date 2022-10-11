@@ -32,6 +32,8 @@ from .geotag import (
     blackvue_parser,
     camm_builder,
     camm_parser,
+    gpmf_gps_filter,
+    gpmf_parser,
     simple_mp4_builder,
     utils as video_utils,
 )
@@ -634,6 +636,7 @@ def _convert_and_upload_camm(
     file_types: T.Set[FileType],
 ) -> None:
     for idx, video_path in enumerate(video_paths):
+        LOG.debug("Converting and uploading %s", video_path)
         with open(video_path, "rb") as src_fp:
             file_type, points = camm_builder.extract_points(src_fp, file_types)
             if file_type is None:
@@ -642,6 +645,12 @@ def _convert_and_upload_camm(
                     video_path.name,
                 )
                 continue
+
+            if file_type == FileType.GOPRO:
+                new_points = gpmf_gps_filter.filter_noisy_points(
+                    T.cast(T.List[gpmf_parser.PointWithFix], points)
+                )
+                points = T.cast(T.List[geo.Point], new_points)
 
             stationary = video_utils.is_video_stationary(
                 geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
