@@ -50,7 +50,11 @@ def test_ffprobe_not_exists():
     ff = ffmpeg.FFMPEG()
     try:
         x = ff.probe_format_and_streams(Path("not_exist_a"))
+    except ffmpeg.FFmpegCalledProcessError as ex:
+        # exc from linux
+        assert "STDERR:" not in str(ex)
     except RuntimeError as ex:
+        # exc from macos
         assert "Empty JSON ffprobe output with STDERR: None" == str(ex)
     else:
         assert False, "RuntimeError not raised"
@@ -58,7 +62,11 @@ def test_ffprobe_not_exists():
     ff = ffmpeg.FFMPEG(stderr=subprocess.PIPE)
     try:
         x = ff.probe_format_and_streams(Path("not_exist_a"))
+    except ffmpeg.FFmpegCalledProcessError as ex:
+        # exc from linux
+        assert "STDERR:" in str(ex)
     except RuntimeError as ex:
+        # exc from macos
         assert (
             "Empty JSON ffprobe output with STDERR: b'not_exist_a: No such file or directory"
             in str(ex)
