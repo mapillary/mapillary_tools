@@ -1,6 +1,5 @@
 import dataclasses
 import io
-import itertools
 import sys
 import typing as T
 
