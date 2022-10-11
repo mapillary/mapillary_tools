@@ -36,6 +36,7 @@ def sample_video(
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
         )
+    assert video_dir.is_absolute(), f"video_dir must be absolute here: {str(video_dir)}"
 
     video_start_time_dt: T.Optional[datetime.datetime] = None
     if video_start_time is not None:
