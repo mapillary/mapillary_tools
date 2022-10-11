@@ -649,6 +649,9 @@ is_ffmpeg_installed = ffmpeg_installed()
 
 
 def test_sample_video_relpath():
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
     with tempfile.TemporaryDirectory() as dir:
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --rerun tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4 {dir}",
@@ -658,6 +661,9 @@ def test_sample_video_relpath():
 
 
 def test_sample_video_relpath_dir():
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
     with tempfile.TemporaryDirectory() as dir:
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --rerun --video_start_time 2021_10_10_10_10_10_123 tests/integration {dir}",
