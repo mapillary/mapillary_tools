@@ -109,11 +109,13 @@ class FFMPEG:
 
         try:
             stdout = completed.stdout.decode("utf-8")
-            output = json.loads(stdout)
         except UnicodeDecodeError:
             raise RuntimeError(
                 f"Error decoding ffprobe output as unicode: {_truncate_end(str(completed.stdout))}"
             )
+
+        try:
+            output = json.loads(stdout)
         except json.JSONDecodeError:
             raise RuntimeError(
                 f"Error JSON decoding ffprobe output: {_truncate_end(stdout)}"
