@@ -1,5 +1,7 @@
 # Changelog
 
+Check the release page for changelogs: https://github.com/mapillary/mapillary_tools/releases
+
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
 ## [0.9.0](https://github.com/mapillary/mapillary_tools/compare/v0.8.2...v0.9.0) (2022-07-23)
