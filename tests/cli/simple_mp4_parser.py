@@ -173,11 +173,6 @@ def _process_path(parsed_args, path: pathlib.Path):
     else:
         filter_samples = parsed_args.filter_samples.encode("utf8").split(b",")
 
-    if parsed_args.box_path is None:
-        box_path = None
-    else:
-        box_path = parsed_args.box_path.encode("utf8").split(b"/")
-
     if parsed_args.validate_samples:
         LOG.info(f"validating samples {path}")
         _validate_samples(path, filter_samples)
@@ -191,22 +186,44 @@ def _process_path(parsed_args, path: pathlib.Path):
             with open(path, "rb") as fp:
                 _parse_samples(fp, filter_samples)
     else:
+        if parsed_args.box_path is None:
+            box_path = None
+        else:
+            box_path = parsed_args.box_path.encode("utf8").split(b"/")
+
         if parsed_args.dump:
-            assert box_path is not None, "must specify box_path"
+            LOG.info(f"dumping {path}")
+            assert box_path is not None, "must specify --box_path"
             with open(path, "rb") as fp:
                 _dump_box_data_at(fp, box_path)
         else:
             LOG.info(f"parsing {path}")
-            if parsed_args.simple:
-                with open(path, "rb") as fp:
-                    _parse_structs(fp)
-            elif parsed_args.full:
-                with open(path, "rb") as fp:
-                    boxes = builder.FullBoxStruct64.BoxList.parse_stream(fp)
+            with open(path, "rb") as fp:
+                if parsed_args.simple:
+                    if box_path is None:
+                        _parse_structs(fp)
+                    else:
+                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        _parse_structs(io.BytesIO(data))
+                elif parsed_args.full:
+                    if box_path is None:
+                        boxes = simple_mp4_parser.FullBoxStruct64.BoxList.parse_stream(
+                            fp
+                        )
+                    else:
+                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        boxes = simple_mp4_parser.FullBoxStruct64.BoxList.parse_stream(
+                            io.BytesIO(data)
+                        )
                     print(boxes)
-            else:
-                with open(path, "rb") as fp:
-                    boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
+                else:
+                    if box_path is None:
+                        boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
+                    else:
+                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        boxes = builder.QuickBoxStruct64.BoxList.parse_stream(
+                            io.BytesIO(data)
+                        )
                     print(boxes)
 
 
