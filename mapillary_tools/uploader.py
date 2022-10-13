@@ -502,7 +502,11 @@ def _upload_fp(
                     # we don't expect expected_offset == server_offset
                     # because the chunk might be partially uploaded (that's too bad)
                     if not (expected_offset <= server_offset):
-                        LOG.fatal("Upload server offset %s does not match expected offset %s", server_offset, expected_offset)
+                        LOG.fatal(
+                            "Upload server offset %s does not match expected offset %s",
+                            server_offset,
+                            expected_offset,
+                        )
                         if isinstance(ex, requests.HTTPError):
                             raise upload_api_v4.wrap_http_exception(ex) from ex
                         else:
