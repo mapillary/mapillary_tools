@@ -1,14 +1,11 @@
 import io
 import typing
 
-from mapillary_tools.geotag import (
-    simple_mp4_builder as builder,
-    simple_mp4_parser as parser,
-)
+from mapillary_tools.geotag import simple_mp4_parser as parser
 
 
 def _construct_parser(data: bytes):
-    return builder.FullBoxStruct64.BoxList.parse(data)
+    return parser.FullBoxStruct64.BoxList.parse(data)
 
 
 def _parse(data: bytes):
