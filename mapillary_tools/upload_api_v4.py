@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os
+import random
 import sys
 import typing as T
 
@@ -214,9 +215,6 @@ class UploadService:
         return T.cast(str, cluster_id)
 
 
-import random
-
-
 # A mock class for testing only
 class FakeUploadService(UploadService):
     def __init__(self, *args, **kwargs):
@@ -271,49 +269,3 @@ class FakeUploadService(UploadService):
         with open(filename, "rb") as fp:
             fp.seek(0, io.SEEK_END)
             return fp.tell()
-
-
-def _file_stats(fp: T.IO[bytes]):
-    md5 = hashlib.md5()
-    while True:
-        buf = fp.read(DEFAULT_CHUNK_SIZE)
-        if not buf:
-            break
-        md5.update(buf)
-    fp.seek(0, os.SEEK_END)
-    return md5.hexdigest(), fp.tell()
-
-
-if __name__ == "__main__":
-    import hashlib, os, sys
-
-    import tqdm
-
-    user_access_token = os.getenv("MAPILLARY_TOOLS_USER_ACCESS_TOKEN")
-    if not user_access_token:
-        raise RuntimeError("MAPILLARY_TOOLS_USER_ACCESS_TOKEN is required")
-
-    path = sys.argv[1]
-    with open(path, "rb") as fp:
-        md5sum, entity_size = _file_stats(fp)
-    session_key = sys.argv[2] if sys.argv[2:] else f"mly_tools_test_{md5sum}"
-    service = UploadService(user_access_token, session_key, entity_size)
-
-    print(f"session key: {session_key}")
-    print(f"entity size: {entity_size}")
-    print(f"initial offset: {service.fetch_offset()}")
-
-    with open(path, "rb") as fp:
-        with tqdm.tqdm(
-            total=entity_size,
-            initial=service.fetch_offset(),
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
-            service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
-            try:
-                file_handle = service.upload(fp)
-            except requests.HTTPError as ex:
-                raise wrap_http_exception(ex)
-    print(file_handle)
