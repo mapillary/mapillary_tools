@@ -1,5 +1,8 @@
 import io
+import json
+import logging
 import os
+import random
 import sys
 import typing as T
 
@@ -12,11 +15,12 @@ else:
 
 from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
 
+LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16
-REQUESTS_TIMEOUT = 60  # 1 minutes
+REQUESTS_TIMEOUT = 20  # 20 seconds
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT sets both the "connection timeout"
 # and "read timeout": https://docs.python-requests.org/en/latest/user/advanced/#timeouts
 # In my test, however, the connection timeout does not only include the time for connection,
@@ -42,6 +46,25 @@ def wrap_http_exception(ex: requests.HTTPError):
         f"{ex.response.text}",
     ]
     return UploadHTTPError("\n".join(lines))
+
+
+def _sanitized_headers(headers: T.Dict):
+    return {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in ["authorization", "cookie", "x-fb-access-token"]
+    }
+
+
+def _truncate_end(s: bytes) -> bytes:
+    MAX_LENGTH = 512
+    if MAX_LENGTH < len(s):
+        if isinstance(s, bytes):
+            return s[:MAX_LENGTH] + b"..."
+        else:
+            return str(s[:MAX_LENGTH]) + "..."
+    else:
+        return s
 
 
 class UploadService:
@@ -77,11 +100,14 @@ class UploadService:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
+        url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+        LOG.debug("GET %s", url)
         resp = requests.get(
-            f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
+            url,
             headers=headers,
             timeout=REQUESTS_TIMEOUT,
         )
+        LOG.debug("HTTP response %s: %s", resp.status_code, resp.content)
         resp.raise_for_status()
         data = resp.json()
         return data["offset"]
@@ -119,11 +145,18 @@ class UploadService:
                 "X-Entity-Name": self.session_key,
                 "X-Entity-Type": entity_type,
             }
+            url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+            LOG.debug(
+                "POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers))
+            )
             resp = requests.post(
-                f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
+                url,
                 headers=headers,
                 data=chunk,
                 timeout=UPLOAD_REQUESTS_TIMEOUT,
+            )
+            LOG.debug(
+                "HTTP response %s: %s", resp.status_code, _truncate_end(resp.content)
             )
             resp.raise_for_status()
             offset += len(chunk)
@@ -158,12 +191,16 @@ class UploadService:
         if self.organization_id is not None:
             data["organization_id"] = self.organization_id
 
+        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
+
+        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers)))
         resp = requests.post(
-            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+            url,
             headers=headers,
             json=data,
             timeout=REQUESTS_TIMEOUT,
         )
+        LOG.debug("HTTP response %s: %s", resp.status_code, _truncate_end(resp.content))
 
         resp.raise_for_status()
 
@@ -176,9 +213,6 @@ class UploadService:
             )
 
         return T.cast(str, cluster_id)
-
-
-import random
 
 
 # A mock class for testing only
@@ -235,49 +269,3 @@ class FakeUploadService(UploadService):
         with open(filename, "rb") as fp:
             fp.seek(0, io.SEEK_END)
             return fp.tell()
-
-
-def _file_stats(fp: T.IO[bytes]):
-    md5 = hashlib.md5()
-    while True:
-        buf = fp.read(DEFAULT_CHUNK_SIZE)
-        if not buf:
-            break
-        md5.update(buf)
-    fp.seek(0, os.SEEK_END)
-    return md5.hexdigest(), fp.tell()
-
-
-if __name__ == "__main__":
-    import hashlib, os, sys
-
-    import tqdm
-
-    user_access_token = os.getenv("MAPILLARY_TOOLS_USER_ACCESS_TOKEN")
-    if not user_access_token:
-        raise RuntimeError("MAPILLARY_TOOLS_USER_ACCESS_TOKEN is required")
-
-    path = sys.argv[1]
-    with open(path, "rb") as fp:
-        md5sum, entity_size = _file_stats(fp)
-    session_key = sys.argv[2] if sys.argv[2:] else f"mly_tools_test_{md5sum}"
-    service = UploadService(user_access_token, session_key, entity_size)
-
-    print(f"session key: {session_key}")
-    print(f"entity size: {entity_size}")
-    print(f"initial offset: {service.fetch_offset()}")
-
-    with open(path, "rb") as fp:
-        with tqdm.tqdm(
-            total=entity_size,
-            initial=service.fetch_offset(),
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
-            service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
-            try:
-                file_handle = service.upload(fp)
-            except requests.HTTPError as ex:
-                raise wrap_http_exception(ex)
-    print(file_handle)

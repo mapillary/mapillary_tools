@@ -472,37 +472,61 @@ def _upload_fp(
 
     MAX_RETRIES = 200
 
-    offset = None
-
     while True:
+        begin_offset: T.Optional[int] = None
         fp.seek(0, io.SEEK_SET)
         try:
-            offset = upload_service.fetch_offset()
+            begin_offset = upload_service.fetch_offset()
             upload_service.callbacks = [_reset_retries]
             if emitter:
-                mutable_payload["offset"] = offset
+                mutable_payload["offset"] = begin_offset
                 mutable_payload["retries"] = retries
                 emitter.emit("upload_fetch_offset", mutable_payload)
                 upload_service.callbacks.append(
                     _setup_callback(emitter, mutable_payload)
                 )
             file_handle = upload_service.upload(
-                fp, chunk_size=chunk_size, offset=offset
+                fp, chunk_size=chunk_size, offset=begin_offset
             )
         except Exception as ex:
             if retries < MAX_RETRIES and is_retriable_exception(ex):
+                # for logging and degugging so we keep it quiet
+                try:
+                    server_offset = upload_service.fetch_offset()
+                except Exception:
+                    server_offset = None
+
+                # throw fatal error if the offset fetched from the server does not move as expected
+                expected_offset = mutable_payload.get("offset")
+                if expected_offset is not None and server_offset is not None:
+                    # we don't expect expected_offset == server_offset
+                    # because the chunk might be partially uploaded (that's too bad)
+                    if not (expected_offset <= server_offset):
+                        LOG.fatal(
+                            "Upload server offset %s does not match expected offset %s",
+                            server_offset,
+                            expected_offset,
+                        )
+                        if isinstance(ex, requests.HTTPError):
+                            raise upload_api_v4.wrap_http_exception(ex) from ex
+                        else:
+                            raise ex
+
                 if emitter:
                     emitter.emit("upload_interrupted", mutable_payload)
-                retries += 1
-                sleep_for = min(2**retries, 16)
+
                 LOG.warning(
                     # use %s instead of %d because offset could be None
-                    f"Error uploading chunk_size %d at offset %s: %s: %s",
+                    f"Error uploading chunk_size %d at server_offset %s (begin_offset %s): %s: %s",
                     chunk_size,
-                    offset,
+                    server_offset,
+                    begin_offset,
                     ex.__class__.__name__,
                     str(ex),
                 )
+
+                retries += 1
+                sleep_for = min(2**retries, 16)
                 LOG.info(
                     "Retrying in %d seconds (%d/%d)", sleep_for, retries, MAX_RETRIES
                 )
