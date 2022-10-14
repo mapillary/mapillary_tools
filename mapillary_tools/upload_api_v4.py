@@ -1,4 +1,6 @@
 import io
+import json
+import logging
 import os
 import sys
 import typing as T
@@ -12,11 +14,12 @@ else:
 
 from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
 
+LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16
-REQUESTS_TIMEOUT = 60  # 1 minutes
+REQUESTS_TIMEOUT = 20  # 20 seconds
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT sets both the "connection timeout"
 # and "read timeout": https://docs.python-requests.org/en/latest/user/advanced/#timeouts
 # In my test, however, the connection timeout does not only include the time for connection,
@@ -42,6 +45,25 @@ def wrap_http_exception(ex: requests.HTTPError):
         f"{ex.response.text}",
     ]
     return UploadHTTPError("\n".join(lines))
+
+
+def _sanitized_headers(headers: T.Dict):
+    return {
+        k: v
+        for k, v in headers.items()
+        if k.lower() not in ["authorization", "cookie", "x-fb-access-token"]
+    }
+
+
+def _truncate_end(s: bytes) -> bytes:
+    MAX_LENGTH = 512
+    if MAX_LENGTH < len(s):
+        if isinstance(s, bytes):
+            return s[:MAX_LENGTH] + b"..."
+        else:
+            return str(s[:MAX_LENGTH]) + "..."
+    else:
+        return s
 
 
 class UploadService:
@@ -77,11 +99,14 @@ class UploadService:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
+        url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+        LOG.debug("GET %s", url)
         resp = requests.get(
-            f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
+            url,
             headers=headers,
             timeout=REQUESTS_TIMEOUT,
         )
+        LOG.debug("HTTP response %s: %s", resp.status_code, resp.content)
         resp.raise_for_status()
         data = resp.json()
         return data["offset"]
@@ -119,11 +144,18 @@ class UploadService:
                 "X-Entity-Name": self.session_key,
                 "X-Entity-Type": entity_type,
             }
+            url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+            LOG.debug(
+                "POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers))
+            )
             resp = requests.post(
-                f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}",
+                url,
                 headers=headers,
                 data=chunk,
                 timeout=UPLOAD_REQUESTS_TIMEOUT,
+            )
+            LOG.debug(
+                "HTTP response %s: %s", resp.status_code, _truncate_end(resp.content)
             )
             resp.raise_for_status()
             offset += len(chunk)
@@ -158,12 +190,16 @@ class UploadService:
         if self.organization_id is not None:
             data["organization_id"] = self.organization_id
 
+        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
+
+        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers)))
         resp = requests.post(
-            f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+            url,
             headers=headers,
             json=data,
             timeout=REQUESTS_TIMEOUT,
         )
+        LOG.debug("HTTP response %s: %s", resp.status_code, _truncate_end(resp.content))
 
         resp.raise_for_status()
 
