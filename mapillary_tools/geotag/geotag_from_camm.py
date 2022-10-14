@@ -78,4 +78,15 @@ class GeotagFromCAMM(GeotagFromGeneric):
                     progress_bar=pbar,
                 )
                 descs.extend(geotag.to_description())
+
+            # update make and model
+            with video_path.open("rb") as fp:
+                make, model = camm_parser.extract_camera_make_and_model(fp)
+            LOG.debug(f"Found camera make %s and model %s", make, model)
+            for desc in types.filter_out_errors(descs):
+                if make:
+                    desc["MAPDeviceMake"] = make
+                if model:
+                    desc["MAPDeviceModel"] = model
+
         return descs
