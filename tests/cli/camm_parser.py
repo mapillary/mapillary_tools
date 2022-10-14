@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import pathlib
 
@@ -13,6 +14,10 @@ def _convert(path: pathlib.Path):
     track = gpxpy.gpx.GPXTrack()
     track.name = path.name
     track.segments.append(geotag_utils.convert_points_to_gpx_segment(points))
+    with open(path, "rb") as fp:
+        make, model = camm_parser.extract_camera_make_and_model(fp)
+    make_model = json.dumps({"make": make, "model": model})
+    track.description = f"Extracted from {make_model}"
     return track
 
 
