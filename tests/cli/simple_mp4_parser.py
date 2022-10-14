@@ -232,7 +232,7 @@ def main():
 
     for path in parsed_args.path:
         if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
+            for p in utils.find_videos(path):
                 _process_path(parsed_args, pathlib.Path(p))
         else:
             _process_path(parsed_args, pathlib.Path(path))

@@ -247,7 +247,7 @@ def extract_points(
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
-            points = []
+            points_with_fix = []
         if points_with_fix:
             return utils.FileType.GOPRO, T.cast(T.List[geo.Point], points_with_fix)
 
