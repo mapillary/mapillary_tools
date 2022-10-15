@@ -1,8 +1,8 @@
-import os
+import argparse
 import pathlib
-import sys
 
 import gpxpy
+import gpxpy.gpx
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import blackvue_parser, utils as geotag_utils
@@ -20,13 +20,13 @@ def _convert_to_track(path: pathlib.Path):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("blackvue_video_path", nargs="+")
+    parsed = parser.parse_args()
+
     gpx = gpxpy.gpx.GPX()
-    for path in sys.argv[1:]:
-        if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
-                gpx.tracks.append(_convert_to_track(pathlib.Path(p)))
-        else:
-            gpx.tracks.append(_convert_to_track(pathlib.Path(path)))
+    for p in utils.find_videos([pathlib.Path(p) for p in parsed.blackvue_video_path]):
+        gpx.tracks.append(_convert_to_track(p))
     print(gpx.to_xml())
 
 

@@ -230,12 +230,8 @@ def _process_path(parsed_args, path: pathlib.Path):
 def main():
     parsed_args = _parse_args()
 
-    for path in parsed_args.path:
-        if os.path.isdir(path):
-            for p in utils.find_videos(path):
-                _process_path(parsed_args, pathlib.Path(p))
-        else:
-            _process_path(parsed_args, pathlib.Path(path))
+    for p in utils.find_videos([pathlib.Path(p) for p in parsed_args.path]):
+        _process_path(parsed_args, p)
 
 
 if __name__ == "__main__":

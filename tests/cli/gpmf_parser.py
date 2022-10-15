@@ -1,7 +1,6 @@
 import argparse
 import datetime
 import json
-import os
 import pathlib
 import typing as T
 
@@ -68,7 +67,11 @@ def _convert_gpx(gpx: gpxpy.gpx.GPX, path: pathlib.Path):
     gpx_track.comment = f"#points: {len(points)}"
     with path.open("rb") as fp:
         device_names = gpmf_parser.extract_all_device_names(fp)
-    gpx_track.description = f"Extracted from {device_names}"
+    with path.open("rb") as fp:
+        model = gpmf_parser.extract_camera_model(fp)
+    gpx_track.description = (
+        f'Extracted from model "{model}" among these devices {device_names}'
+    )
     gpx.tracks.append(gpx_track)
 
 
@@ -122,12 +125,8 @@ def main():
         else:
             _convert_gpx(gpx, path)
 
-    for path in parsed_args.path:
-        if os.path.isdir(path):
-            for p in utils.find_videos(path):
-                _process(p)
-        else:
-            _process(pathlib.Path(path))
+    for path in utils.find_videos([pathlib.Path(p) for p in parsed_args.path]):
+        _process(path)
 
     if parsed_args.dump:
         for sample in samples:

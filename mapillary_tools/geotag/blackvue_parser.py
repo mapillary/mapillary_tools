@@ -1,6 +1,6 @@
+import json
 import logging
 import pathlib
-import json
 import re
 import typing as T
 
