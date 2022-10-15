@@ -638,37 +638,39 @@ def _convert_and_upload_camm(
     for idx, video_path in enumerate(video_paths):
         LOG.debug("Converting and uploading %s", video_path)
         with open(video_path, "rb") as src_fp:
-            file_type, points = camm_builder.extract_points(src_fp, file_types)
-            if file_type is None:
+            metadata = camm_builder.extract_points(src_fp, file_types)
+            if metadata is None:
                 LOG.warning(
                     f"Skipping %s due to: No GPS found in the video",
                     video_path.name,
                 )
                 continue
 
-            if file_type == FileType.GOPRO:
+            if metadata.file_type == FileType.GOPRO:
                 new_points = gpmf_gps_filter.filter_noisy_points(
-                    T.cast(T.List[gpmf_parser.PointWithFix], points)
+                    T.cast(T.List[gpmf_parser.PointWithFix], metadata.points)
                 )
-                points = T.cast(T.List[geo.Point], new_points)
+                video_points = T.cast(T.List[geo.Point], new_points)
+            else:
+                video_points = metadata.points
 
             stationary = video_utils.is_video_stationary(
-                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in video_points])
             )
             if stationary:
                 LOG.warning(
                     f"Skipping %s %s due to: Stationary video",
-                    file_type.value.upper(),
+                    metadata.file_type.value.upper(),
                     video_path.name,
                 )
                 continue
 
-            generator = camm_builder.camm_sample_generator2(points)
+            generator = camm_builder.camm_sample_generator2(video_points)
             camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
             event_payload: uploader.Progress = {
                 "total_sequence_count": len(video_paths),
                 "sequence_idx": idx,
-                "file_type": file_type.value,
+                "file_type": metadata.file_type.value,
             }
             try:
                 cluster_id = mly_uploader.upload_camm_fp(

@@ -142,6 +142,22 @@ def elst_entry_to_seconds(
     return (media_time, duration)
 
 
+def _extract_camm_samples(
+    s: T.BinaryIO,
+    maxsize: int = -1,
+) -> T.Generator[parser.Sample, None, None]:
+    begin_offset = s.tell()
+    descriptions = parser.parse_descriptions_from_trak(s, maxsize=maxsize)
+    camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
+    if camm_descriptions:
+        s.seek(begin_offset, io.SEEK_SET)
+        samples = parser.parse_samples_from_trak(s, maxsize=maxsize)
+        camm_samples = (
+            sample for sample in samples if sample.description["format"] == b"camm"
+        )
+        yield from camm_samples
+
+
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     points = None
     movie_timescale = None
@@ -152,9 +168,11 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
         if h.type == b"trak":
             trak_start_offset = s.tell()
 
+            camm_samples = _extract_camm_samples(s, h.maxsize)
+
             points_with_nones = (
                 _parse_point_from_sample(fp, sample)
-                for sample in parser.parse_samples_from_trak(s, maxsize=h.maxsize)
+                for sample in camm_samples
                 if sample.description["format"] == b"camm"
             )
 

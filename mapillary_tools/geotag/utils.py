@@ -2,6 +2,7 @@ import datetime
 import typing as T
 
 import gpxpy
+import gpxpy.gpx
 
 from .. import geo
 

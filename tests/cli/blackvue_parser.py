@@ -13,7 +13,8 @@ def _convert_to_track(path: pathlib.Path):
     points = blackvue_parser.parse_gps_points(path)
     segment = geotag_utils.convert_points_to_gpx_segment(points)
     track.segments.append(segment)
-    model = blackvue_parser.find_camera_model(path)
+    with path.open("rb") as fp:
+        model = blackvue_parser.extract_camera_model(fp)
     track.description = f"Extracted from {model}"
     track.name = path.name
     return track

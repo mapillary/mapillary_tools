@@ -53,12 +53,11 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
             )
 
 
-def find_camera_model(path: pathlib.Path) -> str:
-    with path.open("rb") as fp:
-        try:
-            cprt_bytes = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
-        except simple_mp4_parser.RangeError:
-            return ""
+def extract_camera_model(fp: T.BinaryIO) -> str:
+    try:
+        cprt_bytes = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
+    except simple_mp4_parser.RangeError:
+        return ""
 
     if cprt_bytes is None:
         return ""

@@ -747,7 +747,7 @@ def extract_raw_samples(
         chunk_idx += 1
 
 
-def extract_samples(
+def _extract_samples(
     raw_samples: T.Iterator[RawSample],
     descriptions: T.List,
     media_timescale: int,
@@ -816,12 +816,23 @@ def parse_raw_samples_from_stbl(
     return descriptions, raw_samples
 
 
+def parse_descriptions_from_trak(stbl: T.BinaryIO, maxsize: int = -1) -> T.List[T.Dict]:
+    data = parse_data_first(
+        stbl, [b"mdia", b"minf", b"stbl", b"stsd"], maxsize=maxsize, depth=1
+    )
+    if data is None:
+        return []
+    box = SampleDescriptionBox.parse(data)
+    return list(box.entries)
+
+
 def parse_samples_from_trak(
     trak: T.BinaryIO,
     maxsize: int = -1,
 ) -> T.Generator[Sample, None, None]:
     trak_start_offset = trak.tell()
 
+    trak.seek(trak_start_offset, io.SEEK_SET)
     mdhd_box = parse_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
     mdhd = MediaHeaderBox.parse(mdhd_box)
 
@@ -829,7 +840,7 @@ def parse_samples_from_trak(
     h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
 
-    yield from extract_samples(raw_samples, descriptions, mdhd.timescale)
+    return _extract_samples(raw_samples, descriptions, mdhd.timescale)
 
 
 _DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)

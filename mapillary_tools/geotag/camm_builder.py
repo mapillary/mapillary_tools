@@ -228,39 +228,58 @@ def create_camm_trak(
     }
 
 
+class VideoMetadata(T.NamedTuple):
+    file_type: utils.FileType
+    points: T.List[geo.Point]
+    make: str
+    model: str
+
+
 def extract_points(
     fp: T.BinaryIO,
     file_types: T.Optional[T.Set[utils.FileType]] = None,
-) -> T.Tuple[T.Optional[utils.FileType], T.List[geo.Point]]:
+) -> T.Optional[VideoMetadata]:
     start_offset = fp.tell()
 
     if file_types is None or utils.FileType.CAMM in file_types:
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points = camm_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points = []
         if points:
-            return utils.FileType.CAMM, points
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = camm_parser.extract_camera_make_and_model(fp)
+            return VideoMetadata(utils.FileType.CAMM, points, make, model)
 
     if file_types is None or utils.FileType.GOPRO in file_types:
-        fp.seek(start_offset)
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points_with_fix = []
         if points_with_fix:
-            return utils.FileType.GOPRO, T.cast(T.List[geo.Point], points_with_fix)
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+            return VideoMetadata(
+                utils.FileType.GOPRO,
+                T.cast(T.List[geo.Point], points_with_fix),
+                make,
+                model,
+            )
 
     if file_types is None or utils.FileType.BLACKVUE in file_types:
-        fp.seek(start_offset)
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points = blackvue_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points = []
         if points:
-            return utils.FileType.BLACKVUE, points
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
+            return VideoMetadata(utils.FileType.BLACKVUE, points, make, model)
 
-    return None, []
+    return None
 
 
 def camm_sample_generator2(points: T.Sequence[geo.Point]):
@@ -293,9 +312,9 @@ def camm_sample_generator(
     fp: T.BinaryIO,
     moov_children: T.List[BoxDict],
 ) -> T.Iterator[io.IOBase]:
-    fp.seek(0)
-    _, points = extract_points(fp)
-    if not points:
+    fp.seek(0, io.SEEK_SET)
+    metadata = extract_points(fp)
+    if not metadata:
         raise ValueError("no points found")
 
-    return camm_sample_generator2(points)(fp, moov_children)
+    return camm_sample_generator2(metadata.points)(fp, moov_children)

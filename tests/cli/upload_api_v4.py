@@ -1,9 +1,9 @@
 import argparse
-import sys
 import hashlib
-import os
-import typing as T
 import logging
+import os
+import sys
+import typing as T
 
 import requests
 import tqdm
