@@ -1,7 +1,6 @@
 import argparse
 import io
 import logging
-import os
 import pathlib
 import sys
 import typing as T

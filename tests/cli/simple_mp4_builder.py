@@ -14,11 +14,15 @@ def main():
     parsed_args = _parse_args()
     with open(parsed_args.source_mp4_path, "rb") as src_fp:
         with open(parsed_args.target_mp4_path, "wb") as tar_fp:
-            builder.transform_mp4(
+            reader = builder.transform_mp4(
                 src_fp,
-                tar_fp,
                 camm_builder.camm_sample_generator,
             )
+            while True:
+                data = reader.read(1024 * 1024 * 64)
+                if not data:
+                    break
+                tar_fp.write(data)
 
 
 if __name__ == "__main__":
