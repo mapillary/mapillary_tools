@@ -2,7 +2,7 @@ import io
 
 import mapillary_tools.geo as geo
 
-from mapillary_tools.geotag import blackvue_parser, simple_mp4_builder as builder
+from mapillary_tools.geotag import blackvue_parser, simple_mp4_parser as parser
 
 
 def test_parse_points():
@@ -40,7 +40,7 @@ def test_parse_points():
     """
 
     box = {"type": b"free", "data": [{"type": b"gps ", "data": gps_data}]}
-    data = builder.Box32StructBuilder({}, [b"free"]).Box.build(box)
+    data = parser.Box32StructBuilder({}, [b"free"]).Box.build(box)
     x = blackvue_parser.extract_points(io.BytesIO(data))
     assert [
         geo.Point(

@@ -2,6 +2,7 @@
 
 import dataclasses
 import io
+import logging
 import pathlib
 import typing as T
 from enum import Enum
@@ -10,6 +11,8 @@ import construct as C
 
 from . import geo, simple_mp4_parser as parser
 
+
+LOG = logging.getLogger(__name__)
 
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
 class CAMMType(Enum):
@@ -196,3 +199,78 @@ def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
     if points is None:
         return []
     return points
+
+
+MakeOrModel = C.Struct(
+    "size" / C.Int16ub,
+    C.Padding(2),
+    "data" / C.FixedSized(C.this.size, C.GreedyBytes),
+)
+
+
+def _decode_quietly(data: bytes, h: parser.Header) -> str:
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        LOG.warning("Failed to decode %s: %s", h, data[:512])
+        return ""
+
+
+def _parse_quietly(data: bytes, h: parser.Header) -> bytes:
+    try:
+        parsed = MakeOrModel.parse(data)
+    except C.ConstructError:
+        LOG.warning("Failed to parse %s: %s", h, data[:512])
+        return b""
+    return parsed["data"]
+
+
+def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
+    header_and_stream = parser.parse_path(
+        fp,
+        [
+            b"moov",
+            b"udta",
+            [
+                # Insta360 Titan
+                b"\xa9mak",
+                b"\xa9mod",
+                # RICHO THETA V
+                b"@mod",
+                b"@mak",
+                # RICHO THETA V
+                b"manu",
+                b"modl",
+            ],
+        ],
+    )
+
+    make: T.Optional[str] = None
+    model: T.Optional[str] = None
+
+    try:
+        for h, s in header_and_stream:
+            data = s.read(h.maxsize)
+            if h.type == b"\xa9mak":
+                make_data = _parse_quietly(data, h)
+                make_data = make_data.rstrip(b"\x00")
+                make = _decode_quietly(make_data, h)
+            elif h.type == b"\xa9mod":
+                model_data = _parse_quietly(data, h)
+                model_data = model_data.rstrip(b"\x00")
+                model = _decode_quietly(model_data, h)
+            elif h.type in [b"@mak", b"manu"]:
+                make = _decode_quietly(data, h)
+            elif h.type in [b"@mod", b"modl"]:
+                model = _decode_quietly(data, h)
+            # quit when both found
+            if make and model:
+                break
+    except parser.RangeError:
+        pass
+
+    if make:
+        make = make.strip()
+    if model:
+        model = model.strip()
+    return make or "", model or ""

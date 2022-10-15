@@ -267,19 +267,40 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[PointWithFix]:
     return sample_points
 
 
-def _extract_points_from_samples(
+def _extract_dvnm_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[Sample]
-) -> T.List[PointWithFix]:
-    # To keep GPS points from different devices separated
-    points_by_device: T.Dict[int, T.List[PointWithFix]] = {}
+) -> T.Dict[int, bytes]:
+    dvnm_by_dvid: T.Dict[int, bytes] = {}
 
     for sample in samples:
         fp.seek(sample.offset, io.SEEK_SET)
         data = fp.read(sample.size)
-        gpmf_sample = GPMFSampleData.parse(data)
+        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
 
         # iterate devices
-        devices = (klv for klv in gpmf_sample if klv["key"] == b"DEVC")
+        devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
+        for device in devices:
+            device_id = _find_first_device_id(device["data"])
+            for klv in device["data"]:
+                if klv["key"] == b"DVNM" and klv["data"]:
+                    dvnm_by_dvid[device_id] = klv["data"][0]
+
+    return dvnm_by_dvid
+
+
+def _extract_points_from_samples(
+    fp: T.BinaryIO, samples: T.Iterable[Sample]
+) -> T.List[PointWithFix]:
+    # To keep GPS points from different devices separated
+    points_by_dvid: T.Dict[int, T.List[PointWithFix]] = {}
+
+    for sample in samples:
+        fp.seek(sample.offset, io.SEEK_SET)
+        data = fp.read(sample.size)
+        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
+
+        # iterate devices
+        devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
         for device in devices:
             sample_points = _find_first_gps_stream(device["data"])
             if sample_points:
@@ -289,7 +310,7 @@ def _extract_points_from_samples(
                     point.time = sample.time_offset + avg_timedelta * idx
 
                 device_id = _find_first_device_id(device["data"])
-                device_points = points_by_device.setdefault(device_id, [])
+                device_points = points_by_dvid.setdefault(device_id, [])
 
                 # remove points with the same lat/lon
                 for point in sample_points:
@@ -301,7 +322,7 @@ def _extract_points_from_samples(
                     else:
                         device_points.append(point)
 
-    values = list(points_by_device.values())
+    values = list(points_by_dvid.values())
     return values[0] if values else []
 
 
@@ -318,6 +339,45 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
     return None
 
 
+def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
+    for h, s in parse_path(fp, [b"moov", b"trak"]):
+        gpmd_samples = (
+            sample
+            for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
+            if sample.description["format"] == b"gpmd"
+        )
+        device_names = _extract_dvnm_from_samples(fp, gpmd_samples)
+        if device_names:
+            return device_names
+    return {}
+
+
+def extract_camera_model(fp: T.BinaryIO) -> str:
+    device_names = extract_all_device_names(fp)
+
+    if not device_names:
+        return ""
+
+    unicode_names: T.List[str] = []
+    for name in device_names.values():
+        try:
+            unicode_names.append(name.decode("utf-8"))
+        except UnicodeDecodeError:
+            pass
+
+    if not unicode_names:
+        return ""
+
+    unicode_names.sort()
+
+    # device containing "hero" higher priority
+    for unicode_name in unicode_names:
+        if "hero" in unicode_name.lower():
+            return unicode_name.strip()
+
+    return unicode_names[0].strip()
+
+
 def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
     with path.open("rb") as fp:
         points = extract_points(fp)
@@ -326,15 +386,14 @@ def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
     return points
 
 
-def dump_samples(path: pathlib.Path):
-    with path.open("rb") as fp:
-        for h, s in parse_path(fp, [b"moov", b"trak"]):
-            gpmd_samples = (
-                sample
-                for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
-                if sample.description["format"] == b"gpmd"
-            )
-            for sample in gpmd_samples:
-                fp.seek(sample.offset, io.SEEK_SET)
-                data = fp.read(sample.size)
-                yield GPMFSampleData.parse(data)
+def iterate_gpmd_sample_data(fp: T.BinaryIO) -> T.Generator[T.Dict, None, None]:
+    for h, s in parse_path(fp, [b"moov", b"trak"]):
+        gpmd_samples = (
+            sample
+            for sample in parse_samples_from_trak(s, maxsize=h.maxsize)
+            if sample.description["format"] == b"gpmd"
+        )
+        for sample in gpmd_samples:
+            fp.seek(sample.offset, io.SEEK_SET)
+            data = fp.read(sample.size)
+            yield T.cast(T.Dict, GPMFSampleData.parse(data))

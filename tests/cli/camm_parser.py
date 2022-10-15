@@ -1,8 +1,9 @@
 import argparse
-import os
+import json
 import pathlib
 
 import gpxpy
+import gpxpy.gpx
 
 from mapillary_tools import utils
 from mapillary_tools.geotag import camm_parser, utils as geotag_utils
@@ -13,6 +14,10 @@ def _convert(path: pathlib.Path):
     track = gpxpy.gpx.GPXTrack()
     track.name = path.name
     track.segments.append(geotag_utils.convert_points_to_gpx_segment(points))
+    with open(path, "rb") as fp:
+        make, model = camm_parser.extract_camera_make_and_model(fp)
+    make_model = json.dumps({"make": make, "model": model})
+    track.description = f"Extracted from {make_model}"
     return track
 
 
@@ -22,12 +27,8 @@ def main():
     parsed = parser.parse_args()
 
     gpx = gpxpy.gpx.GPX()
-    for path in parsed.camm_video_path:
-        if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
-                gpx.tracks.append(_convert(pathlib.Path(p)))
-        else:
-            gpx.tracks.append(_convert(pathlib.Path(path)))
+    for p in utils.find_videos([pathlib.Path(p) for p in parsed.camm_video_path]):
+        gpx.tracks.append(_convert(p))
     print(gpx.to_xml())
 
 

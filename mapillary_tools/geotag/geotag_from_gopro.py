@@ -26,21 +26,21 @@ class GeotagFromGoPro(GeotagFromGeneric):
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        descs: T.List[types.ImageDescriptionFileOrError] = []
+        all_descs: T.List[types.ImageDescriptionFileOrError] = []
 
         for video_path in self.video_paths:
             LOG.debug("Processing GoPro video: %s", video_path)
 
-            sample_images = list(
+            sample_image_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
             )
             LOG.debug(
                 "Found %d sample images from video %s",
-                len(sample_images),
+                len(sample_image_paths),
                 video_path,
             )
 
-            if not sample_images:
+            if not sample_image_paths:
                 continue
 
             points = gpmf_gps_filter.filter_noisy_points(
@@ -53,33 +53,44 @@ class GeotagFromGoPro(GeotagFromGeneric):
             ):
                 LOG.warning(
                     "Fail %d sample images due to stationary video %s",
-                    len(sample_images),
+                    len(sample_image_paths),
                     video_path,
                 )
-                for image_path in sample_images:
+                for image_path in sample_image_paths:
                     err_desc = types.describe_error(
                         exceptions.MapillaryStationaryVideoError(
                             "Stationary GoPro video"
                         ),
                         str(image_path),
                     )
-                    descs.append(err_desc)
+                    all_descs.append(err_desc)
                 continue
 
             with tqdm(
-                total=len(sample_images),
+                total=len(sample_image_paths),
                 desc=f"Interpolating {video_path.name}",
                 unit="images",
                 disable=LOG.getEffectiveLevel() <= logging.DEBUG,
             ) as pbar:
                 geotag = GeotagFromGPXWithProgress(
-                    sample_images,
+                    sample_image_paths,
                     points,
                     use_gpx_start_time=False,
                     use_image_start_time=True,
                     offset_time=self.offset_time,
                     progress_bar=pbar,
                 )
-                descs.extend(geotag.to_description())
+                this_descs = geotag.to_description()
+                all_descs.extend(this_descs)
 
-        return descs
+            # update make and model
+            with video_path.open("rb") as fp:
+                make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+            LOG.debug(f'Found camera make "%s" and model "%s"', make, model)
+            for desc in types.filter_out_errors(this_descs):
+                if make:
+                    desc["MAPDeviceMake"] = make
+                if model:
+                    desc["MAPDeviceModel"] = model
+
+        return all_descs

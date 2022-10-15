@@ -1,11 +1,11 @@
 import argparse
 import datetime
 import json
-import os
 import pathlib
 import typing as T
 
 import gpxpy
+import gpxpy.gpx
 import mapillary_tools.geo as geo
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
@@ -65,6 +65,13 @@ def _convert_gpx(gpx: gpxpy.gpx.GPX, path: pathlib.Path):
     gpx_track.segments.append(gpx_track_segment)
     gpx_track.name = path.name
     gpx_track.comment = f"#points: {len(points)}"
+    with path.open("rb") as fp:
+        device_names = gpmf_parser.extract_all_device_names(fp)
+    with path.open("rb") as fp:
+        model = gpmf_parser.extract_camera_model(fp)
+    gpx_track.description = (
+        f'Extracted from model "{model}" among these devices {device_names}'
+    )
     gpx.tracks.append(gpx_track)
 
 
@@ -109,21 +116,17 @@ def main():
     samples = []
     gpx = gpxpy.gpx.GPX()
 
-    def _process(p: str):
-        pp = pathlib.Path(p)
+    def _process(path: pathlib.Path):
         if parsed_args.dump:
-            samples.extend(gpmf_parser.dump_samples(pp))
+            with path.open("rb") as fp:
+                samples.extend(gpmf_parser.iterate_gpmd_sample_data(fp))
         elif parsed_args.geojson:
-            features.extend(_convert_geojson(pp))
+            features.extend(_convert_geojson(path))
         else:
-            _convert_gpx(gpx, pp)
+            _convert_gpx(gpx, path)
 
-    for path in parsed_args.path:
-        if os.path.isdir(path):
-            for p in utils.get_video_file_list(path, abs_path=True):
-                _process(p)
-        else:
-            _process(path)
+    for path in utils.find_videos([pathlib.Path(p) for p in parsed_args.path]):
+        _process(path)
 
     if parsed_args.dump:
         for sample in samples:

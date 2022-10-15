@@ -1,3 +1,4 @@
+import json
 import logging
 import pathlib
 import re
@@ -52,27 +53,45 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
             )
 
 
-# TODO: what it failed to parse free/cprt
 def find_camera_model(path: pathlib.Path) -> str:
     with path.open("rb") as fp:
-        cprt_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
-        if cprt_data is None:
+        try:
+            cprt_bytes = simple_mp4_parser.parse_data_first(fp, [b"free", b"cprt"])
+        except simple_mp4_parser.RangeError:
             return ""
-        fields = cprt_data.split(b";")
-        if 2 <= len(fields):
-            model: bytes = fields[1]
-            if model:
-                try:
-                    return model.decode("utf8")
-                except UnicodeDecodeError:
-                    return ""
+
+    if cprt_bytes is None:
+        return ""
+
+    # examples: b' {"model":"DR900X Plus","ver":0.918,"lang":"English","direct":1,"psn":"","temp":34,"GPS":1}\x00'
+    #           b' Pittasoft Co., Ltd.;DR900S-1CH;1.008;English;1;D90SS1HAE00661;T69;\x00'
+    cprt_bytes = cprt_bytes.strip().strip(b"\x00")
+
+    try:
+        cprt_str = cprt_bytes.decode("utf8")
+    except UnicodeDecodeError:
+        return ""
+
+    try:
+        cprt_json = json.loads(cprt_str)
+    except json.JSONDecodeError:
+        cprt_json = None
+
+    if cprt_json is not None:
+        return str(cprt_json.get("model", "")).strip()
+
+    fields = cprt_str.split(";")
+    if 2 <= len(fields):
+        model = fields[1]
+        if model:
+            return model.strip()
         else:
             return ""
-    return ""
+    else:
+        return ""
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
-    # TODO: what it failed to parse free/gps
     gps_data = simple_mp4_parser.parse_data_first(fp, [b"free", b"gps "])
     if gps_data is None:
         return None
