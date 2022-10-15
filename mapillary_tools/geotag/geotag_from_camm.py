@@ -26,7 +26,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        descs: T.List[types.ImageDescriptionFileOrError] = []
+        all_descs: T.List[types.ImageDescriptionFileOrError] = []
         for video_path in self.video_paths:
             LOG.debug("Processing CAMM video: %s", video_path)
 
@@ -60,7 +60,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
                         ),
                         str(image_path),
                     )
-                    descs.append(err_desc)
+                    all_descs.append(err_desc)
                 continue
 
             with tqdm(
@@ -77,16 +77,17 @@ class GeotagFromCAMM(GeotagFromGeneric):
                     offset_time=self.offset_time,
                     progress_bar=pbar,
                 )
-                descs.extend(geotag.to_description())
+                this_descs = geotag.to_description()
+                all_descs.extend(this_descs)
 
             # update make and model
             with video_path.open("rb") as fp:
                 make, model = camm_parser.extract_camera_make_and_model(fp)
-            LOG.debug(f"Found camera make %s and model %s", make, model)
-            for desc in types.filter_out_errors(descs):
+            LOG.debug(f'Found camera make "%s" and model "%s"', make, model)
+            for desc in types.filter_out_errors(this_descs):
                 if make:
                     desc["MAPDeviceMake"] = make
                 if model:
                     desc["MAPDeviceModel"] = model
 
-        return descs
+        return all_descs
