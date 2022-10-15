@@ -269,4 +269,8 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
     except parser.RangeError:
         pass
 
+    if make:
+        make = make.strip()
+    if model:
+        model = model.strip()
     return make or "", model or ""
