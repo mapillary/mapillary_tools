@@ -352,6 +352,32 @@ def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
     return {}
 
 
+def extract_camera_model(fp: T.BinaryIO) -> str:
+    device_names = extract_all_device_names(fp)
+
+    if not device_names:
+        return ""
+
+    unicode_names: T.List[str] = []
+    for name in device_names.values():
+        try:
+            unicode_names.append(name.decode("utf-8"))
+        except UnicodeDecodeError:
+            pass
+
+    if not unicode_names:
+        return ""
+
+    unicode_names.sort()
+
+    # device containing "hero" higher priority
+    for unicode_name in unicode_names:
+        if "hero" in unicode_name.lower():
+            return unicode_name.strip()
+
+    return unicode_names[0].strip()
+
+
 def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
     with path.open("rb") as fp:
         points = extract_points(fp)
