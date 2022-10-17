@@ -48,7 +48,7 @@ def wrap_http_exception(ex: requests.HTTPError):
     return UploadHTTPError("\n".join(lines))
 
 
-def _sanitized_headers(headers: T.Dict):
+def _sanitize_headers(headers: T.Dict):
     return {
         k: v
         for k, v in headers.items()
@@ -146,9 +146,7 @@ class UploadService:
                 "X-Entity-Type": entity_type,
             }
             url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-            LOG.debug(
-                "POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers))
-            )
+            LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
             resp = requests.post(
                 url,
                 headers=headers,
@@ -160,6 +158,7 @@ class UploadService:
             )
             resp.raise_for_status()
             offset += len(chunk)
+            LOG.debug("The next offset will be: %s", offset)
             for callback in self.callbacks:
                 callback(chunk, resp)
             # we can assert that offset == self.fetch_offset(session_key)
@@ -193,7 +192,7 @@ class UploadService:
 
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
 
-        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitized_headers(headers)))
+        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
         resp = requests.post(
             url,
             headers=headers,

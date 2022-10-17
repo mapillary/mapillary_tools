@@ -1,7 +1,9 @@
 import argparse
+import sys
 import hashlib
 import os
 import typing as T
+import logging
 
 import requests
 import tqdm
@@ -12,6 +14,16 @@ from mapillary_tools.upload_api_v4 import (
     UploadService,
     wrap_http_exception,
 )
+
+
+LOG = logging.getLogger("mapillary_tools")
+
+
+def configure_logger(logger: logging.Logger, stream=None) -> None:
+    formatter = logging.Formatter("%(asctime)s - %(levelname)-7s - %(message)s")
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def _file_stats(fp: T.IO[bytes]):
@@ -27,6 +39,13 @@ def _file_stats(fp: T.IO[bytes]):
 
 def _parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--verbose",
+        help="show verbose",
+        action="store_true",
+        default=False,
+        required=False,
+    )
     parser.add_argument("--user_name")
     parser.add_argument("filename")
     parser.add_argument("session_key", nargs="?")
@@ -35,6 +54,10 @@ def _parse_args():
 
 def main():
     parsed = _parse_args()
+
+    log_level = logging.DEBUG if parsed.verbose else logging.INFO
+    configure_logger(LOG, sys.stderr)
+    LOG.setLevel(log_level)
 
     with open(parsed.filename, "rb") as fp:
         md5sum, entity_size = _file_stats(fp)
@@ -46,11 +69,12 @@ def main():
         if parsed.session_key is not None
         else f"mly_tools_test_{md5sum}"
     )
-    service = UploadService(user_items["user_upload_token"], session_key, entity_size)
+    user_access_token = user_items.get("user_upload_token", "")
+    service = UploadService(user_access_token, session_key, entity_size)
 
-    print(f"session key: {session_key}")
-    print(f"entity size: {entity_size}")
-    print(f"initial offset: {service.fetch_offset()}")
+    LOG.info(f"Session key: {session_key}")
+    LOG.info(f"Entity size: {entity_size}")
+    LOG.info(f"Initial offset: {service.fetch_offset()}")
 
     with open(parsed.filename, "rb") as fp:
         with tqdm.tqdm(
@@ -59,13 +83,15 @@ def main():
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
             service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
             try:
                 file_handle = service.upload(fp)
             except requests.HTTPError as ex:
                 raise wrap_http_exception(ex)
-    print(file_handle)
+
+    LOG.info(file_handle)
 
 
 if __name__ == "__main__":
