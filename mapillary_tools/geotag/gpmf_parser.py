@@ -283,7 +283,9 @@ def _extract_dvnm_from_samples(
             device_id = _find_first_device_id(device["data"])
             for klv in device["data"]:
                 if klv["key"] == b"DVNM" and klv["data"]:
-                    dvnm_by_dvid[device_id] = klv["data"][0]
+                    # klv["data"] could be [b"H", b"e", b"r", b"o", b"8", b" ", b"B", b"l", b"a", b"c", b"k"]
+                    # or [b"Hero8 Black"]
+                    dvnm_by_dvid[device_id] = b"".join(klv["data"])
 
     return dvnm_by_dvid
 
@@ -373,6 +375,11 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     # device containing "hero" higher priority
     for unicode_name in unicode_names:
         if "hero" in unicode_name.lower():
+            return unicode_name.strip()
+
+    # device containing "gopro" higher priority
+    for unicode_name in unicode_names:
+        if "gopro" in unicode_name.lower():
             return unicode_name.strip()
 
     return unicode_names[0].strip()
