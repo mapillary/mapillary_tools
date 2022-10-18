@@ -638,7 +638,7 @@ def _convert_and_upload_camm(
     for idx, video_path in enumerate(video_paths):
         LOG.debug("Converting and uploading %s", video_path)
         with open(video_path, "rb") as src_fp:
-            metadata = camm_builder.extract_points(src_fp, file_types)
+            metadata = camm_builder.extract_video_metadata(src_fp, file_types)
             if metadata is None:
                 LOG.warning(
                     f"Skipping %s due to: No GPS found in the video",

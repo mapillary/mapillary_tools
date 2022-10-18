@@ -235,7 +235,7 @@ class VideoMetadata(T.NamedTuple):
     model: str
 
 
-def extract_points(
+def extract_video_metadata(
     fp: T.BinaryIO,
     file_types: T.Optional[T.Set[utils.FileType]] = None,
 ) -> T.Optional[VideoMetadata]:
@@ -313,7 +313,7 @@ def camm_sample_generator(
     moov_children: T.List[BoxDict],
 ) -> T.Iterator[io.IOBase]:
     fp.seek(0, io.SEEK_SET)
-    metadata = extract_points(fp)
+    metadata = extract_video_metadata(fp)
     if not metadata:
         raise ValueError("no points found")
 
