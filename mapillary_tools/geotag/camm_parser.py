@@ -9,7 +9,12 @@ from enum import Enum
 
 import construct as C
 
-from . import geo, mp4_sample_parser as sample_parser, simple_mp4_parser as parser
+from . import (
+    construct_mp4_parser as cparser,
+    geo,
+    mp4_sample_parser as sample_parser,
+    simple_mp4_parser as parser,
+)
 
 
 LOG = logging.getLogger(__name__)
@@ -183,18 +188,18 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
                     s, [b"edts", b"elst"], maxsize=h.maxsize
                 )
                 if elst_data is not None:
-                    elst_entries = parser.EditBox.parse(elst_data)["entries"]
+                    elst_entries = cparser.EditBox.parse(elst_data)["entries"]
 
                 s.seek(trak_start_offset)
                 mdhd_data = parser.parse_box_data_firstx(
                     s, [b"mdia", b"mdhd"], maxsize=h.maxsize
                 )
-                mdhd = parser.MediaHeaderBox.parse(mdhd_data)
+                mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
                 media_timescale = mdhd["timescale"]
         else:
             assert h.type == b"mvhd"
             if not movie_timescale:
-                mvhd = parser.MovieHeaderBox.parse(s.read(h.maxsize))
+                mvhd = cparser.MovieHeaderBox.parse(s.read(h.maxsize))
                 movie_timescale = mvhd["timescale"]
 
         # exit when both found

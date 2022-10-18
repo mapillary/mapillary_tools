@@ -2,7 +2,7 @@ import datetime
 import io
 import typing as T
 
-from . import simple_mp4_parser as parser
+from . import construct_mp4_parser as cparser, simple_mp4_parser as parser
 
 
 class RawSample(T.NamedTuple):
@@ -143,31 +143,31 @@ def parse_raw_samples_from_stbl(
 
     for h, s in parser.parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
         if h.type == b"stsd":
-            box = parser.SampleDescriptionBox.parse(s.read(h.maxsize))
+            box = cparser.SampleDescriptionBox.parse(s.read(h.maxsize))
             descriptions = list(box.entries)
         elif h.type == b"stsz":
-            box = parser.SampleSizeBox.parse(s.read(h.maxsize))
+            box = cparser.SampleSizeBox.parse(s.read(h.maxsize))
             if box.sample_size == 0:
                 sizes = list(box.entries)
             else:
                 sizes = [box.sample_size for _ in range(box.sample_count)]
         elif h.type == b"stco":
-            box = parser.ChunkOffsetBox.parse(s.read(h.maxsize))
+            box = cparser.ChunkOffsetBox.parse(s.read(h.maxsize))
             chunk_offsets = list(box.entries)
         elif h.type == b"co64":
-            box = parser.ChunkLargeOffsetBox.parse(s.read(h.maxsize))
+            box = cparser.ChunkLargeOffsetBox.parse(s.read(h.maxsize))
             chunk_offsets = list(box.entries)
         elif h.type == b"stsc":
-            box = parser.SampleToChunkBox.parse(s.read(h.maxsize))
+            box = cparser.SampleToChunkBox.parse(s.read(h.maxsize))
             chunk_entries = list(box.entries)
         elif h.type == b"stts":
             timedeltas = []
-            box = parser.TimeToSampleBox.parse(s.read(h.maxsize))
+            box = cparser.TimeToSampleBox.parse(s.read(h.maxsize))
             for entry in box.entries:
                 for _ in range(entry.sample_count):
                     timedeltas.append(entry.sample_delta)
         elif h.type == b"stss":
-            box = parser.SyncSampleBox.parse(s.read(h.maxsize))
+            box = cparser.SyncSampleBox.parse(s.read(h.maxsize))
             syncs = set(box.entries)
 
     # some stbl have less timedeltas than the sample count i.e. len(sizes),
@@ -187,7 +187,7 @@ def parse_descriptions_from_trak(stbl: T.BinaryIO, maxsize: int = -1) -> T.List[
     )
     if data is None:
         return []
-    box = parser.SampleDescriptionBox.parse(data)
+    box = cparser.SampleDescriptionBox.parse(data)
     return list(box.entries)
 
 
@@ -199,7 +199,7 @@ def parse_samples_from_trak(
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     mdhd_box = parser.parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
-    mdhd = parser.MediaHeaderBox.parse(mdhd_box)
+    mdhd = cparser.MediaHeaderBox.parse(mdhd_box)
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     h, s = parser.parse_box_path_firstx(

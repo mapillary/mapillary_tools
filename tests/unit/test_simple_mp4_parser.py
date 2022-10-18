@@ -1,11 +1,14 @@
 import io
 import typing
 
-from mapillary_tools.geotag import simple_mp4_parser as parser
+from mapillary_tools.geotag import (
+    construct_mp4_parser as cparser,
+    simple_mp4_parser as parser,
+)
 
 
 def _construct_parser(data: bytes):
-    return parser.FullBoxStruct64.BoxList.parse(data)
+    return cparser.FullBoxStruct64.BoxList.parse(data)
 
 
 def _parse(data: bytes):
@@ -178,7 +181,7 @@ def test_dref():
         + b"\x00"  # version
         + b"\x00\x00\x01"  # flags
     )
-    actual = parser.DataReferenceBox.parse(data)
+    actual = cparser.DataReferenceBox.parse(data)
     assert 0 == actual["version"]
     assert 0 == actual["flags"]
     assert b"alis" == actual["entries"][0]["type"]
@@ -196,7 +199,7 @@ def test_dref2():
         + b"\x00"  # version
         + b"\x00\x00\x01"  # flags
     )
-    actual = parser.DataReferenceBox.parse(data)
+    actual = cparser.DataReferenceBox.parse(data)
     assert 0 == actual["version"]
     assert 0 == actual["flags"]
     assert b"url " == actual["entries"][0]["type"]

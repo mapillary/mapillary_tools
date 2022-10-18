@@ -8,17 +8,15 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-import construct as C
-
 from . import io_utils, mp4_sample_parser as sample_parser, simple_mp4_parser as parser
-from .mp4_sample_parser import RawSample
-from .simple_mp4_parser import (
+from .construct_mp4_parser import (
     BoxHeader32,
     BoxHeader64,
     FullBoxStruct32,
     QuickBoxStruct32,
     QuickBoxStruct64,
 )
+from .mp4_sample_parser import RawSample
 
 UINT32_MAX = 2**32 - 1
 UINT64_MAX = 2**64 - 1
