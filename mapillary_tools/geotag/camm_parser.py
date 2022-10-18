@@ -179,14 +179,14 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
             points = [p for p in points_with_nones if p is not None]
             if points:
                 s.seek(trak_start_offset)
-                elst_data = parser.parse_data_first(
+                elst_data = parser.parse_box_data_first(
                     s, [b"edts", b"elst"], maxsize=h.maxsize
                 )
                 if elst_data is not None:
                     elst_entries = parser.EditBox.parse(elst_data)["entries"]
 
                 s.seek(trak_start_offset)
-                mdhd_data = parser.parse_data_firstx(
+                mdhd_data = parser.parse_box_data_firstx(
                     s, [b"mdia", b"mdhd"], maxsize=h.maxsize
                 )
                 mdhd = parser.MediaHeaderBox.parse(mdhd_data)

@@ -312,14 +312,14 @@ def transform_mp4(
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
-    source_ftyp_box_data = parser.parse_data_firstx(src_fp, [b"ftyp"])
+    source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
     source_ftyp_data = QuickBoxStruct32.Box.build(
         {"type": b"ftyp", "data": source_ftyp_box_data}
     )
 
     # extract moov
     src_fp.seek(0)
-    src_moov_data = parser.parse_data_firstx(src_fp, [b"moov"])
+    src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
     moov_children = QuickBoxStruct64.BoxList.parse(src_moov_data)
 
     # filter tracks in moov

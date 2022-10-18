@@ -42,7 +42,7 @@ def _build_and_parse_stbl(
         expected_samples,
     )
     d = parser.FullBoxStruct32.Box.build({"type": b"stbl", "data": s})
-    ss = parser.parse_data_firstx(io.BytesIO(d), [b"stbl"])
+    ss = parser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
     _, parsed_samples = parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
     assert expected_samples == list(parsed_samples)

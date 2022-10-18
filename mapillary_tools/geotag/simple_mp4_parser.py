@@ -164,7 +164,7 @@ def parse_path(
                 yield from parse_path(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
 
 
-def parse_path_first(
+def _parse_path_first(
     stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
 ) -> T.Optional[T.Tuple[Header, T.BinaryIO]]:
     if not path:
@@ -174,33 +174,57 @@ def parse_path_first(
             if len(path) == 1:
                 return h, s
             else:
-                return parse_path_first(s, path[1:], maxsize=h.maxsize, depth=depth + 1)
+                return _parse_path_first(
+                    s, path[1:], maxsize=h.maxsize, depth=depth + 1
+                )
     return None
 
 
-def parse_data_first(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+def parse_box_path_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
+) -> T.Tuple[Header, T.BinaryIO]:
+    # depth=1 will disable EoF extension
+    parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=1)
+    if parsed is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
+    return parsed
+
+
+def parse_mp4_data_first(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
 ) -> T.Optional[bytes]:
-    parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
+    # depth=0 will enable EoF extension
+    parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=0)
     if parsed is None:
         return None
     h, s = parsed
     return s.read(h.maxsize)
 
 
-def parse_path_firstx(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
-) -> T.Tuple[Header, T.BinaryIO]:
-    parsed = parse_path_first(stream, path, maxsize=maxsize, depth=depth)
-    if parsed is None:
-        raise BoxNotFoundError(f"unable find box at path {path}")
-    return parsed
-
-
-def parse_data_firstx(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
+def parse_mp4_data_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
 ) -> bytes:
-    data = parse_data_first(stream, path, maxsize=maxsize, depth=depth)
+    data = parse_mp4_data_first(stream, path, maxsize=maxsize)
+    if data is None:
+        raise BoxNotFoundError(f"unable find box at path {path}")
+    return data
+
+
+def parse_box_data_first(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
+) -> T.Optional[bytes]:
+    # depth=1 will disable EoF extension
+    parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=1)
+    if parsed is None:
+        return None
+    h, s = parsed
+    return s.read(h.maxsize)
+
+
+def parse_box_data_firstx(
+    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
+) -> bytes:
+    data = parse_box_data_first(stream, path, maxsize=maxsize)
     if data is None:
         raise BoxNotFoundError(f"unable find box at path {path}")
     return data
@@ -819,8 +843,8 @@ def parse_raw_samples_from_stbl(
 
 
 def parse_descriptions_from_trak(stbl: T.BinaryIO, maxsize: int = -1) -> T.List[T.Dict]:
-    data = parse_data_first(
-        stbl, [b"mdia", b"minf", b"stbl", b"stsd"], maxsize=maxsize, depth=1
+    data = parse_box_data_first(
+        stbl, [b"mdia", b"minf", b"stbl", b"stsd"], maxsize=maxsize
     )
     if data is None:
         return []
@@ -835,11 +859,11 @@ def parse_samples_from_trak(
     trak_start_offset = trak.tell()
 
     trak.seek(trak_start_offset, io.SEEK_SET)
-    mdhd_box = parse_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
+    mdhd_box = parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
     mdhd = MediaHeaderBox.parse(mdhd_box)
 
     trak.seek(trak_start_offset, io.SEEK_SET)
-    h, s = parse_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
+    h, s = parse_box_path_firstx(trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize)
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
 
     return _extract_samples(raw_samples, descriptions, mdhd.timescale)

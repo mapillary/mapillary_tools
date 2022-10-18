@@ -202,7 +202,7 @@ def _process_path(parsed_args, path: pathlib.Path):
                     if box_path is None:
                         _parse_structs(fp)
                     else:
-                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
                         _parse_structs(io.BytesIO(data))
                 elif parsed_args.full:
                     if box_path is None:
@@ -210,7 +210,7 @@ def _process_path(parsed_args, path: pathlib.Path):
                             fp
                         )
                     else:
-                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
                         boxes = simple_mp4_parser.FullBoxStruct64.BoxList.parse_stream(
                             io.BytesIO(data)
                         )
@@ -219,7 +219,7 @@ def _process_path(parsed_args, path: pathlib.Path):
                     if box_path is None:
                         boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
                     else:
-                        data = simple_mp4_parser.parse_data_firstx(fp, box_path)
+                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
                         boxes = builder.QuickBoxStruct64.BoxList.parse_stream(
                             io.BytesIO(data)
                         )
