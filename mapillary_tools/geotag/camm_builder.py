@@ -1,4 +1,5 @@
 import io
+import dataclasses
 import typing as T
 
 from .. import geo, utils
@@ -228,42 +229,62 @@ def create_camm_trak(
     }
 
 
-def extract_points(
+@dataclasses.dataclass
+class VideoMetadata:
+    file_type: utils.FileType
+    points: T.List[geo.Point]
+    make: str
+    model: str
+
+
+def extract_video_metadata(
     fp: T.BinaryIO,
     file_types: T.Optional[T.Set[utils.FileType]] = None,
-) -> T.Tuple[T.Optional[utils.FileType], T.List[geo.Point]]:
+) -> T.Optional[VideoMetadata]:
     start_offset = fp.tell()
 
     if file_types is None or utils.FileType.CAMM in file_types:
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points = camm_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points = []
         if points:
-            return utils.FileType.CAMM, points
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = camm_parser.extract_camera_make_and_model(fp)
+            return VideoMetadata(utils.FileType.CAMM, points, make, model)
 
     if file_types is None or utils.FileType.GOPRO in file_types:
-        fp.seek(start_offset)
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points_with_fix = []
         if points_with_fix:
-            return utils.FileType.GOPRO, T.cast(T.List[geo.Point], points_with_fix)
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+            return VideoMetadata(
+                utils.FileType.GOPRO,
+                T.cast(T.List[geo.Point], points_with_fix),
+                make,
+                model,
+            )
 
     if file_types is None or utils.FileType.BLACKVUE in file_types:
-        fp.seek(start_offset)
+        fp.seek(start_offset, io.SEEK_SET)
         try:
             points = blackvue_parser.extract_points(fp)
         except (parser.BoxNotFoundError, parser.RangeError):
             points = []
         if points:
-            return utils.FileType.BLACKVUE, points
+            fp.seek(start_offset, io.SEEK_SET)
+            make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
+            return VideoMetadata(utils.FileType.BLACKVUE, points, make, model)
 
-    return None, []
+    return None
 
 
-def camm_sample_generator2(points: T.Sequence[geo.Point]):
+def camm_sample_generator2(video_metadata: VideoMetadata):
     def _f(
         fp: T.BinaryIO,
         moov_children: T.List[BoxDict],
@@ -271,9 +292,13 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
-        camm_samples = list(convert_points_to_raw_samples(points, media_timescale))
+        camm_samples = list(
+            convert_points_to_raw_samples(video_metadata.points, media_timescale)
+        )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list([points], movie_timescale, media_timescale)
+        elst = _create_edit_list(
+            [video_metadata.points], movie_timescale, media_timescale
+        )
         if T.cast(T.Dict, elst["data"])["entries"]:
             T.cast(T.List[BoxDict], camm_trak["data"]).append(
                 {
@@ -283,8 +308,31 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
             )
         moov_children.append(camm_trak)
 
+        udta_data = []
+        if video_metadata.make:
+            udta_data.append(
+                {
+                    "type": b"@mak",
+                    "data": video_metadata.make.encode("utf-8"),
+                }
+            )
+        if video_metadata.model:
+            udta_data.append(
+                {
+                    "type": b"@mod",
+                    "data": video_metadata.model.encode("utf-8"),
+                }
+            )
+        if udta_data:
+            moov_children.append(
+                {
+                    "type": b"udta",
+                    "data": udta_data,
+                }
+            )
+
         # if yield, the moov_children will not be modified
-        return (io.BytesIO(build_camm_sample(point)) for point in points)
+        return (io.BytesIO(build_camm_sample(point)) for point in video_metadata.points)
 
     return _f
 
@@ -293,9 +341,9 @@ def camm_sample_generator(
     fp: T.BinaryIO,
     moov_children: T.List[BoxDict],
 ) -> T.Iterator[io.IOBase]:
-    fp.seek(0)
-    _, points = extract_points(fp)
-    if not points:
+    fp.seek(0, io.SEEK_SET)
+    metadata = extract_video_metadata(fp)
+    if not metadata:
         raise ValueError("no points found")
 
-    return camm_sample_generator2(points)(fp, moov_children)
+    return camm_sample_generator2(metadata)(fp, moov_children)

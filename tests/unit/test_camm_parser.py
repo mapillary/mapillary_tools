@@ -2,7 +2,7 @@ import dataclasses
 import io
 import typing as T
 
-from mapillary_tools import geo
+from mapillary_tools import geo, utils
 from mapillary_tools.geotag import camm_builder, camm_parser, simple_mp4_builder
 
 
@@ -34,7 +34,7 @@ def test_filter_points_by_edit_list():
     ] == list(camm_parser.filter_points_by_elst(points, [(-1, 4.4), (0.24, 0.3)]))
 
 
-def build_mp4(points: T.List[geo.Point]) -> T.Optional[T.List[geo.Point]]:
+def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadata:
     movie_timescale = simple_mp4_builder.UINT32_MAX
 
     mvhd = {
@@ -53,10 +53,17 @@ def build_mp4(points: T.List[geo.Point]) -> T.Optional[T.List[geo.Point]]:
     ]
     src = simple_mp4_builder.QuickBoxStruct32.BoxList.build(empty_mp4)
     target_fp = simple_mp4_builder.transform_mp4(
-        io.BytesIO(src), camm_builder.camm_sample_generator2(points)
+        io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
     )
 
-    return camm_parser.extract_points(T.cast(T.BinaryIO, target_fp))
+    points = camm_parser.extract_points(T.cast(T.BinaryIO, target_fp))
+    target_fp.seek(0, io.SEEK_SET)
+    make, model = camm_parser.extract_camera_make_and_model(
+        T.cast(T.BinaryIO, target_fp)
+    )
+    return camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM, points=points or [], make=make, model=model
+    )
 
 
 def approximate(expected, actual):
@@ -75,7 +82,15 @@ def test_build_and_parse():
         geo.Point(time=0.29, lat=0.002, lon=0.203, alt=None, angle=None),
         geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None),
     ]
-    x = build_mp4(points)
+    metadata = camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM,
+        points=points,
+        make="test_make",
+        model="   test_model   ",
+    )
+    x = build_mp4(metadata)
+    assert x.make == "test_make"
+    assert x.model == "test_model"
     assert approximate(
         [
             geo.Point(
@@ -91,7 +106,7 @@ def test_build_and_parse():
                 time=0.3099999994295649, lat=0.0025, lon=0.2004, alt=-1.0, angle=None
             ),
         ],
-        x,
+        x.points,
     )
 
 
@@ -99,10 +114,18 @@ def test_build_and_parse2():
     points = [
         geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
-    x = build_mp4(points)
+    metadata = camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM,
+        points=points,
+        make="test_make汉字",
+        model="test_model汉字",
+    )
+    x = build_mp4(metadata)
+    assert x.make == "test_make汉字"
+    assert x.model == "test_model汉字"
     assert approximate(
         [geo.Point(time=0.09999999988358468, lat=0.01, lon=0.2, alt=-1.0, angle=None)],
-        x,
+        x.points,
     )
 
 
@@ -110,8 +133,14 @@ def test_build_and_parse9():
     points = [
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
-    x = build_mp4(points)
-    assert [geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None)] == x
+    metadata = camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM,
+        points=points,
+        make="test_make汉字",
+        model="test_model汉字",
+    )
+    x = build_mp4(metadata)
+    assert [geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None)] == x.points
 
 
 def test_build_and_parse10():
@@ -119,17 +148,29 @@ def test_build_and_parse10():
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
         geo.Point(time=0.1, lat=0.03, lon=0.2, alt=None, angle=None),
     ]
-    x = build_mp4(points)
+    metadata = camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM,
+        points=points,
+        make="test_make汉字",
+        model="test_model汉字",
+    )
+    x = build_mp4(metadata)
     assert approximate(
         [
             geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None),
             geo.Point(time=0.1, lat=0.03, lon=0.2, alt=-1.0, angle=None),
         ],
-        x,
+        x.points,
     )
 
 
 def test_build_and_parse3():
     points = []
-    x = build_mp4(points)
-    assert [] == x
+    metadata = camm_builder.VideoMetadata(
+        file_type=utils.FileType.CAMM,
+        points=points,
+        make="test_make汉字",
+        model="test_model汉字",
+    )
+    x = build_mp4(metadata)
+    assert [] == x.points

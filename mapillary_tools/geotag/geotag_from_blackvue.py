@@ -81,7 +81,8 @@ class GeotagFromBlackVue(GeotagFromGeneric):
                 all_descs.extend(this_descs)
 
             # update make and model
-            make, model = "BlackVue", blackvue_parser.find_camera_model(video_path)
+            with video_path.open("rb") as fp:
+                make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
             LOG.debug(f'Found camera make "%s" and model "%s"', make, model)
             for desc in types.filter_out_errors(this_descs):
                 if make:
