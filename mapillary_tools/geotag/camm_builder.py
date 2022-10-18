@@ -1,4 +1,5 @@
 import io
+import dataclasses
 import typing as T
 
 from .. import geo, utils
@@ -228,7 +229,8 @@ def create_camm_trak(
     }
 
 
-class VideoMetadata(T.NamedTuple):
+@dataclasses.dataclass
+class VideoMetadata:
     file_type: utils.FileType
     points: T.List[geo.Point]
     make: str
@@ -282,7 +284,7 @@ def extract_video_metadata(
     return None
 
 
-def camm_sample_generator2(points: T.Sequence[geo.Point]):
+def camm_sample_generator2(video_metadata: VideoMetadata):
     def _f(
         fp: T.BinaryIO,
         moov_children: T.List[BoxDict],
@@ -290,9 +292,13 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
-        camm_samples = list(convert_points_to_raw_samples(points, media_timescale))
+        camm_samples = list(
+            convert_points_to_raw_samples(video_metadata.points, media_timescale)
+        )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list([points], movie_timescale, media_timescale)
+        elst = _create_edit_list(
+            [video_metadata.points], movie_timescale, media_timescale
+        )
         if T.cast(T.Dict, elst["data"])["entries"]:
             T.cast(T.List[BoxDict], camm_trak["data"]).append(
                 {
@@ -302,8 +308,31 @@ def camm_sample_generator2(points: T.Sequence[geo.Point]):
             )
         moov_children.append(camm_trak)
 
+        udta_data = []
+        if video_metadata.make:
+            udta_data.append(
+                {
+                    "type": b"@mak",
+                    "data": video_metadata.make.encode("utf-8"),
+                }
+            )
+        if video_metadata.model:
+            udta_data.append(
+                {
+                    "type": b"@mod",
+                    "data": video_metadata.model.encode("utf-8"),
+                }
+            )
+        if udta_data:
+            moov_children.append(
+                {
+                    "type": b"udta",
+                    "data": udta_data,
+                }
+            )
+
         # if yield, the moov_children will not be modified
-        return (io.BytesIO(build_camm_sample(point)) for point in points)
+        return (io.BytesIO(build_camm_sample(point)) for point in video_metadata.points)
 
     return _f
 
@@ -317,4 +346,4 @@ def camm_sample_generator(
     if not metadata:
         raise ValueError("no points found")
 
-    return camm_sample_generator2(metadata.points)(fp, moov_children)
+    return camm_sample_generator2(metadata)(fp, moov_children)

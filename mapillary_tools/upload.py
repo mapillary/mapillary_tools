@@ -647,15 +647,17 @@ def _convert_and_upload_camm(
                 continue
 
             if metadata.file_type == FileType.GOPRO:
-                new_points = gpmf_gps_filter.filter_noisy_points(
-                    T.cast(T.List[gpmf_parser.PointWithFix], metadata.points)
+                metadata.points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.filter_noisy_points(
+                        T.cast(T.List[gpmf_parser.PointWithFix], metadata.points)
+                    ),
                 )
-                video_points = T.cast(T.List[geo.Point], new_points)
-            else:
-                video_points = metadata.points
 
             stationary = video_utils.is_video_stationary(
-                geo.get_max_distance_from_start([(p.lat, p.lon) for p in video_points])
+                geo.get_max_distance_from_start(
+                    [(p.lat, p.lon) for p in metadata.points]
+                )
             )
             if stationary:
                 LOG.warning(
@@ -665,7 +667,7 @@ def _convert_and_upload_camm(
                 )
                 continue
 
-            generator = camm_builder.camm_sample_generator2(video_points)
+            generator = camm_builder.camm_sample_generator2(metadata)
             camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
             event_payload: uploader.Progress = {
                 "total_sequence_count": len(video_paths),

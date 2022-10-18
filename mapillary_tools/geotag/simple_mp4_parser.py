@@ -614,6 +614,7 @@ _full_lazy_box_types = [
     b"mfra",
     b"dinf",
     b"edts",
+    b"udta",
 ]
 
 FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types)
@@ -634,6 +635,7 @@ _quick_lazy_box_types = [
     b"minf",
     b"mvex",
     b"edts",
+    b"udta",
 ]
 
 QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types)
