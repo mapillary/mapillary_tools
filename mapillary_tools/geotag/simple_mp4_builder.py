@@ -10,14 +10,14 @@ else:
 
 import construct as C
 
-from . import io_utils, simple_mp4_parser as parser
+from . import io_utils, mp4_sample_parser as sample_parser, simple_mp4_parser as parser
+from .mp4_sample_parser import RawSample
 from .simple_mp4_parser import (
     BoxHeader32,
     BoxHeader64,
     FullBoxStruct32,
     QuickBoxStruct32,
     QuickBoxStruct64,
-    RawSample,
 )
 
 UINT32_MAX = 2**32 - 1
@@ -232,7 +232,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
     new_samples = []
     for sample in iterate_samples([trak]):
         new_samples.append(
-            parser.RawSample(
+            sample_parser.RawSample(
                 description_idx=sample.description_idx,
                 offset=sample_offset,
                 size=sample.size,
@@ -242,7 +242,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
         )
         sample_offset += sample.size
     stbl_box = _find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
-    descriptions, _ = parser.parse_raw_samples_from_stbl(
+    descriptions, _ = sample_parser.parse_raw_samples_from_stbl(
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
     stbl_children_boxes = build_stbl_from_raw_samples(descriptions, new_samples)
@@ -254,11 +254,11 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
 
 def iterate_samples(
     moov_children: T.Iterable[BoxDict],
-) -> T.Generator[parser.RawSample, None, None]:
+) -> T.Generator[sample_parser.RawSample, None, None]:
     for box in moov_children:
         if box["type"] == b"trak":
             stbl_box = _find_box_at_pathx(box, [b"trak", b"mdia", b"minf", b"stbl"])
-            _, raw_samples_iter = parser.parse_raw_samples_from_stbl(
+            _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl(
                 io.BytesIO(T.cast(bytes, stbl_box["data"]))
             )
             yield from raw_samples_iter

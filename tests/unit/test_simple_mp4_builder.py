@@ -1,6 +1,8 @@
 import io
 import typing as T
 
+import mapillary_tools.geotag.mp4_sample_parser as sample_parser
+
 import mapillary_tools.geotag.simple_mp4_builder as builder
 import mapillary_tools.geotag.simple_mp4_parser as parser
 
@@ -35,7 +37,7 @@ def test_build_hero():
 
 
 def _build_and_parse_stbl(
-    descriptions: T.List[T.Any], expected_samples: T.List[parser.RawSample]
+    descriptions: T.List[T.Any], expected_samples: T.List[sample_parser.RawSample]
 ):
     s = builder.build_stbl_from_raw_samples(
         descriptions,
@@ -44,7 +46,7 @@ def _build_and_parse_stbl(
     d = parser.FullBoxStruct32.Box.build({"type": b"stbl", "data": s})
     ss = parser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
-    _, parsed_samples = parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
+    _, parsed_samples = sample_parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
     assert expected_samples == list(parsed_samples)
 
 
@@ -55,52 +57,52 @@ def test_build_stbl_happy():
     ]
 
     samples = [
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=2, size=9, timedelta=2, is_sync=False
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=2, size=2, timedelta=2, is_sync=False
         ),
         # another chunk here due to a 1-byte break
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=5, size=1, timedelta=2, is_sync=True
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=6, size=9, timedelta=2, is_sync=False
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=1, size=1, timedelta=2, is_sync=False
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=2, size=2, timedelta=2, is_sync=True
         ),
         # another chunk here
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=2, offset=4, size=1, timedelta=2, is_sync=True
         ),
         # another chunk here
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=5, size=9, timedelta=2, is_sync=True
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
         ),
     ]
@@ -188,19 +190,21 @@ def test_parse_raw_samples_from_stbl():
             },
         ]
     )
-    descs, sample_iter = parser.parse_raw_samples_from_stbl(io.BytesIO(stbl_bytes))
+    descs, sample_iter = sample_parser.parse_raw_samples_from_stbl(
+        io.BytesIO(stbl_bytes)
+    )
     samples = list(sample_iter)
     assert [
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=1, size=1, timedelta=20, is_sync=True
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=2, size=2, timedelta=30, is_sync=False
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=5, size=3, timedelta=30, is_sync=True
         ),
-        parser.RawSample(
+        sample_parser.RawSample(
             description_idx=1, offset=8, size=3, timedelta=50, is_sync=False
         ),
     ] == samples

@@ -6,7 +6,11 @@ import sys
 import typing as T
 
 from mapillary_tools import utils
-from mapillary_tools.geotag import simple_mp4_builder as builder, simple_mp4_parser
+from mapillary_tools.geotag import (
+    mp4_sample_parser as sample_parser,
+    simple_mp4_builder as builder,
+    simple_mp4_parser as parser,
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -30,13 +34,13 @@ box_list_types = {
 def _validate_samples(
     path: pathlib.Path, filters: T.Optional[T.Container[bytes]] = None
 ):
-    samples: T.List[simple_mp4_parser.RawSample] = []
+    samples: T.List[sample_parser.RawSample] = []
 
     with open(path, "rb") as fp:
-        for h, s in simple_mp4_parser.parse_path(
+        for h, s in parser.parse_path(
             fp, [b"moov", b"trak", b"mdia", b"minf", b"stbl"]
         ):
-            descriptions, raw_samples = simple_mp4_parser.parse_raw_samples_from_stbl(
+            descriptions, raw_samples = sample_parser.parse_raw_samples_from_stbl(
                 s, maxsize=h.maxsize
             )
             samples.extend(
@@ -62,9 +66,7 @@ def _validate_samples(
 
 
 def _parse_structs(fp: T.BinaryIO):
-    for h, d, s in simple_mp4_parser.parse_boxes_recursive(
-        fp, box_list_types=box_list_types
-    ):
+    for h, d, s in parser.parse_boxes_recursive(fp, box_list_types=box_list_types):
         margin = "\t" * d
         if h.size32 == 0:
             header = f"{str(h.type)} {h.box_size} (open-ended):"
@@ -83,7 +85,7 @@ def _parse_structs(fp: T.BinaryIO):
 
 
 def _dump_box_data_at(fp: T.BinaryIO, box_type_path: T.List[bytes]):
-    for h, s in simple_mp4_parser.parse_path(fp, box_type_path):
+    for h, s in parser.parse_path(fp, box_type_path):
         max_chunk_size = 1024
         read = 0
         while read < h.maxsize or h.maxsize == -1:
@@ -100,24 +102,22 @@ def _dump_box_data_at(fp: T.BinaryIO, box_type_path: T.List[bytes]):
 
 
 def _parse_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
-    for h, s in simple_mp4_parser.parse_path(fp, [b"moov", b"trak"]):
+    for h, s in parser.parse_path(fp, [b"moov", b"trak"]):
         offset = s.tell()
-        for h1, s1 in simple_mp4_parser.parse_path(
-            s, [b"mdia", b"mdhd"], maxsize=h.maxsize
-        ):
-            box = simple_mp4_parser.MediaHeaderBox.parse(s1.read(h.maxsize))
+        for h1, s1 in parser.parse_path(s, [b"mdia", b"mdhd"], maxsize=h.maxsize):
+            box = parser.MediaHeaderBox.parse(s1.read(h.maxsize))
             LOG.info(box)
-            LOG.info(simple_mp4_parser.to_datetime(box.creation_time))
+            LOG.info(sample_parser.to_datetime(box.creation_time))
             LOG.info(box.duration / box.timescale)
         s.seek(offset, io.SEEK_SET)
-        for sample in simple_mp4_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
+        for sample in sample_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
             if filters is None or sample.description["format"] in filters:
                 print(sample)
 
 
 def _dump_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
-    for h, s in simple_mp4_parser.parse_path(fp, [b"moov", b"trak"]):
-        for sample in simple_mp4_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
+    for h, s in parser.parse_path(fp, [b"moov", b"trak"]):
+        for sample in sample_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
             if filters is None or sample.description["format"] in filters:
                 fp.seek(sample.offset, io.SEEK_SET)
                 data = fp.read(sample.size)
@@ -202,16 +202,14 @@ def _process_path(parsed_args, path: pathlib.Path):
                     if box_path is None:
                         _parse_structs(fp)
                     else:
-                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
+                        data = parser.parse_mp4_data_firstx(fp, box_path)
                         _parse_structs(io.BytesIO(data))
                 elif parsed_args.full:
                     if box_path is None:
-                        boxes = simple_mp4_parser.FullBoxStruct64.BoxList.parse_stream(
-                            fp
-                        )
+                        boxes = parser.FullBoxStruct64.BoxList.parse_stream(fp)
                     else:
-                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
-                        boxes = simple_mp4_parser.FullBoxStruct64.BoxList.parse_stream(
+                        data = parser.parse_mp4_data_firstx(fp, box_path)
+                        boxes = parser.FullBoxStruct64.BoxList.parse_stream(
                             io.BytesIO(data)
                         )
                     print(boxes)
@@ -219,7 +217,7 @@ def _process_path(parsed_args, path: pathlib.Path):
                     if box_path is None:
                         boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
                     else:
-                        data = simple_mp4_parser.parse_mp4_data_firstx(fp, box_path)
+                        data = parser.parse_mp4_data_firstx(fp, box_path)
                         boxes = builder.QuickBoxStruct64.BoxList.parse_stream(
                             io.BytesIO(data)
                         )

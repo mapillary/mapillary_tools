@@ -9,7 +9,7 @@ from enum import Enum
 
 import construct as C
 
-from . import geo, simple_mp4_parser as parser
+from . import geo, mp4_sample_parser as sample_parser, simple_mp4_parser as parser
 
 
 LOG = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ CAMMSampleData = C.Struct(
 
 
 def _parse_point_from_sample(
-    fp: T.BinaryIO, sample: parser.Sample
+    fp: T.BinaryIO, sample: sample_parser.Sample
 ) -> T.Optional[geo.Point]:
     fp.seek(sample.offset, io.SEEK_SET)
     data = fp.read(sample.size)
@@ -145,13 +145,13 @@ def elst_entry_to_seconds(
 def _extract_camm_samples(
     s: T.BinaryIO,
     maxsize: int = -1,
-) -> T.Generator[parser.Sample, None, None]:
+) -> T.Generator[sample_parser.Sample, None, None]:
     begin_offset = s.tell()
-    descriptions = parser.parse_descriptions_from_trak(s, maxsize=maxsize)
+    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
     camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
     if camm_descriptions:
         s.seek(begin_offset, io.SEEK_SET)
-        samples = parser.parse_samples_from_trak(s, maxsize=maxsize)
+        samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
         camm_samples = (
             sample for sample in samples if sample.description["format"] == b"camm"
         )

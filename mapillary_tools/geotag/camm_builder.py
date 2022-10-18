@@ -8,6 +8,7 @@ from . import (
     blackvue_parser,
     camm_parser,
     gpmf_parser,
+    mp4_sample_parser as sample_parser,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
 )
@@ -87,7 +88,7 @@ def _create_edit_list(
 
 def convert_points_to_raw_samples(
     points: T.Sequence[geo.Point], timescale: int
-) -> T.Generator[parser.RawSample, None, None]:
+) -> T.Generator[sample_parser.RawSample, None, None]:
     for idx, point in enumerate(points):
         camm_sample_data = build_camm_sample(point)
 
@@ -99,7 +100,7 @@ def convert_points_to_raw_samples(
             0 <= timedelta <= builder.UINT32_MAX
         ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
 
-        yield parser.RawSample(
+        yield sample_parser.RawSample(
             # will update later
             description_idx=1,
             # will update later
@@ -110,7 +111,7 @@ def convert_points_to_raw_samples(
         )
 
 
-def _create_camm_stbl(raw_samples: T.Iterable[parser.RawSample]) -> BoxDict:
+def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDict:
     descriptions = [
         {
             "format": b"camm",
@@ -147,7 +148,7 @@ _SELF_REFERENCE_DREF_BOX_DATA: bytes = builder.FullBoxStruct32.Box.build(
 
 
 def create_camm_trak(
-    raw_samples: T.Sequence[parser.RawSample],
+    raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
 ) -> BoxDict:
     stbl = _create_camm_stbl(raw_samples)
