@@ -19,11 +19,21 @@ class Header(T.NamedTuple):
     maxsize: int
 
 
-class RangeError(Exception):
+class ParsingError(Exception):
+    """Base class for exceptions in this module."""
+
     pass
 
 
-class BoxNotFoundError(Exception):
+class RangeError(ParsingError):
+    """Raise when less bytes available than expected"""
+
+    pass
+
+
+class BoxNotFoundError(ParsingError):
+    """Raise when a required box is not found"""
+
     pass
 
 

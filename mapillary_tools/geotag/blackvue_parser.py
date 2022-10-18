@@ -56,7 +56,7 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
 def extract_camera_model(fp: T.BinaryIO) -> str:
     try:
         cprt_bytes = simple_mp4_parser.parse_mp4_data_first(fp, [b"free", b"cprt"])
-    except simple_mp4_parser.RangeError:
+    except simple_mp4_parser.ParsingError:
         return ""
 
     if cprt_bytes is None:

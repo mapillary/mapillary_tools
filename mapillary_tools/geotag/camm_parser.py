@@ -284,7 +284,7 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
             # quit when both found
             if make and model:
                 break
-    except parser.RangeError:
+    except parser.ParsingError:
         pass
 
     if make:

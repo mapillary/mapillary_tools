@@ -247,7 +247,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = camm_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points = []
         if points:
             fp.seek(start_offset, io.SEEK_SET)
@@ -258,7 +258,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points_with_fix = []
         if points_with_fix:
             fp.seek(start_offset, io.SEEK_SET)
@@ -274,7 +274,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = blackvue_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points = []
         if points:
             fp.seek(start_offset, io.SEEK_SET)
