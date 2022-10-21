@@ -172,6 +172,7 @@ def create_camm_trak(
     dinf: BoxDict = {
         "type": b"dinf",
         "data": [
+            # self reference dref box
             {
                 "type": b"dref",
                 "data": {

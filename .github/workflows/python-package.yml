@@ -58,6 +58,7 @@ jobs:
     - name: Type check with mypy
       run: |
         mypy mapillary_tools
+      if: matrix.python-version > 3.6
     - name: Test with pytest
       run: |
         mapillary_tools --version

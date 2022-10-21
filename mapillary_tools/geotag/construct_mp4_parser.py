@@ -356,12 +356,14 @@ class Box64ConstructBuilder:
     def __init__(
         self,
         nested_switch_map: SwitchMapType,
+        extend_eof: bool = False,
     ) -> None:
         self._box = None
+        self._extend_eof = extend_eof
         switch_map = {}
         for k, v in nested_switch_map.items():
             if isinstance(v, dict):
-                switch_map[k] = self.__class__(v).BoxList
+                switch_map[k] = self.__class__(v, extend_eof=False).BoxList
             else:
                 switch_map[k] = v
         self._switch = C.Switch(
@@ -393,9 +395,14 @@ class Box64ConstructBuilder:
                 "data" / self._switch,
             )
 
-            self._box = C.Select(
-                BoxHeader32 + BoxData32, BoxHeader64 + BoxData64, BoxHeader0 + BoxData0
-            )
+            if self._extend_eof:
+                self._box = C.Select(
+                    BoxHeader32 + BoxData32,
+                    BoxHeader64 + BoxData64,
+                    BoxHeader0 + BoxData0,
+                )
+            else:
+                self._box = C.Select(BoxHeader32 + BoxData32, BoxHeader64 + BoxData64)
 
         return self._box
 
@@ -510,9 +517,9 @@ MAP4_WITHOUT_STBL_CMAP: SwitchMapType = {
 }
 
 # for parsing mp4 only
-Mp4ParserConstruct = Box64ConstructBuilder(MP4_CMAP).BoxList
+Mp4ParserConstruct = Box64ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
 Mp4WithoutSTBLParserConstruct = Box64ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
 
 # for building mp4 only
-Mp4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP).BoxList
+Mp4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
 Mp4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList

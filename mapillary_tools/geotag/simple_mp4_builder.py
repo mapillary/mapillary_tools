@@ -321,9 +321,9 @@ def transform_mp4(
     # extract ftyp
     src_fp.seek(0)
     source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = cparser.Box32ConstructBuilder(
-        cparser.MAP4_WITHOUT_STBL_CMAP
-    ).Box.build({"type": b"ftyp", "data": source_ftyp_box_data})
+    source_ftyp_data = cparser.Mp4WithoutSTBLBuilderConstruct.build(
+        [{"type": b"ftyp", "data": source_ftyp_box_data}]
+    )
 
     # extract moov
     src_fp.seek(0)
