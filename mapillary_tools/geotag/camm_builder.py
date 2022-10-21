@@ -112,7 +112,7 @@ def convert_points_to_raw_samples(
         )
 
 
-_STBLBuilderConstruct = cparser.Box32ConstructBuilder(
+_STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
     T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
 ).BoxList
 
@@ -128,7 +128,7 @@ def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDi
 
     stbl_children_boxes = builder.build_stbl_from_raw_samples(descriptions, raw_samples)
 
-    stbl_data = _STBLBuilderConstruct.build(stbl_children_boxes)
+    stbl_data = _STBLChildrenBuilderConstruct.build(stbl_children_boxes)
     return {
         "type": b"stbl",
         "data": stbl_data,

@@ -22,20 +22,20 @@ def test_build_sample_5s():
     simple_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
     )
-    _test_build(cparser.Mp4BuilderConstruct, simple_mp4)
-    _test_build(cparser.Mp4WithoutSTBLBuilderConstruct, simple_mp4)
-    _test_build(cparser.Mp4ParserConstruct, simple_mp4)
-    _test_build(cparser.Mp4WithoutSTBLParserConstruct, simple_mp4)
+    _test_build(cparser.MP4BuilderConstruct, simple_mp4)
+    _test_build(cparser.MP4WithoutSTBLBuilderConstruct, simple_mp4)
+    _test_build(cparser.MP4ParserConstruct, simple_mp4)
+    _test_build(cparser.MP4WithoutSTBLParserConstruct, simple_mp4)
 
 
 def test_build_hero():
     hero_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4"
     )
-    _test_build(cparser.Mp4BuilderConstruct, hero_mp4)
-    _test_build(cparser.Mp4WithoutSTBLBuilderConstruct, hero_mp4)
-    _test_build(cparser.Mp4ParserConstruct, hero_mp4)
-    _test_build(cparser.Mp4WithoutSTBLParserConstruct, hero_mp4)
+    _test_build(cparser.MP4BuilderConstruct, hero_mp4)
+    _test_build(cparser.MP4WithoutSTBLBuilderConstruct, hero_mp4)
+    _test_build(cparser.MP4ParserConstruct, hero_mp4)
+    _test_build(cparser.MP4WithoutSTBLParserConstruct, hero_mp4)
 
 
 def _build_and_parse_stbl(

@@ -517,9 +517,9 @@ MAP4_WITHOUT_STBL_CMAP: SwitchMapType = {
 }
 
 # for parsing mp4 only
-Mp4ParserConstruct = Box64ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
-Mp4WithoutSTBLParserConstruct = Box64ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
+MP4ParserConstruct = Box64ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
+MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
 
 # for building mp4 only
-Mp4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
-Mp4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
+MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
+MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList

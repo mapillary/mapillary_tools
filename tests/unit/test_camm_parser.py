@@ -56,7 +56,7 @@ def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadat
         {"type": b"ftyp", "data": b"test"},
         {"type": b"moov", "data": [mvhd]},
     ]
-    src = cparser.Mp4WithoutSTBLBuilderConstruct.build(empty_mp4)
+    src = cparser.MP4WithoutSTBLBuilderConstruct.build(empty_mp4)
     target_fp = simple_mp4_builder.transform_mp4(
         io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
     )

@@ -223,7 +223,7 @@ def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
     T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
 
 
-_STBLBuilderConstruct = cparser.Box32ConstructBuilder(
+_STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
     T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
 ).BoxList
 
@@ -247,7 +247,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
     stbl_children_boxes = build_stbl_from_raw_samples(descriptions, new_samples)
-    new_stbl_bytes = _STBLBuilderConstruct.build(stbl_children_boxes)
+    new_stbl_bytes = _STBLChildrenBuilderConstruct.build(stbl_children_boxes)
     stbl_box["data"] = new_stbl_bytes
 
     return sample_offset
@@ -299,7 +299,7 @@ def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
 
 
 def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
-    return cparser.Mp4WithoutSTBLBuilderConstruct.build(
+    return cparser.MP4WithoutSTBLBuilderConstruct.build(
         [
             {
                 "type": b"moov",
@@ -309,7 +309,7 @@ def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
     )
 
 
-_MOOVParserConstruct = cparser.Box64ConstructBuilder(
+_MOOVChildrenParserConstruct = cparser.Box64ConstructBuilder(
     cparser.MOOV_WITHOUT_STBL_CMAP
 ).BoxList
 
@@ -321,14 +321,14 @@ def transform_mp4(
     # extract ftyp
     src_fp.seek(0)
     source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = cparser.Mp4WithoutSTBLBuilderConstruct.build(
+    source_ftyp_data = cparser.MP4WithoutSTBLBuilderConstruct.build(
         [{"type": b"ftyp", "data": source_ftyp_box_data}]
     )
 
     # extract moov
     src_fp.seek(0)
     src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
-    moov_children = _MOOVParserConstruct.parse(src_moov_data)
+    moov_children = _MOOVChildrenParserConstruct.parse(src_moov_data)
 
     # filter tracks in moov
     moov_children = list(_filter_moov_children_boxes(moov_children))
