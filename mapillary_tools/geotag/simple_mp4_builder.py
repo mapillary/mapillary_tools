@@ -8,13 +8,11 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-from . import io_utils, mp4_sample_parser as sample_parser, simple_mp4_parser as parser
-from .construct_mp4_parser import (
-    BoxHeader32,
-    BoxHeader64,
-    FullBoxStruct32,
-    QuickBoxStruct32,
-    QuickBoxStruct64,
+from . import (
+    construct_mp4_parser as cparser,
+    io_utils,
+    mp4_sample_parser as sample_parser,
+    simple_mp4_parser as parser,
 )
 from .mp4_sample_parser import RawSample
 
@@ -22,9 +20,9 @@ UINT32_MAX = 2**32 - 1
 UINT64_MAX = 2**64 - 1
 
 
-class BoxDict(TypedDict, total=False):
-    type: bytes
-    data: T.Union[T.List, T.Dict[str, T.Any], bytes]
+class BoxDict(TypedDict, total=True):
+    type: cparser.BoxType
+    data: T.Union[T.List["BoxDict"], T.Dict[str, T.Any], bytes]
 
 
 def _build_stsd(descriptions: T.Sequence[T.Any]) -> BoxDict:
@@ -146,7 +144,7 @@ def _build_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     }
 
 
-def _build_stss(raw_samples: T.Iterable[RawSample]):
+def _build_stss(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     return {
         "type": b"stss",
         "data": {
@@ -225,6 +223,11 @@ def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
     T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
 
 
+_STBLBuilderConstruct = cparser.Box32ConstructBuilder(
+    T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
+).BoxList
+
+
 def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
     assert trak["type"] == b"trak"
     new_samples = []
@@ -244,7 +247,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
     stbl_children_boxes = build_stbl_from_raw_samples(descriptions, new_samples)
-    new_stbl_bytes = FullBoxStruct32.BoxList.build(stbl_children_boxes)
+    new_stbl_bytes = _STBLBuilderConstruct.build(stbl_children_boxes)
     stbl_box["data"] = new_stbl_bytes
 
     return sample_offset
@@ -264,14 +267,14 @@ def iterate_samples(
 
 def _build_mdat_header_bytes(mdat_size: int) -> bytes:
     if UINT32_MAX < mdat_size + 8:
-        return BoxHeader64.build(
+        return cparser.BoxHeader64.build(
             {
                 "size": mdat_size + 16,
                 "type": b"mdat",
             }
         )
     else:
-        return BoxHeader32.build(
+        return cparser.BoxHeader32.build(
             {
                 "size": mdat_size + 8,
                 "type": b"mdat",
@@ -296,12 +299,19 @@ def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
 
 
 def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
-    return QuickBoxStruct32.Box.build(
-        {
-            "type": b"moov",
-            "data": moov_children,
-        }
+    return cparser.Mp4WithoutSTBLBuilderConstruct.build(
+        [
+            {
+                "type": b"moov",
+                "data": moov_children,
+            }
+        ]
     )
+
+
+_MOOVParserConstruct = cparser.Box64ConstructBuilder(
+    cparser.MOOV_WITHOUT_STBL_CMAP
+).BoxList
 
 
 def transform_mp4(
@@ -311,14 +321,14 @@ def transform_mp4(
     # extract ftyp
     src_fp.seek(0)
     source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = QuickBoxStruct32.Box.build(
-        {"type": b"ftyp", "data": source_ftyp_box_data}
-    )
+    source_ftyp_data = cparser.Box32ConstructBuilder(
+        cparser.MAP4_WITHOUT_STBL_CMAP
+    ).Box.build({"type": b"ftyp", "data": source_ftyp_box_data})
 
     # extract moov
     src_fp.seek(0)
     src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
-    moov_children = QuickBoxStruct64.BoxList.parse(src_moov_data)
+    moov_children = _MOOVParserConstruct.parse(src_moov_data)
 
     # filter tracks in moov
     moov_children = list(_filter_moov_children_boxes(moov_children))

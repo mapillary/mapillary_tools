@@ -7,6 +7,7 @@ from .. import geo, utils
 from . import (
     blackvue_parser,
     camm_parser,
+    construct_mp4_parser as cparser,
     gpmf_parser,
     mp4_sample_parser as sample_parser,
     simple_mp4_builder as builder,
@@ -111,6 +112,11 @@ def convert_points_to_raw_samples(
         )
 
 
+_STBLBuilderConstruct = cparser.Box32ConstructBuilder(
+    T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
+).BoxList
+
+
 def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDict:
     descriptions = [
         {
@@ -122,29 +128,11 @@ def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDi
 
     stbl_children_boxes = builder.build_stbl_from_raw_samples(descriptions, raw_samples)
 
-    stbl_data = builder.FullBoxStruct32.BoxList.build(stbl_children_boxes)
+    stbl_data = _STBLBuilderConstruct.build(stbl_children_boxes)
     return {
         "type": b"stbl",
         "data": stbl_data,
     }
-
-
-_SELF_REFERENCE_DREF_BOX_DATA: bytes = builder.FullBoxStruct32.Box.build(
-    {
-        "type": b"dref",
-        "data": {
-            "entries": [
-                {
-                    "type": b"url ",
-                    "data": {
-                        "flags": 1,
-                        "data": b"",
-                    },
-                }
-            ],
-        },
-    }
-)
 
 
 def create_camm_trak(
@@ -153,7 +141,7 @@ def create_camm_trak(
 ) -> BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
-    hdlr = {
+    hdlr: BoxDict = {
         "type": b"hdlr",
         "data": {
             "handler_type": b"camm",
@@ -165,7 +153,7 @@ def create_camm_trak(
     assert media_timescale <= builder.UINT64_MAX
 
     # Media Header Box
-    mdhd = {
+    mdhd: BoxDict = {
         "type": b"mdhd",
         "data": {
             # use 64-bit version
@@ -183,7 +171,22 @@ def create_camm_trak(
 
     dinf: BoxDict = {
         "type": b"dinf",
-        "data": _SELF_REFERENCE_DREF_BOX_DATA,
+        "data": [
+            {
+                "type": b"dref",
+                "data": {
+                    "entries": [
+                        {
+                            "type": b"url ",
+                            "data": {
+                                "flags": 1,
+                                "data": b"",
+                            },
+                        }
+                    ],
+                },
+            }
+        ],
     }
 
     minf: BoxDict = {
@@ -309,7 +312,7 @@ def camm_sample_generator2(video_metadata: VideoMetadata):
             )
         moov_children.append(camm_trak)
 
-        udta_data = []
+        udta_data: T.List[BoxDict] = []
         if video_metadata.make:
             udta_data.append(
                 {

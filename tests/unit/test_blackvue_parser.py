@@ -40,7 +40,7 @@ def test_parse_points():
     """
 
     box = {"type": b"free", "data": [{"type": b"gps ", "data": gps_data}]}
-    data = cparser.Box32StructBuilder({}, [b"free"]).Box.build(box)
+    data = cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
     x = blackvue_parser.extract_points(io.BytesIO(data))
     assert x is not None
     assert [

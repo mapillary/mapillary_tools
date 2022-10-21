@@ -1,7 +1,45 @@
+import sys
 import typing as T
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal
 
 import construct as C
 
+
+BoxType = Literal[
+    b"@mak",
+    b"@mod",
+    b"co64",
+    b"dinf",
+    b"dref",
+    b"edts",
+    b"edts",
+    b"elst",
+    b"free",
+    b"hdlr",
+    b"mdhd",
+    b"mdia",
+    b"minf",
+    b"moof",
+    b"moov",
+    b"mvhd",
+    b"stbl",
+    b"stco",
+    b"stsc",
+    b"stsd",
+    b"stss",
+    b"stsz",
+    b"stts",
+    b"tkhd",
+    b"traf",
+    b"trak",
+    b"udta",
+    b"url ",
+    b"urn ",
+]
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
@@ -303,31 +341,37 @@ BoxHeader64 = C.Struct(
 )
 
 
-class Box64StructBuilder:
+SwitchMapType = T.Dict[BoxType, T.Union[C.Construct, "SwitchMapType"]]
+
+
+class Box64ConstructBuilder:
     """
     Build a box struct that **parses** MP4 boxes with both 32-bit and 64-bit sizes.
 
     NOTE: Do not build data with this struct. For building, use Box32StructBuilder instead.
     """
 
-    _box: C.Struct
+    _box: T.Optional[C.Construct]
 
     def __init__(
-        self, switch_map: T.Dict[bytes, C.Struct], lazy_box_types: T.Sequence[bytes]
+        self,
+        nested_switch_map: SwitchMapType,
     ) -> None:
         self._box = None
-        self._box_type_switch_map = {**switch_map}
-        lazy_box = C.LazyBound(lambda: C.GreedyRange(self.Box))
-        for box_type in lazy_box_types:
-            self._box_type_switch_map[box_type] = lazy_box
+        switch_map = {}
+        for k, v in nested_switch_map.items():
+            if isinstance(v, dict):
+                switch_map[k] = self.__class__(v).BoxList
+            else:
+                switch_map[k] = v
         self._switch = C.Switch(
             C.this.type,
-            self._box_type_switch_map,
+            switch_map,
             C.GreedyBytes,
         )
 
     @property
-    def Box(self) -> C.Struct:
+    def Box(self) -> C.Construct:
         if self._box is None:
             BoxData32 = C.Struct(
                 "data"
@@ -356,11 +400,11 @@ class Box64StructBuilder:
         return self._box
 
     @property
-    def BoxList(self) -> C.Struct:
+    def BoxList(self) -> C.Construct:
         return C.GreedyRange(self.Box)
 
 
-class Box32StructBuilder(Box64StructBuilder):
+class Box32ConstructBuilder(Box64ConstructBuilder):
     """
     Build a box struct that parses or builds MP4 boxes with 32-bit size only.
 
@@ -369,7 +413,7 @@ class Box32StructBuilder(Box64StructBuilder):
     """
 
     @property
-    def Box(self) -> C.Struct:
+    def Box(self) -> C.Construct:
         if self._box is None:
             self._box = C.Prefixed(
                 C.Int32ub,
@@ -380,7 +424,7 @@ class Box32StructBuilder(Box64StructBuilder):
         return self._box
 
 
-_full_switch_map = {
+CMAP: SwitchMapType = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
     b"stsc": SampleToChunkBox,
@@ -398,42 +442,77 @@ _full_switch_map = {
     b"elst": EditBox,
 }
 
-_full_lazy_box_types = [
-    b"moov",
-    b"trak",
-    b"edts",
-    b"mdia",
-    b"minf",
-    b"stbl",
-    b"mvex",
-    b"moof",
-    b"traf",
-    b"mfra",
-    b"dinf",
-    b"edts",
-    b"udta",
-]
-
-FullBoxStruct32 = Box32StructBuilder(_full_switch_map, _full_lazy_box_types)
-FullBoxStruct64 = Box64StructBuilder(_full_switch_map, _full_lazy_box_types)
-
-_quick_switch_map = {
-    b"tkhd": TrackHeaderBox,
-    b"mdhd": MediaHeaderBox,
-    b"hdlr": HandlerReferenceBox,
-    b"mvhd": MovieHeaderBox,
-    b"elst": EditBox,
+CMAP[b"stbl"] = {
+    b"stsd": CMAP[b"stsd"],
+    b"stts": CMAP[b"stts"],
+    b"stsc": CMAP[b"stsc"],
+    b"stsz": CMAP[b"stsz"],
+    b"stco": CMAP[b"stco"],
+    b"co64": CMAP[b"co64"],
+    b"stss": CMAP[b"stss"],
 }
 
-_quick_lazy_box_types = [
-    b"moov",
-    b"trak",
-    b"mdia",
-    b"minf",
-    b"mvex",
-    b"edts",
-    b"udta",
-]
+CMAP[b"dinf"] = {
+    b"dref": CMAP[b"dref"],
+}
 
-QuickBoxStruct32 = Box32StructBuilder(_quick_switch_map, _quick_lazy_box_types)
-QuickBoxStruct64 = Box64StructBuilder(_quick_switch_map, _quick_lazy_box_types)
+CMAP[b"minf"] = {
+    b"dinf": CMAP[b"dinf"],
+    b"stbl": CMAP[b"stbl"],
+}
+
+CMAP[b"mdia"] = {
+    b"mdhd": CMAP[b"mdhd"],
+    b"hdlr": CMAP[b"hdlr"],
+    b"minf": CMAP[b"minf"],
+}
+
+CMAP[b"edts"] = {
+    b"elst": CMAP[b"elst"],
+}
+
+CMAP[b"trak"] = {
+    b"tkhd": CMAP[b"tkhd"],
+    b"edts": CMAP[b"edts"],
+    b"mdia": CMAP[b"mdia"],
+}
+
+CMAP[b"moov"] = {
+    b"mvhd": CMAP[b"mvhd"],
+    b"udta": {},
+    b"trak": CMAP[b"trak"],
+}
+
+MP4_CMAP: SwitchMapType = {
+    b"moov": CMAP[b"moov"],
+}
+
+
+def _remove_boxes(
+    switch_map: SwitchMapType, box_types: T.Sequence[BoxType]
+) -> SwitchMapType:
+    new_switch_map = {}
+    for k, v in switch_map.items():
+        if k in box_types:
+            continue
+        if isinstance(v, dict):
+            new_switch_map[k] = _remove_boxes(v, box_types)
+        else:
+            new_switch_map[k] = v
+    return new_switch_map
+
+
+MOOV_WITHOUT_STBL_CMAP = _remove_boxes(CMAP[b"moov"], [b"stbl"])
+
+
+MAP4_WITHOUT_STBL_CMAP: SwitchMapType = {
+    b"moov": MOOV_WITHOUT_STBL_CMAP,
+}
+
+# for parsing mp4 only
+Mp4ParserConstruct = Box64ConstructBuilder(MP4_CMAP).BoxList
+Mp4WithoutSTBLParserConstruct = Box64ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
+
+# for building mp4 only
+Mp4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP).BoxList
+Mp4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList

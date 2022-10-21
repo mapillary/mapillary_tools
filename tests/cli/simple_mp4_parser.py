@@ -9,7 +9,6 @@ from mapillary_tools import utils
 from mapillary_tools.geotag import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
-    simple_mp4_builder as builder,
     simple_mp4_parser as parser,
 )
 
@@ -207,19 +206,19 @@ def _process_path(parsed_args, path: pathlib.Path):
                         _parse_structs(io.BytesIO(data))
                 elif parsed_args.full:
                     if box_path is None:
-                        boxes = cparser.FullBoxStruct64.BoxList.parse_stream(fp)
+                        boxes = cparser.Mp4BuilderConstruct.parse_stream(fp)
                     else:
                         data = parser.parse_mp4_data_firstx(fp, box_path)
-                        boxes = cparser.FullBoxStruct64.BoxList.parse_stream(
+                        boxes = cparser.Mp4BuilderConstruct.parse_stream(
                             io.BytesIO(data)
                         )
                     print(boxes)
                 else:
                     if box_path is None:
-                        boxes = builder.QuickBoxStruct64.BoxList.parse_stream(fp)
+                        boxes = cparser.Mp4WithoutSTBLBuilderConstruct.parse_stream(fp)
                     else:
                         data = parser.parse_mp4_data_firstx(fp, box_path)
-                        boxes = builder.QuickBoxStruct64.BoxList.parse_stream(
+                        boxes = cparser.Mp4WithoutSTBLBuilderConstruct.parse_stream(
                             io.BytesIO(data)
                         )
                     print(boxes)

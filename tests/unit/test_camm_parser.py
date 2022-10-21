@@ -3,7 +3,12 @@ import io
 import typing as T
 
 from mapillary_tools import geo, utils
-from mapillary_tools.geotag import camm_builder, camm_parser, simple_mp4_builder
+from mapillary_tools.geotag import (
+    camm_builder,
+    camm_parser,
+    construct_mp4_parser as cparser,
+    simple_mp4_builder,
+)
 
 
 def test_filter_points_by_edit_list():
@@ -51,7 +56,7 @@ def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadat
         {"type": b"ftyp", "data": b"test"},
         {"type": b"moov", "data": [mvhd]},
     ]
-    src = simple_mp4_builder.QuickBoxStruct32.BoxList.build(empty_mp4)
+    src = cparser.Mp4WithoutSTBLBuilderConstruct.build(empty_mp4)
     target_fp = simple_mp4_builder.transform_mp4(
         io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
     )

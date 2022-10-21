@@ -22,20 +22,20 @@ def test_build_sample_5s():
     simple_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
     )
-    _test_build(cparser.FullBoxStruct32.BoxList, simple_mp4)
-    _test_build(cparser.QuickBoxStruct32.BoxList, simple_mp4)
-    _test_build(cparser.FullBoxStruct64.BoxList, simple_mp4)
-    _test_build(cparser.QuickBoxStruct64.BoxList, simple_mp4)
+    _test_build(cparser.Mp4BuilderConstruct, simple_mp4)
+    _test_build(cparser.Mp4WithoutSTBLBuilderConstruct, simple_mp4)
+    _test_build(cparser.Mp4ParserConstruct, simple_mp4)
+    _test_build(cparser.Mp4WithoutSTBLParserConstruct, simple_mp4)
 
 
 def test_build_hero():
     hero_mp4 = (
         "tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4"
     )
-    _test_build(cparser.FullBoxStruct32.BoxList, hero_mp4)
-    _test_build(cparser.QuickBoxStruct32.BoxList, hero_mp4)
-    _test_build(cparser.FullBoxStruct64.BoxList, hero_mp4)
-    _test_build(cparser.QuickBoxStruct64.BoxList, hero_mp4)
+    _test_build(cparser.Mp4BuilderConstruct, hero_mp4)
+    _test_build(cparser.Mp4WithoutSTBLBuilderConstruct, hero_mp4)
+    _test_build(cparser.Mp4ParserConstruct, hero_mp4)
+    _test_build(cparser.Mp4WithoutSTBLParserConstruct, hero_mp4)
 
 
 def _build_and_parse_stbl(
@@ -45,7 +45,9 @@ def _build_and_parse_stbl(
         descriptions,
         expected_samples,
     )
-    d = cparser.FullBoxStruct32.Box.build({"type": b"stbl", "data": s})
+    d = cparser.Box32ConstructBuilder({b"stbl": cparser.CMAP[b"stbl"]}).Box.build(
+        {"type": b"stbl", "data": s}
+    )
     ss = parser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
     _, parsed_samples = sample_parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
@@ -122,7 +124,9 @@ def test_parse_raw_samples_from_stbl():
     # chunk 2
     #     sample 3: offset=5, size=3, timedelta=30, is_sync=True
     #     sample 4: offset=8, size=3, timedelta=50, is_sync=False
-    stbl_bytes = cparser.FullBoxStruct32.BoxList.build(
+    stbl_bytes = cparser.Box32ConstructBuilder(
+        T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
+    ).BoxList.build(
         [
             {
                 "type": b"stsd",

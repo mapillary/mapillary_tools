@@ -8,7 +8,7 @@ from mapillary_tools.geotag import (
 
 
 def _construct_parser(data: bytes):
-    return cparser.FullBoxStruct64.BoxList.parse(data)
+    return cparser.Mp4ParserConstruct.parse(data)
 
 
 def _parse(data: bytes):
@@ -121,20 +121,20 @@ def test_mdhd_parse():
 def test_moov_parse():
     data = (
         b"\x00\x00\x00\x60moov"
-        b"\x00\x00\x00\x58mvex"
+        b"\x00\x00\x00\x58trak"
         b"\x00\x00\x00\x10mehd\x00\x00\x00\x00\x00\x00\x00\x00"
         b"\x00\x00\x00\x20trex\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
         b"\x00\x00\x00\x20box1\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
         b"\x00\x00\x00\x20box2\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
     )
     parsed = _parse(data)
-    assert {b"moov", b"mvex", b"mehd", b"trex", b"box1", b"box2"} == set(
+    assert {b"moov", b"trak", b"mehd", b"trex", b"box1", b"box2"} == set(
         header.type for header, _ in parsed
     )
     cr = _construct_parser(data)
     first_box = cr[0]
     assert first_box["type"] == b"moov"
-    assert first_box["data"][0]["type"] == b"mvex"
+    assert first_box["data"][0]["type"] == b"trak"
     assert first_box["data"][0]["data"][0]["type"] == b"mehd"
     assert (
         first_box["data"][0]["data"][0]["data"] == b"\x00\x00\x00\x00\x00\x00\x00\x00"
