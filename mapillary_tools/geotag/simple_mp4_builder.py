@@ -1,12 +1,6 @@
 import dataclasses
 import io
-import sys
 import typing as T
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal, TypedDict
 
 from . import (
     construct_mp4_parser as cparser,
@@ -14,15 +8,11 @@ from . import (
     mp4_sample_parser as sample_parser,
     simple_mp4_parser as parser,
 )
+from .construct_mp4_parser import BoxDict
 from .mp4_sample_parser import RawSample
 
 UINT32_MAX = 2**32 - 1
 UINT64_MAX = 2**64 - 1
-
-
-class BoxDict(TypedDict, total=True):
-    type: cparser.BoxType
-    data: T.Union[T.List["BoxDict"], T.Dict[str, T.Any], bytes]
 
 
 def _build_stsd(descriptions: T.Sequence[T.Any]) -> BoxDict:
@@ -225,7 +215,7 @@ def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
 
 _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
     T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
-).BoxList
+)
 
 
 def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
@@ -247,7 +237,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
     stbl_children_boxes = build_stbl_from_raw_samples(descriptions, new_samples)
-    new_stbl_bytes = _STBLChildrenBuilderConstruct.build(stbl_children_boxes)
+    new_stbl_bytes = _STBLChildrenBuilderConstruct.build_boxlist(stbl_children_boxes)
     stbl_box["data"] = new_stbl_bytes
 
     return sample_offset
@@ -299,19 +289,17 @@ def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
 
 
 def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
-    return cparser.MP4WithoutSTBLBuilderConstruct.build(
-        [
-            {
-                "type": b"moov",
-                "data": moov_children,
-            }
-        ]
+    return cparser.MP4WithoutSTBLBuilderConstruct.build_box(
+        {
+            "type": b"moov",
+            "data": moov_children,
+        }
     )
 
 
 _MOOVChildrenParserConstruct = cparser.Box64ConstructBuilder(
-    cparser.MOOV_WITHOUT_STBL_CMAP
-).BoxList
+    T.cast(cparser.SwitchMapType, cparser.MP4_WITHOUT_STBL_CMAP[b"moov"])
+)
 
 
 def transform_mp4(
@@ -321,14 +309,14 @@ def transform_mp4(
     # extract ftyp
     src_fp.seek(0)
     source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = cparser.MP4WithoutSTBLBuilderConstruct.build(
-        [{"type": b"ftyp", "data": source_ftyp_box_data}]
+    source_ftyp_data = cparser.MP4WithoutSTBLBuilderConstruct.build_box(
+        {"type": b"ftyp", "data": source_ftyp_box_data}
     )
 
     # extract moov
     src_fp.seek(0)
     src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
-    moov_children = _MOOVChildrenParserConstruct.parse(src_moov_data)
+    moov_children = _MOOVChildrenParserConstruct.parse_boxlist(src_moov_data)
 
     # filter tracks in moov
     moov_children = list(_filter_moov_children_boxes(moov_children))

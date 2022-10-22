@@ -2,9 +2,9 @@ import sys
 import typing as T
 
 if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
+    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
 else:
-    from typing_extensions import Literal
+    from typing_extensions import Literal, TypedDict
 
 import construct as C
 
@@ -19,6 +19,7 @@ BoxType = Literal[
     b"edts",
     b"elst",
     b"free",
+    b"ftyp",
     b"hdlr",
     b"mdhd",
     b"mdia",
@@ -40,6 +41,12 @@ BoxType = Literal[
     b"url ",
     b"urn ",
 ]
+
+
+class BoxDict(TypedDict, total=True):
+    type: BoxType
+    data: T.Union[T.Sequence["BoxDict"], T.Dict[str, T.Any], bytes]
+
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
 
@@ -410,6 +417,18 @@ class Box64ConstructBuilder:
     def BoxList(self) -> C.Construct:
         return C.GreedyRange(self.Box)
 
+    def parse_box(self, data: bytes) -> BoxDict:
+        return T.cast(BoxDict, self.Box.parse(data))
+
+    def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
+        return T.cast(T.List[BoxDict], self.BoxList.parse(data))
+
+    def build_box(self, box: BoxDict) -> bytes:
+        return self.Box.build(box)
+
+    def build_boxlist(self, boxes: T.Sequence[BoxDict]) -> bytes:
+        return self.BoxList.build(boxes)
+
 
 class Box32ConstructBuilder(Box64ConstructBuilder):
     """
@@ -509,17 +528,14 @@ def _remove_boxes(
     return new_switch_map
 
 
-MOOV_WITHOUT_STBL_CMAP = _remove_boxes(CMAP[b"moov"], [b"stbl"])
-
-
-MAP4_WITHOUT_STBL_CMAP: SwitchMapType = {
-    b"moov": MOOV_WITHOUT_STBL_CMAP,
+MP4_WITHOUT_STBL_CMAP: SwitchMapType = {
+    b"moov": _remove_boxes(CMAP[b"moov"], [b"stbl"]),
 }
 
 # for parsing mp4 only
-MP4ParserConstruct = Box64ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
-MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
+MP4ParserConstruct = Box64ConstructBuilder(MP4_CMAP, extend_eof=True)
+MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
 
 # for building mp4 only
-MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True).BoxList
-MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MAP4_WITHOUT_STBL_CMAP).BoxList
+MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True)
+MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MP4_WITHOUT_STBL_CMAP)

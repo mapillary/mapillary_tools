@@ -42,7 +42,7 @@ def test_filter_points_by_edit_list():
 def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadata:
     movie_timescale = simple_mp4_builder.UINT32_MAX
 
-    mvhd = {
+    mvhd: cparser.BoxDict = {
         "type": b"mvhd",
         "data": {
             "creation_time": 1,
@@ -52,11 +52,11 @@ def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadat
         },
     }
 
-    empty_mp4 = [
+    empty_mp4: T.List[cparser.BoxDict] = [
         {"type": b"ftyp", "data": b"test"},
         {"type": b"moov", "data": [mvhd]},
     ]
-    src = cparser.MP4WithoutSTBLBuilderConstruct.build(empty_mp4)
+    src = cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(empty_mp4)
     target_fp = simple_mp4_builder.transform_mp4(
         io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
     )
