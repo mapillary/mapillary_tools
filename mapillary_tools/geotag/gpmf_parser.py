@@ -13,7 +13,7 @@ else:
 import construct as C
 
 from .. import geo
-from . import simple_mp4_parser as parser
+from . import mp4_sample_parser as sample_parser, simple_mp4_parser as parser
 
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser
@@ -268,7 +268,7 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[PointWithFix]:
 
 
 def _extract_dvnm_from_samples(
-    fp: T.BinaryIO, samples: T.Iterable[parser.Sample]
+    fp: T.BinaryIO, samples: T.Iterable[sample_parser.Sample]
 ) -> T.Dict[int, bytes]:
     dvnm_by_dvid: T.Dict[int, bytes] = {}
 
@@ -291,7 +291,7 @@ def _extract_dvnm_from_samples(
 
 
 def _extract_points_from_samples(
-    fp: T.BinaryIO, samples: T.Iterable[parser.Sample]
+    fp: T.BinaryIO, samples: T.Iterable[sample_parser.Sample]
 ) -> T.List[PointWithFix]:
     # To keep GPS points from different devices separated
     points_by_dvid: T.Dict[int, T.List[PointWithFix]] = {}
@@ -340,13 +340,13 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
 def _extract_gpmd_samples_from_trak(
     s: T.BinaryIO,
     maxsize: int = -1,
-) -> T.Generator[parser.Sample, None, None]:
+) -> T.Generator[sample_parser.Sample, None, None]:
     begin_offset = s.tell()
-    descriptions = parser.parse_descriptions_from_trak(s, maxsize=maxsize)
+    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
     gpmd_descriptions = [d for d in descriptions if d["format"] == b"gpmd"]
     if gpmd_descriptions:
         s.seek(begin_offset, io.SEEK_SET)
-        samples = parser.parse_samples_from_trak(s, maxsize=maxsize)
+        samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
         gpmd_samples = (
             sample for sample in samples if sample.description["format"] == b"gpmd"
         )

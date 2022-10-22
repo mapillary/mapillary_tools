@@ -9,7 +9,12 @@ from enum import Enum
 
 import construct as C
 
-from . import geo, simple_mp4_parser as parser
+from . import (
+    construct_mp4_parser as cparser,
+    geo,
+    mp4_sample_parser as sample_parser,
+    simple_mp4_parser as parser,
+)
 
 
 LOG = logging.getLogger(__name__)
@@ -74,7 +79,7 @@ CAMMSampleData = C.Struct(
 
 
 def _parse_point_from_sample(
-    fp: T.BinaryIO, sample: parser.Sample
+    fp: T.BinaryIO, sample: sample_parser.Sample
 ) -> T.Optional[geo.Point]:
     fp.seek(sample.offset, io.SEEK_SET)
     data = fp.read(sample.size)
@@ -145,13 +150,13 @@ def elst_entry_to_seconds(
 def _extract_camm_samples(
     s: T.BinaryIO,
     maxsize: int = -1,
-) -> T.Generator[parser.Sample, None, None]:
+) -> T.Generator[sample_parser.Sample, None, None]:
     begin_offset = s.tell()
-    descriptions = parser.parse_descriptions_from_trak(s, maxsize=maxsize)
+    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
     camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
     if camm_descriptions:
         s.seek(begin_offset, io.SEEK_SET)
-        samples = parser.parse_samples_from_trak(s, maxsize=maxsize)
+        samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
         camm_samples = (
             sample for sample in samples if sample.description["format"] == b"camm"
         )
@@ -179,22 +184,22 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
             points = [p for p in points_with_nones if p is not None]
             if points:
                 s.seek(trak_start_offset)
-                elst_data = parser.parse_data_first(
+                elst_data = parser.parse_box_data_first(
                     s, [b"edts", b"elst"], maxsize=h.maxsize
                 )
                 if elst_data is not None:
-                    elst_entries = parser.EditBox.parse(elst_data)["entries"]
+                    elst_entries = cparser.EditBox.parse(elst_data)["entries"]
 
                 s.seek(trak_start_offset)
-                mdhd_data = parser.parse_data_firstx(
+                mdhd_data = parser.parse_box_data_firstx(
                     s, [b"mdia", b"mdhd"], maxsize=h.maxsize
                 )
-                mdhd = parser.MediaHeaderBox.parse(mdhd_data)
+                mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
                 media_timescale = mdhd["timescale"]
         else:
             assert h.type == b"mvhd"
             if not movie_timescale:
-                mvhd = parser.MovieHeaderBox.parse(s.read(h.maxsize))
+                mvhd = cparser.MovieHeaderBox.parse(s.read(h.maxsize))
                 movie_timescale = mvhd["timescale"]
 
         # exit when both found
@@ -284,7 +289,7 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
             # quit when both found
             if make and model:
                 break
-    except parser.RangeError:
+    except parser.ParsingError:
         pass
 
     if make:

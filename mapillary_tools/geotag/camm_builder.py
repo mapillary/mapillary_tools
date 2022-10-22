@@ -1,5 +1,5 @@
-import io
 import dataclasses
+import io
 import typing as T
 
 from .. import geo, utils
@@ -7,7 +7,9 @@ from .. import geo, utils
 from . import (
     blackvue_parser,
     camm_parser,
+    construct_mp4_parser as cparser,
     gpmf_parser,
+    mp4_sample_parser as sample_parser,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
 )
@@ -87,7 +89,7 @@ def _create_edit_list(
 
 def convert_points_to_raw_samples(
     points: T.Sequence[geo.Point], timescale: int
-) -> T.Generator[parser.RawSample, None, None]:
+) -> T.Generator[sample_parser.RawSample, None, None]:
     for idx, point in enumerate(points):
         camm_sample_data = build_camm_sample(point)
 
@@ -99,7 +101,7 @@ def convert_points_to_raw_samples(
             0 <= timedelta <= builder.UINT32_MAX
         ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
 
-        yield parser.RawSample(
+        yield sample_parser.RawSample(
             # will update later
             description_idx=1,
             # will update later
@@ -110,7 +112,12 @@ def convert_points_to_raw_samples(
         )
 
 
-def _create_camm_stbl(raw_samples: T.Iterable[parser.RawSample]) -> BoxDict:
+_STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
+    T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
+)
+
+
+def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDict:
     descriptions = [
         {
             "format": b"camm",
@@ -121,38 +128,20 @@ def _create_camm_stbl(raw_samples: T.Iterable[parser.RawSample]) -> BoxDict:
 
     stbl_children_boxes = builder.build_stbl_from_raw_samples(descriptions, raw_samples)
 
-    stbl_data = builder.FullBoxStruct32.BoxList.build(stbl_children_boxes)
+    stbl_data = _STBLChildrenBuilderConstruct.build_boxlist(stbl_children_boxes)
     return {
         "type": b"stbl",
         "data": stbl_data,
     }
 
 
-_SELF_REFERENCE_DREF_BOX_DATA: bytes = builder.FullBoxStruct32.Box.build(
-    {
-        "type": b"dref",
-        "data": {
-            "entries": [
-                {
-                    "type": b"url ",
-                    "data": {
-                        "flags": 1,
-                        "data": b"",
-                    },
-                }
-            ],
-        },
-    }
-)
-
-
 def create_camm_trak(
-    raw_samples: T.Sequence[parser.RawSample],
+    raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
 ) -> BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
-    hdlr = {
+    hdlr: BoxDict = {
         "type": b"hdlr",
         "data": {
             "handler_type": b"camm",
@@ -164,7 +153,7 @@ def create_camm_trak(
     assert media_timescale <= builder.UINT64_MAX
 
     # Media Header Box
-    mdhd = {
+    mdhd: BoxDict = {
         "type": b"mdhd",
         "data": {
             # use 64-bit version
@@ -182,7 +171,23 @@ def create_camm_trak(
 
     dinf: BoxDict = {
         "type": b"dinf",
-        "data": _SELF_REFERENCE_DREF_BOX_DATA,
+        "data": [
+            # self reference dref box
+            {
+                "type": b"dref",
+                "data": {
+                    "entries": [
+                        {
+                            "type": b"url ",
+                            "data": {
+                                "flags": 1,
+                                "data": b"",
+                            },
+                        }
+                    ],
+                },
+            }
+        ],
     }
 
     minf: BoxDict = {
@@ -247,7 +252,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = camm_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points = []
         if points:
             fp.seek(start_offset, io.SEEK_SET)
@@ -258,7 +263,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points_with_fix = []
         if points_with_fix:
             fp.seek(start_offset, io.SEEK_SET)
@@ -274,7 +279,7 @@ def extract_video_metadata(
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = blackvue_parser.extract_points(fp)
-        except (parser.BoxNotFoundError, parser.RangeError):
+        except parser.ParsingError:
             points = []
         if points:
             fp.seek(start_offset, io.SEEK_SET)
@@ -308,7 +313,7 @@ def camm_sample_generator2(video_metadata: VideoMetadata):
             )
         moov_children.append(camm_trak)
 
-        udta_data = []
+        udta_data: T.List[BoxDict] = []
         if video_metadata.make:
             udta_data.append(
                 {
