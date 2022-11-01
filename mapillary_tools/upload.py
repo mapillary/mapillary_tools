@@ -584,7 +584,12 @@ def upload(
     if enable_history:
         _setup_write_upload_history(emitter, params, descs)
 
-    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
+    mly_uploader = uploader.Uploader(
+        user_items,
+        emitter=emitter,
+        dry_run=dry_run,
+        chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
+    )
 
     image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
     video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
@@ -673,10 +678,11 @@ def _convert_and_upload_camm(
                 "total_sequence_count": len(video_paths),
                 "sequence_idx": idx,
                 "file_type": metadata.file_type.value,
+                "import_path": str(video_path),
             }
             try:
                 cluster_id = mly_uploader.upload_camm_fp(
-                    T.cast(T.BinaryIO, camm_fp), video_path, event_payload=event_payload
+                    T.cast(T.BinaryIO, camm_fp), event_payload=event_payload
                 )
             except Exception as ex:
                 raise UploadError(ex) from ex
@@ -708,6 +714,7 @@ def _upload_raw_blackvues(
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
             "file_type": FileType.RAW_BLACKVUE.value,
+            "import_path": str(video_path),
         }
 
         try:
@@ -721,12 +728,13 @@ def _upload_raw_blackvues(
             )
             continue
 
-        try:
-            cluster_id = mly_uploader.upload_blackvue(
-                video_path, event_payload=event_payload
-            )
-        except Exception as ex:
-            raise UploadError(ex) from ex
+        with video_path.open("rb") as fp:
+            try:
+                cluster_id = mly_uploader.upload_blackvue_fp(
+                    fp, event_payload=event_payload
+                )
+            except Exception as ex:
+                raise UploadError(ex) from ex
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
@@ -755,6 +763,7 @@ def _upload_raw_camm(
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
             "file_type": FileType.RAW_CAMM.value,
+            "import_path": str(video_path),
         }
         try:
             _check_camm(video_path)
@@ -767,9 +776,10 @@ def _upload_raw_camm(
             )
             continue
         try:
-            cluster_id = mly_uploader.upload_camm(
-                video_path, event_payload=event_payload
-            )
+            with video_path.open("rb") as fp:
+                cluster_id = mly_uploader.upload_camm_fp(
+                    fp, event_payload=event_payload
+                )
         except Exception as ex:
             raise UploadError(ex) from ex
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
@@ -784,6 +794,7 @@ def _upload_zipfiles(
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
             "file_type": FileType.ZIP.value,
+            "import_path": str(zip_path),
         }
         try:
             cluster_id = mly_uploader.upload_zipfile(

@@ -173,7 +173,8 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     blackvue_path = tmpdir.join("blackvue.mp4")
     with open(blackvue_path, "wb") as fp:
         fp.write(b"this is a fake video")
-    resp = mly_uploader.upload_blackvue(Path(blackvue_path))
+    with Path(blackvue_path).open("rb") as fp:
+        resp = mly_uploader.upload_blackvue_fp(fp)
     assert resp == "0"
     for mp4_path in setup_upload.listdir():
         basename = os.path.basename(mp4_path)

@@ -19,16 +19,15 @@ LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16
-REQUESTS_TIMEOUT = 20  # 20 seconds
-# According to the docs, UPLOAD_REQUESTS_TIMEOUT sets both the "connection timeout"
-# and "read timeout": https://docs.python-requests.org/en/latest/user/advanced/#timeouts
-# In my test, however, the connection timeout does not only include the time for connection,
-# but also the time for uploading the actual data.
-# i.e. if your data uploading can't finish in this timeout, it will throw:
+DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
+# According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
+# (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
+# In my test, however, the connection_timeout rules both connection timeout and read timeout.
+# i.e. if your the server does not respond within this timeout, it will throw:
 # ConnectionError: ('Connection aborted.', timeout('The write operation timed out'))
-# so make sure the largest possible chunks can be uploaded before this timeout
-UPLOAD_REQUESTS_TIMEOUT = 10 * 60  # 10 minutes
+# So let us make sure the largest possible chunks can be uploaded before this timeout for now,
+REQUESTS_TIMEOUT = (20, 20)  # 20 seconds
+UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
 FileType = Literal["zip", "mly_blackvue_video", "mly_camm_video"]
@@ -74,6 +73,7 @@ class UploadService:
     callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
     file_type: FileType
     organization_id: T.Optional[T.Union[str, int]]
+    chunk_size: int
 
     def __init__(
         self,
@@ -82,6 +82,7 @@ class UploadService:
         entity_size: int,
         organization_id: T.Optional[T.Union[str, int]] = None,
         file_type: FileType = "zip",
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ):
         if entity_size <= 0:
             raise ValueError(f"Expect positive entity size but got {entity_size}")
@@ -89,12 +90,16 @@ class UploadService:
         if file_type.lower() not in ["zip", "mly_blackvue_video", "mly_camm_video"]:
             raise ValueError(f"Invalid file type {file_type}")
 
+        if chunk_size <= 0:
+            raise ValueError("Expect positive chunk size")
+
         self.user_access_token = user_access_token
         self.session_key = session_key
         self.entity_size = entity_size
         self.organization_id = organization_id
         self.file_type = T.cast(FileType, file_type.lower())
         self.callbacks = []
+        self.chunk_size = chunk_size
 
     def fetch_offset(self) -> int:
         headers = {
@@ -116,11 +121,7 @@ class UploadService:
         self,
         data: T.IO[bytes],
         offset: T.Optional[int] = None,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> str:
-        if chunk_size <= 0:
-            raise ValueError("Expect positive chunk size")
-
         if offset is None:
             offset = self.fetch_offset()
 
@@ -135,7 +136,7 @@ class UploadService:
         data.seek(offset, io.SEEK_CUR)
 
         while True:
-            chunk = data.read(chunk_size)
+            chunk = data.read(self.chunk_size)
             # it is possible to upload an empty chunk here
             # in order to return the handle
             headers = {

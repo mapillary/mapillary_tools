@@ -1,5 +1,5 @@
 import argparse
-import hashlib
+import io
 import logging
 import os
 import sys
@@ -26,15 +26,9 @@ def configure_logger(logger: logging.Logger, stream=None) -> None:
     logger.addHandler(handler)
 
 
-def _file_stats(fp: T.IO[bytes]):
-    md5 = hashlib.md5()
-    while True:
-        buf = fp.read(DEFAULT_CHUNK_SIZE)
-        if not buf:
-            break
-        md5.update(buf)
-    fp.seek(0, os.SEEK_END)
-    return md5.hexdigest(), fp.tell()
+def _file_stats(fp: T.IO[bytes]) -> int:
+    fp.seek(0, io.SEEK_END)
+    return fp.tell()
 
 
 def _parse_args():
@@ -47,8 +41,14 @@ def _parse_args():
         required=False,
     )
     parser.add_argument("--user_name")
+    parser.add_argument(
+        "--chunk_size",
+        type=float,
+        default=DEFAULT_CHUNK_SIZE / (1024 * 1024),
+        help="chunk size in megabytes",
+    )
     parser.add_argument("filename")
-    parser.add_argument("session_key", nargs="?")
+    parser.add_argument("session_key")
     return parser.parse_args()
 
 
@@ -60,26 +60,31 @@ def main():
     LOG.setLevel(log_level)
 
     with open(parsed.filename, "rb") as fp:
-        md5sum, entity_size = _file_stats(fp)
+        entity_size = _file_stats(fp)
 
     user_items = upload.fetch_user_items(parsed.user_name)
 
-    session_key = (
-        parsed.session_key
-        if parsed.session_key is not None
-        else f"mly_tools_test_{md5sum}"
-    )
+    session_key = parsed.session_key
     user_access_token = user_items.get("user_upload_token", "")
-    service = UploadService(user_access_token, session_key, entity_size)
+    service = UploadService(
+        user_access_token,
+        session_key,
+        entity_size,
+        chunk_size=int(parsed.chunk_size * 1024 * 1024)
+        if parsed.chunk_size is not None
+        else DEFAULT_CHUNK_SIZE,
+    )
+    initial_offset = service.fetch_offset()
 
-    LOG.info(f"Session key: {session_key}")
-    LOG.info(f"Entity size: {entity_size}")
-    LOG.info(f"Initial offset: {service.fetch_offset()}")
+    LOG.info(f"Session key: %s", session_key)
+    LOG.info(f"Entity size: %d", entity_size)
+    LOG.info(f"Initial offset: %s", initial_offset)
+    LOG.info(f"Chunk size: %s MB", service.chunk_size / (1024 * 1024))
 
     with open(parsed.filename, "rb") as fp:
         with tqdm.tqdm(
             total=entity_size,
-            initial=service.fetch_offset(),
+            initial=initial_offset,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
@@ -87,7 +92,7 @@ def main():
         ) as pbar:
             service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
             try:
-                file_handle = service.upload(fp)
+                file_handle = service.upload(fp, initial_offset)
             except requests.HTTPError as ex:
                 raise wrap_http_exception(ex)
 
