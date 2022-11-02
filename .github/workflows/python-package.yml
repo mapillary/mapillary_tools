@@ -15,7 +15,7 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
         platform: ['ubuntu-latest', 'macos-latest', 'windows-latest']
         architecture: ['x64']
         include:
@@ -58,7 +58,6 @@ jobs:
     - name: Type check with mypy
       run: |
         mypy mapillary_tools
-      if: matrix.python-version > 3.6
     - name: Test with pytest
       run: |
         mapillary_tools --version
