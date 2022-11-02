@@ -31,9 +31,9 @@ jobs:
         sudo apt update -y && sudo apt install -y ffmpeg
         ffmpeg -version
       if: matrix.platform == 'ubuntu-latest'
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
         # optional x64 or x86. Defaults to x64 if not specified
