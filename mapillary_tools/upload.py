@@ -72,7 +72,7 @@ def wrap_http_exception(ex: requests.HTTPError):
     lines = [
         f"{ex.request.method} {resp.url}",
         f"> HTTP Status: {ex.response.status_code}",
-        f"{ex.response.content}",
+        f"{resp.content}",
     ]
     return UploadHTTPError("\n".join(lines))
 
@@ -143,7 +143,10 @@ def fetch_user_items(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
-        user_items = authenticate.authenticate_user(user_name)
+        try:
+            user_items = authenticate.authenticate_user(user_name)
+        except requests.HTTPError as exc:
+            raise wrap_http_exception(exc) from exc
 
     if organization_key is not None:
         try:

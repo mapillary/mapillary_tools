@@ -12,10 +12,10 @@ LOG = logging.getLogger(__name__)
 
 
 def authenticate(
-    user_name: str = None,
-    user_email: str = None,
-    user_password: str = None,
-    jwt: str = None,
+    user_name: T.Optional[str] = None,
+    user_email: T.Optional[str] = None,
+    user_password: T.Optional[str] = None,
+    jwt: T.Optional[str] = None,
 ):
     if user_name:
         user_name = user_name.strip()
@@ -43,20 +43,6 @@ def authenticate(
     config.update_config(user_name, user_items)
 
 
-class HTTPError(requests.HTTPError):
-    pass
-
-
-def wrap_http_exception(ex: requests.HTTPError):
-    resp = ex.response
-    lines = [
-        f"{ex.request.method} {resp.url}",
-        f"> HTTP Status: {ex.response.status_code}",
-        f"{ex.response.text}",
-    ]
-    return HTTPError("\n".join(lines))
-
-
 def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     print(f"Sign in for user {user_name}")
     user_email = input("Enter your Mapillary user email: ")
@@ -71,12 +57,12 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
             if subcode in [1348028, 1348092, 3404005, 1348131]:
                 title = r.get("error", {}).get("error_user_title")
                 message = r.get("error", {}).get("error_user_msg")
-                LOG.error(f"{title}: {message}")
+                LOG.error(f"%s: %s", title, message)
                 return prompt_user_for_user_items(user_name)
             else:
-                raise wrap_http_exception(ex)
+                raise ex
         else:
-            raise wrap_http_exception(ex)
+            raise ex
 
     data = resp.json()
     upload_token = T.cast(str, data.get("access_token"))
