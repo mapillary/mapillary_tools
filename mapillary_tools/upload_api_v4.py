@@ -33,20 +33,6 @@ UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 FileType = Literal["zip", "mly_blackvue_video", "mly_camm_video"]
 
 
-class UploadHTTPError(Exception):
-    pass
-
-
-def wrap_http_exception(ex: requests.HTTPError):
-    resp = ex.response
-    lines = [
-        f"{ex.request.method} {resp.url}",
-        f"> HTTP Status: {ex.response.status_code}",
-        f"{ex.response.text}",
-    ]
-    return UploadHTTPError("\n".join(lines))
-
-
 def _sanitize_headers(headers: T.Dict):
     return {
         k: v

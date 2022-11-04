@@ -63,6 +63,20 @@ class UploadError(Exception):
         super().__init__(str(inner_ex))
 
 
+class UploadHTTPError(Exception):
+    pass
+
+
+def wrap_http_exception(ex: requests.HTTPError):
+    resp = ex.response
+    lines = [
+        f"{ex.request.method} {resp.url}",
+        f"> HTTP Status: {ex.response.status_code}",
+        f"{resp.content}",
+    ]
+    return UploadHTTPError("\n".join(lines))
+
+
 def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
     descs: T.List[types.ImageDescriptionFile] = []
 
@@ -129,7 +143,10 @@ def fetch_user_items(
                 f"Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
-        user_items = authenticate.authenticate_user(user_name)
+        try:
+            user_items = authenticate.authenticate_user(user_name)
+        except requests.HTTPError as exc:
+            raise wrap_http_exception(exc) from exc
 
     if organization_key is not None:
         try:
@@ -137,7 +154,7 @@ def fetch_user_items(
                 user_items["user_upload_token"], organization_key
             )
         except requests.HTTPError as ex:
-            raise authenticate.wrap_http_exception(ex) from ex
+            raise wrap_http_exception(ex) from ex
         org = resp.json()
         LOG.info("Uploading to organization: %s", json.dumps(org))
         user_items = T.cast(
@@ -440,7 +457,7 @@ def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
         LOG.warning(
             "Error from API Logging for action %s",
             action,
-            exc_info=uploader.upload_api_v4.wrap_http_exception(exc),
+            exc_info=wrap_http_exception(exc),
         )
     except:
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
@@ -460,7 +477,7 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
             payload_with_reason,
         )
     except requests.HTTPError as exc:
-        wrapped_exc = uploader.upload_api_v4.wrap_http_exception(exc)
+        wrapped_exc = wrap_http_exception(exc)
         LOG.warning(
             "Error from API Logging for action %s",
             action,
@@ -625,7 +642,10 @@ def upload(
     except UploadError as ex:
         if not dry_run:
             _api_logging_failed(mly_uploader.user_items, _summarize(stats), ex.inner_ex)
-        raise ex
+        if isinstance(ex.inner_ex, requests.HTTPError):
+            raise wrap_http_exception(ex.inner_ex) from ex.inner_ex
+        else:
+            raise ex
 
     if stats:
         if not dry_run:
@@ -686,6 +706,7 @@ def _convert_and_upload_camm(
                 )
             except Exception as ex:
                 raise UploadError(ex) from ex
+
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
@@ -782,6 +803,7 @@ def _upload_raw_camm(
                 )
         except Exception as ex:
             raise UploadError(ex) from ex
+
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 

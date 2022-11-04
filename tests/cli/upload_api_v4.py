@@ -9,14 +9,20 @@ import requests
 import tqdm
 from mapillary_tools import upload
 
-from mapillary_tools.upload_api_v4 import (
-    DEFAULT_CHUNK_SIZE,
-    UploadService,
-    wrap_http_exception,
-)
+from mapillary_tools.upload_api_v4 import DEFAULT_CHUNK_SIZE, UploadService
 
 
 LOG = logging.getLogger("mapillary_tools")
+
+
+def wrap_http_exception(ex: requests.HTTPError):
+    resp = ex.response
+    lines = [
+        f"{ex.request.method} {resp.url}",
+        f"> HTTP Status: {ex.response.status_code}",
+        f"{resp.content}",
+    ]
+    return Exception("\n".join(lines))
 
 
 def configure_logger(logger: logging.Logger, stream=None) -> None:
