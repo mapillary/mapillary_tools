@@ -163,7 +163,7 @@ class UploadService:
             return payload["h"]
         except KeyError:
             raise RuntimeError(
-                f"Upload server error: File handle not found in the upload response {resp.content}"
+                f"Upload server error: File handle not found in the upload response {resp.text}"
             )
 
     def finish(self, file_handle: str) -> str:
@@ -195,7 +195,7 @@ class UploadService:
         cluster_id = data.get("cluster_id")
         if cluster_id is None:
             raise RuntimeError(
-                f"Upload server error: failed to create the cluster {resp.content}"
+                f"Upload server error: failed to create the cluster {resp.text}"
             )
 
         return T.cast(str, cluster_id)
