@@ -1,7 +1,10 @@
+import dataclasses
 import datetime
+import enum
 import json
 import sys
 import typing as T
+from pathlib import Path
 
 if sys.version_info >= (3, 8):
     from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
@@ -11,6 +14,16 @@ else:
 import jsonschema
 
 from . import geo
+
+
+class FileType(enum.Enum):
+    BLACKVUE = "blackvue"
+    CAMM = "camm"
+    GOPRO = "gopro"
+    IMAGE = "image"
+    RAW_BLACKVUE = "raw_blackvue"
+    RAW_CAMM = "raw_camm"
+    ZIP = "zip"
 
 
 class UserItem(TypedDict, total=False):

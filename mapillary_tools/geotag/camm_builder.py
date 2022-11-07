@@ -2,7 +2,7 @@ import dataclasses
 import io
 import typing as T
 
-from .. import geo, utils
+from .. import geo, types
 
 from . import (
     blackvue_parser,
@@ -236,7 +236,7 @@ def create_camm_trak(
 
 @dataclasses.dataclass
 class VideoMetadata:
-    file_type: utils.FileType
+    file_type: types.FileType
     points: T.List[geo.Point]
     make: str
     model: str
@@ -244,11 +244,11 @@ class VideoMetadata:
 
 def extract_video_metadata(
     fp: T.BinaryIO,
-    file_types: T.Optional[T.Set[utils.FileType]] = None,
+    file_types: T.Optional[T.Set[types.FileType]] = None,
 ) -> T.Optional[VideoMetadata]:
     start_offset = fp.tell()
 
-    if file_types is None or utils.FileType.CAMM in file_types:
+    if file_types is None or types.FileType.CAMM in file_types:
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = camm_parser.extract_points(fp)
@@ -257,9 +257,9 @@ def extract_video_metadata(
         if points:
             fp.seek(start_offset, io.SEEK_SET)
             make, model = camm_parser.extract_camera_make_and_model(fp)
-            return VideoMetadata(utils.FileType.CAMM, points, make, model)
+            return VideoMetadata(types.FileType.CAMM, points, make, model)
 
-    if file_types is None or utils.FileType.GOPRO in file_types:
+    if file_types is None or types.FileType.GOPRO in file_types:
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points_with_fix = gpmf_parser.extract_points(fp)
@@ -269,13 +269,13 @@ def extract_video_metadata(
             fp.seek(start_offset, io.SEEK_SET)
             make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
             return VideoMetadata(
-                utils.FileType.GOPRO,
+                types.FileType.GOPRO,
                 T.cast(T.List[geo.Point], points_with_fix),
                 make,
                 model,
             )
 
-    if file_types is None or utils.FileType.BLACKVUE in file_types:
+    if file_types is None or types.FileType.BLACKVUE in file_types:
         fp.seek(start_offset, io.SEEK_SET)
         try:
             points = blackvue_parser.extract_points(fp)
@@ -284,7 +284,7 @@ def extract_video_metadata(
         if points:
             fp.seek(start_offset, io.SEEK_SET)
             make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-            return VideoMetadata(utils.FileType.BLACKVUE, points, make, model)
+            return VideoMetadata(types.FileType.BLACKVUE, points, make, model)
 
     return None
 

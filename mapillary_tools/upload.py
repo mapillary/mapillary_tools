@@ -37,7 +37,7 @@ from .geotag import (
     simple_mp4_builder,
     utils as video_utils,
 )
-from .utils import FileType
+from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 

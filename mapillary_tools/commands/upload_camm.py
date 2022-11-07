@@ -1,7 +1,7 @@
 import inspect
 from pathlib import Path
 
-from .. import constants, utils
+from .. import constants, types
 from ..upload import upload
 from .upload import Command as UploadCommand
 
@@ -30,5 +30,5 @@ class Command:
         }
         upload(
             **args,
-            file_types={utils.FileType.RAW_CAMM},
+            file_types={types.FileType.RAW_CAMM},
         )

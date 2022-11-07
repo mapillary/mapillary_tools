@@ -5,16 +5,6 @@ import typing as T
 from pathlib import Path
 
 
-class FileType(enum.Enum):
-    BLACKVUE = "blackvue"
-    CAMM = "camm"
-    GOPRO = "gopro"
-    IMAGE = "image"
-    RAW_BLACKVUE = "raw_blackvue"
-    RAW_CAMM = "raw_camm"
-    ZIP = "zip"
-
-
 def md5sum_fp(fp: T.IO[bytes]) -> str:
     md5 = hashlib.md5()
     while True:

@@ -1,7 +1,7 @@
 import inspect
 from pathlib import Path
 
-from .. import constants, utils
+from .. import constants, types
 
 from ..upload import upload
 from .upload import Command as UploadCommand
@@ -31,5 +31,5 @@ class Command:
         }
         upload(
             **args,
-            file_types={utils.FileType.ZIP},
+            file_types={types.FileType.ZIP},
         )

@@ -2,7 +2,7 @@ import dataclasses
 import io
 import typing as T
 
-from mapillary_tools import geo, utils
+from mapillary_tools import geo, types
 from mapillary_tools.geotag import (
     camm_builder,
     camm_parser,
@@ -67,7 +67,7 @@ def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadat
         T.cast(T.BinaryIO, target_fp)
     )
     return camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM, points=points or [], make=make, model=model
+        file_type=types.FileType.CAMM, points=points or [], make=make, model=model
     )
 
 
@@ -88,7 +88,7 @@ def test_build_and_parse():
         geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None),
     ]
     metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+        file_type=types.FileType.CAMM,
         points=points,
         make="test_make",
         model="   test_model   ",
@@ -120,7 +120,7 @@ def test_build_and_parse2():
         geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
     metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+        file_type=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -139,7 +139,7 @@ def test_build_and_parse9():
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
     metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+        file_type=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -154,7 +154,7 @@ def test_build_and_parse10():
         geo.Point(time=0.1, lat=0.03, lon=0.2, alt=None, angle=None),
     ]
     metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+        file_type=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -172,7 +172,7 @@ def test_build_and_parse10():
 def test_build_and_parse3():
     points = []
     metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+        file_type=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
