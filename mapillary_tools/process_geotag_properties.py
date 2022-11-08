@@ -2,8 +2,14 @@ import collections
 import datetime
 import json
 import logging
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 8):
+    from typing import Literal  # pylint: disable=no-name-in-module
+else:
+    from typing_extensions import Literal
 
 import jsonschema
 import piexif
@@ -19,6 +25,7 @@ from .geotag import (
     geotag_from_gpx_file,
     geotag_from_nmea_file,
 )
+from .types import FileType
 
 
 LOG = logging.getLogger(__name__)
@@ -35,32 +42,18 @@ def _validate_and_fail_desc(
         return desc
 
 
-def process_geotag_properties(
-    import_path: T.Union[Path, T.Sequence[Path]],
-    geotag_source: str,
-    skip_subfolders=False,
-    video_import_path: T.Optional[Path] = None,
+GeotagSource = Literal["gopro_videos", "blackvue_videos", "camm", "exif", "gpx", "nmea"]
+
+
+def _process_images(
+    import_paths: T.Sequence[Path],
+    geotag_source: GeotagSource,
     geotag_source_path: T.Optional[Path] = None,
+    video_import_path: T.Optional[Path] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
+    skip_subfolders: bool = False,
 ) -> T.List[types.ImageDescriptionFileOrError]:
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
-
-    if not import_paths:
-        return []
-
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
-            )
-
     geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
@@ -179,6 +172,62 @@ def process_geotag_properties(
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
     return list(types.map_descs(_validate_and_fail_desc, geotag.to_description()))
+
+
+def process_geotag_properties(
+    import_path: T.Union[Path, T.Sequence[Path]],
+    file_types: T.Set[FileType],
+    geotag_source: GeotagSource,
+    geotag_source_path: T.Optional[Path] = None,
+    video_import_path: T.Optional[Path] = None,
+    interpolation_use_gpx_start_time: bool = False,
+    interpolation_offset_time: float = 0.0,
+    skip_subfolders=False,
+) -> T.List[types.ImageDescriptionFileOrError]:
+    if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+        raise exceptions.MapillaryBadParameterError(
+            f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+        )
+
+    if FileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
+        raise exceptions.MapillaryBadParameterError(
+            f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
+        )
+    file_types = set(file_types)
+
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        import_paths = import_path
+    import_paths = list(utils.deduplicate_paths(import_paths))
+
+    if not import_paths:
+        return []
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
+
+    descs = []
+
+    if FileType.IMAGE in file_types:
+        descs.extend(
+            _process_images(
+                import_paths,
+                geotag_source=geotag_source,
+                geotag_source_path=geotag_source_path,
+                video_import_path=video_import_path,
+                interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
+                interpolation_offset_time=interpolation_offset_time,
+                skip_subfolders=skip_subfolders,
+            )
+        )
+
+    return descs
 
 
 def _verify_exif_write(
