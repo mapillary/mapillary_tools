@@ -2,6 +2,7 @@ import datetime
 import itertools
 import typing as T
 import uuid
+from pathlib import Path
 
 from mapillary_tools import geo, process_sequence_properties as psp, types
 
@@ -71,9 +72,16 @@ def test_find_sequences_by_folder():
     )
     assert 3 == len(actual_sequences)
 
-    assert ["../foo.jpg", "../bar.jpg"] == [d["filename"] for d in actual_sequences[0]]
-    assert ["a.jpg", "hello", "foo.jpg"] == [d["filename"] for d in actual_sequences[1]]
-    assert ["hello/foo.jpg", "hello/bar.jpg", "hello/a.jpg"] == [
+    def _normalize(paths):
+        return [str(Path(path)) for path in paths]
+
+    assert _normalize(["../foo.jpg", "../bar.jpg"]) == [
+        d["filename"] for d in actual_sequences[0]
+    ]
+    assert _normalize(["a.jpg", "hello", "foo.jpg"]) == [
+        d["filename"] for d in actual_sequences[1]
+    ]
+    assert _normalize(["hello/foo.jpg", "hello/bar.jpg", "hello/a.jpg"]) == [
         d["filename"] for d in actual_sequences[2]
     ]
 
