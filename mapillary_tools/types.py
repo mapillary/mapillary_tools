@@ -47,28 +47,24 @@ class UserItem(TypedDict, total=False):
     user_upload_token: str
 
 
-class CompassHeading(TypedDict, total=True):
+class _CompassHeading(TypedDict, total=True):
     TrueHeading: float
     MagneticHeading: float
 
 
-class ImageRequired(TypedDict, total=True):
+class _ImageRequired(TypedDict, total=True):
     MAPLatitude: float
     MAPLongitude: float
     MAPCaptureTime: str
 
 
-class Image(ImageRequired, total=False):
+class _Image(_ImageRequired, total=False):
     MAPAltitude: float
-    MAPCompassHeading: CompassHeading
+    MAPCompassHeading: _CompassHeading
 
 
 class _SequenceOnly(TypedDict, total=False):
     MAPSequenceUUID: str
-
-
-class Sequence(_SequenceOnly, total=False):
-    MAPCompassHeading: CompassHeading
 
 
 class MetaProperties(TypedDict, total=False):
@@ -81,7 +77,7 @@ class MetaProperties(TypedDict, total=False):
     MAPOrientation: int
 
 
-class ImageDescriptionEXIF(_SequenceOnly, Image, MetaProperties):
+class ImageDescriptionEXIF(_SequenceOnly, _Image, MetaProperties):
     pass
 
 
