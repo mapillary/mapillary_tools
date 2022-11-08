@@ -1,5 +1,6 @@
 import collections
 import datetime
+import io
 import json
 import logging
 import sys
@@ -15,8 +16,10 @@ import jsonschema
 import piexif
 from tqdm import tqdm
 
-from . import constants, exceptions, exif_write, types, uploader, utils
+from . import constants, exceptions, exif_write, geo, types, uploader, utils
 from .geotag import (
+    blackvue_parser,
+    camm_parser,
     geotag_from_blackvue,
     geotag_from_camm,
     geotag_from_exif,
@@ -24,6 +27,8 @@ from .geotag import (
     geotag_from_gopro,
     geotag_from_gpx_file,
     geotag_from_nmea_file,
+    gpmf_parser,
+    simple_mp4_parser as parser,
 )
 from .types import FileType
 
@@ -171,7 +176,62 @@ def _process_images(
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    return list(types.map_descs(_validate_and_fail_desc, geotag.to_description()))
+    descs = list(types.map_descs(_validate_and_fail_desc, geotag.to_description()))
+
+    return descs
+
+
+def extract_video_metadata(
+    video_path: Path,
+    file_types: T.Set[FileType],
+) -> T.Optional[types.VideoMetadata]:
+    with video_path.open("rb") as fp:
+        start_offset = fp.tell()
+
+        if types.FileType.CAMM in file_types:
+            fp.seek(start_offset, io.SEEK_SET)
+            try:
+                points = camm_parser.extract_points(fp)
+            except parser.ParsingError:
+                points = []
+            if points:
+                fp.seek(start_offset, io.SEEK_SET)
+                make, model = camm_parser.extract_camera_make_and_model(fp)
+                return types.VideoMetadata(
+                    video_path, types.FileType.CAMM, points, make, model
+                )
+
+        if types.FileType.GOPRO in file_types:
+            fp.seek(start_offset, io.SEEK_SET)
+            try:
+                points_with_fix = gpmf_parser.extract_points(fp)
+            except parser.ParsingError:
+                points_with_fix = []
+            if points_with_fix:
+                fp.seek(start_offset, io.SEEK_SET)
+                make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+                return types.VideoMetadata(
+                    video_path,
+                    types.FileType.GOPRO,
+                    T.cast(T.List[geo.Point], points_with_fix),
+                    make,
+                    model,
+                )
+
+        if types.FileType.BLACKVUE in file_types:
+            fp.seek(start_offset, io.SEEK_SET)
+            try:
+                points = blackvue_parser.extract_points(fp)
+            except parser.ParsingError:
+                points = []
+            if points:
+                fp.seek(start_offset, io.SEEK_SET)
+                make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
+                return types.VideoMetadata(
+                    video_path, types.FileType.BLACKVUE, points, make, model
+                )
+
+        return None
 
 
 def process_geotag_properties(

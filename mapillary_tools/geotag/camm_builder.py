@@ -234,53 +234,6 @@ def create_camm_trak(
     }
 
 
-def extract_video_metadata(
-    fp: T.BinaryIO,
-    file_types: T.Optional[T.Set[types.FileType]] = None,
-) -> T.Optional[types.VideoMetadata]:
-    start_offset = fp.tell()
-
-    if file_types is None or types.FileType.CAMM in file_types:
-        fp.seek(start_offset, io.SEEK_SET)
-        try:
-            points = camm_parser.extract_points(fp)
-        except parser.ParsingError:
-            points = []
-        if points:
-            fp.seek(start_offset, io.SEEK_SET)
-            make, model = camm_parser.extract_camera_make_and_model(fp)
-            return types.VideoMetadata(types.FileType.CAMM, points, make, model)
-
-    if file_types is None or types.FileType.GOPRO in file_types:
-        fp.seek(start_offset, io.SEEK_SET)
-        try:
-            points_with_fix = gpmf_parser.extract_points(fp)
-        except parser.ParsingError:
-            points_with_fix = []
-        if points_with_fix:
-            fp.seek(start_offset, io.SEEK_SET)
-            make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-            return types.VideoMetadata(
-                types.FileType.GOPRO,
-                T.cast(T.List[geo.Point], points_with_fix),
-                make,
-                model,
-            )
-
-    if file_types is None or types.FileType.BLACKVUE in file_types:
-        fp.seek(start_offset, io.SEEK_SET)
-        try:
-            points = blackvue_parser.extract_points(fp)
-        except parser.ParsingError:
-            points = []
-        if points:
-            fp.seek(start_offset, io.SEEK_SET)
-            make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-            return types.VideoMetadata(types.FileType.BLACKVUE, points, make, model)
-
-    return None
-
-
 def camm_sample_generator2(video_metadata: types.VideoMetadata):
     def _f(
         fp: T.BinaryIO,
