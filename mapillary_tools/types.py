@@ -39,6 +39,14 @@ class ImageMetadata(geo.Point):
     MAPOrientation: T.Optional[int] = None
 
 
+@dataclasses.dataclass
+class VideoMetadata:
+    file_type: FileType
+    points: T.Sequence[geo.Point]
+    make: T.Optional[str] = None
+    model: T.Optional[str] = None
+
+
 class UserItem(TypedDict, total=False):
     MAPOrganizationKey: T.Union[int, str]
     # Not in use. Keep here for back-compatibility
