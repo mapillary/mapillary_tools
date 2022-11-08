@@ -277,6 +277,7 @@ class Uploader:
 def desc_file_to_exif(
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionEXIF:
+    # TODO: remove MAPPhotoUUID
     not_needed = ["MAPPhotoUUID", "MAPSequenceUUID"]
     removed = {
         key: value

@@ -12,7 +12,6 @@ def test_desc():
         angle=4,
         time=5,
         MAPMetaTags={"foo": "bar", "baz": 1.2},
-        MAPPhotoUUID="MAPPhotoUUID",
         MAPSequenceUUID="MAPSequenceUUID",
         MAPDeviceMake="MAPDeviceMake",
         MAPDeviceModel="MAPDeviceModel",

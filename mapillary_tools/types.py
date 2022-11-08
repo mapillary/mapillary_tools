@@ -29,7 +29,6 @@ class FileType(enum.Enum):
 @dataclasses.dataclass
 class ImageMetadata(geo.Point):
     filename: Path
-    MAPPhotoUUID: T.Optional[str] = None
     MAPSequenceUUID: T.Optional[str] = None
     MAPMetaTags: T.Optional[T.Dict] = None
     MAPDeviceMake: T.Optional[str] = None
@@ -61,7 +60,6 @@ class ImageRequired(TypedDict, total=True):
 
 class Image(ImageRequired, total=False):
     MAPAltitude: float
-    MAPPhotoUUID: str
     MAPCompassHeading: CompassHeading
 
 
@@ -165,7 +163,6 @@ ImageDescriptionEXIFSchema = {
             "description": "Capture time of the image",
             "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+",
         },
-        "MAPPhotoUUID": {"type": "string"},
         "MAPCompassHeading": {
             "type": "object",
             "properties": {
