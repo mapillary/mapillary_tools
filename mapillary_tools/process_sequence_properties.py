@@ -1,4 +1,3 @@
-import dataclasses
 import os
 import typing as T
 import uuid
@@ -6,36 +5,6 @@ from pathlib import Path
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
-
-
-@dataclasses.dataclass
-class DescPoint(geo.Point):
-    _desc: types.ImageDescriptionFile
-    sequence_uuid: T.Optional[str] = None
-
-    def __init__(self, desc: types.ImageDescriptionFile):
-        self._desc = desc
-        super().__init__(
-            time=geo.as_unix_time(
-                types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-            ),
-            lat=desc["MAPLatitude"],
-            lon=desc["MAPLongitude"],
-            alt=desc.get("MAPAltitude"),
-            angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
-        )
-
-    def as_desc(self) -> types.ImageDescriptionFile:
-        new_desc = T.cast(
-            types.ImageDescriptionFile,
-            {
-                **self._desc,
-                **types.as_desc(self),
-            },
-        )
-        if self.sequence_uuid is not None:
-            new_desc["MAPSequenceUUID"] = self.sequence_uuid
-        return new_desc
 
 
 GPXSequence = T.List[geo.Point]
@@ -128,6 +97,9 @@ def interpolate_directions_if_none(sequence: GPXSequence) -> None:
     if 2 <= len(sequence):
         if sequence[-1].angle is None:
             sequence[-1].angle = sequence[-2].angle
+    elif len(sequence) == 1:
+        if sequence[-1].angle is None:
+            sequence[-1].angle = 0
 
 
 def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
@@ -193,7 +165,7 @@ def process_sequence_properties(
     # cut sequences
     sequences = []
     for group in groups:
-        s: GPXSequence = [DescPoint(desc) for desc in group]
+        s: GPXSequence = [types.from_desc(desc) for desc in group]
         sequences.extend(cut_sequences(s, cutoff_distance, cutoff_time))
     assert len(good_descs) == sum(len(s) for s in sequences)
 
@@ -206,7 +178,7 @@ def process_sequence_properties(
             duplicate_angle=duplicate_angle,
         )
         for dup in dups:
-            desc = T.cast(DescPoint, dup).as_desc()
+            desc = types.as_desc(T.cast(types.ImageMetadata, dup))
             error_descs.append(
                 types.describe_error(
                     MapillaryDuplicationError("duplicated", desc), desc["filename"]
@@ -225,9 +197,9 @@ def process_sequence_properties(
         # assign sequence UUIDs
         for s in capped:
             sequence_uuid = str(uuid.uuid4())
-            for p in T.cast(T.List[DescPoint], s):
-                p.sequence_uuid = sequence_uuid
-                processed_descs.append(p.as_desc())
+            for p in T.cast(T.List[types.ImageMetadata], s):
+                p.MAPSequenceUUID = sequence_uuid
+                processed_descs.append(types.as_desc(p))
 
     assert len(descs) == len(error_descs) + len(processed_descs)
 

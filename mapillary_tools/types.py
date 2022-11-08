@@ -26,6 +26,20 @@ class FileType(enum.Enum):
     ZIP = "zip"
 
 
+@dataclasses.dataclass
+class ImageMetadata(geo.Point):
+    filename: Path
+    MAPPhotoUUID: T.Optional[str] = None
+    MAPSequenceUUID: T.Optional[str] = None
+    MAPMetaTags: T.Optional[T.Dict] = None
+    MAPDeviceMake: T.Optional[str] = None
+    MAPDeviceModel: T.Optional[str] = None
+    MAPGPSAccuracyMeters: T.Optional[float] = None
+    MAPCameraUUID: T.Optional[str] = None
+    MAPFilename: T.Optional[str] = None
+    MAPOrientation: T.Optional[int] = None
+
+
 class UserItem(TypedDict, total=False):
     MAPOrganizationKey: T.Union[int, str]
     # Not in use. Keep here for back-compatibility
@@ -266,20 +280,52 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
     return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
 
 
-def as_desc(point: geo.Point) -> Image:
-    desc: Image = {
-        "MAPLatitude": point.lat,
-        "MAPLongitude": point.lon,
-        "MAPCaptureTime": datetime_to_map_capture_time(point.time),
+def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
+    desc: ImageDescriptionFile = {
+        "filename": str(metadata.filename),
+        "MAPLatitude": metadata.lat,
+        "MAPLongitude": metadata.lon,
+        "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
     }
-    if point.alt is not None:
-        desc["MAPAltitude"] = point.alt
-    if point.angle is not None:
+    if metadata.alt is not None:
+        desc["MAPAltitude"] = metadata.alt
+    if metadata.angle is not None:
         desc["MAPCompassHeading"] = {
-            "TrueHeading": point.angle,
-            "MagneticHeading": point.angle,
+            "TrueHeading": metadata.angle,
+            "MagneticHeading": metadata.angle,
         }
+    fields = dataclasses.fields(metadata)
+    for field in fields:
+        if field.name.startswith("MAP"):
+            value = getattr(metadata, field.name)
+            if value is not None:
+                # ignore error: TypedDict key must be a string literal; expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
+                desc[field.name] = value  # type: ignore
     return desc
+
+
+def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
+    kwargs: T.Dict = {}
+    for k, v in desc.items():
+        if k not in [
+            "filename",
+            "MAPLatitude",
+            "MAPLongitude",
+            "MAPAltitude",
+            "MAPCaptureTime",
+            "MAPCompassHeading",
+        ]:
+            kwargs[k] = v
+
+    return ImageMetadata(
+        filename=Path(desc["filename"]),
+        lat=desc["MAPLatitude"],
+        lon=desc["MAPLongitude"],
+        alt=desc.get("MAPAltitude"),
+        time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
+        angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
+        **kwargs,
+    )
 
 
 if __name__ == "__main__":

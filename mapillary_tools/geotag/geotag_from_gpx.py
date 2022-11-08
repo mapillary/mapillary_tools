@@ -152,13 +152,15 @@ class GeotagFromGPX(GeotagFromGeneric):
                     continue
 
             interpolated = geo.interpolate(sorted_points, image_time)
-
-            descs.append(
-                T.cast(
-                    types.ImageDescriptionFile,
-                    {**types.as_desc(interpolated), "filename": str(image_path)},
-                )
+            image_metadata = types.ImageMetadata(
+                filename=image_path,
+                lat=interpolated.lat,
+                lon=interpolated.lon,
+                alt=interpolated.alt,
+                angle=interpolated.angle,
+                time=interpolated.time,
             )
+            descs.append(types.as_desc(image_metadata))
 
         assert len(self.image_paths) == len(descs)
         return descs

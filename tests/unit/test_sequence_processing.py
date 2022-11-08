@@ -7,7 +7,11 @@ from mapillary_tools import geo, process_sequence_properties as psp, types
 
 
 def make_image_desc(
-    lng: float, lat: float, time: float, angle: float = None, filename: str = None
+    lng: float,
+    lat: float,
+    time: float,
+    angle: T.Optional[float] = None,
+    filename: T.Optional[str] = None,
 ) -> types.ImageDescriptionFileOrError:
     if filename is None:
         filename = str(uuid.uuid4())
@@ -67,13 +71,9 @@ def test_find_sequences_by_folder():
     )
     assert 3 == len(actual_sequences)
 
-    assert ["./../foo.jpg", "../bar.jpg"] == [
-        d["filename"] for d in actual_sequences[0]
-    ]
-    assert ["a.jpg", "hello/", "./foo.jpg"] == [
-        d["filename"] for d in actual_sequences[1]
-    ]
-    assert ["hello/foo.jpg", "./hello/bar.jpg", "hello/a.jpg"] == [
+    assert ["../foo.jpg", "../bar.jpg"] == [d["filename"] for d in actual_sequences[0]]
+    assert ["a.jpg", "hello", "foo.jpg"] == [d["filename"] for d in actual_sequences[1]]
+    assert ["hello/foo.jpg", "hello/bar.jpg", "hello/a.jpg"] == [
         d["filename"] for d in actual_sequences[2]
     ]
 
@@ -177,4 +177,4 @@ def test_interpolation_single():
         duplicate_distance=100,
         duplicate_angle=5,
     )
-    assert [123] == [int(desc["MAPCompassHeading"]["TrueHeading"]) for desc in descs]
+    assert [0] == [int(desc["MAPCompassHeading"]["TrueHeading"]) for desc in descs]
