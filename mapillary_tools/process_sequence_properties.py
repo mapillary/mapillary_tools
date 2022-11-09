@@ -135,22 +135,27 @@ def group_and_sort_descs_by_folder(
 
 
 def process_sequence_properties(
-    descs: T.List[types.ImageDescriptionFileOrError],
+    descs: T.List[types.ImageVideoDescriptionFileOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
     cutoff_time=constants.CUTOFF_TIME,
     interpolate_directions=False,
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageVideoDescriptionFileOrError]:
     error_descs: T.List[types.ImageDescriptionFileError] = []
     good_descs: T.List[types.ImageDescriptionFile] = []
+    video_descs: T.List[types.VideoDescriptionFile] = []
     processed_descs: T.List[types.ImageDescriptionFile] = []
 
     for desc in descs:
         if types.is_error(desc):
             error_descs.append(T.cast(types.ImageDescriptionFileError, desc))
         else:
-            good_descs.append(T.cast(types.ImageDescriptionFile, desc))
+            filetype = types.FileType(desc.get("filetype"))
+            if filetype == types.FileType.IMAGE:
+                good_descs.append(T.cast(types.ImageDescriptionFile, desc))
+            else:
+                video_descs.append(T.cast(types.VideoDescriptionFile, desc))
 
     groups = group_and_sort_descs_by_folder(good_descs)
     # make sure they are sorted
@@ -201,8 +206,9 @@ def process_sequence_properties(
                 p.MAPSequenceUUID = sequence_uuid
                 processed_descs.append(types.as_desc(p))
 
-    assert len(descs) == len(error_descs) + len(processed_descs)
+    assert len(descs) == len(error_descs) + len(processed_descs) + len(video_descs)
 
-    return T.cast(T.List[types.ImageDescriptionFileOrError], error_descs) + T.cast(
-        T.List[types.ImageDescriptionFileOrError], processed_descs
+    return T.cast(
+        T.List[types.ImageVideoDescriptionFileOrError],
+        error_descs + processed_descs + video_descs,
     )

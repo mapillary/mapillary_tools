@@ -5,10 +5,8 @@ from pathlib import Path
 from .. import geo, types
 
 from . import (
-    blackvue_parser,
     camm_parser,
     construct_mp4_parser as cparser,
-    gpmf_parser,
     mp4_sample_parser as sample_parser,
     simple_mp4_builder as builder,
     simple_mp4_parser as parser,
@@ -287,13 +285,13 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
     return _f
 
 
-def camm_sample_generator(
-    fp: T.BinaryIO,
-    moov_children: T.List[BoxDict],
-) -> T.Iterator[io.IOBase]:
-    fp.seek(0, io.SEEK_SET)
-    metadata = extract_video_metadata(fp)
-    if not metadata:
-        raise ValueError("no points found")
+# def camm_sample_generator(
+#     fp: T.BinaryIO,
+#     moov_children: T.List[BoxDict],
+# ) -> T.Iterator[io.IOBase]:
+#     fp.seek(0, io.SEEK_SET)
+#     metadata = extract_video_metadata(fp)
+#     if not metadata:
+#         raise ValueError("no points found")
 
-    return camm_sample_generator2(metadata)(fp, moov_children)
+#     return camm_sample_generator2(metadata)(fp, moov_children)

@@ -73,7 +73,7 @@ def format_orientation(orientation: int) -> int:
 
 
 def process_import_meta_properties(
-    descs: T.List[types.ImageDescriptionFileOrError],
+    descs: T.List[types.ImageVideoDescriptionFileOrError],
     orientation=None,
     device_make=None,
     device_model=None,
@@ -82,15 +82,14 @@ def process_import_meta_properties(
     add_import_date=False,
     custom_meta_data=None,
     camera_uuid=None,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageVideoDescriptionFileOrError]:
     if add_file_name:
         LOG.warning(
             "The option --add_file_name is not needed any more since v0.9.4, because image filenames will be added automatically"
         )
 
     for desc in types.filter_out_errors(descs):
-        if orientation is not None:
-            desc["MAPOrientation"] = format_orientation(orientation)
+        filetype = desc.get("filetype")
 
         if device_make is not None:
             desc["MAPDeviceMake"] = device_make
@@ -98,28 +97,32 @@ def process_import_meta_properties(
         if device_model is not None:
             desc["MAPDeviceModel"] = device_model
 
-        if GPS_accuracy is not None:
-            desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
+        if filetype == types.FileType.IMAGE.value:
+            if orientation is not None:
+                desc["MAPOrientation"] = format_orientation(orientation)
 
-        if camera_uuid is not None:
-            desc["MAPCameraUUID"] = camera_uuid
+            if GPS_accuracy is not None:
+                desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
 
-        # Because image filenames will be renamed to image md5sums
-        # when adding to the zip, so we keep the original filename
-        # here
-        desc["MAPFilename"] = os.path.basename(desc["filename"])
+            if camera_uuid is not None:
+                desc["MAPCameraUUID"] = camera_uuid
 
-        if add_import_date:
-            add_meta_tag(
-                desc,
-                "dates",
-                "import_date",
-                int(round(time.time() * 1000)),
-            )
+            # Because image filenames will be renamed to image md5sums
+            # when adding to the zip, so we keep the original filename
+            # here
+            desc["MAPFilename"] = os.path.basename(desc["filename"])
 
-        add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
+            if add_import_date:
+                add_meta_tag(
+                    desc,
+                    "dates",
+                    "import_date",
+                    int(round(time.time() * 1000)),
+                )
 
-        if custom_meta_data:
-            parse_and_add_custom_meta_tags(desc, custom_meta_data)
+            add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
+
+            if custom_meta_data:
+                parse_and_add_custom_meta_tags(desc, custom_meta_data)
 
     return descs

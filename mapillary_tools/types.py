@@ -29,6 +29,7 @@ class FileType(enum.Enum):
 @dataclasses.dataclass
 class ImageMetadata(geo.Point):
     filename: Path
+    # filetype is always FileType.IMAGE
     MAPSequenceUUID: T.Optional[str] = None
     MAPMetaTags: T.Optional[T.Dict] = None
     MAPDeviceMake: T.Optional[str] = None
@@ -41,10 +42,21 @@ class ImageMetadata(geo.Point):
 
 @dataclasses.dataclass
 class VideoMetadata:
-    file_type: FileType
+    filename: Path
+    filetype: FileType
     points: T.Sequence[geo.Point]
     make: T.Optional[str] = None
     model: T.Optional[str] = None
+
+
+@dataclasses.dataclass
+class ErrorMetadata:
+    filename: Path
+    filetype: T.Optional[FileType]
+    error: Exception
+
+
+MetadataOrError = T.Union[ImageMetadata, VideoMetadata, ErrorMetadata]
 
 
 class UserItem(TypedDict, total=False):
@@ -92,6 +104,16 @@ class ImageDescriptionEXIF(_SequenceOnly, _Image, MetaProperties):
 class ImageDescriptionFile(ImageDescriptionEXIF, total=True):
     # filename is required
     filename: str
+    filetype: Literal["image"]
+
+
+class VideoDescriptionFile(TypedDict, total=False):
+    filename: str
+    filetype: str
+    MAPGPSTrack: T.List[T.List[float]]
+    MAPCaptureTime: str
+    MAPDeviceMake: str
+    MAPDeviceModel: str
 
 
 class ErrorObject(TypedDict, total=False):
@@ -131,6 +153,9 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
+ImageVideoDescriptionFileOrError = T.Union[
+    ImageDescriptionFileError, ImageDescriptionFile, VideoDescriptionFile
+]
 
 
 UserItemSchema = {
@@ -145,6 +170,7 @@ UserItemSchema = {
     "required": ["user_upload_token"],
     "additionalProperties": True,
 }
+
 
 ImageDescriptionEXIFSchema = {
     "type": "object",
@@ -178,7 +204,7 @@ ImageDescriptionEXIFSchema = {
         },
         "MAPSequenceUUID": {
             "type": "string",
-            "description": "Arbitrary key used to group images",
+            "description": "Arbitrary key for grouping images",
             "pattern": "[a-zA-Z0-9_-]+",
         },
         "MAPMetaTags": {"type": "object"},
@@ -186,12 +212,41 @@ ImageDescriptionEXIFSchema = {
         "MAPDeviceModel": {"type": "string"},
         "MAPGPSAccuracyMeters": {"type": "number"},
         "MAPCameraUUID": {"type": "string"},
-        "MAPFilename": {"type": "string"},
+        "MAPFilename": {
+            "type": "string",
+            "description": "The base filename of the image",
+        },
         "MAPOrientation": {"type": "integer"},
     },
     "required": [
         "MAPLatitude",
         "MAPLongitude",
+        "MAPCaptureTime",
+    ],
+    "additionalProperties": False,
+}
+
+VideoDescriptionSchema = {
+    "type": "object",
+    "properties": {
+        "MAPCaptureTime": {
+            "type": "string",
+            "description": "Capture time of the video",
+            "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+",
+        },
+        "MAPGPSTrack": {
+            "type": "array",
+            "items": {
+                "type": "array",
+                "items": {"type": "number"},
+                "minItems": 2,
+            },
+        },
+        "MAPDeviceMake": {"type": "string"},
+        "MAPDeviceModel": {"type": "string"},
+    },
+    "required": [
+        "MAPGPSTrack",
         "MAPCaptureTime",
     ],
     "additionalProperties": False,
@@ -224,35 +279,75 @@ ImageDescriptionFileSchema = merge_schema(
         "properties": {
             "filename": {
                 "type": "string",
-                "description": "The image file's path relative to the image directory",
+                "description": "The image file path",
+            },
+            "filetype": {
+                "type": "string",
+                "enum": [FileType.IMAGE.value],
+                "description": "The image file type",
             },
         },
         "required": [
             "filename",
+            "filetype",
+        ],
+    },
+)
+
+VideoDescriptionFileSchema = merge_schema(
+    VideoDescriptionSchema,
+    {
+        "type": "object",
+        "properties": {
+            "filename": {
+                "type": "string",
+                "description": "The video file path",
+            },
+            "filetype": {
+                "type": "string",
+                "enum": [
+                    FileType.CAMM.value,
+                    FileType.GOPRO.value,
+                    FileType.BLACKVUE.value,
+                ],
+                "description": "The file type",
+            },
+        },
+        "required": [
+            "filename",
+            "filetype",
         ],
     },
 )
 
 
-def validate_desc(desc: ImageDescriptionFile) -> None:
-    jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
+ImageVideoDescriptionFileSchema = {
+    "oneOf": [VideoDescriptionFileSchema, ImageDescriptionFileSchema]
+}
+
+
+def validate_desc(desc: T.Union[ImageDescriptionFile, VideoDescriptionFile]) -> None:
+    jsonschema.validate(instance=desc, schema=ImageVideoDescriptionFileSchema)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
     except ValueError as exc:
         raise jsonschema.ValidationError(
-            str(exc), instance=desc, schema=ImageDescriptionFileSchema
+            str(exc), instance=desc, schema=ImageVideoDescriptionFileSchema
         )
 
 
-def is_error(desc: ImageDescriptionFileOrError) -> bool:
+def is_error(desc: ImageVideoDescriptionFileOrError) -> bool:
     return "error" in desc
 
 
+_D = T.TypeVar("_D", ImageVideoDescriptionFileOrError, ImageDescriptionFileOrError)
+
+
 def map_descs(
-    func: T.Callable[[ImageDescriptionFile], ImageDescriptionFileOrError],
-    descs: T.Sequence[ImageDescriptionFileOrError],
-) -> T.Iterator[ImageDescriptionFileOrError]:
-    def _f(desc: ImageDescriptionFileOrError) -> ImageDescriptionFileOrError:
+    func: T.Callable[[ImageDescriptionFile], _D],
+    descs: T.Sequence[_D],
+) -> T.Iterator[_D]:
+    def _f(desc: _D) -> _D:
         if is_error(desc):
             return desc
         else:
@@ -262,10 +357,23 @@ def map_descs(
 
 
 def filter_out_errors(
-    descs: T.Sequence[ImageDescriptionFileOrError],
+    descs: T.Sequence[ImageVideoDescriptionFileOrError],
 ) -> T.List[ImageDescriptionFile]:
     return T.cast(
         T.List[ImageDescriptionFile], [desc for desc in descs if not is_error(desc)]
+    )
+
+
+def filter_image_descs(
+    descs: T.Sequence[ImageVideoDescriptionFileOrError],
+) -> T.List[ImageDescriptionFile]:
+    return T.cast(
+        T.List[ImageDescriptionFile],
+        [
+            desc
+            for desc in descs
+            if not is_error(desc) and desc.get("filetype") == FileType.IMAGE.value
+        ],
     )
 
 
@@ -284,6 +392,7 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
 def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
     desc: ImageDescriptionFile = {
         "filename": str(metadata.filename),
+        "filetype": FileType.IMAGE.value,
         "MAPLatitude": metadata.lat,
         "MAPLongitude": metadata.lon,
         "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
@@ -300,8 +409,30 @@ def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
         if field.name.startswith("MAP"):
             value = getattr(metadata, field.name)
             if value is not None:
-                # ignore error: TypedDict key must be a string literal; expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
+                # ignore error: TypedDict key must be a string literal;
+                # expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
                 desc[field.name] = value  # type: ignore
+    return desc
+
+
+def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
+    if video_metadata.points:
+        capture_time = datetime_to_map_capture_time(video_metadata.points[0].time)
+    else:
+        # Should not happen because we report empty GPS as errors
+        capture_time = datetime_to_map_capture_time(0)
+    desc: VideoDescriptionFile = {
+        "filename": str(video_metadata.filename),
+        "filetype": video_metadata.filetype.value,
+        "MAPGPSTrack": [
+            [round(p.lon, 6), round(p.lat, 6)] for p in video_metadata.points
+        ],
+        "MAPCaptureTime": capture_time,
+    }
+    if video_metadata.make:
+        desc["MAPDeviceMake"] = video_metadata.make
+    if video_metadata.model:
+        desc["MAPDeviceModel"] = video_metadata.model
     return desc
 
 
@@ -310,6 +441,7 @@ def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
     for k, v in desc.items():
         if k not in [
             "filename",
+            "filetype",
             "MAPLatitude",
             "MAPLongitude",
             "MAPAltitude",
@@ -320,8 +452,8 @@ def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
 
     return ImageMetadata(
         filename=Path(desc["filename"]),
-        lat=desc["MAPLatitude"],
-        lon=desc["MAPLongitude"],
+        lat=round(desc["MAPLatitude"], 6),
+        lon=round(desc["MAPLongitude"], 6),
         alt=desc.get("MAPAltitude"),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
@@ -330,4 +462,4 @@ def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
 
 
 if __name__ == "__main__":
-    print(json.dumps(ImageDescriptionFileSchema, indent=4))
+    print(json.dumps(ImageVideoDescriptionFileSchema, indent=4))

@@ -63,12 +63,14 @@ def test_upload_images(setup_upload: py.path.local):
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
         },
         {
             "MAPLatitude": 59.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
         },
     ]
     resp = mly_uploader.upload_images(T.cast(T.Any, descs))
@@ -84,6 +86,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
         {
@@ -91,6 +94,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
         {
@@ -98,6 +102,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
             "filename": str(Path("tests/unit/data/fixed_exif.jpg")),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_2",
         },
     ]
@@ -124,6 +129,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
         {
@@ -131,6 +137,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
             "filename": str(Path(same_basename)),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
         {
@@ -138,6 +145,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
             "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filetype": "image",
             "MAPSequenceUUID": "sequence_2",
         },
     ]

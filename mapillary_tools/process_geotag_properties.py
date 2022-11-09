@@ -243,7 +243,7 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageVideoDescriptionFileOrError]:
     if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
         raise exceptions.MapillaryBadParameterError(
             f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
@@ -272,7 +272,7 @@ def process_geotag_properties(
                 f"Import file or directory not found: {path}"
             )
 
-    descs = []
+    descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
     if FileType.IMAGE in file_types:
         descs.extend(
@@ -286,6 +286,24 @@ def process_geotag_properties(
                 skip_subfolders=skip_subfolders,
             )
         )
+
+    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+    for video_path in tqdm(
+        video_paths,
+        desc="Extracting GPS tracks",
+        unit="videos",
+        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+    ):
+        LOG.debug("Extracting GPS track from %s", str(video_path))
+        video_metadata = extract_video_metadata(video_path, file_types)
+        if video_metadata is None:
+            descs.append(
+                types.describe_error(
+                    exceptions.MapillaryVideoError("No GPS data found"), str(video_path)
+                )
+            )
+        else:
+            descs.append(types.as_desc_video(video_metadata))
 
     return descs
 
@@ -312,7 +330,7 @@ def _verify_exif_write(
 
 
 def _apply_offsets(
-    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
@@ -324,15 +342,18 @@ def _apply_offsets(
             )
 
     for desc in types.filter_out_errors(descs):
-        heading = desc.setdefault(
-            "MAPCompassHeading",
-            {
-                "TrueHeading": 0.0,
-                "MagneticHeading": 0.0,
-            },
-        )
-        heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
-        heading["MagneticHeading"] = (heading["MagneticHeading"] + offset_angle) % 360
+        if desc.get("filetype") == types.FileType.IMAGE.value:
+            heading = desc.setdefault(
+                "MAPCompassHeading",
+                {
+                    "TrueHeading": 0.0,
+                    "MagneticHeading": 0.0,
+                },
+            )
+            heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
+            heading["MagneticHeading"] = (
+                heading["MagneticHeading"] + offset_angle
+            ) % 360
 
 
 def _overwrite_exif_tags(
@@ -401,16 +422,16 @@ def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]) -> 
         disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ) as pbar:
 
-        def _update(desc):
+        def _update(desc: types.ImageDescriptionFile):
             new_desc = _verify_exif_write(desc)
             pbar.update(1)
             return new_desc
 
-        descs = list(types.map_descs(_update, descs))
+        list(types.map_descs(_update, descs))
 
 
 def _write_descs(
-    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
     desc_path: str,
 ) -> None:
     if desc_path == "-":
@@ -422,7 +443,7 @@ def _write_descs(
 
 
 def _show_stats(
-    descs: T.Sequence[types.ImageDescriptionFileOrError], skip_process_errors: bool
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError], skip_process_errors: bool
 ) -> None:
     processed_images = types.filter_out_errors(descs)
     not_processed_images = T.cast(
@@ -466,7 +487,7 @@ def _show_stats(
 
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
-    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
     skip_process_errors: bool = False,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
@@ -476,7 +497,7 @@ def process_finalize(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageVideoDescriptionFileOrError]:
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
@@ -500,7 +521,7 @@ def process_finalize(
     descs = list(types.map_descs(_validate_and_fail_desc, descs))
 
     _overwrite_exif_tags(
-        descs,
+        types.filter_image_descs(descs),
         all_tags=overwrite_all_EXIF_tags,
         time_tag=overwrite_EXIF_time_tag,
         gps_tag=overwrite_EXIF_gps_tag,
@@ -508,7 +529,7 @@ def process_finalize(
         orientation_tag=overwrite_EXIF_orientation_tag,
     )
 
-    _test_exif_writing(descs)
+    _test_exif_writing(types.filter_image_descs(descs))
 
     if desc_path is None:
         if len(import_paths) == 1 and import_paths[0].is_dir():

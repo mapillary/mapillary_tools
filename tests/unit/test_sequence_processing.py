@@ -30,6 +30,7 @@ def make_image_desc(
             "TrueHeading": angle,
             "MagneticHeading": angle,
         }
+    desc["filetype"] = "image"
     return T.cast(types.ImageDescriptionFileOrError, desc)
 
 

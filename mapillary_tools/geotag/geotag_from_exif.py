@@ -58,6 +58,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
             angle = exif.extract_direction()
 
             desc: types.ImageDescriptionFile = {
+                "filetype": "image",
                 "MAPLatitude": lat,
                 "MAPLongitude": lon,
                 "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),

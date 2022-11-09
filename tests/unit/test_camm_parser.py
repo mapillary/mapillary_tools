@@ -1,6 +1,7 @@
 import dataclasses
 import io
 import typing as T
+from pathlib import Path
 
 from mapillary_tools import geo, types
 from mapillary_tools.geotag import (
@@ -67,7 +68,11 @@ def build_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
         T.cast(T.BinaryIO, target_fp)
     )
     return types.VideoMetadata(
-        file_type=types.FileType.CAMM, points=points or [], make=make, model=model
+        Path(""),
+        filetype=types.FileType.CAMM,
+        points=points or [],
+        make=make,
+        model=model,
     )
 
 
@@ -88,7 +93,8 @@ def test_build_and_parse():
         geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None),
     ]
     metadata = types.VideoMetadata(
-        file_type=types.FileType.CAMM,
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make",
         model="   test_model   ",
@@ -120,7 +126,8 @@ def test_build_and_parse2():
         geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
     metadata = types.VideoMetadata(
-        file_type=types.FileType.CAMM,
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -139,7 +146,8 @@ def test_build_and_parse9():
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
     metadata = types.VideoMetadata(
-        file_type=types.FileType.CAMM,
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -154,7 +162,8 @@ def test_build_and_parse10():
         geo.Point(time=0.1, lat=0.03, lon=0.2, alt=None, angle=None),
     ]
     metadata = types.VideoMetadata(
-        file_type=types.FileType.CAMM,
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -172,7 +181,8 @@ def test_build_and_parse10():
 def test_build_and_parse3():
     points = []
     metadata = types.VideoMetadata(
-        file_type=types.FileType.CAMM,
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
