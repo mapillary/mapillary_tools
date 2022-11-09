@@ -16,6 +16,9 @@ import jsonschema
 from . import geo
 
 
+_COORDINATES_PRECISION = 6
+
+
 class FileType(enum.Enum):
     BLACKVUE = "blackvue"
     CAMM = "camm"
@@ -107,11 +110,14 @@ class ImageDescriptionFile(ImageDescriptionEXIF, total=True):
     filetype: Literal["image"]
 
 
-class VideoDescriptionFile(TypedDict, total=False):
+class _VideoDescriptionFileRequired(TypedDict, total=True):
     filename: str
     filetype: str
-    MAPGPSTrack: T.List[T.List[float]]
+    MAPGPSTrack: T.List[T.Sequence[T.Union[float, int, None]]]
     MAPCaptureTime: str
+
+
+class VideoDescriptionFile(_VideoDescriptionFileRequired, total=False):
     MAPDeviceMake: str
     MAPDeviceModel: str
 
@@ -153,6 +159,7 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
+ImageVideoDescriptionFile = T.Union[ImageDescriptionFile, VideoDescriptionFile]
 ImageVideoDescriptionFileOrError = T.Union[
     ImageDescriptionFileError, ImageDescriptionFile, VideoDescriptionFile
 ]
@@ -238,8 +245,29 @@ VideoDescriptionSchema = {
             "type": "array",
             "items": {
                 "type": "array",
-                "items": {"type": "number"},
-                "minItems": 2,
+                "description": "track point",
+                "prefixItems": [
+                    {
+                        "type": "number",
+                        "description": "time",
+                    },
+                    {
+                        "type": "number",
+                        "description": "longitude",
+                    },
+                    {
+                        "type": "number",
+                        "description": "latitude",
+                    },
+                    {
+                        "type": ["number", "null"],
+                        "description": "altitude",
+                    },
+                    {
+                        "type": ["number", "null"],
+                        "description": "angle",
+                    },
+                ],
             },
         },
         "MAPDeviceMake": {"type": "string"},
@@ -358,9 +386,10 @@ def map_descs(
 
 def filter_out_errors(
     descs: T.Sequence[ImageVideoDescriptionFileOrError],
-) -> T.List[ImageDescriptionFile]:
+) -> T.List[ImageVideoDescriptionFile]:
     return T.cast(
-        T.List[ImageDescriptionFile], [desc for desc in descs if not is_error(desc)]
+        T.List[ImageVideoDescriptionFile],
+        [desc for desc in descs if not is_error(desc)],
     )
 
 
@@ -415,27 +444,6 @@ def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
     return desc
 
 
-def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
-    if video_metadata.points:
-        capture_time = datetime_to_map_capture_time(video_metadata.points[0].time)
-    else:
-        # Should not happen because we report empty GPS as errors
-        capture_time = datetime_to_map_capture_time(0)
-    desc: VideoDescriptionFile = {
-        "filename": str(video_metadata.filename),
-        "filetype": video_metadata.filetype.value,
-        "MAPGPSTrack": [
-            [round(p.lon, 6), round(p.lat, 6)] for p in video_metadata.points
-        ],
-        "MAPCaptureTime": capture_time,
-    }
-    if video_metadata.make:
-        desc["MAPDeviceMake"] = video_metadata.make
-    if video_metadata.model:
-        desc["MAPDeviceModel"] = video_metadata.model
-    return desc
-
-
 def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
     kwargs: T.Dict = {}
     for k, v in desc.items():
@@ -452,12 +460,57 @@ def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
 
     return ImageMetadata(
         filename=Path(desc["filename"]),
-        lat=round(desc["MAPLatitude"], 6),
-        lon=round(desc["MAPLongitude"], 6),
+        lat=round(desc["MAPLatitude"], _COORDINATES_PRECISION),
+        lon=round(desc["MAPLongitude"], _COORDINATES_PRECISION),
         alt=desc.get("MAPAltitude"),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
         **kwargs,
+    )
+
+
+def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
+    entry = [
+        int(p.time * 1000),
+        round(p.lon, _COORDINATES_PRECISION),
+        round(p.lat, _COORDINATES_PRECISION),
+        round(p.alt, _COORDINATES_PRECISION) if p.alt is not None else None,
+        round(p.angle, 3) if p.angle is not None else None,
+    ]
+    return entry
+
+
+def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
+    time_ms, lon, lat, alt, angle = entry
+    return geo.Point(time=time_ms / 1000, lon=lon, lat=lat, alt=alt, angle=angle)
+
+
+def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
+    if video_metadata.points:
+        capture_time = datetime_to_map_capture_time(video_metadata.points[0].time)
+    else:
+        # Should not happen because we report empty GPS as errors
+        capture_time = datetime_to_map_capture_time(0)
+    desc: VideoDescriptionFile = {
+        "filename": str(video_metadata.filename),
+        "filetype": video_metadata.filetype.value,
+        "MAPGPSTrack": [_encode_point(p) for p in video_metadata.points],
+        "MAPCaptureTime": capture_time,
+    }
+    if video_metadata.make:
+        desc["MAPDeviceMake"] = video_metadata.make
+    if video_metadata.model:
+        desc["MAPDeviceModel"] = video_metadata.model
+    return desc
+
+
+def from_desc_video(desc: VideoDescriptionFile) -> VideoMetadata:
+    return VideoMetadata(
+        filename=Path(desc["filename"]),
+        filetype=FileType(desc["filetype"]),
+        points=[_decode_point(entry) for entry in desc["MAPGPSTrack"]],
+        make=desc.get("MAPDeviceMake"),
+        model=desc.get("MAPDeviceModel"),
     )
 
 

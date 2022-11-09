@@ -27,6 +27,7 @@ from .geotag import (
     geotag_from_gopro,
     geotag_from_gpx_file,
     geotag_from_nmea_file,
+    gpmf_gps_filter,
     gpmf_parser,
     simple_mp4_parser as parser,
 )
@@ -244,15 +245,11 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+    if FileType.RAW_BLACKVUE in file_types or FileType.RAW_CAMM in file_types:
         raise exceptions.MapillaryBadParameterError(
-            f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+            f"can not process {FileType.RAW_BLACKVUE.value} or {FileType.RAW_CAMM.value}",
         )
 
-    if FileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
-        raise exceptions.MapillaryBadParameterError(
-            f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
-        )
     file_types = set(file_types)
 
     import_paths: T.Sequence[Path]
@@ -287,23 +284,87 @@ def process_geotag_properties(
             )
         )
 
-    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-    for video_path in tqdm(
-        video_paths,
-        desc="Extracting GPS tracks",
-        unit="videos",
-        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+    if (
+        types.FileType.CAMM in file_types
+        or types.FileType.GOPRO in file_types
+        or types.FileType.BLACKVUE in file_types
     ):
-        LOG.debug("Extracting GPS track from %s", str(video_path))
-        video_metadata = extract_video_metadata(video_path, file_types)
-        if video_metadata is None:
-            descs.append(
-                types.describe_error(
-                    exceptions.MapillaryVideoError("No GPS data found"), str(video_path)
+        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+        for video_path in tqdm(
+            video_paths,
+            desc="Extracting GPS tracks",
+            unit="videos",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        ):
+            LOG.debug("Extracting GPS track from %s", str(video_path))
+            video_metadata = None
+            with video_path.open("rb") as fp:
+                start_offset = fp.tell()
+
+                if types.FileType.CAMM in file_types:
+                    fp.seek(start_offset, io.SEEK_SET)
+                    try:
+                        points = camm_parser.extract_points(fp)
+                    except parser.ParsingError:
+                        points = []
+                    if points:
+                        fp.seek(start_offset, io.SEEK_SET)
+                        make, model = camm_parser.extract_camera_make_and_model(fp)
+                        video_metadata = types.VideoMetadata(
+                            video_path, types.FileType.CAMM, points, make, model
+                        )
+
+                if types.FileType.GOPRO in file_types:
+                    fp.seek(start_offset, io.SEEK_SET)
+                    try:
+                        points_with_fix = gpmf_parser.extract_points(fp)
+                    except parser.ParsingError:
+                        points_with_fix = []
+                    if points_with_fix:
+                        fp.seek(start_offset, io.SEEK_SET)
+                        make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+                        video_metadata = types.VideoMetadata(
+                            video_path,
+                            types.FileType.GOPRO,
+                            T.cast(T.List[geo.Point], points_with_fix),
+                            make,
+                            model,
+                        )
+                        video_metadata.points = T.cast(
+                            T.List[geo.Point],
+                            gpmf_gps_filter.filter_noisy_points(
+                                T.cast(
+                                    T.List[gpmf_parser.PointWithFix],
+                                    video_metadata.points,
+                                )
+                            ),
+                        )
+
+                if types.FileType.BLACKVUE in file_types:
+                    fp.seek(start_offset, io.SEEK_SET)
+                    try:
+                        points = blackvue_parser.extract_points(fp)
+                    except parser.ParsingError:
+                        points = []
+                    if points:
+                        fp.seek(start_offset, io.SEEK_SET)
+                        make, model = "BlackVue", blackvue_parser.extract_camera_model(
+                            fp
+                        )
+                        video_metadata = types.VideoMetadata(
+                            video_path, types.FileType.BLACKVUE, points, make, model
+                        )
+
+            # video_metadata = extract_video_metadata(video_path, file_types)
+            if video_metadata is None:
+                descs.append(
+                    types.describe_error(
+                        exceptions.MapillaryVideoError("No GPS data found"),
+                        str(video_path),
+                    )
                 )
-            )
-        else:
-            descs.append(types.as_desc_video(video_metadata))
+            else:
+                descs.append(types.as_desc_video(video_metadata))
 
     return descs
 
@@ -334,16 +395,19 @@ def _apply_offsets(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
-    if offset_time:
-        for desc in types.filter_out_errors(descs):
+    for desc in types.filter_out_errors(descs):
+        if offset_time:
+            # for desc in types.filter_out_errors(descs):
             dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
             desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
                 dt + datetime.timedelta(seconds=offset_time)
             )
 
-    for desc in types.filter_out_errors(descs):
         if desc.get("filetype") == types.FileType.IMAGE.value:
-            heading = desc.setdefault(
+            image_desc: types.ImageDescriptionFile = T.cast(
+                types.ImageDescriptionFile, desc
+            )
+            heading = image_desc.setdefault(
                 "MAPCompassHeading",
                 {
                     "TrueHeading": 0.0,
@@ -438,7 +502,7 @@ def _write_descs(
         print(json.dumps(descs, indent=4))
     else:
         with open(desc_path, "w") as fp:
-            json.dump(descs, fp, indent=4)
+            json.dump(descs, fp)
     LOG.info("Check the image description file for details: %s", desc_path)
 
 

@@ -98,31 +98,34 @@ def process_import_meta_properties(
             desc["MAPDeviceModel"] = device_model
 
         if filetype == types.FileType.IMAGE.value:
+            image_desc: types.ImageDescriptionFile = T.cast(
+                types.ImageDescriptionFile, desc
+            )
             if orientation is not None:
-                desc["MAPOrientation"] = format_orientation(orientation)
+                image_desc["MAPOrientation"] = format_orientation(orientation)
 
             if GPS_accuracy is not None:
-                desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
+                image_desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
 
             if camera_uuid is not None:
-                desc["MAPCameraUUID"] = camera_uuid
+                image_desc["MAPCameraUUID"] = camera_uuid
 
             # Because image filenames will be renamed to image md5sums
             # when adding to the zip, so we keep the original filename
             # here
-            desc["MAPFilename"] = os.path.basename(desc["filename"])
+            image_desc["MAPFilename"] = os.path.basename(desc["filename"])
 
             if add_import_date:
                 add_meta_tag(
-                    desc,
+                    image_desc,
                     "dates",
                     "import_date",
                     int(round(time.time() * 1000)),
                 )
 
-            add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
+            add_meta_tag(image_desc, "strings", "mapillary_tools_version", VERSION)
 
             if custom_meta_data:
-                parse_and_add_custom_meta_tags(desc, custom_meta_data)
+                parse_and_add_custom_meta_tags(image_desc, custom_meta_data)
 
     return descs

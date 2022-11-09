@@ -1,79 +1,163 @@
 {
-    "type": "object",
-    "properties": {
-        "MAPLatitude": {
-            "type": "number",
-            "description": "Latitude of the image",
-            "minimum": -90,
-            "maximum": 90
-        },
-        "MAPLongitude": {
-            "type": "number",
-            "description": "Longitude of the image",
-            "minimum": -180,
-            "maximum": 180
-        },
-        "MAPAltitude": {
-            "type": "number",
-            "description": "Altitude of the image"
-        },
-        "MAPCaptureTime": {
-            "type": "string",
-            "description": "Capture time of the image",
-            "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+"
-        },
-        "MAPCompassHeading": {
+    "oneOf": [
+        {
             "type": "object",
             "properties": {
-                "TrueHeading": {
-                    "type": "number"
+                "MAPCaptureTime": {
+                    "type": "string",
+                    "description": "Capture time of the video",
+                    "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+"
                 },
-                "MagneticHeading": {
-                    "type": "number"
+                "MAPGPSTrack": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "description": "track point",
+                        "prefixItems": [
+                            {
+                                "type": "number",
+                                "description": "time"
+                            },
+                            {
+                                "type": "number",
+                                "description": "longitude"
+                            },
+                            {
+                                "type": "number",
+                                "description": "latitude"
+                            },
+                            {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ],
+                                "description": "altitude"
+                            },
+                            {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ],
+                                "description": "angle"
+                            }
+                        ]
+                    }
+                },
+                "MAPDeviceMake": {
+                    "type": "string"
+                },
+                "MAPDeviceModel": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "The video file path"
+                },
+                "filetype": {
+                    "type": "string",
+                    "enum": [
+                        "camm",
+                        "gopro",
+                        "blackvue"
+                    ],
+                    "description": "The file type"
                 }
             },
             "required": [
-                "TrueHeading",
-                "MagneticHeading"
+                "MAPCaptureTime",
+                "MAPGPSTrack",
+                "filename",
+                "filetype"
             ],
             "additionalProperties": false
         },
-        "MAPSequenceUUID": {
-            "type": "string",
-            "description": "Arbitrary key used to group images",
-            "pattern": "[a-zA-Z0-9_-]+"
-        },
-        "MAPMetaTags": {
-            "type": "object"
-        },
-        "MAPDeviceMake": {
-            "type": "string"
-        },
-        "MAPDeviceModel": {
-            "type": "string"
-        },
-        "MAPGPSAccuracyMeters": {
-            "type": "number"
-        },
-        "MAPCameraUUID": {
-            "type": "string"
-        },
-        "MAPFilename": {
-            "type": "string"
-        },
-        "MAPOrientation": {
-            "type": "integer"
-        },
-        "filename": {
-            "type": "string",
-            "description": "The image file's path relative to the image directory"
+        {
+            "type": "object",
+            "properties": {
+                "MAPLatitude": {
+                    "type": "number",
+                    "description": "Latitude of the image",
+                    "minimum": -90,
+                    "maximum": 90
+                },
+                "MAPLongitude": {
+                    "type": "number",
+                    "description": "Longitude of the image",
+                    "minimum": -180,
+                    "maximum": 180
+                },
+                "MAPAltitude": {
+                    "type": "number",
+                    "description": "Altitude of the image"
+                },
+                "MAPCaptureTime": {
+                    "type": "string",
+                    "description": "Capture time of the image",
+                    "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+"
+                },
+                "MAPCompassHeading": {
+                    "type": "object",
+                    "properties": {
+                        "TrueHeading": {
+                            "type": "number"
+                        },
+                        "MagneticHeading": {
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "TrueHeading",
+                        "MagneticHeading"
+                    ],
+                    "additionalProperties": false
+                },
+                "MAPSequenceUUID": {
+                    "type": "string",
+                    "description": "Arbitrary key for grouping images",
+                    "pattern": "[a-zA-Z0-9_-]+"
+                },
+                "MAPMetaTags": {
+                    "type": "object"
+                },
+                "MAPDeviceMake": {
+                    "type": "string"
+                },
+                "MAPDeviceModel": {
+                    "type": "string"
+                },
+                "MAPGPSAccuracyMeters": {
+                    "type": "number"
+                },
+                "MAPCameraUUID": {
+                    "type": "string"
+                },
+                "MAPFilename": {
+                    "type": "string",
+                    "description": "The base filename of the image"
+                },
+                "MAPOrientation": {
+                    "type": "integer"
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "The image file path"
+                },
+                "filetype": {
+                    "type": "string",
+                    "enum": [
+                        "image"
+                    ],
+                    "description": "The image file type"
+                }
+            },
+            "required": [
+                "MAPCaptureTime",
+                "MAPLatitude",
+                "MAPLongitude",
+                "filename",
+                "filetype"
+            ],
+            "additionalProperties": false
         }
-    },
-    "required": [
-        "MAPCaptureTime",
-        "MAPLatitude",
-        "MAPLongitude",
-        "filename"
-    ],
-    "additionalProperties": false
+    ]
 }
