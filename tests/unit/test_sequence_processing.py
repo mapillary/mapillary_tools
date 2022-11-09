@@ -7,7 +7,11 @@ from mapillary_tools import geo, process_sequence_properties as psp, types
 
 
 def make_image_desc(
-    lng: float, lat: float, time: float, angle: float = None, filename: str = None
+    lng: float,
+    lat: float,
+    time: float,
+    angle: T.Optional[float] = None,
+    filename: T.Optional[str] = None,
 ) -> types.ImageDescriptionFileOrError:
     if filename is None:
         filename = str(uuid.uuid4())

@@ -34,7 +34,9 @@ def _load_config(config_path: str) -> configparser.ConfigParser:
     return config
 
 
-def load_user(user_name: str, config_path: str = None) -> T.Optional[types.UserItem]:
+def load_user(
+    user_name: str, config_path: T.Optional[str] = None
+) -> T.Optional[types.UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     config = _load_config(config_path)
@@ -44,7 +46,7 @@ def load_user(user_name: str, config_path: str = None) -> T.Optional[types.UserI
     return T.cast(types.UserItem, user_items)
 
 
-def list_all_users(config_path: str = None) -> T.List[types.UserItem]:
+def list_all_users(config_path: T.Optional[str] = None) -> T.List[types.UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     cp = _load_config(config_path)
@@ -55,7 +57,7 @@ def list_all_users(config_path: str = None) -> T.List[types.UserItem]:
 
 
 def update_config(
-    user_name: str, user_items: types.UserItem, config_path: str = None
+    user_name: str, user_items: types.UserItem, config_path: T.Optional[str] = None
 ) -> None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
