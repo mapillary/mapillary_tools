@@ -12,7 +12,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-import jsonschema
 import piexif
 from tqdm import tqdm
 
@@ -41,22 +40,22 @@ GeotagSource = Literal["gopro_videos", "blackvue_videos", "camm", "exif", "gpx",
 
 
 def _process_images(
-    import_paths: T.Sequence[Path],
+    image_paths: T.Sequence[Path],
     geotag_source: GeotagSource,
     geotag_source_path: T.Optional[Path] = None,
     video_import_path: T.Optional[Path] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
-    skip_subfolders: bool = False,
+    skip_subfolders=False,
 ) -> T.List[types.ImageDescriptionFileOrError]:
     geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
-        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-        LOG.debug("Found %d images in total", len(image_paths))
         geotag = geotag_from_exif.GeotagFromEXIF(image_paths)
 
-    elif geotag_source == "gpx":
+    else:
+        if geotag_source_path is None:
+            geotag_source_path = video_import_path
         if geotag_source_path is None:
             raise exceptions.MapillaryFileNotFoundError(
                 "Geotag source path is required"
@@ -65,106 +64,49 @@ def _process_images(
             raise exceptions.MapillaryFileNotFoundError(
                 f"GPX file not found: {geotag_source_path}"
             )
-        if video_import_path is None:
-            image_paths = utils.find_images(
-                import_paths, skip_subfolders=skip_subfolders
-            )
-        else:
-            image_paths = utils.find_images(import_paths, skip_subfolders=False)
+        if video_import_path is not None:
+            # commands that trigger this branch:
+            # video_process video_import_path image_paths --geotag_source gpx --geotag_source_path <gpx_file> --skip_subfolders
             image_paths = list(
                 utils.filter_video_samples(
                     image_paths, video_import_path, skip_subfolders=skip_subfolders
                 )
             )
-        LOG.debug(f"Found %d images in total", len(image_paths))
-        geotag = geotag_from_gpx_file.GeotagFromGPXFile(
-            image_paths,
-            geotag_source_path,
-            use_gpx_start_time=interpolation_use_gpx_start_time,
-            offset_time=interpolation_offset_time,
-        )
-    elif geotag_source == "nmea":
-        if geotag_source_path is None:
-            raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path is required"
-            )
 
-        if not geotag_source_path.is_file():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"NMEA file not found: {geotag_source_path}"
+        if geotag_source == "gpx":
+            geotag = geotag_from_gpx_file.GeotagFromGPXFile(
+                image_paths,
+                geotag_source_path,
+                use_gpx_start_time=interpolation_use_gpx_start_time,
+                offset_time=interpolation_offset_time,
             )
-
-        if video_import_path is None:
-            image_paths = utils.find_images(
-                import_paths, skip_subfolders=skip_subfolders
+        elif geotag_source == "nmea":
+            geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
+                image_paths,
+                geotag_source_path,
+                use_gpx_start_time=interpolation_use_gpx_start_time,
+                offset_time=interpolation_offset_time,
+            )
+        elif geotag_source == "gopro_videos":
+            geotag = geotag_from_gopro.GeotagFromGoPro(
+                image_paths,
+                utils.find_videos([geotag_source_path]),
+                offset_time=interpolation_offset_time,
+            )
+        elif geotag_source == "blackvue_videos":
+            geotag = geotag_from_blackvue.GeotagFromBlackVue(
+                image_paths,
+                utils.find_videos([geotag_source_path]),
+                offset_time=interpolation_offset_time,
+            )
+        elif geotag_source == "camm":
+            geotag = geotag_from_camm.GeotagFromCAMM(
+                image_paths,
+                utils.find_videos([geotag_source_path]),
+                offset_time=interpolation_offset_time,
             )
         else:
-            image_paths = utils.find_images(import_paths, skip_subfolders=False)
-            image_paths = list(
-                utils.filter_video_samples(
-                    image_paths, video_import_path, skip_subfolders=skip_subfolders
-                )
-            )
-        LOG.debug(f"Found %d images in total", len(image_paths))
-        geotag = geotag_from_nmea_file.GeotagFromNMEAFile(
-            image_paths,
-            geotag_source_path,
-            use_gpx_start_time=interpolation_use_gpx_start_time,
-            offset_time=interpolation_offset_time,
-        )
-    elif geotag_source == "gopro_videos":
-        if geotag_source_path is None:
-            geotag_source_path = video_import_path
-        if geotag_source_path is None:
-            raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path is required"
-            )
-        if not geotag_source_path.exists():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"GoPro video file or directory not found: {geotag_source_path}"
-            )
-        image_paths = utils.find_images(import_paths, skip_subfolders=False)
-        geotag = geotag_from_gopro.GeotagFromGoPro(
-            image_paths,
-            utils.find_videos([geotag_source_path]),
-            offset_time=interpolation_offset_time,
-        )
-    elif geotag_source == "blackvue_videos":
-        if geotag_source_path is None:
-            geotag_source_path = video_import_path
-        if geotag_source_path is None:
-            raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path is required"
-            )
-        if not geotag_source_path.exists():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"BlackVue video file or directory not found: {geotag_source_path}"
-            )
-        image_paths = utils.find_images(import_paths, skip_subfolders=False)
-        geotag = geotag_from_blackvue.GeotagFromBlackVue(
-            image_paths,
-            utils.find_videos([geotag_source_path]),
-            offset_time=interpolation_offset_time,
-        )
-    elif geotag_source == "camm":
-        if geotag_source_path is None:
-            geotag_source_path = video_import_path
-        if geotag_source_path is None:
-            raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path is required"
-            )
-        if not geotag_source_path.exists():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"CAMM video file or directory not found: {geotag_source_path}"
-            )
-        image_paths = utils.find_images(import_paths, skip_subfolders=False)
-        geotag = geotag_from_camm.GeotagFromCAMM(
-            image_paths,
-            utils.find_videos([geotag_source_path]),
-            offset_time=interpolation_offset_time,
-        )
-    else:
-        raise RuntimeError(f"Invalid geotag source {geotag_source}")
+            raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
     descs = list(types.map_descs(types.validate_and_fail_desc, geotag.to_description()))
 
@@ -229,6 +171,7 @@ def process_geotag_properties(
     file_types: T.Set[FileType],
     geotag_source: GeotagSource,
     geotag_source_path: T.Optional[Path] = None,
+    # video_import_path comes from the command video_process
     video_import_path: T.Optional[Path] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
@@ -243,9 +186,6 @@ def process_geotag_properties(
         import_paths = import_path
     import_paths = list(utils.deduplicate_paths(import_paths))
 
-    if not import_paths:
-        return []
-
     # Check and fail early
     for path in import_paths:
         if not path.is_file() and not path.is_dir():
@@ -256,9 +196,10 @@ def process_geotag_properties(
     descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
     if FileType.IMAGE in file_types:
+        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
         descs.extend(
             _process_images(
-                import_paths,
+                image_paths,
                 geotag_source=geotag_source,
                 geotag_source_path=geotag_source_path,
                 video_import_path=video_import_path,

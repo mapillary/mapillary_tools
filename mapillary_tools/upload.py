@@ -555,7 +555,7 @@ def upload(
         raise exceptions.MapillaryBadParameterError(
             f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
         )
-    file_types = set(file_types)
+    file_types = set(types.FileType(f) for f in file_types)
 
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
