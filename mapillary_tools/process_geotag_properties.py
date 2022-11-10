@@ -37,17 +37,6 @@ from .types import FileType
 LOG = logging.getLogger(__name__)
 
 
-def _validate_and_fail_desc(
-    desc: types.ImageDescriptionFile,
-) -> types.ImageDescriptionFileOrError:
-    try:
-        types.validate_desc(desc)
-    except jsonschema.ValidationError as exc:
-        return types.describe_error(exc, desc["filename"])
-    else:
-        return desc
-
-
 GeotagSource = Literal["gopro_videos", "blackvue_videos", "camm", "exif", "gpx", "nmea"]
 
 
@@ -177,7 +166,7 @@ def _process_images(
     else:
         raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    descs = list(types.map_descs(_validate_and_fail_desc, geotag.to_description()))
+    descs = list(types.map_descs(types.validate_and_fail_desc, geotag.to_description()))
 
     return descs
 
@@ -577,7 +566,7 @@ def process_finalize(
         offset_angle=offset_angle,
     )
 
-    descs = list(types.map_descs(_validate_and_fail_desc, descs))
+    descs = list(types.map_descs(types.validate_and_fail_desc, descs))
 
     _overwrite_exif_tags(
         types.filter_image_descs(descs),

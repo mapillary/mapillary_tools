@@ -158,6 +158,7 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
+VideoDescriptionFileOrError = T.Union[VideoDescriptionFile, ImageDescriptionFileError]
 ImageVideoDescriptionFile = T.Union[ImageDescriptionFile, VideoDescriptionFile]
 ImageVideoDescriptionFileOrError = T.Union[
     ImageVideoDescriptionFile, ImageDescriptionFileError
@@ -508,6 +509,32 @@ def from_desc_video(desc: VideoDescriptionFile) -> VideoMetadata:
         make=desc.get("MAPDeviceMake"),
         model=desc.get("MAPDeviceModel"),
     )
+
+
+_Y = T.TypeVar(
+    "_Y",
+    ImageDescriptionFileOrError,
+    VideoDescriptionFileOrError,
+    ImageVideoDescriptionFileOrError,
+)
+
+
+def validate_and_fail_desc(
+    desc: _Y,
+) -> _Y:
+    if is_error(desc):
+        return desc
+
+    filetype = desc.get("filetype")
+    try:
+        if filetype == FileType.IMAGE.value:
+            validate_desc(T.cast(ImageDescriptionFile, desc))
+        else:
+            validate_desc_video(T.cast(VideoDescriptionFile, desc))
+    except jsonschema.ValidationError as exc:
+        return describe_error(exc, desc["filename"])
+
+    return desc
 
 
 if __name__ == "__main__":
