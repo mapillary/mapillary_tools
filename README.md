@@ -41,16 +41,14 @@ Download the latest `mapillary_tools` binaries for your platform
 [here](https://github.com/mapillary/mapillary_tools/releases) first.
 See [more installation instructions](#installation) below.
 
-Process and upload imagery:
+Process and upload imagery or [supported](#upload-videos) videos:
 
 ```shell
-mapillary_tools process_and_upload "path/to/images/"
-```
+# upload all supported files in the folder
+mapillary_tools process_and_upload ~/my_captures/
 
-Upload all videos that mapillary_tools [supports](#upload-videos):
-
-```shell
-mapillary_tools upload --file_types=gopro,camm,blackvue "path/to/videos/"
+# upload multiple folders/files
+mapillary_tools process_and_upload ~/my_captures/GOPRO/ ~/my_captures/*.jpg
 ```
 
 ## Requirements
