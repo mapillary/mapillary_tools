@@ -245,12 +245,7 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    if FileType.RAW_BLACKVUE in file_types or FileType.RAW_CAMM in file_types:
-        raise exceptions.MapillaryBadParameterError(
-            f"can not process {FileType.RAW_BLACKVUE.value} or {FileType.RAW_CAMM.value}",
-        )
-
-    file_types = set(file_types)
+    file_types = set(types.FileType(f) for f in file_types)
 
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
@@ -391,7 +386,7 @@ def _verify_exif_write(
 
 
 def _apply_offsets(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+    descs: T.Sequence[types.ImageDescriptionFileOrError],
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
@@ -403,21 +398,15 @@ def _apply_offsets(
                 dt + datetime.timedelta(seconds=offset_time)
             )
 
-        if desc.get("filetype") == types.FileType.IMAGE.value:
-            image_desc: types.ImageDescriptionFile = T.cast(
-                types.ImageDescriptionFile, desc
-            )
-            heading = image_desc.setdefault(
-                "MAPCompassHeading",
-                {
-                    "TrueHeading": 0.0,
-                    "MagneticHeading": 0.0,
-                },
-            )
-            heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
-            heading["MagneticHeading"] = (
-                heading["MagneticHeading"] + offset_angle
-            ) % 360
+        heading = desc.setdefault(
+            "MAPCompassHeading",
+            {
+                "TrueHeading": 0.0,
+                "MagneticHeading": 0.0,
+            },
+        )
+        heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
+        heading["MagneticHeading"] = (heading["MagneticHeading"] + offset_angle) % 360
 
 
 def _overwrite_exif_tags(
@@ -509,7 +498,9 @@ def _write_descs(
 def _show_stats(
     descs: T.Sequence[types.ImageVideoDescriptionFileOrError], skip_process_errors: bool
 ) -> None:
-    processed_images = types.filter_out_errors(descs)
+    processed_images: T.List[types.ImageVideoDescriptionFile] = types.filter_out_errors(
+        descs
+    )
     not_processed_images = T.cast(
         T.Sequence[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
@@ -580,7 +571,11 @@ def process_finalize(
                 f"Import file or directory not found: {path}"
             )
 
-    _apply_offsets(descs, offset_time=offset_time, offset_angle=offset_angle)
+    _apply_offsets(
+        types.filter_image_descs(descs),
+        offset_time=offset_time,
+        offset_angle=offset_angle,
+    )
 
     descs = list(types.map_descs(_validate_and_fail_desc, descs))
 

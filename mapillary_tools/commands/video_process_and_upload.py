@@ -1,3 +1,4 @@
+from ..types import FileType
 from .process import Command as ProcessCommand
 from .sample_video import Command as SampleCommand
 from .upload import Command as UploadCommand
@@ -18,5 +19,6 @@ class Command:
             # it tells process command do not write anything
             args["desc_path"] = "\x00"
         SampleCommand().run(args)
+        args["file_types"] = {FileType.IMAGE}
         ProcessCommand().run(args)
         UploadCommand().run(args)

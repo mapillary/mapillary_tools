@@ -114,7 +114,6 @@ class _VideoDescriptionFileRequired(TypedDict, total=True):
     filename: str
     filetype: str
     MAPGPSTrack: T.List[T.Sequence[T.Union[float, int, None]]]
-    MAPCaptureTime: str
 
 
 class VideoDescriptionFile(_VideoDescriptionFileRequired, total=False):
@@ -161,7 +160,7 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
 ImageVideoDescriptionFile = T.Union[ImageDescriptionFile, VideoDescriptionFile]
 ImageVideoDescriptionFileOrError = T.Union[
-    ImageDescriptionFileError, ImageDescriptionFile, VideoDescriptionFile
+    ImageVideoDescriptionFile, ImageDescriptionFileError
 ]
 
 
@@ -236,11 +235,6 @@ ImageDescriptionEXIFSchema = {
 VideoDescriptionSchema = {
     "type": "object",
     "properties": {
-        "MAPCaptureTime": {
-            "type": "string",
-            "description": "Capture time of the video",
-            "pattern": "[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]{2}_[0-9]+",
-        },
         "MAPGPSTrack": {
             "type": "array",
             "items": {
@@ -275,7 +269,6 @@ VideoDescriptionSchema = {
     },
     "required": [
         "MAPGPSTrack",
-        "MAPCaptureTime",
     ],
     "additionalProperties": False,
 }
@@ -354,14 +347,18 @@ ImageVideoDescriptionFileSchema = {
 }
 
 
-def validate_desc(desc: T.Union[ImageDescriptionFile, VideoDescriptionFile]) -> None:
-    jsonschema.validate(instance=desc, schema=ImageVideoDescriptionFileSchema)
+def validate_desc(desc: ImageDescriptionFile) -> None:
+    jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
     except ValueError as exc:
         raise jsonschema.ValidationError(
-            str(exc), instance=desc, schema=ImageVideoDescriptionFileSchema
+            str(exc), instance=desc, schema=ImageDescriptionFileSchema
         )
+
+
+def validate_desc_video(desc: VideoDescriptionFile) -> None:
+    jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
 
 
 def is_error(desc: ImageVideoDescriptionFileOrError) -> bool:
@@ -384,11 +381,16 @@ def map_descs(
     return map(_f, descs)
 
 
+_X = T.TypeVar(
+    "_X", VideoDescriptionFile, ImageDescriptionFile, ImageVideoDescriptionFile
+)
+
+
 def filter_out_errors(
-    descs: T.Sequence[ImageVideoDescriptionFileOrError],
-) -> T.List[ImageVideoDescriptionFile]:
+    descs: T.Sequence[T.Union[_X, ImageDescriptionFileError]],
+) -> T.List[_X]:
     return T.cast(
-        T.List[ImageVideoDescriptionFile],
+        T.List[_X],
         [desc for desc in descs if not is_error(desc)],
     )
 
@@ -486,16 +488,10 @@ def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
 
 
 def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
-    if video_metadata.points:
-        capture_time = datetime_to_map_capture_time(video_metadata.points[0].time)
-    else:
-        # Should not happen because we report empty GPS as errors
-        capture_time = datetime_to_map_capture_time(0)
     desc: VideoDescriptionFile = {
         "filename": str(video_metadata.filename),
         "filetype": video_metadata.filetype.value,
         "MAPGPSTrack": [_encode_point(p) for p in video_metadata.points],
-        "MAPCaptureTime": capture_time,
     }
     if video_metadata.make:
         desc["MAPDeviceMake"] = video_metadata.make

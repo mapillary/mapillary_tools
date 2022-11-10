@@ -244,7 +244,9 @@ def _setup_write_upload_history(
                 desc for desc in descs if desc.get("MAPSequenceUUID") == sequence_uuid
             ]
             sequence.sort(
-                key=lambda d: types.map_capture_time_to_datetime(d["MAPCaptureTime"])
+                key=lambda d: types.map_capture_time_to_datetime(
+                    T.cast(types.ImageDescriptionFile, d)["MAPCaptureTime"]
+                )
             )
 
         try:
@@ -485,6 +487,7 @@ def _load_descs(
     desc_path: T.Optional[str],
     import_paths: T.Sequence[Path],
 ) -> T.List[types.ImageVideoDescriptionFile]:
+    new_descs: T.List[types.ImageVideoDescriptionFile]
     if _descs_from_process is not None:
         new_descs = types.filter_out_errors(_descs_from_process)
     else:
@@ -514,6 +517,12 @@ def _load_descs(
                 T.cast(types.ImageDescriptionFile, desc)[
                     "MAPSequenceUUID"
                 ] = missing_sequence_uuid
+
+    for desc in new_descs:
+        if desc["filetype"] == types.FileType.IMAGE.value:
+            types.validate_desc(T.cast(types.ImageDescriptionFile, desc))
+        else:
+            types.validate_desc_video(T.cast(types.VideoDescriptionFile, desc))
 
     return new_descs
 

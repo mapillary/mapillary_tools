@@ -29,7 +29,7 @@ def test_upload_images(
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {str(setup_data)} --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -38,7 +38,7 @@ def test_upload_images(
         upload.remove()
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {str(setup_data)} --dry_run --user_name={USERNAME}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

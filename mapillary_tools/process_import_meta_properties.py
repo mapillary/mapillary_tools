@@ -88,7 +88,9 @@ def process_import_meta_properties(
             "The option --add_file_name is not needed any more since v0.9.4, because image filenames will be added automatically"
         )
 
-    for desc in types.filter_out_errors(descs):
+    for desc in T.cast(
+        T.Iterator[types.ImageVideoDescriptionFile], types.filter_out_errors(descs)
+    ):
         filetype = desc.get("filetype")
 
         if device_make is not None:

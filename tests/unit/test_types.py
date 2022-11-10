@@ -48,6 +48,6 @@ def test_desc_video():
     ]
     for metadata in ds:
         desc = types.as_desc_video(metadata)
-        types.validate_desc(desc)
+        types.validate_desc_video(desc)
         actual = types.from_desc_video(desc)
         assert metadata == actual

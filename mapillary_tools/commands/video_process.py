@@ -1,3 +1,4 @@
+from ..types import FileType
 from .process import Command as ProcessCommand
 from .sample_video import Command as SampleCommand
 
@@ -12,4 +13,5 @@ class Command:
 
     def run(self, args: dict):
         SampleCommand().run(args)
+        args["file_types"] = {FileType.IMAGE}
         ProcessCommand().run(args)
