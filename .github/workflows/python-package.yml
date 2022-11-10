@@ -54,8 +54,6 @@ jobs:
         black --check mapillary_tools tests
     - name: Sort imports with usort
       run: |
-        # temporarily fixing https://github.com/Instagram/LibCST/issues/817
-        python -m pip install -U --force libcst==0.4.7
         usort diff mapillary_tools/
     - name: Type check with mypy
       run: |
