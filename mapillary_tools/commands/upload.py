@@ -37,7 +37,7 @@ class Command:
             "--file_types",
             help=f"Upload files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
             type=lambda option: set(FileType(t) for t in option.split(",")),
-            default=FileType.IMAGE.value,
+            default=",".join(sorted(t.value for t in FileType)),
             required=False,
         )
         group.add_argument(

@@ -48,7 +48,13 @@ class Command:
             "--file_types",
             help=f"Process files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
             type=lambda option: set(FileType(t) for t in option.split(",")),
-            default=FileType.IMAGE.value,
+            default=",".join(
+                sorted(
+                    t.value
+                    for t in FileType
+                    if t not in [FileType.RAW_BLACKVUE, FileType.RAW_CAMM]
+                )
+            ),
             required=False,
         )
         group = parser.add_argument_group(
