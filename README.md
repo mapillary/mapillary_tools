@@ -157,7 +157,7 @@ Upload all processed images in the directory `path/to/images/` to user `mly_user
 ```shell
 mapillary_tools upload "path/to/images/" \
     --user_name "mly_user" \
-    --organization_key "mly_organization_id"
+    --organization_key "my_organization_id"
 ```
 
 ### Upload Videos
@@ -172,13 +172,10 @@ New in version [v0.9.3](https://github.com/mapillary/mapillary_tools/releases/ta
 
 #### Examples
 
-Upload all recognizable videos in the directory `path/to/videos/` to user `mly_user` for organization `mly_organization_id`.
+Upload all recognizable videos in the directory `path/to/videos/` to organization `mly_organization_id`.
 
 ```shell
-mapillary_tools upload "path/to/videos/" \
-    --file_types=gopro,blackvue,camm \
-    --user_name "mly_user" \
-    --organization_key "mly_organization_id"
+mapillary_tools process_and_upload "path/to/videos/" --organization_key "my_organization_id"
 ```
 
 ## Advanced Usage
