@@ -280,12 +280,12 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
         import_path: T.Optional[str] = payload.get("import_path")
-        file_type = payload.get("file_type", "unknown").upper()
+        filetype = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading {file_type} ({nth}/{total})"
+            _desc = f"Uploading {filetype} ({nth}/{total})"
         else:
             _desc = (
-                f"Uploading {file_type} {os.path.basename(import_path)} ({nth}/{total})"
+                f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
             )
         upload_pbar = tqdm(
             total=payload["entity_size"],
@@ -543,7 +543,7 @@ def _find_descs(
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_types: T.Set[T.Union[FileType, UploadFileType]],
+    filetypes: T.Set[T.Union[FileType, UploadFileType]],
     desc_path: T.Optional[str] = None,
     _descs_from_process: T.Optional[
         T.Sequence[types.ImageDescriptionFileOrError]
@@ -553,12 +553,12 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    if UploadFileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+    if UploadFileType.RAW_BLACKVUE in filetypes and FileType.BLACKVUE in filetypes:
         raise exceptions.MapillaryBadParameterError(
-            f"file_types should contain either {UploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+            f"filetypes should contain either {UploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
         )
 
-    if UploadFileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
+    if UploadFileType.RAW_CAMM in filetypes and FileType.CAMM in filetypes:
         raise exceptions.MapillaryBadParameterError(
             f"File types should contain either {UploadFileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
         )
@@ -585,7 +585,7 @@ def upload(
         UploadFileType.RAW_CAMM,
         UploadFileType.RAW_BLACKVUE,
         UploadFileType.ZIP,
-    }.issuperset(file_types):
+    }.issuperset(filetypes):
         descs = None
     else:
         descs = _load_descs(_descs_from_process, desc_path, import_paths)
@@ -630,12 +630,12 @@ def upload(
         chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
     )
 
-    # if more than one file_types speficied, check filename suffixes,
+    # if more than one filetypes speficied, check filename suffixes,
     # i.e. files not ended with .jpg or .mp4 will be ignored
-    check_file_suffix = len(file_types) > 1
+    check_file_suffix = len(filetypes) > 1
 
     try:
-        if FileType.IMAGE in file_types:
+        if FileType.IMAGE in filetypes:
             image_paths = utils.find_images(
                 import_paths,
                 skip_subfolders=skip_subfolders,
@@ -648,7 +648,7 @@ def upload(
             )
             LOG.debug(f"Uploaded to cluster: %s", clusters)
 
-        supported = CAMM_CONVERTABLES.intersection(file_types)
+        supported = CAMM_CONVERTABLES.intersection(filetypes)
         if supported:
             video_paths = utils.find_videos(
                 import_paths,
@@ -675,7 +675,7 @@ def upload(
                         raise UploadError(ex) from ex
                     LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
-        if UploadFileType.RAW_BLACKVUE in file_types:
+        if UploadFileType.RAW_BLACKVUE in filetypes:
             video_paths = utils.find_videos(
                 import_paths,
                 skip_subfolders=skip_subfolders,
@@ -683,7 +683,7 @@ def upload(
             )
             _upload_raw_blackvues(mly_uploader, video_paths)
 
-        if UploadFileType.RAW_CAMM in file_types:
+        if UploadFileType.RAW_CAMM in filetypes:
             video_paths = utils.find_videos(
                 import_paths,
                 skip_subfolders=skip_subfolders,
@@ -691,7 +691,7 @@ def upload(
             )
             _upload_raw_camm(mly_uploader, video_paths)
 
-        if UploadFileType.ZIP in file_types:
+        if UploadFileType.ZIP in filetypes:
             zip_paths = utils.find_zipfiles(
                 import_paths,
                 skip_subfolders=skip_subfolders,

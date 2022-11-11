@@ -49,6 +49,7 @@ class Command:
             return r
 
         group.add_argument(
+            "--filetypes",
             "--file_types",
             help=f"Upload files of the specified types only. Supported file types: {supported_filetypes} [default: %(default)s]",
             type=_type,

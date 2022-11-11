@@ -19,6 +19,6 @@ class Command:
             # it tells process command do not write anything
             args["desc_path"] = "\x00"
         SampleCommand().run(args)
-        args["file_types"] = {FileType.IMAGE}
+        args["filetypes"] = {FileType.IMAGE}
         ProcessCommand().run(args)
         UploadCommand().run(args)

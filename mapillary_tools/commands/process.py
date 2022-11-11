@@ -45,6 +45,7 @@ class Command:
             required=False,
         )
         parser.add_argument(
+            "--filetypes",
             "--file_types",
             help=f"Process files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
             type=lambda option: set(FileType(t) for t in option.split(",")),

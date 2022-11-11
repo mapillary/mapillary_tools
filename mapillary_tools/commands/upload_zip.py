@@ -29,5 +29,5 @@ class Command:
         }
         upload.upload(
             **args,
-            file_types={upload.UploadFileType.ZIP},
+            filetypes={upload.UploadFileType.ZIP},
         )

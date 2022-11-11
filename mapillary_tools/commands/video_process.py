@@ -13,5 +13,5 @@ class Command:
 
     def run(self, args: dict):
         SampleCommand().run(args)
-        args["file_types"] = {FileType.IMAGE}
+        args["filetypes"] = {FileType.IMAGE}
         ProcessCommand().run(args)

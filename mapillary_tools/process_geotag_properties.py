@@ -115,9 +115,9 @@ def _process_images(
 
 
 def _process_videos(
-    video_path: Path, file_types: T.Set[types.FileType]
+    video_path: Path, filetypes: T.Set[types.FileType]
 ) -> T.Optional[types.VideoMetadata]:
-    if types.FileType.CAMM in file_types:
+    if types.FileType.CAMM in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = camm_parser.extract_points(fp)
@@ -131,7 +131,7 @@ def _process_videos(
                     video_path, types.FileType.CAMM, points, make, model
                 )
 
-    if types.FileType.GOPRO in file_types:
+    if types.FileType.GOPRO in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points_with_fix = gpmf_parser.extract_points(fp)
@@ -159,7 +159,7 @@ def _process_videos(
                 )
                 return video_metadata
 
-    if types.FileType.BLACKVUE in file_types:
+    if types.FileType.BLACKVUE in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = blackvue_parser.extract_points(fp)
@@ -190,7 +190,7 @@ def _normalize_import_paths(
 
 def process_geotag_properties(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_types: T.Set[FileType],
+    filetypes: T.Set[FileType],
     geotag_source: GeotagSource,
     geotag_source_path: T.Optional[Path] = None,
     # video_import_path comes from the command video_process
@@ -199,7 +199,7 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    file_types = set(types.FileType(f) for f in file_types)
+    filetypes = set(types.FileType(f) for f in filetypes)
     import_paths = _normalize_import_paths(import_path)
     expected_descs_length = 0
 
@@ -212,11 +212,11 @@ def process_geotag_properties(
 
     descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
-    # if more than one file_types speficied, check filename suffixes,
+    # if more than one filetypes speficied, check filename suffixes,
     # i.e. files not ended with .jpg or .mp4 will be ignored
-    check_file_suffix = len(file_types) > 1
+    check_file_suffix = len(filetypes) > 1
 
-    if FileType.IMAGE in file_types:
+    if FileType.IMAGE in filetypes:
         image_paths = utils.find_images(
             import_paths,
             skip_subfolders=skip_subfolders,
@@ -236,9 +236,9 @@ def process_geotag_properties(
         )
 
     if (
-        types.FileType.CAMM in file_types
-        or types.FileType.GOPRO in file_types
-        or types.FileType.BLACKVUE in file_types
+        types.FileType.CAMM in filetypes
+        or types.FileType.GOPRO in filetypes
+        or types.FileType.BLACKVUE in filetypes
     ):
         video_paths = utils.find_videos(
             import_paths,
@@ -253,7 +253,7 @@ def process_geotag_properties(
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             LOG.debug("Extracting GPS track from %s", str(video_path))
-            video_metadata = _process_videos(video_path, file_types)
+            video_metadata = _process_videos(video_path, filetypes)
             if video_metadata:
                 if video_metadata.points:
                     stationary = video_utils.is_video_stationary(

@@ -29,5 +29,5 @@ class Command:
         }
         upload.upload(
             **args,
-            file_types={upload.UploadFileType.RAW_BLACKVUE},
+            filetypes={upload.UploadFileType.RAW_BLACKVUE},
         )
