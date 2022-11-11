@@ -1,23 +1,19 @@
+import enum
 import io
 import json
 import logging
 import os
 import random
-import sys
 import typing as T
 
 import requests
 
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
-
-from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT
-
 LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
+)
+MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
+    "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
 )
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
@@ -30,7 +26,10 @@ REQUESTS_TIMEOUT = (20, 20)  # 20 seconds
 UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
-FileType = Literal["zip", "mly_blackvue_video", "mly_camm_video"]
+class ClusterFileType(enum.Enum):
+    ZIP = "zip"
+    BLACKVUE = "mly_blackvue_video"
+    CAMM = "mly_camm_video"
 
 
 def _sanitize_headers(headers: T.Dict):
@@ -41,7 +40,10 @@ def _sanitize_headers(headers: T.Dict):
     }
 
 
-def _truncate_end(s: bytes) -> bytes:
+_S = T.TypeVar("_S", str, bytes)
+
+
+def _truncate_end(s: _S) -> _S:
     MAX_LENGTH = 512
     if MAX_LENGTH < len(s):
         if isinstance(s, bytes):
@@ -57,7 +59,7 @@ class UploadService:
     entity_size: int
     session_key: str
     callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
-    file_type: FileType
+    cluster_filetype: ClusterFileType
     organization_id: T.Optional[T.Union[str, int]]
     chunk_size: int
 
@@ -67,14 +69,11 @@ class UploadService:
         session_key: str,
         entity_size: int,
         organization_id: T.Optional[T.Union[str, int]] = None,
-        file_type: FileType = "zip",
+        cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
     ):
         if entity_size <= 0:
             raise ValueError(f"Expect positive entity size but got {entity_size}")
-
-        if file_type.lower() not in ["zip", "mly_blackvue_video", "mly_camm_video"]:
-            raise ValueError(f"Invalid file type {file_type}")
 
         if chunk_size <= 0:
             raise ValueError("Expect positive chunk size")
@@ -83,7 +82,8 @@ class UploadService:
         self.session_key = session_key
         self.entity_size = entity_size
         self.organization_id = organization_id
-        self.file_type = T.cast(FileType, file_type.lower())
+        #  validate the input
+        self.cluster_filetype = ClusterFileType(cluster_filetype)
         self.callbacks = []
         self.chunk_size = chunk_size
 
@@ -111,13 +111,13 @@ class UploadService:
         if offset is None:
             offset = self.fetch_offset()
 
-        entity_type_map: T.Dict[FileType, str] = {
-            "zip": "application/zip",
-            "mly_blackvue_video": "video/mp4",
-            "mly_camm_video": "video/mp4",
+        entity_type_map: T.Dict[ClusterFileType, str] = {
+            ClusterFileType.ZIP: "application/zip",
+            ClusterFileType.BLACKVUE: "video/mp4",
+            ClusterFileType.CAMM: "video/mp4",
         }
 
-        entity_type = entity_type_map[self.file_type]
+        entity_type = entity_type_map[self.cluster_filetype]
 
         data.seek(offset, io.SEEK_CUR)
 
@@ -172,7 +172,7 @@ class UploadService:
         }
         data: T.Dict[str, T.Union[str, int]] = {
             "file_handle": file_handle,
-            "file_type": self.file_type,
+            "file_type": self.cluster_filetype.value,
         }
         if self.organization_id is not None:
             data["organization_id"] = self.organization_id
@@ -214,7 +214,6 @@ class FakeUploadService(UploadService):
         self,
         data: T.IO[bytes],
         offset: T.Optional[int] = None,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
@@ -223,7 +222,7 @@ class FakeUploadService(UploadService):
         with open(filename, "ab") as fp:
             data.seek(offset, io.SEEK_CUR)
             while True:
-                chunk = data.read(chunk_size)
+                chunk = data.read(self.chunk_size)
                 if not chunk:
                     break
                 # fail here means nothing uploaded

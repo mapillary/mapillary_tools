@@ -143,7 +143,7 @@ class Uploader:
                 return self._upload_fp(
                     fp,
                     upload_md5sum,
-                    "zip",
+                    upload_api_v4.ClusterFileType.ZIP,
                     event_payload=final_event_payload,
                 )
             except UploadCancelled:
@@ -160,7 +160,7 @@ class Uploader:
             return self._upload_fp(
                 fp,
                 upload_md5sum,
-                "mly_blackvue_video",
+                upload_api_v4.ClusterFileType.BLACKVUE,
                 event_payload=event_payload,
             )
         except UploadCancelled:
@@ -179,7 +179,7 @@ class Uploader:
             return self._upload_fp(
                 fp,
                 upload_md5sum,
-                "mly_camm_video",
+                upload_api_v4.ClusterFileType.CAMM,
                 event_payload=event_payload,
             )
         except UploadCancelled:
@@ -210,7 +210,7 @@ class Uploader:
                     cluster_id: T.Optional[str] = self._upload_fp(
                         fp,
                         upload_md5sum,
-                        "zip",
+                        upload_api_v4.ClusterFileType.ZIP,
                         final_event_payload,
                     )
                 except UploadCancelled:
@@ -223,7 +223,7 @@ class Uploader:
         self,
         fp: T.IO[bytes],
         upload_md5sum: str,
-        file_type: upload_api_v4.FileType,
+        cluster_filetype: upload_api_v4.ClusterFileType,
         event_payload: T.Optional[Progress] = None,
     ) -> str:
         if event_payload is None:
@@ -232,12 +232,12 @@ class Uploader:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
-        SUFFIX_MAP: T.Dict[upload_api_v4.FileType, str] = {
-            "zip": ".zip",
-            "mly_camm_video": ".mp4",
-            "mly_blackvue_video": ".mp4",
+        SUFFIX_MAP: T.Dict[upload_api_v4.ClusterFileType, str] = {
+            upload_api_v4.ClusterFileType.ZIP: ".zip",
+            upload_api_v4.ClusterFileType.CAMM: ".mp4",
+            upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
         }
-        session_key = f"mly_tools_{upload_md5sum}{SUFFIX_MAP[file_type]}"
+        session_key = f"mly_tools_{upload_md5sum}{SUFFIX_MAP[cluster_filetype]}"
 
         if self.dry_run:
             upload_service: upload_api_v4.UploadService = (
@@ -246,7 +246,7 @@ class Uploader:
                     session_key=session_key,
                     entity_size=entity_size,
                     organization_id=self.user_items.get("MAPOrganizationKey"),
-                    file_type=file_type,
+                    cluster_filetype=cluster_filetype,
                     chunk_size=self.chunk_size,
                 )
             )
@@ -256,7 +256,7 @@ class Uploader:
                 session_key=session_key,
                 entity_size=entity_size,
                 organization_id=self.user_items.get("MAPOrganizationKey"),
-                file_type=file_type,
+                cluster_filetype=cluster_filetype,
                 chunk_size=self.chunk_size,
             )
 
