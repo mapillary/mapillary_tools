@@ -62,6 +62,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
                             "Stationary GoPro video"
                         ),
                         str(image_path),
+                        filetype=types.FileType.IMAGE,
                     )
                     all_descs.append(err_desc)
                 continue

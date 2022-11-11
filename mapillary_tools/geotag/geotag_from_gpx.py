@@ -49,7 +49,9 @@ class GeotagFromGPX(GeotagFromGeneric):
             exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
             for image_path in self.image_paths:
                 descs.append(
-                    types.describe_error(exc, str(image_path)),
+                    types.describe_error(
+                        exc, str(image_path), filetype=types.FileType.IMAGE
+                    ),
                 )
             assert len(self.image_paths) == len(descs)
             return descs
@@ -61,7 +63,9 @@ class GeotagFromGPX(GeotagFromGeneric):
                 image_time = self.read_image_time(image_path)
             except Exception as exc:
                 descs.append(
-                    types.describe_error(exc, str(image_path)),
+                    types.describe_error(
+                        exc, str(image_path), filetype=types.FileType.IMAGE
+                    ),
                 )
                 continue
 
@@ -72,6 +76,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                             "No data time found from the image EXIF for interpolation"
                         ),
                         str(image_path),
+                        filetype=types.FileType.IMAGE,
                     )
                 )
             else:
@@ -129,7 +134,11 @@ class GeotagFromGPX(GeotagFromGeneric):
                             sorted_points[-1].time
                         ),
                     )
-                    descs.append(types.describe_error(exc2, str(image_path)))
+                    descs.append(
+                        types.describe_error(
+                            exc2, str(image_path), filetype=types.FileType.IMAGE
+                        )
+                    )
                     continue
 
             if sorted_points[-1].time < image_time:
@@ -147,7 +156,9 @@ class GeotagFromGPX(GeotagFromGeneric):
                         ),
                     )
                     descs.append(
-                        types.describe_error(exc2, str(image_path)),
+                        types.describe_error(
+                            exc2, str(image_path), filetype=types.FileType.IMAGE
+                        ),
                     )
                     continue
 

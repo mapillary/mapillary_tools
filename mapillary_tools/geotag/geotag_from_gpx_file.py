@@ -47,7 +47,9 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 desc["filename"],
                 exc_info=True,
             )
-            return types.describe_error(exc, desc["filename"])
+            return types.describe_error(
+                exc, desc["filename"], filetype=types.FileType.IMAGE
+            )
 
         meta: types.MetaProperties = {
             "MAPOrientation": exif.extract_orientation(),

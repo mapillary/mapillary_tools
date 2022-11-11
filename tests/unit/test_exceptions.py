@@ -24,4 +24,4 @@ def test_all():
         else:
             e = exc("hello")
         # should not raise
-        json.dumps(types.describe_error(e, "test"))
+        json.dumps(types.describe_error(e, "test", types.FileType.IMAGE))

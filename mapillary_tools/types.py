@@ -133,7 +133,7 @@ class ImageDescriptionFileError(TypedDict, total=False):
 
 
 def describe_error(
-    exc: Exception, filename: str, filetype: T.Optional[FileType] = None
+    exc: Exception, filename: str, filetype: T.Optional[FileType]
 ) -> ImageDescriptionFileError:
     err: ErrorObject = {
         "type": exc.__class__.__name__,
@@ -536,7 +536,9 @@ def validate_and_fail_desc(
         else:
             validate_desc_video(T.cast(VideoDescriptionFile, desc))
     except jsonschema.ValidationError as exc:
-        return describe_error(exc, desc["filename"])
+        return describe_error(
+            exc, desc["filename"], filetype=FileType(filetype) if filetype else None
+        )
 
     return desc
 

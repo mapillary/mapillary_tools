@@ -176,6 +176,18 @@ def _process_videos(
     return None
 
 
+def _normalize_import_paths(
+    import_path: T.Union[Path, T.Sequence[Path]]
+) -> T.Sequence[Path]:
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        import_paths = import_path
+    import_paths = list(utils.deduplicate_paths(import_paths))
+    return import_paths
+
+
 def process_geotag_properties(
     import_path: T.Union[Path, T.Sequence[Path]],
     file_types: T.Set[FileType],
@@ -188,13 +200,7 @@ def process_geotag_properties(
     skip_subfolders=False,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
     file_types = set(types.FileType(f) for f in file_types)
-
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
+    import_paths = _normalize_import_paths(import_path)
 
     # Check and fail early
     for path in import_paths:
@@ -271,6 +277,7 @@ def process_geotag_properties(
                             "No GPS data found from the video"
                         ),
                         str(video_path),
+                        filetype=None,
                     )
                 )
 
@@ -292,12 +299,16 @@ def _verify_exif_write(
     try:
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:
-        return types.describe_error(exc, desc["filename"])
+        return types.describe_error(
+            exc, desc["filename"], filetype=FileType(desc["filetype"])
+        )
     except Exception as exc:
         LOG.warning(
             "Unknown error test writing image %s", desc["filename"], exc_info=True
         )
-        return types.describe_error(exc, desc["filename"])
+        return types.describe_error(
+            exc, desc["filename"], filetype=FileType(desc["filetype"])
+        )
     else:
         return desc
 
@@ -470,13 +481,7 @@ def process_finalize(
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        assert isinstance(import_path, list)
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
+    import_paths = _normalize_import_paths(import_path)
 
     if not import_paths:
         return []

@@ -186,7 +186,9 @@ def process_sequence_properties(
             desc = types.as_desc(T.cast(types.ImageMetadata, dup))
             error_descs.append(
                 types.describe_error(
-                    MapillaryDuplicationError("duplicated", desc), desc["filename"]
+                    MapillaryDuplicationError("duplicated", desc),
+                    desc["filename"],
+                    filetype=types.FileType(desc["filetype"]),
                 ),
             )
 
