@@ -188,6 +188,31 @@ def _normalize_import_paths(
     return import_paths
 
 
+def _describe_video_metadata(
+    video_metadata: types.VideoMetadata,
+) -> types.VideoDescriptionFileOrError:
+    if video_metadata.points:
+        stationary = video_utils.is_video_stationary(
+            geo.get_max_distance_from_start(
+                [(p.lat, p.lon) for p in video_metadata.points]
+            )
+        )
+        if stationary:
+            return types.describe_error(
+                exceptions.MapillaryStationaryVideoError(f"Stationary video"),
+                str(video_metadata.filename),
+                filetype=video_metadata.filetype,
+            )
+        else:
+            return types.as_desc_video(video_metadata)
+    else:
+        return types.describe_error(
+            exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
+            str(video_metadata.filename),
+            filetype=video_metadata.filetype,
+        )
+
+
 def process_geotag_properties(
     import_path: T.Union[Path, T.Sequence[Path]],
     filetypes: T.Set[FileType],
@@ -255,32 +280,7 @@ def process_geotag_properties(
             LOG.debug("Extracting GPS track from %s", str(video_path))
             video_metadata = _process_videos(video_path, filetypes)
             if video_metadata:
-                if video_metadata.points:
-                    stationary = video_utils.is_video_stationary(
-                        geo.get_max_distance_from_start(
-                            [(p.lat, p.lon) for p in video_metadata.points]
-                        )
-                    )
-                    if stationary:
-                        descs.append(
-                            types.describe_error(
-                                exceptions.MapillaryStationaryVideoError(
-                                    f"Stationary video"
-                                ),
-                                str(video_metadata.filename),
-                                filetype=video_metadata.filetype,
-                            )
-                        )
-                    else:
-                        descs.append(types.as_desc_video(video_metadata))
-                else:
-                    descs.append(
-                        types.describe_error(
-                            exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-                            str(video_path),
-                            filetype=video_metadata.filetype,
-                        )
-                    )
+                descs.append(_describe_video_metadata(video_metadata))
             else:
                 descs.append(
                     types.describe_error(
