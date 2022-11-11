@@ -630,10 +630,16 @@ def upload(
         chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
     )
 
+    # if more than one file_types speficied, check filename suffixes,
+    # i.e. files not ended with .jpg or .mp4 will be ignored
+    check_file_suffix = len(file_types) > 1
+
     try:
         if FileType.IMAGE in file_types:
             image_paths = utils.find_images(
-                import_paths, skip_subfolders=skip_subfolders
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
             # find descs that match the image paths from the import paths
             specified_descs = _find_descs(descs or [], image_paths)
@@ -645,19 +651,21 @@ def upload(
         supported = CAMM_CONVERTABLES.intersection(file_types)
         if supported:
             video_paths = utils.find_videos(
-                import_paths, skip_subfolders=skip_subfolders
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
             specified_descs = _find_descs(descs or [], video_paths)
             for idx, desc in enumerate(specified_descs):
                 video_metadata = types.from_desc_video(desc)
                 generator = camm_builder.camm_sample_generator2(video_metadata)
-                with open(desc["filename"], "rb") as src_fp:
+                with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
                         "total_sequence_count": len(video_paths),
                         "sequence_idx": idx,
                         "file_type": video_metadata.filetype.value,
-                        "import_path": str(desc["filename"]),
+                        "import_path": str(video_metadata.filename),
                     }
                     try:
                         cluster_id = mly_uploader.upload_camm_fp(
@@ -669,19 +677,25 @@ def upload(
 
         if UploadFileType.RAW_BLACKVUE in file_types:
             video_paths = utils.find_videos(
-                import_paths, skip_subfolders=skip_subfolders
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
             _upload_raw_blackvues(mly_uploader, video_paths)
 
         if UploadFileType.RAW_CAMM in file_types:
             video_paths = utils.find_videos(
-                import_paths, skip_subfolders=skip_subfolders
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
             _upload_raw_camm(mly_uploader, video_paths)
 
         if UploadFileType.ZIP in file_types:
             zip_paths = utils.find_zipfiles(
-                import_paths, skip_subfolders=skip_subfolders
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
             _upload_zipfiles(mly_uploader, zip_paths)
 

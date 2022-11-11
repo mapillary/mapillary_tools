@@ -89,7 +89,7 @@ def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
 def find_images(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool = False,
-    check_all_paths: bool = False,
+    check_file_suffix: bool = False,
 ) -> T.List[Path]:
     image_paths: T.List[Path] = []
     for path in import_paths:
@@ -100,7 +100,7 @@ def find_images(
                 if is_image_file(file)
             )
         else:
-            if check_all_paths:
+            if check_file_suffix:
                 if is_image_file(path):
                     image_paths.append(path)
             else:
@@ -111,7 +111,7 @@ def find_images(
 def find_videos(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool = False,
-    check_all_paths: bool = False,
+    check_file_suffix: bool = False,
 ) -> T.List[Path]:
     video_paths: T.List[Path] = []
     for path in import_paths:
@@ -122,7 +122,7 @@ def find_videos(
                 if is_video_file(file)
             )
         else:
-            if check_all_paths:
+            if check_file_suffix:
                 if is_video_file(path):
                     video_paths.append(path)
             else:
@@ -133,7 +133,7 @@ def find_videos(
 def find_zipfiles(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool = False,
-    check_all_paths: bool = False,
+    check_file_suffix: bool = False,
 ) -> T.List[Path]:
     zip_paths: T.List[Path] = []
     for path in import_paths:
@@ -144,7 +144,7 @@ def find_zipfiles(
                 if file.suffix.lower() in [".zip"]
             )
         else:
-            if check_all_paths:
+            if check_file_suffix:
                 if path.suffix.lower() in [".zip"]:
                     zip_paths.append(path)
             else:

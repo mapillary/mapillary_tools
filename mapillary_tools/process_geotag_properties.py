@@ -201,6 +201,7 @@ def process_geotag_properties(
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
     file_types = set(types.FileType(f) for f in file_types)
     import_paths = _normalize_import_paths(import_path)
+    expected_descs_length = 0
 
     # Check and fail early
     for path in import_paths:
@@ -211,10 +212,17 @@ def process_geotag_properties(
 
     descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
+    # if more than one file_types speficied, check filename suffixes,
+    # i.e. files not ended with .jpg or .mp4 will be ignored
+    check_file_suffix = len(file_types) > 1
+
     if FileType.IMAGE in file_types:
         image_paths = utils.find_images(
-            import_paths, skip_subfolders=skip_subfolders, check_all_paths=True
+            import_paths,
+            skip_subfolders=skip_subfolders,
+            check_file_suffix=check_file_suffix,
         )
+        expected_descs_length += len(image_paths)
         descs.extend(
             _process_images(
                 image_paths,
@@ -233,8 +241,11 @@ def process_geotag_properties(
         or types.FileType.BLACKVUE in file_types
     ):
         video_paths = utils.find_videos(
-            import_paths, skip_subfolders=skip_subfolders, check_all_paths=True
+            import_paths,
+            skip_subfolders=skip_subfolders,
+            check_file_suffix=check_file_suffix,
         )
+        expected_descs_length += len(video_paths)
         for video_path in tqdm(
             video_paths,
             desc="Extracting GPS tracks",
@@ -281,6 +292,9 @@ def process_geotag_properties(
                     )
                 )
 
+    assert expected_descs_length == len(
+        descs
+    ), f"expected {expected_descs_length} descs, got {len(descs)}"
     assert len(descs) == len(
         set(desc["filename"] for desc in descs)
     ), "duplicate filenames found"
@@ -481,17 +495,7 @@ def process_finalize(
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    import_paths = _normalize_import_paths(import_path)
-
-    if not import_paths:
-        return []
-
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
-            )
+    intial_descs_for_length_assertion = [*descs]
 
     _apply_offsets(
         types.filter_image_descs(descs),
@@ -513,6 +517,7 @@ def process_finalize(
     _test_exif_writing(types.filter_image_descs(descs))
 
     if desc_path is None:
+        import_paths = _normalize_import_paths(import_path)
         if len(import_paths) == 1 and import_paths[0].is_dir():
             desc_path = str(
                 import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
@@ -520,11 +525,11 @@ def process_finalize(
         else:
             if 1 < len(import_paths):
                 LOG.warning(
-                    "Writing image descriptions to STDOUT, because multiple import paths are specified"
+                    "Writing descriptions to STDOUT, because multiple import paths are specified"
                 )
             else:
                 LOG.warning(
-                    'Writing image descriptions to STDOUT, because the import path "%s" is a file',
+                    'Writing descriptions to STDOUT, because the import path "%s" is NOT a directory',
                     str(import_paths[0]),
                 )
             desc_path = "-"
@@ -534,5 +539,7 @@ def process_finalize(
         _write_descs(descs, desc_path)
 
     _show_stats(descs, skip_process_errors=skip_process_errors)
+
+    assert len(intial_descs_for_length_assertion) == len(descs)
 
     return descs
