@@ -1,14 +1,13 @@
 import inspect
 from pathlib import Path
 
-from .. import constants, types
-from ..upload import upload
+from .. import constants, upload
 from .upload import Command as UploadCommand
 
 
 class Command:
     name = "upload_camm"
-    help = "upload CAMM videos to Mapillary"
+    help = "[deprecated] upload CAMM videos to Mapillary"
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -26,9 +25,9 @@ class Command:
         args = {
             k: v
             for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload).args
+            if k in inspect.getfullargspec(upload.upload).args
         }
-        upload(
+        upload.upload(
             **args,
-            file_types={types.FileType.RAW_CAMM},
+            file_types={upload.UploadFileType.RAW_CAMM},
         )

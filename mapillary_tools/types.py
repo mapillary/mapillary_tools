@@ -24,9 +24,6 @@ class FileType(enum.Enum):
     CAMM = "camm"
     GOPRO = "gopro"
     IMAGE = "image"
-    RAW_BLACKVUE = "raw_blackvue"
-    RAW_CAMM = "raw_camm"
-    ZIP = "zip"
 
 
 @dataclasses.dataclass
@@ -129,13 +126,16 @@ class ErrorObject(TypedDict, total=False):
     vars: T.Dict
 
 
-class ImageDescriptionFileError(TypedDict):
+class ImageDescriptionFileError(TypedDict, total=False):
     filename: str
     error: ErrorObject
+    filetype: str
 
 
-def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
-    desc: ErrorObject = {
+def describe_error(
+    exc: Exception, filename: str, filetype: T.Optional[FileType] = None
+) -> ImageDescriptionFileError:
+    err: ErrorObject = {
         "type": exc.__class__.__name__,
         "message": str(exc),
     }
@@ -149,12 +149,16 @@ def describe_error(exc: Exception, filename: str) -> ImageDescriptionFileError:
         except Exception:
             vars_json = ""
         if vars_json:
-            desc["vars"] = json.loads(vars_json)
+            err["vars"] = json.loads(vars_json)
 
-    return {
-        "error": desc,
+    desc: ImageDescriptionFileError = {
+        "error": err,
         "filename": filename,
     }
+    if filetype is not None:
+        desc["filetype"] = filetype.value
+
+    return desc
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]

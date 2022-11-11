@@ -1,3 +1,4 @@
+import enum
 import json
 import logging
 import os
@@ -58,6 +59,12 @@ class UploadError(Exception):
 
 class UploadHTTPError(Exception):
     pass
+
+
+class UploadFileType(enum.Enum):
+    RAW_BLACKVUE = "raw_blackvue"
+    RAW_CAMM = "raw_camm"
+    ZIP = "zip"
 
 
 def wrap_http_exception(ex: requests.HTTPError):
@@ -536,7 +543,7 @@ def _find_descs(
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_types: T.Set[FileType],
+    file_types: T.Set[T.Union[FileType, UploadFileType]],
     desc_path: T.Optional[str] = None,
     _descs_from_process: T.Optional[
         T.Sequence[types.ImageDescriptionFileOrError]
@@ -546,16 +553,15 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+    if UploadFileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
         raise exceptions.MapillaryBadParameterError(
-            f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+            f"file_types should contain either {UploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
         )
 
-    if FileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
+    if UploadFileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
         raise exceptions.MapillaryBadParameterError(
-            f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
+            f"File types should contain either {UploadFileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
         )
-    file_types = set(types.FileType(f) for f in file_types)
 
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
@@ -575,7 +581,11 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
-    if {FileType.RAW_CAMM, FileType.RAW_BLACKVUE, FileType.ZIP}.issuperset(file_types):
+    if {
+        UploadFileType.RAW_CAMM,
+        UploadFileType.RAW_BLACKVUE,
+        UploadFileType.ZIP,
+    }.issuperset(file_types):
         descs = None
     else:
         descs = _load_descs(_descs_from_process, desc_path, import_paths)
@@ -655,20 +665,21 @@ def upload(
                         )
                     except Exception as ex:
                         raise UploadError(ex) from ex
+                    LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
-        if FileType.RAW_BLACKVUE in file_types:
+        if UploadFileType.RAW_BLACKVUE in file_types:
             video_paths = utils.find_videos(
                 import_paths, skip_subfolders=skip_subfolders
             )
             _upload_raw_blackvues(mly_uploader, video_paths)
 
-        if FileType.RAW_CAMM in file_types:
+        if UploadFileType.RAW_CAMM in file_types:
             video_paths = utils.find_videos(
                 import_paths, skip_subfolders=skip_subfolders
             )
             _upload_raw_camm(mly_uploader, video_paths)
 
-        if FileType.ZIP in file_types:
+        if UploadFileType.ZIP in file_types:
             zip_paths = utils.find_zipfiles(
                 import_paths, skip_subfolders=skip_subfolders
             )
@@ -714,7 +725,7 @@ def _upload_raw_blackvues(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
-            "file_type": FileType.RAW_BLACKVUE.value,
+            "file_type": UploadFileType.RAW_BLACKVUE.value,
             "import_path": str(video_path),
         }
 
@@ -723,7 +734,7 @@ def _upload_raw_blackvues(
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",
-                FileType.RAW_BLACKVUE.value.upper(),
+                UploadFileType.RAW_BLACKVUE.value.upper(),
                 video_path.name,
                 ex,
             )
@@ -763,7 +774,7 @@ def _upload_raw_camm(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
-            "file_type": FileType.RAW_CAMM.value,
+            "file_type": UploadFileType.RAW_CAMM.value,
             "import_path": str(video_path),
         }
         try:
@@ -771,7 +782,7 @@ def _upload_raw_camm(
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",
-                FileType.RAW_CAMM.value.upper(),
+                UploadFileType.RAW_CAMM.value.upper(),
                 video_path.name,
                 ex,
             )
@@ -795,7 +806,7 @@ def _upload_zipfiles(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
-            "file_type": FileType.ZIP.value,
+            "file_type": UploadFileType.ZIP.value,
             "import_path": str(zip_path),
         }
         try:

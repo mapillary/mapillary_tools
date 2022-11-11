@@ -29,6 +29,7 @@ from .geotag import (
     gpmf_gps_filter,
     gpmf_parser,
     simple_mp4_parser as parser,
+    utils as video_utils,
 )
 from .types import FileType
 
@@ -113,57 +114,66 @@ def _process_images(
     return descs
 
 
-def extract_video_metadata(
-    video_path: Path,
-    file_types: T.Set[FileType],
+def _process_videos(
+    video_path: Path, file_types: T.Set[types.FileType]
 ) -> T.Optional[types.VideoMetadata]:
-    with video_path.open("rb") as fp:
-        start_offset = fp.tell()
-
-        if types.FileType.CAMM in file_types:
-            fp.seek(start_offset, io.SEEK_SET)
+    if types.FileType.CAMM in file_types:
+        with video_path.open("rb") as fp:
             try:
                 points = camm_parser.extract_points(fp)
             except parser.ParsingError:
-                points = []
-            if points:
-                fp.seek(start_offset, io.SEEK_SET)
+                points = None
+
+            if points is not None:
+                fp.seek(0, io.SEEK_SET)
                 make, model = camm_parser.extract_camera_make_and_model(fp)
                 return types.VideoMetadata(
                     video_path, types.FileType.CAMM, points, make, model
                 )
 
-        if types.FileType.GOPRO in file_types:
-            fp.seek(start_offset, io.SEEK_SET)
+    if types.FileType.GOPRO in file_types:
+        with video_path.open("rb") as fp:
             try:
                 points_with_fix = gpmf_parser.extract_points(fp)
             except parser.ParsingError:
-                points_with_fix = []
-            if points_with_fix:
-                fp.seek(start_offset, io.SEEK_SET)
+                points_with_fix = None
+
+            if points_with_fix is not None:
+                fp.seek(0, io.SEEK_SET)
                 make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                return types.VideoMetadata(
+                video_metadata = types.VideoMetadata(
                     video_path,
                     types.FileType.GOPRO,
                     T.cast(T.List[geo.Point], points_with_fix),
                     make,
                     model,
                 )
+                video_metadata.points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.filter_noisy_points(
+                        T.cast(
+                            T.List[gpmf_parser.PointWithFix],
+                            video_metadata.points,
+                        )
+                    ),
+                )
+                return video_metadata
 
-        if types.FileType.BLACKVUE in file_types:
-            fp.seek(start_offset, io.SEEK_SET)
+    if types.FileType.BLACKVUE in file_types:
+        with video_path.open("rb") as fp:
             try:
                 points = blackvue_parser.extract_points(fp)
             except parser.ParsingError:
-                points = []
-            if points:
-                fp.seek(start_offset, io.SEEK_SET)
+                points = None
+
+            if points is not None:
+                fp.seek(0, io.SEEK_SET)
                 make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
                 return types.VideoMetadata(
                     video_path, types.FileType.BLACKVUE, points, make, model
                 )
 
-        return None
+    return None
 
 
 def process_geotag_properties(
@@ -196,7 +206,9 @@ def process_geotag_properties(
     descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
     if FileType.IMAGE in file_types:
-        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
+        image_paths = utils.find_images(
+            import_paths, skip_subfolders=skip_subfolders, check_all_paths=True
+        )
         descs.extend(
             _process_images(
                 image_paths,
@@ -214,7 +226,9 @@ def process_geotag_properties(
         or types.FileType.GOPRO in file_types
         or types.FileType.BLACKVUE in file_types
     ):
-        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+        video_paths = utils.find_videos(
+            import_paths, skip_subfolders=skip_subfolders, check_all_paths=True
+        )
         for video_path in tqdm(
             video_paths,
             desc="Extracting GPS tracks",
@@ -222,74 +236,47 @@ def process_geotag_properties(
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             LOG.debug("Extracting GPS track from %s", str(video_path))
-            video_metadata = None
-            with video_path.open("rb") as fp:
-                start_offset = fp.tell()
-
-                if types.FileType.CAMM in file_types:
-                    fp.seek(start_offset, io.SEEK_SET)
-                    try:
-                        points = camm_parser.extract_points(fp)
-                    except parser.ParsingError:
-                        points = []
-                    if points:
-                        fp.seek(start_offset, io.SEEK_SET)
-                        make, model = camm_parser.extract_camera_make_and_model(fp)
-                        video_metadata = types.VideoMetadata(
-                            video_path, types.FileType.CAMM, points, make, model
+            video_metadata = _process_videos(video_path, file_types)
+            if video_metadata:
+                if video_metadata.points:
+                    stationary = video_utils.is_video_stationary(
+                        geo.get_max_distance_from_start(
+                            [(p.lat, p.lon) for p in video_metadata.points]
                         )
-
-                if types.FileType.GOPRO in file_types:
-                    fp.seek(start_offset, io.SEEK_SET)
-                    try:
-                        points_with_fix = gpmf_parser.extract_points(fp)
-                    except parser.ParsingError:
-                        points_with_fix = []
-                    if points_with_fix:
-                        fp.seek(start_offset, io.SEEK_SET)
-                        make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                        video_metadata = types.VideoMetadata(
-                            video_path,
-                            types.FileType.GOPRO,
-                            T.cast(T.List[geo.Point], points_with_fix),
-                            make,
-                            model,
+                    )
+                    if stationary:
+                        descs.append(
+                            types.describe_error(
+                                exceptions.MapillaryStationaryVideoError(
+                                    f"Stationary video"
+                                ),
+                                str(video_metadata.filename),
+                                filetype=video_metadata.filetype,
+                            )
                         )
-                        video_metadata.points = T.cast(
-                            T.List[geo.Point],
-                            gpmf_gps_filter.filter_noisy_points(
-                                T.cast(
-                                    T.List[gpmf_parser.PointWithFix],
-                                    video_metadata.points,
-                                )
-                            ),
+                    else:
+                        descs.append(types.as_desc_video(video_metadata))
+                else:
+                    descs.append(
+                        types.describe_error(
+                            exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
+                            str(video_path),
+                            filetype=video_metadata.filetype,
                         )
-
-                if types.FileType.BLACKVUE in file_types:
-                    fp.seek(start_offset, io.SEEK_SET)
-                    try:
-                        points = blackvue_parser.extract_points(fp)
-                    except parser.ParsingError:
-                        points = []
-                    if points:
-                        fp.seek(start_offset, io.SEEK_SET)
-                        make, model = "BlackVue", blackvue_parser.extract_camera_model(
-                            fp
-                        )
-                        video_metadata = types.VideoMetadata(
-                            video_path, types.FileType.BLACKVUE, points, make, model
-                        )
-
-            # video_metadata = extract_video_metadata(video_path, file_types)
-            if video_metadata is None:
+                    )
+            else:
                 descs.append(
                     types.describe_error(
-                        exceptions.MapillaryVideoError("No GPS data found"),
+                        exceptions.MapillaryVideoError(
+                            "No GPS data found from the video"
+                        ),
                         str(video_path),
                     )
                 )
-            else:
-                descs.append(types.as_desc_video(video_metadata))
+
+    assert len(descs) == len(
+        set(desc["filename"] for desc in descs)
+    ), "duplicate filenames found"
 
     return descs
 
@@ -418,7 +405,7 @@ def _write_descs(
     desc_path: str,
 ) -> None:
     if desc_path == "-":
-        print(json.dumps(descs, indent=4))
+        print(json.dumps(descs, indent=2))
     else:
         with open(desc_path, "w") as fp:
             json.dump(descs, fp)

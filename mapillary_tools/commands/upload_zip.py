@@ -1,15 +1,13 @@
 import inspect
 from pathlib import Path
 
-from .. import constants, types
-
-from ..upload import upload
-from .upload import Command as UploadCommand
+from .. import constants, upload
+from .upload import Command as UploadCommand, UploadFileType
 
 
 class Command:
     name = "upload_zip"
-    help = "upload ZIP files to Mapillary"
+    help = "[deprecated] upload ZIP files to Mapillary"
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -27,9 +25,9 @@ class Command:
         args = {
             k: v
             for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload).args
+            if k in inspect.getfullargspec(upload.upload).args
         }
-        upload(
+        upload.upload(
             **args,
-            file_types={types.FileType.ZIP},
+            file_types={upload.UploadFileType.ZIP},
         )

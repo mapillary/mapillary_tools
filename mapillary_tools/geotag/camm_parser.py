@@ -151,19 +151,19 @@ def _extract_camm_samples(
     s: T.BinaryIO,
     maxsize: int = -1,
 ) -> T.Generator[sample_parser.Sample, None, None]:
-    begin_offset = s.tell()
-    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
-    camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
-    if camm_descriptions:
-        s.seek(begin_offset, io.SEEK_SET)
-        samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
-        camm_samples = (
-            sample for sample in samples if sample.description["format"] == b"camm"
-        )
-        yield from camm_samples
+    samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
+    camm_samples = (
+        sample for sample in samples if sample.description["format"] == b"camm"
+    )
+    yield from camm_samples
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    """
+    Return a list of points (could be empty) if it is a valid CAMM video,
+    otherwise None
+    """
+
     points = None
     movie_timescale = None
     media_timescale = None
@@ -173,29 +173,35 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
         if h.type == b"trak":
             trak_start_offset = s.tell()
 
-            camm_samples = _extract_camm_samples(s, h.maxsize)
-
-            points_with_nones = (
-                _parse_point_from_sample(fp, sample)
-                for sample in camm_samples
-                if sample.description["format"] == b"camm"
+            descriptions = sample_parser.parse_descriptions_from_trak(
+                s, maxsize=h.maxsize
             )
+            camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
+            if camm_descriptions:
+                s.seek(trak_start_offset, io.SEEK_SET)
+                camm_samples = _extract_camm_samples(s, h.maxsize)
 
-            points = [p for p in points_with_nones if p is not None]
-            if points:
-                s.seek(trak_start_offset)
-                elst_data = parser.parse_box_data_first(
-                    s, [b"edts", b"elst"], maxsize=h.maxsize
+                points_with_nones = (
+                    _parse_point_from_sample(fp, sample)
+                    for sample in camm_samples
+                    if sample.description["format"] == b"camm"
                 )
-                if elst_data is not None:
-                    elst_entries = cparser.EditBox.parse(elst_data)["entries"]
 
-                s.seek(trak_start_offset)
-                mdhd_data = parser.parse_box_data_firstx(
-                    s, [b"mdia", b"mdhd"], maxsize=h.maxsize
-                )
-                mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
-                media_timescale = mdhd["timescale"]
+                points = [p for p in points_with_nones if p is not None]
+                if points:
+                    s.seek(trak_start_offset)
+                    elst_data = parser.parse_box_data_first(
+                        s, [b"edts", b"elst"], maxsize=h.maxsize
+                    )
+                    if elst_data is not None:
+                        elst_entries = cparser.EditBox.parse(elst_data)["entries"]
+
+                    s.seek(trak_start_offset)
+                    mdhd_data = parser.parse_box_data_firstx(
+                        s, [b"mdia", b"mdhd"], maxsize=h.maxsize
+                    )
+                    mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
+                    media_timescale = mdhd["timescale"]
         else:
             assert h.type == b"mvhd"
             if not movie_timescale:

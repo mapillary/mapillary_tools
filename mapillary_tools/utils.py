@@ -78,11 +78,11 @@ def filter_video_samples(
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
-    resolved_path: T.Set[Path] = set()
+    resolved_paths: T.Set[Path] = set()
     for p in paths:
         resolved = p.resolve()
-        if resolved not in resolved_path:
-            resolved_path.add(resolved)
+        if resolved not in resolved_paths:
+            resolved_paths.add(resolved)
             yield p
 
 
