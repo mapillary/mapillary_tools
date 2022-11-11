@@ -2,7 +2,7 @@ import inspect
 import typing as T
 
 from .. import constants
-from ..upload import UploadFileType, FileType, upload
+from ..upload import DirectUploadFileType, FileType, upload
 
 
 class Command:
@@ -36,16 +36,18 @@ class Command:
         )
         default_filetypes = ",".join(sorted(t.value for t in FileType))
         supported_filetypes = ",".join(
-            sorted([t.value for t in UploadFileType] + [t.value for t in FileType])
+            sorted(
+                [t.value for t in DirectUploadFileType] + [t.value for t in FileType]
+            )
         )
 
-        def _type(option: str) -> T.List[T.Union[FileType, UploadFileType]]:
-            r: T.List[T.Union[FileType, UploadFileType]] = []
+        def _type(option: str) -> T.List[T.Union[FileType, DirectUploadFileType]]:
+            r: T.List[T.Union[FileType, DirectUploadFileType]] = []
             for t in option.split(","):
                 if t in [x.value for x in FileType]:
                     r.append(FileType(t))
                 else:
-                    r.append(UploadFileType(t))
+                    r.append(DirectUploadFileType(t))
             return r
 
         group.add_argument(

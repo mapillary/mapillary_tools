@@ -2,7 +2,7 @@ import inspect
 from pathlib import Path
 
 from .. import constants, upload
-from .upload import Command as UploadCommand, UploadFileType
+from .upload import Command as UploadCommand, DirectUploadFileType
 
 
 class Command:
@@ -29,5 +29,5 @@ class Command:
         }
         upload.upload(
             **args,
-            filetypes={upload.UploadFileType.ZIP},
+            filetypes={upload.DirectUploadFileType.ZIP},
         )

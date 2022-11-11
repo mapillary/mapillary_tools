@@ -29,5 +29,5 @@ class Command:
         }
         upload.upload(
             **args,
-            filetypes={upload.UploadFileType.RAW_CAMM},
+            filetypes={upload.DirectUploadFileType.RAW_CAMM},
         )
