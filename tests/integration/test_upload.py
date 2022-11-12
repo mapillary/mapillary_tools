@@ -17,6 +17,7 @@ from .fixtures import (
 
 
 PROCESS_FLAGS = "--add_import_date"
+UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
 def file_md5sum(path) -> str:
@@ -37,7 +38,7 @@ def test_upload_multiple_mp4s_DEPRECATED(
 ):
     video_path = setup_data.join("sample-5s.mp4")
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {video_path} {video_path} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {video_path} {video_path}",
         shell=True,
     )
 
@@ -72,7 +73,7 @@ def test_upload_blackvue(
     video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
 
     x = subprocess.run(
-        f'{EXECUTABLE} upload_blackvue {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
+        f'{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -108,7 +109,7 @@ def test_upload_camm(
     video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
 
     x = subprocess.run(
-        f'{EXECUTABLE} upload_camm {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
+        f'{EXECUTABLE} upload_camm {UPLOAD_FLAGS} {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -132,7 +133,7 @@ def test_upload_image_dir(
     )
     assert x.returncode == 0, x.stderr
     x = subprocess.run(
-        f"{EXECUTABLE} upload --file_types=image {setup_data} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
     for file in setup_upload.listdir():
@@ -156,7 +157,7 @@ def test_upload_image_dir_twice(
 
     # first upload
     x = subprocess.run(
-        f"{EXECUTABLE} upload --file_types=image {setup_data} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -166,7 +167,7 @@ def test_upload_image_dir_twice(
 
     # expect the second upload to not produce new uploads
     x = subprocess.run(
-        f"{EXECUTABLE} upload --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/DSC00001.JPG",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -196,7 +197,7 @@ def test_upload_zip(
     assert x.returncode == 0, x.stderr
     for zfile in zip_dir.listdir():
         x = subprocess.run(
-            f"{EXECUTABLE} upload_zip {zfile} {zfile} --dry_run --user_name={USERNAME}",
+            f"{EXECUTABLE} upload_zip {UPLOAD_FLAGS} {zfile} {zfile}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
