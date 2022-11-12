@@ -8,53 +8,19 @@ from pathlib import Path
 
 import exifread
 import py.path
-
 import pytest
 
-EXECUTABLE = os.getenv(
-    "MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools.commands"
+from .fixtures import (
+    EXECUTABLE,
+    is_ffmpeg_installed,
+    setup_config,
+    setup_data,
+    setup_upload,
+    USERNAME,
 )
-IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/data"
-USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
+
+
 PROCESS_FLAGS = "--add_import_date"
-
-
-@pytest.fixture
-def setup_config(tmpdir: py.path.local):
-    config_path = tmpdir.mkdir("configs").join("CLIENT_ID")
-    os.environ["MAPILLARY_CONFIG_PATH"] = str(config_path)
-    x = subprocess.run(
-        f"{EXECUTABLE} authenticate --user_name {USERNAME} --jwt test_user_token",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    yield config_path
-    if tmpdir.check():
-        tmpdir.remove(ignore_errors=True)
-    del os.environ["MAPILLARY_CONFIG_PATH"]
-
-
-@pytest.fixture
-def setup_data(tmpdir: py.path.local):
-    data_path = tmpdir.mkdir("data")
-    source = py.path.local(IMPORT_PATH)
-    source.copy(data_path)
-    yield data_path
-    if tmpdir.check():
-        tmpdir.remove(ignore_errors=True)
-
-
-@pytest.fixture
-def setup_upload(tmpdir: py.path.local):
-    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
-    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
-    os.environ["MAPILLARY__DISABLE_CAMM_CHECK"] = "YES"
-    yield upload_dir
-    if tmpdir.check():
-        tmpdir.remove(ignore_errors=True)
-    del os.environ["MAPILLARY_UPLOAD_PATH"]
-    del os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"]
 
 
 def test_basic():
@@ -121,9 +87,8 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
         validate_and_extract_zip(str(file))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_image_dir(
-    tmpdir: py.path.local,
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -141,9 +106,8 @@ def test_upload_image_dir(
     assert x.returncode == 0, x.stderr
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_image_dir_twice(
-    tmpdir: py.path.local,
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -179,10 +143,10 @@ def test_upload_image_dir_twice(
     assert len(md5sum_map) == len(setup_upload.listdir())
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_zip(
     tmpdir: py.path.local,
     setup_data: py.path.local,
-    setup_config: py.path.local,
     setup_upload: py.path.local,
 ):
     zip_dir = tmpdir.mkdir("zip_dir")
@@ -206,9 +170,8 @@ def test_upload_zip(
         validate_and_extract_zip(str(file))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_process_and_upload(
-    tmpdir: py.path.local,
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -222,8 +185,8 @@ def test_process_and_upload(
         validate_and_extract_zip(str(file))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_process_and_upload_multiple_import_paths(
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -236,8 +199,8 @@ def test_process_and_upload_multiple_import_paths(
         validate_and_extract_zip(str(file))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -250,9 +213,9 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
         validate_and_extract_zip(str(file))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
     tmpdir: py.path.local,
-    setup_config: py.path.local,
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
@@ -394,9 +357,8 @@ def test_angle(setup_data: py.path.local):
         )
 
 
-def test_process_boolean_options(
-    setup_config: py.path.local, setup_data: py.path.local
-):
+@pytest.mark.usefixtures("setup_config")
+def test_process_boolean_options(setup_data: py.path.local):
     boolean_options = [
         "--add_file_name",
         "--add_import_date",
@@ -633,21 +595,6 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
         assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
 
 
-def ffmpeg_installed():
-    ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
-    ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
-    try:
-        subprocess.run([ffmpeg_path, "-version"])
-        # In Windows, ffmpeg is installed but ffprobe is not?
-        subprocess.run([ffprobe_path, "-version"])
-    except FileNotFoundError:
-        return False
-    return True
-
-
-is_ffmpeg_installed = ffmpeg_installed()
-
-
 def test_sample_video_relpath():
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
@@ -734,8 +681,9 @@ def test_video_process(setup_data: py.path.local):
     assert 2 == len(filter_out_errors(descs))
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_video_process_and_upload(
-    setup_config: py.path.local, setup_upload: py.path.local, setup_data: py.path.local
+    setup_upload: py.path.local, setup_data: py.path.local
 ):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
@@ -797,10 +745,9 @@ def file_md5sum(path) -> str:
         return md5.hexdigest()
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_multiple_mp4s_DEPRECATED(
-    tmpdir: py.path.local,
     setup_data: py.path.local,
-    setup_config: py.path.local,
     setup_upload: py.path.local,
 ):
     video_path = setup_data.join("sample-5s.mp4")
@@ -817,10 +764,10 @@ def test_upload_multiple_mp4s_DEPRECATED(
     assert {md5sum} == {file_md5sum(f) for f in setup_upload.listdir()}
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_blackvue(
     tmpdir: py.path.local,
     setup_data: py.path.local,
-    setup_config: py.path.local,
     setup_upload: py.path.local,
 ):
     another_path = tmpdir.join("another_sub")
@@ -853,10 +800,10 @@ def test_upload_blackvue(
     } == {os.path.basename(f) for f in setup_upload.listdir()}
 
 
+@pytest.mark.usefixtures("setup_config")
 def test_upload_camm(
     tmpdir: py.path.local,
     setup_data: py.path.local,
-    setup_config: py.path.local,
     setup_upload: py.path.local,
 ):
     another_path = tmpdir.join("another_sub")

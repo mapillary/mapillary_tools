@@ -5,10 +5,9 @@ import typing as T
 from pathlib import Path
 
 import py.path
-
 import pytest
 
-from .test_process import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
+from .fixtures import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
 
 
 IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
@@ -104,11 +103,11 @@ def setup_envvars():
     del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"]
 
 
+@pytest.mark.usefixtures("setup_config")
+@pytest.mark.usefixtures("setup_upload")
+@pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8(
     setup_data: py.path.local,
-    setup_config: py.path.local,
-    setup_upload: py.path.local,
-    setup_envvars: T.Any,
 ):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
