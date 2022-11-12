@@ -1,9 +1,7 @@
-import hashlib
 import json
 import os
 import subprocess
 import tempfile
-import zipfile
 from pathlib import Path
 
 import exifread
@@ -17,6 +15,7 @@ from .fixtures import (
     setup_data,
     setup_upload,
     USERNAME,
+    validate_and_extract_zip,
 )
 
 
@@ -43,33 +42,6 @@ def test_process(setup_data: py.path.local):
         assert os.path.isfile(os.path.join(setup_data, desc["filename"]))
 
 
-def validate_and_extract_zip(filename: str):
-    basename = os.path.basename(filename)
-    assert basename.startswith("mly_tools_"), filename
-    assert basename.endswith(".zip"), filename
-    ret = {}
-    import tempfile
-
-    with zipfile.ZipFile(filename) as zipf:
-        with tempfile.TemporaryDirectory() as tempdir:
-            zipf.extractall(path=tempdir)
-            for name in os.listdir(tempdir):
-                with open(os.path.join(tempdir, name), "rb") as fp:
-                    tags = exifread.process_file(fp)
-                    desc_tag = tags.get("Image ImageDescription")
-                    assert desc_tag is not None, tags
-                    desc = json.loads(str(desc_tag.values))
-                    assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPCaptureTime"), str), desc
-                    assert isinstance(desc.get("MAPCompassHeading"), dict), desc
-                    assert isinstance(desc.get("MAPFilename"), str), desc
-                    for key in desc.keys():
-                        assert key.startswith("MAP"), key
-                    ret[name] = desc
-    return ret
-
-
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     zip_dir = tmpdir.mkdir("zip_dir")
     x = subprocess.run(
@@ -84,161 +56,6 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     assert x.returncode == 0, x.stderr
     assert 0 < len(zip_dir.listdir())
     for file in zip_dir.listdir():
-        validate_and_extract_zip(str(file))
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    x = subprocess.run(
-        f"{EXECUTABLE} upload --file_types=image {setup_data} --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-    assert x.returncode == 0, x.stderr
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir_twice(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = setup_data.join("mapillary_image_description.json")
-
-    md5sum_map = {}
-
-    # first upload
-    x = subprocess.run(
-        f"{EXECUTABLE} upload --file_types=image {setup_data} --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-        md5sum_map[os.path.basename(file)] = file_md5sum(file)
-
-    # expect the second upload to not produce new uploads
-    x = subprocess.run(
-        f"{EXECUTABLE} upload --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-        new_md5sum = file_md5sum(file)
-        assert md5sum_map[os.path.basename(file)] == new_md5sum
-    assert len(md5sum_map) == len(setup_upload.listdir())
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_zip(
-    tmpdir: py.path.local,
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    zip_dir = tmpdir.mkdir("zip_dir")
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    x = subprocess.run(
-        f"{EXECUTABLE} zip {setup_data} {zip_dir}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    for zfile in zip_dir.listdir():
-        x = subprocess.run(
-            f"{EXECUTABLE} upload_zip {zfile} {zfile} --dry_run --user_name={USERNAME}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_process_and_upload(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload --file_types=image {PROCESS_FLAGS} {setup_data} --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    assert not setup_data.join("mapillary_image_description.json").exists()
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_process_and_upload_multiple_import_paths(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --desc_path=- --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
-    tmpdir: py.path.local,
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    desc_path = tmpdir.join("hello.json")
-    x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/DSC00001.JPG --desc_path={desc_path} --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    with open(desc_path, "r") as fp:
-        descs = json.load(fp)
-
-    expected = {
-        "DSC00001.JPG": "2018_06_08_13_24_10_000",
-        "DSC00497.JPG": "2018_06_08_13_32_28_000",
-        "V0370574.JPG": "2018_07_27_11_32_14_000",
-    }
-
-    for desc in descs:
-        assert "filename" in desc
-        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"], desc
-
-    for file in setup_upload.listdir():
         validate_and_extract_zip(str(file))
 
 
@@ -732,105 +549,3 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
         assert "sample-5s.mp4" in d["filename"]
     assert 1 == len(find_desc_errors(descs))
     assert 2 == len(filter_out_errors(descs))
-
-
-def file_md5sum(path) -> str:
-    with open(path, "rb") as fp:
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(1024 * 1024 * 32)
-            if not buf:
-                break
-            md5.update(buf)
-        return md5.hexdigest()
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_multiple_mp4s_DEPRECATED(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    video_path = setup_data.join("sample-5s.mp4")
-    x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {video_path} {video_path} --dry_run --user_name={USERNAME}",
-        shell=True,
-    )
-
-    assert 1 == len(setup_upload.listdir())
-    assert {"mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4"} == {
-        os.path.basename(f) for f in setup_upload.listdir()
-    }
-    md5sum = file_md5sum(video_path)
-    assert {md5sum} == {file_md5sum(f) for f in setup_upload.listdir()}
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_blackvue(
-    tmpdir: py.path.local,
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    another_path = tmpdir.join("another_sub")
-
-    video_path2 = another_path.join("sub1 folder").join("sub2 folder").join("hello.mp4")
-    video_path2.write_text("hello", encoding="utf-8", ensure=True)
-
-    video_path_invalid_ext = (
-        another_path.join("sub1 folder").join("sub2 folder").join("hello.mp45")
-    )
-    video_path_invalid_ext.write_text("hello2", encoding="utf-8", ensure=True)
-
-    hidden_video_path3 = another_path.join(".subfolder").join("hello.mp4")
-    hidden_video_path3.write_text("world", encoding="utf-8", ensure=True)
-
-    video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
-    video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
-
-    x = subprocess.run(
-        f'{EXECUTABLE} upload_blackvue {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-
-    assert 3 == len(setup_upload.listdir())
-    assert {
-        "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
-        f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
-        f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",
-    } == {os.path.basename(f) for f in setup_upload.listdir()}
-
-
-@pytest.mark.usefixtures("setup_config")
-def test_upload_camm(
-    tmpdir: py.path.local,
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    another_path = tmpdir.join("another_sub")
-
-    video_path2 = another_path.join("sub1 folder").join("sub2 folder").join("hello.mp4")
-    video_path2.write_text("hello", encoding="utf-8", ensure=True)
-
-    video_path_invalid_ext = (
-        another_path.join("sub1 folder").join("sub2 folder").join("hello.mp45")
-    )
-    video_path_invalid_ext.write_text("hello2", encoding="utf-8", ensure=True)
-
-    hidden_video_path3 = another_path.join(".subfolder").join("hello.mp4")
-    hidden_video_path3.write_text("world", encoding="utf-8", ensure=True)
-
-    video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
-    video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
-
-    x = subprocess.run(
-        f'{EXECUTABLE} upload_camm {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}" --dry_run --user_name={USERNAME}',
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-
-    assert 3 == len(setup_upload.listdir())
-    assert {
-        "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
-        f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
-        f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",
-    } == {os.path.basename(f) for f in setup_upload.listdir()}

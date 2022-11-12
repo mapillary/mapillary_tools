@@ -1,5 +1,9 @@
+import json
 import os
 import subprocess
+import zipfile
+
+import exifread
 
 import py.path
 import pytest
@@ -63,3 +67,30 @@ def ffmpeg_installed():
 
 
 is_ffmpeg_installed = ffmpeg_installed()
+
+
+def validate_and_extract_zip(filename: str):
+    basename = os.path.basename(filename)
+    assert basename.startswith("mly_tools_"), filename
+    assert basename.endswith(".zip"), filename
+    ret = {}
+    import tempfile
+
+    with zipfile.ZipFile(filename) as zipf:
+        with tempfile.TemporaryDirectory() as tempdir:
+            zipf.extractall(path=tempdir)
+            for name in os.listdir(tempdir):
+                with open(os.path.join(tempdir, name), "rb") as fp:
+                    tags = exifread.process_file(fp)
+                    desc_tag = tags.get("Image ImageDescription")
+                    assert desc_tag is not None, tags
+                    desc = json.loads(str(desc_tag.values))
+                    assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
+                    assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
+                    assert isinstance(desc.get("MAPCaptureTime"), str), desc
+                    assert isinstance(desc.get("MAPCompassHeading"), dict), desc
+                    assert isinstance(desc.get("MAPFilename"), str), desc
+                    for key in desc.keys():
+                        assert key.startswith("MAP"), key
+                    ret[name] = desc
+    return ret
