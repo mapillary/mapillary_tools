@@ -36,7 +36,7 @@ def test_upload_multiple_mp4s_DEPRECATED(
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
-    video_path = setup_data.join("sample-5s.mp4")
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
     x = subprocess.run(
         f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {video_path} {video_path}",
         shell=True,
@@ -167,7 +167,7 @@ def test_upload_image_dir_twice(
 
     # expect the second upload to not produce new uploads
     x = subprocess.run(
-        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/DSC00001.JPG",
+        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
