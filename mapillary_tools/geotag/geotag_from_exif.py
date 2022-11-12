@@ -24,7 +24,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
         image_path: Path
         for image_path in tqdm(
             self.image_paths,
-            desc=f"Processing",
+            desc=f"Extracting geotags from images",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):

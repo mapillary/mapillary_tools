@@ -370,6 +370,10 @@ def is_error(desc: ImageVideoDescriptionFileOrError) -> bool:
     return "error" in desc
 
 
+def error_type(desc: ImageDescriptionFileError) -> str:
+    return T.cast(str, desc["error"]["type"])
+
+
 _D = T.TypeVar("_D", ImageVideoDescriptionFileOrError, ImageDescriptionFileOrError)
 
 

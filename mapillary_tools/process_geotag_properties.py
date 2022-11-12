@@ -273,7 +273,7 @@ def process_geotag_properties(
         expected_descs_length += len(video_paths)
         for video_path in tqdm(
             video_paths,
-            desc="Extracting GPS tracks",
+            desc="Extracting GPS tracks from videos",
             unit="videos",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
@@ -409,10 +409,10 @@ def _overwrite_exif_tags(
             )
 
 
-def _test_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]) -> None:
+def _verify_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]) -> None:
     with tqdm(
         total=len(types.filter_out_errors(descs)),
-        desc="Test EXIF writing",
+        desc="Verifying image EXIF writing",
         unit="images",
         disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ) as pbar:
@@ -434,52 +434,85 @@ def _write_descs(
     else:
         with open(desc_path, "w") as fp:
             json.dump(descs, fp)
-    LOG.info("Check the image description file for details: %s", desc_path)
+        LOG.info("Check the image description file for details: %s", desc_path)
+
+
+def _is_error_skipped(
+    error_type: str, skipped_process_errors: T.Set[T.Type[Exception]]
+):
+    skipped_process_error_names = set(err.__name__ for err in skipped_process_errors)
+    skip_all = Exception in skipped_process_errors
+    return skip_all or error_type in skipped_process_error_names
 
 
 def _show_stats(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError], skip_process_errors: bool
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+    skipped_process_errors: T.Set[T.Type[Exception]],
 ) -> None:
-    processed_images: T.List[types.ImageVideoDescriptionFile] = types.filter_out_errors(
-        descs
-    )
-    not_processed_images = T.cast(
+    descs_by_filetype: T.Dict[
+        types.FileType, T.List[types.ImageVideoDescriptionFileOrError]
+    ] = {}
+    for desc in descs:
+        filetype = desc.get("filetype")
+        if filetype:
+            descs_by_filetype.setdefault(types.FileType(filetype), []).append(desc)
+
+    for filetype, group in descs_by_filetype.items():
+        _show_stats_per_filetype(group, filetype, skipped_process_errors)
+
+    # failed_count = len(not_processed_images) - duplicated_image_count
+
+    not_processed_files = T.cast(
         T.Sequence[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
-    assert len(processed_images) + len(not_processed_images) == len(descs)
 
-    LOG.info("%8d images read in total", len(descs))
-    if processed_images:
-        LOG.info("%8d images processed and ready to be uploaded", len(processed_images))
-
-    counter = collections.Counter(
-        desc["error"].get("type") for desc in not_processed_images
-    )
-
-    duplicated_image_count = counter.get(
-        exceptions.MapillaryDuplicationError.__name__, 0
-    )
-    if duplicated_image_count:
-        LOG.warning(
-            "%8d images skipped due to %s",
-            duplicated_image_count,
-            exceptions.MapillaryDuplicationError.__name__,
-        )
-
-    for error_code, count in counter.items():
-        if error_code not in [exceptions.MapillaryDuplicationError.__name__]:
-            if skip_process_errors:
-                LOG.warning("%8d images skipped due to %s", count, error_code)
-            else:
-                LOG.warning("%8d images failed due to %s", count, error_code)
-
-    failed_count = len(not_processed_images) - duplicated_image_count
-
-    if failed_count and not skip_process_errors:
+    critical_error_descs = [
+        desc
+        for desc in not_processed_files
+        if not _is_error_skipped(types.error_type(desc), skipped_process_errors)
+    ]
+    if critical_error_descs:
         raise exceptions.MapillaryProcessError(
-            f"Failed to process {failed_count} images. To skip these errors, specify --skip_process_errors"
+            f"Failed to process {len(critical_error_descs)} files. To skip these errors, specify --skip_process_errors"
         )
+
+
+def _show_stats_per_filetype(
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+    filetype: types.FileType,
+    skipped_process_errors: T.Set[T.Type[Exception]],
+):
+    processed_files: T.List[types.ImageVideoDescriptionFile] = types.filter_out_errors(
+        descs
+    )
+    not_processed_files = T.cast(
+        T.Sequence[types.ImageDescriptionFileError],
+        [desc for desc in descs if types.is_error(desc)],
+    )
+    assert len(processed_files) + len(not_processed_files) == len(descs)
+
+    LOG.info("%8d %s(s) read in total", len(descs), filetype.value)
+    if processed_files:
+        LOG.info(
+            "\t %8d %s(s) are ready to be uploaded",
+            len(processed_files),
+            filetype.value,
+        )
+
+    error_counter = collections.Counter(
+        types.error_type(desc) for desc in not_processed_files
+    )
+
+    for error_type, count in error_counter.items():
+        if _is_error_skipped(error_type, skipped_process_errors):
+            LOG.warning(
+                "\t %8d %s(s) skipped due to %s", count, filetype.value, error_type
+            )
+        else:
+            LOG.warning(
+                "\t %8d %s(s) failed due to %s", count, filetype.value, error_type
+            )
 
 
 def process_finalize(
@@ -514,7 +547,7 @@ def process_finalize(
         orientation_tag=overwrite_EXIF_orientation_tag,
     )
 
-    _test_exif_writing(types.filter_image_descs(descs))
+    _verify_exif_writing(types.filter_image_descs(descs))
 
     if desc_path is None:
         import_paths = _normalize_import_paths(import_path)
@@ -538,7 +571,14 @@ def process_finalize(
         # write descs first because _show_stats() may raise an exception
         _write_descs(descs, desc_path)
 
-    _show_stats(descs, skip_process_errors=skip_process_errors)
+    skipped_process_errors: T.Set[T.Type[Exception]]
+    if skip_process_errors:
+        # skip all exceptions
+        skipped_process_errors = {Exception}
+    else:
+        skipped_process_errors = {exceptions.MapillaryDuplicationError}
+
+    _show_stats(descs, skipped_process_errors=skipped_process_errors)
 
     assert len(intial_descs_for_length_assertion) == len(descs)
 
