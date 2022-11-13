@@ -283,7 +283,7 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
             abs(expected_lonlat.get(basename, [])[1] - desc["MAPLongitude"]) < 0.00001
         )
         assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
 
 
 def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
@@ -328,7 +328,7 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
         assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
         assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
         assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
@@ -368,7 +368,7 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
         assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
         assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
         assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
 
 
 def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
@@ -409,7 +409,7 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
         assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
         assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
         assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.00001
+        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
 
 
 def test_sample_video_relpath():

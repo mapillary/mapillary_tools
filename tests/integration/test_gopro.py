@@ -126,23 +126,23 @@ def test_process_gopro_hero8(
     with open(desc_path) as fp:
         descs = json.load(fp)
     for expected, actual in zip(expected_descs, descs):
-        assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0001
-        assert abs(expected["MAPLongitude"] - actual["MAPLongitude"]) < 0.0001
+        assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0000001
+        assert abs(expected["MAPLongitude"] - actual["MAPLongitude"]) < 0.0000001
         assert expected["MAPCaptureTime"] == actual["MAPCaptureTime"]
-        assert abs(expected["MAPAltitude"] - actual["MAPAltitude"]) < 0.0001
+        assert abs(expected["MAPAltitude"] - actual["MAPAltitude"]) < 0.001
         assert (
             abs(
                 expected["MAPCompassHeading"]["TrueHeading"]
                 - actual["MAPCompassHeading"]["TrueHeading"]
             )
-            < 0.0001
+            < 0.001
         )
         assert (
             abs(
                 expected["MAPCompassHeading"]["MagneticHeading"]
                 - actual["MAPCompassHeading"]["MagneticHeading"]
             )
-            < 0.0001
+            < 0.001
         )
         assert Path(actual["filename"]).is_file(), actual["filename"]
         assert actual["filename"].endswith(expected["filename"])

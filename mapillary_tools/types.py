@@ -16,7 +16,20 @@ import jsonschema
 from . import geo
 
 
-_COORDINATES_PRECISION = 6
+# http://wiki.gis.com/wiki/index.php/Decimal_degrees
+# decimal places	degrees	distance
+# 0	                 1.0	111 km
+# 1	                 0.1	11.1 km
+# 2	                 0.01	1.11 km
+# 3	                 0.001	111 m
+# 4	                 0.0001	11.1 m
+# 5	                 0.00001	1.11 m
+# 6	                 0.000001	0.111 m
+# 7	                 0.0000001	1.11 cm
+# 8	                 0.00000001	1.11 mm
+_COORDINATES_PRECISION = 7
+_ALTITUDE_PRECISION = 3
+_ANGLE_PRECISION = 3
 
 
 class FileType(enum.Enum):
@@ -438,11 +451,11 @@ def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
         "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
     }
     if metadata.alt is not None:
-        desc["MAPAltitude"] = round(metadata.alt, _COORDINATES_PRECISION)
+        desc["MAPAltitude"] = round(metadata.alt, _ALTITUDE_PRECISION)
     if metadata.angle is not None:
         desc["MAPCompassHeading"] = {
-            "TrueHeading": round(metadata.angle, 3),
-            "MagneticHeading": round(metadata.angle, 3),
+            "TrueHeading": round(metadata.angle, _ANGLE_PRECISION),
+            "MagneticHeading": round(metadata.angle, _ANGLE_PRECISION),
         }
     fields = dataclasses.fields(metadata)
     for field in fields:
@@ -485,8 +498,8 @@ def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
         int(p.time * 1000),
         round(p.lon, _COORDINATES_PRECISION),
         round(p.lat, _COORDINATES_PRECISION),
-        round(p.alt, _COORDINATES_PRECISION) if p.alt is not None else None,
-        round(p.angle, 3) if p.angle is not None else None,
+        round(p.alt, _ALTITUDE_PRECISION) if p.alt is not None else None,
+        round(p.angle, _ANGLE_PRECISION) if p.angle is not None else None,
     ]
     return entry
 
