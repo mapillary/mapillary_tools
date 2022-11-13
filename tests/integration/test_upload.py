@@ -71,15 +71,14 @@ def test_upload_blackvue(
     video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
     video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
 
+    video_dir = setup_data.join("videos")
     x = subprocess.run(
-        f'{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
+        f'{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
 
-    assert 4 == len(setup_upload.listdir())
     assert {
-        "mly_tools_284122b57efa238a3c0a8f64db71d918.mp4",
         "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
         f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
         f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",
@@ -108,15 +107,14 @@ def test_upload_camm(
     video_path_hello2 = tmpdir.join("sub1 folder").join("sub2 folder").join("hello.mp4")
     video_path_hello2.write_text("hello2", encoding="utf-8", ensure=True)
 
+    video_dir = setup_data.join("videos")
     x = subprocess.run(
-        f'{EXECUTABLE} upload_camm {UPLOAD_FLAGS} {str(setup_data)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
+        f'{EXECUTABLE} upload_camm {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
 
-    assert 4 == len(setup_upload.listdir())
     assert {
-        "mly_tools_284122b57efa238a3c0a8f64db71d918.mp4",
         "mly_tools_8cd0e9af15f4baaafe9dfe98ace8b886.mp4",
         f"mly_tools_{file_md5sum(str(video_path2))}.mp4",
         f"mly_tools_{file_md5sum(str(video_path_hello2))}.mp4",

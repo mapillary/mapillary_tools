@@ -55,19 +55,20 @@ def test_upload_blackvue(
     setup_upload: py.path.local,
 ):
     assert len(setup_upload.listdir()) == 0
+    video_dir = setup_data.join("videos")
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert len(setup_upload.listdir()) == 2, "should be uploaded for the first time"
+    assert len(setup_upload.listdir()) == 1, "should be uploaded for the first time"
     for upload in setup_upload.listdir():
         upload.remove()
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

@@ -1,9 +1,12 @@
 import json
 import os
 import subprocess
+import tempfile
+import typing as T
 import zipfile
 
 import exifread
+import jsonschema
 
 import py.path
 import pytest
@@ -69,28 +72,54 @@ def ffmpeg_installed():
 is_ffmpeg_installed = ffmpeg_installed()
 
 
-def validate_and_extract_zip(filename: str):
+with open("schema/image_description_schema.json") as fp:
+    image_description_schema = json.load(fp)
+
+
+def validate_and_extract_image(image_path: str):
+    with open(image_path, "rb") as fp:
+        tags = exifread.process_file(fp)
+        desc_tag = tags.get("Image ImageDescription")
+        assert desc_tag is not None, (tags, image_path)
+        desc = json.loads(str(desc_tag.values))
+        desc["filename"] = image_path
+        desc["filetype"] = "image"
+        jsonschema.validate(desc, image_description_schema)
+        return desc
+
+
+def validate_and_extract_zip(filename: str) -> T.List[T.Dict]:
     basename = os.path.basename(filename)
     assert basename.startswith("mly_tools_"), filename
     assert basename.endswith(".zip"), filename
-    ret = {}
-    import tempfile
+    descs = []
 
     with zipfile.ZipFile(filename) as zipf:
         with tempfile.TemporaryDirectory() as tempdir:
             zipf.extractall(path=tempdir)
             for name in os.listdir(tempdir):
-                with open(os.path.join(tempdir, name), "rb") as fp:
-                    tags = exifread.process_file(fp)
-                    desc_tag = tags.get("Image ImageDescription")
-                    assert desc_tag is not None, tags
-                    desc = json.loads(str(desc_tag.values))
-                    assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPCaptureTime"), str), desc
-                    assert isinstance(desc.get("MAPCompassHeading"), dict), desc
-                    assert isinstance(desc.get("MAPFilename"), str), desc
-                    for key in desc.keys():
-                        assert key.startswith("MAP"), key
-                    ret[name] = desc
-    return ret
+                desc = validate_and_extract_image(os.path.join(tempdir, name))
+                descs.append(desc)
+
+    return descs
+
+
+def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
+    with tempfile.TemporaryDirectory() as tempdir:
+        x = subprocess.run(
+            f"{EXECUTABLE} --verbose video_process --geotag_source=camm {filename} {tempdir}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+
+        # no exif written so we can't extract the image description
+        # descs = []
+        # for root, _, files in os.walk(tempdir):
+        #     for file in files:
+        #         if file.endswith(".jpg"):
+        #             descs.append(validate_and_extract_image(os.path.join(root, file)))
+        # return descs
+
+        # instead, we return the mapillary_image_description.json
+        with open(os.path.join(tempdir, "mapillary_image_description.json")) as fp:
+            return json.load(fp)
