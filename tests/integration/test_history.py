@@ -6,6 +6,8 @@ import pytest
 
 from .fixtures import EXECUTABLE, setup_config, setup_data, setup_upload, USERNAME
 
+UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
+
 
 @pytest.fixture
 def setup_history_path(tmpdir: py.path.local):
@@ -28,7 +30,7 @@ def test_upload_images(
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload --file_types=image {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -37,7 +39,7 @@ def test_upload_images(
         upload.remove()
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload --file_types=image {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -55,17 +57,17 @@ def test_upload_blackvue(
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert len(setup_upload.listdir()) == 1, "should be uploaded for the first time"
+    assert len(setup_upload.listdir()) == 2, "should be uploaded for the first time"
     for upload in setup_upload.listdir():
         upload.remove()
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

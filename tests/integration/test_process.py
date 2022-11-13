@@ -418,7 +418,7 @@ def test_sample_video_relpath():
 
     with tempfile.TemporaryDirectory() as dir:
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --rerun tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4 {dir}",
+            f"{EXECUTABLE} sample_video --rerun tests/data/gopro_data/hero8.mp4 {dir}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -436,18 +436,19 @@ def test_sample_video_relpath_dir():
         assert x.returncode == 0, x.stderr
 
 
-def test_sample_video(setup_data: py.path.local):
+def test_sample_video_without_video_time(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
 
-    root_sample_dir = setup_data.join("mapillary_sampled_video_frames")
+    video_dir = setup_data.join("videos")
+    root_sample_dir = video_dir.join("mapillary_sampled_video_frames")
 
-    for input_path in [setup_data, setup_data.join("sample-5s.mp4")]:
+    for input_path in [video_dir, video_dir.join("sample-5s.mp4")]:
         x = subprocess.run(
             f"{EXECUTABLE} sample_video --rerun {input_path}",
             shell=True,
         )
-        assert x.returncode != 0, x.stderr
+        assert x.returncode == 7, x.stderr
         if root_sample_dir.exists():
             assert len(root_sample_dir.listdir()) == 0
 
@@ -483,12 +484,13 @@ def test_video_process(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
 
-    gpx_file = setup_data.join("test.gpx")
-    desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    video_dir = setup_data.join("videos")
+    gpx_file = video_dir.join("test.gpx")
+    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose video_process {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} --verbose video_process {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -505,19 +507,19 @@ def test_video_process_and_upload(
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
 
-    gpx_file = setup_data.join("test.gpx")
-    # desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
+    video_dir = setup_data.join("videos")
+    gpx_file = video_dir.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     assert 0 == len(setup_upload.listdir())
 
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {setup_data} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -533,7 +535,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
     desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
     sub_folder = setup_data.join("video_sub_folder").mkdir()
-    video_path = setup_data.join("sample-5s.mp4")
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
     video_path.copy(sub_folder)
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)

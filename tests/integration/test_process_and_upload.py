@@ -39,7 +39,7 @@ def test_process_and_upload_multiple_import_paths(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG",
+        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -53,7 +53,7 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_stdout(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data}/DSC00001.JPG --desc_path=-",
+        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data}/images/DSC00001.JPG --desc_path=-",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -69,7 +69,7 @@ def test_process_and_upload_multiple_import_paths_with_desc_path_specified(
 ):
     desc_path = tmpdir.join("hello.json")
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/DSC00001.JPG --desc_path={desc_path}",
+        f"{EXECUTABLE} --verbose process_and_upload --file_types=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG --desc_path={desc_path}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

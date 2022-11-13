@@ -10,7 +10,7 @@ import pytest
 from .fixtures import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
 
 
-IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
+IMPORT_PATH = "tests/data/gopro_data"
 
 expected_descs: T.List[T.Any] = [
     {
