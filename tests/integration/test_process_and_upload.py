@@ -61,8 +61,8 @@ expected = {
             "MAPAltitude": -22.18,
             "MAPCaptureTime": "2019_11_18_15_44_47_862",
             "MAPCompassHeading": {
-                "MagneticHeading": 270.00000021760013,
-                "TrueHeading": 270.00000021760013,
+                "MagneticHeading": 270.000,
+                "TrueHeading": 270.000,
             },
             "MAPDeviceMake": "GoPro",
             "MAPDeviceModel": "GoPro Max",
@@ -72,7 +72,7 @@ expected = {
             "filetype": "image",
         },
         "mly_tools_92af1ea1be0bed02fba868c97b5943cc_000002.jpg": {
-            "MAPAltitude": -21.620033351842856,
+            "MAPAltitude": -21.620033,
             "MAPCaptureTime": "2019_11_18_15_44_49_862",
             "MAPCompassHeading": {"MagneticHeading": 0.0, "TrueHeading": 0.0},
             "MAPDeviceMake": "GoPro",
@@ -83,7 +83,7 @@ expected = {
             "filetype": "image",
         },
         "mly_tools_92af1ea1be0bed02fba868c97b5943cc_000003.jpg": {
-            "MAPAltitude": -21.896055278364187,
+            "MAPAltitude": -21.896055,
             "MAPCaptureTime": "2019_11_18_15_44_51_862",
             "MAPCompassHeading": {"MagneticHeading": 0.0, "TrueHeading": 0.0},
             "MAPDeviceMake": "GoPro",
@@ -94,7 +94,7 @@ expected = {
             "filetype": "image",
         },
         "mly_tools_92af1ea1be0bed02fba868c97b5943cc_000004.jpg": {
-            "MAPAltitude": -21.99715624933477,
+            "MAPAltitude": -21.997156,
             "MAPCaptureTime": "2019_11_18_15_44_53_862",
             "MAPCompassHeading": {"MagneticHeading": 0.0, "TrueHeading": 0.0},
             "MAPDeviceMake": "GoPro",
@@ -105,7 +105,7 @@ expected = {
             "filetype": "image",
         },
         "mly_tools_92af1ea1be0bed02fba868c97b5943cc_000005.jpg": {
-            "MAPAltitude": -22.364480362870474,
+            "MAPAltitude": -22.364480,
             "MAPCaptureTime": "2019_11_18_15_44_55_862",
             "MAPCompassHeading": {"MagneticHeading": 0.0, "TrueHeading": 0.0},
             "MAPDeviceMake": "GoPro",
@@ -116,11 +116,11 @@ expected = {
             "filetype": "image",
         },
         "mly_tools_92af1ea1be0bed02fba868c97b5943cc_000006.jpg": {
-            "MAPAltitude": -22.539005492427652,
+            "MAPAltitude": -22.539005,
             "MAPCaptureTime": "2019_11_18_15_44_57_862",
             "MAPCompassHeading": {
-                "MagneticHeading": 270.00000021760036,
-                "TrueHeading": 270.00000021760036,
+                "MagneticHeading": 270.000000,
+                "TrueHeading": 270.000000,
             },
             "MAPDeviceMake": "GoPro",
             "MAPDeviceModel": "GoPro Max",

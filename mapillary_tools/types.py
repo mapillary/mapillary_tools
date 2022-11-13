@@ -433,16 +433,16 @@ def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
     desc: ImageDescriptionFile = {
         "filename": str(metadata.filename),
         "filetype": FileType.IMAGE.value,
-        "MAPLatitude": metadata.lat,
-        "MAPLongitude": metadata.lon,
+        "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
+        "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
         "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
     }
     if metadata.alt is not None:
-        desc["MAPAltitude"] = metadata.alt
+        desc["MAPAltitude"] = round(metadata.alt, _COORDINATES_PRECISION)
     if metadata.angle is not None:
         desc["MAPCompassHeading"] = {
-            "TrueHeading": metadata.angle,
-            "MagneticHeading": metadata.angle,
+            "TrueHeading": round(metadata.angle, 3),
+            "MagneticHeading": round(metadata.angle, 3),
         }
     fields = dataclasses.fields(metadata)
     for field in fields:
@@ -471,8 +471,8 @@ def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
 
     return ImageMetadata(
         filename=Path(desc["filename"]),
-        lat=round(desc["MAPLatitude"], _COORDINATES_PRECISION),
-        lon=round(desc["MAPLongitude"], _COORDINATES_PRECISION),
+        lat=desc["MAPLatitude"],
+        lon=desc["MAPLongitude"],
         alt=desc.get("MAPAltitude"),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
