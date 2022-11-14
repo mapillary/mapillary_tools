@@ -460,16 +460,14 @@ def _show_stats(
     for filetype, group in descs_by_filetype.items():
         _show_stats_per_filetype(group, filetype, skipped_process_errors)
 
-    # failed_count = len(not_processed_images) - duplicated_image_count
-
-    not_processed_files = T.cast(
+    error_descs = T.cast(
         T.Sequence[types.ImageDescriptionFileError],
         [desc for desc in descs if types.is_error(desc)],
     )
 
     critical_error_descs = [
         desc
-        for desc in not_processed_files
+        for desc in error_descs
         if not _is_error_skipped(types.error_type(desc), skipped_process_errors)
     ]
     if critical_error_descs:
@@ -510,7 +508,7 @@ def _show_stats_per_filetype(
                 "\t %8d %s(s) skipped due to %s", count, filetype.value, error_type
             )
         else:
-            LOG.warning(
+            LOG.error(
                 "\t %8d %s(s) failed due to %s", count, filetype.value, error_type
             )
 
