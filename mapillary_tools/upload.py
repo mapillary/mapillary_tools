@@ -534,7 +534,7 @@ def _load_descs(
     return new_descs
 
 
-def _find_descs(
+def _find_descs_path_existed(
     descs: T.Sequence[types.ImageVideoDescriptionFileOrError], paths: T.Sequence[Path]
 ):
     resolved_image_paths = set(p.resolve() for p in paths)
@@ -617,8 +617,8 @@ def upload(
     _setup_ipc(emitter)
 
     params: JSONDict = {
-        "import_path": str(import_path),
-        "desc_path": desc_path,
+        # null if multiple paths provided
+        "import_path": str(import_path) if isinstance(import_path, Path) else None,
         "user_key": user_items.get("MAPSettingsUserKey"),
         "organization_key": user_items.get("MAPOrganizationKey"),
     }
@@ -645,11 +645,13 @@ def upload(
                 check_file_suffix=check_file_suffix,
             )
             # find descs that match the image paths from the import paths
-            specified_descs = _find_descs(descs or [], image_paths)
-            clusters = mly_uploader.upload_images(
-                specified_descs, event_payload={"file_type": FileType.IMAGE.value}
-            )
-            LOG.debug(f"Uploaded to cluster: %s", clusters)
+            specified_descs = _find_descs_path_existed(descs or [], image_paths)
+            if specified_descs:
+                clusters = mly_uploader.upload_images(
+                    specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+                )
+                if clusters:
+                    LOG.debug(f"Uploaded to cluster: %s", clusters)
 
         supported = CAMM_CONVERTABLES.intersection(filetypes)
         if supported:
@@ -658,14 +660,14 @@ def upload(
                 skip_subfolders=skip_subfolders,
                 check_file_suffix=check_file_suffix,
             )
-            specified_descs = _find_descs(descs or [], video_paths)
+            specified_descs = _find_descs_path_existed(descs or [], video_paths)
             for idx, desc in enumerate(specified_descs):
                 video_metadata = types.from_desc_video(desc)
                 generator = camm_builder.camm_sample_generator2(video_metadata)
                 with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
-                        "total_sequence_count": len(video_paths),
+                        "total_sequence_count": len(specified_descs),
                         "sequence_idx": idx,
                         "file_type": video_metadata.filetype.value,
                         "import_path": str(video_metadata.filename),
