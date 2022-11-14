@@ -1,3 +1,4 @@
+import enum
 import json
 import logging
 import os
@@ -7,11 +8,6 @@ import time
 import typing as T
 import uuid
 from pathlib import Path
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
 
 import requests
 from tqdm import tqdm
@@ -32,12 +28,10 @@ from .geotag import (
     blackvue_parser,
     camm_builder,
     camm_parser,
-    gpmf_gps_filter,
-    gpmf_parser,
     simple_mp4_builder,
     utils as video_utils,
 )
-from .utils import FileType
+from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
@@ -67,6 +61,12 @@ class UploadHTTPError(Exception):
     pass
 
 
+class DirectUploadFileType(enum.Enum):
+    RAW_BLACKVUE = "raw_blackvue"
+    RAW_CAMM = "raw_camm"
+    ZIP = "zip"
+
+
 def wrap_http_exception(ex: requests.HTTPError):
     resp = ex.response
     lines = [
@@ -77,8 +77,8 @@ def wrap_http_exception(ex: requests.HTTPError):
     return UploadHTTPError("\n".join(lines))
 
 
-def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile]:
-    descs: T.List[types.ImageDescriptionFile] = []
+def read_image_descriptions(desc_path: str) -> T.List[types.ImageVideoDescriptionFile]:
+    descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
     if desc_path == "-":
         try:
@@ -100,9 +100,7 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageDescriptionFile
                     f"Invalid JSON file {desc_path}: {ex}"
                 )
 
-    return types.filter_out_errors(
-        T.cast(T.List[types.ImageDescriptionFileOrError], descs)
-    )
+    return types.filter_out_errors(descs)
 
 
 def zip_images(
@@ -124,7 +122,9 @@ def zip_images(
         LOG.warning("No images found in %s", desc_path)
         return
 
-    uploader.zip_images(descs, zip_dir)
+    image_descs = types.filter_image_descs(descs)
+
+    uploader.zip_images(image_descs, zip_dir)
 
 
 def fetch_user_items(
@@ -196,7 +196,7 @@ def write_history(
     md5sum: str,
     params: JSONDict,
     summary: JSONDict,
-    descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
+    descs: T.Optional[T.List[types.ImageVideoDescriptionFile]] = None,
 ) -> None:
     if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return
@@ -238,7 +238,7 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
 def _setup_write_upload_history(
     emitter: uploader.EventEmitter,
     params: JSONDict,
-    descs: T.Optional[T.List[types.ImageDescriptionFile]] = None,
+    descs: T.Optional[T.List[types.ImageVideoDescriptionFile]] = None,
 ) -> None:
     @emitter.on("upload_finished")
     def upload_finished(payload: uploader.Progress):
@@ -251,7 +251,9 @@ def _setup_write_upload_history(
                 desc for desc in descs if desc.get("MAPSequenceUUID") == sequence_uuid
             ]
             sequence.sort(
-                key=lambda d: types.map_capture_time_to_datetime(d["MAPCaptureTime"])
+                key=lambda d: types.map_capture_time_to_datetime(
+                    T.cast(types.ImageDescriptionFile, d)["MAPCaptureTime"]
+                )
             )
 
         try:
@@ -278,12 +280,12 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
         import_path: T.Optional[str] = payload.get("import_path")
-        file_type = payload.get("file_type", "unknown").upper()
+        filetype = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading {file_type} ({nth}/{total})"
+            _desc = f"Uploading {filetype} ({nth}/{total})"
         else:
             _desc = (
-                f"Uploading {file_type} {os.path.basename(import_path)} ({nth}/{total})"
+                f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
             )
         upload_pbar = tqdm(
             total=payload["entity_size"],
@@ -487,11 +489,12 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _load_descs_for_images(
-    _descs_from_process: T.Optional[T.Sequence[types.ImageDescriptionFileOrError]],
+def _load_descs(
+    _descs_from_process: T.Optional[T.Sequence[types.ImageVideoDescriptionFileOrError]],
     desc_path: T.Optional[str],
     import_paths: T.Sequence[Path],
-) -> T.List[types.ImageDescriptionFile]:
+) -> T.List[types.ImageVideoDescriptionFile]:
+    new_descs: T.List[types.ImageVideoDescriptionFile]
     if _descs_from_process is not None:
         new_descs = types.filter_out_errors(_descs_from_process)
     else:
@@ -516,15 +519,31 @@ def _load_descs_for_images(
     # It is used to find the right sequence when writing upload history
     missing_sequence_uuid = str(uuid.uuid4())
     for desc in new_descs:
-        if "MAPSequenceUUID" not in desc:
-            desc["MAPSequenceUUID"] = missing_sequence_uuid
+        if desc["filetype"] == types.FileType.IMAGE.value:
+            if "MAPSequenceUUID" not in desc:
+                T.cast(types.ImageDescriptionFile, desc)[
+                    "MAPSequenceUUID"
+                ] = missing_sequence_uuid
+
+    for desc in new_descs:
+        if desc["filetype"] == types.FileType.IMAGE.value:
+            types.validate_desc(T.cast(types.ImageDescriptionFile, desc))
+        else:
+            types.validate_desc_video(T.cast(types.VideoDescriptionFile, desc))
 
     return new_descs
 
 
+def _find_descs_path_existed(
+    descs: T.Sequence[types.ImageVideoDescriptionFileOrError], paths: T.Sequence[Path]
+):
+    resolved_image_paths = set(p.resolve() for p in paths)
+    return [d for d in descs if Path(d["filename"]).resolve() in resolved_image_paths]
+
+
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    file_types: T.Set[FileType],
+    filetypes: T.Set[T.Union[FileType, DirectUploadFileType]],
     desc_path: T.Optional[str] = None,
     _descs_from_process: T.Optional[
         T.Sequence[types.ImageDescriptionFileOrError]
@@ -534,16 +553,18 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    if FileType.RAW_BLACKVUE in file_types and FileType.BLACKVUE in file_types:
+    if (
+        DirectUploadFileType.RAW_BLACKVUE in filetypes
+        and FileType.BLACKVUE in filetypes
+    ):
         raise exceptions.MapillaryBadParameterError(
-            f"file_types should contain either {FileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
+            f"filetypes should contain either {DirectUploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
         )
 
-    if FileType.RAW_CAMM in file_types and FileType.CAMM in file_types:
+    if DirectUploadFileType.RAW_CAMM in filetypes and FileType.CAMM in filetypes:
         raise exceptions.MapillaryBadParameterError(
-            f"File types should contain either {FileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
+            f"File types should contain either {DirectUploadFileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
         )
-    file_types = set(file_types)
 
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
@@ -563,10 +584,14 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
-    if FileType.IMAGE in file_types:
-        descs = _load_descs_for_images(_descs_from_process, desc_path, import_paths)
-    else:
+    if {
+        DirectUploadFileType.RAW_CAMM,
+        DirectUploadFileType.RAW_BLACKVUE,
+        DirectUploadFileType.ZIP,
+    }.issuperset(filetypes):
         descs = None
+    else:
+        descs = _load_descs(_descs_from_process, desc_path, import_paths)
 
     user_items = fetch_user_items(user_name, organization_key)
 
@@ -592,8 +617,8 @@ def upload(
     _setup_ipc(emitter)
 
     params: JSONDict = {
-        "import_path": str(import_path),
-        "desc_path": desc_path,
+        # null if multiple paths provided
+        "import_path": str(import_path) if isinstance(import_path, Path) else None,
         "user_key": user_items.get("MAPSettingsUserKey"),
         "organization_key": user_items.get("MAPOrganizationKey"),
     }
@@ -608,35 +633,75 @@ def upload(
         chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
     )
 
-    image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+    # if more than one filetypes speficied, check filename suffixes,
+    # i.e. files not ended with .jpg or .mp4 will be ignored
+    check_file_suffix = len(filetypes) > 1
 
     try:
-        if FileType.IMAGE in file_types:
-            # find descs that match the image paths from the import paths
-            resolved_image_paths = set(p.resolve() for p in image_paths)
-            specified_descs = [
-                d
-                for d in (descs or [])
-                if Path(d["filename"]).resolve() in resolved_image_paths
-            ]
-            clusters = mly_uploader.upload_images(
-                specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+        if FileType.IMAGE in filetypes:
+            image_paths = utils.find_images(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
             )
-            LOG.debug(f"Uploaded to cluster: %s", clusters)
+            # find descs that match the image paths from the import paths
+            specified_descs = _find_descs_path_existed(descs or [], image_paths)
+            if specified_descs:
+                clusters = mly_uploader.upload_images(
+                    specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+                )
+                if clusters:
+                    LOG.debug(f"Uploaded to cluster: %s", clusters)
 
-        supported = CAMM_CONVERTABLES.intersection(file_types)
+        supported = CAMM_CONVERTABLES.intersection(filetypes)
         if supported:
-            _convert_and_upload_camm(mly_uploader, video_paths, supported)
+            video_paths = utils.find_videos(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
+            )
+            specified_descs = _find_descs_path_existed(descs or [], video_paths)
+            for idx, desc in enumerate(specified_descs):
+                video_metadata = types.from_desc_video(desc)
+                generator = camm_builder.camm_sample_generator2(video_metadata)
+                with video_metadata.filename.open("rb") as src_fp:
+                    camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
+                    event_payload: uploader.Progress = {
+                        "total_sequence_count": len(specified_descs),
+                        "sequence_idx": idx,
+                        "file_type": video_metadata.filetype.value,
+                        "import_path": str(video_metadata.filename),
+                    }
+                    try:
+                        cluster_id = mly_uploader.upload_camm_fp(
+                            T.cast(T.BinaryIO, camm_fp), event_payload=event_payload
+                        )
+                    except Exception as ex:
+                        raise UploadError(ex) from ex
+                    LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
-        if FileType.RAW_BLACKVUE in file_types:
+        if DirectUploadFileType.RAW_BLACKVUE in filetypes:
+            video_paths = utils.find_videos(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
+            )
             _upload_raw_blackvues(mly_uploader, video_paths)
 
-        if FileType.RAW_CAMM in file_types:
+        if DirectUploadFileType.RAW_CAMM in filetypes:
+            video_paths = utils.find_videos(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
+            )
             _upload_raw_camm(mly_uploader, video_paths)
 
-        if FileType.ZIP in file_types:
+        if DirectUploadFileType.ZIP in filetypes:
+            zip_paths = utils.find_zipfiles(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
+            )
             _upload_zipfiles(mly_uploader, zip_paths)
 
     except UploadError as ex:
@@ -653,61 +718,6 @@ def upload(
         _show_upload_summary(stats)
     else:
         LOG.info("Nothing uploaded. Bye.")
-
-
-def _convert_and_upload_camm(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-    file_types: T.Set[FileType],
-) -> None:
-    for idx, video_path in enumerate(video_paths):
-        LOG.debug("Converting and uploading %s", video_path)
-        with open(video_path, "rb") as src_fp:
-            metadata = camm_builder.extract_video_metadata(src_fp, file_types)
-            if metadata is None:
-                LOG.warning(
-                    f"Skipping %s due to: No GPS found in the video",
-                    video_path.name,
-                )
-                continue
-
-            if metadata.file_type == FileType.GOPRO:
-                metadata.points = T.cast(
-                    T.List[geo.Point],
-                    gpmf_gps_filter.filter_noisy_points(
-                        T.cast(T.List[gpmf_parser.PointWithFix], metadata.points)
-                    ),
-                )
-
-            stationary = video_utils.is_video_stationary(
-                geo.get_max_distance_from_start(
-                    [(p.lat, p.lon) for p in metadata.points]
-                )
-            )
-            if stationary:
-                LOG.warning(
-                    f"Skipping %s %s due to: Stationary video",
-                    metadata.file_type.value.upper(),
-                    video_path.name,
-                )
-                continue
-
-            generator = camm_builder.camm_sample_generator2(metadata)
-            camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-            event_payload: uploader.Progress = {
-                "total_sequence_count": len(video_paths),
-                "sequence_idx": idx,
-                "file_type": metadata.file_type.value,
-                "import_path": str(video_path),
-            }
-            try:
-                cluster_id = mly_uploader.upload_camm_fp(
-                    T.cast(T.BinaryIO, camm_fp), event_payload=event_payload
-                )
-            except Exception as ex:
-                raise UploadError(ex) from ex
-
-        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
 def _check_blackvue(video_path: Path) -> None:
@@ -734,7 +744,7 @@ def _upload_raw_blackvues(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
-            "file_type": FileType.RAW_BLACKVUE.value,
+            "file_type": DirectUploadFileType.RAW_BLACKVUE.value,
             "import_path": str(video_path),
         }
 
@@ -743,7 +753,7 @@ def _upload_raw_blackvues(
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",
-                FileType.RAW_BLACKVUE.value.upper(),
+                DirectUploadFileType.RAW_BLACKVUE.value.upper(),
                 video_path.name,
                 ex,
             )
@@ -783,7 +793,7 @@ def _upload_raw_camm(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(video_paths),
             "sequence_idx": idx,
-            "file_type": FileType.RAW_CAMM.value,
+            "file_type": DirectUploadFileType.RAW_CAMM.value,
             "import_path": str(video_path),
         }
         try:
@@ -791,7 +801,7 @@ def _upload_raw_camm(
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",
-                FileType.RAW_CAMM.value.upper(),
+                DirectUploadFileType.RAW_CAMM.value.upper(),
                 video_path.name,
                 ex,
             )
@@ -815,7 +825,7 @@ def _upload_zipfiles(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
-            "file_type": FileType.ZIP.value,
+            "file_type": DirectUploadFileType.ZIP.value,
             "import_path": str(zip_path),
         }
         try:

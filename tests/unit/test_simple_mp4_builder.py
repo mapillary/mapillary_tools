@@ -19,9 +19,7 @@ def _test_build(b, path):
 
 
 def test_build_sample_5s():
-    simple_mp4 = (
-        "tests/integration/mapillary_tools_process_images_provider/data/sample-5s.mp4"
-    )
+    simple_mp4 = "tests/data/videos/sample-5s.mp4"
     _test_build(cparser.MP4BuilderConstruct.BoxList, simple_mp4)
     _test_build(cparser.MP4WithoutSTBLBuilderConstruct.BoxList, simple_mp4)
     _test_build(cparser.MP4ParserConstruct.BoxList, simple_mp4)
@@ -29,9 +27,7 @@ def test_build_sample_5s():
 
 
 def test_build_hero():
-    hero_mp4 = (
-        "tests/integration/mapillary_tools_process_images_provider/gopro_data/hero8.mp4"
-    )
+    hero_mp4 = "tests/data/gopro_data/hero8.mp4"
     _test_build(cparser.MP4BuilderConstruct.BoxList, hero_mp4)
     _test_build(cparser.MP4WithoutSTBLBuilderConstruct.BoxList, hero_mp4)
     _test_build(cparser.MP4ParserConstruct.BoxList, hero_mp4)

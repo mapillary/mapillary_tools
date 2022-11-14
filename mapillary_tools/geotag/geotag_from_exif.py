@@ -24,7 +24,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
         image_path: Path
         for image_path in tqdm(
             self.image_paths,
-            desc=f"Processing",
+            desc=f"Extracting geotags from images",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
@@ -36,7 +36,11 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     image_path,
                     exc_info=True,
                 )
-                descs.append(types.describe_error(exc0, str(image_path)))
+                descs.append(
+                    types.describe_error(
+                        exc0, str(image_path), filetype=types.FileType.IMAGE
+                    )
+                )
                 continue
 
             lon, lat = exif.extract_lon_lat()
@@ -44,7 +48,11 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
-                descs.append(types.describe_error(exc, str(image_path)))
+                descs.append(
+                    types.describe_error(
+                        exc, str(image_path), filetype=types.FileType.IMAGE
+                    )
+                )
                 continue
 
             timestamp = exif.extract_capture_time()
@@ -52,12 +60,17 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
-                descs.append(types.describe_error(exc, str(image_path)))
+                descs.append(
+                    types.describe_error(
+                        exc, str(image_path), filetype=types.FileType.IMAGE
+                    )
+                )
                 continue
 
             angle = exif.extract_direction()
 
             desc: types.ImageDescriptionFile = {
+                "filetype": "image",
                 "MAPLatitude": lat,
                 "MAPLongitude": lon,
                 "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),

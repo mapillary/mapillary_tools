@@ -2,6 +2,7 @@ import datetime
 import itertools
 import typing as T
 import uuid
+from pathlib import Path
 
 from mapillary_tools import geo, process_sequence_properties as psp, types
 
@@ -11,10 +12,10 @@ def make_image_desc(
     lat: float,
     time: float,
     angle: T.Optional[float] = None,
-    filename: T.Optional[str] = None,
+    filename: T.Optional[Path] = None,
 ) -> types.ImageDescriptionFileOrError:
     if filename is None:
-        filename = str(uuid.uuid4())
+        filename = Path(str(uuid.uuid4()))
 
     desc = {
         "MAPLatitude": lat,
@@ -22,13 +23,14 @@ def make_image_desc(
         "MAPCaptureTime": types.datetime_to_map_capture_time(
             datetime.datetime.utcfromtimestamp(time)
         ),
-        "filename": filename,
+        "filename": str(filename),
     }
     if angle is not None:
         desc["MAPCompassHeading"] = {
             "TrueHeading": angle,
             "MagneticHeading": angle,
         }
+    desc["filetype"] = "image"
     return T.cast(types.ImageDescriptionFileOrError, desc)
 
 
@@ -36,16 +38,16 @@ def test_find_sequences_by_folder():
     sequence = [
         {"error": "hello"},
         # s1
-        make_image_desc(1.00001, 1.00001, 2, filename="hello/foo.jpg"),
-        make_image_desc(1.00002, 1.00002, 8, filename="./hello/bar.jpg"),
-        make_image_desc(1.00002, 1.00002, 9, filename="hello/a.jpg"),
+        make_image_desc(1.00001, 1.00001, 2, filename=Path("hello/foo.jpg")),
+        make_image_desc(1.00002, 1.00002, 8, filename=Path("./hello/bar.jpg")),
+        make_image_desc(1.00002, 1.00002, 9, filename=Path("hello/a.jpg")),
         # s2
-        make_image_desc(1.00002, 1.00002, 2, filename="hello/"),
-        make_image_desc(1.00001, 1.00001, 3, filename="./foo.jpg"),
-        make_image_desc(1.00001, 1.00001, 1, filename="a.jpg"),
+        make_image_desc(1.00002, 1.00002, 2, filename=Path("hello/")),
+        make_image_desc(1.00001, 1.00001, 3, filename=Path("./foo.jpg")),
+        make_image_desc(1.00001, 1.00001, 1, filename=Path("a.jpg")),
         # s3
-        make_image_desc(1.00001, 1.00001, 19, filename="./../foo.jpg"),
-        make_image_desc(1.00002, 1.00002, 28, filename="../bar.jpg"),
+        make_image_desc(1.00001, 1.00001, 19, filename=Path("./../foo.jpg")),
+        make_image_desc(1.00002, 1.00002, 28, filename=Path("../bar.jpg")),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -71,13 +73,16 @@ def test_find_sequences_by_folder():
     )
     assert 3 == len(actual_sequences)
 
-    assert ["./../foo.jpg", "../bar.jpg"] == [
+    def _normalize(paths):
+        return [str(Path(path)) for path in paths]
+
+    assert _normalize(["../foo.jpg", "../bar.jpg"]) == [
         d["filename"] for d in actual_sequences[0]
     ]
-    assert ["a.jpg", "hello/", "./foo.jpg"] == [
+    assert _normalize(["a.jpg", "hello", "foo.jpg"]) == [
         d["filename"] for d in actual_sequences[1]
     ]
-    assert ["hello/foo.jpg", "./hello/bar.jpg", "hello/a.jpg"] == [
+    assert _normalize(["hello/foo.jpg", "hello/bar.jpg", "hello/a.jpg"]) == [
         d["filename"] for d in actual_sequences[2]
     ]
 
@@ -86,14 +91,14 @@ def test_cut_sequences():
     sequence = [
         # s1
         make_image_desc(1, 1, 1),
-        make_image_desc(1.00001, 1.00001, 2, filename="a.jpg"),
-        make_image_desc(1.00002, 1.00002, 2, filename="b.jpg"),
+        make_image_desc(1.00001, 1.00001, 2, filename=Path("a.jpg")),
+        make_image_desc(1.00002, 1.00002, 2, filename=Path("b.jpg")),
         # s2
-        make_image_desc(1.00090, 1.00090, 2, filename="foo/b.jpg"),
-        make_image_desc(1.00091, 1.00091, 3, filename="foo/a.jpg"),
+        make_image_desc(1.00090, 1.00090, 2, filename=Path("foo/b.jpg")),
+        make_image_desc(1.00091, 1.00091, 3, filename=Path("foo/a.jpg")),
         # s3
-        make_image_desc(1.00092, 1.00092, 19, filename="../a.jpg"),
-        make_image_desc(1.00093, 1.00093, 28, filename="../b.jpg"),
+        make_image_desc(1.00092, 1.00092, 19, filename=Path("../a.jpg")),
+        make_image_desc(1.00093, 1.00093, 28, filename=Path("../b.jpg")),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -181,4 +186,4 @@ def test_interpolation_single():
         duplicate_distance=100,
         duplicate_angle=5,
     )
-    assert [123] == [int(desc["MAPCompassHeading"]["TrueHeading"]) for desc in descs]
+    assert [0] == [int(desc["MAPCompassHeading"]["TrueHeading"]) for desc in descs]

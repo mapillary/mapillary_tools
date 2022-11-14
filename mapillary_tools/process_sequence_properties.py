@@ -1,4 +1,3 @@
-import dataclasses
 import os
 import typing as T
 import uuid
@@ -6,36 +5,6 @@ from pathlib import Path
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
-
-
-@dataclasses.dataclass
-class DescPoint(geo.Point):
-    _desc: types.ImageDescriptionFile
-    sequence_uuid: T.Optional[str] = None
-
-    def __init__(self, desc: types.ImageDescriptionFile):
-        self._desc = desc
-        super().__init__(
-            time=geo.as_unix_time(
-                types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-            ),
-            lat=desc["MAPLatitude"],
-            lon=desc["MAPLongitude"],
-            alt=desc.get("MAPAltitude"),
-            angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
-        )
-
-    def as_desc(self) -> types.ImageDescriptionFile:
-        new_desc = T.cast(
-            types.ImageDescriptionFile,
-            {
-                **self._desc,
-                **types.as_desc(self),
-            },
-        )
-        if self.sequence_uuid is not None:
-            new_desc["MAPSequenceUUID"] = self.sequence_uuid
-        return new_desc
 
 
 GPXSequence = T.List[geo.Point]
@@ -128,6 +97,9 @@ def interpolate_directions_if_none(sequence: GPXSequence) -> None:
     if 2 <= len(sequence):
         if sequence[-1].angle is None:
             sequence[-1].angle = sequence[-2].angle
+    elif len(sequence) == 1:
+        if sequence[-1].angle is None:
+            sequence[-1].angle = 0
 
 
 def cap_sequence(sequence: GPXSequence) -> T.List[GPXSequence]:
@@ -163,22 +135,27 @@ def group_and_sort_descs_by_folder(
 
 
 def process_sequence_properties(
-    descs: T.List[types.ImageDescriptionFileOrError],
+    descs: T.List[types.ImageVideoDescriptionFileOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
     cutoff_time=constants.CUTOFF_TIME,
     interpolate_directions=False,
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageVideoDescriptionFileOrError]:
     error_descs: T.List[types.ImageDescriptionFileError] = []
     good_descs: T.List[types.ImageDescriptionFile] = []
+    video_descs: T.List[types.VideoDescriptionFile] = []
     processed_descs: T.List[types.ImageDescriptionFile] = []
 
     for desc in descs:
         if types.is_error(desc):
             error_descs.append(T.cast(types.ImageDescriptionFileError, desc))
         else:
-            good_descs.append(T.cast(types.ImageDescriptionFile, desc))
+            filetype = types.FileType(desc.get("filetype"))
+            if filetype == types.FileType.IMAGE:
+                good_descs.append(T.cast(types.ImageDescriptionFile, desc))
+            else:
+                video_descs.append(T.cast(types.VideoDescriptionFile, desc))
 
     groups = group_and_sort_descs_by_folder(good_descs)
     # make sure they are sorted
@@ -193,7 +170,7 @@ def process_sequence_properties(
     # cut sequences
     sequences = []
     for group in groups:
-        s: GPXSequence = [DescPoint(desc) for desc in group]
+        s: GPXSequence = [types.from_desc(desc) for desc in group]
         sequences.extend(cut_sequences(s, cutoff_distance, cutoff_time))
     assert len(good_descs) == sum(len(s) for s in sequences)
 
@@ -206,10 +183,12 @@ def process_sequence_properties(
             duplicate_angle=duplicate_angle,
         )
         for dup in dups:
-            desc = T.cast(DescPoint, dup).as_desc()
+            desc = types.as_desc(T.cast(types.ImageMetadata, dup))
             error_descs.append(
                 types.describe_error(
-                    MapillaryDuplicationError("duplicated", desc), desc["filename"]
+                    MapillaryDuplicationError("duplicated", desc),
+                    desc["filename"],
+                    filetype=types.FileType(desc["filetype"]),
                 ),
             )
 
@@ -225,12 +204,13 @@ def process_sequence_properties(
         # assign sequence UUIDs
         for s in capped:
             sequence_uuid = str(uuid.uuid4())
-            for p in T.cast(T.List[DescPoint], s):
-                p.sequence_uuid = sequence_uuid
-                processed_descs.append(p.as_desc())
+            for p in T.cast(T.List[types.ImageMetadata], s):
+                p.MAPSequenceUUID = sequence_uuid
+                processed_descs.append(types.as_desc(p))
 
-    assert len(descs) == len(error_descs) + len(processed_descs)
+    assert len(descs) == len(error_descs) + len(processed_descs) + len(video_descs)
 
-    return T.cast(T.List[types.ImageDescriptionFileOrError], error_descs) + T.cast(
-        T.List[types.ImageDescriptionFileOrError], processed_descs
+    return T.cast(
+        T.List[types.ImageVideoDescriptionFileOrError],
+        error_descs + processed_descs + video_descs,
     )

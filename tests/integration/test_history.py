@@ -2,10 +2,11 @@ import os
 import subprocess
 
 import py.path
-
 import pytest
 
-from .test_process import EXECUTABLE, setup_config, setup_data, setup_upload, USERNAME
+from .fixtures import EXECUTABLE, setup_config, setup_data, setup_upload, USERNAME
+
+UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
 @pytest.fixture
@@ -20,16 +21,16 @@ def setup_history_path(tmpdir: py.path.local):
     del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
 
+@pytest.mark.usefixtures("setup_config")
+@pytest.mark.usefixtures("setup_history_path")
 def test_upload_images(
     setup_data: py.path.local,
-    setup_config: py.path.local,
-    setup_history_path: py.path.local,
     setup_upload: py.path.local,
 ):
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -38,7 +39,7 @@ def test_upload_images(
         upload.remove()
 
     x = subprocess.run(
-        f"{EXECUTABLE} process_and_upload {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} process_and_upload --file_types=image {UPLOAD_FLAGS} {str(setup_data)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -47,16 +48,17 @@ def test_upload_images(
     ), "should NOT upload because it is uploaded already"
 
 
+@pytest.mark.usefixtures("setup_config")
+@pytest.mark.usefixtures("setup_history_path")
 def test_upload_blackvue(
     setup_data: py.path.local,
-    setup_config: py.path.local,
-    setup_history_path: py.path.local,
     setup_upload: py.path.local,
 ):
     assert len(setup_upload.listdir()) == 0
+    video_dir = setup_data.join("videos")
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -66,7 +68,7 @@ def test_upload_blackvue(
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {str(setup_data)} --dry_run --user_name={USERNAME}",
+        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

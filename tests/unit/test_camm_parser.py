@@ -1,8 +1,9 @@
 import dataclasses
 import io
 import typing as T
+from pathlib import Path
 
-from mapillary_tools import geo, utils
+from mapillary_tools import geo, types
 from mapillary_tools.geotag import (
     camm_builder,
     camm_parser,
@@ -39,7 +40,7 @@ def test_filter_points_by_edit_list():
     ] == list(camm_parser.filter_points_by_elst(points, [(-1, 4.4), (0.24, 0.3)]))
 
 
-def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadata:
+def build_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
     movie_timescale = simple_mp4_builder.UINT32_MAX
 
     mvhd: cparser.BoxDict = {
@@ -66,8 +67,12 @@ def build_mp4(metadata: camm_builder.VideoMetadata) -> camm_builder.VideoMetadat
     make, model = camm_parser.extract_camera_make_and_model(
         T.cast(T.BinaryIO, target_fp)
     )
-    return camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM, points=points or [], make=make, model=model
+    return types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
+        points=points or [],
+        make=make,
+        model=model,
     )
 
 
@@ -87,8 +92,9 @@ def test_build_and_parse():
         geo.Point(time=0.29, lat=0.002, lon=0.203, alt=None, angle=None),
         geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None),
     ]
-    metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make",
         model="   test_model   ",
@@ -119,8 +125,9 @@ def test_build_and_parse2():
     points = [
         geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
-    metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -138,8 +145,9 @@ def test_build_and_parse9():
     points = [
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
     ]
-    metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -153,8 +161,9 @@ def test_build_and_parse10():
         geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
         geo.Point(time=0.1, lat=0.03, lon=0.2, alt=None, angle=None),
     ]
-    metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",
@@ -171,8 +180,9 @@ def test_build_and_parse10():
 
 def test_build_and_parse3():
     points = []
-    metadata = camm_builder.VideoMetadata(
-        file_type=utils.FileType.CAMM,
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
         model="test_model汉字",

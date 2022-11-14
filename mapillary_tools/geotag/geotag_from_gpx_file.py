@@ -47,7 +47,9 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 desc["filename"],
                 exc_info=True,
             )
-            return types.describe_error(exc, desc["filename"])
+            return types.describe_error(
+                exc, desc["filename"], filetype=types.FileType.IMAGE
+            )
 
         meta: types.MetaProperties = {
             "MAPOrientation": exif.extract_orientation(),
@@ -78,17 +80,21 @@ class GeotagFromGPXFile(GeotagFromGeneric):
             )
             descs = geotag.to_description()
 
-        return list(
-            types.map_descs(
-                self._attach_exif,
-                tqdm(
-                    descs,
-                    desc=f"Processing",
-                    unit="images",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                ),
-            )
+        processed: T.List[types.ImageDescriptionFileOrError] = []
+        descs_tqdm = tqdm(
+            descs,
+            desc=f"Processing",
+            unit="images",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
+        for desc in descs_tqdm:
+            if types.is_error(desc):
+                processed.append(desc)
+            else:
+                processed.append(
+                    self._attach_exif(T.cast(types.ImageDescriptionFile, desc))
+                )
+        return processed
 
 
 Track = T.List[geo.Point]

@@ -1,7 +1,8 @@
 import inspect
+import typing as T
 
 from .. import constants
-from ..upload import FileType, upload
+from ..upload import DirectUploadFileType, FileType, upload
 
 
 class Command:
@@ -33,11 +34,28 @@ class Command:
         group = parser.add_argument_group(
             f"{constants.ANSI_BOLD}UPLOAD OPTIONS{constants.ANSI_RESET_ALL}"
         )
+        default_filetypes = ",".join(sorted(t.value for t in FileType))
+        supported_filetypes = ",".join(
+            sorted(
+                [t.value for t in DirectUploadFileType] + [t.value for t in FileType]
+            )
+        )
+
+        def _type(option: str) -> T.List[T.Union[FileType, DirectUploadFileType]]:
+            r: T.List[T.Union[FileType, DirectUploadFileType]] = []
+            for t in option.split(","):
+                if t in [x.value for x in FileType]:
+                    r.append(FileType(t))
+                else:
+                    r.append(DirectUploadFileType(t))
+            return r
+
         group.add_argument(
+            "--filetypes",
             "--file_types",
-            help=f"Upload files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
-            type=lambda option: set(FileType(t) for t in option.split(",")),
-            default=FileType.IMAGE.value,
+            help=f"Upload files of the specified types only. Supported file types: {supported_filetypes} [default: %(default)s]",
+            type=_type,
+            default=default_filetypes,
             required=False,
         )
         group.add_argument(

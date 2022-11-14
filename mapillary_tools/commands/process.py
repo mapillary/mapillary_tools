@@ -1,19 +1,25 @@
 import argparse
 import inspect
+import typing as T
 from pathlib import Path
 
 from .. import constants
-from ..process_geotag_properties import process_finalize, process_geotag_properties
+from ..process_geotag_properties import (
+    FileType,
+    GeotagSource,
+    process_finalize,
+    process_geotag_properties,
+)
 from ..process_import_meta_properties import process_import_meta_properties
 from ..process_sequence_properties import process_sequence_properties
 
 
 class Command:
     name = "process"
-    help = "process images"
+    help = "process images and videos"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
-        geotag_sources = [
+        geotag_sources: T.List[GeotagSource] = [
             "exif",
             "gpx",
             "gopro_videos",
@@ -21,7 +27,7 @@ class Command:
             "blackvue_videos",
             "camm",
         ]
-        geotag_gpx_based_sources = [
+        geotag_gpx_based_sources: T.List[GeotagSource] = [
             "gpx",
             "gopro_videos",
             "nmea",
@@ -36,6 +42,14 @@ class Command:
             help="Skip process errors.",
             action="store_true",
             default=False,
+            required=False,
+        )
+        parser.add_argument(
+            "--filetypes",
+            "--file_types",
+            help=f"Process files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
+            type=lambda option: set(FileType(t) for t in option.split(",")),
+            default=",".join(sorted(t.value for t in FileType)),
             required=False,
         )
         group = parser.add_argument_group(

@@ -329,23 +329,41 @@ def _extract_points_from_samples(
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
+    """
+    Return a list of points (could be empty) if it is a valid GoPro video,
+    otherwise None
+    """
+    points = None
     for h, s in parser.parse_path(fp, [b"moov", b"trak"]):
-        gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
-        points = list(_extract_points_from_samples(fp, gpmd_samples))
-        if points:
-            return points
-    return None
+        trak_start_offset = s.tell()
+        descriptions = _extract_gpmd_descriptions_from_trak(s, h.maxsize)
+        if descriptions:
+            s.seek(trak_start_offset, io.SEEK_SET)
+            gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
+            points = list(_extract_points_from_samples(fp, gpmd_samples))
+            # return the firstly found non-empty points
+            if points:
+                return points
+    # points could be empty list or None here
+    return points
+
+
+def _extract_gpmd_descriptions_from_trak(
+    s: T.BinaryIO,
+    maxsize: int = -1,
+):
+    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
+    return [d for d in descriptions if d["format"] == b"gpmd"]
 
 
 def _extract_gpmd_samples_from_trak(
     s: T.BinaryIO,
     maxsize: int = -1,
 ) -> T.Generator[sample_parser.Sample, None, None]:
-    begin_offset = s.tell()
-    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
-    gpmd_descriptions = [d for d in descriptions if d["format"] == b"gpmd"]
+    trak_start_offset = s.tell()
+    gpmd_descriptions = _extract_gpmd_descriptions_from_trak(s, maxsize=maxsize)
     if gpmd_descriptions:
-        s.seek(begin_offset, io.SEEK_SET)
+        s.seek(trak_start_offset, io.SEEK_SET)
         samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
         gpmd_samples = (
             sample for sample in samples if sample.description["format"] == b"gpmd"

@@ -41,16 +41,14 @@ Download the latest `mapillary_tools` binaries for your platform
 [here](https://github.com/mapillary/mapillary_tools/releases) first.
 See [more installation instructions](#installation) below.
 
-Process and upload imagery:
+Process and upload imagery or [supported](#upload-videos) videos:
 
 ```shell
-mapillary_tools process_and_upload "path/to/images/"
-```
+# upload all supported files in the folder
+mapillary_tools process_and_upload ~/my_captures/
 
-Upload all videos that mapillary_tools [supports](#upload-videos):
-
-```shell
-mapillary_tools upload --file_types=gopro,camm,blackvue "path/to/videos/"
+# upload multiple folders/files
+mapillary_tools process_and_upload ~/my_captures/GOPRO/ ~/my_captures/*.jpg
 ```
 
 ## Requirements
@@ -159,7 +157,7 @@ Upload all processed images in the directory `path/to/images/` to user `mly_user
 ```shell
 mapillary_tools upload "path/to/images/" \
     --user_name "mly_user" \
-    --organization_key "mly_organization_id"
+    --organization_key "my_organization_id"
 ```
 
 ### Upload Videos
@@ -174,13 +172,10 @@ New in version [v0.9.3](https://github.com/mapillary/mapillary_tools/releases/ta
 
 #### Examples
 
-Upload all recognizable videos in the directory `path/to/videos/` to user `mly_user` for organization `mly_organization_id`.
+Upload all recognizable videos in the directory `path/to/videos/` to organization `mly_organization_id`.
 
 ```shell
-mapillary_tools upload "path/to/videos/" \
-    --file_types=gopro,blackvue,camm \
-    --user_name "mly_user" \
-    --organization_key "mly_organization_id"
+mapillary_tools process_and_upload "path/to/videos/" --organization_key "my_organization_id"
 ```
 
 ## Advanced Usage

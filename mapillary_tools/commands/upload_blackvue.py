@@ -1,14 +1,13 @@
 import inspect
 from pathlib import Path
 
-from .. import constants, utils
-from ..upload import upload
-from .upload import Command as UploadCommand
+from .. import constants, upload
+from .upload import Command as UploadCommand, DirectUploadFileType
 
 
 class Command:
     name = "upload_blackvue"
-    help = "upload BlackVue videos to Mapillary"
+    help = "[deprecated] upload BlackVue videos to Mapillary"
 
     def add_basic_arguments(self, parser):
         parser.add_argument(
@@ -26,9 +25,9 @@ class Command:
         args = {
             k: v
             for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload).args
+            if k in inspect.getfullargspec(upload.upload).args
         }
-        upload(
+        upload.upload(
             **args,
-            file_types={utils.FileType.RAW_BLACKVUE},
+            filetypes={upload.DirectUploadFileType.RAW_BLACKVUE},
         )

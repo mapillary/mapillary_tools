@@ -59,6 +59,7 @@ class GeotagFromCAMM(GeotagFromGeneric):
                             "Stationary CAMM video"
                         ),
                         str(image_path),
+                        filetype=types.FileType.IMAGE,
                     )
                     all_descs.append(err_desc)
                 continue

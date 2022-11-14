@@ -2,7 +2,6 @@ import logging
 import typing as T
 
 from .. import constants, geo
-
 from . import gpmf_parser, gps_filter
 
 LOG = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ def filter_noisy_points(
         if p.gps_fix is not None and p.gps_fix.value in constants.GOPRO_GPS_FIXES
     ]
     if len(points) < num_points:
-        LOG.warning(
+        LOG.debug(
             "Removed %d points with the GPS fix not in %s",
             num_points - len(points),
             constants.GOPRO_GPS_FIXES,
@@ -74,7 +73,7 @@ def filter_noisy_points(
         if p.gps_precision is not None and p.gps_precision <= constants.GOPRO_MAX_DOP100
     ]
     if len(points) < num_points:
-        LOG.warning(
+        LOG.debug(
             "Removed %d points with DoP value higher than %d",
             num_points - len(points),
             constants.GOPRO_MAX_DOP100,
@@ -83,7 +82,7 @@ def filter_noisy_points(
     num_points = len(points)
     points = filter_out_outliers(points)
     if len(points) < num_points:
-        LOG.warning(
+        LOG.debug(
             "Removed %d outlier points",
             num_points - len(points),
         )

@@ -5,13 +5,12 @@ import typing as T
 from pathlib import Path
 
 import py.path
-
 import pytest
 
-from .test_process import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
+from .fixtures import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
 
 
-IMPORT_PATH = "tests/integration/mapillary_tools_process_images_provider/gopro_data"
+IMPORT_PATH = "tests/data/gopro_data"
 
 expected_descs: T.List[T.Any] = [
     {
@@ -104,11 +103,11 @@ def setup_envvars():
     del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"]
 
 
+@pytest.mark.usefixtures("setup_config")
+@pytest.mark.usefixtures("setup_upload")
+@pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8(
     setup_data: py.path.local,
-    setup_config: py.path.local,
-    setup_upload: py.path.local,
-    setup_envvars: T.Any,
 ):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
@@ -127,23 +126,23 @@ def test_process_gopro_hero8(
     with open(desc_path) as fp:
         descs = json.load(fp)
     for expected, actual in zip(expected_descs, descs):
-        assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0001
-        assert abs(expected["MAPLongitude"] - actual["MAPLongitude"]) < 0.0001
+        assert abs(expected["MAPLatitude"] - actual["MAPLatitude"]) < 0.0000001
+        assert abs(expected["MAPLongitude"] - actual["MAPLongitude"]) < 0.0000001
         assert expected["MAPCaptureTime"] == actual["MAPCaptureTime"]
-        assert abs(expected["MAPAltitude"] - actual["MAPAltitude"]) < 0.0001
+        assert abs(expected["MAPAltitude"] - actual["MAPAltitude"]) < 0.001
         assert (
             abs(
                 expected["MAPCompassHeading"]["TrueHeading"]
                 - actual["MAPCompassHeading"]["TrueHeading"]
             )
-            < 0.0001
+            < 0.001
         )
         assert (
             abs(
                 expected["MAPCompassHeading"]["MagneticHeading"]
                 - actual["MAPCompassHeading"]["MagneticHeading"]
             )
-            < 0.0001
+            < 0.001
         )
         assert Path(actual["filename"]).is_file(), actual["filename"]
         assert actual["filename"].endswith(expected["filename"])
