@@ -11,29 +11,29 @@
                         "prefixItems": [
                             {
                                 "type": "number",
-                                "description": "time"
+                                "description": "Time offset of the track point, in milliseconds, relative to the beginning of the video"
                             },
                             {
                                 "type": "number",
-                                "description": "longitude"
+                                "description": "Longitude of the track point, in degrees"
                             },
                             {
                                 "type": "number",
-                                "description": "latitude"
+                                "description": "Latitude of the track point, in degrees"
                             },
                             {
                                 "type": [
                                     "number",
                                     "null"
                                 ],
-                                "description": "altitude"
+                                "description": "Altitude of the track point in meters"
                             },
                             {
                                 "type": [
                                     "number",
                                     "null"
                                 ],
-                                "description": "angle"
+                                "description": "Angle of the track point, in degrees"
                             }
                         ]
                     }
@@ -82,7 +82,7 @@
                 },
                 "MAPAltitude": {
                     "type": "number",
-                    "description": "Altitude of the image"
+                    "description": "Altitude of the image, in meters"
                 },
                 "MAPCaptureTime": {
                     "type": "string",

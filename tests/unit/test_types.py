@@ -5,7 +5,7 @@ from mapillary_tools import geo, types
 
 def test_desc():
     metadata = types.ImageMetadata(
-        filename=Path("foo"),
+        filename=Path("foo").resolve(),
         lat=1,
         lon=2,
         alt=3,
@@ -29,19 +29,19 @@ def test_desc():
 def test_desc_video():
     ds = [
         types.VideoMetadata(
-            filename=Path("foo/bar.mp4"),
+            filename=Path("foo/bar.mp4").resolve(),
             filetype=types.FileType.CAMM,
             points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
             make="hello",
             model="world",
         ),
         types.VideoMetadata(
-            filename=Path("foo/bar.mp4"),
+            filename=Path("foo/bar.mp4").resolve(),
             filetype=types.FileType.CAMM,
             points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
         ),
         types.VideoMetadata(
-            filename=Path("foo/bar.mp4"),
+            filename=Path("foo/bar.mp4").resolve(),
             filetype=types.FileType.CAMM,
             points=[],
         ),

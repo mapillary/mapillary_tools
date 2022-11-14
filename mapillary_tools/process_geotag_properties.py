@@ -200,7 +200,7 @@ def _describe_video_metadata(
         if stationary:
             return types.describe_error(
                 exceptions.MapillaryStationaryVideoError(f"Stationary video"),
-                str(video_metadata.filename),
+                video_metadata.filename,
                 filetype=video_metadata.filetype,
             )
         else:
@@ -208,7 +208,7 @@ def _describe_video_metadata(
     else:
         return types.describe_error(
             exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-            str(video_metadata.filename),
+            video_metadata.filename,
             filetype=video_metadata.filetype,
         )
 
@@ -287,7 +287,7 @@ def process_geotag_properties(
                         exceptions.MapillaryVideoError(
                             "No GPS data found from the video"
                         ),
-                        str(video_path),
+                        video_path,
                         filetype=None,
                     )
                 )
@@ -295,6 +295,7 @@ def process_geotag_properties(
     assert expected_descs_length == len(
         descs
     ), f"expected {expected_descs_length} descs, got {len(descs)}"
+    # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(descs) == len(
         set(desc["filename"] for desc in descs)
     ), "duplicate filenames found"
@@ -314,14 +315,14 @@ def _verify_exif_write(
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:
         return types.describe_error(
-            exc, desc["filename"], filetype=FileType(desc["filetype"])
+            exc, Path(desc["filename"]), filetype=FileType(desc["filetype"])
         )
     except Exception as exc:
         LOG.warning(
             "Unknown error test writing image %s", desc["filename"], exc_info=True
         )
         return types.describe_error(
-            exc, desc["filename"], filetype=FileType(desc["filetype"])
+            exc, Path(desc["filename"]), filetype=FileType(desc["filetype"])
         )
     else:
         return desc
@@ -526,7 +527,7 @@ def process_finalize(
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    intial_descs_for_length_assertion = [*descs]
+    initial_descs_length = len(descs)
 
     _apply_offsets(
         types.filter_image_descs(descs),
@@ -578,6 +579,6 @@ def process_finalize(
 
     _show_stats(descs, skipped_process_errors=skipped_process_errors)
 
-    assert len(intial_descs_for_length_assertion) == len(descs)
+    assert initial_descs_length == len(descs)
 
     return descs

@@ -187,7 +187,7 @@ def process_sequence_properties(
             error_descs.append(
                 types.describe_error(
                     MapillaryDuplicationError("duplicated", desc),
-                    desc["filename"],
+                    Path(desc["filename"]),
                     filetype=types.FileType(desc["filetype"]),
                 ),
             )

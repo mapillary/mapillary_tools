@@ -15,7 +15,8 @@ def make_image_desc(
     filename: T.Optional[Path] = None,
 ) -> types.ImageDescriptionFileOrError:
     if filename is None:
-        filename = Path(str(uuid.uuid4()))
+        filename = Path(str(uuid.uuid4())).resolve()
+    assert filename.is_absolute()
 
     desc = {
         "MAPLatitude": lat,
@@ -38,16 +39,18 @@ def test_find_sequences_by_folder():
     sequence = [
         {"error": "hello"},
         # s1
-        make_image_desc(1.00001, 1.00001, 2, filename=Path("hello/foo.jpg")),
-        make_image_desc(1.00002, 1.00002, 8, filename=Path("./hello/bar.jpg")),
-        make_image_desc(1.00002, 1.00002, 9, filename=Path("hello/a.jpg")),
+        make_image_desc(1.00001, 1.00001, 2, filename=Path("hello/foo.jpg").resolve()),
+        make_image_desc(
+            1.00002, 1.00002, 8, filename=Path("./hello/bar.jpg").resolve()
+        ),
+        make_image_desc(1.00002, 1.00002, 9, filename=Path("hello/a.jpg").resolve()),
         # s2
-        make_image_desc(1.00002, 1.00002, 2, filename=Path("hello/")),
-        make_image_desc(1.00001, 1.00001, 3, filename=Path("./foo.jpg")),
-        make_image_desc(1.00001, 1.00001, 1, filename=Path("a.jpg")),
+        make_image_desc(1.00002, 1.00002, 2, filename=Path("hello/").resolve()),
+        make_image_desc(1.00001, 1.00001, 3, filename=Path("./foo.jpg").resolve()),
+        make_image_desc(1.00001, 1.00001, 1, filename=Path("a.jpg").resolve()),
         # s3
-        make_image_desc(1.00001, 1.00001, 19, filename=Path("./../foo.jpg")),
-        make_image_desc(1.00002, 1.00002, 28, filename=Path("../bar.jpg")),
+        make_image_desc(1.00001, 1.00001, 19, filename=Path("./../foo.jpg").resolve()),
+        make_image_desc(1.00002, 1.00002, 28, filename=Path("../bar.jpg").resolve()),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -74,7 +77,7 @@ def test_find_sequences_by_folder():
     assert 3 == len(actual_sequences)
 
     def _normalize(paths):
-        return [str(Path(path)) for path in paths]
+        return [str(Path(path).resolve()) for path in paths]
 
     assert _normalize(["../foo.jpg", "../bar.jpg"]) == [
         d["filename"] for d in actual_sequences[0]
@@ -91,14 +94,14 @@ def test_cut_sequences():
     sequence = [
         # s1
         make_image_desc(1, 1, 1),
-        make_image_desc(1.00001, 1.00001, 2, filename=Path("a.jpg")),
-        make_image_desc(1.00002, 1.00002, 2, filename=Path("b.jpg")),
+        make_image_desc(1.00001, 1.00001, 2, filename=Path("a.jpg").resolve()),
+        make_image_desc(1.00002, 1.00002, 2, filename=Path("b.jpg").resolve()),
         # s2
-        make_image_desc(1.00090, 1.00090, 2, filename=Path("foo/b.jpg")),
-        make_image_desc(1.00091, 1.00091, 3, filename=Path("foo/a.jpg")),
+        make_image_desc(1.00090, 1.00090, 2, filename=Path("foo/b.jpg").resolve()),
+        make_image_desc(1.00091, 1.00091, 3, filename=Path("foo/a.jpg").resolve()),
         # s3
-        make_image_desc(1.00092, 1.00092, 19, filename=Path("../a.jpg")),
-        make_image_desc(1.00093, 1.00093, 28, filename=Path("../b.jpg")),
+        make_image_desc(1.00092, 1.00092, 19, filename=Path("../a.jpg").resolve()),
+        make_image_desc(1.00093, 1.00093, 28, filename=Path("../b.jpg").resolve()),
     ]
     descs = psp.process_sequence_properties(
         sequence,
