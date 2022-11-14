@@ -105,6 +105,9 @@ def validate_and_extract_zip(filename: str) -> T.List[T.Dict]:
 
 
 def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
+    if not is_ffmpeg_installed:
+        return []
+
     with tempfile.TemporaryDirectory() as tempdir:
         x = subprocess.run(
             f"{EXECUTABLE} --verbose video_process --geotag_source=camm {filename} {tempdir}",

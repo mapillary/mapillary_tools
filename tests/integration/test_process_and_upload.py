@@ -6,6 +6,7 @@ import pytest
 
 from .fixtures import (
     EXECUTABLE,
+    is_ffmpeg_installed,
     setup_config,
     setup_data,
     setup_upload,
@@ -18,7 +19,7 @@ PROCESS_FLAGS = "--add_import_date"
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
-expected = {
+EXPECTED_DESCS = {
     "image": {
         "abebe4d14eafd4ed7d51a437f7f3dc41.jpg": {
             "MAPAltitude": 77.5,
@@ -165,7 +166,12 @@ def test_process_and_upload(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    _validate_output(setup_upload, {**expected["gopro"], **expected["image"]})
+    if is_ffmpeg_installed:
+        _validate_output(
+            setup_upload, {**EXPECTED_DESCS["gopro"], **EXPECTED_DESCS["image"]}
+        )
+    else:
+        _validate_output(setup_upload, {**EXPECTED_DESCS["image"]})
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -178,4 +184,4 @@ def test_process_and_upload_images_only(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    _validate_output(setup_upload, expected["image"])
+    _validate_output(setup_upload, EXPECTED_DESCS["image"])
