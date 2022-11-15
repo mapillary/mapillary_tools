@@ -228,6 +228,7 @@ ImageDescriptionEXIFSchema = {
             },
             "required": ["TrueHeading", "MagneticHeading"],
             "additionalProperties": False,
+            "description": "Camera angle of the image, in degrees. If null, the angle will be interpolated",
         },
         "MAPSequenceUUID": {
             "type": "string",
@@ -268,11 +269,11 @@ VideoDescriptionSchema = {
                     },
                     {
                         "type": "number",
-                        "description": "Longitude of the track point, in degrees",
+                        "description": "Longitude of the track point",
                     },
                     {
                         "type": "number",
-                        "description": "Latitude of the track point, in degrees",
+                        "description": "Latitude of the track point",
                     },
                     {
                         "type": ["number", "null"],
@@ -280,13 +281,19 @@ VideoDescriptionSchema = {
                     },
                     {
                         "type": ["number", "null"],
-                        "description": "Angle of the track point, in degrees",
+                        "description": "Camera angle of the track point, in degrees. If null, the angle will be interpolated",
                     },
                 ],
             },
         },
-        "MAPDeviceMake": {"type": "string"},
-        "MAPDeviceModel": {"type": "string"},
+        "MAPDeviceMake": {
+            "type": "string",
+            "description": "Device make, e.g. GoPro, BlackVue, Insta360",
+        },
+        "MAPDeviceModel": {
+            "type": "string",
+            "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan",
+        },
     },
     "required": [
         "MAPGPSTrack",
@@ -321,7 +328,7 @@ ImageDescriptionFileSchema = merge_schema(
         "properties": {
             "filename": {
                 "type": "string",
-                "description": "The image file path",
+                "description": "Absolute path of the image",
             },
             "filetype": {
                 "type": "string",
@@ -343,7 +350,7 @@ VideoDescriptionFileSchema = merge_schema(
         "properties": {
             "filename": {
                 "type": "string",
-                "description": "The video file path",
+                "description": "Absolute path of the video",
             },
             "filetype": {
                 "type": "string",
@@ -352,7 +359,7 @@ VideoDescriptionFileSchema = merge_schema(
                     FileType.GOPRO.value,
                     FileType.BLACKVUE.value,
                 ],
-                "description": "The file type",
+                "description": "The video file type",
             },
         },
         "required": [
