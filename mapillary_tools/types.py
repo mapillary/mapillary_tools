@@ -146,7 +146,7 @@ class ImageDescriptionFileError(TypedDict, total=False):
 
 
 def describe_error(
-    exc: Exception, filename: str, filetype: T.Optional[FileType]
+    exc: Exception, filename: Path, filetype: T.Optional[FileType]
 ) -> ImageDescriptionFileError:
     err: ErrorObject = {
         "type": exc.__class__.__name__,
@@ -166,7 +166,7 @@ def describe_error(
 
     desc: ImageDescriptionFileError = {
         "error": err,
-        "filename": filename,
+        "filename": str(filename.resolve()),
     }
     if filetype is not None:
         desc["filetype"] = filetype.value
@@ -211,7 +211,10 @@ ImageDescriptionEXIFSchema = {
             "minimum": -180,
             "maximum": 180,
         },
-        "MAPAltitude": {"type": "number", "description": "Altitude of the image"},
+        "MAPAltitude": {
+            "type": "number",
+            "description": "Altitude of the image, in meters",
+        },
         "MAPCaptureTime": {
             "type": "string",
             "description": "Capture time of the image",
@@ -225,6 +228,7 @@ ImageDescriptionEXIFSchema = {
             },
             "required": ["TrueHeading", "MagneticHeading"],
             "additionalProperties": False,
+            "description": "Camera angle of the image, in degrees. If null, the angle will be interpolated",
         },
         "MAPSequenceUUID": {
             "type": "string",
@@ -261,29 +265,35 @@ VideoDescriptionSchema = {
                 "prefixItems": [
                     {
                         "type": "number",
-                        "description": "time",
+                        "description": "Time offset of the track point, in milliseconds, relative to the beginning of the video",
                     },
                     {
                         "type": "number",
-                        "description": "longitude",
+                        "description": "Longitude of the track point",
                     },
                     {
                         "type": "number",
-                        "description": "latitude",
+                        "description": "Latitude of the track point",
                     },
                     {
                         "type": ["number", "null"],
-                        "description": "altitude",
+                        "description": "Altitude of the track point in meters",
                     },
                     {
                         "type": ["number", "null"],
-                        "description": "angle",
+                        "description": "Camera angle of the track point, in degrees. If null, the angle will be interpolated",
                     },
                 ],
             },
         },
-        "MAPDeviceMake": {"type": "string"},
-        "MAPDeviceModel": {"type": "string"},
+        "MAPDeviceMake": {
+            "type": "string",
+            "description": "Device make, e.g. GoPro, BlackVue, Insta360",
+        },
+        "MAPDeviceModel": {
+            "type": "string",
+            "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan",
+        },
     },
     "required": [
         "MAPGPSTrack",
@@ -318,7 +328,7 @@ ImageDescriptionFileSchema = merge_schema(
         "properties": {
             "filename": {
                 "type": "string",
-                "description": "The image file path",
+                "description": "Absolute path of the image",
             },
             "filetype": {
                 "type": "string",
@@ -340,7 +350,7 @@ VideoDescriptionFileSchema = merge_schema(
         "properties": {
             "filename": {
                 "type": "string",
-                "description": "The video file path",
+                "description": "Absolute path of the video",
             },
             "filetype": {
                 "type": "string",
@@ -349,7 +359,7 @@ VideoDescriptionFileSchema = merge_schema(
                     FileType.GOPRO.value,
                     FileType.BLACKVUE.value,
                 ],
-                "description": "The file type",
+                "description": "The video file type",
             },
         },
         "required": [
@@ -444,7 +454,7 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
 
 def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
     desc: ImageDescriptionFile = {
-        "filename": str(metadata.filename),
+        "filename": str(metadata.filename.resolve()),
         "filetype": FileType.IMAGE.value,
         "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
         "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
@@ -511,7 +521,7 @@ def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
 
 def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
     desc: VideoDescriptionFile = {
-        "filename": str(video_metadata.filename),
+        "filename": str(video_metadata.filename.resolve()),
         "filetype": video_metadata.filetype.value,
         "MAPGPSTrack": [_encode_point(p) for p in video_metadata.points],
     }
@@ -554,7 +564,9 @@ def validate_and_fail_desc(
             validate_desc_video(T.cast(VideoDescriptionFile, desc))
     except jsonschema.ValidationError as exc:
         return describe_error(
-            exc, desc["filename"], filetype=FileType(filetype) if filetype else None
+            exc,
+            Path(desc["filename"]),
+            filetype=FileType(filetype) if filetype else None,
         )
 
     return desc

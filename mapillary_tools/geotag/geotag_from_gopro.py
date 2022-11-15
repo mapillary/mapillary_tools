@@ -61,7 +61,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
                         exceptions.MapillaryStationaryVideoError(
                             "Stationary GoPro video"
                         ),
-                        str(image_path),
+                        image_path,
                         filetype=types.FileType.IMAGE,
                     )
                     all_descs.append(err_desc)

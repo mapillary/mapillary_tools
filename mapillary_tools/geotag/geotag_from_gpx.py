@@ -50,7 +50,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             for image_path in self.image_paths:
                 descs.append(
                     types.describe_error(
-                        exc, str(image_path), filetype=types.FileType.IMAGE
+                        exc, image_path, filetype=types.FileType.IMAGE
                     ),
                 )
             assert len(self.image_paths) == len(descs)
@@ -64,7 +64,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             except Exception as exc:
                 descs.append(
                     types.describe_error(
-                        exc, str(image_path), filetype=types.FileType.IMAGE
+                        exc, image_path, filetype=types.FileType.IMAGE
                     ),
                 )
                 continue
@@ -75,7 +75,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                         MapillaryGeoTaggingError(
                             "No data time found from the image EXIF for interpolation"
                         ),
-                        str(image_path),
+                        image_path,
                         filetype=types.FileType.IMAGE,
                     )
                 )
@@ -136,7 +136,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                     )
                     descs.append(
                         types.describe_error(
-                            exc2, str(image_path), filetype=types.FileType.IMAGE
+                            exc2, image_path, filetype=types.FileType.IMAGE
                         )
                     )
                     continue
@@ -157,7 +157,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                     )
                     descs.append(
                         types.describe_error(
-                            exc2, str(image_path), filetype=types.FileType.IMAGE
+                            exc2, image_path, filetype=types.FileType.IMAGE
                         ),
                     )
                     continue

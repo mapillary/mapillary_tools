@@ -38,7 +38,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 )
                 descs.append(
                     types.describe_error(
-                        exc0, str(image_path), filetype=types.FileType.IMAGE
+                        exc0, image_path, filetype=types.FileType.IMAGE
                     )
                 )
                 continue
@@ -49,9 +49,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
                 descs.append(
-                    types.describe_error(
-                        exc, str(image_path), filetype=types.FileType.IMAGE
-                    )
+                    types.describe_error(exc, image_path, filetype=types.FileType.IMAGE)
                 )
                 continue
 
@@ -61,9 +59,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     "Unable to extract timestamp from the image"
                 )
                 descs.append(
-                    types.describe_error(
-                        exc, str(image_path), filetype=types.FileType.IMAGE
-                    )
+                    types.describe_error(exc, image_path, filetype=types.FileType.IMAGE)
                 )
                 continue
 

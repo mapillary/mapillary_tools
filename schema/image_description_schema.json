@@ -11,42 +11,44 @@
                         "prefixItems": [
                             {
                                 "type": "number",
-                                "description": "time"
+                                "description": "Time offset of the track point, in milliseconds, relative to the beginning of the video"
                             },
                             {
                                 "type": "number",
-                                "description": "longitude"
+                                "description": "Longitude of the track point"
                             },
                             {
                                 "type": "number",
-                                "description": "latitude"
+                                "description": "Latitude of the track point"
                             },
                             {
                                 "type": [
                                     "number",
                                     "null"
                                 ],
-                                "description": "altitude"
+                                "description": "Altitude of the track point in meters"
                             },
                             {
                                 "type": [
                                     "number",
                                     "null"
                                 ],
-                                "description": "angle"
+                                "description": "Camera angle of the track point, in degrees. If null, the angle will be interpolated"
                             }
                         ]
                     }
                 },
                 "MAPDeviceMake": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Device make, e.g. GoPro, BlackVue, Insta360"
                 },
                 "MAPDeviceModel": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan"
                 },
                 "filename": {
                     "type": "string",
-                    "description": "The video file path"
+                    "description": "Absolute path of the video"
                 },
                 "filetype": {
                     "type": "string",
@@ -55,7 +57,7 @@
                         "gopro",
                         "blackvue"
                     ],
-                    "description": "The file type"
+                    "description": "The video file type"
                 }
             },
             "required": [
@@ -82,7 +84,7 @@
                 },
                 "MAPAltitude": {
                     "type": "number",
-                    "description": "Altitude of the image"
+                    "description": "Altitude of the image, in meters"
                 },
                 "MAPCaptureTime": {
                     "type": "string",
@@ -103,7 +105,8 @@
                         "TrueHeading",
                         "MagneticHeading"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Camera angle of the image, in degrees. If null, the angle will be interpolated"
                 },
                 "MAPSequenceUUID": {
                     "type": "string",
@@ -134,7 +137,7 @@
                 },
                 "filename": {
                     "type": "string",
-                    "description": "The image file path"
+                    "description": "Absolute path of the image"
                 },
                 "filetype": {
                     "type": "string",

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from mapillary_tools import exceptions, types
 
@@ -24,4 +25,4 @@ def test_all():
         else:
             e = exc("hello")
         # should not raise
-        json.dumps(types.describe_error(e, "test", types.FileType.IMAGE))
+        json.dumps(types.describe_error(e, Path("test.jpg"), types.FileType.IMAGE))

@@ -1,21 +1,19 @@
 import datetime
 import itertools
 import typing as T
-import uuid
 from pathlib import Path
 
 from mapillary_tools import geo, process_sequence_properties as psp, types
 
 
 def make_image_desc(
+    filename: Path,
     lng: float,
     lat: float,
     time: float,
     angle: T.Optional[float] = None,
-    filename: T.Optional[Path] = None,
 ) -> types.ImageDescriptionFileOrError:
-    if filename is None:
-        filename = Path(str(uuid.uuid4()))
+    filename = filename.resolve()
 
     desc = {
         "MAPLatitude": lat,
@@ -38,16 +36,21 @@ def test_find_sequences_by_folder():
     sequence = [
         {"error": "hello"},
         # s1
-        make_image_desc(1.00001, 1.00001, 2, filename=Path("hello/foo.jpg")),
-        make_image_desc(1.00002, 1.00002, 8, filename=Path("./hello/bar.jpg")),
-        make_image_desc(1.00002, 1.00002, 9, filename=Path("hello/a.jpg")),
+        make_image_desc(Path("hello/foo.jpg"), 1.00001, 1.00001, 2),
+        make_image_desc(
+            Path("./hello/bar.jpg"),
+            1.00002,
+            1.00002,
+            8,
+        ),
+        make_image_desc(Path("hello/a.jpg"), 1.00002, 1.00002, 9),
         # s2
-        make_image_desc(1.00002, 1.00002, 2, filename=Path("hello/")),
-        make_image_desc(1.00001, 1.00001, 3, filename=Path("./foo.jpg")),
-        make_image_desc(1.00001, 1.00001, 1, filename=Path("a.jpg")),
+        make_image_desc(Path("hello/"), 1.00002, 1.00002, 2),
+        make_image_desc(Path("./foo.jpg"), 1.00001, 1.00001, 3),
+        make_image_desc(Path("a.jpg"), 1.00001, 1.00001, 1),
         # s3
-        make_image_desc(1.00001, 1.00001, 19, filename=Path("./../foo.jpg")),
-        make_image_desc(1.00002, 1.00002, 28, filename=Path("../bar.jpg")),
+        make_image_desc(Path("./../foo.jpg"), 1.00001, 1.00001, 19),
+        make_image_desc(Path("../bar.jpg"), 1.00002, 1.00002, 28),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -74,7 +77,7 @@ def test_find_sequences_by_folder():
     assert 3 == len(actual_sequences)
 
     def _normalize(paths):
-        return [str(Path(path)) for path in paths]
+        return [str(Path(path).resolve()) for path in paths]
 
     assert _normalize(["../foo.jpg", "../bar.jpg"]) == [
         d["filename"] for d in actual_sequences[0]
@@ -90,15 +93,15 @@ def test_find_sequences_by_folder():
 def test_cut_sequences():
     sequence = [
         # s1
-        make_image_desc(1, 1, 1),
-        make_image_desc(1.00001, 1.00001, 2, filename=Path("a.jpg")),
-        make_image_desc(1.00002, 1.00002, 2, filename=Path("b.jpg")),
+        make_image_desc(Path("./c.jpg"), 1, 1, 1),
+        make_image_desc(Path("a.jpg"), 1.00001, 1.00001, 2),
+        make_image_desc(Path("b.jpg"), 1.00002, 1.00002, 2),
         # s2
-        make_image_desc(1.00090, 1.00090, 2, filename=Path("foo/b.jpg")),
-        make_image_desc(1.00091, 1.00091, 3, filename=Path("foo/a.jpg")),
+        make_image_desc(Path("foo/b.jpg"), 1.00090, 1.00090, 2),
+        make_image_desc(Path("foo/a.jpg"), 1.00091, 1.00091, 3),
         # s3
-        make_image_desc(1.00092, 1.00092, 19, filename=Path("../a.jpg")),
-        make_image_desc(1.00093, 1.00093, 28, filename=Path("../b.jpg")),
+        make_image_desc(Path("../a.jpg"), 1.00092, 1.00092, 19),
+        make_image_desc(Path("../b.jpg"), 1.00093, 1.00093, 28),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -127,13 +130,13 @@ def test_cut_sequences():
 def test_duplication():
     sequence = [
         # s1
-        make_image_desc(1, 1, 1, angle=0),
-        make_image_desc(1.00001, 1.00001, 2, angle=1),
-        make_image_desc(1.00002, 1.00002, 3, angle=-1),
-        make_image_desc(1.00003, 1.00003, 4, angle=-2),
-        make_image_desc(1.00009, 1.00009, 5, angle=5),
-        make_image_desc(1.00090, 1.00090, 6, angle=5),
-        make_image_desc(1.00091, 1.00091, 7, angle=-1),
+        make_image_desc(Path("./a.jpg"), 1, 1, 1, angle=0),
+        make_image_desc(Path("./b.jpg"), 1.00001, 1.00001, 2, angle=1),
+        make_image_desc(Path("./c.jpg"), 1.00002, 1.00002, 3, angle=-1),
+        make_image_desc(Path("./d.jpg"), 1.00003, 1.00003, 4, angle=-2),
+        make_image_desc(Path("./e.jpg"), 1.00009, 1.00009, 5, angle=5),
+        make_image_desc(Path("./f.jpg"), 1.00090, 1.00090, 6, angle=5),
+        make_image_desc(Path("./d.jpg"), 1.00091, 1.00091, 7, angle=-1),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -153,11 +156,11 @@ def test_duplication():
 def test_interpolation():
     sequence = [
         # s1
-        make_image_desc(1, 1, 3, angle=344),
-        make_image_desc(0, 1, 4, angle=22),
-        make_image_desc(0, 0, 5, angle=-123),
-        make_image_desc(0, 0, 1, angle=2),
-        make_image_desc(1, 0, 2, angle=123),
+        make_image_desc(Path("./a.jpg"), 1, 1, 3, angle=344),
+        make_image_desc(Path("./b.jpg"), 0, 1, 4, angle=22),
+        make_image_desc(Path("./c.jpg"), 0, 0, 5, angle=-123),
+        make_image_desc(Path("./d.jpg"), 0, 0, 1, angle=2),
+        make_image_desc(Path("./e.jpg"), 1, 0, 2, angle=123),
     ]
     descs = psp.process_sequence_properties(
         sequence,
@@ -176,7 +179,7 @@ def test_interpolation():
 def test_interpolation_single():
     sequence = [
         # s1
-        make_image_desc(0, 0, 1, angle=123),
+        make_image_desc(Path("./a.jpg"), 0, 0, 1, angle=123),
     ]
     descs = psp.process_sequence_properties(
         sequence,
