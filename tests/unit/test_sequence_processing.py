@@ -1,7 +1,6 @@
 import datetime
 import itertools
 import typing as T
-import uuid
 from pathlib import Path
 
 from mapillary_tools import geo, process_sequence_properties as psp, types
