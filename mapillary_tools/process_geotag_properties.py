@@ -226,7 +226,6 @@ def process_geotag_properties(
 ) -> T.List[types.ImageVideoDescriptionFileOrError]:
     filetypes = set(types.FileType(f) for f in filetypes)
     import_paths = _normalize_import_paths(import_path)
-    expected_descs_length = 0
 
     # Check and fail early
     for path in import_paths:
@@ -247,18 +246,16 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        expected_descs_length += len(image_paths)
-        descs.extend(
-            _process_images(
-                image_paths,
-                geotag_source=geotag_source,
-                geotag_source_path=geotag_source_path,
-                video_import_path=video_import_path,
-                interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
-                interpolation_offset_time=interpolation_offset_time,
-                skip_subfolders=skip_subfolders,
-            )
+        image_descs = _process_images(
+            image_paths,
+            geotag_source=geotag_source,
+            geotag_source_path=geotag_source_path,
+            video_import_path=video_import_path,
+            interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
+            interpolation_offset_time=interpolation_offset_time,
+            skip_subfolders=skip_subfolders,
         )
+        descs.extend(image_descs)
 
     if (
         types.FileType.CAMM in filetypes
@@ -270,7 +267,6 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        expected_descs_length += len(video_paths)
         for video_path in tqdm(
             video_paths,
             desc="Extracting GPS tracks from videos",
@@ -292,9 +288,6 @@ def process_geotag_properties(
                     )
                 )
 
-    assert expected_descs_length == len(
-        descs
-    ), f"expected {expected_descs_length} descs, got {len(descs)}"
     # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(descs) == len(
         set(desc["filename"] for desc in descs)
