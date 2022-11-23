@@ -2,7 +2,7 @@ import inspect
 from pathlib import Path
 
 from .. import constants, upload
-from .upload import Command as UploadCommand, DirectUploadFileType
+from .upload import Command as UploadCommand
 
 
 class Command:

@@ -1,3 +1,5 @@
+# pyre-ignore-all-errors[5, 16, 21, 58]
+
 import sys
 import typing as T
 
@@ -450,6 +452,7 @@ class Box32ConstructBuilder(Box64ConstructBuilder):
         return self._box
 
 
+# pyre-ignore[9]: pyre does not support recursive type SwitchMapType
 CMAP: SwitchMapType = {
     b"tkhd": TrackHeaderBox,
     b"mdhd": MediaHeaderBox,
@@ -468,6 +471,7 @@ CMAP: SwitchMapType = {
     b"elst": EditBox,
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"stbl"] = {
     b"stsd": CMAP[b"stsd"],
     b"stts": CMAP[b"stts"],
@@ -478,37 +482,44 @@ CMAP[b"stbl"] = {
     b"stss": CMAP[b"stss"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"dinf"] = {
     b"dref": CMAP[b"dref"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"minf"] = {
     b"dinf": CMAP[b"dinf"],
     b"stbl": CMAP[b"stbl"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"mdia"] = {
     b"mdhd": CMAP[b"mdhd"],
     b"hdlr": CMAP[b"hdlr"],
     b"minf": CMAP[b"minf"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"edts"] = {
     b"elst": CMAP[b"elst"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"trak"] = {
     b"tkhd": CMAP[b"tkhd"],
     b"edts": CMAP[b"edts"],
     b"mdia": CMAP[b"mdia"],
 }
 
+# pyre-ignore[6]: pyre does not support recursive type SwitchMapType
 CMAP[b"moov"] = {
     b"mvhd": CMAP[b"mvhd"],
     b"udta": {},
     b"trak": CMAP[b"trak"],
 }
 
+# pyre-ignore[9]: pyre does not support recursive type SwitchMapType
 MP4_CMAP: SwitchMapType = {
     b"moov": CMAP[b"moov"],
 }
@@ -528,7 +539,9 @@ def _remove_boxes(
     return new_switch_map
 
 
+# pyre-ignore[9]: pyre does not support recursive type SwitchMapType
 MP4_WITHOUT_STBL_CMAP: SwitchMapType = {
+    # pyre-ignore[6]: pyre does not support recursive type SwitchMapType
     b"moov": _remove_boxes(CMAP[b"moov"], [b"stbl"]),
 }
 

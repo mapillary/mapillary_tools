@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import shutil
+import typing as T
 from pathlib import Path
 
 import py.path
@@ -18,6 +19,7 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         video_path: Path,
         sample_path: Path,
         video_sample_interval: float,
+        stream_id: T.Optional[int] = None,
     ):
         probe = self.probe_format_and_streams(video_path)
         video_streams = [
@@ -28,7 +30,10 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
         src = os.path.join(_PWD, "data/test_exif.jpg")
         for idx in range(0, int(duration / video_sample_interval)):
-            sample = f"{frame_path_prefix}_{idx + 1:06d}.jpg"
+            if stream_id is None:
+                sample = f"{frame_path_prefix}_NA_{idx + 1:06d}.jpg"
+            else:
+                sample = f"{frame_path_prefix}_{stream_id}_{idx + 1:06d}.jpg"
             shutil.copyfile(src, sample)
 
     def probe_format_and_streams(self, video_path: Path) -> ffmpeg.ProbeOutput:
@@ -44,7 +49,7 @@ def setup_mock(monkeypatch):
 def _validate(samples, video_start_time):
     assert len(samples), "expect samples but got none"
     for idx, sample in enumerate(sorted(samples)):
-        assert sample.basename == f"hello_{idx + 1:06d}.jpg"
+        assert sample.basename == f"hello_NA_{idx + 1:06d}.jpg"
         exif = exif_read.ExifRead(str(sample))
         expected_dt = video_start_time + datetime.timedelta(
             seconds=constants.VIDEO_SAMPLE_INTERVAL * idx
