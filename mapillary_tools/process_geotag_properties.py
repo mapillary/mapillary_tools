@@ -48,7 +48,7 @@ def _process_images(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageMetadataOrError]:
     geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
@@ -109,9 +109,7 @@ def _process_images(
         else:
             raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    descs = list(types.map_descs(types.validate_and_fail_desc, geotag.to_description()))
-
-    return descs
+    return geotag.to_description()
 
 
 def _process_videos(
@@ -246,7 +244,7 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        image_descs = _process_images(
+        image_metadatas = _process_images(
             image_paths,
             geotag_source=geotag_source,
             geotag_source_path=geotag_source_path,
@@ -255,7 +253,7 @@ def process_geotag_properties(
             interpolation_offset_time=interpolation_offset_time,
             skip_subfolders=skip_subfolders,
         )
-        descs.extend(image_descs)
+        descs.extend(types.as_desc(metadata) for metadata in image_metadatas)
 
     if (
         types.FileType.CAMM in filetypes

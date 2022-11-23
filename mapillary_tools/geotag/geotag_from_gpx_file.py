@@ -37,34 +37,27 @@ class GeotagFromGPXFile(GeotagFromGeneric):
         self.offset_time = offset_time
 
     def _attach_exif(
-        self, desc: types.ImageDescriptionFile
-    ) -> types.ImageDescriptionFileOrError:
+        self, image_metadata: types.ImageMetadata
+    ) -> types.ImageMetadataOrError:
         try:
-            exif = exif_read.ExifRead(desc["filename"])
+            exif = exif_read.ExifRead(str(image_metadata.filename))
         except Exception as exc:
             LOG.warning(
                 "Unknown error reading EXIF from image %s",
-                desc["filename"],
+                image_metadata.filename,
                 exc_info=True,
             )
-            return types.describe_error(
-                exc, Path(desc["filename"]), filetype=types.FileType.IMAGE
+            return types.describe_error_metadata(
+                exc, image_metadata.filename, filetype=types.FileType.IMAGE
             )
 
-        meta: types.MetaProperties = {
-            "MAPOrientation": exif.extract_orientation(),
-        }
-        make = exif.extract_make()
-        if make is not None:
-            meta["MAPDeviceMake"] = make
+        image_metadata.MAPOrientation = exif.extract_orientation()
+        image_metadata.MAPDeviceMake = exif.extract_make()
+        image_metadata.MAPDeviceModel = exif.extract_model()
 
-        model = exif.extract_model()
-        if model is not None:
-            meta["MAPDeviceModel"] = model
+        return image_metadata
 
-        return T.cast(types.ImageDescriptionFile, {**desc, **meta})
-
-    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+    def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with tqdm(
             total=len(self.images),
             desc=f"Interpolating",
@@ -78,22 +71,21 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 offset_time=self.offset_time,
                 progress_bar=pbar,
             )
-            descs = geotag.to_description()
+            metadatas = geotag.to_description()
 
-        processed: T.List[types.ImageDescriptionFileOrError] = []
-        descs_tqdm = tqdm(
-            descs,
+        processed: T.List[types.ImageMetadataOrError] = []
+        metadata_tqdm = tqdm(
+            metadatas,
             desc=f"Processing",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
-        for desc in descs_tqdm:
-            if types.is_error(desc):
-                processed.append(desc)
+        for metadata in metadata_tqdm:
+            if isinstance(metadata, types.ErrorMetadata):
+                processed.append(metadata)
             else:
-                processed.append(
-                    self._attach_exif(T.cast(types.ImageDescriptionFile, desc))
-                )
+                modified = self._attach_exif(metadata)
+                processed.append(modified)
         return processed
 
 

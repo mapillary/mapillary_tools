@@ -69,6 +69,7 @@ class ErrorMetadata:
     error: Exception
 
 
+ImageMetadataOrError = T.Union[ImageMetadata, ErrorMetadata]
 MetadataOrError = T.Union[ImageMetadata, VideoMetadata, ErrorMetadata]
 
 
@@ -172,6 +173,12 @@ def describe_error(
         desc["filetype"] = filetype.value
 
     return desc
+
+
+def describe_error_metadata(
+    exc: Exception, filename: Path, filetype: T.Optional[FileType]
+) -> ErrorMetadata:
+    return ErrorMetadata(filename=filename, filetype=filetype, error=exc)
 
 
 ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
@@ -452,30 +459,43 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
     return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
 
 
+@T.overload
 def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
-    desc: ImageDescriptionFile = {
-        "filename": str(metadata.filename.resolve()),
-        "filetype": FileType.IMAGE.value,
-        "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
-        "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
-        "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
-    }
-    if metadata.alt is not None:
-        desc["MAPAltitude"] = round(metadata.alt, _ALTITUDE_PRECISION)
-    if metadata.angle is not None:
-        desc["MAPCompassHeading"] = {
-            "TrueHeading": round(metadata.angle, _ANGLE_PRECISION),
-            "MagneticHeading": round(metadata.angle, _ANGLE_PRECISION),
+    ...
+
+
+@T.overload
+def as_desc(metadata: ErrorMetadata) -> ImageDescriptionFileError:
+    ...
+
+
+def as_desc(metadata):
+    if isinstance(metadata, ErrorMetadata):
+        return describe_error(metadata.error, metadata.filename, metadata.filetype)
+    else:
+        desc: ImageDescriptionFile = {
+            "filename": str(metadata.filename.resolve()),
+            "filetype": FileType.IMAGE.value,
+            "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
+            "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
+            "MAPCaptureTime": datetime_to_map_capture_time(metadata.time),
         }
-    fields = dataclasses.fields(metadata)
-    for field in fields:
-        if field.name.startswith("MAP"):
-            value = getattr(metadata, field.name)
-            if value is not None:
-                # ignore error: TypedDict key must be a string literal;
-                # expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
-                desc[field.name] = value  # type: ignore
-    return desc
+        if metadata.alt is not None:
+            desc["MAPAltitude"] = round(metadata.alt, _ALTITUDE_PRECISION)
+        if metadata.angle is not None:
+            desc["MAPCompassHeading"] = {
+                "TrueHeading": round(metadata.angle, _ANGLE_PRECISION),
+                "MagneticHeading": round(metadata.angle, _ANGLE_PRECISION),
+            }
+        fields = dataclasses.fields(metadata)
+        for field in fields:
+            if field.name.startswith("MAP"):
+                value = getattr(metadata, field.name)
+                if value is not None:
+                    # ignore error: TypedDict key must be a string literal;
+                    # expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
+                    desc[field.name] = value  # type: ignore
+        return desc
 
 
 def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
