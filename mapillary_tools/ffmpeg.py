@@ -195,7 +195,6 @@ class FFMPEG:
     def probe_video_streams(self, video_path: Path) -> T.List[Stream]:
         probe = self.probe_format_and_streams(video_path)
         streams = probe.get("streams", [])
-        # search start time from video streams
         return [stream for stream in streams if stream.get("codec_type") == "video"]
 
     def probe_video_start_time(self, video_path: Path) -> T.Optional[datetime.datetime]:
