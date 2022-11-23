@@ -182,7 +182,10 @@ class FFMPEG:
             # filter videos
             *["-vf", f"fps=1/{sample_interval}"],
             # video quality level (or the alias -q:v)
-            *["-qscale:v", "1", "-qmin", "1"],
+            *["-qscale:v", "2"],
+            # -q:v=1 is the best quality but larger image sizes
+            # see https://stackoverflow.com/a/10234065
+            # *["-qscale:v", "1", "-qmin", "1"],
             # output
             ouput_template,
         ]
@@ -298,3 +301,27 @@ def iterate_samples(
         if stream_frame_idx is not None:
             stream_id, frame_idx = stream_frame_idx
             yield (stream_id, frame_idx, sample_path)
+
+
+def sort_selected_samples(
+    sample_dir: Path, video_path: Path, selected_stream_ids: T.List[T.Optional[int]]
+) -> T.List[T.Tuple[int, T.List[T.Optional[Path]]]]:
+    """
+    Group frames by frame index, so that
+    the Nth group contains all the frames from the selected streams at frame index N.
+    """
+    stream_samples: T.Dict[int, T.List[T.Tuple[T.Optional[int], Path]]] = {}
+    for stream_id, frame_idx, sample_path in iterate_samples(sample_dir, video_path):
+        stream_samples.setdefault(frame_idx, []).append((stream_id, sample_path))
+
+    selected: T.List[T.Tuple[int, T.List[T.Optional[Path]]]] = []
+    for frame_idx in sorted(stream_samples.keys()):
+        indexed = {
+            stream_id: sample_path
+            for stream_id, sample_path in stream_samples[frame_idx]
+        }
+        selected_sample_paths = [
+            indexed.get(stream_id) for stream_id in selected_stream_ids
+        ]
+        selected.append((frame_idx, selected_sample_paths))
+    return selected

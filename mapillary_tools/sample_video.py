@@ -131,17 +131,13 @@ def _sample_single_video(
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_frames(video_path, wip_dir, sample_interval)
-        stream_frame_samples = ffmpeglib.iterate_samples(wip_dir, video_path)
-        frame_samples = [
-            (frame_idx, sample_path)
-            for stream_id, frame_idx, sample_path in stream_frame_samples
-            if stream_id is None
-        ]
-        # sort samples by frame index
-        frame_samples.sort()
-        for frame_idx, sample_path in frame_samples:
+        frame_samples = ffmpeglib.sort_selected_samples(wip_dir, video_path, [None])
+        for frame_idx, sample_paths in frame_samples:
+            assert len(sample_paths) == 1
+            if sample_paths[0] is None:
+                continue
             seconds = frame_idx * sample_interval * duration_ratio
             timestamp = start_time + datetime.timedelta(seconds=seconds)
-            exif_edit = ExifEdit(str(sample_path))
+            exif_edit = ExifEdit(str(sample_paths[0]))
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
