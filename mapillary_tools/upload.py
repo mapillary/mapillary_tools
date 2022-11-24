@@ -77,7 +77,26 @@ def wrap_http_exception(ex: requests.HTTPError):
     return UploadHTTPError("\n".join(lines))
 
 
-def read_image_descriptions(desc_path: str) -> T.List[types.ImageVideoDescriptionFile]:
+def _load_validate_metadatas_from_desc_path(
+    desc_path: T.Optional[str], import_paths: T.Sequence[Path]
+) -> T.List[types.Metadata]:
+    is_default_desc_path = False
+    if desc_path is None:
+        is_default_desc_path = True
+        if len(import_paths) == 1 and import_paths[0].is_dir():
+            desc_path = str(
+                import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
+            )
+        else:
+            if 1 < len(import_paths):
+                raise exceptions.MapillaryBadParameterError(
+                    "The description path must be specified (with --desc_path) when uploading multiple paths",
+                )
+            else:
+                raise exceptions.MapillaryBadParameterError(
+                    "The description path must be specified (with --desc_path) when uploading a single file",
+                )
+
     descs: T.List[types.ImageVideoDescriptionFileOrError] = []
 
     if desc_path == "-":
@@ -89,9 +108,14 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageVideoDescriptio
             )
     else:
         if not os.path.isfile(desc_path):
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Image description file {desc_path} not found. Please process the image directory first"
-            )
+            if is_default_desc_path:
+                raise exceptions.MapillaryFileNotFoundError(
+                    f"The description file {desc_path} not found. Has the directory been processed yet?"
+                )
+            else:
+                raise exceptions.MapillaryFileNotFoundError(
+                    f"The description file {desc_path} not found"
+                )
         with open(desc_path) as fp:
             try:
                 descs = json.load(fp)
@@ -100,7 +124,35 @@ def read_image_descriptions(desc_path: str) -> T.List[types.ImageVideoDescriptio
                     f"Invalid JSON file {desc_path}: {ex}"
                 )
 
-    return types.filter_out_errors(descs)
+    # the descs load from stdin or json file may contain invalid entries
+    validated_descs = [
+        types.validate_and_fail_desc(desc)
+        for desc in descs
+        # skip non-error descriptions
+        if "error" not in desc
+    ]
+
+    # throw if we found any invalid descs
+    invalid_descs = [desc for desc in validated_descs if "error" in validated_descs]
+    if invalid_descs:
+        for desc in invalid_descs:
+            LOG.error("Invalid description entry: %s", json.dumps(desc))
+        raise exceptions.MapillaryInvalidDescriptionFile(
+            f"Found {len(invalid_descs)} invalid descriptions"
+        )
+
+    # TODO # Make sure all descs have uuid assigned
+    # # It is used to find the right sequence when writing upload history
+    # missing_sequence_uuid = str(uuid.uuid4())
+    # for metadata in metadatas:
+    #     if isinstance(metadata, types.ImageMetadata):
+    #         if metadata.MAPSequenceUUID is None:
+    #             metadata.MAPSequenceUUID = missing_sequence_uuid
+
+    return [
+        types.from_desc(T.cast(types.ImageVideoDescriptionFile, desc))
+        for desc in validated_descs
+    ]
 
 
 def zip_images(
@@ -113,18 +165,17 @@ def zip_images(
             f"Import directory not found: {import_path}"
         )
 
-    if desc_path is None:
-        desc_path = str(import_path.joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
+    metadatas = _load_validate_metadatas_from_desc_path(desc_path, [import_path])
 
-    descs = read_image_descriptions(desc_path)
-
-    if not descs:
-        LOG.warning("No images found in %s", desc_path)
+    if not metadatas:
+        LOG.warning("No images or videos found in %s", desc_path)
         return
 
-    image_descs = types.filter_image_descs(descs)
+    image_metadatas = [
+        metadata for metadata in metadatas if isinstance(metadata, types.ImageMetadata)
+    ]
 
-    uploader.zip_images(image_descs, zip_dir)
+    uploader.zip_images(image_metadatas, zip_dir)
 
 
 def fetch_user_items(
@@ -196,7 +247,7 @@ def write_history(
     md5sum: str,
     params: JSONDict,
     summary: JSONDict,
-    descs: T.Optional[T.List[types.ImageVideoDescriptionFile]] = None,
+    metadatas: T.Optional[T.Sequence[types.Metadata]] = None,
 ) -> None:
     if not MAPILLARY_UPLOAD_HISTORY_PATH:
         return
@@ -207,8 +258,8 @@ def write_history(
         "params": params,
         "summary": summary,
     }
-    if descs is not None:
-        history["descs"] = descs
+    if metadatas is not None:
+        history["descs"] = [types.as_desc(metadata) for metadata in metadatas]
     with open(path, "w") as fp:
         fp.write(json.dumps(history))
 
@@ -238,24 +289,22 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
 def _setup_write_upload_history(
     emitter: uploader.EventEmitter,
     params: JSONDict,
-    descs: T.Optional[T.List[types.ImageVideoDescriptionFile]] = None,
+    metadatas: T.Optional[T.List[types.Metadata]] = None,
 ) -> None:
     @emitter.on("upload_finished")
     def upload_finished(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
         md5sum = payload["md5sum"]
-        if sequence_uuid is None or descs is None:
+        if sequence_uuid is None or metadatas is None:
             sequence = None
         else:
             sequence = [
-                desc for desc in descs if desc.get("MAPSequenceUUID") == sequence_uuid
+                metadata
+                for metadata in metadatas
+                if isinstance(metadata, types.ImageMetadata)
+                and metadata.MAPSequenceUUID == sequence_uuid
             ]
-            sequence.sort(
-                key=lambda d: types.map_capture_time_to_datetime(
-                    T.cast(types.ImageDescriptionFile, d)["MAPCaptureTime"]
-                )
-            )
-
+            sequence.sort(key=lambda d: d.time)
         try:
             write_history(
                 md5sum,
@@ -490,64 +539,44 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
 
 
 def _load_descs(
-    _descs_from_process: T.Optional[T.Sequence[types.ImageVideoDescriptionFileOrError]],
+    _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]],
     desc_path: T.Optional[str],
     import_paths: T.Sequence[Path],
-) -> T.List[types.ImageVideoDescriptionFile]:
-    new_descs: T.List[types.ImageVideoDescriptionFile]
-    if _descs_from_process is not None:
-        new_descs = types.filter_out_errors(_descs_from_process)
+) -> T.List[types.Metadata]:
+    metadatas: T.List[types.Metadata]
+
+    if _metadatas_from_process is not None:
+        metadatas = [
+            metadata
+            for metadata in _metadatas_from_process
+            if not isinstance(metadata, types.ErrorMetadata)
+        ]
     else:
-        if desc_path is None:
-            if len(import_paths) == 1 and import_paths[0].is_dir():
-                desc_path = str(
-                    import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
-                )
-            else:
-                if 1 < len(import_paths):
-                    raise exceptions.MapillaryBadParameterError(
-                        "desc_path is required if multiple import paths are specified"
-                    )
-                else:
-                    raise exceptions.MapillaryBadParameterError(
-                        "desc_path is required if the import path is not a directory"
-                    )
+        metadatas = _load_validate_metadatas_from_desc_path(desc_path, import_paths)
 
-        new_descs = read_image_descriptions(desc_path)
+    for metadata in metadatas:
+        assert isinstance(metadata, (types.ImageMetadata, types.VideoMetadata))
+        if isinstance(metadata, types.ImageMetadata):
+            assert metadata.MAPSequenceUUID is not None
 
-    # Make sure all descs have uuid assigned
-    # It is used to find the right sequence when writing upload history
-    missing_sequence_uuid = str(uuid.uuid4())
-    for desc in new_descs:
-        if desc["filetype"] == types.FileType.IMAGE.value:
-            if "MAPSequenceUUID" not in desc:
-                T.cast(types.ImageDescriptionFile, desc)[
-                    "MAPSequenceUUID"
-                ] = missing_sequence_uuid
-
-    for desc in new_descs:
-        if desc["filetype"] == types.FileType.IMAGE.value:
-            types.validate_desc(T.cast(types.ImageDescriptionFile, desc))
-        else:
-            types.validate_desc_video(T.cast(types.VideoDescriptionFile, desc))
-
-    return new_descs
+    return metadatas
 
 
-def _find_descs_path_existed(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError], paths: T.Sequence[Path]
-):
+_M = T.TypeVar("_M", bound=types.Metadata)
+
+
+def _find_metadata_with_filename_existed_in(
+    metadatas: T.Sequence[_M], paths: T.Sequence[Path]
+) -> T.List[_M]:
     resolved_image_paths = set(p.resolve() for p in paths)
-    return [d for d in descs if Path(d["filename"]).resolve() in resolved_image_paths]
+    return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
 
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
     filetypes: T.Set[T.Union[FileType, DirectUploadFileType]],
     desc_path: T.Optional[str] = None,
-    _descs_from_process: T.Optional[
-        T.Sequence[types.ImageDescriptionFileOrError]
-    ] = None,
+    _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]] = None,
     user_name: T.Optional[str] = None,
     organization_key: T.Optional[str] = None,
     dry_run=False,
@@ -589,9 +618,9 @@ def upload(
         DirectUploadFileType.RAW_BLACKVUE,
         DirectUploadFileType.ZIP,
     }.issuperset(filetypes):
-        descs = None
+        metadatas = None
     else:
-        descs = _load_descs(_descs_from_process, desc_path, import_paths)
+        metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
     user_items = fetch_user_items(user_name, organization_key)
 
@@ -624,7 +653,7 @@ def upload(
     }
 
     if enable_history:
-        _setup_write_upload_history(emitter, params, descs)
+        _setup_write_upload_history(emitter, params, metadatas)
 
     mly_uploader = uploader.Uploader(
         user_items,
@@ -645,10 +674,18 @@ def upload(
                 check_file_suffix=check_file_suffix,
             )
             # find descs that match the image paths from the import paths
-            specified_descs = _find_descs_path_existed(descs or [], image_paths)
-            if specified_descs:
+            image_metadatas = [
+                metadata
+                for metadata in (metadatas or [])
+                if isinstance(metadata, types.ImageMetadata)
+            ]
+            specified_image_metadatas = _find_metadata_with_filename_existed_in(
+                image_metadatas, image_paths
+            )
+            if specified_image_metadatas:
                 clusters = mly_uploader.upload_images(
-                    specified_descs, event_payload={"file_type": FileType.IMAGE.value}
+                    specified_image_metadatas,
+                    event_payload={"file_type": FileType.IMAGE.value},
                 )
                 if clusters:
                     LOG.debug(f"Uploaded to cluster: %s", clusters)
@@ -660,14 +697,20 @@ def upload(
                 skip_subfolders=skip_subfolders,
                 check_file_suffix=check_file_suffix,
             )
-            specified_descs = _find_descs_path_existed(descs or [], video_paths)
-            for idx, desc in enumerate(specified_descs):
-                video_metadata = types.from_desc_video(desc)
+            video_metadatas = [
+                metadata
+                for metadata in (metadatas or [])
+                if isinstance(metadata, types.VideoMetadata)
+            ]
+            specified_video_metadatas = _find_metadata_with_filename_existed_in(
+                video_metadatas, video_paths
+            )
+            for idx, video_metadata in enumerate(specified_video_metadatas):
                 generator = camm_builder.camm_sample_generator2(video_metadata)
                 with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
-                        "total_sequence_count": len(specified_descs),
+                        "total_sequence_count": len(specified_video_metadatas),
                         "sequence_idx": idx,
                         "file_type": video_metadata.filetype.value,
                         "import_path": str(video_metadata.filename),
@@ -686,7 +729,7 @@ def upload(
                 skip_subfolders=skip_subfolders,
                 check_file_suffix=check_file_suffix,
             )
-            _upload_raw_blackvues(mly_uploader, video_paths)
+            _upload_raw_blackvues_DEPRECATED(mly_uploader, video_paths)
 
         if DirectUploadFileType.RAW_CAMM in filetypes:
             video_paths = utils.find_videos(
@@ -694,7 +737,7 @@ def upload(
                 skip_subfolders=skip_subfolders,
                 check_file_suffix=check_file_suffix,
             )
-            _upload_raw_camm(mly_uploader, video_paths)
+            _upload_raw_camm_DEPRECATED(mly_uploader, video_paths)
 
         if DirectUploadFileType.ZIP in filetypes:
             zip_paths = utils.find_zipfiles(
@@ -720,7 +763,7 @@ def upload(
         LOG.info("Nothing uploaded. Bye.")
 
 
-def _check_blackvue(video_path: Path) -> None:
+def _check_blackvue_DEPRECATED(video_path: Path) -> None:
     # Skip in tests only because we don't have valid sample blackvue for tests
     if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
         return
@@ -736,7 +779,7 @@ def _check_blackvue(video_path: Path) -> None:
         raise exceptions.MapillaryStationaryVideoError(f"Stationary BlackVue video")
 
 
-def _upload_raw_blackvues(
+def _upload_raw_blackvues_DEPRECATED(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
 ) -> None:
@@ -749,7 +792,7 @@ def _upload_raw_blackvues(
         }
 
         try:
-            _check_blackvue(video_path)
+            _check_blackvue_DEPRECATED(video_path)
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",
@@ -769,7 +812,7 @@ def _upload_raw_blackvues(
         LOG.debug(f"Uploaded to cluster: %s", cluster_id)
 
 
-def _check_camm(video_path: Path) -> None:
+def _check_camm_DEPRECATED(video_path: Path) -> None:
     # Skip in tests only because we don't have valid sample CAMM for tests
     if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
         return
@@ -785,7 +828,7 @@ def _check_camm(video_path: Path) -> None:
         raise exceptions.MapillaryStationaryVideoError(f"Stationary CAMM video")
 
 
-def _upload_raw_camm(
+def _upload_raw_camm_DEPRECATED(
     mly_uploader: uploader.Uploader,
     video_paths: T.Sequence[Path],
 ) -> None:
@@ -797,7 +840,7 @@ def _upload_raw_camm(
             "import_path": str(video_path),
         }
         try:
-            _check_camm(video_path)
+            _check_camm_DEPRECATED(video_path)
         except Exception as ex:
             LOG.warning(
                 f"Skipping %s %s due to: %s",

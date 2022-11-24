@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import types, geo
+from .. import geo, types
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead
 

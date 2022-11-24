@@ -2,7 +2,7 @@ import json
 
 import jsonschema
 
-from mapillary_tools.types import ImageVideoDescriptionFileSchema, validate_desc
+from mapillary_tools.types import ImageVideoDescriptionFileSchema, validate_image_desc
 
 
 def test_validate_descs_ok():
@@ -30,7 +30,7 @@ def test_validate_descs_ok():
         },
     ]
     for desc in descs:
-        validate_desc(desc)
+        validate_image_desc(desc)
 
 
 def test_validate_descs_not_ok():
@@ -66,7 +66,7 @@ def test_validate_descs_not_ok():
     errors = 0
     for desc in descs:
         try:
-            validate_desc(desc)
+            validate_image_desc(desc)
         except jsonschema.ValidationError:
             errors += 1
     assert errors == len(descs)

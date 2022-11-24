@@ -1,16 +1,16 @@
 import logging
-import os
 import time
 import typing as T
 
 from . import exceptions, types, VERSION
-from .types import MetaProperties
 
 
 LOG = logging.getLogger(__name__)
 
 
-def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) -> None:
+def add_meta_tag(
+    desc: types.ImageMetadata, tag_type: str, key: str, value_before
+) -> None:
     META_DATA_TYPES = {
         "strings": str,
         "doubles": float,
@@ -32,11 +32,14 @@ def add_meta_tag(desc: MetaProperties, tag_type: str, key: str, value_before) ->
         ) from ex
 
     meta_tag = {"key": key, "value": value}
-    tags = desc.setdefault("MAPMetaTags", {})
-    tags.setdefault(tag_type, []).append(meta_tag)
+    if desc.MAPMetaTags is None:
+        desc.MAPMetaTags = {}
+    desc.MAPMetaTags.setdefault(tag_type, []).append(meta_tag)
 
 
-def parse_and_add_custom_meta_tags(desc: MetaProperties, custom_meta_data: str) -> None:
+def parse_and_add_custom_meta_tags(
+    desc: types.ImageMetadata, custom_meta_data: str
+) -> None:
     # parse entry
     meta_data_entries = custom_meta_data.split(";")
     for entry in meta_data_entries:
@@ -73,7 +76,7 @@ def format_orientation(orientation: int) -> int:
 
 
 def process_import_meta_properties(
-    descs: T.List[types.ImageVideoDescriptionFileOrError],
+    metadatas: T.List[types.MetadataOrError],
     orientation=None,
     device_make=None,
     device_model=None,
@@ -82,52 +85,54 @@ def process_import_meta_properties(
     add_import_date=False,
     custom_meta_data=None,
     camera_uuid=None,
-) -> T.List[types.ImageVideoDescriptionFileOrError]:
+) -> T.List[types.MetadataOrError]:
     if add_file_name:
         LOG.warning(
             "The option --add_file_name is not needed any more since v0.9.4, because image filenames will be added automatically"
         )
 
-    for desc in T.cast(
-        T.Iterator[types.ImageVideoDescriptionFile], types.filter_out_errors(descs)
-    ):
-        filetype = desc.get("filetype")
+    for desc in metadatas:
+        if isinstance(desc, types.ErrorMetadata):
+            continue
 
         if device_make is not None:
-            desc["MAPDeviceMake"] = device_make
+            if isinstance(desc, types.VideoMetadata):
+                desc.make = device_make
+            else:
+                desc.MAPDeviceMake = device_make
 
         if device_model is not None:
-            desc["MAPDeviceModel"] = device_model
+            if isinstance(desc, types.VideoMetadata):
+                desc.model = device_model
+            elif isinstance(desc, types.ImageMetadata):
+                desc.MAPDeviceModel = device_model
 
-        if filetype == types.FileType.IMAGE.value:
-            image_desc: types.ImageDescriptionFile = T.cast(
-                types.ImageDescriptionFile, desc
-            )
+        if isinstance(desc, types.ImageMetadata):
             if orientation is not None:
-                image_desc["MAPOrientation"] = format_orientation(orientation)
+                desc.MAPOrientation = format_orientation(orientation)
 
             if GPS_accuracy is not None:
-                image_desc["MAPGPSAccuracyMeters"] = float(GPS_accuracy)
+                desc.MAPGPSAccuracyMeters = float(GPS_accuracy)
 
             if camera_uuid is not None:
-                image_desc["MAPCameraUUID"] = camera_uuid
+                desc.MAPCameraUUID = camera_uuid
 
             # Because image filenames will be renamed to image md5sums
             # when adding to the zip, so we keep the original filename
             # here
-            image_desc["MAPFilename"] = os.path.basename(desc["filename"])
+            desc.MAPFilename = desc.filename.name
 
             if add_import_date:
                 add_meta_tag(
-                    image_desc,
+                    desc,
                     "dates",
                     "import_date",
                     int(round(time.time() * 1000)),
                 )
 
-            add_meta_tag(image_desc, "strings", "mapillary_tools_version", VERSION)
+            add_meta_tag(desc, "strings", "mapillary_tools_version", VERSION)
 
             if custom_meta_data:
-                parse_and_add_custom_meta_tags(image_desc, custom_meta_data)
+                parse_and_add_custom_meta_tags(desc, custom_meta_data)
 
-    return descs
+    return metadatas

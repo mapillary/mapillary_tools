@@ -26,14 +26,14 @@ LOG = logging.getLogger(__name__)
 
 
 def _group_sequences_by_uuid(
-    descs: T.Sequence[types.ImageDescriptionFile],
-) -> T.Dict[str, T.Dict[str, types.ImageDescriptionFile]]:
-    sequences: T.Dict[str, T.Dict[str, types.ImageDescriptionFile]] = {}
+    metadatas: T.Sequence[types.ImageMetadata],
+) -> T.Dict[str, T.Dict[str, types.ImageMetadata]]:
+    sequences: T.Dict[str, T.Dict[str, types.ImageMetadata]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
-    for desc in descs:
-        sequence_uuid = desc.get("MAPSequenceUUID", missing_sequence_uuid)
+    for desc in metadatas:
+        sequence_uuid = desc.MAPSequenceUUID or missing_sequence_uuid
         sequence = sequences.setdefault(sequence_uuid, {})
-        sequence[desc["filename"]] = desc
+        sequence[str(desc.filename)] = desc
     return sequences
 
 
@@ -187,14 +187,14 @@ class Uploader:
 
     def upload_images(
         self,
-        descs: T.Sequence[types.ImageDescriptionFile],
+        image_metadatas: T.Sequence[types.ImageMetadata],
         event_payload: T.Optional[Progress] = None,
     ) -> T.Dict[str, str]:
         if event_payload is None:
             event_payload = {}
 
-        _validate_descs(descs)
-        sequences = _group_sequences_by_uuid(descs)
+        _validate_metadatas(image_metadatas)
+        sequences = _group_sequences_by_uuid(image_metadatas)
         ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
             final_event_payload: Progress = {
@@ -277,8 +277,7 @@ class Uploader:
 def desc_file_to_exif(
     desc: types.ImageDescriptionFile,
 ) -> types.ImageDescriptionEXIF:
-    # TODO: remove MAPPhotoUUID
-    not_needed = ["MAPPhotoUUID", "MAPSequenceUUID"]
+    not_needed = ["MAPSequenceUUID"]
     removed = {
         key: value
         for key, value in desc.items()
@@ -287,18 +286,18 @@ def desc_file_to_exif(
     return T.cast(types.ImageDescriptionEXIF, removed)
 
 
-def _validate_descs(descs: T.Sequence[types.ImageDescriptionFile]):
-    for desc in descs:
-        types.validate_desc(desc)
-        if not os.path.isfile(desc["filename"]):
-            raise RuntimeError(f"Image not found: {desc['filename']}")
+def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
+    for metadata in metadatas:
+        types.validate_image_desc(types.as_desc(metadata))
+        if not metadata.filename.is_file():
+            raise RuntimeError(f"Image not found: {metadata.filename}")
 
 
 def zip_images(
-    descs: T.List[types.ImageDescriptionFile],
+    descs: T.List[types.ImageMetadata],
     zip_dir: Path,
 ):
-    _validate_descs(descs)
+    _validate_metadatas(descs)
     sequences = _group_sequences_by_uuid(descs)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
@@ -322,29 +321,23 @@ def _hash_zipfile(ziph: zipfile.ZipFile) -> str:
 
 
 def _zip_sequence_fp(
-    sequence: T.Dict[str, types.ImageDescriptionFile],
+    sequence: T.Dict[str, types.ImageMetadata],
     fp: T.IO[bytes],
 ) -> str:
     descs = list(sequence.values())
-    descs.sort(
-        key=lambda desc: (
-            types.map_capture_time_to_datetime(desc["MAPCaptureTime"]),
-            desc["filename"],
-        )
-    )
+    descs.sort(key=lambda desc: (desc.time, desc.filename.name))
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for desc in descs:
-            edit = exif_write.ExifEdit(desc["filename"])
-            with open(desc["filename"], "rb") as fp:
+            edit = exif_write.ExifEdit(str(desc.filename))
+            with open(desc.filename, "rb") as fp:
                 md5sum = utils.md5sum_fp(fp)
             # The cast is to fix the type checker error
-            exif_desc = T.cast(T.Dict, desc_file_to_exif(desc))
+            exif_desc = T.cast(T.Dict, desc_file_to_exif(types.as_desc(desc)))
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
             # we use md5 as the name, and an constant as the modification time
-            _, ext = os.path.splitext(desc["filename"])
-            arcname = f"{md5sum}{ext.lower()}"
+            arcname = f"{md5sum}{desc.filename.suffix.lower()}"
             zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
             ziph.writestr(zipinfo, image_bytes)
 
