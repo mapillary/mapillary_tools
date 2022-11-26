@@ -40,7 +40,7 @@ def _normalize(paths: T.List[str]) -> T.List[Path]:
 def test_find_sequences_by_folder():
     sequence = [
         types.ErrorMetadata(
-            filename=Path("a.jpg"),
+            filename=Path("error.jpg"),
             filetype=types.FileType.IMAGE,
             error=Exception("an error"),
         ),
