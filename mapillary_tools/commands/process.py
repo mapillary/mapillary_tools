@@ -296,5 +296,5 @@ class Command:
             ),
         )
 
-        # running video_process will pass the descs to the upload command
+        # running video_process will pass the metadatas to the upload command
         vars_args["_metadatas_from_process"] = metadatas

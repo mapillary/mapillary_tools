@@ -30,10 +30,13 @@ def _group_sequences_by_uuid(
 ) -> T.Dict[str, T.Dict[str, types.ImageMetadata]]:
     sequences: T.Dict[str, T.Dict[str, types.ImageMetadata]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
-    for desc in metadatas:
-        sequence_uuid = desc.MAPSequenceUUID or missing_sequence_uuid
+    for metadata in metadatas:
+        if metadata.MAPSequenceUUID is None:
+            sequence_uuid = missing_sequence_uuid
+        else:
+            sequence_uuid = metadata.MAPSequenceUUID
         sequence = sequences.setdefault(sequence_uuid, {})
-        sequence[str(desc.filename)] = desc
+        sequence[str(metadata.filename)] = metadata
     return sequences
 
 
@@ -324,20 +327,20 @@ def _zip_sequence_fp(
     sequence: T.Dict[str, types.ImageMetadata],
     fp: T.IO[bytes],
 ) -> str:
-    descs = list(sequence.values())
-    descs.sort(key=lambda desc: (desc.time, desc.filename.name))
+    metadatas = list(sequence.values())
+    metadatas.sort(key=lambda metadata: (metadata.time, metadata.filename.name))
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-        for desc in descs:
-            edit = exif_write.ExifEdit(str(desc.filename))
-            with open(desc.filename, "rb") as fp:
+        for metadata in metadatas:
+            edit = exif_write.ExifEdit(str(metadata.filename))
+            with open(metadata.filename, "rb") as fp:
                 md5sum = utils.md5sum_fp(fp)
             # The cast is to fix the type checker error
-            exif_desc = T.cast(T.Dict, desc_file_to_exif(types.as_desc(desc)))
+            exif_desc = T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
             edit.add_image_description(exif_desc)
             image_bytes = edit.dump_image_bytes()
             # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
             # we use md5 as the name, and an constant as the modification time
-            arcname = f"{md5sum}{desc.filename.suffix.lower()}"
+            arcname = f"{md5sum}{metadata.filename.suffix.lower()}"
             zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
             ziph.writestr(zipinfo, image_bytes)
 

@@ -532,26 +532,27 @@ def process_finalize(
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
 ) -> T.List[types.MetadataOrError]:
-    image_metadatas = [
-        metadata for metadata in metadatas if isinstance(metadata, types.ImageMetadata)
-    ]
-
     # modified in place
     _apply_offsets(
-        image_metadatas,
+        [
+            metadata
+            for metadata in metadatas
+            if isinstance(metadata, types.ImageMetadata)
+        ],
         offset_time=offset_time,
         offset_angle=offset_angle,
     )
 
     # validate all metadatas
     metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
-    # search image metadatas again because some of them might have been failed
-    image_metadatas = [
-        metadata for metadata in metadatas if isinstance(metadata, types.ImageMetadata)
-    ]
 
     _overwrite_exif_tags(
-        T.cast(T.List[types.ImageMetadata], image_metadatas),
+        # search image metadatas again because some of them might have been failed
+        [
+            metadata
+            for metadata in metadatas
+            if isinstance(metadata, types.ImageMetadata)
+        ],
         all_tags=overwrite_all_EXIF_tags,
         time_tag=overwrite_EXIF_time_tag,
         gps_tag=overwrite_EXIF_gps_tag,
@@ -559,7 +560,7 @@ def process_finalize(
         orientation_tag=overwrite_EXIF_orientation_tag,
     )
 
-    # verify EXIF writing for image metadatas (the others will be untouched)
+    # verify EXIF writing for image metadatas (the others will be returned as unchanged)
     metadatas = _verify_all_images_exif_write(metadatas)
 
     # find the description file path
