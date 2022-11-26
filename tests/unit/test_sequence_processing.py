@@ -81,7 +81,7 @@ def test_find_sequences_by_folder():
             assert c.time <= n.time
 
     actual_sequences = sorted(
-        list(actual_metadata.values()), key=lambda s: s[0].filename
+        list(actual_metadata.values()), key=lambda s: str(s[0].filename)
     )
     assert 3 == len(actual_sequences)
 
