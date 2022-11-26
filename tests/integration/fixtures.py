@@ -50,11 +50,16 @@ def setup_upload(tmpdir: py.path.local):
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
     os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
     os.environ["MAPILLARY__DISABLE_CAMM_CHECK"] = "YES"
+    os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
+    history_path = tmpdir.join("history")
+    os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
     yield upload_dir
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
     del os.environ["MAPILLARY_UPLOAD_PATH"]
     del os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"]
+    del os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"]
+    del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
 
 def ffmpeg_installed():

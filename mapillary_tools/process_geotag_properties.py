@@ -298,7 +298,7 @@ def _verify_image_exif_write(
     with metadata.filename.open("rb") as fp:
         edit = exif_write.ExifEdit(fp.read())
     # The cast is to fix the type error in Python3.6:
-    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescriptionEXIF"; expected "Dict[str, Any]"
+    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
     edit.add_image_description(
         T.cast(T.Dict, uploader.desc_file_to_exif(types.as_desc(metadata)))
     )

@@ -275,30 +275,30 @@ class Uploader:
 
 
 def desc_file_to_exif(
-    desc: types.ImageDescriptionFile,
-) -> types.ImageDescriptionEXIF:
+    desc: types.ImageDescription,
+) -> types.ImageDescription:
     not_needed = ["MAPSequenceUUID"]
     removed = {
         key: value
         for key, value in desc.items()
         if key.startswith("MAP") and key not in not_needed
     }
-    return T.cast(types.ImageDescriptionEXIF, removed)
+    return T.cast(types.ImageDescription, removed)
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
         types.validate_image_desc(types.as_desc(metadata))
         if not metadata.filename.is_file():
-            raise RuntimeError(f"Image not found: {metadata.filename}")
+            raise FileNotFoundError(f"No such file {metadata.filename}")
 
 
 def zip_images(
-    descs: T.List[types.ImageMetadata],
+    metadatas: T.List[types.ImageMetadata],
     zip_dir: Path,
 ):
-    _validate_metadatas(descs)
-    sequences = _group_sequences_by_uuid(descs)
+    _validate_metadatas(metadatas)
+    sequences = _group_sequences_by_uuid(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
         zip_filename_wip = zip_dir.joinpath(

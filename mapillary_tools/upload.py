@@ -97,7 +97,7 @@ def _load_validate_metadatas_from_desc_path(
                     "The description path must be specified (with --desc_path) when uploading a single file",
                 )
 
-    descs: T.List[types.ImageVideoDescriptionFileOrError] = []
+    descs: T.List[types.DescriptionOrError] = []
 
     if desc_path == "-":
         try:
@@ -110,11 +110,11 @@ def _load_validate_metadatas_from_desc_path(
         if not os.path.isfile(desc_path):
             if is_default_desc_path:
                 raise exceptions.MapillaryFileNotFoundError(
-                    f"The description file {desc_path} not found. Has the directory been processed yet?"
+                    f"Description file {desc_path} not found. Has the directory been processed yet?"
                 )
             else:
                 raise exceptions.MapillaryFileNotFoundError(
-                    f"The description file {desc_path} not found"
+                    f"Description file {desc_path} not found"
                 )
         with open(desc_path) as fp:
             try:
@@ -128,12 +128,12 @@ def _load_validate_metadatas_from_desc_path(
     validated_descs = [
         types.validate_and_fail_desc(desc)
         for desc in descs
-        # skip non-error descriptions
+        # skip error descriptions
         if "error" not in desc
     ]
 
     # throw if we found any invalid descs
-    invalid_descs = [desc for desc in validated_descs if "error" in validated_descs]
+    invalid_descs = [desc for desc in validated_descs if "error" in desc]
     if invalid_descs:
         for desc in invalid_descs:
             LOG.error("Invalid description entry: %s", json.dumps(desc))
@@ -141,17 +141,9 @@ def _load_validate_metadatas_from_desc_path(
             f"Found {len(invalid_descs)} invalid descriptions"
         )
 
-    # TODO # Make sure all descs have uuid assigned
-    # # It is used to find the right sequence when writing upload history
-    # missing_sequence_uuid = str(uuid.uuid4())
-    # for metadata in metadatas:
-    #     if isinstance(metadata, types.ImageMetadata):
-    #         if metadata.MAPSequenceUUID is None:
-    #             metadata.MAPSequenceUUID = missing_sequence_uuid
-
+    # validated_descs should contain no errors
     return [
-        types.from_desc(T.cast(types.ImageVideoDescriptionFile, desc))
-        for desc in validated_descs
+        types.from_desc(T.cast(types.Description, desc)) for desc in validated_descs
     ]
 
 
@@ -553,6 +545,14 @@ def _load_descs(
         ]
     else:
         metadatas = _load_validate_metadatas_from_desc_path(desc_path, import_paths)
+
+    # Make sure all metadatas have sequence uuid assigned
+    # It is used to find the right sequence when writing upload history
+    missing_sequence_uuid = str(uuid.uuid4())
+    for metadata in metadatas:
+        if isinstance(metadata, types.ImageMetadata):
+            if metadata.MAPSequenceUUID is None:
+                metadata.MAPSequenceUUID = missing_sequence_uuid
 
     for metadata in metadatas:
         assert isinstance(metadata, (types.ImageMetadata, types.VideoMetadata))
