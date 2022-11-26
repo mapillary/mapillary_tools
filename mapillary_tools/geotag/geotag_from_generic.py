@@ -7,5 +7,5 @@ class GeotagFromGeneric:
     def __init__(self) -> None:
         pass
 
-    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
+    def to_description(self) -> T.List[types.ImageMetadataOrError]:
         return []

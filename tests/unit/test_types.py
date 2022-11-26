@@ -21,7 +21,7 @@ def test_desc():
         MAPOrientation=1,
     )
     desc = types.as_desc(metadata)
-    types.validate_desc(desc)
+    types.validate_image_desc(desc)
     actual = types.from_desc(desc)
     assert metadata == actual
 
@@ -47,7 +47,7 @@ def test_desc_video():
         ),
     ]
     for metadata in ds:
-        desc = types.as_desc_video(metadata)
-        types.validate_desc_video(desc)
-        actual = types.from_desc_video(desc)
+        desc = types._as_video_desc(metadata)
+        types.validate_video_desc(desc)
+        actual = types._from_video_desc(desc)
         assert metadata == actual

@@ -48,7 +48,7 @@ def _process_images(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
-) -> T.List[types.ImageDescriptionFileOrError]:
+) -> T.List[types.ImageMetadataOrError]:
     geotag: geotag_from_generic.GeotagFromGeneric
 
     if geotag_source == "exif":
@@ -109,15 +109,13 @@ def _process_images(
         else:
             raise RuntimeError(f"Invalid geotag source {geotag_source}")
 
-    descs = list(types.map_descs(types.validate_and_fail_desc, geotag.to_description()))
-
-    return descs
+    return geotag.to_description()
 
 
 def _process_videos(
-    video_path: Path, filetypes: T.Set[types.FileType]
+    video_path: Path, filetypes: T.Set[FileType]
 ) -> T.Optional[types.VideoMetadata]:
-    if types.FileType.CAMM in filetypes:
+    if FileType.CAMM in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = camm_parser.extract_points(fp)
@@ -128,10 +126,10 @@ def _process_videos(
                 fp.seek(0, io.SEEK_SET)
                 make, model = camm_parser.extract_camera_make_and_model(fp)
                 return types.VideoMetadata(
-                    video_path, types.FileType.CAMM, points, make, model
+                    video_path, FileType.CAMM, points, make, model
                 )
 
-    if types.FileType.GOPRO in filetypes:
+    if FileType.GOPRO in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points_with_fix = gpmf_parser.extract_points(fp)
@@ -143,7 +141,7 @@ def _process_videos(
                 make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
                 video_metadata = types.VideoMetadata(
                     video_path,
-                    types.FileType.GOPRO,
+                    FileType.GOPRO,
                     T.cast(T.List[geo.Point], points_with_fix),
                     make,
                     model,
@@ -159,7 +157,7 @@ def _process_videos(
                 )
                 return video_metadata
 
-    if types.FileType.BLACKVUE in filetypes:
+    if FileType.BLACKVUE in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = blackvue_parser.extract_points(fp)
@@ -170,7 +168,7 @@ def _process_videos(
                 fp.seek(0, io.SEEK_SET)
                 make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
                 return types.VideoMetadata(
-                    video_path, types.FileType.BLACKVUE, points, make, model
+                    video_path, FileType.BLACKVUE, points, make, model
                 )
 
     return None
@@ -190,27 +188,25 @@ def _normalize_import_paths(
 
 def _describe_video_metadata(
     video_metadata: types.VideoMetadata,
-) -> types.VideoDescriptionFileOrError:
-    if video_metadata.points:
-        stationary = video_utils.is_video_stationary(
-            geo.get_max_distance_from_start(
-                [(p.lat, p.lon) for p in video_metadata.points]
-            )
-        )
-        if stationary:
-            return types.describe_error(
-                exceptions.MapillaryStationaryVideoError(f"Stationary video"),
-                video_metadata.filename,
-                filetype=video_metadata.filetype,
-            )
-        else:
-            return types.as_desc_video(video_metadata)
-    else:
-        return types.describe_error(
+) -> types.VideoMetadataOrError:
+    if not video_metadata.points:
+        return types.describe_error_metadata(
             exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
             video_metadata.filename,
             filetype=video_metadata.filetype,
         )
+
+    stationary = video_utils.is_video_stationary(
+        geo.get_max_distance_from_start([(p.lat, p.lon) for p in video_metadata.points])
+    )
+    if stationary:
+        return types.describe_error_metadata(
+            exceptions.MapillaryStationaryVideoError(f"Stationary video"),
+            video_metadata.filename,
+            filetype=video_metadata.filetype,
+        )
+
+    return video_metadata
 
 
 def process_geotag_properties(
@@ -223,8 +219,8 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
-) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    filetypes = set(types.FileType(f) for f in filetypes)
+) -> T.List[types.MetadataOrError]:
+    filetypes = set(FileType(f) for f in filetypes)
     import_paths = _normalize_import_paths(import_path)
 
     # Check and fail early
@@ -234,7 +230,7 @@ def process_geotag_properties(
                 f"Import file or directory not found: {path}"
             )
 
-    descs: T.List[types.ImageVideoDescriptionFileOrError] = []
+    metadatas: T.List[types.MetadataOrError] = []
 
     # if more than one filetypes speficied, check filename suffixes,
     # i.e. files not ended with .jpg or .mp4 will be ignored
@@ -246,7 +242,7 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        image_descs = _process_images(
+        image_metadatas = _process_images(
             image_paths,
             geotag_source=geotag_source,
             geotag_source_path=geotag_source_path,
@@ -255,12 +251,12 @@ def process_geotag_properties(
             interpolation_offset_time=interpolation_offset_time,
             skip_subfolders=skip_subfolders,
         )
-        descs.extend(image_descs)
+        metadatas.extend(image_metadatas)
 
     if (
-        types.FileType.CAMM in filetypes
-        or types.FileType.GOPRO in filetypes
-        or types.FileType.BLACKVUE in filetypes
+        FileType.CAMM in filetypes
+        or FileType.GOPRO in filetypes
+        or FileType.BLACKVUE in filetypes
     ):
         video_paths = utils.find_videos(
             import_paths,
@@ -276,10 +272,10 @@ def process_geotag_properties(
             LOG.debug("Extracting GPS track from %s", str(video_path))
             video_metadata = _process_videos(video_path, filetypes)
             if video_metadata:
-                descs.append(_describe_video_metadata(video_metadata))
+                metadatas.append(_describe_video_metadata(video_metadata))
             else:
-                descs.append(
-                    types.describe_error(
+                metadatas.append(
+                    types.describe_error_metadata(
                         exceptions.MapillaryVideoError(
                             "No GPS data found from the video"
                         ),
@@ -289,64 +285,59 @@ def process_geotag_properties(
                 )
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
-    assert len(descs) == len(
-        set(desc["filename"] for desc in descs)
+    assert len(metadatas) == len(
+        set(metadata.filename for metadata in metadatas)
     ), "duplicate filenames found"
 
-    return descs
+    return metadatas
 
 
-def _verify_exif_write(
-    desc: types.ImageDescriptionFile,
-) -> types.ImageDescriptionFileOrError:
-    with open(desc["filename"], "rb") as fp:
+def _verify_image_exif_write(
+    metadata: types.ImageMetadata,
+) -> types.ImageMetadataOrError:
+    with metadata.filename.open("rb") as fp:
         edit = exif_write.ExifEdit(fp.read())
     # The cast is to fix the type error in Python3.6:
-    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescriptionEXIF"; expected "Dict[str, Any]"
-    edit.add_image_description(T.cast(T.Dict, uploader.desc_file_to_exif(desc)))
+    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
+    edit.add_image_description(
+        T.cast(T.Dict, uploader.desc_file_to_exif(types.as_desc(metadata)))
+    )
     try:
         edit.dump_image_bytes()
     except piexif.InvalidImageDataError as exc:
-        return types.describe_error(
-            exc, Path(desc["filename"]), filetype=FileType(desc["filetype"])
+        return types.describe_error_metadata(
+            exc,
+            metadata.filename,
+            filetype=FileType.IMAGE,
         )
     except Exception as exc:
+        # possible error here: struct.error: 'H' format requires 0 <= number <= 65535
         LOG.warning(
-            "Unknown error test writing image %s", desc["filename"], exc_info=True
+            "Unknown error test writing image %s", metadata.filename, exc_info=True
         )
-        return types.describe_error(
-            exc, Path(desc["filename"]), filetype=FileType(desc["filetype"])
+        return types.describe_error_metadata(
+            exc,
+            metadata.filename,
+            filetype=FileType.IMAGE,
         )
-    else:
-        return desc
+    return metadata
 
 
 def _apply_offsets(
-    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    metadatas: T.Iterable[types.ImageMetadata],
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
 ) -> None:
-    for desc in types.filter_out_errors(descs):
+    for metadata in metadatas:
         if offset_time:
-            # for desc in types.filter_out_errors(descs):
-            dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-            desc["MAPCaptureTime"] = types.datetime_to_map_capture_time(
-                dt + datetime.timedelta(seconds=offset_time)
-            )
-
-        heading = desc.setdefault(
-            "MAPCompassHeading",
-            {
-                "TrueHeading": 0.0,
-                "MagneticHeading": 0.0,
-            },
-        )
-        heading["TrueHeading"] = (heading["TrueHeading"] + offset_angle) % 360
-        heading["MagneticHeading"] = (heading["MagneticHeading"] + offset_angle) % 360
+            metadata.time = metadata.time + offset_time
+        if metadata.angle is None:
+            metadata.angle = 0.0
+        metadata.angle = (metadata.angle + offset_angle) % 360
 
 
 def _overwrite_exif_tags(
-    descs: T.Sequence[types.ImageDescriptionFileOrError],
+    metadatas: T.Sequence[types.ImageMetadata],
     all_tags=False,
     time_tag=False,
     gps_tag=False,
@@ -366,69 +357,52 @@ def _overwrite_exif_tags(
     if not should_write:
         return
 
-    for desc in tqdm(
-        types.filter_out_errors(descs),
+    for metadata in tqdm(
+        metadatas,
         desc="Overwriting EXIF",
         unit="images",
         disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ):
         try:
-            image_exif = exif_write.ExifEdit(desc["filename"])
+            image_exif = exif_write.ExifEdit(str(metadata.filename))
 
             if all_tags or time_tag:
-                dt = types.map_capture_time_to_datetime(desc["MAPCaptureTime"])
-                image_exif.add_date_time_original(dt)
-
-            if all_tags or gps_tag:
-                image_exif.add_lat_lon(
-                    desc["MAPLatitude"],
-                    desc["MAPLongitude"],
+                image_exif.add_date_time_original(
+                    datetime.datetime.utcfromtimestamp(metadata.time)
                 )
 
+            if all_tags or gps_tag:
+                image_exif.add_lat_lon(metadata.lat, metadata.lon)
+
             if all_tags or direction_tag:
-                heading = desc.get("MAPCompassHeading")
-                if heading is not None:
-                    image_exif.add_direction(heading["TrueHeading"])
+                if metadata.angle is not None:
+                    image_exif.add_direction(metadata.angle)
 
             if all_tags or orientation_tag:
-                if "MAPOrientation" in desc:
-                    image_exif.add_orientation(desc["MAPOrientation"])
+                if metadata.MAPOrientation is not None:
+                    image_exif.add_orientation(metadata.MAPOrientation)
 
             image_exif.write()
         except Exception:
             LOG.warning(
                 "Failed to overwrite EXIF for image %s",
-                desc["filename"],
+                metadata.filename,
                 exc_info=True,
             )
 
 
-def _verify_exif_writing(descs: T.Sequence[types.ImageDescriptionFileOrError]) -> None:
-    with tqdm(
-        total=len(types.filter_out_errors(descs)),
-        desc="Verifying image EXIF writing",
-        unit="images",
-        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-    ) as pbar:
-
-        def _update(desc: types.ImageDescriptionFile):
-            new_desc = _verify_exif_write(desc)
-            pbar.update(1)
-            return new_desc
-
-        list(types.map_descs(_update, descs))
-
-
-def _write_descs(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+def _write_metadatas(
+    metadatas: T.Sequence[types.MetadataOrError],
     desc_path: str,
 ) -> None:
     if desc_path == "-":
+        descs = [types.as_desc(metadata) for metadata in metadatas]
         print(json.dumps(descs, indent=2))
     else:
+        descs = [types.as_desc(metadata) for metadata in metadatas]
         with open(desc_path, "w") as fp:
             json.dump(descs, fp)
-        LOG.info("Check the image description file for details: %s", desc_path)
+        LOG.info("Check the description file for details: %s", desc_path)
 
 
 def _is_error_skipped(
@@ -440,60 +414,59 @@ def _is_error_skipped(
 
 
 def _show_stats(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+    metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: T.Set[T.Type[Exception]],
 ) -> None:
-    descs_by_filetype: T.Dict[
-        types.FileType, T.List[types.ImageVideoDescriptionFileOrError]
-    ] = {}
-    for desc in descs:
-        filetype = desc.get("filetype")
+    metadatas_by_filetype: T.Dict[FileType, T.List[types.MetadataOrError]] = {}
+    for metadata in metadatas:
+        filetype: T.Optional[FileType]
+        if isinstance(metadata, types.ImageMetadata):
+            filetype = FileType.IMAGE
+        else:
+            filetype = metadata.filetype
         if filetype:
-            descs_by_filetype.setdefault(types.FileType(filetype), []).append(desc)
+            metadatas_by_filetype.setdefault(FileType(filetype), []).append(metadata)
 
-    for filetype, group in descs_by_filetype.items():
+    for filetype, group in metadatas_by_filetype.items():
         _show_stats_per_filetype(group, filetype, skipped_process_errors)
 
-    error_descs = T.cast(
-        T.Sequence[types.ImageDescriptionFileError],
-        [desc for desc in descs if types.is_error(desc)],
-    )
-
-    critical_error_descs = [
-        desc
-        for desc in error_descs
-        if not _is_error_skipped(types.error_type(desc), skipped_process_errors)
+    critical_error_metadatas = [
+        metadata
+        for metadata in metadatas
+        if isinstance(metadata, types.ErrorMetadata)
+        and not _is_error_skipped(
+            metadata.error.__class__.__name__, skipped_process_errors
+        )
     ]
-    if critical_error_descs:
+    if critical_error_metadatas:
         raise exceptions.MapillaryProcessError(
-            f"Failed to process {len(critical_error_descs)} files. To skip these errors, specify --skip_process_errors"
+            f"Failed to process {len(critical_error_metadatas)} files. To skip these errors, specify --skip_process_errors"
         )
 
 
 def _show_stats_per_filetype(
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
-    filetype: types.FileType,
+    metadatas: T.Sequence[types.MetadataOrError],
+    filetype: FileType,
     skipped_process_errors: T.Set[T.Type[Exception]],
 ):
-    processed_files: T.List[types.ImageVideoDescriptionFile] = types.filter_out_errors(
-        descs
-    )
-    not_processed_files = T.cast(
-        T.Sequence[types.ImageDescriptionFileError],
-        [desc for desc in descs if types.is_error(desc)],
-    )
-    assert len(processed_files) + len(not_processed_files) == len(descs)
+    good_metadatas: T.List[T.Union[types.VideoMetadata, types.ImageMetadata]] = []
+    error_metadatas: T.List[types.ErrorMetadata] = []
+    for metadata in metadatas:
+        if isinstance(metadata, types.ErrorMetadata):
+            error_metadatas.append(metadata)
+        else:
+            good_metadatas.append(metadata)
 
-    LOG.info("%8d %s(s) read in total", len(descs), filetype.value)
-    if processed_files:
+    LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
+    if good_metadatas:
         LOG.info(
             "\t %8d %s(s) are ready to be uploaded",
-            len(processed_files),
+            len(good_metadatas),
             filetype.value,
         )
 
     error_counter = collections.Counter(
-        types.error_type(desc) for desc in not_processed_files
+        metadata.error.__class__.__name__ for metadata in error_metadatas
     )
 
     for error_type, count in error_counter.items():
@@ -507,9 +480,48 @@ def _show_stats_per_filetype(
             )
 
 
+_IT = T.TypeVar("_IT")
+
+
+def split_if(
+    it: T.Iterable[_IT], sep: T.Callable[[_IT], bool]
+) -> T.Tuple[T.List[_IT], T.List[_IT]]:
+    yes, no = [], []
+    for e in it:
+        if sep(e):
+            yes.append(e)
+        else:
+            no.append(e)
+    return yes, no
+
+
+def _verify_all_images_exif_write(
+    metadatas: T.List[types.MetadataOrError],
+) -> T.List[types.MetadataOrError]:
+    image_metadatas, other_metadatas = split_if(
+        metadatas, lambda m: isinstance(m, types.ImageMetadata)
+    )
+    validated_image_metadatas = []
+    for image_metadata in tqdm(
+        image_metadatas,
+        desc="Verifying image EXIF writing",
+        unit="images",
+        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+    ):
+        validated = _verify_image_exif_write(
+            T.cast(types.ImageMetadata, image_metadata)
+        )
+        if isinstance(validated, types.ErrorMetadata):
+            other_metadatas.append(validated)
+        else:
+            validated_image_metadatas.append(validated)
+    assert len(metadatas) == len(validated_image_metadatas) + len(other_metadatas)
+    return validated_image_metadatas + other_metadatas
+
+
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
-    descs: T.Sequence[types.ImageVideoDescriptionFileOrError],
+    metadatas: T.List[types.MetadataOrError],
     skip_process_errors: bool = False,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
@@ -519,19 +531,28 @@ def process_finalize(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
-) -> T.List[types.ImageVideoDescriptionFileOrError]:
-    initial_descs_length = len(descs)
-
+) -> T.List[types.MetadataOrError]:
+    # modified in place
     _apply_offsets(
-        types.filter_image_descs(descs),
+        [
+            metadata
+            for metadata in metadatas
+            if isinstance(metadata, types.ImageMetadata)
+        ],
         offset_time=offset_time,
         offset_angle=offset_angle,
     )
 
-    descs = list(types.map_descs(types.validate_and_fail_desc, descs))
+    # validate all metadatas
+    metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
 
     _overwrite_exif_tags(
-        types.filter_image_descs(descs),
+        # search image metadatas again because some of them might have been failed
+        [
+            metadata
+            for metadata in metadatas
+            if isinstance(metadata, types.ImageMetadata)
+        ],
         all_tags=overwrite_all_EXIF_tags,
         time_tag=overwrite_EXIF_time_tag,
         gps_tag=overwrite_EXIF_gps_tag,
@@ -539,8 +560,10 @@ def process_finalize(
         orientation_tag=overwrite_EXIF_orientation_tag,
     )
 
-    _verify_exif_writing(types.filter_image_descs(descs))
+    # verify EXIF writing for image metadatas (the others will be returned as unchanged)
+    metadatas = _verify_all_images_exif_write(metadatas)
 
+    # find the description file path
     if desc_path is None:
         import_paths = _normalize_import_paths(import_path)
         if len(import_paths) == 1 and import_paths[0].is_dir():
@@ -550,28 +573,28 @@ def process_finalize(
         else:
             if 1 < len(import_paths):
                 LOG.warning(
-                    "Writing descriptions to STDOUT, because multiple import paths are specified"
+                    "Writing the description file to STDOUT, because multiple import paths are specified"
                 )
             else:
                 LOG.warning(
-                    'Writing descriptions to STDOUT, because the import path "%s" is NOT a directory',
-                    str(import_paths[0]),
+                    'Writing the description file to STDOUT, because the import path "%s" is NOT a directory',
+                    str(import_paths[0]) if import_paths else "",
                 )
             desc_path = "-"
 
+    # process_and_upload will set desc_path to "\x00"
+    # then all metadatas will be passed to the upload command directly
     if desc_path != "\x00":
         # write descs first because _show_stats() may raise an exception
-        _write_descs(descs, desc_path)
+        _write_metadatas(metadatas, desc_path)
 
+    # show stats
     skipped_process_errors: T.Set[T.Type[Exception]]
     if skip_process_errors:
         # skip all exceptions
         skipped_process_errors = {Exception}
     else:
         skipped_process_errors = {exceptions.MapillaryDuplicationError}
+    _show_stats(metadatas, skipped_process_errors=skipped_process_errors)
 
-    _show_stats(descs, skipped_process_errors=skipped_process_errors)
-
-    assert initial_descs_length == len(descs)
-
-    return descs
+    return metadatas

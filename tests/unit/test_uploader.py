@@ -8,7 +8,7 @@ from pathlib import Path
 import py.path
 import pytest
 
-from mapillary_tools import exif_read, uploader
+from mapillary_tools import exif_read, types, uploader
 
 
 def _validate_and_extract_zip(filename: str):
@@ -57,7 +57,7 @@ def test_upload_images(setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
     )
-    descs = [
+    descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -73,14 +73,16 @@ def test_upload_images(setup_upload: py.path.local):
             "filetype": "image",
         },
     ]
-    resp = mly_uploader.upload_images(T.cast(T.Any, descs))
+    resp = mly_uploader.upload_images(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
+    )
     assert len(resp) == 1
     assert len(setup_upload.listdir()) == 1
     _validate_zip_dir(setup_upload)
 
 
 def test_upload_images_multiple_sequences(setup_upload: py.path.local):
-    descs = [
+    descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -114,7 +116,9 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
         },
         dry_run=True,
     )
-    resp = mly_uploader.upload_images(T.cast(T.Any, descs))
+    resp = mly_uploader.upload_images(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
+    )
     assert len(resp) == 2
     assert len(setup_upload.listdir()) == 2
     _validate_zip_dir(setup_upload)
@@ -123,7 +127,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
 def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=None):
     same_basename = tmpdir.join("text_exif.jpg")
     py.path.local("tests/unit/data/test_exif.jpg").copy(tmpdir.join("text_exif.jpg"))
-    descs = [
+    descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -150,7 +154,9 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
         },
     ]
     zip_dir = tmpdir.mkdir("zip_dir")
-    uploader.zip_images(T.cast(T.Any, descs), Path(zip_dir))
+    uploader.zip_images(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
+    )
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
     _validate_zip_dir(zip_dir)
 

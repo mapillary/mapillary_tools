@@ -2,6 +2,7 @@ import dataclasses
 import datetime
 import enum
 import json
+import os
 import sys
 import typing as T
 from pathlib import Path
@@ -69,7 +70,10 @@ class ErrorMetadata:
     error: Exception
 
 
-MetadataOrError = T.Union[ImageMetadata, VideoMetadata, ErrorMetadata]
+ImageMetadataOrError = T.Union[ImageMetadata, ErrorMetadata]
+VideoMetadataOrError = T.Union[VideoMetadata, ErrorMetadata]
+Metadata = T.Union[ImageMetadata, VideoMetadata]
+MetadataOrError = T.Union[Metadata, ErrorMetadata]
 
 
 class UserItem(TypedDict, total=False):
@@ -110,28 +114,24 @@ class MetaProperties(TypedDict, total=False):
     MAPOrientation: int
 
 
-class ImageDescriptionEXIF(_SequenceOnly, _Image, MetaProperties):
-    pass
-
-
-class ImageDescriptionFile(ImageDescriptionEXIF, total=True):
+class ImageDescription(_SequenceOnly, _Image, MetaProperties, total=True):
     # filename is required
     filename: str
     filetype: Literal["image"]
 
 
-class _VideoDescriptionFileRequired(TypedDict, total=True):
+class _VideoDescriptionRequired(TypedDict, total=True):
     filename: str
     filetype: str
     MAPGPSTrack: T.List[T.Sequence[T.Union[float, int, None]]]
 
 
-class VideoDescriptionFile(_VideoDescriptionFileRequired, total=False):
+class VideoDescription(_VideoDescriptionRequired, total=False):
     MAPDeviceMake: str
     MAPDeviceModel: str
 
 
-class ErrorObject(TypedDict, total=False):
+class _ErrorDescription(TypedDict, total=False):
     # type and message are required
     type: str
     message: str
@@ -139,16 +139,19 @@ class ErrorObject(TypedDict, total=False):
     vars: T.Dict
 
 
-class ImageDescriptionFileError(TypedDict, total=False):
+class _ImageDescriptionErrorRequired(TypedDict, total=True):
     filename: str
-    error: ErrorObject
+    error: _ErrorDescription
+
+
+class ImageDescriptionError(_ImageDescriptionErrorRequired, total=False):
     filetype: str
 
 
-def describe_error(
+def _describe_error_desc(
     exc: Exception, filename: Path, filetype: T.Optional[FileType]
-) -> ImageDescriptionFileError:
-    err: ErrorObject = {
+) -> ImageDescriptionError:
+    err: _ErrorDescription = {
         "type": exc.__class__.__name__,
         "message": str(exc),
     }
@@ -164,7 +167,7 @@ def describe_error(
         if vars_json:
             err["vars"] = json.loads(vars_json)
 
-    desc: ImageDescriptionFileError = {
+    desc: ImageDescriptionError = {
         "error": err,
         "filename": str(filename.resolve()),
     }
@@ -174,12 +177,14 @@ def describe_error(
     return desc
 
 
-ImageDescriptionFileOrError = T.Union[ImageDescriptionFileError, ImageDescriptionFile]
-VideoDescriptionFileOrError = T.Union[VideoDescriptionFile, ImageDescriptionFileError]
-ImageVideoDescriptionFile = T.Union[ImageDescriptionFile, VideoDescriptionFile]
-ImageVideoDescriptionFileOrError = T.Union[
-    ImageVideoDescriptionFile, ImageDescriptionFileError
-]
+def describe_error_metadata(
+    exc: Exception, filename: Path, filetype: T.Optional[FileType]
+) -> ErrorMetadata:
+    return ErrorMetadata(filename=filename, filetype=filetype, error=exc)
+
+
+Description = T.Union[ImageDescription, VideoDescription]
+DescriptionOrError = T.Union[ImageDescription, VideoDescription, ImageDescriptionError]
 
 
 UserItemSchema = {
@@ -375,7 +380,7 @@ ImageVideoDescriptionFileSchema = {
 }
 
 
-def validate_desc(desc: ImageDescriptionFile) -> None:
+def validate_image_desc(desc: T.Any) -> None:
     jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
@@ -385,59 +390,8 @@ def validate_desc(desc: ImageDescriptionFile) -> None:
         )
 
 
-def validate_desc_video(desc: VideoDescriptionFile) -> None:
+def validate_video_desc(desc: T.Any) -> None:
     jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
-
-
-def is_error(desc: ImageVideoDescriptionFileOrError) -> bool:
-    return "error" in desc
-
-
-def error_type(desc: ImageDescriptionFileError) -> str:
-    return T.cast(str, desc["error"]["type"])
-
-
-_D = T.TypeVar("_D", ImageVideoDescriptionFileOrError, ImageDescriptionFileOrError)
-
-
-def map_descs(
-    func: T.Callable[[ImageDescriptionFile], _D],
-    descs: T.Sequence[_D],
-) -> T.Iterator[_D]:
-    def _f(desc: _D) -> _D:
-        if is_error(desc):
-            return desc
-        else:
-            return func(T.cast(ImageDescriptionFile, desc))
-
-    return map(_f, descs)
-
-
-_X = T.TypeVar(
-    "_X", VideoDescriptionFile, ImageDescriptionFile, ImageVideoDescriptionFile
-)
-
-
-def filter_out_errors(
-    descs: T.Sequence[T.Union[_X, ImageDescriptionFileError]],
-) -> T.List[_X]:
-    return T.cast(
-        T.List[_X],
-        [desc for desc in descs if not is_error(desc)],
-    )
-
-
-def filter_image_descs(
-    descs: T.Sequence[ImageVideoDescriptionFileOrError],
-) -> T.List[ImageDescriptionFile]:
-    return T.cast(
-        T.List[ImageDescriptionFile],
-        [
-            desc
-            for desc in descs
-            if not is_error(desc) and desc.get("filetype") == FileType.IMAGE.value
-        ],
-    )
 
 
 def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
@@ -452,8 +406,48 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
     return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
 
 
-def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
-    desc: ImageDescriptionFile = {
+@T.overload
+def as_desc(metadata: ImageMetadata) -> ImageDescription:
+    ...
+
+
+@T.overload
+def as_desc(metadata: ErrorMetadata) -> ImageDescriptionError:
+    ...
+
+
+@T.overload
+def as_desc(metadata: VideoMetadata) -> VideoDescription:
+    ...
+
+
+def as_desc(metadata):
+    if isinstance(metadata, ErrorMetadata):
+        return _describe_error_desc(
+            metadata.error, metadata.filename, metadata.filetype
+        )
+    elif isinstance(metadata, VideoMetadata):
+        return _as_video_desc(metadata)
+    else:
+        assert isinstance(metadata, ImageMetadata)
+        return _as_image_desc(metadata)
+
+
+def _as_video_desc(metadata: VideoMetadata) -> VideoDescription:
+    desc: VideoDescription = {
+        "filename": str(metadata.filename.resolve()),
+        "filetype": metadata.filetype.value,
+        "MAPGPSTrack": [_encode_point(p) for p in metadata.points],
+    }
+    if metadata.make:
+        desc["MAPDeviceMake"] = metadata.make
+    if metadata.model:
+        desc["MAPDeviceModel"] = metadata.model
+    return desc
+
+
+def _as_image_desc(metadata: ImageMetadata) -> ImageDescription:
+    desc: ImageDescription = {
         "filename": str(metadata.filename.resolve()),
         "filetype": FileType.IMAGE.value,
         "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
@@ -478,7 +472,25 @@ def as_desc(metadata: ImageMetadata) -> ImageDescriptionFile:
     return desc
 
 
-def from_desc(desc: ImageDescriptionFile) -> ImageMetadata:
+@T.overload
+def from_desc(metadata: ImageDescription) -> ImageMetadata:
+    ...
+
+
+@T.overload
+def from_desc(metadata: VideoDescription) -> VideoMetadata:
+    ...
+
+
+def from_desc(desc):
+    assert "error" not in desc
+    if desc["filetype"] == FileType.IMAGE.value:
+        return _from_image_desc(desc)
+    else:
+        return _from_video_desc(desc)
+
+
+def _from_image_desc(desc) -> ImageMetadata:
     kwargs: T.Dict = {}
     for k, v in desc.items():
         if k not in [
@@ -519,20 +531,7 @@ def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
     return geo.Point(time=time_ms / 1000, lon=lon, lat=lat, alt=alt, angle=angle)
 
 
-def as_desc_video(video_metadata: VideoMetadata) -> VideoDescriptionFile:
-    desc: VideoDescriptionFile = {
-        "filename": str(video_metadata.filename.resolve()),
-        "filetype": video_metadata.filetype.value,
-        "MAPGPSTrack": [_encode_point(p) for p in video_metadata.points],
-    }
-    if video_metadata.make:
-        desc["MAPDeviceMake"] = video_metadata.make
-    if video_metadata.model:
-        desc["MAPDeviceModel"] = video_metadata.model
-    return desc
-
-
-def from_desc_video(desc: VideoDescriptionFile) -> VideoMetadata:
+def _from_video_desc(desc: VideoDescription) -> VideoMetadata:
     return VideoMetadata(
         filename=Path(desc["filename"]),
         filetype=FileType(desc["filetype"]),
@@ -542,34 +541,69 @@ def from_desc_video(desc: VideoDescriptionFile) -> VideoMetadata:
     )
 
 
-_Y = T.TypeVar(
-    "_Y",
-    ImageDescriptionFileOrError,
-    VideoDescriptionFileOrError,
-    ImageVideoDescriptionFileOrError,
-)
-
-
-def validate_and_fail_desc(
-    desc: _Y,
-) -> _Y:
-    if is_error(desc):
+def validate_and_fail_desc(desc: DescriptionOrError) -> DescriptionOrError:
+    if "error" in desc:
         return desc
 
     filetype = desc.get("filetype")
     try:
         if filetype == FileType.IMAGE.value:
-            validate_desc(T.cast(ImageDescriptionFile, desc))
+            validate_image_desc(desc)
         else:
-            validate_desc_video(T.cast(VideoDescriptionFile, desc))
+            validate_video_desc(desc)
     except jsonschema.ValidationError as exc:
-        return describe_error(
-            exc,
+        return _describe_error_desc(
+            jsonschema.ValidationError(exc.message),
+            Path(desc["filename"]),
+            filetype=FileType(filetype) if filetype else None,
+        )
+
+    if not os.path.isfile(desc["filename"]):
+        return _describe_error_desc(
+            FileNotFoundError(f"No such file {desc['filename']}"),
             Path(desc["filename"]),
             filetype=FileType(filetype) if filetype else None,
         )
 
     return desc
+
+
+_M = T.TypeVar(
+    "_M",
+    ImageMetadataOrError,
+    VideoMetadataOrError,
+    MetadataOrError,
+)
+
+
+def validate_and_fail_metadata(metadata: _M) -> _M:
+    if isinstance(metadata, ErrorMetadata):
+        return metadata
+
+    try:
+        if isinstance(metadata, ImageMetadata):
+            filetype = FileType.IMAGE
+            validate_image_desc(as_desc(metadata))
+        else:
+            assert isinstance(metadata, VideoMetadata)
+            filetype = metadata.filetype
+            validate_video_desc(as_desc(metadata))
+    except jsonschema.ValidationError as exc:
+        # rethrow because the original error is too verbose
+        return describe_error_metadata(
+            jsonschema.ValidationError(exc.message),
+            metadata.filename,
+            filetype=filetype,
+        )
+
+    if not metadata.filename.is_file():
+        return describe_error_metadata(
+            FileNotFoundError(f"No such file {metadata.filename}"),
+            metadata.filename,
+            filetype=filetype,
+        )
+
+    return metadata
 
 
 if __name__ == "__main__":

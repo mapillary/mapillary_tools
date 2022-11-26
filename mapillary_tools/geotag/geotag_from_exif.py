@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import types
+from .. import geo, types
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead
 
@@ -18,8 +18,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
         self.image_paths = image_paths
         super().__init__()
 
-    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        descs: T.List[types.ImageDescriptionFileOrError] = []
+    def to_description(self) -> T.List[types.ImageMetadataOrError]:
+        metadatas: T.List[types.ImageMetadataOrError] = []
 
         image_path: Path
         for image_path in tqdm(
@@ -36,8 +36,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     image_path,
                     exc_info=True,
                 )
-                descs.append(
-                    types.describe_error(
+                metadatas.append(
+                    types.describe_error_metadata(
                         exc0, image_path, filetype=types.FileType.IMAGE
                     )
                 )
@@ -48,8 +48,10 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
-                descs.append(
-                    types.describe_error(exc, image_path, filetype=types.FileType.IMAGE)
+                metadatas.append(
+                    types.describe_error_metadata(
+                        exc, image_path, filetype=types.FileType.IMAGE
+                    )
                 )
                 continue
 
@@ -58,40 +60,25 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
-                descs.append(
-                    types.describe_error(exc, image_path, filetype=types.FileType.IMAGE)
+                metadatas.append(
+                    types.describe_error_metadata(
+                        exc, image_path, filetype=types.FileType.IMAGE
+                    )
                 )
                 continue
 
-            angle = exif.extract_direction()
+            image_metadata = types.ImageMetadata(
+                filename=image_path,
+                lat=lat,
+                lon=lon,
+                alt=exif.extract_altitude(),
+                angle=exif.extract_direction(),
+                time=geo.as_unix_time(timestamp),
+                MAPOrientation=exif.extract_orientation(),
+                MAPDeviceMake=exif.extract_make(),
+                MAPDeviceModel=exif.extract_model(),
+            )
 
-            desc: types.ImageDescriptionFile = {
-                "filetype": "image",
-                "MAPLatitude": lat,
-                "MAPLongitude": lon,
-                "MAPCaptureTime": types.datetime_to_map_capture_time(timestamp),
-                "filename": str(image_path),
-            }
-            if angle is not None:
-                desc["MAPCompassHeading"] = {
-                    "TrueHeading": angle,
-                    "MagneticHeading": angle,
-                }
+            metadatas.append(image_metadata)
 
-            altitude = exif.extract_altitude()
-            if altitude is not None:
-                desc["MAPAltitude"] = altitude
-
-            desc["MAPOrientation"] = exif.extract_orientation()
-
-            make = exif.extract_make()
-            if make is not None:
-                desc["MAPDeviceMake"] = make
-
-            model = exif.extract_model()
-            if model is not None:
-                desc["MAPDeviceModel"] = model
-
-            descs.append(desc)
-
-        return descs
+        return metadatas

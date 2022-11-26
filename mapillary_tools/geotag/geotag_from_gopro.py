@@ -25,8 +25,8 @@ class GeotagFromGoPro(GeotagFromGeneric):
         self.offset_time = offset_time
         super().__init__()
 
-    def to_description(self) -> T.List[types.ImageDescriptionFileOrError]:
-        all_descs: T.List[types.ImageDescriptionFileOrError] = []
+    def to_description(self) -> T.List[types.ImageMetadataOrError]:
+        all_metadatas: T.List[types.ImageMetadataOrError] = []
 
         for video_path in self.video_paths:
             LOG.debug("Processing GoPro video: %s", video_path)
@@ -57,14 +57,14 @@ class GeotagFromGoPro(GeotagFromGeneric):
                     video_path,
                 )
                 for image_path in sample_image_paths:
-                    err_desc = types.describe_error(
+                    err_metadata = types.describe_error_metadata(
                         exceptions.MapillaryStationaryVideoError(
                             "Stationary GoPro video"
                         ),
                         image_path,
                         filetype=types.FileType.IMAGE,
                     )
-                    all_descs.append(err_desc)
+                    all_metadatas.append(err_metadata)
                 continue
 
             with tqdm(
@@ -81,17 +81,16 @@ class GeotagFromGoPro(GeotagFromGeneric):
                     offset_time=self.offset_time,
                     progress_bar=pbar,
                 )
-                this_descs = geotag.to_description()
-                all_descs.extend(this_descs)
+                this_metadatas = geotag.to_description()
+                all_metadatas.extend(this_metadatas)
 
             # update make and model
             with video_path.open("rb") as fp:
                 make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
             LOG.debug(f'Found camera make "%s" and model "%s"', make, model)
-            for desc in types.filter_out_errors(this_descs):
-                if make:
-                    desc["MAPDeviceMake"] = make
-                if model:
-                    desc["MAPDeviceModel"] = model
+            for metadata in this_metadatas:
+                if isinstance(metadata, types.ImageMetadata):
+                    metadata.MAPDeviceMake = make
+                    metadata.MAPDeviceModel = model
 
-        return all_descs
+        return all_metadatas

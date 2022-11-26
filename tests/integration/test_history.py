@@ -1,4 +1,3 @@
-import os
 import subprocess
 
 import py.path
@@ -9,20 +8,7 @@ from .fixtures import EXECUTABLE, setup_config, setup_data, setup_upload, USERNA
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
-@pytest.fixture
-def setup_history_path(tmpdir: py.path.local):
-    os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
-    history_path = tmpdir.join("history")
-    os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
-    yield history_path
-    if tmpdir.check():
-        history_path.remove(ignore_errors=True)
-    del os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"]
-    del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
-
-
 @pytest.mark.usefixtures("setup_config")
-@pytest.mark.usefixtures("setup_history_path")
 def test_upload_images(
     setup_data: py.path.local,
     setup_upload: py.path.local,
@@ -49,7 +35,6 @@ def test_upload_images(
 
 
 @pytest.mark.usefixtures("setup_config")
-@pytest.mark.usefixtures("setup_history_path")
 def test_upload_blackvue(
     setup_data: py.path.local,
     setup_upload: py.path.local,

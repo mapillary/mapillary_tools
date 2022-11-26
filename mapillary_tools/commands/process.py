@@ -150,7 +150,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--desc_path",
-            help=f'Specify the path to store mapillary image descriptions as JSON. If it is "-", then write to STDOUT. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]',
+            help=f'Path to write the extracted metadata (description file) that can be passed to the upload command. The hyphen "-" indicates STDOUT. [default: {{IMPORT_PATH}}/{constants.IMAGE_DESCRIPTION_FILENAME}]',
             default=None,
             required=False,
         )
@@ -253,7 +253,7 @@ class Command:
         ):
             vars_args["duplicate_angle"] = 360
 
-        descs = process_geotag_properties(
+        metadatas = process_geotag_properties(
             **(
                 {
                     k: v
@@ -263,8 +263,8 @@ class Command:
             )
         )
 
-        descs = process_import_meta_properties(
-            descs=descs,
+        metadatas = process_import_meta_properties(
+            metadatas=metadatas,
             **(
                 {
                     k: v
@@ -274,8 +274,8 @@ class Command:
             ),
         )
 
-        descs = process_sequence_properties(
-            descs=descs,
+        metadatas = process_sequence_properties(
+            metadatas=metadatas,
             **(
                 {
                     k: v
@@ -285,8 +285,8 @@ class Command:
             ),
         )
 
-        descs = process_finalize(
-            descs=descs,
+        metadatas = process_finalize(
+            metadatas=metadatas,
             **(
                 {
                     k: v
@@ -296,5 +296,5 @@ class Command:
             ),
         )
 
-        # running video_process will pass the descs to the upload command
-        vars_args["_descs_from_process"] = descs
+        # running video_process will pass the metadatas to the upload command
+        vars_args["_metadatas_from_process"] = metadatas
