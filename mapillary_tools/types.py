@@ -45,13 +45,15 @@ class ImageMetadata(geo.Point):
     filename: Path
     # filetype is always FileType.IMAGE
     MAPSequenceUUID: T.Optional[str] = None
-    MAPMetaTags: T.Optional[T.Dict] = None
     MAPDeviceMake: T.Optional[str] = None
     MAPDeviceModel: T.Optional[str] = None
     MAPGPSAccuracyMeters: T.Optional[float] = None
     MAPCameraUUID: T.Optional[str] = None
-    MAPFilename: T.Optional[str] = None
     MAPOrientation: T.Optional[int] = None
+    # deprecated since v0.10.0; keep here for compatibility
+    MAPMetaTags: T.Optional[T.Dict] = None
+    # deprecated since v0.10.0; keep here for compatibility
+    MAPFilename: T.Optional[str] = None
 
 
 @dataclasses.dataclass
@@ -105,12 +107,10 @@ class _SequenceOnly(TypedDict, total=False):
 
 
 class MetaProperties(TypedDict, total=False):
-    MAPMetaTags: T.Dict
     MAPDeviceMake: str
     MAPDeviceModel: str
     MAPGPSAccuracyMeters: float
     MAPCameraUUID: str
-    MAPFilename: str
     MAPOrientation: int
 
 
@@ -240,11 +240,13 @@ ImageDescriptionEXIFSchema = {
             "description": "Arbitrary key for grouping images",
             "pattern": "[a-zA-Z0-9_-]+",
         },
+        # deprecated since v0.10.0; keep here for compatibility
         "MAPMetaTags": {"type": "object"},
         "MAPDeviceMake": {"type": "string"},
         "MAPDeviceModel": {"type": "string"},
         "MAPGPSAccuracyMeters": {"type": "number"},
         "MAPCameraUUID": {"type": "string"},
+        # deprecated since v0.10.0; keep here for compatibility
         "MAPFilename": {
             "type": "string",
             "description": "The base filename of the image",
