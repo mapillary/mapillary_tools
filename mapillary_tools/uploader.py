@@ -29,6 +29,7 @@ LOG = logging.getLogger(__name__)
 def _group_sequences_by_uuid(
     metadatas: T.Sequence[types.ImageMetadata],
 ) -> T.Dict[str, T.List[types.ImageMetadata]]:
+    # group metadatas by uuid
     sequences_by_uuid: T.Dict[str, T.List[types.ImageMetadata]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
     for metadata in metadatas:
@@ -37,9 +38,16 @@ def _group_sequences_by_uuid(
         else:
             sequence_uuid = metadata.MAPSequenceUUID
         sequences_by_uuid.setdefault(sequence_uuid, []).append(metadata)
-    for sequence in sequences_by_uuid.values():
-        sequence.sort(key=lambda metadata: (metadata.time, metadata.filename.name))
-    return sequences_by_uuid
+
+    # deduplicate and sort metadatas per uuid
+    sorted_sequences_by_uuid = {}
+    for sequence_uuid, sequence in sequences_by_uuid.items():
+        dedups = {metadata.filename.resolve(): metadata for metadata in sequence}
+        sorted_sequences_by_uuid[sequence_uuid] = sorted(
+            dedups.values(),
+            key=lambda metadata: (metadata.time, metadata.filename.name),
+        )
+    return sorted_sequences_by_uuid
 
 
 class Progress(types.TypedDict, total=False):
@@ -299,6 +307,8 @@ def _zip_sequence_fp(
     fp: T.IO[bytes],
     upload_md5sum: str,
 ) -> None:
+    arcname_idx = 0
+    arcnames = set()
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
         for metadata in sequence:
             edit = exif_write.ExifEdit(metadata.filename)
@@ -307,11 +317,18 @@ def _zip_sequence_fp(
                 T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
             )
             image_bytes = edit.dump_image_bytes()
-            zipinfo = zipfile.ZipInfo(
-                metadata.filename.name, date_time=(1980, 1, 1, 0, 0, 0)
-            )
+            arcname: str = metadata.filename.name
+            # make sure the arcname is unique, otherwise zipfile.extractAll will eliminate duplicated ones
+            while arcname in arcnames:
+                arcname_idx += 1
+                arcname = (
+                    f"{metadata.filename.stem}_{arcname_idx}{metadata.filename.suffix}"
+                )
+            arcnames.add(arcname)
+            zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
             ziph.writestr(zipinfo, image_bytes)
             ziph.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
+        assert len(sequence) == len(set(ziph.namelist()))
 
 
 def _extract_upload_md5sum(fp: T.IO[bytes]) -> T.Optional[str]:

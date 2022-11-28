@@ -4,53 +4,57 @@ import typing as T
 import zipfile
 from pathlib import Path
 
-import py.path
 import pytest
+import py.path
 
 from mapillary_tools import types, upload_api_v4, uploader
 
-from ..integration.fixtures import validate_and_extract_zip
+from ..integration.fixtures import validate_and_extract_zip, setup_upload
+
+
+IMPORT_PATH = "tests/unit/data"
+
+
+@pytest.fixture
+def setup_unittest_data(tmpdir: py.path.local):
+    data_path = tmpdir.mkdir("data")
+    source = py.path.local(IMPORT_PATH)
+    source.copy(data_path)
+    yield data_path
+    if tmpdir.check():
+        tmpdir.remove(ignore_errors=True)
 
 
 def _validate_zip_dir(zip_dir: py.path.local):
+    descs = []
     for zip_path in zip_dir.listdir():
         with zipfile.ZipFile(zip_path) as ziph:
             upload_md5sum = json.loads(ziph.comment).get("upload_md5sum")
         assert (
             str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip"
         ), zip_path
-        validate_and_extract_zip(str(zip_path))
+        descs.extend(validate_and_extract_zip(str(zip_path)))
+    return descs
 
 
-@pytest.fixture
-def setup_upload(tmpdir: py.path.local):
-    upload_dir = tmpdir.mkdir("mapillary_public_uploads")
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
-    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
-    yield upload_dir
-    if tmpdir.check():
-        tmpdir.remove(ignore_errors=True)
-    del os.environ["MAPILLARY_UPLOAD_PATH"]
-    del os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"]
-
-
-def test_upload_images(setup_upload: py.path.local):
+def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
     )
+    test_exif = setup_unittest_data.join("test_exif.jpg")
     descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
         },
         {
             "MAPLatitude": 59.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
         },
     ]
@@ -59,16 +63,21 @@ def test_upload_images(setup_upload: py.path.local):
     )
     assert len(resp) == 1
     assert len(setup_upload.listdir()) == 1
-    _validate_zip_dir(setup_upload)
+    actual_descs = _validate_zip_dir(setup_upload)
+    assert 1 == len(actual_descs), "should return 1 desc because of the unique filename"
 
 
-def test_upload_images_multiple_sequences(setup_upload: py.path.local):
+def test_upload_images_multiple_sequences(
+    setup_unittest_data: py.path.local, setup_upload: py.path.local
+):
+    test_exif = setup_unittest_data.join("test_exif.jpg")
+    fixed_exif = setup_unittest_data.join("fixed_exif.jpg")
     descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
@@ -76,7 +85,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
             "MAPLatitude": 54.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
@@ -84,7 +93,7 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
             "MAPLatitude": 59.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
-            "filename": str(Path("tests/unit/data/fixed_exif.jpg")),
+            "filename": str(fixed_exif),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_2",
         },
@@ -102,18 +111,26 @@ def test_upload_images_multiple_sequences(setup_upload: py.path.local):
     )
     assert len(resp) == 2
     assert len(setup_upload.listdir()) == 2
-    _validate_zip_dir(setup_upload)
+    actual_descs = _validate_zip_dir(setup_upload)
+    assert 2 == len(actual_descs)
 
 
-def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=None):
-    same_basename = tmpdir.join("text_exif.jpg")
-    py.path.local("tests/unit/data/test_exif.jpg").copy(tmpdir.join("text_exif.jpg"))
+def test_upload_zip(
+    setup_unittest_data: py.path.local,
+    setup_upload: py.path.local,
+    emitter=None,
+):
+    test_exif = setup_unittest_data.join("test_exif.jpg")
+    setup_unittest_data.join("another_directory").mkdir()
+    test_exif2 = setup_unittest_data.join("another_directory").join("test_exif.jpg")
+    test_exif.copy(test_exif2)
+
     descs: T.List[types.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
@@ -121,7 +138,7 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
             "MAPLatitude": 54.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(Path(same_basename)),
+            "filename": str(test_exif2),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_1",
         },
@@ -129,17 +146,18 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
             "MAPLatitude": 59.5927694,
             "MAPLongitude": 16.1840944,
             "MAPCaptureTime": "2021_02_13_13_25_41_140",
-            "filename": str(Path("tests/unit/data/test_exif.jpg")),
+            "filename": str(test_exif),
             "filetype": "image",
             "MAPSequenceUUID": "sequence_2",
         },
     ]
-    zip_dir = tmpdir.mkdir("zip_dir")
+    zip_dir = setup_unittest_data.mkdir("zip_dir")
     uploader.zip_images(
         [types.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
     )
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
-    _validate_zip_dir(zip_dir)
+    descs = _validate_zip_dir(zip_dir)
+    assert 3 == len(descs)
 
     mly_uploader = uploader.Uploader(
         {
@@ -152,11 +170,15 @@ def test_upload_zip(tmpdir: py.path.local, setup_upload: py.path.local, emitter=
     )
     for zip_path in zip_dir.listdir():
         resp = mly_uploader.upload_zipfile(Path(zip_path))
+        assert resp == "0"
+    descs = _validate_zip_dir(setup_upload)
+    assert 3 == len(descs)
 
-    _validate_zip_dir(setup_upload)
 
-
-def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
+def test_upload_blackvue(
+    tmpdir: py.path.local,
+    setup_upload: py.path.local,
+):
     mly_uploader = uploader.Uploader(
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
@@ -181,7 +203,11 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
             assert fp.read() == b"this is a fake video"
 
 
-def test_upload_zip_with_emitter(tmpdir: py.path.local, setup_upload: py.path.local):
+def test_upload_zip_with_emitter(
+    setup_unittest_data: py.path.local,
+    tmpdir: py.path.local,
+    setup_upload: py.path.local,
+):
     emitter = uploader.EventEmitter()
 
     stats = {}
@@ -212,6 +238,6 @@ def test_upload_zip_with_emitter(tmpdir: py.path.local, setup_upload: py.path.lo
 
         assert payload["md5sum"] in stats
 
-    test_upload_zip(tmpdir, setup_upload, emitter=emitter)
+    test_upload_zip(setup_unittest_data, setup_upload, emitter=emitter)
 
     assert len(stats) == 2
