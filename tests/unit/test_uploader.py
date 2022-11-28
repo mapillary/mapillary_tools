@@ -4,12 +4,13 @@ import typing as T
 import zipfile
 from pathlib import Path
 
-import pytest
 import py.path
+
+import pytest
 
 from mapillary_tools import types, upload_api_v4, uploader
 
-from ..integration.fixtures import validate_and_extract_zip, setup_upload
+from ..integration.fixtures import setup_upload, validate_and_extract_zip
 
 
 IMPORT_PATH = "tests/unit/data"
