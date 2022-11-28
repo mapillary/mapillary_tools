@@ -1,5 +1,4 @@
 import typing as T
-import uuid
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
@@ -173,6 +172,8 @@ def process_sequence_properties(
     # reuse imaeg_metadatas to store processed image metadatas
     image_metadatas = []
 
+    sequence_idx = 0
+
     for sequence in sequences_after_cut:
         # duplication check
         dedups, dups = duplication_check(
@@ -201,16 +202,19 @@ def process_sequence_properties(
 
         # assign sequence UUIDs
         for c in cut:
-            # TODO: shorter UUID
-            sequence_uuid = str(uuid.uuid4())
             for p in c:
-                p.MAPSequenceUUID = sequence_uuid
+                # using incremental id as shorter "uuid", so we can save some space for the desc file
+                p.MAPSequenceUUID = str(sequence_idx)
                 image_metadatas.append(p)
+            sequence_idx += 1
 
     results = error_metadatas + image_metadatas + video_metadatas
 
     assert len(metadatas) == len(
         results
     ), f"expected {len(metadatas)} results but got {len(results)}"
+    assert sequence_idx == len(
+        set(metadata.MAPSequenceUUID for metadata in image_metadatas)
+    )
 
     return results
