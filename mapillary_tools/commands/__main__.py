@@ -126,6 +126,7 @@ def main():
     configure_logger(LOG, sys.stderr)
     LOG.setLevel(log_level)
 
+    LOG.debug("mapillary_tools version %s", VERSION)
     argvars = vars(args)
     for k, v in argvars.items():
         if v is None:
