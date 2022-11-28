@@ -24,6 +24,7 @@ from . import (
     upload_api_v4,
     uploader,
     utils,
+    VERSION,
 )
 from .geotag import (
     blackvue_parser,
@@ -649,8 +650,9 @@ def upload(
     params: JSONDict = {
         # null if multiple paths provided
         "import_path": str(import_path) if isinstance(import_path, Path) else None,
-        "user_key": user_items.get("MAPSettingsUserKey"),
         "organization_key": user_items.get("MAPOrganizationKey"),
+        "user_key": user_items.get("MAPSettingsUserKey"),
+        "version": VERSION,
     }
 
     if enable_history:

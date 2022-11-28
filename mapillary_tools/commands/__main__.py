@@ -1,6 +1,8 @@
 import argparse
+import enum
 import logging
 import sys
+import typing as T
 from pathlib import Path
 
 from .. import constants, exceptions, VERSION
@@ -88,7 +90,39 @@ def configure_logger(logger: logging.Logger, stream=None) -> None:
     logger.addHandler(handler)
 
 
+def _log_params(argvars: T.Dict) -> None:
+    MAX_ENTRIES = 5
+
+    def _stringify(x) -> str:
+        if isinstance(x, enum.Enum):
+            return x.value
+        else:
+            return str(x)
+
+    for k, v in argvars.items():
+        if v is None:
+            continue
+        if callable(v):
+            continue
+        if k in ["jwt", "user_password"]:
+            assert isinstance(v, str), type(v)
+            v = "******"
+        if isinstance(v, (list, set, tuple)):
+            entries = [_stringify(x) for x in v]
+            if len(entries) <= MAX_ENTRIES:
+                v = ", ".join(entries)
+            else:
+                v = (
+                    ", ".join(entries[:MAX_ENTRIES])
+                ) + f" and {len(entries) - MAX_ENTRIES} more"
+        else:
+            v = _stringify(v)
+        LOG.debug("CLI param: %s: %s", k, v)
+
+
 def main():
+    version_text = f"mapillary_tools version {VERSION}"
+
     parser = argparse.ArgumentParser(
         "mapillary_tool",
     )
@@ -96,7 +130,7 @@ def main():
         "--version",
         help="show the version of mapillary tools and exit",
         action="version",
-        version=f"mapillary_tools version {VERSION}",
+        version=version_text,
     )
     parser.add_argument(
         "--verbose",
@@ -126,16 +160,9 @@ def main():
     configure_logger(LOG, sys.stderr)
     LOG.setLevel(log_level)
 
+    LOG.debug("%s", version_text)
     argvars = vars(args)
-    for k, v in argvars.items():
-        if v is None:
-            continue
-        if callable(v):
-            continue
-        if k in ["jwt", "user_password"]:
-            assert isinstance(v, str), type(v)
-            v = "******"
-        LOG.debug("CLI param: %s: %s", k, v)
+    _log_params(argvars)
 
     try:
         args.func(argvars)
