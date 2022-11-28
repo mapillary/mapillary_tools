@@ -93,18 +93,20 @@ def validate_and_extract_image(image_path: str):
         return desc
 
 
-def validate_and_extract_zip(filename: str) -> T.List[T.Dict]:
-    basename = os.path.basename(filename)
-    assert basename.startswith("mly_tools_"), filename
-    assert basename.endswith(".zip"), filename
+def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
     descs = []
 
-    with zipfile.ZipFile(filename) as zipf:
+    with zipfile.ZipFile(zip_path) as zipf:
+        upload_md5sum = json.loads(zipf.comment)["upload_md5sum"]
         with tempfile.TemporaryDirectory() as tempdir:
             zipf.extractall(path=tempdir)
             for name in os.listdir(tempdir):
-                desc = validate_and_extract_image(os.path.join(tempdir, name))
+                filename = os.path.join(tempdir, name)
+                desc = validate_and_extract_image(filename)
                 descs.append(desc)
+
+    basename = os.path.basename(zip_path)
+    assert f"mly_tools_{upload_md5sum}.zip" == basename, (basename, upload_md5sum)
 
     return descs
 

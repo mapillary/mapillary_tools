@@ -4,25 +4,15 @@ import typing as T
 from pathlib import Path
 
 
-def md5sum_fp(fp: T.IO[bytes]) -> str:
-    md5 = hashlib.md5()
+def md5sum_fp(fp: T.IO[bytes], md5: T.Any = None):
+    if md5 is None:
+        md5 = hashlib.md5()
     while True:
         buf = fp.read(1024 * 1024 * 32)
         if not buf:
             break
         md5.update(buf)
-    return md5.hexdigest()
-
-
-def md5sum_bytes(data: bytes) -> str:
-    md5 = hashlib.md5()
-    md5.update(data)
-    return md5.hexdigest()
-
-
-def file_md5sum(path: Path) -> str:
-    with path.open("rb") as fp:
-        return md5sum_fp(fp)
+    return md5
 
 
 def is_image_file(path: Path) -> bool:

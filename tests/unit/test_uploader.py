@@ -1,6 +1,5 @@
 import json
 import os
-import tempfile
 import typing as T
 import zipfile
 from pathlib import Path
@@ -8,37 +7,19 @@ from pathlib import Path
 import py.path
 import pytest
 
-from mapillary_tools import exif_read, types, uploader
+from mapillary_tools import types, upload_api_v4, uploader
 
-
-def _validate_and_extract_zip(filename: str):
-    ret = {}
-    with zipfile.ZipFile(filename) as zipf:
-        with tempfile.TemporaryDirectory() as tempdir:
-            zipf.extractall(path=tempdir)
-            for name in os.listdir(tempdir):
-                with open(os.path.join(tempdir, name), "rb") as fp:
-                    tags = exif_read.exifread.process_file(fp)
-                    desc_tag = tags.get("Image ImageDescription")
-                    assert desc_tag is not None, tags
-                    desc = json.loads(str(desc_tag.values))
-                    assert isinstance(desc.get("MAPLatitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPLongitude"), (float, int)), desc
-                    assert isinstance(desc.get("MAPCaptureTime"), str), desc
-                    for key in desc.keys():
-                        assert key.startswith("MAP"), key
-                    ret[name] = desc
-    return ret
+from ..integration.fixtures import validate_and_extract_zip
 
 
 def _validate_zip_dir(zip_dir: py.path.local):
     for zip_path in zip_dir.listdir():
         with zipfile.ZipFile(zip_path) as ziph:
-            upload_md5sum = uploader._hash_zipfile(ziph)
+            upload_md5sum = json.loads(ziph.comment).get("upload_md5sum")
         assert (
             str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip"
         ), zip_path
-        _validate_and_extract_zip(str(zip_path))
+        validate_and_extract_zip(str(zip_path))
 
 
 @pytest.fixture
@@ -188,12 +169,14 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     with open(blackvue_path, "wb") as fp:
         fp.write(b"this is a fake video")
     with Path(blackvue_path).open("rb") as fp:
-        resp = mly_uploader.upload_blackvue_fp(fp)
+        resp = mly_uploader.upload_stream(
+            fp,
+            upload_api_v4.ClusterFileType.BLACKVUE,
+            "this_is_a_blackvue_checksum",
+        )
     assert resp == "0"
     for mp4_path in setup_upload.listdir():
-        basename = os.path.basename(mp4_path)
-        assert str(basename).startswith("mly_tools_")
-        assert str(basename).endswith(".mp4")
+        assert os.path.basename(mp4_path) == "mly_tools_this_is_a_blackvue_checksum.mp4"
         with open(mp4_path, "rb") as fp:
             assert fp.read() == b"this is a fake video"
 

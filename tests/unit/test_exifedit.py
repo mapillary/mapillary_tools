@@ -2,6 +2,7 @@ import datetime
 import os
 import shutil
 import unittest
+from pathlib import Path
 
 import py.path
 
@@ -10,17 +11,17 @@ from PIL import ExifTags, Image, TiffImagePlugin
 
 """Initialize all the neccessary data"""
 
-this_file = os.path.abspath(__file__)
-this_file_dir = os.path.dirname(this_file)
-data_dir = os.path.join(this_file_dir, "data")
+this_file = Path(__file__)
+this_file_dir = this_file.parent
+data_dir = this_file_dir.joinpath("data")
 
-EMPTY_EXIF_FILE = os.path.join(data_dir, "empty_exif.jpg")
-EMPTY_EXIF_FILE_TEST = os.path.join(data_dir, "tmp", "empty_exif.jpg")
-NON_EXISTING_FILE = os.path.join(data_dir, "tmp", "non_existing_file.jpg")
-CORRUPT_EXIF_FILE = os.path.join(data_dir, "corrupt_exif.jpg")
-CORRUPT_EXIF_FILE_2 = os.path.join(data_dir, "corrupt_exif_2.jpg")
-FIXED_EXIF_FILE = os.path.join(data_dir, "fixed_exif.jpg")
-FIXED_EXIF_FILE_2 = os.path.join(data_dir, "fixed_exif_2.jpg")
+EMPTY_EXIF_FILE = data_dir.joinpath("empty_exif.jpg")
+EMPTY_EXIF_FILE_TEST = data_dir.joinpath(data_dir, "tmp", "empty_exif.jpg")
+NON_EXISTING_FILE = data_dir.joinpath("tmp", "non_existing_file.jpg")
+CORRUPT_EXIF_FILE = data_dir.joinpath("corrupt_exif.jpg")
+CORRUPT_EXIF_FILE_2 = data_dir.joinpath("corrupt_exif_2.jpg")
+FIXED_EXIF_FILE = data_dir.joinpath("fixed_exif.jpg")
+FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
@@ -63,7 +64,7 @@ def add_image_description_general(test_obj, filename):
     )
 
 
-def add_orientation_general(test_obj, filename):
+def add_orientation_general(test_obj, filename: Path):
 
     test_orientation = 2
 
@@ -78,7 +79,7 @@ def add_orientation_general(test_obj, filename):
     )
 
 
-def add_date_time_original_general(test_obj, filename):
+def add_date_time_original_general(test_obj, filename: Path):
 
     test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
 
@@ -126,7 +127,7 @@ def add_lat_lon_general(test_obj, filename):
     )
 
 
-def add_altitude_general(test_obj, filename):
+def add_altitude_general(test_obj, filename: Path):
 
     test_altitude = 15.5
     test_altitude_precision = 100
@@ -379,7 +380,7 @@ def test_exif_write(tmpdir: py.path.local):
         assert image_bytes != content
         assert content == orig
 
-        exif = ExifEdit(str(image_path))
+        exif = ExifEdit(Path(image_path))
         exif.add_orientation(1)
         exif.write()
 

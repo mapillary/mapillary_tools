@@ -21,7 +21,7 @@ UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 EXPECTED_DESCS = {
     "image": {
-        "abebe4d14eafd4ed7d51a437f7f3dc41.jpg": {
+        "DSC00497.JPG": {
             "MAPAltitude": 77.5,
             "MAPCaptureTime": "2018_06_08_13_32_28_000",
             "MAPCompassHeading": {"MagneticHeading": 271.27, "TrueHeading": 271.27},
@@ -32,7 +32,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "d330ed2b21260c8ddff9e4585e704398.jpg": {
+        "DSC00001.JPG": {
             "MAPAltitude": 70.3,
             "MAPCaptureTime": "2018_06_08_13_24_10_000",
             "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
@@ -43,7 +43,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "e48c08e5df11c52270ef2568dbf493d6.jpg": {
+        "V0370574.JPG": {
             "MAPCaptureTime": "2018_07_27_11_32_14_000",
             "MAPCompassHeading": {"MagneticHeading": 359.0, "TrueHeading": 359.0},
             "MAPDeviceMake": "Garmin",
@@ -55,7 +55,7 @@ EXPECTED_DESCS = {
         },
     },
     "gopro": {
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000001.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000001.jpg": {
             "MAPAltitude": -22.18,
             "MAPCaptureTime": "2019_11_18_15_44_47_862",
             "MAPCompassHeading": {"MagneticHeading": 313.689, "TrueHeading": 313.689},
@@ -65,7 +65,7 @@ EXPECTED_DESCS = {
             "MAPLongitude": -117.3273063,
             "filetype": "image",
         },
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000002.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000002.jpg": {
             "MAPAltitude": -21.62,
             "MAPCaptureTime": "2019_11_18_15_44_49_862",
             "MAPCompassHeading": {"MagneticHeading": 326.179, "TrueHeading": 326.179},
@@ -75,7 +75,7 @@ EXPECTED_DESCS = {
             "MAPLongitude": -117.3273151,
             "filetype": "image",
         },
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000003.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000003.jpg": {
             "MAPAltitude": -21.896,
             "MAPCaptureTime": "2019_11_18_15_44_51_862",
             "MAPCompassHeading": {"MagneticHeading": 353.178, "TrueHeading": 353.178},
@@ -85,7 +85,7 @@ EXPECTED_DESCS = {
             "MAPLongitude": -117.3273264,
             "filetype": "image",
         },
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000004.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000004.jpg": {
             "MAPAltitude": -21.997,
             "MAPCaptureTime": "2019_11_18_15_44_53_862",
             "MAPCompassHeading": {"MagneticHeading": 334.427, "TrueHeading": 334.427},
@@ -95,7 +95,7 @@ EXPECTED_DESCS = {
             "MAPLongitude": -117.3273391,
             "filetype": "image",
         },
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000005.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000005.jpg": {
             "MAPAltitude": -22.364,
             "MAPCaptureTime": "2019_11_18_15_44_55_862",
             "MAPCompassHeading": {"MagneticHeading": 325.089, "TrueHeading": 325.089},
@@ -105,7 +105,7 @@ EXPECTED_DESCS = {
             "MAPLongitude": -117.3273483,
             "filetype": "image",
         },
-        "mly_tools_1d6008645886f873684d11a09d8533de_NA_000006.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000006.jpg": {
             "MAPAltitude": -22.539,
             "MAPCaptureTime": "2019_11_18_15_44_57_862",
             "MAPCompassHeading": {"MagneticHeading": 327.867, "TrueHeading": 327.867},

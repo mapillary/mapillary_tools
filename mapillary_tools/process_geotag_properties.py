@@ -296,7 +296,7 @@ def _verify_image_exif_write(
     metadata: types.ImageMetadata,
 ) -> types.ImageMetadataOrError:
     with metadata.filename.open("rb") as fp:
-        edit = exif_write.ExifEdit(fp.read())
+        edit = exif_write.ExifEdit(metadata.filename)
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
     edit.add_image_description(
@@ -364,7 +364,7 @@ def _overwrite_exif_tags(
         disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ):
         try:
-            image_exif = exif_write.ExifEdit(str(metadata.filename))
+            image_exif = exif_write.ExifEdit(metadata.filename)
 
             if all_tags or time_tag:
                 image_exif.add_date_time_original(

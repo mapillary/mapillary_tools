@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import logging
@@ -27,17 +28,18 @@ LOG = logging.getLogger(__name__)
 
 def _group_sequences_by_uuid(
     metadatas: T.Sequence[types.ImageMetadata],
-) -> T.Dict[str, T.Dict[str, types.ImageMetadata]]:
-    sequences: T.Dict[str, T.Dict[str, types.ImageMetadata]] = {}
+) -> T.Dict[str, T.List[types.ImageMetadata]]:
+    sequences_by_uuid: T.Dict[str, T.List[types.ImageMetadata]] = {}
     missing_sequence_uuid = str(uuid.uuid4())
     for metadata in metadatas:
         if metadata.MAPSequenceUUID is None:
             sequence_uuid = missing_sequence_uuid
         else:
             sequence_uuid = metadata.MAPSequenceUUID
-        sequence = sequences.setdefault(sequence_uuid, {})
-        sequence[str(metadata.filename)] = metadata
-    return sequences
+        sequences_by_uuid.setdefault(sequence_uuid, []).append(metadata)
+    for sequence in sequences_by_uuid.values():
+        sequence.sort(key=lambda metadata: (metadata.time, metadata.filename.name))
+    return sequences_by_uuid
 
 
 class Progress(types.TypedDict, total=False):
@@ -109,6 +111,14 @@ class EventEmitter:
             callback(*args, **kwargs)
 
 
+def _sequence_md5sum(sequence: T.Iterable[types.ImageMetadata]) -> str:
+    md5 = hashlib.md5()
+    for metadata in sequence:
+        with metadata.filename.open("rb") as fp:
+            md5 = utils.md5sum_fp(fp, md5=md5)
+    return md5.hexdigest()
+
+
 class Uploader:
     def __init__(
         self,
@@ -124,7 +134,9 @@ class Uploader:
         self.dry_run = dry_run
 
     def upload_zipfile(
-        self, zip_path: Path, event_payload: T.Optional[Progress] = None
+        self,
+        zip_path: Path,
+        event_payload: T.Optional[Progress] = None,
     ) -> T.Optional[str]:
         if event_payload is None:
             event_payload = {}
@@ -134,7 +146,6 @@ class Uploader:
             if not namelist:
                 LOG.warning(f"Skipping empty zipfile: %s", zip_path)
                 return None
-            upload_md5sum = _hash_zipfile(ziph)
 
         final_event_payload: Progress = {
             **event_payload,  # type: ignore
@@ -142,51 +153,19 @@ class Uploader:
         }
 
         with zip_path.open("rb") as fp:
-            try:
-                return self._upload_fp(
-                    fp,
-                    upload_md5sum,
-                    upload_api_v4.ClusterFileType.ZIP,
-                    event_payload=final_event_payload,
-                )
-            except UploadCancelled:
-                return None
+            upload_md5sum = _extract_upload_md5sum(fp)
 
-    def upload_blackvue_fp(
-        self, fp: T.IO[bytes], event_payload: T.Optional[Progress] = None
-    ) -> T.Optional[str]:
-        if event_payload is None:
-            event_payload = {}
+        if upload_md5sum is None:
+            with zip_path.open("rb") as fp:
+                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
-        upload_md5sum = utils.md5sum_fp(fp)
-        try:
-            return self._upload_fp(
+        with zip_path.open("rb") as fp:
+            return self.upload_stream(
                 fp,
+                upload_api_v4.ClusterFileType.ZIP,
                 upload_md5sum,
-                upload_api_v4.ClusterFileType.BLACKVUE,
-                event_payload=event_payload,
+                event_payload=final_event_payload,
             )
-        except UploadCancelled:
-            return None
-
-    def upload_camm_fp(
-        self,
-        fp: T.IO[bytes],
-        event_payload: T.Optional[Progress] = None,
-    ) -> T.Optional[str]:
-        if event_payload is None:
-            event_payload = {}
-
-        upload_md5sum = utils.md5sum_fp(fp)
-        try:
-            return self._upload_fp(
-                fp,
-                upload_md5sum,
-                upload_api_v4.ClusterFileType.CAMM,
-                event_payload=event_payload,
-            )
-        except UploadCancelled:
-            return None
 
     def upload_images(
         self,
@@ -199,36 +178,34 @@ class Uploader:
         _validate_metadatas(image_metadatas)
         sequences = _group_sequences_by_uuid(image_metadatas)
         ret: T.Dict[str, str] = {}
-        for sequence_idx, (sequence_uuid, images) in enumerate(sequences.items()):
+        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
             final_event_payload: Progress = {
                 **event_payload,  # type: ignore
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
-                "sequence_image_count": len(images),
+                "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
             }
+            upload_md5sum = _sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
-                upload_md5sum = _zip_sequence_fp(images, fp)
-                try:
-                    cluster_id: T.Optional[str] = self._upload_fp(
-                        fp,
-                        upload_md5sum,
-                        upload_api_v4.ClusterFileType.ZIP,
-                        final_event_payload,
-                    )
-                except UploadCancelled:
-                    cluster_id = None
+                _zip_sequence_fp(sequence, fp, upload_md5sum)
+                cluster_id = self.upload_stream(
+                    fp,
+                    upload_api_v4.ClusterFileType.ZIP,
+                    upload_md5sum,
+                    final_event_payload,
+                )
             if cluster_id is not None:
                 ret[sequence_uuid] = cluster_id
         return ret
 
-    def _upload_fp(
+    def upload_stream(
         self,
         fp: T.IO[bytes],
-        upload_md5sum: str,
         cluster_filetype: upload_api_v4.ClusterFileType,
+        upload_md5sum: str,
         event_payload: T.Optional[Progress] = None,
-    ) -> str:
+    ) -> T.Optional[str]:
         if event_payload is None:
             event_payload = {}
 
@@ -269,12 +246,15 @@ class Uploader:
             "md5sum": upload_md5sum,
         }
 
-        return _upload_fp(
-            upload_service,
-            fp,
-            event_payload=final_event_payload,
-            emitter=self.emitter,
-        )
+        try:
+            return _upload_stream(
+                upload_service,
+                fp,
+                event_payload=final_event_payload,
+                emitter=self.emitter,
+            )
+        except UploadCancelled:
+            return None
 
 
 def desc_file_to_exif(
@@ -299,7 +279,7 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
 def zip_images(
     metadatas: T.List[types.ImageMetadata],
     zip_dir: Path,
-):
+) -> None:
     _validate_metadatas(metadatas)
     sequences = _group_sequences_by_uuid(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
@@ -307,47 +287,48 @@ def zip_images(
         zip_filename_wip = zip_dir.joinpath(
             f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
         )
+        upload_md5sum = _sequence_md5sum(sequence)
         with zip_filename_wip.open("wb") as fp:
-            upload_md5sum = _zip_sequence_fp(sequence, fp)
+            _zip_sequence_fp(sequence, fp, upload_md5sum)
         zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
         os.rename(zip_filename_wip, zip_filename)
 
 
-# Instead of hashing the zip file content, we hash the filename list,
-# because the zip content could be changed due to EXIF change
-# (e.g. changes in MAPMetaTag in image description)
-def _hash_zipfile(ziph: zipfile.ZipFile) -> str:
-    # namelist is List[str]
-    namelist = ziph.namelist()
-    concat = "".join(os.path.splitext(os.path.basename(name))[0] for name in namelist)
-    return utils.md5sum_bytes(concat.encode("utf-8"))
-
-
 def _zip_sequence_fp(
-    sequence: T.Dict[str, types.ImageMetadata],
+    sequence: T.Sequence[types.ImageMetadata],
     fp: T.IO[bytes],
-) -> str:
-    metadatas = list(sequence.values())
-    metadatas.sort(key=lambda metadata: (metadata.time, metadata.filename.name))
+    upload_md5sum: str,
+) -> None:
     with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-        for metadata in metadatas:
-            edit = exif_write.ExifEdit(str(metadata.filename))
-            with open(metadata.filename, "rb") as fp:
-                md5sum = utils.md5sum_fp(fp)
+        for metadata in sequence:
+            edit = exif_write.ExifEdit(metadata.filename)
             # The cast is to fix the type checker error
-            exif_desc = T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
-            edit.add_image_description(exif_desc)
+            edit.add_image_description(
+                T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
+            )
             image_bytes = edit.dump_image_bytes()
-            # To make sure the zip file deterministic, i.e. zip same files result in same content (same hashes),
-            # we use md5 as the name, and an constant as the modification time
-            arcname = f"{md5sum}{metadata.filename.suffix.lower()}"
-            zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+            zipinfo = zipfile.ZipInfo(
+                metadata.filename.name, date_time=(1980, 1, 1, 0, 0, 0)
+            )
             ziph.writestr(zipinfo, image_bytes)
+            ziph.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
 
-        return _hash_zipfile(ziph)
+
+def _extract_upload_md5sum(fp: T.IO[bytes]) -> T.Optional[str]:
+    with zipfile.ZipFile(fp, "r", zipfile.ZIP_DEFLATED) as ziph:
+        comment = ziph.comment
+    if not comment:
+        return None
+    try:
+        upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
+    except Exception:
+        return None
+    if not upload_md5sum:
+        return None
+    return str(upload_md5sum)
 
 
-def is_immediate_retry(ex: Exception):
+def _is_immediate_retry(ex: Exception):
     if isinstance(ex, requests.HTTPError) and ex.response.status_code == 412:
         try:
             resp = ex.response.json()
@@ -357,7 +338,7 @@ def is_immediate_retry(ex: Exception):
         return resp.get("debug_info", {}).get("retriable", False)
 
 
-def is_retriable_exception(ex: Exception):
+def _is_retriable_exception(ex: Exception):
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 
@@ -384,7 +365,7 @@ def _setup_callback(emitter: EventEmitter, mutable_payload: Progress):
     return _callback
 
 
-def _upload_fp(
+def _upload_stream(
     upload_service: upload_api_v4.UploadService,
     fp: T.IO[bytes],
     event_payload: T.Optional[Progress] = None,
@@ -420,7 +401,7 @@ def _upload_fp(
                 )
             file_handle = upload_service.upload(fp, offset=begin_offset)
         except Exception as ex:
-            if retries < constants.MAX_UPLOAD_RETRIES and is_retriable_exception(ex):
+            if retries < constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
                 if emitter:
                     emitter.emit("upload_interrupted", mutable_payload)
                 LOG.warning(
@@ -432,7 +413,7 @@ def _upload_fp(
                     str(ex),
                 )
                 retries += 1
-                if is_immediate_retry(ex):
+                if _is_immediate_retry(ex):
                     sleep_for = 0
                 else:
                     sleep_for = min(2**retries, 16)

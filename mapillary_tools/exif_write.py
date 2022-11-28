@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import typing as T
+from pathlib import Path
 
 import piexif
 
@@ -16,10 +17,14 @@ LOG = logging.getLogger(__name__)
 class ExifEdit:
     _filename_or_bytes: T.Union[str, bytes]
 
-    def __init__(self, filename_or_bytes: T.Union[str, bytes]) -> None:
+    def __init__(self, filename_or_bytes: T.Union[Path, bytes]) -> None:
         """Initialize the object"""
-        self._filename_or_bytes = filename_or_bytes
-        self._ef: T.Dict = piexif.load(filename_or_bytes)
+        if isinstance(filename_or_bytes, Path):
+            # https://github.com/hMatoba/Piexif/issues/124
+            self._filename_or_bytes = str(filename_or_bytes.resolve())
+        else:
+            self._filename_or_bytes = filename_or_bytes
+        self._ef: T.Dict = piexif.load(self._filename_or_bytes)
 
     @staticmethod
     def decimal_to_dms(
@@ -149,13 +154,12 @@ class ExifEdit:
         piexif.insert(exif_bytes, self._filename_or_bytes, output)
         return output.read()
 
-    def write(self, filename: T.Optional[str] = None) -> None:
+    def write(self, filename: T.Optional[Path] = None) -> None:
         """Save exif data to file."""
         if filename is None:
-            if isinstance(self._filename_or_bytes, str):
-                filename = self._filename_or_bytes
-            else:
+            if not isinstance(self._filename_or_bytes, str):
                 raise RuntimeError("Unable to write image into bytes")
+            filename = Path(self._filename_or_bytes)
 
         exif_bytes = self._safe_dump()
 
@@ -165,4 +169,4 @@ class ExifEdit:
             with open(self._filename_or_bytes, "rb") as fp:
                 img = fp.read()
 
-        piexif.insert(exif_bytes, img, filename)
+        piexif.insert(exif_bytes, img, str(filename))
