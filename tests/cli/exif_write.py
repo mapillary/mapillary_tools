@@ -1,5 +1,6 @@
 import logging
 import sys
+from pathlib import Path
 
 from mapillary_tools.exif_write import ExifEdit
 
@@ -12,5 +13,5 @@ if __name__ == "__main__":
     handler.setLevel(logging.DEBUG)
     LOG.addHandler(handler)
     for image in sys.argv[1:]:
-        edit = ExifEdit(image)
+        edit = ExifEdit(Path(image))
         edit.dump_image_bytes()

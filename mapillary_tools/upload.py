@@ -21,6 +21,7 @@ from . import (
     geo,
     ipc,
     types,
+    upload_api_v4,
     uploader,
     utils,
 )
@@ -708,6 +709,8 @@ def upload(
             for idx, video_metadata in enumerate(specified_video_metadatas):
                 generator = camm_builder.camm_sample_generator2(video_metadata)
                 with video_metadata.filename.open("rb") as src_fp:
+                    upload_md5sum = utils.md5sum_fp(src_fp).hexdigest()
+                with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
                         "total_sequence_count": len(specified_video_metadatas),
@@ -716,8 +719,11 @@ def upload(
                         "import_path": str(video_metadata.filename),
                     }
                     try:
-                        cluster_id = mly_uploader.upload_camm_fp(
-                            T.cast(T.BinaryIO, camm_fp), event_payload=event_payload
+                        cluster_id = mly_uploader.upload_stream(
+                            T.cast(T.BinaryIO, camm_fp),
+                            upload_api_v4.ClusterFileType.CAMM,
+                            upload_md5sum,
+                            event_payload=event_payload,
                         )
                     except Exception as ex:
                         raise UploadError(ex) from ex
@@ -803,9 +809,13 @@ def _upload_raw_blackvues_DEPRECATED(
             continue
 
         with video_path.open("rb") as fp:
+            upload_md5sum = utils.md5sum_fp(fp).hexdigest()
             try:
-                cluster_id = mly_uploader.upload_blackvue_fp(
-                    fp, event_payload=event_payload
+                cluster_id = mly_uploader.upload_stream(
+                    fp,
+                    upload_api_v4.ClusterFileType.BLACKVUE,
+                    upload_md5sum,
+                    event_payload=event_payload,
                 )
             except Exception as ex:
                 raise UploadError(ex) from ex
@@ -851,8 +861,12 @@ def _upload_raw_camm_DEPRECATED(
             continue
         try:
             with video_path.open("rb") as fp:
-                cluster_id = mly_uploader.upload_camm_fp(
-                    fp, event_payload=event_payload
+                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+                cluster_id = mly_uploader.upload_stream(
+                    fp,
+                    upload_api_v4.ClusterFileType.CAMM,
+                    upload_md5sum,
+                    event_payload=event_payload,
                 )
         except Exception as ex:
             raise UploadError(ex) from ex

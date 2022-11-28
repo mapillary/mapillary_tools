@@ -138,6 +138,6 @@ def _sample_single_video(
                 continue
             seconds = frame_idx * sample_interval * duration_ratio
             timestamp = start_time + datetime.timedelta(seconds=seconds)
-            exif_edit = ExifEdit(str(sample_paths[0]))
+            exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
