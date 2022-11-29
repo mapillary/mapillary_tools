@@ -9,6 +9,7 @@ import time
 import typing as T
 import uuid
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import jsonschema
@@ -284,6 +285,27 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
             raise FileNotFoundError(f"No such file {metadata.filename}")
 
 
+@contextmanager
+def wip_file_context(wip_path: Path, done_path: Path):
+    assert wip_path != done_path, "should not be the same file"
+    try:
+        os.remove(wip_path)
+    except FileNotFoundError:
+        pass
+    try:
+        yield wip_path
+        try:
+            os.remove(done_path)
+        except FileNotFoundError:
+            pass
+        wip_path.rename(done_path)
+    finally:
+        try:
+            os.remove(wip_path)
+        except FileNotFoundError:
+            pass
+
+
 def zip_images(
     metadatas: T.List[types.ImageMetadata],
     zip_dir: Path,
@@ -292,14 +314,15 @@ def zip_images(
     sequences = _group_sequences_by_uuid(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
-        zip_filename_wip = zip_dir.joinpath(
-            f"mly_tools_{sequence_uuid}.{os.getpid()}.wip"
-        )
         upload_md5sum = _sequence_md5sum(sequence)
-        with zip_filename_wip.open("wb") as fp:
-            _zip_sequence_fp(sequence, fp, upload_md5sum)
+        timestamp = int(time.time())
+        wip_zip_filename = zip_dir.joinpath(
+            f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{timestamp}"
+        )
         zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
-        os.rename(zip_filename_wip, zip_filename)
+        with wip_file_context(wip_zip_filename, zip_filename) as wip_dir:
+            with wip_dir.open("wb") as fp:
+                _zip_sequence_fp(sequence, fp, upload_md5sum)
 
 
 def _zip_sequence_fp(

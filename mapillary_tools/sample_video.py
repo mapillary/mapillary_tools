@@ -109,7 +109,7 @@ def wip_sample_dir(sample_dir: Path) -> Path:
     timestamp = int(time.time())
     # prefix with .mly_ffmpeg_ to avoid samples being scanned by "mapillary_tools process"
     return sample_dir.resolve().parent.joinpath(
-        f".mly_ffmpeg_{sample_dir.name}.{pid}.{timestamp}"
+        f".mly_ffmpeg_{sample_dir.name}_{pid}_{timestamp}"
     )
 
 
