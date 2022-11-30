@@ -40,9 +40,10 @@ def _validate_samples(
         for h, s in parser.parse_path(
             fp, [b"moov", b"trak", b"mdia", b"minf", b"stbl"]
         ):
-            descriptions, raw_samples = sample_parser.parse_raw_samples_from_stbl(
-                s, maxsize=h.maxsize
-            )
+            (
+                descriptions,
+                raw_samples,
+            ) = sample_parser.parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
             samples.extend(
                 sample
                 for sample in raw_samples

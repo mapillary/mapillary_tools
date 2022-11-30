@@ -58,52 +58,107 @@ def test_build_stbl_happy():
 
     samples = [
         sample_parser.RawSample(
-            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+            description_idx=1,
+            offset=1,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=2, size=9, timedelta=2, is_sync=False
+            description_idx=1,
+            offset=2,
+            size=9,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=False,
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
         sample_parser.RawSample(
-            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+            description_idx=1,
+            offset=1,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=2, size=2, timedelta=2, is_sync=False
+            description_idx=1,
+            offset=2,
+            size=2,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=False,
         ),
         # another chunk here due to a 1-byte break
         sample_parser.RawSample(
-            description_idx=1, offset=5, size=1, timedelta=2, is_sync=True
+            description_idx=1,
+            offset=5,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=6, size=9, timedelta=2, is_sync=False
-        ),
-    ]
-    _build_and_parse_stbl(descriptions, samples)
-
-    samples = [
-        sample_parser.RawSample(
-            description_idx=1, offset=1, size=1, timedelta=2, is_sync=False
-        ),
-        sample_parser.RawSample(
-            description_idx=1, offset=2, size=2, timedelta=2, is_sync=True
-        ),
-        # another chunk here
-        sample_parser.RawSample(
-            description_idx=2, offset=4, size=1, timedelta=2, is_sync=True
-        ),
-        # another chunk here
-        sample_parser.RawSample(
-            description_idx=1, offset=5, size=9, timedelta=2, is_sync=True
+            description_idx=1,
+            offset=6,
+            size=9,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=False,
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
 
     samples = [
         sample_parser.RawSample(
-            description_idx=1, offset=1, size=1, timedelta=2, is_sync=True
+            description_idx=1,
+            offset=1,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=False,
+        ),
+        sample_parser.RawSample(
+            description_idx=1,
+            offset=2,
+            size=2,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
+        ),
+        # another chunk here
+        sample_parser.RawSample(
+            description_idx=2,
+            offset=4,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
+        ),
+        # another chunk here
+        sample_parser.RawSample(
+            description_idx=1,
+            offset=5,
+            size=9,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
+        ),
+    ]
+    _build_and_parse_stbl(descriptions, samples)
+
+    samples = [
+        sample_parser.RawSample(
+            description_idx=1,
+            offset=1,
+            size=1,
+            timedelta=2,
+            composition_offset=0,
+            is_sync=True,
         ),
     ]
     _build_and_parse_stbl(descriptions, samples)
@@ -198,16 +253,36 @@ def test_parse_raw_samples_from_stbl():
     samples = list(sample_iter)
     assert [
         sample_parser.RawSample(
-            description_idx=1, offset=1, size=1, timedelta=20, is_sync=True
+            description_idx=1,
+            offset=1,
+            size=1,
+            timedelta=20,
+            composition_offset=0,
+            is_sync=True,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=2, size=2, timedelta=30, is_sync=False
+            description_idx=1,
+            offset=2,
+            size=2,
+            timedelta=30,
+            composition_offset=0,
+            is_sync=False,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=5, size=3, timedelta=30, is_sync=True
+            description_idx=1,
+            offset=5,
+            size=3,
+            timedelta=30,
+            composition_offset=0,
+            is_sync=True,
         ),
         sample_parser.RawSample(
-            description_idx=1, offset=8, size=3, timedelta=50, is_sync=False
+            description_idx=1,
+            offset=8,
+            size=3,
+            timedelta=50,
+            composition_offset=0,
+            is_sync=False,
         ),
     ] == samples
     d = builder.build_stbl_from_raw_samples(descs, samples)

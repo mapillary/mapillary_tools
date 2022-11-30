@@ -15,6 +15,7 @@ BoxType = Literal[
     b"@mak",
     b"@mod",
     b"co64",
+    b"ctts",
     b"dinf",
     b"dref",
     b"edts",
@@ -289,6 +290,27 @@ TimeToSampleBox = C.Struct(
     ),
 )
 
+# moov -> trak -> mdia -> minf -> stbl -> ctts
+# Box Type: ‘ctts’
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: No
+# Quantity: Zero or one
+CompositionTimeToSampleBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Struct(
+                "sample_count" / C.Int32ub,
+                "sample_offset" / C.Int32ub,
+            ),
+        ),
+        [],
+    ),
+)
+
 # moov -> trak -> mdia -> minf -> stbl -> stsc
 # Box Type: ‘stsc’
 # Container: Sample Table Box (‘stbl’)
@@ -458,6 +480,7 @@ CMAP: SwitchMapType = {
     b"mdhd": MediaHeaderBox,
     b"stsc": SampleToChunkBox,
     b"stts": TimeToSampleBox,
+    b"ctts": CompositionTimeToSampleBox,
     b"co64": ChunkLargeOffsetBox,
     b"stco": ChunkOffsetBox,
     b"stsd": SampleDescriptionBox,
@@ -475,6 +498,7 @@ CMAP: SwitchMapType = {
 CMAP[b"stbl"] = {
     b"stsd": CMAP[b"stsd"],
     b"stts": CMAP[b"stts"],
+    b"ctts": CMAP[b"ctts"],
     b"stsc": CMAP[b"stsc"],
     b"stsz": CMAP[b"stsz"],
     b"stco": CMAP[b"stco"],
@@ -552,3 +576,24 @@ MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
 # for building mp4 only
 MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True)
 MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
+
+
+def find_box_at_pathx(
+    box: T.Union[T.Iterable[BoxDict], BoxDict], path: T.Sequence[bytes]
+) -> BoxDict:
+    if not path:
+        raise ValueError(f"box at path {path} not found")
+    boxes: T.Iterable[BoxDict]
+    if isinstance(box, dict):
+        boxes = [T.cast(BoxDict, box)]
+    else:
+        boxes = box
+    for box in boxes:
+        if box["type"] == path[0]:
+            if len(path) == 1:
+                return box
+            else:
+                return find_box_at_pathx(
+                    T.cast(T.Iterable[BoxDict], box["data"]), path[1:]
+                )
+    raise ValueError(f"box at path {path} not found")
