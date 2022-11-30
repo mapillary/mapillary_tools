@@ -15,6 +15,7 @@ BoxType = Literal[
     b"@mak",
     b"@mod",
     b"co64",
+    b"ctts",
     b"dinf",
     b"dref",
     b"edts",
@@ -289,6 +290,27 @@ TimeToSampleBox = C.Struct(
     ),
 )
 
+# moov -> trak -> mdia -> minf -> stbl -> ctts
+# Box Type: ‘ctts’
+# Container: Sample Table Box (‘stbl’)
+# Mandatory: No
+# Quantity: Zero or one
+CompositionTimeToSampleBox = C.Struct(
+    "version" / C.Default(C.Int8ub, 0),
+    "flags" / C.Default(C.Int24ub, 0),
+    "entries"
+    / C.Default(
+        C.PrefixedArray(
+            C.Int32ub,
+            C.Struct(
+                "sample_count" / C.Int32ub,
+                "sample_offset" / C.Int32ub,
+            ),
+        ),
+        [],
+    ),
+)
+
 # moov -> trak -> mdia -> minf -> stbl -> stsc
 # Box Type: ‘stsc’
 # Container: Sample Table Box (‘stbl’)
@@ -458,6 +480,7 @@ CMAP: SwitchMapType = {
     b"mdhd": MediaHeaderBox,
     b"stsc": SampleToChunkBox,
     b"stts": TimeToSampleBox,
+    b"ctts": CompositionTimeToSampleBox,
     b"co64": ChunkLargeOffsetBox,
     b"stco": ChunkOffsetBox,
     b"stsd": SampleDescriptionBox,
@@ -475,6 +498,7 @@ CMAP: SwitchMapType = {
 CMAP[b"stbl"] = {
     b"stsd": CMAP[b"stsd"],
     b"stts": CMAP[b"stts"],
+    b"ctts": CMAP[b"ctts"],
     b"stsc": CMAP[b"stsc"],
     b"stsz": CMAP[b"stsz"],
     b"stco": CMAP[b"stco"],
