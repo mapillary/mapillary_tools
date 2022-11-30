@@ -124,6 +124,31 @@ def _build_stts(sample_deltas: T.Iterable[int]) -> BoxDict:
     }
 
 
+@dataclasses.dataclass
+class _CompressedSampleCompositionOffset:
+    __slots__ = ("sample_count", "sample_offset")
+    # make sure dataclasses.asdict() produce the result as CompositionTimeToSampleBox expects
+    sample_count: int
+    sample_offset: int
+
+
+def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
+    # compress offsets
+    compressed: T.List[_CompressedSampleCompositionOffset] = []
+    for offset in sample_composition_offsets:
+        if compressed and offset == compressed[-1].sample_offset:
+            compressed[-1].sample_count += 1
+        else:
+            compressed.append(_CompressedSampleCompositionOffset(1, offset))
+
+    return {
+        "type": b"ctts",
+        "data": {
+            "entries": [dataclasses.asdict(td) for td in compressed],
+        },
+    }
+
+
 def _build_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     chunks = _build_chunks(raw_samples)
     return {
@@ -134,11 +159,11 @@ def _build_co64(raw_samples: T.Iterable[RawSample]) -> BoxDict:
     }
 
 
-def _build_stss(raw_samples: T.Iterable[RawSample]) -> BoxDict:
+def _build_stss(is_syncs: T.Iterable[bool]) -> BoxDict:
     return {
         "type": b"stss",
         "data": {
-            "entries": [idx + 1 for idx, s in enumerate(raw_samples) if s.is_sync],
+            "entries": [idx + 1 for idx, is_sync in enumerate(is_syncs) if is_sync],
         },
     }
 
@@ -150,6 +175,7 @@ def build_stbl_from_raw_samples(
     raw_samples = list(raw_samples)
     # It is recommended that the boxes within the Sample Table Box be in the following order:
     # Sample Description, Time to Sample, Sample to Chunk, Sample Size, Chunk Offset.
+
     boxes = [
         _build_stsd(descriptions),
         _build_stts((s.timedelta for s in raw_samples)),
@@ -159,8 +185,10 @@ def build_stbl_from_raw_samples(
         # so we can calculate the moov box size in advance
         _build_co64(raw_samples),
     ]
+    if any(s.composition_offset for s in raw_samples):
+        boxes.append(_build_ctts((s.composition_offset for s in raw_samples)))
     if any(not s.is_sync for s in raw_samples):
-        boxes.append(_build_stss(raw_samples))
+        boxes.append(_build_stss((s.is_sync for s in raw_samples)))
     return boxes
 
 
@@ -199,14 +227,17 @@ _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
 
 def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
     assert trak["type"] == b"trak"
-    new_samples = []
+
+    # new samples with offsets updated
+    repositioned_samples = []
     for sample in iterate_samples([trak]):
-        new_samples.append(
+        repositioned_samples.append(
             sample_parser.RawSample(
                 description_idx=sample.description_idx,
                 offset=sample_offset,
                 size=sample.size,
                 timedelta=sample.timedelta,
+                composition_offset=sample.composition_offset,
                 is_sync=sample.is_sync,
             )
         )
@@ -215,7 +246,9 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
     descriptions, _ = sample_parser.parse_raw_samples_from_stbl(
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
-    stbl_children_boxes = build_stbl_from_raw_samples(descriptions, new_samples)
+    stbl_children_boxes = build_stbl_from_raw_samples(
+        descriptions, repositioned_samples
+    )
     new_stbl_bytes = _STBLChildrenBuilderConstruct.build_boxlist(stbl_children_boxes)
     stbl_box["data"] = new_stbl_bytes
 
@@ -285,7 +318,9 @@ _MOOVChildrenParserConstruct = cparser.Box64ConstructBuilder(
 
 def transform_mp4(
     src_fp: T.BinaryIO,
-    sample_generator: T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[io.IOBase]],
+    sample_generator: T.Optional[
+        T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[io.IOBase]]
+    ] = None,
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
@@ -308,7 +343,10 @@ def transform_mp4(
         io_utils.SlicedIO(src_fp, sample.offset, sample.size)
         for sample in source_samples
     ]
-    sample_readers = list(sample_generator(src_fp, moov_children))
+    if sample_generator is not None:
+        sample_readers = list(sample_generator(src_fp, moov_children))
+    else:
+        sample_readers = []
 
     _update_all_trak_tkhd(moov_children)
 

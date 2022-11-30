@@ -106,6 +106,7 @@ def convert_points_to_raw_samples(
             offset=0,
             size=len(camm_sample_data),
             timedelta=timedelta,
+            composition_offset=0,
             is_sync=True,
         )
 
