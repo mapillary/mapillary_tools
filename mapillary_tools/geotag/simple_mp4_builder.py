@@ -208,16 +208,16 @@ def _is_video_trak(box: BoxDict) -> bool:
 def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
     # an integer that uniquely identifies this track over the entire life-time of this presentation.
     # Track IDs are never re-used and cannot be zero.
-    track_id = 1
+    track_ID = 1
 
     for box in _filter_trak_boxes(moov_chilren):
         tkhd = cparser.find_box_at_pathx(box, [b"trak", b"tkhd"])
         d = T.cast(T.Dict[str, T.Any], tkhd["data"])
-        d["track_id"] = track_id
-        track_id += 1
+        d["track_ID"] = track_ID
+        track_ID += 1
 
     mvhd = cparser.find_box_at_pathx(moov_chilren, [b"mvhd"])
-    T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
+    T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_ID
 
 
 _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
