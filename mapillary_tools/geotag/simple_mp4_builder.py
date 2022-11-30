@@ -164,27 +164,6 @@ def build_stbl_from_raw_samples(
     return boxes
 
 
-def _find_box_at_pathx(
-    box: T.Union[T.Iterable[BoxDict], BoxDict], path: T.Sequence[bytes]
-) -> BoxDict:
-    if not path:
-        raise ValueError(f"box at path {path} not found")
-    boxes: T.Iterable[BoxDict]
-    if isinstance(box, dict):
-        boxes = [T.cast(BoxDict, box)]
-    else:
-        boxes = box
-    for box in boxes:
-        if box["type"] == path[0]:
-            if len(path) == 1:
-                return box
-            else:
-                return _find_box_at_pathx(
-                    T.cast(T.Iterable[BoxDict], box["data"]), path[1:]
-                )
-    raise ValueError(f"box at path {path} not found")
-
-
 def _filter_trak_boxes(
     boxes: T.Iterable[BoxDict],
 ) -> T.Generator[BoxDict, None, None]:
@@ -194,7 +173,7 @@ def _filter_trak_boxes(
 
 
 def _is_video_trak(box: BoxDict) -> bool:
-    hdlr = _find_box_at_pathx(box, [b"trak", b"mdia", b"hdlr"])
+    hdlr = cparser.find_box_at_pathx(box, [b"trak", b"mdia", b"hdlr"])
     return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
 
@@ -204,12 +183,12 @@ def _update_all_trak_tkhd(moov_chilren: T.Sequence[BoxDict]) -> None:
     track_id = 1
 
     for box in _filter_trak_boxes(moov_chilren):
-        tkhd = _find_box_at_pathx(box, [b"trak", b"tkhd"])
+        tkhd = cparser.find_box_at_pathx(box, [b"trak", b"tkhd"])
         d = T.cast(T.Dict[str, T.Any], tkhd["data"])
         d["track_id"] = track_id
         track_id += 1
 
-    mvhd = _find_box_at_pathx(moov_chilren, [b"mvhd"])
+    mvhd = cparser.find_box_at_pathx(moov_chilren, [b"mvhd"])
     T.cast(T.Dict[str, T.Any], mvhd["data"])["next_track_ID"] = track_id
 
 
@@ -232,7 +211,7 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
             )
         )
         sample_offset += sample.size
-    stbl_box = _find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
+    stbl_box = cparser.find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
     descriptions, _ = sample_parser.parse_raw_samples_from_stbl(
         io.BytesIO(T.cast(bytes, stbl_box["data"]))
     )
@@ -248,7 +227,9 @@ def iterate_samples(
 ) -> T.Generator[sample_parser.RawSample, None, None]:
     for box in moov_children:
         if box["type"] == b"trak":
-            stbl_box = _find_box_at_pathx(box, [b"trak", b"mdia", b"minf", b"stbl"])
+            stbl_box = cparser.find_box_at_pathx(
+                box, [b"trak", b"mdia", b"minf", b"stbl"]
+            )
             _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl(
                 io.BytesIO(T.cast(bytes, stbl_box["data"]))
             )
@@ -284,7 +265,7 @@ def _filter_moov_children_boxes(
 
 
 def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
-    mvhd = _find_box_at_pathx(moov_children, [b"mvhd"])
+    mvhd = cparser.find_box_at_pathx(moov_children, [b"mvhd"])
     return T.cast(T.Dict, mvhd["data"])["timescale"]
 
 

@@ -576,3 +576,24 @@ MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
 # for building mp4 only
 MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True)
 MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
+
+
+def find_box_at_pathx(
+    box: T.Union[T.Iterable[BoxDict], BoxDict], path: T.Sequence[bytes]
+) -> BoxDict:
+    if not path:
+        raise ValueError(f"box at path {path} not found")
+    boxes: T.Iterable[BoxDict]
+    if isinstance(box, dict):
+        boxes = [T.cast(BoxDict, box)]
+    else:
+        boxes = box
+    for box in boxes:
+        if box["type"] == path[0]:
+            if len(path) == 1:
+                return box
+            else:
+                return find_box_at_pathx(
+                    T.cast(T.Iterable[BoxDict], box["data"]), path[1:]
+                )
+    raise ValueError(f"box at path {path} not found")
