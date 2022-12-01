@@ -88,6 +88,16 @@ class ExifEdit:
         )
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
+    def add_make(self, make: str) -> None:
+        if not make:
+            raise ValueError("Make cannot be empty")
+        self._ef["0th"][piexif.ImageIFD.Make] = make
+
+    def add_model(self, model: str) -> None:
+        if not model:
+            raise ValueError("Model cannot be empty")
+        self._ef["0th"][piexif.ImageIFD.Model] = model
+
     def _safe_dump(self) -> bytes:
         TRUSTED_TAGS = [
             piexif.ExifIFD.DateTimeOriginal,
