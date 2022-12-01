@@ -17,7 +17,7 @@ else:
 
 LOG = logging.getLogger(__name__)
 FRAME_EXT = ".jpg"
-NA_STREAM_ID = "NA"
+NA_STREAM_IDX = "NA"
 
 
 class StreamTag(TypedDict):
@@ -93,7 +93,7 @@ class FFMPEG:
         self.stderr = stderr
 
     def _run_ffprobe_json(self, cmd: T.List[str]) -> T.Dict:
-        full_cmd = [self.ffprobe_path, "-print_format", "json", *cmd]
+        full_cmd: T.List[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
         LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
         try:
             completed = subprocess.run(
@@ -137,7 +137,7 @@ class FFMPEG:
         return output
 
     def _run_ffmpeg(self, cmd: T.List[str]) -> None:
-        full_cmd = [self.ffmpeg_path, *cmd]
+        full_cmd: T.List[str] = [self.ffmpeg_path, *cmd]
         LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
         try:
             subprocess.run(full_cmd, check=True, stderr=self.stderr)
@@ -149,7 +149,7 @@ class FFMPEG:
             raise FFmpegCalledProcessError(ex) from ex
 
     def probe_format_and_streams(self, video_path: Path) -> ProbeOutput:
-        cmd = [
+        cmd: T.List[str] = [
             "-hide_banner",
             "-show_format",
             "-show_streams",
@@ -162,17 +162,22 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         sample_interval: float,
-        stream_id: T.Optional[int] = None,
+        video_stream_idx: T.Optional[int] = None,
     ) -> None:
+        """
+        Extract frames by the sample interval from the specified video stream.
+        """
         sample_prefix = sample_dir.joinpath(video_path.stem)
-        if stream_id is not None:
-            stream_selector = ["-map", f"0:{stream_id}"]
-            ouput_template = f"{sample_prefix}_{stream_id}_%06d{FRAME_EXT}"
+        if video_stream_idx is not None:
+            stream_selector = ["-map", f"0:{video_stream_idx}"]
+            ouput_template = f"{sample_prefix}_{video_stream_idx}_%06d{FRAME_EXT}"
+            stream_specifier = f"{video_stream_idx}"
         else:
             stream_selector = []
-            ouput_template = f"{sample_prefix}_{NA_STREAM_ID}_%06d{FRAME_EXT}"
+            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            stream_specifier = f"v"
 
-        cmd = [
+        cmd: T.List[str] = [
             # global options should be specified first
             *["-hide_banner", "-nostdin"],
             # input 0
@@ -182,7 +187,7 @@ class FFMPEG:
             # filter videos
             *["-vf", f"fps=1/{sample_interval}"],
             # video quality level (or the alias -q:v)
-            *["-qscale:v", "2"],
+            *[f"-qscale:{stream_specifier}", "2"],
             # -q:v=1 is the best quality but larger image sizes
             # see https://stackoverflow.com/a/10234065
             # *["-qscale:v", "1", "-qmin", "1"],
@@ -192,24 +197,76 @@ class FFMPEG:
 
         self._run_ffmpeg(cmd)
 
-    def probe_video_streams(self, video_path: Path) -> T.List[Stream]:
-        probe = self.probe_format_and_streams(video_path)
-        streams = probe.get("streams", [])
-        return [stream for stream in streams if stream.get("codec_type") == "video"]
+    def extract_specified_frames(
+        self,
+        video_path: Path,
+        sample_dir: Path,
+        frame_indices: T.Set[int],
+        video_stream_idx: T.Optional[int] = None,
+    ) -> None:
+        """
+        Extract specified frames from the specified video stream.
+        """
 
-    def probe_video_start_time(self, video_path: Path) -> T.Optional[datetime.datetime]:
+        if not frame_indices:
+            return
+
+        eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
+
+        sample_prefix = sample_dir.joinpath(video_path.stem)
+        if video_stream_idx is not None:
+            stream_selector = ["-map", f"0:{video_stream_idx}"]
+            ouput_template = f"{sample_prefix}_{video_stream_idx}_%06d{FRAME_EXT}"
+            stream_specifier = f"{video_stream_idx}"
+        else:
+            stream_selector = []
+            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            stream_specifier = f"v"
+
+        cmd: T.List[str] = [
+            # global options should be specified first
+            *["-hide_banner", "-nostdin"],
+            # input 0
+            *["-i", str(video_path)],
+            # select stream
+            *stream_selector,
+            # filter videos
+            *[
+                *["-vf", f"select={eqs}"],
+                # Each frame is passed with its timestamp from the demuxer to the muxer
+                *[f"-fps_mode:{stream_specifier}", "passthrough"],
+                # Set the number of video frames to output
+                *[f"-frames:{stream_specifier}", str(len(frame_indices))],
+                *["-frame_pts", "1"],
+            ],
+            # video quality level (or the alias -q:v)
+            *[f"-qscale:{stream_specifier}", "2"],
+            # -q:v=1 is the best quality but larger image sizes
+            # see https://stackoverflow.com/a/10234065
+            # *["-qscale:v", "1", "-qmin", "1"],
+            # output
+            ouput_template,
+        ]
+
+        self._run_ffmpeg(cmd)
+
+
+class Probe:
+    probe: ProbeOutput
+
+    def __init__(self, probe: ProbeOutput) -> None:
+        self.probe = probe
+
+    def probe_video_start_time(self) -> T.Optional[datetime.datetime]:
         """
         Find video start time of the given video.
         It searches video creation time and duration in video streams first and then the other streams.
         Once found, return stream creation time - stream duration as the video start time.
         """
-        probe = self.probe_format_and_streams(video_path)
-        streams = probe.get("streams", [])
+        streams = self.probe.get("streams", [])
 
         # search start time from video streams
-        video_streams = [
-            stream for stream in streams if stream.get("codec_type") == "video"
-        ]
+        video_streams = self.probe_video_streams()
         video_streams.sort(
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
         )
@@ -227,8 +284,25 @@ class FFMPEG:
 
         return None
 
+    def probe_video_streams(self) -> T.List[Stream]:
+        streams = self.probe.get("streams", [])
+        return [stream for stream in streams if stream.get("codec_type") == "video"]
+
+    def probe_video_with_max_resolution(self) -> T.Optional[Stream]:
+        video_streams = self.probe_video_streams()
+        video_streams.sort(
+            key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
+        )
+        if not video_streams:
+            return None
+        return video_streams[0]
+
 
 def extract_stream_start_time(stream: Stream) -> T.Optional[datetime.datetime]:
+    """
+    Find the start time of the given stream.
+    Start time is the creation time of the stream minus the duration of the stream.
+    """
     duration_str = stream.get("duration")
     LOG.debug("Extracted video duration: %s", duration_str)
     if duration_str is None:
@@ -255,6 +329,12 @@ def _extract_stream_frame_idx(
     sample_basename: str,
     sample_basename_pattern: T.Pattern[str],
 ) -> T.Optional[T.Tuple[T.Optional[int], int]]:
+    """
+    extract stream id and frame index from sample basename
+    e.g. basename GX010001_NA_000000.jpg will extract (None, 0)
+    e.g. basename GX010001_1_000002.jpg will extract (1, 2)
+    If returning None, it means the basename does not match the pattern
+    """
     image_no_ext, ext = os.path.splitext(sample_basename)
     if ext.lower() != FRAME_EXT.lower():
         return None
@@ -263,22 +343,27 @@ def _extract_stream_frame_idx(
     if not match:
         return None
 
-    g1 = match.group("stream_id")
+    g1 = match.group("stream_idx")
     try:
-        if g1 == NA_STREAM_ID:
-            stream_id = None
+        if g1 == NA_STREAM_IDX:
+            stream_idx = None
         else:
-            stream_id = int(g1)
+            stream_idx = int(g1)
     except ValueError:
         return None
 
+    # convert 0-padded numbers to int
+    # e.g. 000000 -> 0
+    # e.g. 000001 -> 1
     g2 = match.group("frame_idx")
+    g2 = g2.lstrip("0") or "0"
+
     try:
-        frame_idx = int(g2.lstrip("0"))
+        frame_idx = int(g2)
     except ValueError:
         return None
 
-    return stream_id, frame_idx - 1
+    return stream_idx, frame_idx
 
 
 def iterate_samples(
@@ -286,11 +371,11 @@ def iterate_samples(
 ) -> T.Generator[T.Tuple[T.Optional[int], int, Path], None, None]:
     """
     Search all samples in the sample_dir,
-    and return a generator of the tuple: (stream ID, frame index (0-based), sample path).
-    Sample indices are sorted in ascending order.
+    and return a generator of the tuple: (stream ID, frame index, sample path).
+    The frame index could be 0-based or 1-based depending on how it's sampled.
     """
     sample_basename_pattern = re.compile(
-        rf"^{re.escape(video_path.stem)}_(?P<stream_id>\d+|{re.escape(NA_STREAM_ID)})_(?P<frame_idx>\d+)$"
+        rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
     )
     for sample_path in sample_dir.iterdir():
         stream_frame_idx = _extract_stream_frame_idx(
@@ -298,29 +383,29 @@ def iterate_samples(
             sample_basename_pattern,
         )
         if stream_frame_idx is not None:
-            stream_id, frame_idx = stream_frame_idx
-            yield (stream_id, frame_idx, sample_path)
+            stream_idx, frame_idx = stream_frame_idx
+            yield (stream_idx, frame_idx, sample_path)
 
 
 def sort_selected_samples(
-    sample_dir: Path, video_path: Path, selected_stream_ids: T.List[T.Optional[int]]
+    sample_dir: Path, video_path: Path, selected_stream_indices: T.List[T.Optional[int]]
 ) -> T.List[T.Tuple[int, T.List[T.Optional[Path]]]]:
     """
     Group frames by frame index, so that
     the Nth group contains all the frames from the selected streams at frame index N.
     """
     stream_samples: T.Dict[int, T.List[T.Tuple[T.Optional[int], Path]]] = {}
-    for stream_id, frame_idx, sample_path in iterate_samples(sample_dir, video_path):
-        stream_samples.setdefault(frame_idx, []).append((stream_id, sample_path))
+    for stream_idx, frame_idx, sample_path in iterate_samples(sample_dir, video_path):
+        stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
 
     selected: T.List[T.Tuple[int, T.List[T.Optional[Path]]]] = []
     for frame_idx in sorted(stream_samples.keys()):
         indexed = {
-            stream_id: sample_path
-            for stream_id, sample_path in stream_samples[frame_idx]
+            stream_idx: sample_path
+            for stream_idx, sample_path in stream_samples[frame_idx]
         }
         selected_sample_paths = [
-            indexed.get(stream_id) for stream_id in selected_stream_ids
+            indexed.get(stream_idx) for stream_idx in selected_stream_indices
         ]
         selected.append((frame_idx, selected_sample_paths))
     return selected
