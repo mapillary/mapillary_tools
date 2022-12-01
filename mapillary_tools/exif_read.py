@@ -1,5 +1,6 @@
 import datetime
-import os
+import typing as T
+from pathlib import Path
 from typing import Any, List, Optional, Tuple, Type, Union
 
 import exifread
@@ -76,16 +77,22 @@ class ExifRead:
     EXIF class for reading exif from an image
     """
 
-    def __init__(self, filename: str, details: bool = False) -> None:
+    path_or_stream: T.Union[Path, T.BinaryIO]
+
+    def __init__(
+        self, path_or_stream: T.Union[Path, T.BinaryIO], details: bool = False
+    ) -> None:
         """
         Initialize EXIF object with FILE as filename or fileobj
         """
-        self.filename = filename
-        if isinstance(filename, str):
-            with open(filename, "rb") as fp:
+        if isinstance(path_or_stream, Path):
+            with path_or_stream.open("rb") as fp:
                 self.tags = exifread.process_file(fp, details=details, debug=True)
         else:
-            self.tags = exifread.process_file(filename, details=details, debug=True)
+            self.tags = exifread.process_file(
+                path_or_stream, details=details, debug=True
+            )
+        self.path_or_stream = path_or_stream
 
     def _extract_alternative_fields(
         self,
@@ -145,12 +152,14 @@ class ExifRead:
 
         if capture_time is None:
             # try interpret the filename
-            basename, _ = os.path.splitext(os.path.basename(self.filename))
-            try:
-                return datetime.datetime.strptime(
-                    basename + "000", "%Y_%m_%d_%H_%M_%S_%f"
-                )
-            except ValueError:
+            if isinstance(self.path_or_stream, Path):
+                try:
+                    return datetime.datetime.strptime(
+                        self.path_or_stream.stem + "000", "%Y_%m_%d_%H_%M_%S_%f"
+                    )
+                except ValueError:
+                    return None
+            else:
                 return None
         else:
             capture_time = capture_time.replace(" ", "_")

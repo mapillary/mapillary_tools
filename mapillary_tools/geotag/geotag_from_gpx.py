@@ -33,7 +33,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.offset_time = offset_time
 
     def read_image_time(self, image_path: Path) -> T.Optional[float]:
-        image_time = ExifRead(str(image_path)).extract_capture_time()
+        image_time = ExifRead(image_path).extract_capture_time()
         if image_time is None:
             return None
         return geo.as_unix_time(image_time)

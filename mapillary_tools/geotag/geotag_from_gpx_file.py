@@ -40,7 +40,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
         self, image_metadata: types.ImageMetadata
     ) -> types.ImageMetadataOrError:
         try:
-            exif = exif_read.ExifRead(str(image_metadata.filename))
+            exif = exif_read.ExifRead(image_metadata.filename)
         except Exception as exc:
             LOG.warning(
                 "Unknown error reading EXIF from image %s",
