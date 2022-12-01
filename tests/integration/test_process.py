@@ -445,7 +445,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
 
     for input_path in [video_dir, video_dir.join("sample-5s.mp4")]:
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 7, x.stderr
@@ -453,7 +453,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
             assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --skip_sample_errors --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --skip_sample_errors --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -461,7 +461,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
             assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -490,7 +490,7 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose video_process {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} --verbose video_process --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -512,14 +512,14 @@ def test_video_process_and_upload(
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     assert 0 == len(setup_upload.listdir())
 
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -540,7 +540,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr

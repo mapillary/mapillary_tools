@@ -61,7 +61,9 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
     root = _PWD.joinpath("data/mock_sample_video")
     video_dir = root.joinpath("videos")
     sample_dir = tmpdir.mkdir("sampled_video_frames")
-    sample_video.sample_video(video_dir, Path(sample_dir), rerun=True)
+    sample_video.sample_video(
+        video_dir, Path(sample_dir), video_sample_distance=-1, rerun=True
+    )
     samples = sample_dir.join("hello.mp4").listdir()
     video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
     _validate(samples, video_start_time)
@@ -71,7 +73,9 @@ def test_sample_single_video(tmpdir: py.path.local, setup_mock):
     root = _PWD.joinpath("data/mock_sample_video")
     video_path = root.joinpath("videos", "hello.mp4")
     sample_dir = tmpdir.mkdir("sampled_video_frames")
-    sample_video.sample_video(video_path, Path(sample_dir), rerun=True)
+    sample_video.sample_video(
+        video_path, Path(sample_dir), video_sample_distance=-1, rerun=True
+    )
     samples = sample_dir.join("hello.mp4").listdir()
     video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
     _validate(samples, video_start_time)
@@ -87,6 +91,7 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
         video_dir,
         Path(sample_dir),
         video_start_time=video_start_time_str,
+        video_sample_distance=-1,
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
