@@ -584,25 +584,26 @@ MOOVWithoutSTBLBuilderConstruct = Box32ConstructBuilder(
 
 
 def find_box_at_pathx(
-    box: T.Union[T.Iterable[BoxDict], BoxDict], path: T.Sequence[bytes]
+    box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
 ) -> BoxDict:
     if not path:
         raise ValueError(f"box at path {path} not found")
 
-    boxes: T.Iterable[BoxDict]
+    boxes: T.Sequence[BoxDict]
     if isinstance(box, dict):
         boxes = [T.cast(BoxDict, box)]
     else:
-        boxes = box
+        boxes = T.cast(T.Sequence[BoxDict], box)
 
     for box in boxes:
         if box["type"] == path[0]:
             if len(path) == 1:
                 return box
             else:
+                box_data = T.cast(T.Sequence[BoxDict], box["data"])
                 assert isinstance(
-                    box["data"], list
-                ), f"expect a list of boxes but got {type(box['data'])} at path {path}"
-                return find_box_at_pathx(box["data"], path[1:])
+                    box_data, list
+                ), f"expect a list of boxes but got {type(box_data)} at path {path}"
+                return find_box_at_pathx(box_data, path[1:])
 
     raise ValueError(f"box at path {path} not found")

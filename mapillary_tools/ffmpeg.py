@@ -162,20 +162,22 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         sample_interval: float,
-        video_stream_idx: T.Optional[int] = None,
+        stream_idx: T.Optional[int] = None,
     ) -> None:
         """
         Extract frames by the sample interval from the specified video stream.
+
+        stream_idx: the stream_index specifier to a **video stream**. If it's None, defaults to "v". See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
         """
         sample_prefix = sample_dir.joinpath(video_path.stem)
-        if video_stream_idx is not None:
-            stream_selector = ["-map", f"0:{video_stream_idx}"]
-            ouput_template = f"{sample_prefix}_{video_stream_idx}_%06d{FRAME_EXT}"
-            stream_specifier = f"{video_stream_idx}"
+        if stream_idx is not None:
+            stream_selector = ["-map", f"0:{stream_idx}"]
+            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            stream_specifier = f"{stream_idx}"
         else:
             stream_selector = []
             ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
-            stream_specifier = f"v"
+            stream_specifier = "v"
 
         cmd: T.List[str] = [
             # global options should be specified first
@@ -202,10 +204,12 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         frame_indices: T.Set[int],
-        video_stream_idx: T.Optional[int] = None,
+        stream_idx: T.Optional[int] = None,
     ) -> None:
         """
         Extract specified frames from the specified video stream.
+
+        stream_idx: the stream_index specifier to a **video stream**. If it's None, defaults to "v". See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
         """
 
         if not frame_indices:
@@ -214,14 +218,14 @@ class FFMPEG:
         eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
 
         sample_prefix = sample_dir.joinpath(video_path.stem)
-        if video_stream_idx is not None:
-            stream_selector = ["-map", f"0:{video_stream_idx}"]
-            ouput_template = f"{sample_prefix}_{video_stream_idx}_%06d{FRAME_EXT}"
-            stream_specifier = f"{video_stream_idx}"
+        if stream_idx is not None:
+            stream_selector = ["-map", f"0:{stream_idx}"]
+            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            stream_specifier = f"{stream_idx}"
         else:
             stream_selector = []
             ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
-            stream_specifier = f"v"
+            stream_specifier = "v"
 
         cmd: T.List[str] = [
             # global options should be specified first

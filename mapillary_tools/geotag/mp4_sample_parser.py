@@ -314,7 +314,7 @@ def parse_samples_from_trak(
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     mdhd_box = parser.parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
-    mdhd = cparser.MediaHeaderBox.parse(mdhd_box)
+    mdhd = T.cast(T.Dict, cparser.MediaHeaderBox.parse(mdhd_box))
 
     trak.seek(trak_start_offset, io.SEEK_SET)
     h, s = parser.parse_box_path_firstx(
@@ -322,13 +322,14 @@ def parse_samples_from_trak(
     )
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
 
-    yield from map(
-        lambda s: _apply_timescale(s, mdhd.timescale),
-        _extract_samples(raw_samples, descriptions),
+    yield from (
+        _apply_timescale(s, mdhd["timescale"])
+        for s in _extract_samples(raw_samples, descriptions)
     )
 
 
 STSDBoxListConstruct = cparser.Box64ConstructBuilder(
+    # pyre-ignore[6]: pyre does not support recursive type SwitchMapType
     {b"stsd": cparser.CMAP[b"stsd"]}
 ).BoxList
 
@@ -368,9 +369,9 @@ class TrackBoxParser:
             T.Dict,
             cparser.find_box_at_pathx(self.trak_boxes, [b"mdia", b"mdhd"])["data"],
         )
-        yield from map(
-            lambda s: _apply_timescale(s, mdhd["timescale"]),
-            _extract_samples(raw_samples, descriptions),
+        yield from (
+            _apply_timescale(s, mdhd["timescale"])
+            for s in _extract_samples(raw_samples, descriptions)
         )
 
 

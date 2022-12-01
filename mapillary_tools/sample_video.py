@@ -209,11 +209,11 @@ def _sample_single_video_by_distance(
     video_stream_idx = video_stream["index"]
     moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
     video_track_parser = moov_parser.parse_track_at(video_stream_idx)
-    all_video_samples = list(video_track_parser.parse_samples())
-    all_video_samples.sort(key=lambda sample: sample.composition_time_offset)
-    LOG.info("Found total %d video samples", len(all_video_samples))
+    all_video_samples_sorted = list(video_track_parser.parse_samples())
+    all_video_samples_sorted.sort(key=lambda sample: sample.composition_time_offset)
+    LOG.info("Found total %d video samples", len(all_video_samples_sorted))
 
-    # interpolate sample points
+    # interpolate sample points between the GPS track range (with 1ms buffer)
     start_point_time = video_metadata.points[0].time - 0.001
     end_point_time = video_metadata.points[-1].time + 0.001
     LOG.info(
@@ -228,7 +228,7 @@ def _sample_single_video_by_distance(
             video_sample,
             interpolator.interpolate(video_sample.composition_time_offset),
         )
-        for frame_idx_0based, video_sample in enumerate(all_video_samples)
+        for frame_idx_0based, video_sample in enumerate(all_video_samples_sorted)
         if start_point_time <= video_sample.composition_time_offset <= end_point_time
     ]
     LOG.info("Found total %d interpolated video samples", len(interp_sample_points))
@@ -259,7 +259,7 @@ def _sample_single_video_by_distance(
             video_path,
             wip_dir,
             frame_indices=frame_indices,
-            video_stream_idx=video_stream_idx,
+            stream_idx=video_stream_idx,
         )
         frame_samples = ffmpeglib.sort_selected_samples(
             wip_dir, video_path, [video_stream_idx]
