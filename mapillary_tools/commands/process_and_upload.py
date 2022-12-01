@@ -4,7 +4,7 @@ from .upload import Command as UploadCommand
 
 class Command:
     name = "process_and_upload"
-    help = "process images and upload to Mapillary"
+    help = "process images or videos and upload to Mapillary"
 
     def add_basic_arguments(self, parser):
         ProcessCommand().add_basic_arguments(parser)

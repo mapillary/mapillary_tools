@@ -1,7 +1,5 @@
-from ..types import FileType
-from .process import Command as ProcessCommand
-from .sample_video import Command as SampleCommand
 from .upload import Command as UploadCommand
+from .video_process import Command as VideoProcessCommand
 
 
 class Command:
@@ -9,8 +7,7 @@ class Command:
     help = "sample video into images, process the images and upload to Mapillary"
 
     def add_basic_arguments(self, parser):
-        SampleCommand().add_basic_arguments(parser)
-        ProcessCommand().add_basic_arguments(parser)
+        VideoProcessCommand().add_basic_arguments(parser)
         UploadCommand().add_basic_arguments(parser)
 
     def run(self, args: dict):
@@ -18,7 +15,5 @@ class Command:
             # \x00 is a special path similiar to /dev/null
             # it tells process command do not write anything
             args["desc_path"] = "\x00"
-        SampleCommand().run(args)
-        args["filetypes"] = {FileType.IMAGE}
-        ProcessCommand().run(args)
+        VideoProcessCommand().run(args)
         UploadCommand().run(args)
