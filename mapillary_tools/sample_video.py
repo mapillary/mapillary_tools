@@ -190,58 +190,69 @@ def _sample_single_video_by_distance(
             )
 
     LOG.info("Extracting video metdata")
-    video_metadata = process_video(
-        video_path, {types.FileType.BLACKVUE, types.FileType.GOPRO, types.FileType.CAMM}
-    )
+    video_metadata = process_video(video_path)
     if isinstance(video_metadata, types.ErrorMetadata):
         LOG.warning(str(video_metadata.error))
         return
     assert video_metadata.points, "expect non-empty points"
+    LOG.info("Found total %d GPS points", len(video_metadata.points))
 
-    moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
+    # find the video stream with maximum resolution
     if probe is None:
         probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
-
     video_stream = probe.probe_video_with_max_resolution()
-
     if not video_stream:
         LOG.warning("no video streams found from ffprobe")
         return
 
+    LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
+    moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
     video_track_parser = moov_parser.parse_track_at(video_stream_idx)
-    video_samples = list(video_track_parser.parse_samples())
-    video_samples.sort(key=lambda sample: sample.composition_time_offset)
-    LOG.info("Found total %d video samples", len(video_samples))
+    all_video_samples = list(video_track_parser.parse_samples())
+    all_video_samples.sort(key=lambda sample: sample.composition_time_offset)
+    LOG.info("Found total %d video samples", len(all_video_samples))
 
+    # interpolate sample points
+    start_point_time = video_metadata.points[0].time - 0.001
+    end_point_time = video_metadata.points[-1].time + 0.001
+    LOG.info(
+        "Interpolating video samples in the time range from %s to %s",
+        start_point_time,
+        end_point_time,
+    )
     interpolator = geo.Interpolator([video_metadata.points])
-    interpolated_samples = (
+    interp_sample_points = [
         (
             frame_idx_0based,
             video_sample,
             interpolator.interpolate(video_sample.composition_time_offset),
         )
-        for frame_idx_0based, video_sample in enumerate(video_samples)
-    )
-    selected_interpolated_samples = list(
+        for frame_idx_0based, video_sample in enumerate(all_video_samples)
+        if start_point_time <= video_sample.composition_time_offset <= end_point_time
+    ]
+    LOG.info("Found total %d interpolated video samples", len(interp_sample_points))
+
+    # select sample points by sample distance
+    selected_interp_sample_points = list(
         geo.sample_points_by_distance(
-            interpolated_samples,
+            interp_sample_points,
             sample_distance,
             point_func=lambda x: x[2],
         )
     )
     LOG.info(
         "Selected %d video samples by the minimal sample distance %s",
-        len(selected_interpolated_samples),
+        len(selected_interp_sample_points),
         sample_distance,
     )
 
-    selected_interpolated_samples_by_frame_idx = {
+    selected_interp_sample_points_by_frame_idx = {
         frame_idx: (video_sample, interp)
-        for frame_idx, video_sample, interp in selected_interpolated_samples
+        for frame_idx, video_sample, interp in selected_interp_sample_points
     }
 
-    frame_indices = set(frame_idx for frame_idx, _, _ in selected_interpolated_samples)
+    frame_indices = set(frame_idx for frame_idx, _, _ in selected_interp_sample_points)
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_specified_frames(
@@ -258,7 +269,7 @@ def _sample_single_video_by_distance(
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
                 continue
-            video_sample, interp = selected_interpolated_samples_by_frame_idx[
+            video_sample, interp = selected_interp_sample_points_by_frame_idx[
                 frame_idx_0based
             ]
             seconds = video_sample.composition_time_offset

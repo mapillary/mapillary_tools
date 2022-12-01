@@ -19,7 +19,7 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         video_path: Path,
         sample_path: Path,
         video_sample_interval: float,
-        stream_id: T.Optional[int] = None,
+        stream_idx: T.Optional[int] = None,
     ):
         probe = self.probe_format_and_streams(video_path)
         video_streams = [
@@ -30,10 +30,10 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
         src = os.path.join(_PWD, "data/test_exif.jpg")
         for idx in range(0, int(duration / video_sample_interval)):
-            if stream_id is None:
+            if stream_idx is None:
                 sample = f"{frame_path_prefix}_NA_{idx + 1:06d}.jpg"
             else:
-                sample = f"{frame_path_prefix}_{stream_id}_{idx + 1:06d}.jpg"
+                sample = f"{frame_path_prefix}_{stream_idx}_{idx + 1:06d}.jpg"
             shutil.copyfile(src, sample)
 
     def probe_format_and_streams(self, video_path: Path) -> ffmpeg.ProbeOutput:
