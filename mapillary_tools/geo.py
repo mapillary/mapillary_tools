@@ -212,6 +212,10 @@ def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
 
 
 class Interpolator:
+    """
+    Interpolator for interpolating a sequence of timestamps incrementally.
+    """
+
     tracks: T.Sequence[T.Sequence[Point]]
     track_idx: int
     # lower bound index in the current track to interpolate timestamps
@@ -271,14 +275,14 @@ class Interpolator:
         return interpolated
 
 
-_Point = T.TypeVar("_Point")
+_PointLike = T.TypeVar("_PointLike")
 
 
 def sample_points_by_distance(
-    samples: T.Iterable[_Point],
+    samples: T.Iterable[_PointLike],
     min_distance: float,
-    point_func: T.Callable[[_Point], Point],
-) -> T.Generator[_Point, None, None]:
+    point_func: T.Callable[[_PointLike], Point],
+) -> T.Generator[_PointLike, None, None]:
     prevp: T.Optional[Point] = None
     for sample in samples:
         if prevp is None:

@@ -298,7 +298,7 @@ def _setup_write_upload_history(
                 if isinstance(metadata, types.ImageMetadata)
                 and metadata.MAPSequenceUUID == sequence_uuid
             ]
-            sequence.sort(key=lambda d: d.time)
+            sequence.sort(key=lambda metadata: (metadata.time, metadata.filename.name))
         try:
             write_history(
                 md5sum,
