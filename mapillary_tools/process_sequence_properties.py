@@ -87,19 +87,6 @@ def duplication_check(
     return dedups, dups
 
 
-def interpolate_directions_if_none(sequence: PointSequence) -> None:
-    for cur, nex in geo.pairwise(sequence):
-        if cur.angle is None:
-            cur.angle = geo.compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
-
-    if 2 <= len(sequence):
-        if sequence[-1].angle is None:
-            sequence[-1].angle = sequence[-2].angle
-    elif len(sequence) == 1:
-        if sequence[-1].angle is None:
-            sequence[-1].angle = 0
-
-
 def cut_sequence_by_max_images(
     sequence: PointSequence, max_images: int
 ) -> T.List[PointSequence]:
@@ -195,7 +182,7 @@ def process_sequence_properties(
         if interpolate_directions:
             for p in dedups:
                 p.angle = None
-        interpolate_directions_if_none(dedups)
+        geo.interpolate_directions_if_none(dedups)
 
         # cut sequence per MAX_SEQUENCE_LENGTH images
         cut = cut_sequence_by_max_images(dedups, constants.MAX_SEQUENCE_LENGTH)

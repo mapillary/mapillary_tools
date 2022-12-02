@@ -8,7 +8,9 @@ import math
 import typing as T
 
 WGS84_a = 6378137.0
+WGS84_a_SQ = WGS84_a**2
 WGS84_b = 6356752.314245
+WGS84_b_SQ = WGS84_b**2
 
 
 @dataclasses.dataclass(order=True)
@@ -29,8 +31,13 @@ class Point:
     angle: T.Optional[float]
 
 
-def ecef_from_lla(lat: float, lon: float, alt: float) -> T.Tuple[float, float, float]:
+def _ecef_from_lla_DEPRECATED(
+    lat: float, lon: float, alt: float
+) -> T.Tuple[float, float, float]:
     """
+    Deprecated because it is slow. Keep here for reference and comparison.
+    Use _ecef_from_lla2 instead.
+
     Compute ECEF XYZ from latitude, longitude and altitude.
 
     All using the WGS94 model.
@@ -49,6 +56,27 @@ def ecef_from_lla(lat: float, lon: float, alt: float) -> T.Tuple[float, float, f
     return x, y, z
 
 
+def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:
+    """
+    Compute ECEF XYZ from latitude, longitude and altitude.
+
+    All using the WGS94 model.
+    Altitude is the distance to the WGS94 ellipsoid.
+    Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
+
+    """
+    lat = math.radians(lat)
+    lon = math.radians(lon)
+    cos_lat = math.cos(lat)
+    sin_lat = math.sin(lat)
+    L = 1.0 / math.sqrt(WGS84_a_SQ * cos_lat**2 + WGS84_b_SQ * sin_lat**2)
+    K = WGS84_a_SQ * L * cos_lat
+    x = K * math.cos(lon)
+    y = K * math.sin(lon)
+    z = WGS84_b_SQ * L * sin_lat
+    return x, y, z
+
+
 def gps_distance(
     latlon_1: T.Tuple[float, float], latlon_2: T.Tuple[float, float]
 ) -> float:
@@ -60,12 +88,10 @@ def gps_distance(
     >>> 19000 < gps_distance(p1, p2) < 20000
     True
     """
-    x1, y1, z1 = ecef_from_lla(latlon_1[0], latlon_1[1], 0.0)
-    x2, y2, z2 = ecef_from_lla(latlon_2[0], latlon_2[1], 0.0)
+    x1, y1, z1 = _ecef_from_lla2(latlon_1[0], latlon_1[1])
+    x2, y2, z2 = _ecef_from_lla2(latlon_2[0], latlon_2[1])
 
-    dis = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
-
-    return dis
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
 
 def get_max_distance_from_start(latlons: T.List[T.Tuple[float, float]]) -> float:
@@ -218,7 +244,7 @@ class Interpolator:
 
     tracks: T.Sequence[T.Sequence[Point]]
     track_idx: int
-    # lower bound index in the current track to interpolate timestamps
+    # interpolation starts from the lower bound point index in the current track
     lo: int
     prev_time: T.Optional[float]
 
@@ -247,7 +273,7 @@ class Interpolator:
                 break
             # assert track[lo].time < t
             lo += 1
-        # assert track[lo - 1] < t <= track[lo]
+        # assert track[lo - 1].time < t <= track[lo].time
         return lo
 
     def interpolate(self, t: float) -> Point:
@@ -261,8 +287,9 @@ class Interpolator:
             elif track[0].time <= t <= track[-1].time:
                 # similar to bisect.bisect_left(points, p, lo=lo) but faster in this case
                 idx = Interpolator._lsearch_left(track, t, lo=self.lo)
+                # t must sit between (track[idx - 1], track[idx]]
                 # set the lower bound to idx - 1
-                # because the next timestamp can still be interpolated in [idx - 1, idx]
+                # because the next t can still be interpolated anywhere between (track[idx - 1], track[idx]]
                 self.lo = max(idx - 1, 0)
                 return _interpolate_at_index(track, t, idx)
             self.track_idx += 1
@@ -293,3 +320,16 @@ def sample_points_by_distance(
             if min_distance < gps_distance((prevp.lat, prevp.lon), (p.lat, p.lon)):
                 yield sample
                 prevp = p
+
+
+def interpolate_directions_if_none(sequence: T.Sequence[Point]) -> None:
+    for cur, nex in pairwise(sequence):
+        if cur.angle is None:
+            cur.angle = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
+
+    if len(sequence) == 1:
+        if sequence[-1].angle is None:
+            sequence[-1].angle = 0
+    elif 2 <= len(sequence):
+        if sequence[-1].angle is None:
+            sequence[-1].angle = sequence[-2].angle
