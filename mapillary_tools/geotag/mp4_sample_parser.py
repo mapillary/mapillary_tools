@@ -405,6 +405,12 @@ class MovieBoxParser:
         > Stream numbering is based on the order of the streams as detected by libavformat
         """
         trak_boxes = [box for box in self.moov_boxes if box["type"] == b"trak"]
+        if not (0 <= stream_idx < len(trak_boxes)):
+            raise IndexError(
+                "unable to read stream at %d from the track list (length %d)",
+                stream_idx,
+                len(trak_boxes),
+            )
         return TrackBoxParser(
             T.cast(T.Sequence[cparser.BoxDict], trak_boxes[stream_idx]["data"])
         )
