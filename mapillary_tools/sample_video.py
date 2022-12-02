@@ -80,7 +80,7 @@ def sample_video(
         )
         if sample_dir.exists():
             LOG.warning(
-                f"Skip sampling video %s as it has been sampled in %s. Specify --rerun for resampling all videos",
+                f"Skip sampling video %s as it has been sampled in %s. Specify --rerun to resample it",
                 video_path.name,
                 sample_dir,
             )
