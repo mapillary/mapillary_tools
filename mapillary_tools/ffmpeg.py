@@ -238,7 +238,9 @@ class FFMPEG:
             *[
                 *["-vf", f"select={eqs}"],
                 # Each frame is passed with its timestamp from the demuxer to the muxer
-                *[f"-fps_mode:{stream_specifier}", "passthrough"],
+                # vsync is deprecated but -fps_mode is not avaliable on some versions ;(
+                *["-vsync", "0"],
+                # *[f"-fps_mode:{stream_specifier}", "passthrough"],
                 # Set the number of video frames to output
                 *[f"-frames:{stream_specifier}", str(len(frame_indices))],
                 *["-frame_pts", "1"],
