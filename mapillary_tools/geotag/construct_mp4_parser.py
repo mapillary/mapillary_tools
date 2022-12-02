@@ -601,8 +601,9 @@ def find_box_at_pathx(
                 return box
             else:
                 box_data = T.cast(T.Sequence[BoxDict], box["data"])
+                # ListContainer from construct is not sequence
                 assert isinstance(
-                    box_data, list
+                    box_data, T.Sequence
                 ), f"expect a list of boxes but got {type(box_data)} at path {path}"
                 return find_box_at_pathx(box_data, path[1:])
 

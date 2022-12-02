@@ -16,6 +16,17 @@ def approximate_point(a: Point, b: Point):
     approximate(a, (b.lat, b.lon, b.angle or 0, b.alt or 0))
 
 
+def test_interpolate_compare():
+    points = [
+        Point(time=1, lon=3, lat=2, alt=1, angle=None),
+        Point(time=2, lon=2, lat=0, alt=None, angle=2),
+    ]
+    a = interpolate(points, 1.5)
+    approximate_point(
+        a, Point(time=1.5, lat=1.0, lon=2.5, alt=None, angle=206.572033486577)
+    )
+
+
 def test_interpolate():
     points = [
         Point(lon=1, lat=1, time=1, alt=1, angle=None),
