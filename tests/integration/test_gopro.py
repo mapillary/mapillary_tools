@@ -115,7 +115,7 @@ def test_process_gopro_hero8(
     # this sample hero8.mp4 doesn't have any good GPS points,
     # so we do not filter out bad GPS points
     x = subprocess.run(
-        f"{EXECUTABLE} video_process --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}",
+        f"{EXECUTABLE} video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

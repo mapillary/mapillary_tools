@@ -117,7 +117,7 @@ def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
 
     with tempfile.TemporaryDirectory() as tempdir:
         x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process --video_sample_distance=-1 --geotag_source=camm {filename} {tempdir}",
+            f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=camm {filename} {tempdir}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr

@@ -16,14 +16,14 @@ class Command:
         )
         group.add_argument(
             "--video_sample_distance",
-            help="The minimal distance interval, in meters, for sampling video frames. If it is negative, then sample by time interval instead (see --video_sample_interval). [default: %(default)s]",
+            help="The minimal distance interval, in meters, for sampling video frames. [default: %(default)s]",
             default=constants.VIDEO_SAMPLE_DISTANCE,
             type=float,
             required=False,
         )
         group.add_argument(
             "--video_sample_interval",
-            help="[DEPRECATED since v0.10.0] Time interval, in seconds, for sampling video frames. Since v0.10.0 this option takes effect only when video_sample_distance (see --video_sample_distance) is set to 0. [default: %(default)s]",
+            help="[DEPRECATED since v0.10.0] Time interval, in seconds, for sampling video frames. Since v0.10.0 you must disable distance-sampling with --video_sample_distance=-1 in order to apply this option. [default: %(default)s]",
             default=constants.VIDEO_SAMPLE_INTERVAL,
             type=float,
             required=False,

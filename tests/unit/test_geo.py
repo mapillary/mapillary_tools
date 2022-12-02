@@ -2,7 +2,13 @@ import dataclasses
 import datetime
 import typing as T
 
-from mapillary_tools.geo import as_unix_time, interpolate, Interpolator, Point
+from mapillary_tools.geo import (
+    as_unix_time,
+    interpolate,
+    Interpolator,
+    Point,
+    sample_points_by_distance,
+)
 
 
 # lat, lon, bearing, alt
@@ -171,3 +177,46 @@ def test_point_sorting():
 def test_timestamp():
     t = datetime.datetime.utcfromtimestamp(123)
     assert as_unix_time(t) == 123
+
+
+def test_sample_points_by_distance():
+    x = list(
+        sample_points_by_distance(
+            [
+                Point(time=1, lat=1, lon=1, alt=1, angle=None),
+                Point(time=1, lat=1, lon=1, alt=1, angle=None),
+                Point(time=1, lat=1.1, lon=1.1, alt=1, angle=None),
+                Point(time=1, lat=1.1, lon=1.1, alt=1, angle=None),
+                Point(time=1, lat=2, lon=2, alt=1, angle=None),
+                Point(time=1, lat=2, lon=2, alt=1, angle=None),
+            ],
+            100000,
+            lambda x: x,
+        )
+    )
+    assert [
+        Point(time=1, lat=1, lon=1, alt=1, angle=None),
+        Point(time=1, lat=2, lon=2, alt=1, angle=None),
+    ] == x
+
+    x = list(
+        sample_points_by_distance(
+            [
+                Point(time=1, lat=1, lon=1, alt=1, angle=None),
+            ],
+            100000,
+            lambda x: x,
+        )
+    )
+    assert [
+        Point(time=1, lat=1, lon=1, alt=1, angle=None),
+    ] == x
+
+    x = list(
+        sample_points_by_distance(
+            [],
+            100000,
+            lambda x: x,
+        )
+    )
+    assert [] == x

@@ -445,7 +445,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
 
     for input_path in [video_dir, video_dir.join("sample-5s.mp4")]:
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --video_sample_distance=-1 --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 7, x.stderr
@@ -453,7 +453,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
             assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --skip_sample_errors --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --skip_sample_errors --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -461,7 +461,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
             assert len(root_sample_dir.listdir()) == 0
 
         x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_distance=-1 --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
+            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -490,7 +490,7 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose video_process --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -500,15 +500,38 @@ def test_video_process(setup_data: py.path.local):
     assert 2 == len(filter_out_errors(descs))
 
 
-def test_video_process2(setup_data: py.path.local):
+def test_video_process_sample_with_multiple_distances(setup_data: py.path.local):
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
 
     video_dir = setup_data.join("gopro_data")
     desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
-    for _ in range(2):
+    for distance in [0, 2.4, 100]:
         x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process --video_sample_distance=6 {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
+            f"{EXECUTABLE} --verbose video_process --video_sample_distance={distance} --rerun {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        with open(desc_path) as fp:
+            descs = json.load(fp)
+        if distance == 100:
+            assert 1 == len(descs)
+        else:
+            assert len(descs) > 1
+
+
+def test_video_process_sample_with_distance(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    video_dir = setup_data.join("gopro_data")
+    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
+    for option in [
+        "--video_sample_distance=6",
+        "--video_sample_distance=6 --video_sample_interval=-2",
+    ]:
+        x = subprocess.run(
+            f"{EXECUTABLE} --verbose video_process {option} {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -574,14 +597,14 @@ def test_video_process_and_upload(
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     assert 0 == len(setup_upload.listdir())
 
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -602,7 +625,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
