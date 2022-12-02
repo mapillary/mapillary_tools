@@ -299,7 +299,9 @@ def _sample_single_video_by_distance(
                 continue
 
             video_sample, interp = sample_point
-            assert interp.time == video_sample.composition_time_offset
+            assert (
+                interp.time == video_sample.composition_time_offset
+            ), f"interpolated time {interp.time} should match the video sample time {video_sample.composition_time_offset}"
 
             timestamp = start_time + datetime.timedelta(seconds=interp.time)
             exif_edit = ExifEdit(sample_paths[0])
