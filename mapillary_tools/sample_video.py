@@ -36,6 +36,11 @@ def _normalize_path(
     return video_dir, video_list
 
 
+def xor(a: bool, b: bool):
+    # xor https://stackoverflow.com/a/433161
+    return bool(a) ^ bool(b)
+
+
 def sample_video(
     video_import_path: Path,
     import_path: Path,
@@ -49,9 +54,9 @@ def sample_video(
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
 
-    if video_sample_interval < 0:
+    if not xor(0 <= video_sample_distance, 0 <= video_sample_interval):
         raise exceptions.MapillaryBadParameterError(
-            "expect non-negative video_sample_interval"
+            f"Expect either non-negative video_sample_distance or non-negative video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
         )
 
     video_start_time_dt: T.Optional[datetime.datetime] = None
@@ -170,66 +175,46 @@ def _sample_single_video_by_interval(
             exif_edit.write()
 
 
-def _sample_single_video_by_distance(
-    video_path: Path,
-    sample_dir: Path,
+def _within_track_time_range_buffered(points, t: float) -> bool:
+    # apply 1ms buffer, which is MAPCaptureTime's precision
+    start_point_time = points[0].time - 0.001
+    end_point_time = points[-1].time + 0.001
+    return start_point_time <= t <= end_point_time
+
+
+def _sample_video_stream_by_distance(
+    points: T.Sequence[geo.Point],
+    video_track_parser: mp4_sample_parser.TrackBoxParser,
     sample_distance: float,
-    start_time: T.Optional[datetime.datetime] = None,
-) -> None:
-    ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
-
-    probe: T.Optional[ffmpeglib.Probe] = None
-
-    if start_time is None:
-        if probe is None:
-            probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
-        start_time = probe.probe_video_start_time()
-        if start_time is None:
-            raise exceptions.MapillaryVideoError(
-                f"Unable to extract video start time from {video_path}"
-            )
-
-    LOG.info("Extracting video metdata")
-    video_metadata = process_video(video_path)
-    if isinstance(video_metadata, types.ErrorMetadata):
-        LOG.warning(str(video_metadata.error))
-        return
-    assert video_metadata.points, "expect non-empty points"
-    LOG.info("Found total %d GPS points", len(video_metadata.points))
-
-    # find the video stream with maximum resolution
-    if probe is None:
-        probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
-    video_stream = probe.probe_video_with_max_resolution()
-    if not video_stream:
-        LOG.warning("no video streams found from ffprobe")
-        return
+) -> T.Dict[int, T.Tuple[mp4_sample_parser.Sample, geo.Point]]:
+    """
+    Locate video frames along the track (points), then resample them by the minimal sample_distance, and return the sparse frames.
+    """
 
     LOG.info("Extracting video samples")
-    video_stream_idx = video_stream["index"]
-    moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
-    video_track_parser = moov_parser.parse_track_at(video_stream_idx)
-    all_video_samples_sorted = list(video_track_parser.parse_samples())
-    all_video_samples_sorted.sort(key=lambda sample: sample.composition_time_offset)
-    LOG.info("Found total %d video samples", len(all_video_samples_sorted))
+    sorted_samples = list(video_track_parser.parse_samples())
+    # we need sort sampels by composition time (CT) not the decoding offset (DT)
+    # CT is the oder of videos streaming to audiences, as well as the order ffmpeg sampling
+    sorted_samples.sort(key=lambda sample: sample.composition_time_offset)
+    LOG.info("Found total %d video samples", len(sorted_samples))
 
     # interpolate sample points between the GPS track range (with 1ms buffer)
-    start_point_time = video_metadata.points[0].time - 0.001
-    end_point_time = video_metadata.points[-1].time + 0.001
     LOG.info(
         "Interpolating video samples in the time range from %s to %s",
-        start_point_time,
-        end_point_time,
+        points[0].time,
+        points[-1].time,
     )
-    interpolator = geo.Interpolator([video_metadata.points])
+    interpolator = geo.Interpolator([points])
     interp_sample_points = [
         (
             frame_idx_0based,
             video_sample,
             interpolator.interpolate(video_sample.composition_time_offset),
         )
-        for frame_idx_0based, video_sample in enumerate(all_video_samples_sorted)
-        if start_point_time <= video_sample.composition_time_offset <= end_point_time
+        for frame_idx_0based, video_sample in enumerate(sorted_samples)
+        if _within_track_time_range_buffered(
+            points, video_sample.composition_time_offset
+        )
     ]
     LOG.info("Found total %d interpolated video samples", len(interp_sample_points))
 
@@ -247,20 +232,59 @@ def _sample_single_video_by_distance(
         sample_distance,
     )
 
-    selected_interp_sample_points_by_frame_idx = {
-        frame_idx: (video_sample, interp)
-        for frame_idx, video_sample, interp in selected_interp_sample_points
+    return {
+        frame_idx_0based: (video_sample, interp)
+        for frame_idx_0based, video_sample, interp in selected_interp_sample_points
     }
 
-    frame_indices = set(frame_idx for frame_idx, _, _ in selected_interp_sample_points)
+
+def _sample_single_video_by_distance(
+    video_path: Path,
+    sample_dir: Path,
+    sample_distance: float,
+    start_time: T.Optional[datetime.datetime] = None,
+) -> None:
+    ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
+
+    probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+
+    if start_time is None:
+        start_time = probe.probe_video_start_time()
+        if start_time is None:
+            raise exceptions.MapillaryVideoError(
+                f"Unable to extract video start time from {video_path}"
+            )
+
+    LOG.info("Extracting video metdata")
+    video_metadata = process_video(video_path)
+    if isinstance(video_metadata, types.ErrorMetadata):
+        LOG.warning(str(video_metadata.error))
+        return
+    assert video_metadata.points, "expect non-empty points"
+    LOG.info("Found total %d GPS points", len(video_metadata.points))
+
+    # find the video stream with maximum resolution
+    video_stream = probe.probe_video_with_max_resolution()
+    if not video_stream:
+        LOG.warning("no video streams found from ffprobe")
+        return
+
+    LOG.info("Extracting video samples")
+    video_stream_idx = video_stream["index"]
+    moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
+    video_track_parser = moov_parser.parse_track_at(video_stream_idx)
+    sample_points_by_frame_idx = _sample_video_stream_by_distance(
+        video_metadata.points, video_track_parser, sample_distance
+    )
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_specified_frames(
             video_path,
             wip_dir,
-            frame_indices=frame_indices,
+            frame_indices=set(sample_points_by_frame_idx.keys()),
             stream_idx=video_stream_idx,
         )
+
         frame_samples = ffmpeglib.sort_selected_samples(
             wip_dir, video_path, [video_stream_idx]
         )
@@ -269,11 +293,15 @@ def _sample_single_video_by_distance(
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
                 continue
-            video_sample, interp = selected_interp_sample_points_by_frame_idx[
-                frame_idx_0based
-            ]
-            seconds = video_sample.composition_time_offset
-            timestamp = start_time + datetime.timedelta(seconds=seconds)
+
+            sample_point = sample_points_by_frame_idx.get(frame_idx_0based)
+            if sample_point is None:
+                continue
+
+            video_sample, interp = sample_point
+            assert interp.time == video_sample.composition_time_offset
+
+            timestamp = start_time + datetime.timedelta(seconds=interp.time)
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_lat_lon(interp.lat, interp.lon)
