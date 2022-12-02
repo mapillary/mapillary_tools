@@ -296,6 +296,12 @@ def _sample_single_video_by_distance(
 
             sample_point = sample_points_by_frame_idx.get(frame_idx_0based)
             if sample_point is None:
+                # this should not happen
+                LOG.warning(
+                    "The specified frame index %d was not extracted from stream index %d",
+                    frame_idx_0based,
+                    video_stream_idx,
+                )
                 continue
 
             video_sample, interp = sample_point
