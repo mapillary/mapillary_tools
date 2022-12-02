@@ -51,6 +51,15 @@ def _process_images(
 ) -> T.List[types.ImageMetadataOrError]:
     geotag: geotag_from_generic.GeotagFromGeneric
 
+    if video_import_path is not None:
+        # commands that trigger this branch:
+        # video_process video_import_path image_paths --geotag_source gpx --geotag_source_path <gpx_file> --skip_subfolders
+        image_paths = list(
+            utils.filter_video_samples(
+                image_paths, video_import_path, skip_subfolders=skip_subfolders
+            )
+        )
+
     if geotag_source == "exif":
         geotag = geotag_from_exif.GeotagFromEXIF(image_paths)
 
@@ -59,19 +68,11 @@ def _process_images(
             geotag_source_path = video_import_path
         if geotag_source_path is None:
             raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path is required"
+                "Geotag source path (--geotag_source_path) is required"
             )
         if not geotag_source_path.is_file():
             raise exceptions.MapillaryFileNotFoundError(
-                f"GPX file not found: {geotag_source_path}"
-            )
-        if video_import_path is not None:
-            # commands that trigger this branch:
-            # video_process video_import_path image_paths --geotag_source gpx --geotag_source_path <gpx_file> --skip_subfolders
-            image_paths = list(
-                utils.filter_video_samples(
-                    image_paths, video_import_path, skip_subfolders=skip_subfolders
-                )
+                f"Geotag source file not found: {geotag_source_path}"
             )
 
         if geotag_source == "gpx":

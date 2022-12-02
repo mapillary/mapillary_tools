@@ -500,6 +500,68 @@ def test_video_process(setup_data: py.path.local):
     assert 2 == len(filter_out_errors(descs))
 
 
+def test_video_process2(setup_data: py.path.local):
+    if not is_ffmpeg_installed:
+        pytest.skip("skip because ffmpeg not installed")
+
+    video_dir = setup_data.join("gopro_data")
+    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
+    for _ in range(2):
+        x = subprocess.run(
+            f"{EXECUTABLE} --verbose video_process --video_sample_distance=6 {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        expected = [
+            {
+                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000000.jpg",
+                "filetype": "image",
+                "MAPLatitude": 33.1266719,
+                "MAPLongitude": -117.3273063,
+                "MAPCaptureTime": "2019_11_18_15_44_47_862",
+                "MAPAltitude": -22.18,
+                "MAPCompassHeading": {"TrueHeading": 313.68, "MagneticHeading": 313.68},
+                "MAPSequenceUUID": "0",
+                "MAPDeviceMake": "GoPro",
+                "MAPDeviceModel": "GoPro Max",
+                "MAPOrientation": 1,
+            },
+            {
+                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000127.jpg",
+                "filetype": "image",
+                "MAPLatitude": 33.1267206,
+                "MAPLongitude": -117.3273345,
+                "MAPCaptureTime": "2019_11_18_15_44_53_159",
+                "MAPAltitude": -21.91,
+                "MAPCompassHeading": {"TrueHeading": 330.82, "MagneticHeading": 330.82},
+                "MAPSequenceUUID": "0",
+                "MAPDeviceMake": "GoPro",
+                "MAPDeviceModel": "GoPro Max",
+                "MAPOrientation": 1,
+            },
+            {
+                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000250.jpg",
+                "filetype": "image",
+                "MAPLatitude": 33.1267702,
+                "MAPLongitude": -117.3273612,
+                "MAPCaptureTime": "2019_11_18_15_44_58_289",
+                "MAPAltitude": -22.58,
+                "MAPCompassHeading": {"TrueHeading": 10.54, "MagneticHeading": 10.54},
+                "MAPSequenceUUID": "0",
+                "MAPDeviceMake": "GoPro",
+                "MAPDeviceModel": "GoPro Max",
+                "MAPOrientation": 1,
+            },
+        ]
+        with open(desc_path) as fp:
+            descs = json.load(fp)
+        for e, d in zip(expected, descs):
+            assert d["filename"].endswith(e["filename"])
+            del d["filename"]
+            del e["filename"]
+            assert e == d
+
+
 @pytest.mark.usefixtures("setup_config")
 def test_video_process_and_upload(
     setup_upload: py.path.local, setup_data: py.path.local
