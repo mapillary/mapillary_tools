@@ -112,10 +112,12 @@ def _process_images(
     return geotag.to_description()
 
 
-def _process_videos(
-    video_path: Path, filetypes: T.Set[FileType]
-) -> T.Optional[types.VideoMetadata]:
-    if FileType.CAMM in filetypes:
+def process_video(
+    video_path: Path,
+    filetypes: T.Optional[T.Set[FileType]] = None,
+) -> types.VideoMetadataOrError:
+    video_metadata = None
+    if filetypes is None or FileType.CAMM in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = camm_parser.extract_points(fp)
@@ -125,11 +127,11 @@ def _process_videos(
             if points is not None:
                 fp.seek(0, io.SEEK_SET)
                 make, model = camm_parser.extract_camera_make_and_model(fp)
-                return types.VideoMetadata(
+                video_metadata = types.VideoMetadata(
                     video_path, FileType.CAMM, points, make, model
                 )
 
-    if FileType.GOPRO in filetypes:
+    if filetypes is None or FileType.GOPRO in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points_with_fix = gpmf_parser.extract_points(fp)
@@ -155,9 +157,8 @@ def _process_videos(
                         )
                     ),
                 )
-                return video_metadata
 
-    if FileType.BLACKVUE in filetypes:
+    if filetypes is None or FileType.BLACKVUE in filetypes:
         with video_path.open("rb") as fp:
             try:
                 points = blackvue_parser.extract_points(fp)
@@ -167,28 +168,17 @@ def _process_videos(
             if points is not None:
                 fp.seek(0, io.SEEK_SET)
                 make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-                return types.VideoMetadata(
+                video_metadata = types.VideoMetadata(
                     video_path, FileType.BLACKVUE, points, make, model
                 )
 
-    return None
+    if video_metadata is None:
+        return types.describe_error_metadata(
+            exceptions.MapillaryVideoError("No GPS data found from the video"),
+            video_path,
+            filetype=None,
+        )
 
-
-def _normalize_import_paths(
-    import_path: T.Union[Path, T.Sequence[Path]]
-) -> T.Sequence[Path]:
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
-    return import_paths
-
-
-def _describe_video_metadata(
-    video_metadata: types.VideoMetadata,
-) -> types.VideoMetadataOrError:
     if not video_metadata.points:
         return types.describe_error_metadata(
             exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
@@ -207,6 +197,18 @@ def _describe_video_metadata(
         )
 
     return video_metadata
+
+
+def _normalize_import_paths(
+    import_path: T.Union[Path, T.Sequence[Path]]
+) -> T.Sequence[Path]:
+    import_paths: T.Sequence[Path]
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        import_paths = import_path
+    import_paths = list(utils.deduplicate_paths(import_paths))
+    return import_paths
 
 
 def process_geotag_properties(
@@ -270,19 +272,7 @@ def process_geotag_properties(
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             LOG.debug("Extracting GPS track from %s", str(video_path))
-            video_metadata = _process_videos(video_path, filetypes)
-            if video_metadata:
-                metadatas.append(_describe_video_metadata(video_metadata))
-            else:
-                metadatas.append(
-                    types.describe_error_metadata(
-                        exceptions.MapillaryVideoError(
-                            "No GPS data found from the video"
-                        ),
-                        video_path,
-                        filetype=None,
-                    )
-                )
+            metadatas.append(process_video(video_path, filetypes))
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(metadatas) == len(

@@ -1,5 +1,6 @@
 import os
 import unittest
+from pathlib import Path
 
 from mapillary_tools.exif_read import ExifRead
 from PIL import ExifTags, Image
@@ -10,7 +11,7 @@ this_file = os.path.abspath(__file__)
 this_file_dir = os.path.dirname(this_file)
 data_dir = os.path.join(this_file_dir, "data")
 
-TEST_EXIF_FILE = os.path.join(data_dir, "test_exif.jpg")
+TEST_EXIF_FILE = Path(os.path.join(data_dir, "test_exif.jpg"))
 
 # more info on the standard exif tags
 # https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
@@ -29,17 +30,7 @@ def load_exif_PIL(filename=TEST_EXIF_FILE):
     return test_image.getexif()
 
 
-def read_image_history_general(test_obj, filename):
-    exif_data_PIL = load_exif_PIL()
-    image_history_PIL = str(exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["ImageHistory"]])
-
-    exif_data_ExifRead = ExifRead(filename)
-    image_history_ExifRead = str(exif_data_ExifRead.extract_image_history())
-
-    test_obj.assertEqual(image_history_ExifRead, image_history_PIL)
-
-
-def read_orientation_general(test_obj, filename):
+def read_orientation_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     orientation_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Orientation"]]
 
@@ -49,7 +40,7 @@ def read_orientation_general(test_obj, filename):
     test_obj.assertEqual(orientation_PIL, orientation_ExifRead)
 
 
-def read_date_time_original_general(test_obj, filename):
+def read_date_time_original_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     capture_time_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
         EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
@@ -57,12 +48,13 @@ def read_date_time_original_general(test_obj, filename):
 
     exif_data_ExifRead = ExifRead(filename)
     capture_time_ExifRead = exif_data_ExifRead.extract_capture_time()
-    capture_time_ExifRead = capture_time_ExifRead.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3]
+    assert capture_time_ExifRead is not None
+    capture_time = capture_time_ExifRead.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3]
 
-    test_obj.assertEqual(capture_time_PIL, capture_time_ExifRead)
+    test_obj.assertEqual(capture_time_PIL, capture_time)
 
 
-def read_lat_lon_general(test_obj, filename):
+def read_lat_lon_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     latitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSLatitude"]
@@ -88,7 +80,7 @@ def read_lat_lon_general(test_obj, filename):
     )
 
 
-def read_camera_make_model_general(test_obj, filename):
+def read_camera_make_model_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     make_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Make"]]
     model_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Model"]]
@@ -100,7 +92,7 @@ def read_camera_make_model_general(test_obj, filename):
     test_obj.assertEqual((make_PIL, model_PIL), (make_ExifRead, model_ExifRead))
 
 
-def read_altitude_general(test_obj, filename):
+def read_altitude_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     altitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSAltitude"]
@@ -113,7 +105,7 @@ def read_altitude_general(test_obj, filename):
     test_obj.assertEqual(altitude_value_PIL, altitude_ExifRead)
 
 
-def read_direction_general(test_obj, filename):
+def read_direction_general(test_obj, filename: Path):
     exif_data_PIL = load_exif_PIL()
     direction_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
         EXIF_GPS_TAGS_DICT["GPSImgDirection"]
@@ -146,7 +138,3 @@ class ExifReadTests(unittest.TestCase):
 
     def test_read_direction(self):
         read_direction_general(self, TEST_EXIF_FILE)
-
-
-if __name__ == "__main__":
-    unittest.main()

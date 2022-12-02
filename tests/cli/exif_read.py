@@ -1,12 +1,13 @@
 import pprint
 import sys
+from pathlib import Path
 
 from mapillary_tools.exif_read import ExifRead
 
 
 if __name__ == "__main__":
     for filename in sys.argv[1:]:
-        exif = ExifRead(filename, details=True)
+        exif = ExifRead(Path(filename), details=True)
         pprint.pprint(
             {
                 "capture_time": exif.extract_capture_time(),

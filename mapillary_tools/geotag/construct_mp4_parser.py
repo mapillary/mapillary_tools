@@ -549,7 +549,7 @@ MP4_CMAP: SwitchMapType = {
 }
 
 
-def _remove_boxes(
+def _new_cmap_without_boxes(
     switch_map: SwitchMapType, box_types: T.Sequence[BoxType]
 ) -> SwitchMapType:
     new_switch_map = {}
@@ -557,7 +557,7 @@ def _remove_boxes(
         if k in box_types:
             continue
         if isinstance(v, dict):
-            new_switch_map[k] = _remove_boxes(v, box_types)
+            new_switch_map[k] = _new_cmap_without_boxes(v, box_types)
         else:
             new_switch_map[k] = v
     return new_switch_map
@@ -566,7 +566,7 @@ def _remove_boxes(
 # pyre-ignore[9]: pyre does not support recursive type SwitchMapType
 MP4_WITHOUT_STBL_CMAP: SwitchMapType = {
     # pyre-ignore[6]: pyre does not support recursive type SwitchMapType
-    b"moov": _remove_boxes(CMAP[b"moov"], [b"stbl"]),
+    b"moov": _new_cmap_without_boxes(CMAP[b"moov"], [b"stbl"]),
 }
 
 # for parsing mp4 only
@@ -577,23 +577,34 @@ MP4WithoutSTBLParserConstruct = Box64ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
 MP4BuilderConstruct = Box32ConstructBuilder(MP4_CMAP, extend_eof=True)
 MP4WithoutSTBLBuilderConstruct = Box32ConstructBuilder(MP4_WITHOUT_STBL_CMAP)
 
+MOOVWithoutSTBLBuilderConstruct = Box32ConstructBuilder(
+    T.cast(SwitchMapType, MP4_WITHOUT_STBL_CMAP[b"moov"]),
+    extend_eof=False,
+)
+
 
 def find_box_at_pathx(
-    box: T.Union[T.Iterable[BoxDict], BoxDict], path: T.Sequence[bytes]
+    box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
 ) -> BoxDict:
     if not path:
         raise ValueError(f"box at path {path} not found")
-    boxes: T.Iterable[BoxDict]
+
+    boxes: T.Sequence[BoxDict]
     if isinstance(box, dict):
         boxes = [T.cast(BoxDict, box)]
     else:
-        boxes = box
+        boxes = T.cast(T.Sequence[BoxDict], box)
+
     for box in boxes:
         if box["type"] == path[0]:
             if len(path) == 1:
                 return box
             else:
-                return find_box_at_pathx(
-                    T.cast(T.Iterable[BoxDict], box["data"]), path[1:]
-                )
+                box_data = T.cast(T.Sequence[BoxDict], box["data"])
+                # ListContainer from construct is not sequence
+                assert isinstance(
+                    box_data, T.Sequence
+                ), f"expect a list of boxes but got {type(box_data)} at path {path}"
+                return find_box_at_pathx(box_data, path[1:])
+
     raise ValueError(f"box at path {path} not found")

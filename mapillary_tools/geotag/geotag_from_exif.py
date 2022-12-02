@@ -29,7 +29,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             try:
-                exif = ExifRead(str(image_path))
+                exif = ExifRead(image_path)
             except Exception as exc0:
                 LOG.warning(
                     "Unknown error reading EXIF from image %s",

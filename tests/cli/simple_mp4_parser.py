@@ -207,24 +207,24 @@ def _process_path(parsed_args, path: pathlib.Path):
                         _parse_structs(io.BytesIO(data))
                 elif parsed_args.full:
                     if box_path is None:
-                        boxes = cparser.MP4BuilderConstruct.BoxList.parse_stream(fp)
+                        boxes = cparser.MP4ParserConstruct.BoxList.parse_stream(fp)
                     else:
                         data = parser.parse_mp4_data_firstx(fp, box_path)
-                        boxes = cparser.MP4BuilderConstruct.BoxList.parse_stream(
+                        boxes = cparser.MP4ParserConstruct.BoxList.parse_stream(
                             io.BytesIO(data)
                         )
                     print(boxes)
                 else:
                     if box_path is None:
                         boxes = (
-                            cparser.MP4WithoutSTBLBuilderConstruct.BoxList.parse_stream(
+                            cparser.MP4WithoutSTBLParserConstruct.BoxList.parse_stream(
                                 fp
                             )
                         )
                     else:
                         data = parser.parse_mp4_data_firstx(fp, box_path)
                         boxes = (
-                            cparser.MP4WithoutSTBLBuilderConstruct.BoxList.parse_stream(
+                            cparser.MP4WithoutSTBLParserConstruct.BoxList.parse_stream(
                                 io.BytesIO(data)
                             )
                         )

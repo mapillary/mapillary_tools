@@ -387,7 +387,3 @@ def test_exif_write(tmpdir: py.path.local):
         with open(image_path, "rb") as fp:
             content = fp.read()
         assert image_bytes == content
-
-
-if __name__ == "__main__":
-    unittest.main()

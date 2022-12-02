@@ -20,7 +20,8 @@ class ExifEdit:
     def __init__(self, filename_or_bytes: T.Union[Path, bytes]) -> None:
         """Initialize the object"""
         if isinstance(filename_or_bytes, Path):
-            # https://github.com/hMatoba/Piexif/issues/124
+            # make sure filename is resolved to avoid to be interpretted as bytes in piexif
+            # see https://github.com/hMatoba/Piexif/issues/124
             self._filename_or_bytes = str(filename_or_bytes.resolve())
         else:
             self._filename_or_bytes = filename_or_bytes
@@ -88,6 +89,16 @@ class ExifEdit:
         )
         self._ef["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = ref
 
+    def add_make(self, make: str) -> None:
+        if not make:
+            raise ValueError("Make cannot be empty")
+        self._ef["0th"][piexif.ImageIFD.Make] = make
+
+    def add_model(self, model: str) -> None:
+        if not model:
+            raise ValueError("Model cannot be empty")
+        self._ef["0th"][piexif.ImageIFD.Model] = model
+
     def _safe_dump(self) -> bytes:
         TRUSTED_TAGS = [
             piexif.ExifIFD.DateTimeOriginal,
@@ -150,16 +161,18 @@ class ExifEdit:
 
     def dump_image_bytes(self) -> bytes:
         exif_bytes = self._safe_dump()
-        output = io.BytesIO()
-        piexif.insert(exif_bytes, self._filename_or_bytes, output)
-        return output.read()
+        with io.BytesIO() as output:
+            piexif.insert(exif_bytes, self._filename_or_bytes, output)
+            return output.read()
 
     def write(self, filename: T.Optional[Path] = None) -> None:
         """Save exif data to file."""
         if filename is None:
             if not isinstance(self._filename_or_bytes, str):
-                raise RuntimeError("Unable to write image into bytes")
+                raise ValueError("Unable to write image into bytes")
             filename = Path(self._filename_or_bytes)
+        # make sure filename is resolved to avoid to be interpretted as bytes in piexif
+        filename = filename.resolve()
 
         exif_bytes = self._safe_dump()
 

@@ -19,7 +19,7 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         video_path: Path,
         sample_path: Path,
         video_sample_interval: float,
-        stream_id: T.Optional[int] = None,
+        stream_idx: T.Optional[int] = None,
     ):
         probe = self.probe_format_and_streams(video_path)
         video_streams = [
@@ -30,10 +30,10 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
         src = os.path.join(_PWD, "data/test_exif.jpg")
         for idx in range(0, int(duration / video_sample_interval)):
-            if stream_id is None:
+            if stream_idx is None:
                 sample = f"{frame_path_prefix}_NA_{idx + 1:06d}.jpg"
             else:
-                sample = f"{frame_path_prefix}_{stream_id}_{idx + 1:06d}.jpg"
+                sample = f"{frame_path_prefix}_{stream_idx}_{idx + 1:06d}.jpg"
             shutil.copyfile(src, sample)
 
     def probe_format_and_streams(self, video_path: Path) -> ffmpeg.ProbeOutput:
@@ -46,11 +46,11 @@ def setup_mock(monkeypatch):
     monkeypatch.setattr(ffmpeg, "FFMPEG", MOCK_FFMPEG)
 
 
-def _validate(samples, video_start_time):
+def _validate(samples: T.Sequence[Path], video_start_time):
     assert len(samples), "expect samples but got none"
     for idx, sample in enumerate(sorted(samples)):
-        assert sample.basename == f"hello_NA_{idx + 1:06d}.jpg"
-        exif = exif_read.ExifRead(str(sample))
+        assert sample.name == f"hello_NA_{idx + 1:06d}.jpg"
+        exif = exif_read.ExifRead(sample)
         expected_dt = video_start_time + datetime.timedelta(
             seconds=constants.VIDEO_SAMPLE_INTERVAL * idx
         )
@@ -61,20 +61,24 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
     root = _PWD.joinpath("data/mock_sample_video")
     video_dir = root.joinpath("videos")
     sample_dir = tmpdir.mkdir("sampled_video_frames")
-    sample_video.sample_video(video_dir, Path(sample_dir), rerun=True)
+    sample_video.sample_video(
+        video_dir, Path(sample_dir), video_sample_distance=-1, rerun=True
+    )
     samples = sample_dir.join("hello.mp4").listdir()
     video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
-    _validate(samples, video_start_time)
+    _validate([Path(s) for s in samples], video_start_time)
 
 
 def test_sample_single_video(tmpdir: py.path.local, setup_mock):
     root = _PWD.joinpath("data/mock_sample_video")
     video_path = root.joinpath("videos", "hello.mp4")
     sample_dir = tmpdir.mkdir("sampled_video_frames")
-    sample_video.sample_video(video_path, Path(sample_dir), rerun=True)
+    sample_video.sample_video(
+        video_path, Path(sample_dir), video_sample_distance=-1, rerun=True
+    )
     samples = sample_dir.join("hello.mp4").listdir()
     video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
-    _validate(samples, video_start_time)
+    _validate([Path(s) for s in samples], video_start_time)
 
 
 def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
@@ -87,7 +91,8 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
         video_dir,
         Path(sample_dir),
         video_start_time=video_start_time_str,
+        video_sample_distance=-1,
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    _validate(samples, video_start_time)
+    _validate([Path(s) for s in samples], video_start_time)

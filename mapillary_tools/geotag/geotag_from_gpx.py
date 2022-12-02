@@ -33,7 +33,7 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.offset_time = offset_time
 
     def read_image_time(self, image_path: Path) -> T.Optional[float]:
-        image_time = ExifRead(str(image_path)).extract_capture_time()
+        image_time = ExifRead(image_path).extract_capture_time()
         if image_time is None:
             return None
         return geo.as_unix_time(image_time)
@@ -57,7 +57,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             return metadatas
 
         # pairing the time and the image for sorting
-        image_pairs = []
+        image_pairs: T.List[T.Tuple[float, Path]] = []
         for image_path in self.image_paths:
             try:
                 image_time = self.read_image_time(image_path)
@@ -86,7 +86,9 @@ class GeotagFromGPX(GeotagFromGeneric):
             assert len(self.image_paths) == len(metadatas)
             return metadatas
 
-        sorted_points = sorted(self.points)
+        # Do not use point itself for comparison because point.angle or point.alt could be None
+        # when you compare nonnull value with None, it will throw
+        sorted_points = sorted(self.points, key=lambda point: point.time)
         sorted_images = sorted(image_pairs)
 
         first_image_time, _ = sorted_images[0]
