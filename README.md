@@ -27,7 +27,7 @@ mapillary_tools --help
 
 <!--ts-->
 
-- [Requirements](#requirements)
+- [Supported File Formats](#supported-file-formats)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Process and Upload](#process-and-upload)
@@ -42,18 +42,34 @@ mapillary_tools --help
 
 <!--te-->
 
-# Requirements
+# Supported File Formats
 
-## User Authentication
+mapillary_tools can upload both images and videos.
 
-To upload to Mapillary, an account is required and can be created [here](https://www.mapillary.com/signup). When
-using mapillary_tools for the first time, user authentication is required. You will be prompted to enter your account
-credentials.
+## Image Formats
 
-## Metadata
+mapillary_tools supports JPG/JEPG images (.jpg, .jpeg), with the following EXIF tags minimally required:
 
-To upload images or videos to Mapillary, GPS and capture time are minimally required. More
-information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geotagging-images).
+- GPS Longitude
+- GPS Latitude
+- Date/Time Original or GPS Date/Time
+
+## Video Formats
+
+mapillary_tools supports videos (.mp4, .360) that contain any of the following telemetry structures:
+
+- [GPMF](https://github.com/gopro/gpmf-parser): mostly GoPro videos
+  - [GoPro HERO series](https://gopro.com/en/us/shop/cameras/hero11-black/CHDHX-111-master.html) (from 5 to 11)
+  - [GoPro MAX](https://gopro.com/en/us/shop/cameras/max/CHDHZ-202-master.html)
+- [CAMM](https://developers.google.com/streetview/publish/camm-spec): an open-standard telemetry spec supported by a number of cameras
+  - [Insta360 Pro2](https://www.insta360.com/cn/product/insta360-pro2)
+  - [Insta360 Titan](https://www.insta360.com/cn/product/insta360-titan)
+  - [Ricoh Theta X](https://theta360.com/en/about/theta/x.html)
+  - [Labpano](https://www.labpano.com/)
+  - and more...
+- [BlackVue](https://blackvue.com/) videos
+  - [DR900S-1CH](https://shop.blackvue.com/product/dr900x-1ch-plus/)
+  - [DR900X Plus](https://shop.blackvue.com/product/dr900x-2ch-plus/)
 
 # Installation
 
@@ -62,7 +78,10 @@ information [here](https://help.mapillary.com/hc/en-us/articles/115001717829-Geo
 1. Download the latest executable for your platform from the [releases](https://github.com/mapillary/mapillary_tools/releases).
 2. Move the executable to your system `$PATH`
 
-> **_NOTE:_** If you see the error "**mapillary_tools is damaged and can’t be opened**" on macOS, run `xattr -c mapillary_tools` in the terminal.
+> **_NOTE:_** If you see the error "**mapillary_tools is damaged and can’t be opened**" on macOS, run in your terminal:
+> ```
+> xattr -c mapillary_tools
+> ```
 
 ## Installing via pip
 
@@ -108,36 +127,6 @@ Termux:
 mv -v storage/dcim/mapillaryimages mapillaryimages
 ```
 
-# Supported File Formats
-
-mapillary_tools can upload both images and videos.
-
-## Images
-
-mapillary_tools supports JPG/JEPG images (.jpg, .jpeg), with the following EXIF tags minimally required:
-
-- GPS Longitude
-- GPS Latitude
-- Date/Time Original or GPS Date/Time
-
-## Videos
-
-mapillary_tools supports videos (.mp4, .360) containing any of the following telemetry structures:
-
-- [GPMF](https://github.com/gopro/gpmf-parser): mostly GoPro videos
-  - GoPro HERO5 to HERO11
-  - GoPro MAX
-  - GoPro Fusion
-- [CAMM](https://developers.google.com/streetview/publish/camm-spec): an open-standard telemetry spec supported by a number of cameras
-  - [Insta360 Pro2](https://www.insta360.com/cn/product/insta360-pro2)
-  - [Insta360 Titan](https://www.insta360.com/cn/product/insta360-titan)
-  - [Ricoh Theta X](https://theta360.com/en/about/theta/x.html)
-  - [Labpano](https://www.labpano.com/)
-  - and more...
-- [BlackVue](https://blackvue.com/) videos
-  - DR900S-1CH
-  - DR900X Plus
-
 # Usage
 
 ## Process and Upload
@@ -149,7 +138,8 @@ For most users, `process_and_upload` is the command to go:
 mapillary_tools process_and_upload MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4
 ```
 
-If any process error occurs, e.g. GPS not found in an image, mapillary_tools will exit with non-zero status code. To ignore these errors and continue uploading the rest:
+If any process error occurs, e.g. GPS not found in an image, mapillary_tools will exit with non-zero status code.
+To ignore these errors and continue uploading the rest:
 
 ```sh
 # Skip process errors and upload to the specified user and organization
@@ -159,7 +149,8 @@ mapillary_tools process_and_upload MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4 \
     --organization_key "my_organization_id"
 ```
 
-The `process_and_upload` command will run the [`process`](#process) and the [`upload`](#upload) commands consecutively with combined required and optional arguments. The command above is equivalent to:
+The `process_and_upload` command will run the [`process`](#process) and the [`upload`](#upload) commands consecutively with combined required and optional arguments.
+The command above is equivalent to:
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4 \
@@ -175,8 +166,7 @@ mapillary_tools upload MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4 \
 ## Process
 
 The `process` command is an intermediate step that extracts the metadata from images and videos,
-and the output is a JSON array of [metadata objects](#image-description). Users can examine the output or
-even manipulate it before passing it to the [`upload`](#upload) command.
+and writes them in an [image description file](#image-description). Users should pass it to the [`upload`](#upload) command.
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4
@@ -206,7 +196,7 @@ mapillary_tools process MY_CAPTURE_DIR \
 
 ## Upload
 
-After processing, you should get the metadata in JSON. Now you can pass it to the `upload` command to upload them:
+After processing you should get the [image description file]((#image-description)). Pass it to the `upload` command to upload them:
 
 ```sh
 # Upload processed images and videos to the specified user account and organization
@@ -220,7 +210,9 @@ mapillary_tools upload  MY_CAPTURE_DIR \
 
 ## Local Video Processing
 
-Local video processing samples a video into a sequence of sample images and ensures the images are geotagged and ready for uploading. It gives users more control over the sampling process, for example, you can specify the sampling distance to control the density. Also, the sample images have smaller file sizes than videos, hence saving bandwidth.
+Local video processing samples a video into a sequence of sample images and ensures the images are geotagged and ready for uploading.
+It gives users more control over the sampling process, for example, you can specify the sampling distance to control the density.
+Also, the sample images have smaller file sizes than videos, hence saving bandwidth.
 
 ### Install FFmpeg
 
@@ -235,12 +227,6 @@ When all are located, it then extracts one frame (image) every 3 meters by defau
 
 ```sh
 # Sample videos in MY_VIDEOS and write the sample images in MY_SAMPLES with a custom sampling distance
-mapillary_tools sample_video MY_VIDEOS MY_SAMPLES --video_sample_distance 5
-```
-
-To sample the videos and process the sample images consecutively, run:
-
-```sh
 mapillary_tools video_process MY_VIDEOS MY_SAMPLES --video_sample_distance 5
 # The command above is equivalent to
 mapillary_tools sample_video MY_VIDEOS MY_SAMPLES --video_sample_distance 5
@@ -260,7 +246,8 @@ mapillary_tools upload MY_SAMPLES --desc_path=/tmp/mapillary_description.json
 
 If you use external GPS devices for mapping, you will need to geotag your captures with the external GPS tracks.
 
-To geotag images with a GPX file, the capture time (extracted from EXIF tag "Date/Time Original" or "GPS Date/Time") is minimally required. It is used to locate the images along the GPS tracks.
+To geotag images with a GPX file, the capture time (extracted from EXIF tag "Date/Time Original" or "GPS Date/Time") is minimally required.
+It is used to locate the images along the GPS tracks.
 
 ```sh
 mapillary_tools process MY_IMAGES --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
@@ -272,7 +259,9 @@ To geotag videos with a GPX file, video start time (video creation time minus vi
 mapillary_tools video_process MY_VIDEOS --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
-Ideally, the GPS device and the capture device need to use the same clock to get the timestamps synchronized. If not, the image locations will be shifted, as is often the case (especially when you see `MapillaryOutsideGPXTrackError` errors). To solve that, mapillary_tools provides an option `--interpolation_offset_time N` that adds N seconds to image capture times for synchronizing the timestamps.
+Ideally, the GPS device and the capture device need to use the same clock to get the timestamps synchronized.
+If not, the image locations will be shifted, as is often the case (especially when you see `MapillaryOutsideGPXTrackError` errors).
+To solve that, mapillary_tools provides an option `--interpolation_offset_time N` that adds N seconds to image capture times for synchronizing the timestamps.
 
 ```sh
 # The capture device's clock is 8 hours ahead of the GPS device's clock
@@ -280,7 +269,8 @@ mapillary_tools process MY_IMAGES --geotag_source "gpx" --geotag_source_path MY_
     --interpolation_offset_time -28800 # -8 * 3600 seconds
 ```
 
-Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track. This is useful when you can confirm that you start GPS recording and capturing at the same time, or with a known delay.
+Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track.
+This is useful when you can confirm that you start GPS recording and capturing at the same time, or with a known delay.
 
 ```sh
 # Start capturing 2.5 seconds after start GPS recording
@@ -309,7 +299,9 @@ mapillary_tools authenticate --user_name "mly_user"
 
 ## Image Description
 
-The output of the [`process`](#process) command is a JSON array of objects that describes metadata for each image or video. The metadata is validated by the [image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json). Here is a minimal example:
+The output of the [`process`](#process) command is a JSON array of objects that describes metadata for each image or video.
+The metadata is validated by the [image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json).
+Here is a minimal example:
 
 ```json
 [
