@@ -63,8 +63,8 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
   - [GoPro HERO series](https://gopro.com/en/us/shop/cameras/hero11-black/CHDHX-111-master.html) (from 5 to 11)
   - [GoPro MAX](https://gopro.com/en/us/shop/cameras/max/CHDHZ-202-master.html)
 - [CAMM](https://developers.google.com/streetview/publish/camm-spec): an open-standard telemetry spec supported by a number of cameras
-  - [Insta360 Pro2](https://www.insta360.com/cn/product/insta360-pro2)
-  - [Insta360 Titan](https://www.insta360.com/cn/product/insta360-titan)
+  - [Insta360 Pro2](https://www.insta360.com/product/insta360-pro2/)
+  - [Insta360 Titan](https://www.insta360.com/product/insta360-titan)
   - [Ricoh Theta X](https://theta360.com/en/about/theta/x.html)
   - [Labpano](https://www.labpano.com/)
   - and more...
