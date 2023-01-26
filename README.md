@@ -35,6 +35,7 @@ mapillary_tools --help
   - [Upload](#upload)
 - [Advanced Usage](#advanced-usage)
   - [Local Video Processing](#local-video-processing)
+  - [Geotagging with GPX](#geotagging-with-gpx)
   - [Authenticate](#authenticate)
   - [Image Description](#image-description)
   - [Zip Images](#zip-images)
@@ -78,7 +79,7 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
 1. Download the latest executable for your platform from the [releases](https://github.com/mapillary/mapillary_tools/releases).
 2. Move the executable to your system `$PATH`
 
-> **_NOTE:_** If you see the error "**mapillary_tools is damaged and can’t be opened**" on macOS, run in your terminal:
+> **_NOTE:_** If you see the error "**mapillary_tools is damaged and can’t be opened**" on macOS, try to clear the extended attributes:
 > ```
 > xattr -c mapillary_tools
 > ```
@@ -259,9 +260,9 @@ To geotag videos with a GPX file, video start time (video creation time minus vi
 mapillary_tools video_process MY_VIDEO_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
-Ideally, the GPS device and the capture device need to use the same clock to get the timestamps synchronized.
-If not, the image locations will be shifted, as is often the case (especially when you see `MapillaryOutsideGPXTrackError` errors).
-To solve that, mapillary_tools provides an option `--interpolation_offset_time N` that adds N seconds to image capture times for synchronizing the timestamps.
+Ideally, the GPS device and the capture device should use the same clock to get the timestamps synchronized.
+If not, as is often the case, the image locations will be shifted. To solve that, mapillary_tools provides an
+option `--interpolation_offset_time N` that adds N seconds to image capture times for synchronizing the timestamps.
 
 ```sh
 # The capture device's clock is 8 hours ahead of the GPS device's clock
@@ -291,10 +292,10 @@ Authenticate new user:
 mapillary_tools authenticate
 ```
 
-Authenticate for user `mly_user`. If the user is already authenticated, it will update the credentials in the config:
+Authenticate for user `my_username`. If the user is already authenticated, it will update the credentials in the config:
 
 ```sh
-mapillary_tools authenticate --user_name "mly_user"
+mapillary_tools authenticate --user_name "my_username"
 ```
 
 ## Image Description
