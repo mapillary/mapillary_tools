@@ -226,19 +226,19 @@ mapillary_tools first extracts the GPS track from the video's telemetry structur
 When all are located, it then extracts one frame (image) every 3 meters by default.
 
 ```sh
-# Sample videos in MY_VIDEOS and write the sample images in MY_SAMPLES with a custom sampling distance
-mapillary_tools video_process MY_VIDEOS MY_SAMPLES --video_sample_distance 5
+# Sample videos in MY_VIDEO_DIR and write the sample images in MY_SAMPLES with a custom sampling distance
+mapillary_tools video_process MY_VIDEO_DIR MY_SAMPLES --video_sample_distance 5
 # The command above is equivalent to
-mapillary_tools sample_video MY_VIDEOS MY_SAMPLES --video_sample_distance 5
+mapillary_tools sample_video MY_VIDEO_DIR MY_SAMPLES --video_sample_distance 5
 mapillary_tools process MY_SAMPLES
 ```
 
 To process and upload the sample images consecutively, run:
 
 ```sh
-mapillary_tools video_process_and_upload MY_VIDEOS MY_SAMPLES --video_sample_distance 5
+mapillary_tools video_process_and_upload MY_VIDEO_DIR MY_SAMPLES --video_sample_distance 5
 # The command above is equivalent to
-mapillary_tools video_process MY_VIDEOS MY_SAMPLES --video_sample_distance 5 --desc_path=/tmp/mapillary_description.json
+mapillary_tools video_process MY_VIDEO_DIR MY_SAMPLES --video_sample_distance 5 --desc_path=/tmp/mapillary_description.json
 mapillary_tools upload MY_SAMPLES --desc_path=/tmp/mapillary_description.json
 ```
 
@@ -250,13 +250,13 @@ To geotag images with a GPX file, the capture time (extracted from EXIF tag "Dat
 It is used to locate the images along the GPS tracks.
 
 ```sh
-mapillary_tools process MY_IMAGES --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
+mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
 To geotag videos with a GPX file, video start time (video creation time minus video duration) is required to locate the sample images along the GPS tracks.
 
 ```sh
-mapillary_tools video_process MY_VIDEOS --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
+mapillary_tools video_process MY_VIDEO_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
 Ideally, the GPS device and the capture device need to use the same clock to get the timestamps synchronized.
@@ -265,7 +265,7 @@ To solve that, mapillary_tools provides an option `--interpolation_offset_time N
 
 ```sh
 # The capture device's clock is 8 hours ahead of the GPS device's clock
-mapillary_tools process MY_IMAGES --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
+mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
     --interpolation_offset_time -28800 # -8 * 3600 seconds
 ```
 
@@ -274,7 +274,7 @@ This is useful when you can confirm that you start GPS recording and capturing a
 
 ```sh
 # Start capturing 2.5 seconds after start GPS recording
-mapillary_tools video_process MY_VIDEOS --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
+mapillary_tools video_process MY_VIDEO_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
     --interpolation_use_gpx_start_time \
     --interpolation_offset_time 2.5
 ```
@@ -309,14 +309,14 @@ Here is a minimal example:
     "MAPLatitude": 58.5927694,
     "MAPLongitude": 16.1840944,
     "MAPCaptureTime": "2021_02_13_13_24_41_140",
-    "filename": "/my_images/IMG_0291.jpg"
+    "filename": "/MY_IMAGE_DIR/IMG_0291.jpg"
   },
   {
     "error": {
       "type": "MapillaryGeoTaggingError",
       "message": "Unable to extract GPS Longitude or GPS Latitude from the image"
     },
-    "filename": "/my_images/IMG_0292.jpg"
+    "filename": "/MY_IMAGE_DIR/IMG_0292.jpg"
   }
 ]
 ```
@@ -325,17 +325,17 @@ Users may create or manipulate the image description file before passing them to
 
 ```sh
 # Remove images outside the bounding box and map matching the rest images on the road network
-mapillary_tools process MY_IMAGES | \
+mapillary_tools process MY_IMAGE_DIR | \
     ./filter_by_bbox.py 5.9559,45.818,10.4921,47.8084  | \
     ./map_match.py > /tmp/mapillary_image_description.json
 
 # Upload the processed images
-mapillary_tools upload  MY_IMAGES --desc_path /tmp/mapillary_image_description.json
+mapillary_tools upload  MY_IMAGE_DIR --desc_path /tmp/mapillary_image_description.json
 ```
 
 ```sh
 # Converts captures.csv to an image description file
-./custom_csv_to_description.sh captures.csv | mapillary_tools upload MY_IMAGES --desc_path -
+./custom_csv_to_description.sh captures.csv | mapillary_tools upload MY_IMAGE_DIR --desc_path -
 ```
 
 ## Zip Images
@@ -347,8 +347,8 @@ mapillary_tools provides `zip` command that allows users to specify where to sto
 faster IO or more free space.
 
 ```sh
-# Zip processed images in MY_IMAGES and write zip files in MY_ZIPFILES
-mapillary_tools zip MY_IMAGES MY_ZIPFILES
+# Zip processed images in MY_IMAGE_DIR and write zip files in MY_ZIPFILES
+mapillary_tools zip MY_IMAGE_DIR MY_ZIPFILES
 
 # Upload all the zip files (*.zip) in MY_ZIPFILES:
 mapillary_tools upload MY_ZIPFILES
