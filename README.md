@@ -352,7 +352,7 @@ faster IO or more free space.
 mapillary_tools zip MY_IMAGE_DIR MY_ZIPFILES
 
 # Upload all the zip files (*.zip) in MY_ZIPFILES:
-mapillary_tools upload MY_ZIPFILES
+mapillary_tools upload --file_types zip MY_ZIPFILES
 ```
 
 # Development
