@@ -197,7 +197,7 @@ mapillary_tools process MY_CAPTURE_DIR \
 
 ## Upload
 
-After processing you should get the [image description file]((#image-description)). Pass it to the `upload` command to upload them:
+After processing you should get the [image description file](#image-description). Pass it to the `upload` command to upload them:
 
 ```sh
 # Upload processed images and videos to the specified user account and organization
@@ -301,7 +301,7 @@ mapillary_tools authenticate --user_name "my_username"
 ## Image Description
 
 The output of the [`process`](#process) command is a JSON array of objects that describes metadata for each image or video.
-The metadata is validated by the [image description schema](https://github.com/mapillary/mapillary_tools/tree/master/schema/image_description_schema.json).
+The metadata is validated by the [image description schema](https://github.com/mapillary/mapillary_tools/blob/main/schema/image_description_schema.json).
 Here is a minimal example:
 
 ```json
