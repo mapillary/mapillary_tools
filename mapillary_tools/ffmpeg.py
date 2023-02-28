@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import typing as T
 from pathlib import Path
 
@@ -215,8 +216,6 @@ class FFMPEG:
         if not frame_indices:
             return
 
-        eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
-
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
@@ -227,34 +226,56 @@ class FFMPEG:
             ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
             stream_specifier = "v"
 
-        cmd: T.List[str] = [
-            # global options should be specified first
-            *["-hide_banner", "-nostdin"],
-            # input 0
-            *["-i", str(video_path)],
-            # select stream
-            *stream_selector,
-            # filter videos
-            *[
-                *["-vf", f"select={eqs}"],
-                # Each frame is passed with its timestamp from the demuxer to the muxer
-                # vsync is deprecated but -fps_mode is not avaliable on some versions ;(
-                *["-vsync", "0"],
-                # *[f"-fps_mode:{stream_specifier}", "passthrough"],
-                # Set the number of video frames to output
-                *[f"-frames:{stream_specifier}", str(len(frame_indices))],
-                *["-frame_pts", "1"],
-            ],
-            # video quality level (or the alias -q:v)
-            *[f"-qscale:{stream_specifier}", "2"],
-            # -q:v=1 is the best quality but larger image sizes
-            # see https://stackoverflow.com/a/10234065
-            # *["-qscale:v", "1", "-qmin", "1"],
-            # output
-            ouput_template,
-        ]
+        # Write the select filter to a temp file because:
+        # The select filter could be large and
+        # the maximum command line length for the CreateProcess function is 32767 characters
+        # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
 
-        self._run_ffmpeg(cmd)
+        eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
+
+        # https://github.com/mapillary/mapillary_tools/issues/503
+        if sys.platform == "win32":
+            delete = False
+        else:
+            delete = True
+
+        with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
+            try:
+                select_file.write(f"select={eqs}")
+                select_file.flush()
+                cmd: T.List[str] = [
+                    # global options should be specified first
+                    *["-hide_banner", "-nostdin"],
+                    # input 0
+                    *["-i", str(video_path)],
+                    # select stream
+                    *stream_selector,
+                    # filter videos
+                    *[
+                        *["-filter_script:v", select_file.name],
+                        # Each frame is passed with its timestamp from the demuxer to the muxer
+                        # vsync is deprecated but -fps_mode is not avaliable on some versions ;(
+                        *["-vsync", "0"],
+                        # *[f"-fps_mode:{stream_specifier}", "passthrough"],
+                        # Set the number of video frames to output
+                        *[f"-frames:{stream_specifier}", str(len(frame_indices))],
+                        *["-frame_pts", "1"],
+                    ],
+                    # video quality level (or the alias -q:v)
+                    *[f"-qscale:{stream_specifier}", "2"],
+                    # -q:v=1 is the best quality but larger image sizes
+                    # see https://stackoverflow.com/a/10234065
+                    # *["-qscale:v", "1", "-qmin", "1"],
+                    # output
+                    ouput_template,
+                ]
+                self._run_ffmpeg(cmd)
+            finally:
+                if not delete:
+                    try:
+                        os.remove(select_file.name)
+                    except FileNotFoundError:
+                        pass
 
 
 class Probe:
