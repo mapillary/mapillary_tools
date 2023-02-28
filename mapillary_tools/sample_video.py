@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 import shutil
-import sys
 import time
 import typing as T
 from contextlib import contextmanager
@@ -11,7 +10,7 @@ from pathlib import Path
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import mp4_sample_parser
-from .process_geotag_properties import process_video
+from .process_geotag_properties import process_video, GeotagSource
 
 LOG = logging.getLogger(__name__)
 
@@ -45,6 +44,8 @@ def xor(a: bool, b: bool):
 def sample_video(
     video_import_path: Path,
     import_path: Path,
+    # None if called from the sample_video command
+    geotag_source: T.Optional[GeotagSource] = None,
     skip_subfolders=False,
     video_sample_distance=constants.VIDEO_SAMPLE_DISTANCE,
     video_sample_interval=constants.VIDEO_SAMPLE_INTERVAL,
@@ -55,9 +56,9 @@ def sample_video(
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
 
-    if not xor(0 <= video_sample_distance, 0 <= video_sample_interval):
+    if not xor(0 <= video_sample_distance, 0 < video_sample_interval):
         raise exceptions.MapillaryBadParameterError(
-            f"Expect either non-negative video_sample_distance or non-negative video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
+            f"Expect either non-negative video_sample_distance or positive video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
         )
 
     video_start_time_dt: T.Optional[datetime.datetime] = None
@@ -78,6 +79,16 @@ def sample_video(
                 shutil.rmtree(sample_dir)
             elif sample_dir.is_file():
                 os.remove(sample_dir)
+
+    if geotag_source is None:
+        geotag_source = "exif"
+
+    # If it is not exif, then we use the legacy interval-based sample and geotag them in "process" for backward compatibility
+    if geotag_source != "exif":
+        if 0 <= video_sample_distance:
+            raise exceptions.MapillaryBadParameterError(
+                f'Geotagging from "{geotag_source}" works with the legacy interval-based sampling only. To switch back, rerun the command with "--video_sample_distance -1 --video_sample_interval 2"'
+            )
 
     for video_path in video_list:
         # need to resolve video_path because video_dir might be absolute
@@ -101,6 +112,9 @@ def sample_video(
                     start_time=video_start_time_dt,
                 )
             else:
+                assert (
+                    0 < video_sample_interval
+                ), "expect positive video_sample_interval but got {video_sample_interval}"
                 _sample_single_video_by_interval(
                     video_path,
                     sample_dir,

@@ -29,20 +29,4 @@ class Command:
             )
             args[option] = {FileType.IMAGE}
 
-        if 0 <= args["video_sample_distance"]:
-            expected: GeotagSource = "exif"
-            option = "geotag_source"
-            if args[option] != expected:
-                LOG.warning(
-                    (
-                        "Since sample geotags have been written in EXIFs when you sampled videos by distance (%s meter(s)),"
-                        ' so we force the option "%s" to be "%s"'
-                        " to avoid unnecessary geotagging from the videos again"
-                    ),
-                    args["video_sample_distance"],
-                    option,
-                    expected,
-                )
-                args[option] = expected
-
         ProcessCommand().run(args)
