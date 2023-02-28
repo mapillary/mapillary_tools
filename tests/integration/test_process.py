@@ -579,7 +579,7 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
         with open(desc_path) as fp:
             descs = json.load(fp)
         for e, d in zip(expected, descs):
-            assert d["filename"].endswith(e["filename"])
+            assert Path(d["filename"]).as_posix().endswith(e["filename"])
             del d["filename"]
             del e["filename"]
             assert e == d
