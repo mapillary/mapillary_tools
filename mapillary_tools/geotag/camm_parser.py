@@ -19,6 +19,7 @@ from . import (
 
 LOG = logging.getLogger(__name__)
 
+
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
 class CAMMType(Enum):
     ANGLE_AXIS = 0

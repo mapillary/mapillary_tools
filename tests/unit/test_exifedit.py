@@ -44,7 +44,6 @@ def rational_to_tuple(rational):
 
 
 def add_image_description_general(test_obj, filename):
-
     test_dictionary = {
         "key_numeric": 1,
         "key_string": "one",
@@ -65,7 +64,6 @@ def add_image_description_general(test_obj, filename):
 
 
 def add_orientation_general(test_obj, filename: Path):
-
     test_orientation = 2
 
     empty_exifedit = ExifEdit(filename)
@@ -80,7 +78,6 @@ def add_orientation_general(test_obj, filename: Path):
 
 
 def add_date_time_original_general(test_obj, filename: Path):
-
     test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
 
     empty_exifedit = ExifEdit(filename)
@@ -98,7 +95,6 @@ def add_date_time_original_general(test_obj, filename: Path):
 
 
 def add_lat_lon_general(test_obj, filename):
-
     test_latitude = 50.5475894785
     test_longitude = 15.595866685
     precision = 1e7
@@ -128,7 +124,6 @@ def add_lat_lon_general(test_obj, filename):
 
 
 def add_altitude_general(test_obj, filename: Path):
-
     test_altitude = 15.5
     test_altitude_precision = 100
 
@@ -149,7 +144,6 @@ def add_altitude_general(test_obj, filename: Path):
 
 
 def add_repeatedly_time_original_general(test_obj, filename):
-
     test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
 
     empty_exifedit = ExifEdit(filename)
@@ -174,7 +168,6 @@ def add_repeatedly_time_original_general(test_obj, filename):
 
 
 def add_direction_general(test_obj, filename):
-
     test_direction = 1
     test_direction_ref = "T"
     test_direction_precision = 100
@@ -209,31 +202,24 @@ class ExifEditTests(unittest.TestCase):
         shutil.rmtree(os.path.join(data_dir, "tmp"))
 
     def test_add_image_description(self):
-
         add_image_description_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_orientation(self):
-
         add_orientation_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_date_time_original(self):
-
         add_date_time_original_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_lat_lon(self):
-
         add_lat_lon_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_altitude(self):
-
         add_altitude_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_direction(self):
-
         add_direction_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_write_to_non_existing_file(self):
-
         test_datetime = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
 
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
@@ -250,11 +236,9 @@ class ExifEditTests(unittest.TestCase):
         )
 
     def test_add_repeatedly_time_original(self):
-
         add_repeatedly_time_original_general(self, EMPTY_EXIF_FILE_TEST)
 
     def test_add_time_original_to_existing_exif(self):
-
         test_altitude = 15.5
         test_altitude_precision = 100
 
