@@ -80,6 +80,7 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
 2. Move the executable to your system `$PATH`
 
 > **_NOTE:_** If you see the error "**mapillary_tools is damaged and can’t be opened**" on macOS, try to clear the extended attributes:
+>
 > ```
 > xattr -c mapillary_tools
 > ```
@@ -257,7 +258,13 @@ mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path 
 To geotag videos with a GPX file, video start time (video creation time minus video duration) is required to locate the sample images along the GPS tracks.
 
 ```sh
-mapillary_tools video_process MY_VIDEO_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
+# Geotagging with GPX works with interval-based sampling only,
+# the two options --video_sample_distance -1 --video_sample_interval 2 are therefore required
+# to switch from the default distance-based sampling to the legacy interval-based sampling
+mapillary_tools video_process MY_VIDEO_DIR \
+    --geotag_source "gpx" \
+    --geotag_source_path MY_EXTERNAL_GPS.gpx \
+    --video_sample_distance -1 --video_sample_interval 2
 ```
 
 Ideally, the GPS device and the capture device should use the same clock to get the timestamps synchronized.
@@ -265,9 +272,11 @@ If not, as is often the case, the image locations will be shifted. To solve that
 option `--interpolation_offset_time N` that adds N seconds to image capture times for synchronizing the timestamps.
 
 ```sh
-# The capture device's clock is 8 hours ahead of the GPS device's clock
-mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
-    --interpolation_offset_time -28800 # -8 * 3600 seconds
+# The capture device's clock is 8 hours (i.e. -8 * 3600 = -28800 seconds) ahead of the GPS device's clock
+mapillary_tools process MY_IMAGE_DIR \
+    --geotag_source "gpx" \
+    --geotag_source_path MY_EXTERNAL_GPS.gpx \
+    --interpolation_offset_time -28800
 ```
 
 Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track.
@@ -275,9 +284,12 @@ This is useful when you can confirm that you start GPS recording and capturing a
 
 ```sh
 # Start capturing 2.5 seconds after start GPS recording
-mapillary_tools video_process MY_VIDEO_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx \
+mapillary_tools video_process MY_VIDEO_DIR \
+    --geotag_source "gpx" \
+    --geotag_source_path MY_EXTERNAL_GPS.gpx \
     --interpolation_use_gpx_start_time \
-    --interpolation_offset_time 2.5
+    --interpolation_offset_time 2.5 \
+    --video_sample_distance -1 --video_sample_interval 2
 ```
 
 ## Authenticate
