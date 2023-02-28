@@ -145,5 +145,5 @@ def test_process_gopro_hero8(
             < 0.001
         )
         assert Path(actual["filename"]).is_file(), actual["filename"]
-        assert actual["filename"].endswith(expected["filename"])
+        assert Path(actual["filename"]).as_posix().endswith(expected["filename"])
         assert "MAPSequenceUUID" in actual
