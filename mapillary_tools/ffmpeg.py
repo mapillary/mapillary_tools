@@ -234,7 +234,7 @@ class FFMPEG:
         eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
 
         # https://github.com/mapillary/mapillary_tools/issues/503
-        if sys.platform == "win32":
+        if sys.platform in ["win32", "cygwin"]:
             delete = False
         else:
             delete = True
