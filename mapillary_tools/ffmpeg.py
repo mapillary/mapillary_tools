@@ -242,7 +242,7 @@ class FFMPEG:
         with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
             try:
                 select_file.write(f"select={eqs}")
-                select_file.flush()
+                select_file.close()
                 cmd: T.List[str] = [
                     # global options should be specified first
                     *["-hide_banner", "-nostdin"],
