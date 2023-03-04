@@ -234,7 +234,7 @@ class FFMPEG:
         eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
 
         # https://github.com/mapillary/mapillary_tools/issues/503
-        if sys.platform == "win32":
+        if sys.platform in ["win32"]:
             delete = False
         else:
             delete = True
@@ -243,6 +243,9 @@ class FFMPEG:
             try:
                 select_file.write(f"select={eqs}")
                 select_file.flush()
+                # If not close, error "The process cannot access the file because it is being used by another process"
+                if not delete:
+                    select_file.close()
                 cmd: T.List[str] = [
                     # global options should be specified first
                     *["-hide_banner", "-nostdin"],
