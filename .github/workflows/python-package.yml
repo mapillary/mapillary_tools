@@ -26,12 +26,9 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - name: Install ffmpeg for testing (Ubuntu only)
-      run: |
-        sudo apt update -y && sudo apt install -y ffmpeg
-        ffmpeg -version
-      if: matrix.platform == 'ubuntu-latest'
     - uses: actions/checkout@v3
+    - name: Setup FFmpeg
+      uses: FedericoCarboni/setup-ffmpeg@v2
     - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
