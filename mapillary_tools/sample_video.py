@@ -10,7 +10,7 @@ from pathlib import Path
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import mp4_sample_parser
-from .process_geotag_properties import process_video, GeotagSource
+from .process_geotag_properties import GeotagSource, process_video
 
 LOG = logging.getLogger(__name__)
 
@@ -186,6 +186,7 @@ def _sample_single_video_by_interval(
             seconds = (frame_idx_1based - 1) * sample_interval * duration_ratio
             timestamp = start_time + datetime.timedelta(seconds=seconds)
             exif_edit = ExifEdit(sample_paths[0])
+            exif_edit.add_gps_datetime(timestamp)
             exif_edit.add_date_time_original(timestamp)
             exif_edit.write()
 
@@ -326,6 +327,7 @@ def _sample_single_video_by_distance(
 
             timestamp = start_time + datetime.timedelta(seconds=interp.time)
             exif_edit = ExifEdit(sample_paths[0])
+            exif_edit.add_gps_datetime(timestamp)
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_lat_lon(interp.lat, interp.lon)
             if interp.alt is not None:

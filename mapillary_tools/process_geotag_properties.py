@@ -358,6 +358,9 @@ def _overwrite_exif_tags(
             image_exif = exif_write.ExifEdit(metadata.filename)
 
             if all_tags or time_tag:
+                image_exif.add_gps_datetime(
+                    datetime.datetime.utcfromtimestamp(metadata.time)
+                )
                 image_exif.add_date_time_original(
                     datetime.datetime.utcfromtimestamp(metadata.time)
                 )

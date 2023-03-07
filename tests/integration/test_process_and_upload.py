@@ -1,3 +1,4 @@
+import datetime
 import os
 import subprocess
 
@@ -23,7 +24,7 @@ EXPECTED_DESCS = {
     "image": {
         "DSC00497.JPG": {
             "MAPAltitude": 77.5,
-            "MAPCaptureTime": "2018_06_08_13_32_28_000",
+            "MAPCaptureTime": "2018_06_08_20_32_28_000",
             "MAPCompassHeading": {"MagneticHeading": 271.27, "TrueHeading": 271.27},
             "MAPDeviceMake": "SONY",
             "MAPDeviceModel": "HDR-AS300",
@@ -34,7 +35,7 @@ EXPECTED_DESCS = {
         },
         "DSC00001.JPG": {
             "MAPAltitude": 70.3,
-            "MAPCaptureTime": "2018_06_08_13_24_10_000",
+            "MAPCaptureTime": "2018_06_08_20_24_11_000",
             "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
             "MAPDeviceMake": "SONY",
             "MAPDeviceModel": "HDR-AS300",
@@ -44,7 +45,10 @@ EXPECTED_DESCS = {
             "filetype": "image",
         },
         "V0370574.JPG": {
-            "MAPCaptureTime": "2018_07_27_11_32_14_000",
+            # convert DateTimeOriginal "2018:07:27 11:32:14" in local time to UTC
+            "MAPCaptureTime": datetime.datetime.fromisoformat("2018-07-27T11:32:14")
+            .astimezone(datetime.timezone.utc)
+            .strftime("%Y_%m_%d_%H_%M_%S_%f")[:-3],
             "MAPCompassHeading": {"MagneticHeading": 359.0, "TrueHeading": 359.0},
             "MAPDeviceMake": "Garmin",
             "MAPDeviceModel": "VIRB 360",

@@ -1,41 +1,16 @@
 import datetime
 import typing as T
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Type, Union
 
 import exifread
+from exifread.utils import Ratio
 
 
-def eval_frac(value: exifread.utils.Ratio) -> float:
+def eval_frac(value: Ratio) -> float:
     return float(value.num) / float(value.den)
 
 
-def format_time(time_string: str) -> Tuple[datetime.datetime, bool]:
-    """
-    Format time string with invalid time elements in hours/minutes/seconds
-    Format for the timestring needs to be "%Y_%m_%d_%H_%M_%S"
-
-    e.g. 2014_03_31_24_10_11 => 2014_04_01_00_10_11
-    """
-    subseconds = False
-    data = time_string.split("_")
-    hours, minutes, seconds = int(data[3]), int(data[4]), int(data[5])
-    date = datetime.datetime.strptime("_".join(data[:3]), "%Y_%m_%d")
-    subsec = 0.0
-    if len(data) == 7:
-        if float(data[6]) != 0:
-            subsec = float(data[6]) / 10 ** len(data[6])
-            subseconds = True
-    date_time = date + datetime.timedelta(
-        hours=hours, minutes=minutes, seconds=seconds + subsec
-    )
-    return date_time, subseconds
-
-
-def gps_to_decimal(
-    values: List[exifread.utils.Ratio], reference: str
-) -> Optional[float]:
-    sign = 1 if reference in "NE" else -1
+def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     deg, min, sec = values
     try:
         degrees = eval_frac(deg)
@@ -43,33 +18,90 @@ def gps_to_decimal(
         seconds = eval_frac(sec)
     except ZeroDivisionError:
         return None
-    return sign * (degrees + minutes / 60 + seconds / 3600)
+    return degrees + minutes / 60 + seconds / 3600
 
 
-def exif_datetime_fields() -> List[List[str]]:
-    """
-    Date time fields in EXIF
-    """
-    return [
-        [
-            "EXIF DateTimeOriginal",
-            "Image DateTimeOriginal",
-            "EXIF DateTimeDigitized",
-            "Image DateTimeDigitized",
-            "EXIF DateTime",
-            "Image DateTime",
-            "GPS GPSDate",
-            "EXIF GPS GPSDate",
-            "EXIF DateTimeModified",
-        ]
-    ]
+def strptime_alternative_formats(
+    dtstr: str, formats: T.Sequence[str]
+) -> T.Optional[datetime.datetime]:
+    for format in formats:
+        try:
+            return datetime.datetime.strptime(dtstr, format)
+        except ValueError:
+            continue
+    return None
 
 
-def exif_gps_date_fields() -> List[List[str]]:
+def parse_timestr(timestr: str) -> T.Optional[datetime.timedelta]:
+    parts = timestr.strip().split(":")
+
+    try:
+        if len(parts) == 0:
+            raise ValueError
+        elif len(parts) == 1:
+            h, m, s = int(parts[0]), 0, 0.0
+        elif len(parts) == 2:
+            h, m, s = int(parts[0]), int(parts[1]), 0.0
+        else:
+            h, m, s = int(parts[0]), int(parts[1]), float(parts[2])
+    except ValueError:
+        return None
+
+    return datetime.timedelta(hours=h, minutes=m, seconds=s)
+
+
+def make_valid_timezone_offset(delta: datetime.timedelta) -> datetime.timedelta:
+    # otherwise: ValueError: offset must be a timedelta strictly between -timedelta(hours=24) and timedelta(hours=24), not datetime.timedelta(days=1)
+    h24 = datetime.timedelta(hours=24)
+    if h24 <= delta:
+        delta = delta % h24
+    elif delta <= -h24:
+        delta = delta % -h24
+    return delta
+
+
+def parse_datetimestr(
+    dtstr: str, subsec: T.Optional[str] = None, tz_offset: T.Optional[str] = None
+) -> T.Optional[datetime.datetime]:
     """
-    Date fields in EXIF GPS
+    Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
+    It handles time "24:00:00" as "00:00:00" of the next day.
+    subsec "123" will be parsed as milliseconds 123 and added to the datetime object.
     """
-    return [["GPS GPSDate", "EXIF GPS GPSDate"]]
+    dtstr = dtstr.strip()
+    date_and_time = dtstr.split(maxsplit=2)
+    if len(date_and_time) < 2:
+        return None
+    date, time = date_and_time[:2]
+    d = strptime_alternative_formats(date, ["%Y:%m:%d", "%Y-%m-%d"])
+    if d is None:
+        return None
+    time_delta = parse_timestr(time)
+    if time_delta is None:
+        return None
+    d = d + time_delta
+    if subsec is not None:
+        if len(subsec) < 6:
+            subsec = subsec + ("0" * 6)
+        microseconds = int(subsec[:6])
+        # ValueError: microsecond must be in 0..999999
+        microseconds = microseconds % int(1e6)
+        # always overrides the microseconds
+        d = d.replace(microsecond=microseconds)
+    if tz_offset is not None:
+        if tz_offset.startswith("+"):
+            offset_delta = parse_timestr(tz_offset[1:])
+        elif tz_offset.startswith("-"):
+            offset_delta = parse_timestr(tz_offset[1:])
+            if offset_delta is not None:
+                offset_delta = -1 * offset_delta
+        else:
+            offset_delta = parse_timestr(tz_offset)
+        if offset_delta is not None:
+            offset_delta = make_valid_timezone_offset(offset_delta)
+            tzinfo = datetime.timezone(offset_delta)
+            d = d.replace(tzinfo=tzinfo)
+    return d
 
 
 class ExifRead:
@@ -94,111 +126,112 @@ class ExifRead:
             )
         self.path_or_stream = path_or_stream
 
-    def _extract_alternative_fields(
-        self,
-        fields: List[str],
-        default: Optional[Union[str, int, float]] = None,
-        field_type: Union[Type[float], Type[str], Type[int]] = float,
-    ) -> Tuple[Any, Optional[str]]:
-        """
-        Extract a value for a list of ordered fields.
-        Return the value of the first existed field in the list
-        """
-        for field in fields:
-            if field in self.tags:
-                values = self.tags[field].values
-                if field_type is float:
-                    if values:
-                        try:
-                            return eval_frac(values[0]), field
-                        except ZeroDivisionError:
-                            pass
-                elif field_type is str:
-                    return str(values), field
-                elif field_type is int:
-                    if values:
-                        return int(values[0]), field
-                else:
-                    raise ValueError(f"Invalid field type {field_type}")
-        return default, None
-
-    def extract_altitude(self) -> Optional[float]:
+    def extract_altitude(self) -> T.Optional[float]:
         """
         Extract altitude
         """
-        fields: List[str] = ["GPS GPSAltitude", "EXIF GPS GPSAltitude"]
-        altitude, _ = self._extract_alternative_fields(
-            fields, default=None, field_type=float
-        )
+        altitude = self._extract_alternative_fields(["GPS GPSAltitude"], float)
         if altitude is None:
             return None
-        fields = ["GPS GPSAltitudeRef", "EXIF GPS GPSAltitudeRef"]
-        ref, _ = self._extract_alternative_fields(fields, default=0, field_type=int)
+        ref = self._extract_alternative_fields(["GPS GPSAltitudeRef"], int)
+        if ref is None:
+            ref = 0
         altitude_ref = {0: 1, 1: -1}
         return altitude * altitude_ref.get(ref, 1)
 
-    def extract_capture_time(self) -> Optional[datetime.datetime]:
+    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
         """
-        Extract capture time from EXIF
-        return a datetime object
-        TODO: handle GPS DateTime
+        Extract timestamp from GPS field.
         """
-        time_string = exif_datetime_fields()[0]
-        capture_time, time_field = self._extract_alternative_fields(
-            time_string, default=None, field_type=str
+        gpsdate = self._extract_alternative_fields(["GPS GPSDate"], str)
+        if gpsdate is None:
+            return None
+        dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
+        if dt is None:
+            return None
+        gpstimestamp = self.tags.get("GPS GPSTimeStamp")
+        if not gpstimestamp:
+            return None
+        hour = int(eval_frac(gpstimestamp.values[0]))
+        minute = int(eval_frac(gpstimestamp.values[1]))
+        second = float(eval_frac(gpstimestamp.values[2]))
+        dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
+        # GPS timestamps are always GMT
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt
+
+    def _extract_datetime(
+        self, dt_tag: str, subsec_tag: str, offset_tag: str
+    ) -> T.Optional[datetime.datetime]:
+        dtstr = self._extract_alternative_fields([dt_tag], field_type=str)
+        if dtstr is None:
+            return None
+        subsec = self._extract_alternative_fields([subsec_tag], field_type=str)
+        # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
+        # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
+        if subsec and subsec.startswith(" "):
+            make = self.extract_make()
+            if make and make.lower() == "gopro":
+                subsec = subsec.replace(" ", "0")
+        offset = self._extract_alternative_fields([offset_tag], field_type=str)
+        dt = parse_datetimestr(dtstr, subsec, offset)
+        if dt is None:
+            return None
+        return dt
+
+    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+        """
+        Extract capture time from EXIF DateTime tags
+        """
+        try:
+            gps_datetime_dt = self.extract_gps_datetime()
+        except (ValueError, TypeError, ZeroDivisionError):
+            gps_datetime_dt = None
+        if gps_datetime_dt is not None:
+            return gps_datetime_dt
+
+        # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
+        # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
+        # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
+        dt = self._extract_datetime(
+            "EXIF DateTimeOriginal",
+            "EXIF SubSecTimeOriginal",
+            "EXIF OffsetTimeOriginal",
         )
-        if time_field in exif_gps_date_fields()[0]:
-            return self.extract_gps_time()
+        if dt is not None:
+            return dt
 
-        if capture_time is None:
-            # try interpret the filename
-            if isinstance(self.path_or_stream, Path):
-                try:
-                    return datetime.datetime.strptime(
-                        self.path_or_stream.stem + "000", "%Y_%m_%d_%H_%M_%S_%f"
-                    )
-                except ValueError:
-                    return None
-            else:
-                return None
-        else:
-            capture_time = capture_time.replace(" ", "_")
-            capture_time = capture_time.replace(":", "_")
-            capture_time = capture_time.replace(".", "_")
-            capture_time = capture_time.replace("-", "_")
-            capture_time = capture_time.replace(",", "_")
-            capture_time = "_".join(
-                [ts for ts in capture_time.split("_") if ts.isdigit()]
-            )
-            capture_time_obj, has_subseconds = format_time(capture_time)
-            if not has_subseconds:
-                sub_sec = self._extract_subsec()
-                # Fix spaces in subsec in gopro
-                # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
-                # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
-                if sub_sec.startswith(" "):
-                    make = self.extract_make()
-                    if make is not None and make.lower() == "gopro":
-                        sub_sec = sub_sec.replace(" ", "0")
-                capture_time_obj = capture_time_obj + datetime.timedelta(
-                    seconds=float("0." + sub_sec)
-                )
-            return capture_time_obj
+        # EXIF DateTimeDigitized: 0x9004 CreateDate in ExifTool (called DateTimeDigitized by the EXIF spec.)
+        # EXIF SubSecTimeDigitized: 0x9292 (fractional seconds for CreateDate)
+        # EXIF OffsetTimeDigitized: 0x9012 (time zone for CreateDate)
+        dt = self._extract_datetime(
+            "EXIF DateTimeDigitized",
+            "EXIF SubSecTimeDigitized",
+            "EXIF OffsetTimeDigitized",
+        )
+        if dt is not None:
+            return dt
 
-    def extract_direction(self) -> Optional[float]:
+        # Image DateTime: 0x0132 ModifyDate in ExifTool (called DateTime by the EXIF spec.)
+        # EXIF SubSecTime: 0x9290 (fractional seconds for ModifyDate)
+        # EXIF OffsetTime: 0x9010 (time zone for ModifyDate)
+        dt = self._extract_datetime(
+            "Image DateTime", "EXIF SubSecTime", "EXIF OffsetTime"
+        )
+        if dt is not None:
+            return dt
+
+        return None
+
+    def extract_direction(self) -> T.Optional[float]:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
         fields = [
             "GPS GPSImgDirection",
-            "EXIF GPS GPSImgDirection",
             "GPS GPSTrack",
-            "EXIF GPS GPSTrack",
         ]
-        direction, _ = self._extract_alternative_fields(
-            fields, default=None, field_type=float
-        )
-
+        direction = self._extract_alternative_fields(fields, float)
         if direction is not None:
             if direction > 360:
                 # fix negative value wrongly parsed in exifread
@@ -210,108 +243,76 @@ class ExifRead:
 
         return direction
 
-    def extract_gps_time(self) -> Optional[datetime.datetime]:
-        """
-        Extract timestamp from GPS field.
-        """
-        gps_date_field = "GPS GPSDate"
-        gps_time_field = "GPS GPSTimeStamp"
-        if gps_date_field in self.tags and gps_time_field in self.tags:
-            date = str(self.tags[gps_date_field].values).split(":")
-            if int(date[0]) == 0 or int(date[1]) == 0 or int(date[2]) == 0:
-                return None
-            t = self.tags[gps_time_field]
-            gps_time = datetime.datetime(
-                year=int(date[0]),
-                month=int(date[1]),
-                day=int(date[2]),
-                hour=int(eval_frac(t.values[0])),
-                minute=int(eval_frac(t.values[1])),
-                second=int(eval_frac(t.values[2])),
-            )
-            microseconds = datetime.timedelta(
-                microseconds=int((eval_frac(t.values[2]) % 1) * 1e6)
-            )
-            gps_time += microseconds
-            return gps_time
-        else:
-            return None
-
-    def extract_lon_lat(self) -> Tuple[Optional[float], Optional[float]]:
+    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
         lat_tag = self.tags.get("GPS GPSLatitude")
         lon_tag = self.tags.get("GPS GPSLongitude")
         if lat_tag and lon_tag:
-            lat_ref_tag = self.tags.get("GPS GPSLatitudeRef")
-            lat = gps_to_decimal(
-                lat_tag.values, lat_ref_tag.values if lat_ref_tag else "N"
-            )
-            lon_ref_tag = self.tags.get("GPS GPSLongitudeRef")
-            lon = gps_to_decimal(
-                lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
-            )
-            if lon is not None and lat is not None:
-                return lon, lat
+            lon = gps_to_decimal(lon_tag.values)
+            if lon is None:
+                return None
+            ref = self._extract_alternative_fields(["GPS GPSLongitudeRef"], str)
+            if ref and ref.upper() == "W":
+                lon = -1 * lon
 
-        # repeat above
-        lat_tag = self.tags.get("EXIF GPS GPSLatitude")
-        lon_tag = self.tags.get("EXIF GPS GPSLongitude")
-        if lat_tag and lon_tag:
-            lat_ref_tag = self.tags.get("EXIF GPS GPSLatitudeRef")
-            lat = gps_to_decimal(
-                lat_tag.values, lat_ref_tag.values if lat_ref_tag else "N"
-            )
-            lon_ref_tag = self.tags.get("EXIF GPS GPSLongitudeRef")
-            lon = gps_to_decimal(
-                lon_tag.values, lon_ref_tag.values if lon_ref_tag else "E"
-            )
-            if lon is not None and lat is not None:
-                return lon, lat
+            lat = gps_to_decimal(lat_tag.values)
+            if lat is None:
+                return None
+            ref = self._extract_alternative_fields(["GPS GPSLatitudeRef"], str)
+            if ref and ref.upper() == "S":
+                lat = -1 * lat
 
-        return None, None
+            return lon, lat
 
-    def extract_make(self) -> Optional[str]:
+        return None
+
+    def extract_make(self) -> T.Optional[str]:
         """
         Extract camera make
         """
-        fields = ["EXIF LensMake", "Image Make"]
-        make, _ = self._extract_alternative_fields(fields, default=None, field_type=str)
-        return make
+        return self._extract_alternative_fields(["EXIF LensMake", "Image Make"], str)
 
-    def extract_model(self) -> Optional[str]:
+    def extract_model(self) -> T.Optional[str]:
         """
         Extract camera model
         """
-        fields = ["EXIF LensModel", "Image Model"]
-        model, _ = self._extract_alternative_fields(
-            fields, default=None, field_type=str
-        )
-        return model
+        return self._extract_alternative_fields(["EXIF LensModel", "Image Model"], str)
 
     def extract_orientation(self) -> int:
         """
         Extract image orientation
         """
-        fields = ["Image Orientation"]
-        orientation, _ = self._extract_alternative_fields(
-            fields, default=1, field_type=int
-        )
+        orientation = self._extract_alternative_fields(["Image Orientation"], int)
+        if orientation is None:
+            orientation = 1
         if orientation not in range(1, 9):
             return 1
         return orientation
 
-    def _extract_subsec(self) -> str:
+    def _extract_alternative_fields(
+        self,
+        fields: T.Sequence[str],
+        field_type: T.Union[T.Type[float], T.Type[str], T.Type[int]],
+    ) -> T.Any:
         """
-        Extract microseconds
+        Extract a value for a list of ordered fields.
+        Return the value of the first existed field in the list
         """
-        fields = [
-            "Image SubSecTimeOriginal",
-            "EXIF SubSecTimeOriginal",
-            "Image SubSecTimeDigitized",
-            "EXIF SubSecTimeDigitized",
-            "Image SubSecTime",
-            "EXIF SubSecTime",
-        ]
-        sub_sec, _ = self._extract_alternative_fields(
-            fields, default="", field_type=str
-        )
-        return sub_sec
+        for field in fields:
+            tag = self.tags.get(field)
+            if tag is None:
+                continue
+            values = tag.values
+            if field_type is float:
+                if values:
+                    try:
+                        return eval_frac(values[0])
+                    except ZeroDivisionError:
+                        pass
+            elif field_type is str:
+                return str(values)
+            elif field_type is int:
+                if values:
+                    return int(values[0])
+            else:
+                raise RuntimeError(f"Invalid field type {field_type}")
+        return None

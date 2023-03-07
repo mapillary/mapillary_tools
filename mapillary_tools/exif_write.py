@@ -50,12 +50,35 @@ class ExifEdit:
             raise ValueError(f"orientation value {orientation} must be in range(1, 9)")
         self._ef["0th"][piexif.ImageIFD.Orientation] = orientation
 
-    def add_date_time_original(
-        self, date_time: datetime.datetime, time_format: str = "%Y:%m:%d %H:%M:%S.%f"
-    ) -> None:
+    def add_date_time_original(self, dt: datetime.datetime) -> None:
         """Add date time original."""
-        DateTimeOriginal = date_time.strftime(time_format)[:-3]
-        self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = DateTimeOriginal
+        self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = dt.strftime(
+            "%Y:%m:%d %H:%M:%S"
+        )
+        if dt.microsecond:
+            self._ef["Exif"][piexif.ExifIFD.SubSecTimeOriginal] = dt.strftime("%f")
+        if dt.tzinfo is not None:
+            # UTC offset in the form ±HHMM[SS[.ffffff]] (empty string if the object is naive).
+            # (empty), +0000, -0400, +1030, +063415, -030712.345216
+            offset_str = dt.strftime("%z")
+            if offset_str:
+                sign, hh, mm = offset_str[0], offset_str[1:3], offset_str[3:5]
+                assert sign in ["+", "-"], sign
+                assert hh.isdigit(), hh
+                assert mm.isdigit(), mm
+                self._ef["Exif"][piexif.ExifIFD.OffsetTimeOriginal] = f"{sign}{hh}:{mm}"
+
+    def add_gps_datetime(self, dt: datetime.datetime) -> None:
+        """Add GPSDateStamp and GPSTimeStamp."""
+        dt = dt.astimezone(datetime.timezone.utc)
+        # YYYY:MM:DD
+        self._ef["GPS"][piexif.GPSIFD.GPSDateStamp] = dt.strftime("%Y:%m:%d")
+        self._ef["GPS"][piexif.GPSIFD.GPSTimeStamp] = (
+            (dt.hour, 1),
+            (dt.minute, 1),
+            # num / den = (dt.second * 1e6 + dt.microsecond) / 1e6
+            (int(dt.second * 1e6 + dt.microsecond), int(1e6)),
+        )
 
     def add_lat_lon(self, lat: float, lon: float, precision: float = 1e7) -> None:
         """Add lat, lon to gps (lat, lon in float)."""

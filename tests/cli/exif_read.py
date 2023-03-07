@@ -1,17 +1,23 @@
+import argparse
 import pprint
-import sys
 from pathlib import Path
+
+from mapillary_tools import utils
 
 from mapillary_tools.exif_read import ExifRead
 
 
-if __name__ == "__main__":
-    for filename in sys.argv[1:]:
-        exif = ExifRead(Path(filename), details=True)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", nargs="+")
+    parsed_args = parser.parse_args()
+    for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
+        exif = ExifRead(image_path, details=True)
         pprint.pprint(
             {
+                "filename": image_path,
                 "capture_time": exif.extract_capture_time(),
-                "gps_time": exif.extract_gps_time(),
+                "gps_time": exif.extract_gps_datetime(),
                 "direction": exif.extract_direction(),
                 "model": exif.extract_model(),
                 "make": exif.extract_make(),
@@ -19,3 +25,7 @@ if __name__ == "__main__":
                 "altitude": exif.extract_altitude(),
             }
         )
+
+
+if __name__ == "__main__":
+    main()

@@ -174,12 +174,9 @@ def group_every(
 def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
     if isinstance(dt, (int, float)):
         return dt
-    if dt.tzinfo is None:
-        # assume UTC if no timezone is given
-        aware_dt = dt.replace(tzinfo=datetime.timezone.utc)
     else:
-        aware_dt = dt
-    return aware_dt.timestamp()
+        # if dt is naive, assume it's in local timezone
+        return dt.timestamp()
 
 
 def _interpolate_segment(start: Point, end: Point, t: float) -> Point:

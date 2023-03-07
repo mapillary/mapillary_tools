@@ -399,13 +399,18 @@ def validate_video_desc(desc: T.Any) -> None:
 def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
     if isinstance(time, (float, int)):
         dt = datetime.datetime.utcfromtimestamp(time)
+        # otherwise it will be assumed to be in local time
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
     else:
-        dt = time
+        # otherwise it will be assumed to be in local time
+        dt = time.astimezone(datetime.timezone.utc)
     return datetime.datetime.strftime(dt, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
 
 
 def map_capture_time_to_datetime(time: str) -> datetime.datetime:
-    return datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
+    dt = datetime.datetime.strptime(time, "%Y_%m_%d_%H_%M_%S_%f")
+    dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
 
 
 @T.overload
