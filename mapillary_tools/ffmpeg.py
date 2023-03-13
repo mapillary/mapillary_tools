@@ -3,6 +3,7 @@
 import datetime
 import json
 import logging
+from math import ceil
 import os
 import re
 import subprocess
@@ -231,54 +232,57 @@ class FFMPEG:
         # the maximum command line length for the CreateProcess function is 32767 characters
         # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
 
-        eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
+        eqs = [f"eq(n\\,{idx})" for idx in sorted(frame_indices)]
 
-        # https://github.com/mapillary/mapillary_tools/issues/503
-        if sys.platform in ["win32"]:
-            delete = False
-        else:
-            delete = True
+        for i in range(0, ceil(len(eqs) / 1000)):
+            partial_eqs = "+".join(eqs[i * 1000 : max(i * 1000 + 1000, len(eqs))])
 
-        with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
-            try:
-                select_file.write(f"select={eqs}")
-                select_file.flush()
-                # If not close, error "The process cannot access the file because it is being used by another process"
-                if not delete:
-                    select_file.close()
-                cmd: T.List[str] = [
-                    # global options should be specified first
-                    *["-hide_banner", "-nostdin"],
-                    # input 0
-                    *["-i", str(video_path)],
-                    # select stream
-                    *stream_selector,
-                    # filter videos
-                    *[
-                        *["-filter_script:v", select_file.name],
-                        # Each frame is passed with its timestamp from the demuxer to the muxer
-                        # vsync is deprecated but -fps_mode is not avaliable on some versions ;(
-                        *["-vsync", "0"],
-                        # *[f"-fps_mode:{stream_specifier}", "passthrough"],
-                        # Set the number of video frames to output
-                        *[f"-frames:{stream_specifier}", str(len(frame_indices))],
-                        *["-frame_pts", "1"],
-                    ],
-                    # video quality level (or the alias -q:v)
-                    *[f"-qscale:{stream_specifier}", "2"],
-                    # -q:v=1 is the best quality but larger image sizes
-                    # see https://stackoverflow.com/a/10234065
-                    # *["-qscale:v", "1", "-qmin", "1"],
-                    # output
-                    ouput_template,
-                ]
-                self._run_ffmpeg(cmd)
-            finally:
-                if not delete:
-                    try:
-                        os.remove(select_file.name)
-                    except FileNotFoundError:
-                        pass
+            # https://github.com/mapillary/mapillary_tools/issues/503
+            if sys.platform in ["win32"]:
+                delete = False
+            else:
+                delete = True
+
+            with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
+                try:
+                    select_file.write(f"select={partial_eqs}")
+                    select_file.flush()
+                    # If not close, error "The process cannot access the file because it is being used by another process"
+                    if not delete:
+                        select_file.close()
+                    cmd: T.List[str] = [
+                        # global options should be specified first
+                        *["-hide_banner", "-nostdin"],
+                        # input 0
+                        *["-i", str(video_path)],
+                        # select stream
+                        *stream_selector,
+                        # filter videos
+                        *[
+                            *["-filter_script:v", select_file.name],
+                            # Each frame is passed with its timestamp from the demuxer to the muxer
+                            # vsync is deprecated but -fps_mode is not avaliable on some versions ;(
+                            *["-vsync", "0"],
+                            # *[f"-fps_mode:{stream_specifier}", "passthrough"],
+                            # Set the number of video frames to output
+                            *[f"-frames:{stream_specifier}", str(len(frame_indices))],
+                            *["-frame_pts", "1"],
+                        ],
+                        # video quality level (or the alias -q:v)
+                        *[f"-qscale:{stream_specifier}", "2"],
+                        # -q:v=1 is the best quality but larger image sizes
+                        # see https://stackoverflow.com/a/10234065
+                        # *["-qscale:v", "1", "-qmin", "1"],
+                        # output
+                        ouput_template,
+                    ]
+                    self._run_ffmpeg(cmd)
+                finally:
+                    if not delete:
+                        try:
+                            os.remove(select_file.name)
+                        except FileNotFoundError:
+                            pass
 
 
 class Probe:
