@@ -169,10 +169,8 @@ class ExifRead:
         subsec = self._extract_alternative_fields([subsec_tag], field_type=str)
         # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
         # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
-        if subsec and subsec.startswith(" "):
-            make = self.extract_make()
-            if make and make.lower() == "gopro":
-                subsec = subsec.replace(" ", "0")
+        if subsec:
+            subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields([offset_tag], field_type=str)
         dt = parse_datetimestr(dtstr, subsec, offset)
         if dt is None:
