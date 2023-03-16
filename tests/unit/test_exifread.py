@@ -199,8 +199,8 @@ def test_read_and_write(setup_data: py.path.local):
         datetime.datetime.utcfromtimestamp(0.123456),
         datetime.datetime.utcfromtimestamp(0.0123),
     ]
-    dts = dts + [dt.astimezone() for dt in dts]
-    dts = dts + [dt.astimezone(datetime.timezone.utc) for dt in dts]
+    dts = dts[:] + [dt.astimezone() for dt in dts]
+    dts = dts[:] + [dt.astimezone(datetime.timezone.utc) for dt in dts]
 
     for dt in dts:
         edit = ExifEdit(image_path)
