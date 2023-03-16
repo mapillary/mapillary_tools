@@ -192,12 +192,14 @@ def test_read_and_write(setup_data: py.path.local):
     dts = [
         datetime.datetime.now(),
         datetime.datetime.utcnow(),
-        datetime.datetime.fromtimestamp(0),
-        datetime.datetime.utcfromtimestamp(0),
-        datetime.datetime.utcfromtimestamp(0),
-        datetime.datetime.utcfromtimestamp(0.0000001),
-        datetime.datetime.utcfromtimestamp(0.123456),
-        datetime.datetime.utcfromtimestamp(0.0123),
+        # 86400 is total seconds of one day (24 * 3600)
+        # to avoid "OSError: [Errno 22] Invalid argument" in WINDOWS https://bugs.python.org/issue36759
+        datetime.datetime.fromtimestamp(86400),
+        datetime.datetime.utcfromtimestamp(86400),
+        datetime.datetime.utcfromtimestamp(86400),
+        datetime.datetime.utcfromtimestamp(86400.0000001),
+        datetime.datetime.utcfromtimestamp(86400.123456),
+        datetime.datetime.utcfromtimestamp(86400.0123),
     ]
     dts = dts[:] + [dt.astimezone() for dt in dts]
     dts = dts[:] + [dt.astimezone(datetime.timezone.utc) for dt in dts]
