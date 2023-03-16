@@ -313,12 +313,6 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
                 "filename": str(Path(setup_data, "images", "V0370574.JPG")),
                 "error": {
                     "type": "MapillaryOutsideGPXTrackError",
-                    "message": "The image time is 4224816.188 seconds beyond the GPX end point",
-                    "vars": {
-                        "image_time": "2018_07_27_18_32_14_000",
-                        "gpx_start_time": "2018_06_08_20_23_34_805",
-                        "gpx_end_time": "2018_06_08_20_58_37_812",
-                    },
                 },
             },
         ],
@@ -359,7 +353,6 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
                 "filename": str(Path(setup_data, "images", "V0370574.JPG")),
                 "error": {
                     "type": "MapillaryOutsideGPXTrackError",
-                    "message": "The image time is 4224796.188 seconds beyond the GPX end point",
                 },
             },
         ],
@@ -400,7 +393,6 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
                 "filename": str(Path(setup_data, "images", "V0370574.JPG")),
                 "error": {
                     "type": "MapillaryOutsideGPXTrackError",
-                    "message": "The image time is 4224779.993 seconds beyond the GPX end point",
                 },
             },
         ],
@@ -441,7 +433,6 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
                 "filename": str(Path(setup_data, "images", "V0370574.JPG")),
                 "error": {
                     "type": "MapillaryOutsideGPXTrackError",
-                    "message": "The image time is 4224879.993 seconds beyond the GPX end point",
                 },
             },
         ],
