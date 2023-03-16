@@ -102,14 +102,15 @@ def parse_gpx(gpx_file: Path) -> T.List[Track]:
         for segment in track.segments:
             tracks.append([])
             for point in segment.points:
-                tracks[-1].append(
-                    geo.Point(
-                        time=geo.as_unix_time(point.time),
-                        lat=point.latitude,
-                        lon=point.longitude,
-                        alt=point.elevation,
-                        angle=None,
+                if point.time is not None:
+                    tracks[-1].append(
+                        geo.Point(
+                            time=geo.as_unix_time(point.time),
+                            lat=point.latitude,
+                            lon=point.longitude,
+                            alt=point.elevation,
+                            angle=None,
+                        )
                     )
-                )
 
     return tracks
