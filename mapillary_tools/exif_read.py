@@ -66,7 +66,7 @@ def parse_datetimestr(
     """
     Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
     It handles time "24:00:00" as "00:00:00" of the next day.
-    subsec "123" will be parsed as milliseconds 123 and added to the datetime object.
+    subsec "123" will be parsed as seconds 0.123 i.e microseconds 123000 and added to the datetime object.
     """
     dtstr = dtstr.strip()
     date_and_time = dtstr.split(maxsplit=2)
@@ -160,7 +160,7 @@ class ExifRead:
         dt = dt.replace(tzinfo=datetime.timezone.utc)
         return dt
 
-    def _extract_datetime(
+    def _extract_exif_datetime(
         self, dt_tag: str, subsec_tag: str, offset_tag: str
     ) -> T.Optional[datetime.datetime]:
         dtstr = self._extract_alternative_fields([dt_tag], field_type=str)
@@ -177,21 +177,11 @@ class ExifRead:
             return None
         return dt
 
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
-        """
-        Extract capture time from EXIF DateTime tags
-        """
-        try:
-            gps_datetime_dt = self.extract_gps_datetime()
-        except (ValueError, TypeError, ZeroDivisionError):
-            gps_datetime_dt = None
-        if gps_datetime_dt is not None:
-            return gps_datetime_dt
-
+    def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
         # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
         # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
         # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
-        dt = self._extract_datetime(
+        dt = self._extract_exif_datetime(
             "EXIF DateTimeOriginal",
             "EXIF SubSecTimeOriginal",
             "EXIF OffsetTimeOriginal",
@@ -202,7 +192,7 @@ class ExifRead:
         # EXIF DateTimeDigitized: 0x9004 CreateDate in ExifTool (called DateTimeDigitized by the EXIF spec.)
         # EXIF SubSecTimeDigitized: 0x9292 (fractional seconds for CreateDate)
         # EXIF OffsetTimeDigitized: 0x9012 (time zone for CreateDate)
-        dt = self._extract_datetime(
+        dt = self._extract_exif_datetime(
             "EXIF DateTimeDigitized",
             "EXIF SubSecTimeDigitized",
             "EXIF OffsetTimeDigitized",
@@ -213,11 +203,29 @@ class ExifRead:
         # Image DateTime: 0x0132 ModifyDate in ExifTool (called DateTime by the EXIF spec.)
         # EXIF SubSecTime: 0x9290 (fractional seconds for ModifyDate)
         # EXIF OffsetTime: 0x9010 (time zone for ModifyDate)
-        dt = self._extract_datetime(
+        dt = self._extract_exif_datetime(
             "Image DateTime", "EXIF SubSecTime", "EXIF OffsetTime"
         )
         if dt is not None:
             return dt
+
+        return None
+
+    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+        """
+        Extract capture time from EXIF DateTime tags
+        """
+        dt = self.extract_exif_datetime()
+        if dt is not None:
+            return dt
+
+        # The GPS datetime precision is usually 1 second, hence less preferred
+        try:
+            gps_dt = self.extract_gps_datetime()
+        except (ValueError, TypeError, ZeroDivisionError):
+            gps_dt = None
+        if gps_dt is not None:
+            return gps_dt
 
         return None
 
