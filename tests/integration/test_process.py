@@ -155,6 +155,44 @@ def test_time_with_offset(setup_data: py.path.local):
     )
 
 
+def test_process_images_with_overwrite_all_EXIF_tags(setup_data: py.path.local):
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    expected_descs = [
+        {
+            **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+            "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+            "MAPCaptureTime": "2018_06_08_20_24_12_500",
+        },
+        {
+            **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+            "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+            "MAPCaptureTime": "2018_06_08_20_32_30_500",
+        },
+        {
+            **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+            "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+            "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:16.500"),
+        },
+    ]
+    verify_descs(
+        expected_descs,
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    verify_descs(
+        expected_descs,
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+
+
 def test_angle_with_offset(setup_data: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_angle=2.5",
@@ -167,7 +205,6 @@ def test_angle_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_24_10_000",
                 "MAPCompassHeading": {
                     "TrueHeading": 270.89 + 2.5,
                     "MagneticHeading": 270.89 + 2.5,
@@ -176,7 +213,6 @@ def test_angle_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_32_28_000",
                 "MAPCompassHeading": {
                     "TrueHeading": 271.27 + 2.5,
                     "MagneticHeading": 271.27 + 2.5,
@@ -294,7 +330,6 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
                 "MAPLatitude": 1.1738588,
                 "MAPLongitude": 0.01,
-                "MAPCaptureTime": "2018_06_08_20_24_10_000",
                 "MAPAltitude": 1.577,
                 "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
             },
@@ -303,7 +338,6 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
                 "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
                 "MAPLatitude": 2.02,
                 "MAPLongitude": 1.75561,
-                "MAPCaptureTime": "2018_06_08_20_32_28_000",
                 "MAPAltitude": 3.746,
                 "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
             },
