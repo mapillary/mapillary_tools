@@ -43,7 +43,8 @@ def duplication_check(
     duplicate_distance: float,
     duplicate_angle: float,
 ) -> T.Tuple[PointSequence, T.List[types.ErrorMetadata]]:
-    dedups, dups = [], []
+    dedups: PointSequence = []
+    dups: T.List[types.ErrorMetadata] = []
 
     sequence_iter = iter(sequence)
     prev = next(sequence_iter)
