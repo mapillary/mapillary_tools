@@ -40,52 +40,53 @@ def cut_sequence_by_time_distance(
     return sequences
 
 
-def find_duplicates(
-    sequence: PointSequence,
-    duplicate_distance: float,
-    duplicate_angle: float,
-) -> T.List[int]:
-    if not sequence:
-        return []
-
-    duplicates = []
-    sequence_iter = iter(sequence)
-    prev = next(sequence_iter)
-    for idx, cur in enumerate(sequence_iter):
-        distance = geo.gps_distance(
-            (prev.lat, prev.lon),
-            (cur.lat, cur.lon),
-        )
-        distance_duplicated = distance <= duplicate_distance
-
-        if prev.angle is not None and cur.angle is not None:
-            bearing_delta = geo.diff_bearing(prev.angle, cur.angle)
-            angle_duplicated = bearing_delta <= duplicate_angle
-        else:
-            angle_duplicated = False
-
-        if distance_duplicated and angle_duplicated:
-            duplicates.append(idx + 1)
-            continue
-
-        prev = cur
-
-    return duplicates
-
-
 def duplication_check(
     sequence: PointSequence,
     duplicate_distance: float,
     duplicate_angle: float,
-) -> T.Tuple[PointSequence, PointSequence]:
-    dup_indices = find_duplicates(
-        sequence,
-        duplicate_distance=duplicate_distance,
-        duplicate_angle=duplicate_angle,
-    )
-    dup_set = set(dup_indices)
-    dedups = [image for idx, image in enumerate(sequence) if idx not in dup_set]
-    dups = [image for idx, image in enumerate(sequence) if idx in dup_set]
+) -> T.Tuple[PointSequence, T.List[types.ErrorMetadata]]:
+    dedups: PointSequence = []
+    dups: T.List[types.ErrorMetadata] = []
+
+    sequence_iter = iter(sequence)
+    prev = next(sequence_iter)
+    if prev is None:
+        return dedups, dups
+    dedups.append(prev)
+
+    for cur in sequence_iter:
+        # invariant: prev is processed
+        distance = geo.gps_distance(
+            (prev.lat, prev.lon),
+            (cur.lat, cur.lon),
+        )
+
+        if prev.angle is not None and cur.angle is not None:
+            angle_diff = geo.diff_bearing(prev.angle, cur.angle)
+        else:
+            angle_diff = None
+
+        if distance <= duplicate_distance and (
+            angle_diff is not None and angle_diff <= duplicate_angle
+        ):
+            dups.append(
+                types.describe_error_metadata(
+                    MapillaryDuplicationError(
+                        f"Duplicate of its previous image in terms of distance <= {duplicate_distance} and angle <= {duplicate_angle}",
+                        types.as_desc(cur),
+                        distance=distance,
+                        angle_diff=angle_diff,
+                    ),
+                    cur.filename,
+                    filetype=types.FileType.IMAGE,
+                ),
+            )
+            # prev does not change
+        else:
+            dedups.append(cur)
+            prev = cur
+        # invariant: cur is processed
+
     return dedups, dups
 
 
@@ -207,14 +208,7 @@ def process_sequence_properties(
             duplicate_angle=duplicate_angle,
         )
         assert len(sequence) == len(dedups) + len(dups)
-        for dup in dups:
-            error_metadatas.append(
-                types.describe_error_metadata(
-                    MapillaryDuplicationError("duplicated", types.as_desc(dup)),
-                    dup.filename,
-                    filetype=types.FileType.IMAGE,
-                ),
-            )
+        error_metadatas.extend(dups)
 
         # interpolate angles
         if interpolate_directions:

@@ -67,6 +67,14 @@ class MapillaryInvalidBlackVueVideoError(
 
 
 class MapillaryDuplicationError(_MapillaryDescriptionError):
-    def __init__(self, message: str, desc: T.Mapping) -> None:
+    def __init__(
+        self,
+        message: str,
+        desc: T.Mapping,
+        distance: float,
+        angle_diff: T.Optional[float],
+    ) -> None:
         super().__init__(message)
         self.desc = desc
+        self.distance = distance
+        self.angle_diff = angle_diff

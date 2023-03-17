@@ -21,7 +21,7 @@ def test_all():
         if exc is exceptions.MapillaryOutsideGPXTrackError:
             e = exc("hello", "world", "hey", "aa")
         elif exc is exceptions.MapillaryDuplicationError:
-            e = exc("hello", {})
+            e = exc("hello", {}, 1, float("inf"))
         else:
             e = exc("hello")
         # should not raise
