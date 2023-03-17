@@ -69,7 +69,7 @@ def duplication_check(
             dups.append(
                 types.describe_error_metadata(
                     MapillaryDuplicationError(
-                        f"Duplicate of the previous image in terms of distance <= {duplicate_distance} and angle <= {duplicate_angle}",
+                        f"Duplicate of its previous image in terms of distance <= {duplicate_distance} and angle <= {duplicate_angle}",
                         types.as_desc(cur),
                         distance=distance,
                         angle_diff=angle_diff,
