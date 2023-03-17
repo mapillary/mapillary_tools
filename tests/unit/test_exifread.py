@@ -221,6 +221,7 @@ def test_read_and_write(setup_data: py.path.local):
         edit.write()
         read = ExifRead(image_path)
         actual = read.extract_capture_time()
+        assert actual
         assert geo.as_unix_time(dt) == geo.as_unix_time(actual), (dt, actual)
 
     for dt in dts:
@@ -228,4 +229,6 @@ def test_read_and_write(setup_data: py.path.local):
         edit.add_gps_datetime(dt)
         edit.write()
         read = ExifRead(image_path)
-        assert geo.as_unix_time(dt) == geo.as_unix_time(read.extract_gps_datetime())
+        actual = read.extract_gps_datetime()
+        assert actual
+        assert geo.as_unix_time(dt) == geo.as_unix_time(actual)

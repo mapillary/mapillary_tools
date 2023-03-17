@@ -1,7 +1,6 @@
+import itertools
 import math
 import typing as T
-import itertools
-
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
@@ -134,11 +133,9 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
     """
 
     gidx = 0
-    for _, group in itertools.groupby(
-        sequence, key=lambda point: int(point.time * 1e3)
-    ):
+    for _, g in itertools.groupby(sequence, key=lambda point: int(point.time * 1e3)):
         # invariant gidx is the idx of g[0] in sequence
-        group = list(group)
+        group = list(g)
         if len(group) <= 1:
             gidx += len(group)
             continue
