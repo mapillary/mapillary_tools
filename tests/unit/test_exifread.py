@@ -6,6 +6,7 @@ from pathlib import Path
 import py.path
 
 import pytest
+from mapillary_tools import geo
 
 from mapillary_tools.exif_read import ExifRead, parse_datetimestr
 from mapillary_tools.exif_write import ExifEdit
@@ -59,9 +60,19 @@ def read_orientation_general(test_obj, filename: Path):
 def read_date_time_original_general(test_obj, filename: Path):
     exif_data_ExifRead = ExifRead(filename)
     capture_time_ExifRead = exif_data_ExifRead.extract_capture_time()
-    assert capture_time_ExifRead is not None
-    capture_time = capture_time_ExifRead.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3]
-    test_obj.assertEqual("2011:07:15 09:14:39.000", capture_time)
+    # exiftool -time:all tests/unit/data/test_exif.jpg
+    # Date/Time Original              : 2018:06:26 17:46:33.847
+    # Create Date                     : 2011:07:15 11:14:39
+    # Sub Sec Time                    : 000005
+    # GPS Time Stamp                  : 09:14:39
+    # GPS Date Stamp                  : 2011:07:15
+    # GPS Date/Time                   : 2011:07:15 09:14:39Z
+    assert (
+        datetime.datetime.fromisoformat("2018-06-26T17:46:33.847000")
+        == capture_time_ExifRead
+    )
+    # note it is not: datetime.datetime.fromisoformat("2018-06-26T17:46:33.000005") == capture_time_ExifRead
+    # because "Sub Sec Time" is not subsec for "Date/Time Original"
 
 
 def read_lat_lon_general(test_obj, filename: Path):
@@ -196,7 +207,6 @@ def test_read_and_write(setup_data: py.path.local):
         # to avoid "OSError: [Errno 22] Invalid argument" in WINDOWS https://bugs.python.org/issue36759
         datetime.datetime.fromtimestamp(86400),
         datetime.datetime.utcfromtimestamp(86400),
-        datetime.datetime.utcfromtimestamp(86400),
         datetime.datetime.utcfromtimestamp(86400.0000001),
         datetime.datetime.utcfromtimestamp(86400.123456),
         datetime.datetime.utcfromtimestamp(86400.0123),
@@ -211,12 +221,11 @@ def test_read_and_write(setup_data: py.path.local):
         edit.write()
         read = ExifRead(image_path)
         actual = read.extract_capture_time()
-        assert dt.astimezone(datetime.timezone.utc) == actual
+        assert geo.as_unix_time(dt) == geo.as_unix_time(actual), (dt, actual)
 
     for dt in dts:
         edit = ExifEdit(image_path)
         edit.add_gps_datetime(dt)
         edit.write()
         read = ExifRead(image_path)
-        actual = read.extract_gps_datetime()
-        assert dt.astimezone(datetime.timezone.utc) == actual
+        assert geo.as_unix_time(dt) == geo.as_unix_time(read.extract_gps_datetime())

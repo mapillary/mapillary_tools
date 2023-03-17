@@ -16,13 +16,14 @@ def main():
         pprint.pprint(
             {
                 "filename": image_path,
-                "capture_time": exif.extract_capture_time(),
-                "gps_time": exif.extract_gps_datetime(),
-                "direction": exif.extract_direction(),
-                "model": exif.extract_model(),
-                "make": exif.extract_make(),
-                "lon_lat": exif.extract_lon_lat(),
                 "altitude": exif.extract_altitude(),
+                "capture_time": exif.extract_capture_time(),
+                "direction": exif.extract_direction(),
+                "exif_time": exif.extract_exif_datetime(),
+                "gps_time": exif.extract_gps_datetime(),
+                "lon_lat": exif.extract_lon_lat(),
+                "make": exif.extract_make(),
+                "model": exif.extract_model(),
             }
         )
 

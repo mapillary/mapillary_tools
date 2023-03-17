@@ -28,7 +28,7 @@ _DEFAULT_EXPECTED_DESCS = {
         "filetype": "image",
         "MAPLatitude": 45.5169031,
         "MAPLongitude": -122.572765,
-        "MAPCaptureTime": "2018_06_08_20_24_11_000",
+        "MAPCaptureTime": "2018_06_08_20_24_10_000",
         "MAPAltitude": 70.3,
         "MAPCompassHeading": {"TrueHeading": 270.89, "MagneticHeading": 270.89},
         "MAPDeviceMake": "SONY",
@@ -86,12 +86,10 @@ def test_process_images_with_defaults(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_24_11_000",
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_32_28_000",
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
@@ -114,7 +112,7 @@ def test_time_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_24_13_500",
+                "MAPCaptureTime": "2018_06_08_20_24_12_500",
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
@@ -140,7 +138,7 @@ def test_time_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_24_10_000",
+                "MAPCaptureTime": "2018_06_08_20_24_09_000",
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
@@ -169,7 +167,7 @@ def test_angle_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPCaptureTime": "2018_06_08_20_24_11_000",
+                "MAPCaptureTime": "2018_06_08_20_24_10_000",
                 "MAPCompassHeading": {
                     "TrueHeading": 270.89 + 2.5,
                     "MagneticHeading": 270.89 + 2.5,
@@ -294,10 +292,10 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPLatitude": 1.2066435,
+                "MAPLatitude": 1.1738588,
                 "MAPLongitude": 0.01,
-                "MAPCaptureTime": "2018_06_08_20_24_11_000",
-                "MAPAltitude": 1.593,
+                "MAPCaptureTime": "2018_06_08_20_24_10_000",
+                "MAPAltitude": 1.577,
                 "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
             },
             {
@@ -334,10 +332,10 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
-                "MAPLatitude": 0.5509488,
+                "MAPLatitude": 0.5181641,
                 "MAPLongitude": 0.01,
-                "MAPCaptureTime": "2018_06_08_20_23_51_000",
-                "MAPAltitude": 1.265,
+                "MAPCaptureTime": "2018_06_08_20_23_50_000",
+                "MAPAltitude": 1.249,
                 "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
             },
             {
@@ -384,9 +382,9 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
                 "MAPLatitude": 2.02,
-                "MAPLongitude": 1.6218032,
-                "MAPCaptureTime": "2018_06_08_20_31_51_805",
-                "MAPAltitude": 3.612,
+                "MAPLongitude": 1.6255001,
+                "MAPCaptureTime": "2018_06_08_20_31_52_805",
+                "MAPAltitude": 3.616,
                 "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
             },
             {
@@ -424,9 +422,9 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
                 "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
                 "MAPLatitude": 2.02,
-                "MAPLongitude": 1.9914863,
-                "MAPCaptureTime": "2018_06_08_20_33_31_805",
-                "MAPAltitude": 3.981,
+                "MAPLongitude": 1.9951831,
+                "MAPCaptureTime": "2018_06_08_20_33_32_805",
+                "MAPAltitude": 3.985,
                 "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
             },
             {

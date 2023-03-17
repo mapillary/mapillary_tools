@@ -78,6 +78,7 @@ def parse_datetimestr(
         return None
     time_delta = parse_timestr(time)
     if time_delta is None:
+        # unable to parse HH:MM:SS
         return None
     d = d + time_delta
     if subsec is not None:

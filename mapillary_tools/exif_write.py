@@ -55,8 +55,7 @@ class ExifEdit:
         self._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = dt.strftime(
             "%Y:%m:%d %H:%M:%S"
         )
-        if dt.microsecond:
-            self._ef["Exif"][piexif.ExifIFD.SubSecTimeOriginal] = dt.strftime("%f")
+        self._ef["Exif"][piexif.ExifIFD.SubSecTimeOriginal] = dt.strftime("%f")
         if dt.tzinfo is not None:
             # UTC offset in the form ±HHMM[SS[.ffffff]] (empty string if the object is naive).
             # (empty), +0000, -0400, +1030, +063415, -030712.345216
@@ -67,6 +66,12 @@ class ExifEdit:
                 assert hh.isdigit(), hh
                 assert mm.isdigit(), mm
                 self._ef["Exif"][piexif.ExifIFD.OffsetTimeOriginal] = f"{sign}{hh}:{mm}"
+            else:
+                if piexif.ExifIFD.OffsetTimeOriginal in self._ef["Exif"]:
+                    del self._ef["Exif"][piexif.ExifIFD.OffsetTimeOriginal]
+        else:
+            if piexif.ExifIFD.OffsetTimeOriginal in self._ef["Exif"]:
+                del self._ef["Exif"][piexif.ExifIFD.OffsetTimeOriginal]
 
     def add_gps_datetime(self, dt: datetime.datetime) -> None:
         """Add GPSDateStamp and GPSTimeStamp."""
