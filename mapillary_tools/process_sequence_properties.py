@@ -1,4 +1,7 @@
+import math
 import typing as T
+import itertools
+
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError
@@ -121,6 +124,44 @@ def _group_sort_images_by_folder(
     return sequences
 
 
+def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
+    """
+    Update the timestamps make sure they are unique and sorted
+    in the same order by interpolating subseconds
+    Examples:
+    - Input: 1, 1, 1, 1, 1, 2
+    - Output: 1, 1.2, 1.4, 1.6, 1.8, 2
+    """
+
+    gidx = 0
+    for _, group in itertools.groupby(
+        sequence, key=lambda point: int(point.time * 1e3)
+    ):
+        # invariant gidx is the idx of g[0] in sequence
+        group = list(group)
+        if len(group) <= 1:
+            gidx += len(group)
+            continue
+
+        t = sequence[gidx].time
+        nt = min(
+            sequence[gidx + len(group)].time
+            if gidx + len(group) < len(sequence)
+            else math.floor(t + 1.0),
+            math.floor(t + 1.0),
+        )
+        assert t <= nt, f"expect sorted but got {t} > {nt}"
+        interval = (nt - t) / len(group)
+        for idx, point in enumerate(group):
+            point.time = group[0].time + idx * interval
+        gidx = gidx + len(group)
+
+    for cur, nxt in geo.pairwise(sequence):
+        assert (
+            cur.time <= nxt.time
+        ), f"sequence must be sorted but got {cur.time} > {nxt.time}"
+
+
 def process_sequence_properties(
     metadatas: T.List[types.MetadataOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
@@ -186,6 +227,9 @@ def process_sequence_properties(
 
         # cut sequence per MAX_SEQUENCE_LENGTH images
         cut = cut_sequence_by_max_images(dedups, constants.MAX_SEQUENCE_LENGTH)
+
+        for c in cut:
+            _interpolate_subsecs_for_sorting(c)
 
         # assign sequence UUIDs
         for c in cut:

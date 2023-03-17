@@ -96,6 +96,53 @@ def test_find_sequences_by_folder():
     ]
 
 
+def test_sequences_sorted():
+    sequence: T.List[types.ImageMetadata] = [
+        # s1
+        _make_image_metadata(Path("./c.jpg"), 1, 1, 1),
+        _make_image_metadata(Path("a.jpg"), 1.00001, 1.00001, 2),
+        _make_image_metadata(Path("b.jpg"), 1.00002, 1.00002, 2),
+        _make_image_metadata(Path("c.jpg"), 1.00002, 1.00002, 2.1),
+        _make_image_metadata(Path("d.jpg"), 1.00002, 1.00002, 2.1),
+        _make_image_metadata(Path("e.jpg"), 1.00002, 1.00002, 2.2),
+        _make_image_metadata(Path("f.jpg"), 1.00002, 1.00002, 2.25003),
+        _make_image_metadata(Path("g.jpg"), 1.00002, 1.00002, 2.25009),
+        _make_image_metadata(Path("x.jpg"), 1.00002, 1.00002, 2.26),
+        _make_image_metadata(Path("y.jpg"), 1.00002, 1.00002, 4),
+        _make_image_metadata(Path("z.jpg"), 1.00002, 1.00002, 4.399),
+        _make_image_metadata(Path("ha.jpg"), 1.00002, 1.00002, 4.399999),
+        _make_image_metadata(Path("ha.jpg"), 1.00002, 1.00002, 4.399999),
+        _make_image_metadata(Path("ha.jpg"), 1.00002, 1.00002, 4.4),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=100,
+        cutoff_time=10,
+        interpolate_directions=False,
+        duplicate_distance=0,
+        duplicate_angle=0,
+    )
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    expected = [
+        1,
+        2.0,
+        2.05,
+        2.1,
+        2.15,
+        2.2,
+        2.25003,
+        2.255015,
+        2.26,
+        4,
+        4.399,
+        4.399333333333334,
+        4.399666666666667,
+        4.4,
+    ]
+    for x, y in zip(expected, [x.time for x in image_metadatas]):
+        assert abs(x - y) < 0.00001, (x, y)
+
+
 def test_cut_sequences():
     sequence: T.List[types.ImageMetadata] = [
         # s1
