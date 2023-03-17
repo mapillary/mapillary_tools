@@ -22,6 +22,17 @@ UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 EXPECTED_DESCS = {
     "image": {
+        "DSC00001.JPG": {
+            "MAPAltitude": 70.3,
+            "MAPCaptureTime": "2018_06_08_20_24_10_000",
+            "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
+            "MAPDeviceMake": "SONY",
+            "MAPDeviceModel": "HDR-AS300",
+            "MAPLatitude": 45.5169031,
+            "MAPLongitude": -122.572765,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
         "DSC00497.JPG": {
             "MAPAltitude": 77.5,
             "MAPCaptureTime": "2018_06_08_20_32_28_000",
@@ -30,17 +41,6 @@ EXPECTED_DESCS = {
             "MAPDeviceModel": "HDR-AS300",
             "MAPLatitude": 45.5107231,
             "MAPLongitude": -122.5760514,
-            "MAPOrientation": 1,
-            "filetype": "image",
-        },
-        "DSC00001.JPG": {
-            "MAPAltitude": 70.3,
-            "MAPCaptureTime": "2018_06_08_20_24_11_000",
-            "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
-            "MAPDeviceMake": "SONY",
-            "MAPDeviceModel": "HDR-AS300",
-            "MAPLatitude": 45.5169031,
-            "MAPLongitude": -122.572765,
             "MAPOrientation": 1,
             "filetype": "image",
         },
