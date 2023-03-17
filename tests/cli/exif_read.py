@@ -1,21 +1,32 @@
+import argparse
 import pprint
-import sys
 from pathlib import Path
+
+from mapillary_tools import utils
 
 from mapillary_tools.exif_read import ExifRead
 
 
-if __name__ == "__main__":
-    for filename in sys.argv[1:]:
-        exif = ExifRead(Path(filename), details=True)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", nargs="+")
+    parsed_args = parser.parse_args()
+    for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
+        exif = ExifRead(image_path, details=True)
         pprint.pprint(
             {
-                "capture_time": exif.extract_capture_time(),
-                "gps_time": exif.extract_gps_time(),
-                "direction": exif.extract_direction(),
-                "model": exif.extract_model(),
-                "make": exif.extract_make(),
-                "lon_lat": exif.extract_lon_lat(),
+                "filename": image_path,
                 "altitude": exif.extract_altitude(),
+                "capture_time": exif.extract_capture_time(),
+                "direction": exif.extract_direction(),
+                "exif_time": exif.extract_exif_datetime(),
+                "gps_time": exif.extract_gps_datetime(),
+                "lon_lat": exif.extract_lon_lat(),
+                "make": exif.extract_make(),
+                "model": exif.extract_model(),
             }
         )
+
+
+if __name__ == "__main__":
+    main()

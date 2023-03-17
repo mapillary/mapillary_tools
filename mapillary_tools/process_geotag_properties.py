@@ -354,13 +354,15 @@ def _overwrite_exif_tags(
         unit="images",
         disable=LOG.getEffectiveLevel() <= logging.DEBUG,
     ):
+        dt = datetime.datetime.utcfromtimestamp(metadata.time)
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+
         try:
             image_exif = exif_write.ExifEdit(metadata.filename)
 
             if all_tags or time_tag:
-                image_exif.add_date_time_original(
-                    datetime.datetime.utcfromtimestamp(metadata.time)
-                )
+                image_exif.add_date_time_original(dt)
+                image_exif.add_gps_datetime(dt)
 
             if all_tags or gps_tag:
                 image_exif.add_lat_lon(metadata.lat, metadata.lon)

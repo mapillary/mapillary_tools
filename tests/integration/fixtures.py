@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import typing as T
 import zipfile
+from pathlib import Path
 
 import exifread
 import jsonschema
@@ -66,9 +67,13 @@ def ffmpeg_installed():
     ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
     ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
-        subprocess.run([ffmpeg_path, "-version"])
+        subprocess.run(
+            [ffmpeg_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+        )
         # In Windows, ffmpeg is installed but ffprobe is not?
-        subprocess.run([ffprobe_path, "-version"])
+        subprocess.run(
+            [ffprobe_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+        )
     except FileNotFoundError:
         return False
     return True
@@ -133,3 +138,62 @@ def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
         # instead, we return the mapillary_image_description.json
         with open(os.path.join(tempdir, "mapillary_image_description.json")) as fp:
             return json.load(fp)
+
+
+def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]):
+    if isinstance(actual, Path):
+        with actual.open("r") as fp:
+            actual = json.load(fp)
+    assert isinstance(actual, list), actual
+
+    expected_map = {desc["filename"]: desc for desc in expected}
+    assert len(expected) == len(expected_map), expected
+
+    actual_map = {desc["filename"]: desc for desc in actual}
+    assert len(actual) == len(actual_map), actual
+
+    for filename, expected_desc in expected_map.items():
+        actual_desc = actual_map.get(filename)
+        assert actual_desc is not None, expected_desc
+        if "error" in expected_desc:
+            assert expected_desc["error"]["type"] == actual_desc["error"]["type"]
+            if "message" in expected_desc["error"]:
+                assert (
+                    expected_desc["error"]["message"] == actual_desc["error"]["message"]
+                )
+        if "filetype" in expected_desc:
+            assert expected_desc["filetype"] == actual_desc.get("filetype"), actual_desc
+
+        if "MAPCompassHeading" in expected_desc:
+            e = expected_desc["MAPCompassHeading"]
+            assert "MAPCompassHeading" in actual_desc, actual_desc
+            a = actual_desc["MAPCompassHeading"]
+            assert abs(e["TrueHeading"] - a["TrueHeading"]) < 0.00001
+            assert abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.00001
+
+        if "MAPCaptureTime" in expected_desc:
+            assert (
+                expected_desc["MAPCaptureTime"] == actual_desc["MAPCaptureTime"]
+            ), f'expect {expected_desc["MAPCaptureTime"]} but got {actual_desc["MAPCaptureTime"]} in {filename}'
+
+        if "MAPLongitude" in expected_desc:
+            assert (
+                abs(expected_desc["MAPLongitude"] - actual_desc["MAPLongitude"])
+                < 0.00001
+            ), f'expect {expected_desc["MAPLongitude"]} but got {actual_desc["MAPLongitude"]} in {filename}'
+
+        if "MAPLatitude" in expected_desc:
+            assert (
+                abs(expected_desc["MAPLatitude"] - actual_desc["MAPLatitude"]) < 0.00001
+            ), f'expect {expected_desc["MAPLatitude"]} but got {actual_desc["MAPLatitude"]} in {filename}'
+
+        if "MAPAltitude" in expected_desc:
+            assert (
+                abs(expected_desc["MAPAltitude"] - actual_desc["MAPAltitude"]) < 0.001
+            ), f'expect {expected_desc["MAPAltitude"]} but got {actual_desc["MAPAltitude"]} in {filename}'
+
+        if "MAPDeviceMake" in expected_desc:
+            assert expected_desc["MAPDeviceMake"] == actual_desc["MAPDeviceMake"]
+
+        if "MAPDeviceModel" in expected_desc:
+            assert expected_desc["MAPDeviceModel"] == actual_desc["MAPDeviceModel"]

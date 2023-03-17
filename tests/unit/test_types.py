@@ -1,3 +1,4 @@
+import datetime
 from pathlib import Path
 
 from mapillary_tools import geo, types
@@ -51,3 +52,51 @@ def test_desc_video():
         types.validate_video_desc(desc)
         actual = types._from_video_desc(desc)
         assert metadata == actual
+
+
+def test_datetimes():
+    ct = types.datetime_to_map_capture_time(0)
+    assert ct == "1970_01_01_00_00_00_000"
+    ct = types.datetime_to_map_capture_time(0.123456)
+    assert ct == "1970_01_01_00_00_00_123"
+    ct = types.datetime_to_map_capture_time(0.000456)
+    assert ct == "1970_01_01_00_00_00_000"
+    dt = types.map_capture_time_to_datetime(ct)
+    assert dt == datetime.datetime(1970, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
+    x = datetime.datetime.fromisoformat("2020-01-01T00:00:12.123567+08:00")
+    assert "2019_12_31_16_00_12_123" == types.datetime_to_map_capture_time(x)
+    assert (
+        abs(
+            geo.as_unix_time(
+                types.map_capture_time_to_datetime(
+                    types.datetime_to_map_capture_time(x)
+                )
+            )
+            - geo.as_unix_time(x)
+        )
+        < 0.001
+    )
+    x = datetime.datetime.now()
+    assert (
+        abs(
+            geo.as_unix_time(
+                types.map_capture_time_to_datetime(
+                    types.datetime_to_map_capture_time(x)
+                )
+            )
+            - geo.as_unix_time(x)
+        )
+        < 0.001
+    )
+    x = x.astimezone()
+    assert (
+        abs(
+            geo.as_unix_time(
+                types.map_capture_time_to_datetime(
+                    types.datetime_to_map_capture_time(x)
+                )
+            )
+            - geo.as_unix_time(x)
+        )
+        < 0.001
+    )

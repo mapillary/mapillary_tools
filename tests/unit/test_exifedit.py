@@ -9,8 +9,6 @@ import py.path
 from mapillary_tools.exif_write import ExifEdit
 from PIL import ExifTags, Image, TiffImagePlugin
 
-"""Initialize all the neccessary data"""
-
 this_file = Path(__file__)
 this_file_dir = this_file.parent
 data_dir = this_file_dir.joinpath("data")
@@ -87,9 +85,15 @@ def add_date_time_original_general(test_obj, filename: Path):
 
     exif_data = load_exif()
     test_obj.assertEqual(
-        test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
+        test_datetime.strftime("%Y:%m:%d %H:%M:%S"),
         exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
             EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
+        ],
+    )
+    test_obj.assertEqual(
+        "249000",
+        exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
+            EXIF_PRIMARY_TAGS_DICT["SubsecTimeOriginal"]
         ],
     )
 
@@ -160,7 +164,7 @@ def add_repeatedly_time_original_general(test_obj, filename):
 
     exif_data = load_exif()
     test_obj.assertEqual(
-        test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
+        test_datetime.strftime("%Y:%m:%d %H:%M:%S"),
         exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
             EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
         ],
@@ -229,7 +233,7 @@ class ExifEditTests(unittest.TestCase):
 
         exif_data = load_exif(NON_EXISTING_FILE)
         self.assertEqual(
-            test_datetime.strftime("%Y:%m:%d %H:%M:%S.%f")[:-3],
+            test_datetime.strftime("%Y:%m:%d %H:%M:%S"),
             exif_data.get_ifd(EXIF_PRIMARY_TAGS_DICT["ExifOffset"])[
                 EXIF_PRIMARY_TAGS_DICT["DateTimeOriginal"]
             ],

@@ -344,14 +344,11 @@ def extract_stream_start_time(stream: Stream) -> T.Optional[datetime.datetime]:
     if creation_time_str is None:
         return None
     try:
-        creation_time = datetime.datetime.strptime(
-            creation_time_str, "%Y-%m-%d %H:%M:%S"
-        )
+        creation_time = datetime.datetime.fromisoformat(creation_time_str)
     except ValueError:
         creation_time = datetime.datetime.strptime(
-            creation_time_str, "%Y-%m-%dT%H:%M:%S.000000Z"
+            creation_time_str, "%Y-%m-%dT%H:%M:%S.%f%z"
         )
-
     return creation_time - datetime.timedelta(seconds=duration)
 
 

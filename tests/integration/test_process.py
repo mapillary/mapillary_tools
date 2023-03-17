@@ -1,5 +1,5 @@
+import datetime
 import json
-import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,10 +16,49 @@ from .fixtures import (
     setup_upload,
     USERNAME,
     validate_and_extract_zip,
+    verify_descs,
 )
 
 
 PROCESS_FLAGS = "--add_import_date"
+
+_DEFAULT_EXPECTED_DESCS = {
+    "DSC00001.JPG": {
+        "filename": "DSC00001.JPG",
+        "filetype": "image",
+        "MAPLatitude": 45.5169031,
+        "MAPLongitude": -122.572765,
+        "MAPCaptureTime": "2018_06_08_20_24_10_000",
+        "MAPAltitude": 70.3,
+        "MAPCompassHeading": {"TrueHeading": 270.89, "MagneticHeading": 270.89},
+        "MAPDeviceMake": "SONY",
+        "MAPDeviceModel": "HDR-AS300",
+        "MAPOrientation": 1,
+    },
+    "DSC00497.JPG": {
+        "filename": "DSC00497.JPG",
+        "filetype": "image",
+        "MAPLatitude": 45.5107231,
+        "MAPLongitude": -122.5760514,
+        "MAPCaptureTime": "2018_06_08_20_32_28_000",
+        "MAPAltitude": 77.5,
+        "MAPCompassHeading": {"TrueHeading": 271.27, "MagneticHeading": 271.27},
+        "MAPDeviceMake": "SONY",
+        "MAPDeviceModel": "HDR-AS300",
+        "MAPOrientation": 1,
+    },
+    "V0370574.JPG": {
+        "filename": "V0370574.JPG",
+        "filetype": "image",
+        "MAPLatitude": -1.0169444,
+        "MAPLongitude": -1.0169444,
+        "MAPCaptureTime": "2018_07_27_11_32_14_000",
+        "MAPCompassHeading": {"TrueHeading": 359.0, "MagneticHeading": 359.0},
+        "MAPDeviceMake": "Garmin",
+        "MAPDeviceModel": "VIRB 360",
+        "MAPOrientation": 1,
+    },
+}
 
 
 def test_basic():
@@ -28,18 +67,169 @@ def test_basic():
         assert x.returncode == 0, x.stderr
 
 
-def test_process(setup_data: py.path.local):
+def _local_to_utc(ct: str):
+    return (
+        datetime.datetime.fromisoformat(ct)
+        .astimezone(datetime.timezone.utc)
+        .strftime("%Y_%m_%d_%H_%M_%S_%f")[:-3]
+    )
+
+
+def test_process_images_with_defaults(setup_data: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    desc_path = os.path.join(setup_data, "mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    for desc in descs:
-        assert "filename" in desc
-        assert os.path.isfile(os.path.join(setup_data, desc["filename"]))
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:14"),
+            },
+        ],
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+
+
+def test_time_with_offset(setup_data: py.path.local):
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=2.5",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPCaptureTime": "2018_06_08_20_24_12_500",
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPCaptureTime": "2018_06_08_20_32_30_500",
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:16.500"),
+            },
+        ],
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=-1.0",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPCaptureTime": "2018_06_08_20_24_09_000",
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPCaptureTime": "2018_06_08_20_32_27_000",
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:13.000"),
+            },
+        ],
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+
+
+def test_process_images_with_overwrite_all_EXIF_tags(setup_data: py.path.local):
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    expected_descs = [
+        {
+            **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+            "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+            "MAPCaptureTime": "2018_06_08_20_24_12_500",
+        },
+        {
+            **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+            "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+            "MAPCaptureTime": "2018_06_08_20_32_30_500",
+        },
+        {
+            **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+            "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+            "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:16.500"),
+        },
+    ]
+    verify_descs(
+        expected_descs,
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    verify_descs(
+        expected_descs,
+        Path(setup_data, "mapillary_image_description.json"),
+    )
+
+
+def test_angle_with_offset(setup_data: py.path.local):
+    x = subprocess.run(
+        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_angle=2.5",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPCompassHeading": {
+                    "TrueHeading": 270.89 + 2.5,
+                    "MagneticHeading": 270.89 + 2.5,
+                },
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPCompassHeading": {
+                    "TrueHeading": 271.27 + 2.5,
+                    "MagneticHeading": 271.27 + 2.5,
+                },
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:14"),
+                "MAPCompassHeading": {
+                    "TrueHeading": 1.5,
+                    "MagneticHeading": 1.5,
+                },
+            },
+        ],
+        Path(setup_data, "mapillary_image_description.json"),
+    )
 
 
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
@@ -57,121 +247,6 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     assert 0 < len(zip_dir.listdir())
     for file in zip_dir.listdir():
         validate_and_extract_zip(str(file))
-
-
-def test_time(setup_data: py.path.local):
-    # before offset
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    expected = {
-        "DSC00001.JPG": "2018_06_08_13_24_10_000",
-        "DSC00497.JPG": "2018_06_08_13_32_28_000",
-        "V0370574.JPG": "2018_07_27_11_32_14_000",
-    }
-
-    for desc in descs:
-        assert "filename" in desc
-        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"], desc
-
-    # after offset
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=2.5",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    expected = {
-        "DSC00001.JPG": "2018_06_08_13_24_12_500",
-        "DSC00497.JPG": "2018_06_08_13_32_30_500",
-        "V0370574.JPG": "2018_07_27_11_32_16_500",
-    }
-
-    for desc in descs:
-        assert "filename" in desc
-        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
-
-    # after offset
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=-1.0",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    expected = {
-        "DSC00001.JPG": "2018_06_08_13_24_09_000",
-        "DSC00497.JPG": "2018_06_08_13_32_27_000",
-        "V0370574.JPG": "2018_07_27_11_32_13_000",
-    }
-
-    for desc in descs:
-        assert "filename" in desc
-        assert expected.get(Path(desc["filename"]).name) == desc["MAPCaptureTime"]
-
-
-def test_angle(setup_data: py.path.local):
-    # before offset
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    expected = {
-        "DSC00001.JPG": 270.89,
-        "DSC00497.JPG": 271.27,
-        "V0370574.JPG": 359.0,
-    }
-    for desc in descs:
-        assert "filename" in desc
-        assert Path(desc["filename"]).is_file(), desc
-        basename = Path(desc["filename"]).name
-        assert (
-            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
-        )
-        assert (
-            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
-            < 0.00001
-        )
-
-    # after offset
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_angle=2.5",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    expected = {
-        "DSC00001.JPG": 270.89 + 2.5,
-        "DSC00497.JPG": 271.27 + 2.5,
-        "V0370574.JPG": 1.5,
-    }
-    for desc in descs:
-        assert "filename" in desc, desc
-        assert Path(desc["filename"]).is_file(), desc
-        basename = Path(desc["filename"]).name
-        assert (
-            abs(expected[basename] - desc["MAPCompassHeading"]["TrueHeading"]) < 0.00001
-        )
-        assert (
-            abs(expected[basename] - desc["MAPCompassHeading"]["MagneticHeading"])
-            < 0.00001
-        )
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -208,22 +283,22 @@ GPX_CONTENT = """
         <trkseg>
             <trkpt lat="0.02" lon="0.01">
             <ele>1</ele>
-            <time>2018-06-08T13:23:34.805</time>
+            <time>2018-06-08T20:23:34.805</time>
             </trkpt>
 
             <trkpt lat="2.02" lon="0.01">
             <ele>2</ele>
-            <time>2018-06-08T13:24:35.809</time>
+            <time>2018-06-08T20:24:35.809</time>
             </trkpt>
 
             <trkpt lat="2.02" lon="2.01">
             <ele>4</ele>
-            <time>2018-06-08T13:33:36.813</time>
+            <time>2018-06-08T20:33:36.813</time>
             </trkpt>
 
             <trkpt lat="4.02" lon="2.01">
             <ele>9</ele>
-            <time>2018-06-08T13:58:37.812</time>
+            <time>2018-06-08T20:58:37.812</time>
             </trkpt>
         </trkseg>
     </trk>
@@ -241,7 +316,6 @@ def filter_out_errors(descs):
 
 def test_geotagging_from_gpx(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
-    desc_path = setup_data.join("mapillary_image_description.json")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
@@ -249,46 +323,37 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    expected_lonlat = {
-        # capture_time, lon, lat, elevation
-        "DSC00001.JPG": [
-            "2018_06_08_13_24_10_000",
-            0.01,
-            1.1738587633597797,
-            1.5769293816798897,
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPLatitude": 1.1738588,
+                "MAPLongitude": 0.01,
+                "MAPAltitude": 1.577,
+                "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPLatitude": 2.02,
+                "MAPLongitude": 1.75561,
+                "MAPAltitude": 3.746,
+                "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
+            },
+            {
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "error": {
+                    "type": "MapillaryOutsideGPXTrackError",
+                },
+            },
         ],
-        "DSC00497.JPG": [
-            "2018_06_08_13_32_28_000",
-            1.7556100139740183,
-            2.02,
-            3.7456100139740185,
-        ],
-    }
-
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    assert {"V0370574.JPG"} == {
-        Path(d["filename"]).name for d in find_desc_errors(descs)
-    }
-
-    for desc in find_desc_errors(descs):
-        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
-
-    for desc in filter_out_errors(descs):
-        assert Path(desc["filename"]).is_file(), desc
-        basename = Path(desc["filename"]).name
-        assert expected_lonlat.get(basename, [])[0] == desc["MAPCaptureTime"]
-        assert (
-            abs(expected_lonlat.get(basename, [])[1] - desc["MAPLongitude"]) < 0.00001
-        )
-        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
+        Path(setup_data, "mapillary_image_description.json"),
+    )
 
 
 def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
-    desc_path = setup_data.join("mapillary_image_description.json")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
@@ -296,39 +361,35 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-
-    expected_lonlat = {
-        # capture_time, lon, lat, elevation
-        "DSC00001.JPG": [
-            "2018_06_08_13_23_50_000",
-            0.01,
-            0.5181640548160776,
-            1.2490820274080388,
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPLatitude": 0.5181641,
+                "MAPLongitude": 0.01,
+                "MAPCaptureTime": "2018_06_08_20_23_50_000",
+                "MAPAltitude": 1.249,
+                "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPLatitude": 2.02,
+                "MAPLongitude": 1.6816734,
+                "MAPCaptureTime": "2018_06_08_20_32_08_000",
+                "MAPAltitude": 3.672,
+                "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
+            },
+            {
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "error": {
+                    "type": "MapillaryOutsideGPXTrackError",
+                },
+            },
         ],
-        "DSC00497.JPG": [
-            "2018_06_08_13_32_08_000",
-            1.6816734072206487,
-            2.02,
-            3.671673407220649,
-        ],
-    }
-
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    assert {"V0370574.JPG"} == {
-        Path(d["filename"]).name for d in find_desc_errors(descs)
-    }
-
-    for desc in find_desc_errors(descs):
-        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
-
-    for desc in filter_out_errors(descs):
-        basename = Path(desc["filename"]).name
-        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
-        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
+        Path(setup_data, "mapillary_image_description.json"),
+    )
 
 
 def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
@@ -340,35 +401,35 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    expected_lonlat = {
-        # capture_time, lon, lat, elevation
-        "DSC00001.JPG": ["2018_06_08_13_23_34_805", 0.01, 0.02, 1.0],
-        "DSC00497.JPG": [
-            "2018_06_08_13_31_52_805",
-            1.6255000702397762,
-            2.02,
-            3.6155000702397766,
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPLatitude": 0.02,
+                "MAPLongitude": 0.01,
+                "MAPCaptureTime": "2018_06_08_20_23_34_805",
+                "MAPAltitude": 1.0,
+                "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPLatitude": 2.02,
+                "MAPLongitude": 1.6255001,
+                "MAPCaptureTime": "2018_06_08_20_31_52_805",
+                "MAPAltitude": 3.616,
+                "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
+            },
+            {
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "error": {
+                    "type": "MapillaryOutsideGPXTrackError",
+                },
+            },
         ],
-    }
-    desc_path = setup_data.join("mapillary_image_description.json")
-
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-
-    assert {"V0370574.JPG"} == {
-        Path(d["filename"]).name for d in find_desc_errors(descs)
-    }
-
-    for desc in find_desc_errors(descs):
-        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
-
-    for desc in filter_out_errors(descs):
-        basename = Path(desc["filename"]).name
-        assert Path(desc["filename"]).is_file(), desc
-        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
-        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
+        Path(setup_data, "mapillary_image_description.json"),
+    )
 
 
 def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
@@ -380,36 +441,35 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    expected_lonlat = {
-        # capture_time, lon, lat, elevation
-        "DSC00001.JPG": [
-            "2018_06_08_13_25_14_805",
-            0.15416159584772016,
-            2.02,
-            2.14416159584772,
+    verify_descs(
+        [
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
+                "MAPLatitude": 2.02,
+                "MAPLongitude": 0.1541616,
+                "MAPCaptureTime": "2018_06_08_20_25_14_805",
+                "MAPAltitude": 2.144,
+                "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
+            },
+            {
+                **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
+                "MAPLatitude": 2.02,
+                "MAPLongitude": 1.9951831,
+                "MAPCaptureTime": "2018_06_08_20_33_32_805",
+                "MAPAltitude": 3.985,
+                "MAPCompassHeading": {"TrueHeading": 89.965, "MagneticHeading": 89.965},
+            },
+            {
+                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
+                "error": {
+                    "type": "MapillaryOutsideGPXTrackError",
+                },
+            },
         ],
-        "DSC00497.JPG": [
-            "2018_06_08_13_33_32_805",
-            1.9951831040066244,
-            2.02,
-            3.985183104006625,
-        ],
-    }
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    assert {"V0370574.JPG"} == {
-        Path(d["filename"]).name for d in find_desc_errors(descs)
-    }
-    for desc in find_desc_errors(descs):
-        assert desc.get("error").get("type") == "MapillaryOutsideGPXTrackError"
-    for desc in filter_out_errors(descs):
-        assert Path(desc["filename"]).is_file(), desc
-        basename = Path(desc["filename"]).name
-        assert expected_lonlat[basename][0] == desc["MAPCaptureTime"]
-        assert abs(expected_lonlat[basename][1] - desc["MAPLongitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][2] - desc["MAPLatitude"]) < 0.00001
-        assert abs(expected_lonlat[basename][3] - desc["MAPAltitude"]) < 0.001
+        Path(setup_data, "mapillary_image_description.json"),
+    )
 
 
 def test_sample_video_relpath():
@@ -474,9 +534,9 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
                 tags = exifread.process_file(fp)
                 times.append(tags["EXIF DateTimeOriginal"].values)
         assert (
-            "2021:10:10 10:10:10.123",
-            "2021:10:10 10:10:12.123",
-            "2021:10:10 10:10:14.123",
+            "2021:10:10 10:10:10",
+            "2021:10:10 10:10:12",
+            "2021:10:10 10:10:14",
         ) == tuple(times)
 
 
@@ -490,7 +550,7 @@ def test_video_process(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -525,7 +585,8 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
         pytest.skip("skip because ffmpeg not installed")
 
     video_dir = setup_data.join("gopro_data")
-    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
+    sample_dir = Path(setup_data, "gopro_data", "my_samples")
+    desc_path = Path(sample_dir, "mapillary_image_description.json")
     for option in [
         "--video_sample_distance=6",
         "--video_sample_distance=6 --video_sample_interval=-2",
@@ -535,54 +596,77 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
             shell=True,
         )
         assert x.returncode == 0, x.stderr
-        expected = [
-            {
-                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000000.jpg",
-                "filetype": "image",
-                "MAPLatitude": 33.1266719,
-                "MAPLongitude": -117.3273063,
-                "MAPCaptureTime": "2019_11_18_15_44_47_862",
-                "MAPAltitude": -22.18,
-                "MAPCompassHeading": {"TrueHeading": 313.68, "MagneticHeading": 313.68},
-                "MAPSequenceUUID": "0",
-                "MAPDeviceMake": "GoPro",
-                "MAPDeviceModel": "GoPro Max",
-                "MAPOrientation": 1,
-            },
-            {
-                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000127.jpg",
-                "filetype": "image",
-                "MAPLatitude": 33.1267206,
-                "MAPLongitude": -117.3273345,
-                "MAPCaptureTime": "2019_11_18_15_44_53_159",
-                "MAPAltitude": -21.91,
-                "MAPCompassHeading": {"TrueHeading": 330.82, "MagneticHeading": 330.82},
-                "MAPSequenceUUID": "0",
-                "MAPDeviceMake": "GoPro",
-                "MAPDeviceModel": "GoPro Max",
-                "MAPOrientation": 1,
-            },
-            {
-                "filename": "gopro_data/my_samples/max-360mode.mp4/max-360mode_0_000250.jpg",
-                "filetype": "image",
-                "MAPLatitude": 33.1267702,
-                "MAPLongitude": -117.3273612,
-                "MAPCaptureTime": "2019_11_18_15_44_58_289",
-                "MAPAltitude": -22.58,
-                "MAPCompassHeading": {"TrueHeading": 10.54, "MagneticHeading": 10.54},
-                "MAPSequenceUUID": "0",
-                "MAPDeviceMake": "GoPro",
-                "MAPDeviceModel": "GoPro Max",
-                "MAPOrientation": 1,
-            },
-        ]
-        with open(desc_path) as fp:
-            descs = json.load(fp)
-        for e, d in zip(expected, descs):
-            assert Path(d["filename"]).as_posix().endswith(e["filename"])
-            del d["filename"]
-            del e["filename"]
-            assert e == d
+        verify_descs(
+            [
+                {
+                    "filename": str(
+                        Path(
+                            sample_dir,
+                            "max-360mode.mp4",
+                            "max-360mode_0_000000.jpg",
+                        )
+                    ),
+                    "filetype": "image",
+                    "MAPLatitude": 33.1266719,
+                    "MAPLongitude": -117.3273063,
+                    "MAPCaptureTime": "2019_11_18_15_44_47_862",
+                    "MAPAltitude": -22.18,
+                    "MAPCompassHeading": {
+                        "TrueHeading": 313.68,
+                        "MagneticHeading": 313.68,
+                    },
+                    "MAPSequenceUUID": "0",
+                    "MAPDeviceMake": "GoPro",
+                    "MAPDeviceModel": "GoPro Max",
+                    "MAPOrientation": 1,
+                },
+                {
+                    "filename": str(
+                        Path(
+                            sample_dir,
+                            "max-360mode.mp4",
+                            "max-360mode_0_000127.jpg",
+                        )
+                    ),
+                    "filetype": "image",
+                    "MAPLatitude": 33.1267206,
+                    "MAPLongitude": -117.3273345,
+                    "MAPCaptureTime": "2019_11_18_15_44_53_159",
+                    "MAPAltitude": -21.91,
+                    "MAPCompassHeading": {
+                        "TrueHeading": 330.82,
+                        "MagneticHeading": 330.82,
+                    },
+                    "MAPSequenceUUID": "0",
+                    "MAPDeviceMake": "GoPro",
+                    "MAPDeviceModel": "GoPro Max",
+                    "MAPOrientation": 1,
+                },
+                {
+                    "filename": str(
+                        Path(
+                            sample_dir,
+                            "max-360mode.mp4",
+                            "max-360mode_0_000250.jpg",
+                        )
+                    ),
+                    "filetype": "image",
+                    "MAPLatitude": 33.1267702,
+                    "MAPLongitude": -117.3273612,
+                    "MAPCaptureTime": "2019_11_18_15_44_58_289",
+                    "MAPAltitude": -22.58,
+                    "MAPCompassHeading": {
+                        "TrueHeading": 10.54,
+                        "MagneticHeading": 10.54,
+                    },
+                    "MAPSequenceUUID": "0",
+                    "MAPDeviceMake": "GoPro",
+                    "MAPDeviceModel": "GoPro Max",
+                    "MAPOrientation": 1,
+                },
+            ],
+            desc_path,
+        )
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -597,14 +681,14 @@ def test_video_process_and_upload(
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr
     assert 0 == len(setup_upload.listdir())
 
     x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
+        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -625,7 +709,7 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_13_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
         shell=True,
     )
     assert x.returncode != 0, x.stderr

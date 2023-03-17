@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import json
 import sys
 import typing as T
@@ -57,7 +58,7 @@ def _gpx_track_segment_to_points(
             ground_speed = None
 
         point = gpmf_parser.PointWithFix(
-            time=geo.as_unix_time(p.time),
+            time=geo.as_unix_time(T.cast(datetime.datetime, p.time)),
             lat=p.latitude,
             lon=p.longitude,
             alt=p.elevation,

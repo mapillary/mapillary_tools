@@ -43,8 +43,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 )
                 continue
 
-            lon, lat = exif.extract_lon_lat()
-            if lat is None or lon is None:
+            lonlat = exif.extract_lon_lat()
+            if lonlat is None:
                 exc = MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
@@ -54,6 +54,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                     )
                 )
                 continue
+            lon, lat = lonlat
 
             timestamp = exif.extract_capture_time()
             if timestamp is None:
