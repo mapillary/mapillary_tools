@@ -52,9 +52,7 @@ ActionType = Literal[
 ]
 
 
-def logging(
-    access_token: str, action_type: ActionType, properties: T.Dict
-) -> requests.Response:
+def logging(action_type: ActionType, properties: T.Dict) -> requests.Response:
     resp = requests.post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/logging",
         json={
@@ -62,7 +60,7 @@ def logging(
             "properties": properties,
         },
         headers={
-            "Authorization": f"OAuth {access_token}",
+            "Authorization": f"OAuth {MAPILLARY_CLIENT_TOKEN}",
         },
         timeout=REQUESTS_TIMEOUT,
     )
