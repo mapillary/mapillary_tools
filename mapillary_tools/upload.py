@@ -758,10 +758,10 @@ def upload(
             _upload_zipfiles(mly_uploader, zip_paths)
 
     except UploadError as ex:
-        if not dry_run:
-            _api_logging_failed(_summarize(stats), ex.inner_ex)
-
         inner_ex = ex.inner_ex
+
+        if not dry_run:
+            _api_logging_failed(_summarize(stats), inner_ex)
 
         if isinstance(inner_ex, requests.ConnectionError):
             raise exceptions.MapillaryUploadConnectionError(str(inner_ex)) from inner_ex
@@ -782,7 +782,7 @@ def upload(
                     ) from inner_ex
             raise wrap_http_exception(inner_ex) from inner_ex
 
-        raise ex
+        raise inner_ex
 
     if stats:
         if not dry_run:
