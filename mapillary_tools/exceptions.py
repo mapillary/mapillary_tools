@@ -78,3 +78,15 @@ class MapillaryDuplicationError(_MapillaryDescriptionError):
         self.desc = desc
         self.distance = distance
         self.angle_diff = angle_diff
+
+
+class MapillaryUploadConnectionError(MapillaryUserError):
+    exit_code = 12
+
+
+class MapillaryUploadTimeoutError(MapillaryUserError):
+    exit_code = 13
+
+
+class MapillaryUploadUnauthorizedError(MapillaryUserError):
+    exit_code = 14

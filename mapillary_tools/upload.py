@@ -486,7 +486,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats]):
     LOG.info("%8.1fs upload time", summary["time"])
 
 
-def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
+def _api_logging_finished(summary: T.Dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -494,7 +494,6 @@ def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
     LOG.debug("API Logging for action %s: %s", action, summary)
     try:
         api_v4.logging(
-            user_items["user_upload_token"],
             action,
             summary,
         )
@@ -508,7 +507,7 @@ def _api_logging_finished(user_items: types.UserItem, summary: T.Dict):
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Exception):
+def _api_logging_failed(payload: T.Dict, exc: Exception):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -517,7 +516,6 @@ def _api_logging_failed(user_items: types.UserItem, payload: T.Dict, exc: Except
     LOG.debug("API Logging for action %s: %s", action, payload)
     try:
         api_v4.logging(
-            user_items["user_upload_token"],
             action,
             payload_with_reason,
         )
@@ -686,10 +684,14 @@ def upload(
                 image_metadatas, image_paths
             )
             if specified_image_metadatas:
-                clusters = mly_uploader.upload_images(
-                    specified_image_metadatas,
-                    event_payload={"file_type": FileType.IMAGE.value},
-                )
+                try:
+                    clusters = mly_uploader.upload_images(
+                        specified_image_metadatas,
+                        event_payload={"file_type": FileType.IMAGE.value},
+                    )
+                except Exception as ex:
+                    raise UploadError(ex) from ex
+
                 if clusters:
                     LOG.debug(f"Uploaded to cluster: %s", clusters)
 
@@ -757,15 +759,34 @@ def upload(
 
     except UploadError as ex:
         if not dry_run:
-            _api_logging_failed(mly_uploader.user_items, _summarize(stats), ex.inner_ex)
-        if isinstance(ex.inner_ex, requests.HTTPError):
-            raise wrap_http_exception(ex.inner_ex) from ex.inner_ex
-        else:
-            raise ex
+            _api_logging_failed(_summarize(stats), ex.inner_ex)
+
+        inner_ex = ex.inner_ex
+
+        if isinstance(inner_ex, requests.ConnectionError):
+            raise exceptions.MapillaryUploadConnectionError(str(inner_ex)) from inner_ex
+
+        if isinstance(inner_ex, requests.Timeout):
+            raise exceptions.MapillaryUploadTimeoutError(str(inner_ex)) from inner_ex
+
+        if isinstance(inner_ex, requests.HTTPError):
+            if inner_ex.response.status_code in [400, 401]:
+                try:
+                    error_body = inner_ex.response.json()
+                except Exception:
+                    error_body = {}
+                debug_info = error_body.get("debug_info", {})
+                if debug_info.get("type") in ["NotAuthorizedError"]:
+                    raise exceptions.MapillaryUploadUnauthorizedError(
+                        debug_info.get("message")
+                    ) from inner_ex
+            raise wrap_http_exception(inner_ex) from inner_ex
+
+        raise ex
 
     if stats:
         if not dry_run:
-            _api_logging_finished(user_items, _summarize(stats))
+            _api_logging_finished(_summarize(stats))
         _show_upload_summary(stats)
     else:
         LOG.info("Nothing uploaded. Bye.")
