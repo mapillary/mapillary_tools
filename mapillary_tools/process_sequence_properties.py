@@ -178,16 +178,16 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
 
 
 def _parse_filesize_in_bytes(filesize_str: str) -> int:
-    filesize_str = filesize_str.upper()
+    filesize_str = filesize_str.strip().upper()
 
     if filesize_str.endswith("B"):
         return int(filesize_str[:-1])
-    elif filesize_str.endswith("KB"):
-        return int(filesize_str[:-2]) * 1024
-    elif filesize_str.endswith("MB"):
-        return int(filesize_str[:-2]) * 1024 * 1024
-    elif filesize_str.endswith("GB"):
-        return int(filesize_str[:-2]) * 1024 * 1024 * 1024
+    elif filesize_str.endswith("K"):
+        return int(filesize_str[:-1]) * 1024
+    elif filesize_str.endswith("M"):
+        return int(filesize_str[:-1]) * 1024 * 1024
+    elif filesize_str.endswith("G"):
+        return int(filesize_str[:-1]) * 1024 * 1024 * 1024
     else:
         return int(filesize_str)
 
@@ -206,7 +206,7 @@ def process_sequence_properties(
         )
     except ValueError:
         raise MapillaryBadParameterError(
-            f"Expect the envvar MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, KB, MB, or GB, but got {constants.MAX_SEQUENCE_FILESIZE}"
+            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, K, M, or G, but got {constants.MAX_SEQUENCE_FILESIZE}"
         )
 
     error_metadatas: T.List[types.ErrorMetadata] = []
