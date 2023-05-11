@@ -1,9 +1,10 @@
+import os
 import itertools
 import math
 import typing as T
 
 from . import constants, geo, types
-from .exceptions import MapillaryDuplicationError
+from .exceptions import MapillaryDuplicationError, MapillaryBadParameterError
 
 
 Point = T.TypeVar("Point", bound=geo.Point)
@@ -90,14 +91,30 @@ def duplication_check(
     return dedups, dups
 
 
-def cut_sequence_by_max_images(
-    sequence: PointSequence, max_images: int
-) -> T.List[PointSequence]:
-    sequences: T.List[PointSequence] = []
-    for idx in range(0, len(sequence), max_images):
-        sequences.append([])
-        for image in sequence[idx : idx + max_images]:
-            sequences[-1].append(image)
+def cut_sequence(
+    sequence: T.List[types.ImageMetadata],
+    max_images: int,
+    max_sequence_filesize: int,
+) -> T.List[T.List[types.ImageMetadata]]:
+    """
+    Cut a sequence into multiple sequences by max_images or max filesize
+    """
+    sequences: T.List[T.List[types.ImageMetadata]] = []
+    last_sequence_file_size = 0
+    for image in sequence:
+        filesize = os.path.getsize(image.filename)
+        if len(sequences) == 0 or (
+            sequences[-1]
+            and (
+                max_images < len(sequences[-1])
+                or max_sequence_filesize < last_sequence_file_size + filesize
+            )
+        ):
+            sequences.append([])
+            last_sequence_file_size = 0
+        sequences[-1].append(image)
+        last_sequence_file_size += filesize
+    assert sum(len(s) for s in sequences) == len(sequence)
     return sequences
 
 
@@ -160,6 +177,21 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         ), f"sequence must be sorted but got {cur.time} > {nxt.time}"
 
 
+def _parse_filesize_in_bytes(filesize_str: str) -> int:
+    filesize_str = filesize_str.upper()
+
+    if filesize_str.endswith("B"):
+        return int(filesize_str[:-1])
+    elif filesize_str.endswith("KB"):
+        return int(filesize_str[:-2]) * 1024
+    elif filesize_str.endswith("MB"):
+        return int(filesize_str[:-2]) * 1024 * 1024
+    elif filesize_str.endswith("GB"):
+        return int(filesize_str[:-2]) * 1024 * 1024 * 1024
+    else:
+        return int(filesize_str)
+
+
 def process_sequence_properties(
     metadatas: T.List[types.MetadataOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
@@ -168,6 +200,15 @@ def process_sequence_properties(
     duplicate_distance=constants.DUPLICATE_DISTANCE,
     duplicate_angle=constants.DUPLICATE_ANGLE,
 ) -> T.List[types.MetadataOrError]:
+    try:
+        max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
+            constants.MAX_SEQUENCE_FILESIZE
+        )
+    except ValueError:
+        raise MapillaryBadParameterError(
+            f"Expect the envvar MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, KB, MB, or GB, but got {constants.MAX_SEQUENCE_FILESIZE}"
+        )
+
     error_metadatas: T.List[types.ErrorMetadata] = []
     image_metadatas: T.List[types.ImageMetadata] = []
     video_metadatas: T.List[types.VideoMetadata] = []
@@ -217,7 +258,11 @@ def process_sequence_properties(
         geo.interpolate_directions_if_none(dedups)
 
         # cut sequence per MAX_SEQUENCE_LENGTH images
-        cut = cut_sequence_by_max_images(dedups, constants.MAX_SEQUENCE_LENGTH)
+        cut = cut_sequence(
+            dedups,
+            constants.MAX_SEQUENCE_LENGTH,
+            max_sequence_filesize_in_bytes,
+        )
 
         for c in cut:
             _interpolate_subsecs_for_sorting(c)
