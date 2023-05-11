@@ -24,7 +24,6 @@ IMAGE_DESCRIPTION_FILENAME = os.getenv(
 SAMPLED_VIDEO_FRAMES_FILENAME = os.getenv(
     _ENV_PREFIX + "SAMPLED_VIDEO_FRAMES_FILENAME", "mapillary_sampled_video_frames"
 )
-MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 500))
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
 UPLOAD_CHUNK_SIZE_MB = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 16))
 
@@ -39,3 +38,9 @@ MAX_UPLOAD_RETRIES: int = int(os.getenv(_ENV_PREFIX + "MAX_UPLOAD_RETRIES", 200)
 
 # GPS precision, in meters, is used to filter outliers
 GOPRO_GPS_PRECISION = float(os.getenv(_ENV_PREFIX + "GOPRO_GPS_PRECISION", 15))
+
+# WARNING: Changing the following envvars might result in failed uploads
+# Max number of images per sequence
+MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 500))
+# Max file size per sequence (sum of image filesizes in the sequence)
+MAX_SEQUENCE_FILESIZE: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "2G")
