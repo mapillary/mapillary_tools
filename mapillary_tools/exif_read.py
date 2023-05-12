@@ -216,17 +216,18 @@ class ExifRead:
         """
         Extract capture time from EXIF DateTime tags
         """
-        dt = self.extract_exif_datetime()
-        if dt is not None:
-            return dt
-
-        # The GPS datetime precision is usually 1 second, hence less preferred
+        # Prefer GPS datetime over EXIF timestamp
+        # NOTE: GPS datetime precision is usually 1 second, but this case is handled by the subsecond interpolation
         try:
             gps_dt = self.extract_gps_datetime()
         except (ValueError, TypeError, ZeroDivisionError):
             gps_dt = None
         if gps_dt is not None:
             return gps_dt
+
+        dt = self.extract_exif_datetime()
+        if dt is not None:
+            return dt
 
         return None
 
