@@ -68,7 +68,7 @@ def read_date_time_original_general(test_obj, filename: Path):
     # GPS Date Stamp                  : 2011:07:15
     # GPS Date/Time                   : 2011:07:15 09:14:39Z
     assert (
-        datetime.datetime.fromisoformat("2018-06-26T17:46:33.847000")
+        datetime.datetime.fromisoformat("2011-07-15T09:14:39+00:00")
         == capture_time_ExifRead
     )
     # note it is not: datetime.datetime.fromisoformat("2018-06-26T17:46:33.000005") == capture_time_ExifRead

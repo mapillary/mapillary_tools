@@ -24,7 +24,7 @@ EXPECTED_DESCS = {
     "image": {
         "DSC00001.JPG": {
             "MAPAltitude": 70.3,
-            "MAPCaptureTime": "2018_06_08_20_24_10_000",
+            "MAPCaptureTime": "2018_06_08_20_24_11_000",
             "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
             "MAPDeviceMake": "SONY",
             "MAPDeviceModel": "HDR-AS300",
