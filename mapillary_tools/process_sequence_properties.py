@@ -236,11 +236,11 @@ def _parse_pixels(pixels_str: str) -> int:
     pixels_str = pixels_str.strip().upper()
 
     if pixels_str.endswith("K"):
-        return int(pixels_str[:-1]) * 1e3
+        return int(pixels_str[:-1]) * 1000
     elif pixels_str.endswith("M"):
-        return int(pixels_str[:-1]) * 1e6
+        return int(pixels_str[:-1]) * 1000 * 1000
     elif pixels_str.endswith("G"):
-        return int(pixels_str[:-1]) * 1e9
+        return int(pixels_str[:-1]) * 1000 * 1000 * 1000
     else:
         return int(pixels_str)
 
