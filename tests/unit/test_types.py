@@ -20,6 +20,9 @@ def test_desc():
         MAPCameraUUID="MAPCameraUUID",
         MAPFilename="MAPFilename",
         MAPOrientation=1,
+        # width and height are not seralized yet so they have to be None to pass the conversion
+        width=None,
+        height=None,
     )
     desc = types.as_desc(metadata)
     types.validate_image_desc(desc)

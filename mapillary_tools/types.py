@@ -520,6 +520,8 @@ def _from_image_desc(desc) -> ImageMetadata:
         alt=desc.get("MAPAltitude"),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
+        width=None,
+        height=None,
         **kwargs,
     )
 

@@ -43,7 +43,7 @@ def _make_image_metadata(
 
 def test_find_sequences_by_folder(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello1").mkdir("world2")
-    sequence = [
+    sequence: T.List[types.MetadataOrError] = [
         types.ErrorMetadata(
             filename=Path("error.jpg"),
             filetype=types.FileType.IMAGE,
@@ -77,9 +77,9 @@ def test_find_sequences_by_folder(tmpdir: py.path.local):
     assert len(metadatas) == len(sequence)
     image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
 
-    actual_metadata = {}
+    actual_metadata: T.Dict[str, T.List[types.ImageMetadata]] = {}
     for d in image_metadatas:
-        actual_metadata.setdefault(d.MAPSequenceUUID, []).append(d)
+        actual_metadata.setdefault(d.MAPSequenceUUID or "", []).append(d)
 
     for s in actual_metadata.values():
         for c, n in geo.pairwise(s):
@@ -229,7 +229,7 @@ def test_duplication(tmpdir: py.path.local):
     error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
     assert len(error_metadatas) == 4
     assert set(d.filename for d in sequence[1:-2]) == set(
-        Path(d.error.desc["filename"]) for d in error_metadatas
+        Path(d.error.desc["filename"]) for d in error_metadatas  # type: ignore
     )
 
 
@@ -262,7 +262,9 @@ def test_interpolation(tmpdir: py.path.local):
     image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
     image_metadatas.sort(key=lambda d: d.time)
     assert [90, 0, 270, 180, 180] == [
-        int(metadata.angle) for metadata in image_metadatas
+        int(metadata.angle)
+        for metadata in image_metadatas
+        if metadata.angle is not None
     ]
 
 
@@ -281,7 +283,11 @@ def test_interpolation_single(tmpdir: py.path.local):
         duplicate_angle=5,
     )
     image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
-    assert [0] == [int(metadata.angle) for metadata in image_metadatas]
+    assert [0] == [
+        int(metadata.angle)
+        for metadata in image_metadatas
+        if metadata.angle is not None
+    ]
 
 
 IMPORT_PATH = "tests/unit/data"
@@ -391,7 +397,7 @@ def test_cut_by_pixels(tmpdir: py.path.local):
         ),
         # s1
         _make_image_metadata(
-            Path(curdir) / Path("./c.jpg"), 1, 1, 3, angle=344, width=6e9, height=2
+            Path(curdir) / Path("./c.jpg"), 1, 1, 3, angle=344, width=int(6e9), height=2
         ),
     ]
     metadatas = psp.process_sequence_properties(

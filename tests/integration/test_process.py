@@ -163,12 +163,12 @@ def test_process_images_with_overwrite_all_EXIF_tags(setup_data: py.path.local):
     assert x.returncode == 0, x.stderr
     expected_descs = [
         {
-            **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
+            **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],  # type: ignore
             "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
             "MAPCaptureTime": "2018_06_08_20_24_13_500",
         },
         {
-            **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
+            **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],  # type: ignore
             "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
             "MAPCaptureTime": "2018_06_08_20_32_30_500",
         },

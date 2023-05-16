@@ -246,7 +246,7 @@ def _parse_pixels(pixels_str: str) -> int:
 
 
 def process_sequence_properties(
-    metadatas: T.List[types.MetadataOrError],
+    metadatas: T.Sequence[types.MetadataOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
     cutoff_time=constants.CUTOFF_TIME,
     interpolate_directions=False,
