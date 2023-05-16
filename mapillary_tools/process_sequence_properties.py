@@ -2,9 +2,12 @@ import os
 import itertools
 import math
 import typing as T
+import logging
 
 from . import constants, geo, types
 from .exceptions import MapillaryDuplicationError, MapillaryBadParameterError
+
+LOG = logging.getLogger(__name__)
 
 
 Point = T.TypeVar("Point", bound=geo.Point)
@@ -95,26 +98,63 @@ def cut_sequence(
     sequence: T.List[types.ImageMetadata],
     max_images: int,
     max_sequence_filesize: int,
+    max_sequence_pixels: int,
 ) -> T.List[T.List[types.ImageMetadata]]:
     """
     Cut a sequence into multiple sequences by max_images or max filesize
     """
     sequences: T.List[T.List[types.ImageMetadata]] = []
     last_sequence_file_size = 0
+    last_sequence_pixels = 0
+
     for image in sequence:
+        # decent default values if width/height not available
+        width = 1024 if image.width is None else image.width
+        height = 1024 if image.height is None else image.height
+
         filesize = os.path.getsize(image.filename)
-        if len(sequences) == 0 or (
-            sequences[-1]
-            and (
-                max_images < len(sequences[-1])
-                or max_sequence_filesize < last_sequence_file_size + filesize
-            )
-        ):
+
+        if len(sequences) == 0:
+            start_new_sequence = True
+        else:
+            if sequences[-1]:
+                if max_images < len(sequences[-1]):
+                    LOG.debug(
+                        "Cut the sequence because the current sequence (%s) reaches the max number of images (%s)",
+                        len(sequences[-1]),
+                        max_images,
+                    )
+                    start_new_sequence = True
+                elif max_sequence_filesize < last_sequence_file_size + filesize:
+                    LOG.debug(
+                        "Cut the sequence because the current sequence (%s) reaches the max filesize (%s)",
+                        last_sequence_file_size + filesize,
+                        max_sequence_filesize,
+                    )
+                    start_new_sequence = True
+                elif max_sequence_pixels < last_sequence_pixels + width * height:
+                    LOG.debug(
+                        "Cut the sequence because the current sequence (%s) reaches the max pixels (%s)",
+                        last_sequence_pixels + width * height,
+                        max_sequence_pixels,
+                    )
+                    start_new_sequence = True
+                else:
+                    start_new_sequence = False
+            else:
+                start_new_sequence = False
+
+        if start_new_sequence:
             sequences.append([])
             last_sequence_file_size = 0
+            last_sequence_pixels = 0
+
         sequences[-1].append(image)
         last_sequence_file_size += filesize
+        last_sequence_pixels += width * height
+
     assert sum(len(s) for s in sequences) == len(sequence)
+
     return sequences
 
 
@@ -192,6 +232,19 @@ def _parse_filesize_in_bytes(filesize_str: str) -> int:
         return int(filesize_str)
 
 
+def _parse_pixels(pixels_str: str) -> int:
+    pixels_str = pixels_str.strip().upper()
+
+    if pixels_str.endswith("K"):
+        return int(pixels_str[:-1]) * 1e3
+    elif pixels_str.endswith("M"):
+        return int(pixels_str[:-1]) * 1e6
+    elif pixels_str.endswith("G"):
+        return int(pixels_str[:-1]) * 1e9
+    else:
+        return int(pixels_str)
+
+
 def process_sequence_properties(
     metadatas: T.List[types.MetadataOrError],
     cutoff_distance=constants.CUTOFF_DISTANCE,
@@ -207,6 +260,13 @@ def process_sequence_properties(
     except ValueError:
         raise MapillaryBadParameterError(
             f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, K, M, or G, but got {constants.MAX_SEQUENCE_FILESIZE}"
+        )
+
+    try:
+        max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
+    except ValueError:
+        raise MapillaryBadParameterError(
+            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_PIXELS to be a valid number of pixels that ends with K, M, or G, but got {constants.MAX_SEQUENCE_PIXELS}"
         )
 
     error_metadatas: T.List[types.ErrorMetadata] = []
@@ -262,6 +322,7 @@ def process_sequence_properties(
             dedups,
             constants.MAX_SEQUENCE_LENGTH,
             max_sequence_filesize_in_bytes,
+            max_sequence_pixels,
         )
 
         for c in cut:

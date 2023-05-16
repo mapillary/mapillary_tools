@@ -13,6 +13,7 @@ def main():
     parsed_args = parser.parse_args()
     for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
         exif = ExifRead(image_path, details=True)
+        pprint.pprint(exif.tags)
         pprint.pprint(
             {
                 "filename": image_path,
@@ -24,6 +25,8 @@ def main():
                 "lon_lat": exif.extract_lon_lat(),
                 "make": exif.extract_make(),
                 "model": exif.extract_model(),
+                "width": exif.extract_width(),
+                "height": exif.extract_height(),
             }
         )
 

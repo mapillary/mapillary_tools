@@ -31,12 +31,28 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
+        self._exifs: T.Dict[Path, ExifRead] = {}
 
     def read_image_time(self, image_path: Path) -> T.Optional[float]:
-        image_time = ExifRead(image_path).extract_capture_time()
+        exif = self._exifs.get(image_path)
+        if exif is None:
+            exif = ExifRead(image_path)
+            self._exifs[image_path] = exif
+        image_time = exif.extract_capture_time()
         if image_time is None:
             return None
         return geo.as_unix_time(image_time)
+
+    def read_image_size(
+        self, image_path: Path
+    ) -> T.Tuple[T.Optional[int], T.Optional[int]]:
+        exif = self._exifs.get(image_path)
+        if exif is None:
+            exif = ExifRead(image_path)
+            self._exifs[image_path] = exif
+        width = exif.extract_width()
+        height = exif.extract_height()
+        return width, height
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         metadatas: T.List[types.ImageMetadataOrError] = []
@@ -165,6 +181,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                     continue
 
             interpolated = geo.interpolate(sorted_points, image_time)
+            width, height = self.read_image_size(image_path)
             image_metadata = types.ImageMetadata(
                 filename=image_path,
                 lat=interpolated.lat,
@@ -172,6 +189,8 @@ class GeotagFromGPX(GeotagFromGeneric):
                 alt=interpolated.alt,
                 angle=interpolated.angle,
                 time=interpolated.time,
+                width=width,
+                height=height,
             )
             metadatas.append(image_metadata)
 

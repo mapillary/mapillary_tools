@@ -44,6 +44,8 @@ class FileType(enum.Enum):
 class ImageMetadata(geo.Point):
     filename: Path
     # filetype is always FileType.IMAGE
+    width: T.Optional[int]
+    height: T.Optional[int]
     MAPSequenceUUID: T.Optional[str] = None
     MAPDeviceMake: T.Optional[str] = None
     MAPDeviceModel: T.Optional[str] = None
