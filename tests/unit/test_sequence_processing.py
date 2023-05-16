@@ -21,6 +21,8 @@ def _make_image_metadata(
     lat: float,
     time: float,
     angle: T.Optional[float] = None,
+    width: int = 0,
+    height: int = 0,
 ) -> types.ImageMetadata:
     filename = filename.resolve()
     if not filename.exists():
@@ -34,6 +36,8 @@ def _make_image_metadata(
         time=time,
         alt=None,
         angle=angle,
+        width=width,
+        height=height,
     )
 
 
@@ -361,3 +365,50 @@ def test_process_finalize(setup_data):
         },
     ]
     assert expected == [types.as_desc(d) for d in actual]
+
+
+def test_cut_by_pixels(tmpdir: py.path.local):
+    curdir = tmpdir.mkdir("hello77").mkdir("world88")
+    sequence: T.List[types.Metadata] = [
+        # s2
+        _make_image_metadata(
+            Path(curdir) / Path("./a.jpg"),
+            2,
+            2,
+            1,
+            angle=344,
+            width=2,
+            height=2,
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./b.jpg"),
+            9,
+            9,
+            2,
+            angle=344,
+            width=2,
+            height=2,
+        ),
+        # s1
+        _make_image_metadata(
+            Path(curdir) / Path("./c.jpg"), 1, 1, 3, angle=344, width=6e9, height=2
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=1000000000,
+        cutoff_time=100,
+        interpolate_directions=True,
+        duplicate_distance=100,
+        duplicate_angle=5,
+    )
+    assert (
+        len(
+            set(
+                m.MAPSequenceUUID
+                for m in metadatas
+                if isinstance(m, types.ImageMetadata)
+            )
+        )
+        == 2
+    )
