@@ -110,8 +110,6 @@ class ExifRead:
     EXIF class for reading exif from an image
     """
 
-    path_or_stream: T.Union[Path, T.BinaryIO]
-
     def __init__(
         self, path_or_stream: T.Union[Path, T.BinaryIO], details: bool = False
     ) -> None:
@@ -125,7 +123,6 @@ class ExifRead:
             self.tags = exifread.process_file(
                 path_or_stream, details=details, debug=True
             )
-        self.path_or_stream = path_or_stream
 
     def extract_altitude(self) -> T.Optional[float]:
         """
@@ -284,6 +281,22 @@ class ExifRead:
         Extract camera model
         """
         return self._extract_alternative_fields(["EXIF LensModel", "Image Model"], str)
+
+    def extract_width(self) -> T.Optional[int]:
+        """
+        Extract image width in pixels
+        """
+        return self._extract_alternative_fields(
+            ["Image ImageWidth", "EXIF ExifImageWidth"], int
+        )
+
+    def extract_height(self) -> T.Optional[int]:
+        """
+        Extract image height in pixels
+        """
+        return self._extract_alternative_fields(
+            ["Image ImageLength", "EXIF ExifImageLength"], int
+        )
 
     def extract_orientation(self) -> int:
         """

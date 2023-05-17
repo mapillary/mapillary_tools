@@ -75,6 +75,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 alt=exif.extract_altitude(),
                 angle=exif.extract_direction(),
                 time=geo.as_unix_time(timestamp),
+                width=exif.extract_width(),
+                height=exif.extract_height(),
                 MAPOrientation=exif.extract_orientation(),
                 MAPDeviceMake=exif.extract_make(),
                 MAPDeviceModel=exif.extract_model(),

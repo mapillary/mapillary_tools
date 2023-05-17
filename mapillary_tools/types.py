@@ -44,6 +44,8 @@ class FileType(enum.Enum):
 class ImageMetadata(geo.Point):
     filename: Path
     # filetype is always FileType.IMAGE
+    width: T.Optional[int]
+    height: T.Optional[int]
     MAPSequenceUUID: T.Optional[str] = None
     MAPDeviceMake: T.Optional[str] = None
     MAPDeviceModel: T.Optional[str] = None
@@ -518,6 +520,8 @@ def _from_image_desc(desc) -> ImageMetadata:
         alt=desc.get("MAPAltitude"),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
+        width=None,
+        height=None,
         **kwargs,
     )
 
