@@ -11,6 +11,7 @@ from ..exceptions import (
 from ..exif_read import ExifRead
 
 from .geotag_from_generic import GeotagFromGeneric
+from .geotag_from_exif import verify_image_exif_write
 
 
 LOG = logging.getLogger(__name__)
@@ -198,7 +199,10 @@ class GeotagFromGPX(GeotagFromGeneric):
                 width=width,
                 height=height,
             )
-            metadatas.append(image_metadata)
+
+            image_metadata_or_error = verify_image_exif_write(image_metadata)
+
+            metadatas.append(image_metadata_or_error)
 
         assert len(self.image_paths) == len(metadatas)
         return metadatas

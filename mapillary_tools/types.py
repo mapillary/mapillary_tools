@@ -619,5 +619,17 @@ def validate_and_fail_metadata(metadata: _M) -> _M:
     return metadata
 
 
+def desc_file_to_exif(
+    desc: ImageDescription,
+) -> ImageDescription:
+    not_needed = ["MAPSequenceUUID"]
+    removed = {
+        key: value
+        for key, value in desc.items()
+        if key.startswith("MAP") and key not in not_needed
+    }
+    return T.cast(ImageDescription, removed)
+
+
 if __name__ == "__main__":
     print(json.dumps(ImageVideoDescriptionFileSchema, indent=4))

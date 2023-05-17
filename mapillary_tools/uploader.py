@@ -269,18 +269,6 @@ class Uploader:
             return None
 
 
-def desc_file_to_exif(
-    desc: types.ImageDescription,
-) -> types.ImageDescription:
-    not_needed = ["MAPSequenceUUID"]
-    removed = {
-        key: value
-        for key, value in desc.items()
-        if key.startswith("MAP") and key not in not_needed
-    }
-    return T.cast(types.ImageDescription, removed)
-
-
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
         types.validate_image_desc(types.as_desc(metadata))
@@ -340,7 +328,7 @@ def _zip_sequence_fp(
             edit = exif_write.ExifEdit(metadata.filename)
             # The cast is to fix the type checker error
             edit.add_image_description(
-                T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
+                T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
             )
             image_bytes = edit.dump_image_bytes()
             arcname: str = metadata.filename.name

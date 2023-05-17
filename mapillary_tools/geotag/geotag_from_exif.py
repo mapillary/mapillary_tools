@@ -3,14 +3,45 @@ import typing as T
 from pathlib import Path
 
 from tqdm import tqdm
+import piexif
 
-from .. import geo, types, utils
+from .. import geo, types, utils, exif_write
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead
 
 from .geotag_from_generic import GeotagFromGeneric
 
 LOG = logging.getLogger(__name__)
+
+
+def verify_image_exif_write(
+    metadata: types.ImageMetadata,
+) -> types.ImageMetadataOrError:
+    edit = exif_write.ExifEdit(metadata.filename)
+    # The cast is to fix the type error in Python3.6:
+    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
+    edit.add_image_description(
+        T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
+    )
+    try:
+        edit.dump_image_bytes()
+    except piexif.InvalidImageDataError as exc:
+        return types.describe_error_metadata(
+            exc,
+            metadata.filename,
+            filetype=types.FileType.IMAGE,
+        )
+    except Exception as exc:
+        # possible error here: struct.error: 'H' format requires 0 <= number <= 65535
+        LOG.warning(
+            "Unknown error test writing image %s", metadata.filename, exc_info=True
+        )
+        return types.describe_error_metadata(
+            exc,
+            metadata.filename,
+            filetype=types.FileType.IMAGE,
+        )
+    return metadata
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
@@ -86,6 +117,8 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 MAPDeviceModel=exif.extract_model(),
             )
 
-            metadatas.append(image_metadata)
+            image_metadata_or_error = verify_image_exif_write(image_metadata)
+
+            metadatas.append(image_metadata_or_error)
 
         return metadatas

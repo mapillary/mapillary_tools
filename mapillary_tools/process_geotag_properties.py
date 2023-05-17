@@ -12,10 +12,9 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-import piexif
 from tqdm import tqdm
 
-from . import constants, exceptions, exif_write, geo, types, uploader, utils
+from . import constants, exceptions, exif_write, geo, types, utils
 from .geotag import (
     blackvue_parser,
     camm_parser,
@@ -283,36 +282,6 @@ def process_geotag_properties(
     return metadatas
 
 
-def _verify_image_exif_write(
-    metadata: types.ImageMetadata,
-) -> types.ImageMetadataOrError:
-    edit = exif_write.ExifEdit(metadata.filename)
-    # The cast is to fix the type error in Python3.6:
-    # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
-    edit.add_image_description(
-        T.cast(T.Dict, uploader.desc_file_to_exif(types.as_desc(metadata)))
-    )
-    try:
-        edit.dump_image_bytes()
-    except piexif.InvalidImageDataError as exc:
-        return types.describe_error_metadata(
-            exc,
-            metadata.filename,
-            filetype=FileType.IMAGE,
-        )
-    except Exception as exc:
-        # possible error here: struct.error: 'H' format requires 0 <= number <= 65535
-        LOG.warning(
-            "Unknown error test writing image %s", metadata.filename, exc_info=True
-        )
-        return types.describe_error_metadata(
-            exc,
-            metadata.filename,
-            filetype=FileType.IMAGE,
-        )
-    return metadata
-
-
 def _apply_offsets(
     metadatas: T.Iterable[types.ImageMetadata],
     offset_time: float = 0.0,
@@ -487,30 +456,6 @@ def split_if(
     return yes, no
 
 
-def _verify_all_images_exif_write(
-    metadatas: T.List[types.MetadataOrError],
-) -> T.List[types.MetadataOrError]:
-    image_metadatas, other_metadatas = split_if(
-        metadatas, lambda m: isinstance(m, types.ImageMetadata)
-    )
-    validated_image_metadatas = []
-    for image_metadata in tqdm(
-        image_metadatas,
-        desc="Verifying image EXIF writing",
-        unit="images",
-        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-    ):
-        validated = _verify_image_exif_write(
-            T.cast(types.ImageMetadata, image_metadata)
-        )
-        if isinstance(validated, types.ErrorMetadata):
-            other_metadatas.append(validated)
-        else:
-            validated_image_metadatas.append(validated)
-    assert len(metadatas) == len(validated_image_metadatas) + len(other_metadatas)
-    return validated_image_metadatas + other_metadatas
-
-
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
     metadatas: T.List[types.MetadataOrError],
@@ -536,6 +481,7 @@ def process_finalize(
     )
 
     # validate all metadatas
+    LOG.info("Validating %d metadatas", len(metadatas))
     metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
 
     _overwrite_exif_tags(
@@ -551,9 +497,6 @@ def process_finalize(
         direction_tag=overwrite_EXIF_direction_tag,
         orientation_tag=overwrite_EXIF_orientation_tag,
     )
-
-    # verify EXIF writing for image metadatas (the others will be returned as unchanged)
-    metadatas = _verify_all_images_exif_write(metadatas)
 
     # find the description file path
     if desc_path is None:
