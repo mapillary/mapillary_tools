@@ -286,8 +286,7 @@ def process_geotag_properties(
 def _verify_image_exif_write(
     metadata: types.ImageMetadata,
 ) -> types.ImageMetadataOrError:
-    with metadata.filename.open("rb") as fp:
-        edit = exif_write.ExifEdit(metadata.filename)
+    edit = exif_write.ExifEdit(metadata.filename)
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
     edit.add_image_description(

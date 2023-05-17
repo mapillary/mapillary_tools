@@ -2,7 +2,7 @@ import logging
 import typing as T
 from pathlib import Path
 
-from .. import geo, types
+from .. import geo, types, utils
 from ..exceptions import (
     MapillaryGeoTaggingError,
     MapillaryGPXEmptyError,
@@ -181,7 +181,12 @@ class GeotagFromGPX(GeotagFromGeneric):
                     continue
 
             interpolated = geo.interpolate(sorted_points, image_time)
+
             width, height = self.read_image_size(image_path)
+
+            with image_path.open("rb") as fp:
+                md5sum = utils.md5sum_fp(fp)
+
             image_metadata = types.ImageMetadata(
                 filename=image_path,
                 lat=interpolated.lat,
@@ -189,6 +194,7 @@ class GeotagFromGPX(GeotagFromGeneric):
                 alt=interpolated.alt,
                 angle=interpolated.angle,
                 time=interpolated.time,
+                md5sum=md5sum,
                 width=width,
                 height=height,
             )

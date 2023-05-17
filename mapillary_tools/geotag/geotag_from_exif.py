@@ -4,7 +4,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import geo, types
+from .. import geo, types, utils
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead
 
@@ -68,6 +68,9 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 )
                 continue
 
+            with image_path.open("rb") as fp:
+                md5sum = utils.md5sum_fp(fp)
+
             image_metadata = types.ImageMetadata(
                 filename=image_path,
                 lat=lat,
@@ -75,6 +78,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 alt=exif.extract_altitude(),
                 angle=exif.extract_direction(),
                 time=geo.as_unix_time(timestamp),
+                md5sum=md5sum,
                 width=exif.extract_width(),
                 height=exif.extract_height(),
                 MAPOrientation=exif.extract_orientation(),

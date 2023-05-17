@@ -123,8 +123,11 @@ class EventEmitter:
 def _sequence_md5sum(sequence: T.Iterable[types.ImageMetadata]) -> str:
     md5 = hashlib.md5()
     for metadata in sequence:
-        with metadata.filename.open("rb") as fp:
-            md5 = utils.md5sum_fp(fp, md5=md5)
+        # update the metadata
+        if metadata.md5sum is None:
+            with metadata.filename.open("rb") as fp:
+                metadata.md5sum = utils.md5sum_fp(fp).hexdigest()
+        md5.update(metadata.md5sum.encode("utf-8"))
     return md5.hexdigest()
 
 

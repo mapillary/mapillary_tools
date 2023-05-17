@@ -43,9 +43,10 @@ class FileType(enum.Enum):
 @dataclasses.dataclass
 class ImageMetadata(geo.Point):
     filename: Path
-    # filetype is always FileType.IMAGE
-    width: T.Optional[int]
-    height: T.Optional[int]
+    # filetype: is always FileType.IMAGE
+    md5sum: T.Optional[str] = None
+    width: T.Optional[int] = None
+    height: T.Optional[int] = None
     MAPSequenceUUID: T.Optional[str] = None
     MAPDeviceMake: T.Optional[str] = None
     MAPDeviceModel: T.Optional[str] = None
@@ -63,6 +64,7 @@ class VideoMetadata:
     filename: Path
     filetype: FileType
     points: T.Sequence[geo.Point]
+    md5sum: T.Optional[str] = None
     make: T.Optional[str] = None
     model: T.Optional[str] = None
 
