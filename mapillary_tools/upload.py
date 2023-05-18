@@ -2,7 +2,6 @@ import enum
 import json
 import logging
 import os
-import string
 import sys
 import time
 import typing as T
@@ -19,6 +18,7 @@ from . import (
     constants,
     exceptions,
     geo,
+    history,
     ipc,
     types,
     upload_api_v4,
@@ -41,14 +41,6 @@ LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
 MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
     "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
-)
-# Disable if it's set to empty
-MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
-    "MAPILLARY_UPLOAD_HISTORY_PATH",
-    os.path.join(
-        constants.USER_DATA_DIR,
-        "upload_history",
-    ),
 )
 CAMM_CONVERTABLES = {FileType.CAMM, FileType.BLACKVUE, FileType.GOPRO}
 
@@ -208,74 +200,24 @@ def fetch_user_items(
     return user_items
 
 
-def _validate_hexdigits(md5sum: str):
-    try:
-        assert set(md5sum).issubset(string.hexdigits)
-        assert 4 <= len(md5sum)
-        _ = int(md5sum, 16)
-    except Exception:
-        raise ValueError(f"Invalid md5sum {md5sum}")
-
-
-def _history_desc_path(md5sum: str) -> Path:
-    assert MAPILLARY_UPLOAD_HISTORY_PATH is not None
-    _validate_hexdigits(md5sum)
-    subfolder = md5sum[:2]
-    assert subfolder, f"Invalid md5sum {md5sum}"
-    basename = md5sum[2:]
-    assert basename, f"Invalid md5sum {md5sum}"
-    return (
-        Path(MAPILLARY_UPLOAD_HISTORY_PATH)
-        .joinpath(subfolder)
-        .joinpath(f"{basename}.json")
-    )
-
-
-def is_uploaded(md5sum: str) -> bool:
-    if not MAPILLARY_UPLOAD_HISTORY_PATH:
-        return False
-    return _history_desc_path(md5sum).is_file()
-
-
-def write_history(
-    md5sum: str,
-    params: JSONDict,
-    summary: JSONDict,
-    metadatas: T.Optional[T.Sequence[types.Metadata]] = None,
-) -> None:
-    if not MAPILLARY_UPLOAD_HISTORY_PATH:
-        return
-    path = _history_desc_path(md5sum)
-    LOG.debug("Writing upload history: %s", path)
-    path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    history: T.Dict[str, T.Any] = {
-        "params": params,
-        "summary": summary,
-    }
-    if metadatas is not None:
-        history["descs"] = [types.as_desc(metadata) for metadata in metadatas]
-    with open(path, "w") as fp:
-        fp.write(json.dumps(history))
-
-
 def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
         md5sum = payload["md5sum"]
-        if is_uploaded(md5sum):
+        if history.is_uploaded(md5sum):
             sequence_uuid = payload.get("sequence_uuid")
             if sequence_uuid is None:
                 basename = os.path.basename(payload.get("import_path", ""))
                 LOG.info(
                     "File %s has been uploaded already. Check the upload history at %s",
                     basename,
-                    _history_desc_path(md5sum),
+                    history.history_desc_path(md5sum),
                 )
             else:
                 LOG.info(
                     "Sequence %s has been uploaded already. Check the upload history at %s",
                     sequence_uuid,
-                    _history_desc_path(md5sum),
+                    history.history_desc_path(md5sum),
                 )
             raise uploader.UploadCancelled()
 
@@ -300,7 +242,7 @@ def _setup_write_upload_history(
             ]
             sequence.sort(key=lambda metadata: metadata.sort_key())
         try:
-            write_history(
+            history.write_history(
                 md5sum,
                 params,
                 T.cast(JSONDict, payload),
@@ -628,7 +570,7 @@ def upload(
 
     emitter = uploader.EventEmitter()
 
-    enable_history = MAPILLARY_UPLOAD_HISTORY_PATH and (
+    enable_history = history.MAPILLARY_UPLOAD_HISTORY_PATH and (
         not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
     )
 
