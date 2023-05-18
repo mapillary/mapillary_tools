@@ -304,6 +304,8 @@ def zip_images(
     sequences = _group_sequences_by_uuid(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
+        for metadata in sequence:
+            metadata.update_md5sum()
         upload_md5sum = _sequence_md5sum(sequence)
         timestamp = int(time.time())
         wip_zip_filename = zip_dir.joinpath(
