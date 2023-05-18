@@ -64,6 +64,12 @@ class ImageMetadata(geo.Point):
             with self.filename.open("rb") as fp:
                 self.md5sum = utils.md5sum_fp(fp).hexdigest()
 
+    def sort_key(self):
+        """
+        For sorting images in a sequence
+        """
+        return (self.time, self.filename.name)
+
 
 @dataclasses.dataclass
 class VideoMetadata:

@@ -169,13 +169,8 @@ def _group_sort_images_by_folder(
 
     sequences = list(sequences_by_parent.values())
     for sequence in sequences:
-        # Sort images in a sequence by capture time
-        # and then filename (in case capture times are the same)
         sequence.sort(
-            key=lambda metadata: (
-                metadata.time,
-                metadata.filename.name,
-            )
+            key=lambda metadata: metadata.sort_key(),
         )
 
     return sequences

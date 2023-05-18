@@ -46,7 +46,7 @@ def _group_sequences_by_uuid(
         dedups = {metadata.filename.resolve(): metadata for metadata in sequence}
         sorted_sequences_by_uuid[sequence_uuid] = sorted(
             dedups.values(),
-            key=lambda metadata: (metadata.time, metadata.filename.name),
+            key=lambda metadata: metadata.sort_key(),
         )
     return sorted_sequences_by_uuid
 
