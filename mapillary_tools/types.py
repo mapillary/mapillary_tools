@@ -14,7 +14,7 @@ else:
 
 import jsonschema
 
-from . import geo
+from . import geo, utils
 
 
 # http://wiki.gis.com/wiki/index.php/Decimal_degrees
@@ -59,6 +59,11 @@ class ImageMetadata(geo.Point):
     # deprecated since v0.10.0; keep here for compatibility
     MAPFilename: T.Optional[str] = None
 
+    def update_md5sum(self) -> None:
+        if self.md5sum is None:
+            with self.filename.open("rb") as fp:
+                self.md5sum = utils.md5sum_fp(fp).hexdigest()
+
 
 @dataclasses.dataclass
 class VideoMetadata:
@@ -69,6 +74,11 @@ class VideoMetadata:
     points: T.Sequence[geo.Point]
     make: T.Optional[str] = None
     model: T.Optional[str] = None
+
+    def update_md5sum(self) -> None:
+        if self.md5sum is None:
+            with self.filename.open("rb") as fp:
+                self.md5sum = utils.md5sum_fp(fp).hexdigest()
 
 
 @dataclasses.dataclass

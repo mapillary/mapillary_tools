@@ -100,23 +100,22 @@ class GeotagFromEXIF(GeotagFromGeneric):
                 )
                 continue
 
-            with image_path.open("rb") as fp:
-                md5sum = utils.md5sum_fp(fp).hexdigest()
-
             image_metadata = types.ImageMetadata(
                 filename=image_path,
+                md5sum=None,
                 lat=lat,
                 lon=lon,
                 alt=exif.extract_altitude(),
                 angle=exif.extract_direction(),
                 time=geo.as_unix_time(timestamp),
-                md5sum=md5sum,
                 width=exif.extract_width(),
                 height=exif.extract_height(),
                 MAPOrientation=exif.extract_orientation(),
                 MAPDeviceMake=exif.extract_make(),
                 MAPDeviceModel=exif.extract_model(),
             )
+
+            image_metadata.update_md5sum()
 
             image_metadata_or_error = verify_image_exif_write(image_metadata)
 

@@ -274,12 +274,9 @@ def process_geotag_properties(
         ):
             LOG.debug("Extracting GPS track from %s", str(video_path))
             metadata = process_video(video_path, filetypes)
-            # calculate md5sum and update it
             if not isinstance(metadata, types.ErrorMetadata):
-                if metadata.md5sum is None:
-                    LOG.debug("Calculating MD5 checksum for %s", str(metadata.filename))
-                    with metadata.filename.open("rb") as fp:
-                        metadata.md5sum = utils.md5sum_fp(fp).hexdigest()
+                LOG.debug("Calculating MD5 checksum for %s", str(metadata.filename))
+                metadata.update_md5sum()
             metadatas.append(metadata)
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos

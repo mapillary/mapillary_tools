@@ -123,10 +123,7 @@ class EventEmitter:
 def _sequence_md5sum(sequence: T.Iterable[types.ImageMetadata]) -> str:
     md5 = hashlib.md5()
     for metadata in sequence:
-        # update the metadata
-        if metadata.md5sum is None:
-            with metadata.filename.open("rb") as fp:
-                metadata.md5sum = utils.md5sum_fp(fp).hexdigest()
+        assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
         md5.update(metadata.md5sum.encode("utf-8"))
     return md5.hexdigest()
 
@@ -198,6 +195,8 @@ class Uploader:
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
             }
+            for metadata in sequence:
+                metadata.update_md5sum()
             upload_md5sum = _sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
                 _zip_sequence_fp(sequence, fp, upload_md5sum)
