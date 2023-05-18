@@ -27,30 +27,6 @@ from . import constants, exif_write, types, upload_api_v4, utils
 LOG = logging.getLogger(__name__)
 
 
-def _group_sequences_by_uuid(
-    metadatas: T.Sequence[types.ImageMetadata],
-) -> T.Dict[str, T.List[types.ImageMetadata]]:
-    # group metadatas by uuid
-    sequences_by_uuid: T.Dict[str, T.List[types.ImageMetadata]] = {}
-    missing_sequence_uuid = str(uuid.uuid4())
-    for metadata in metadatas:
-        if metadata.MAPSequenceUUID is None:
-            sequence_uuid = missing_sequence_uuid
-        else:
-            sequence_uuid = metadata.MAPSequenceUUID
-        sequences_by_uuid.setdefault(sequence_uuid, []).append(metadata)
-
-    # deduplicate and sort metadatas per uuid
-    sorted_sequences_by_uuid = {}
-    for sequence_uuid, sequence in sequences_by_uuid.items():
-        dedups = {metadata.filename.resolve(): metadata for metadata in sequence}
-        sorted_sequences_by_uuid[sequence_uuid] = sorted(
-            dedups.values(),
-            key=lambda metadata: metadata.sort_key(),
-        )
-    return sorted_sequences_by_uuid
-
-
 class Progress(types.TypedDict, total=False):
     # The size of the chunk, in bytes, that has been uploaded in the last request
     chunk_size: int
@@ -185,7 +161,7 @@ class Uploader:
             event_payload = {}
 
         _validate_metadatas(image_metadatas)
-        sequences = _group_sequences_by_uuid(image_metadatas)
+        sequences = types.group_and_sort_images(image_metadatas)
         ret: T.Dict[str, str] = {}
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
             final_event_payload: Progress = {
@@ -301,7 +277,7 @@ def zip_images(
     zip_dir: Path,
 ) -> None:
     _validate_metadatas(metadatas)
-    sequences = _group_sequences_by_uuid(metadatas)
+    sequences = types.group_and_sort_images(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
         for metadata in sequence:

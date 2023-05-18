@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import typing as T
+import uuid
 from pathlib import Path
 
 if sys.version_info >= (3, 8):
@@ -664,6 +665,30 @@ def desc_file_to_exif(
         if key.startswith("MAP") and key not in not_needed
     }
     return T.cast(ImageDescription, removed)
+
+
+def group_and_sort_images(
+    metadatas: T.Sequence[ImageMetadata],
+) -> T.Dict[str, T.List[ImageMetadata]]:
+    # group metadatas by uuid
+    sequences_by_uuid: T.Dict[str, T.List[ImageMetadata]] = {}
+    missing_sequence_uuid = str(uuid.uuid4())
+    for metadata in metadatas:
+        if metadata.MAPSequenceUUID is None:
+            sequence_uuid = missing_sequence_uuid
+        else:
+            sequence_uuid = metadata.MAPSequenceUUID
+        sequences_by_uuid.setdefault(sequence_uuid, []).append(metadata)
+
+    # deduplicate and sort metadatas per uuid
+    sorted_sequences_by_uuid = {}
+    for sequence_uuid, sequence in sequences_by_uuid.items():
+        dedups = {metadata.filename.resolve(): metadata for metadata in sequence}
+        sorted_sequences_by_uuid[sequence_uuid] = sorted(
+            dedups.values(),
+            key=lambda metadata: metadata.sort_key(),
+        )
+    return sorted_sequences_by_uuid
 
 
 if __name__ == "__main__":
