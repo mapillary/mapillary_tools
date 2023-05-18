@@ -44,21 +44,21 @@ def test_upload_images(
                     "message": "The image was already uploaded",
                     "type": "MapillaryUploadedAlreadyError",
                 },
-                "filename": setup_data.join("images").join("DSC00001.JPG"),
+                "filename": str(Path(setup_data.join("images").join("DSC00001.JPG"))),
             },
             {
                 "error": {
                     "message": "The image was already uploaded",
                     "type": "MapillaryUploadedAlreadyError",
                 },
-                "filename": setup_data.join("images").join("DSC00497.JPG"),
+                "filename": str(Path(setup_data.join("images").join("DSC00497.JPG"))),
             },
             {
                 "error": {
                     "message": "The image was already uploaded",
                     "type": "MapillaryUploadedAlreadyError",
                 },
-                "filename": setup_data.join("images").join("V0370574.JPG"),
+                "filename": str(Path(setup_data.join("images").join("V0370574.JPG"))),
             },
         ],
         Path(setup_data, "mapillary_image_description.json"),
