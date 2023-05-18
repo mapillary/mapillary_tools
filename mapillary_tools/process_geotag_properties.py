@@ -14,7 +14,7 @@ else:
 
 from tqdm import tqdm
 
-from . import constants, exceptions, exif_write, geo, types, utils
+from . import constants, exceptions, exif_write, geo, history, types, utils
 from .geotag import (
     blackvue_parser,
     camm_parser,
@@ -461,6 +461,62 @@ def split_if(
     return yes, no
 
 
+def _check_upload_status(
+    metadatas: T.Sequence[types.MetadataOrError],
+) -> T.List[types.MetadataOrError]:
+    groups = types.group_and_sort_images(
+        [
+            metadata
+            for metadata in metadatas
+            if isinstance(metadata, types.ImageMetadata)
+        ]
+    )
+    uploaded_sequence_uuids = set()
+    for sequence_uuid, group in groups.items():
+        for m in group:
+            m.update_md5sum()
+        sequence_md5sum = types.sequence_md5sum(group)
+        if history.is_uploaded(sequence_md5sum):
+            uploaded_sequence_uuids.add(sequence_uuid)
+
+    output: T.List[types.MetadataOrError] = []
+    for metadata in metadatas:
+        if isinstance(metadata, types.ImageMetadata):
+            if metadata.MAPSequenceUUID in uploaded_sequence_uuids:
+                output.append(
+                    types.describe_error_metadata(
+                        exceptions.MapillaryUploadedAlreadyError(
+                            "The image was already uploaded",
+                            types.as_desc(metadata),
+                        ),
+                        filename=metadata.filename,
+                        filetype=types.FileType.IMAGE,
+                    )
+                )
+            else:
+                output.append(metadata)
+        elif isinstance(metadata, types.VideoMetadata):
+            metadata.update_md5sum()
+            assert isinstance(metadata.md5sum, str)
+            if history.is_uploaded(metadata.md5sum):
+                output.append(
+                    types.describe_error_metadata(
+                        exceptions.MapillaryUploadedAlreadyError(
+                            "The video was already uploaded",
+                            types.as_desc(metadata),
+                        ),
+                        filename=metadata.filename,
+                        filetype=metadata.filetype,
+                    )
+                )
+            else:
+                output.append(metadata)
+        else:
+            output.append(metadata)
+    assert len(output) == len(metadatas), "length mismatch"
+    return output
+
+
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
     metadatas: T.List[types.MetadataOrError],
@@ -485,9 +541,11 @@ def process_finalize(
         offset_angle=offset_angle,
     )
 
-    # validate all metadatas
     LOG.info("Validating %d metadatas", len(metadatas))
     metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
+
+    LOG.info("Checking upload status for %d metadatas", len(metadatas))
+    metadatas = _check_upload_status(metadatas)
 
     _overwrite_exif_tags(
         # search image metadatas again because some of them might have been failed
@@ -534,7 +592,10 @@ def process_finalize(
         # skip all exceptions
         skipped_process_errors = {Exception}
     else:
-        skipped_process_errors = {exceptions.MapillaryDuplicationError}
+        skipped_process_errors = {
+            exceptions.MapillaryDuplicationError,
+            exceptions.MapillaryUploadedAlreadyError,
+        }
     _show_stats(metadatas, skipped_process_errors=skipped_process_errors)
 
     return metadatas

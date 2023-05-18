@@ -96,14 +96,6 @@ class EventEmitter:
             callback(*args, **kwargs)
 
 
-def _sequence_md5sum(sequence: T.Iterable[types.ImageMetadata]) -> str:
-    md5 = hashlib.md5()
-    for metadata in sequence:
-        assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
-        md5.update(metadata.md5sum.encode("utf-8"))
-    return md5.hexdigest()
-
-
 class Uploader:
     def __init__(
         self,
@@ -173,7 +165,7 @@ class Uploader:
             }
             for metadata in sequence:
                 metadata.update_md5sum()
-            upload_md5sum = _sequence_md5sum(sequence)
+            upload_md5sum = types.sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
                 _zip_sequence_fp(sequence, fp, upload_md5sum)
                 cluster_id = self.upload_stream(
@@ -282,7 +274,7 @@ def zip_images(
     for sequence_uuid, sequence in sequences.items():
         for metadata in sequence:
             metadata.update_md5sum()
-        upload_md5sum = _sequence_md5sum(sequence)
+        upload_md5sum = types.sequence_md5sum(sequence)
         timestamp = int(time.time())
         wip_zip_filename = zip_dir.joinpath(
             f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{timestamp}"

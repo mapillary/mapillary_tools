@@ -80,6 +80,16 @@ class MapillaryDuplicationError(_MapillaryDescriptionError):
         self.angle_diff = angle_diff
 
 
+class MapillaryUploadedAlreadyError(_MapillaryDescriptionError):
+    def __init__(
+        self,
+        message: str,
+        desc: T.Mapping,
+    ) -> None:
+        super().__init__(message)
+        self.desc = desc
+
+
 class MapillaryUploadConnectionError(MapillaryUserError):
     exit_code = 12
 

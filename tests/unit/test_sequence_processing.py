@@ -347,7 +347,7 @@ def test_process_finalize(setup_data):
             "MAPLongitude": 1,
             "MAPCaptureTime": "1970_01_01_00_00_02_000",
             "MAPCompassHeading": {"TrueHeading": 17.0, "MagneticHeading": 17.0},
-            "md5sum": None,
+            "md5sum": "346c064df2c194e20ea98708fd61ac10",
         },
         {
             "error": {
