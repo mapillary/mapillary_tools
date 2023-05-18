@@ -43,8 +43,9 @@ class FileType(enum.Enum):
 @dataclasses.dataclass
 class ImageMetadata(geo.Point):
     filename: Path
+    # if None or absent, it will be calculated
+    md5sum: T.Optional[str]
     # filetype: is always FileType.IMAGE
-    md5sum: T.Optional[str] = None
     width: T.Optional[int] = None
     height: T.Optional[int] = None
     MAPSequenceUUID: T.Optional[str] = None
@@ -62,9 +63,10 @@ class ImageMetadata(geo.Point):
 @dataclasses.dataclass
 class VideoMetadata:
     filename: Path
+    # if None or absent, it will be calculated
+    md5sum: T.Optional[str]
     filetype: FileType
     points: T.Sequence[geo.Point]
-    md5sum: T.Optional[str] = None
     make: T.Optional[str] = None
     model: T.Optional[str] = None
 
@@ -121,11 +123,15 @@ class MetaProperties(TypedDict, total=False):
 class ImageDescription(_SequenceOnly, _Image, MetaProperties, total=True):
     # filename is required
     filename: str
+    # if None or absent, it will be calculated
+    md5sum: T.Optional[str]
     filetype: Literal["image"]
 
 
 class _VideoDescriptionRequired(TypedDict, total=True):
     filename: str
+    # if None or absent, it will be calculated
+    md5sum: T.Optional[str]
     filetype: str
     MAPGPSTrack: T.List[T.Sequence[T.Union[float, int, None]]]
 
@@ -341,6 +347,10 @@ ImageDescriptionFileSchema = merge_schema(
                 "type": "string",
                 "description": "Absolute path of the image",
             },
+            "md5sum": {
+                "type": ["string", "null"],
+                "description": "MD5 checksum of the image content. If not provided, the uploader will compute it",
+            },
             "filetype": {
                 "type": "string",
                 "enum": [FileType.IMAGE.value],
@@ -362,6 +372,10 @@ VideoDescriptionFileSchema = merge_schema(
             "filename": {
                 "type": "string",
                 "description": "Absolute path of the video",
+            },
+            "md5sum": {
+                "type": ["string", "null"],
+                "description": "MD5 checksum of the video content. If not provided, the uploader will compute it",
             },
             "filetype": {
                 "type": "string",
@@ -447,6 +461,7 @@ def as_desc(metadata):
 def _as_video_desc(metadata: VideoMetadata) -> VideoDescription:
     desc: VideoDescription = {
         "filename": str(metadata.filename.resolve()),
+        "md5sum": metadata.md5sum,
         "filetype": metadata.filetype.value,
         "MAPGPSTrack": [_encode_point(p) for p in metadata.points],
     }
@@ -460,6 +475,7 @@ def _as_video_desc(metadata: VideoMetadata) -> VideoDescription:
 def _as_image_desc(metadata: ImageMetadata) -> ImageDescription:
     desc: ImageDescription = {
         "filename": str(metadata.filename.resolve()),
+        "md5sum": metadata.md5sum,
         "filetype": FileType.IMAGE.value,
         "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
         "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
@@ -506,6 +522,7 @@ def _from_image_desc(desc) -> ImageMetadata:
     for k, v in desc.items():
         if k not in [
             "filename",
+            "md5sum",
             "filetype",
             "MAPLatitude",
             "MAPLongitude",
@@ -517,6 +534,7 @@ def _from_image_desc(desc) -> ImageMetadata:
 
     return ImageMetadata(
         filename=Path(desc["filename"]),
+        md5sum=desc.get("md5sum"),
         lat=desc["MAPLatitude"],
         lon=desc["MAPLongitude"],
         alt=desc.get("MAPAltitude"),
@@ -547,6 +565,7 @@ def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
 def _from_video_desc(desc: VideoDescription) -> VideoMetadata:
     return VideoMetadata(
         filename=Path(desc["filename"]),
+        md5sum=desc["md5sum"],
         filetype=FileType(desc["filetype"]),
         points=[_decode_point(entry) for entry in desc["MAPGPSTrack"]],
         make=desc.get("MAPDeviceMake"),

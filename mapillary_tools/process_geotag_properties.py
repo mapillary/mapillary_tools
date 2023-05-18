@@ -128,7 +128,7 @@ def process_video(
                 fp.seek(0, io.SEEK_SET)
                 make, model = camm_parser.extract_camera_make_and_model(fp)
                 video_metadata = types.VideoMetadata(
-                    video_path, FileType.CAMM, points, make, model
+                    video_path, None, FileType.CAMM, points, make, model
                 )
 
     if filetypes is None or FileType.GOPRO in filetypes:
@@ -143,6 +143,7 @@ def process_video(
                 make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
                 video_metadata = types.VideoMetadata(
                     video_path,
+                    None,
                     FileType.GOPRO,
                     T.cast(T.List[geo.Point], points_with_fix),
                     make,
@@ -169,7 +170,7 @@ def process_video(
                 fp.seek(0, io.SEEK_SET)
                 make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
                 video_metadata = types.VideoMetadata(
-                    video_path, FileType.BLACKVUE, points, make, model
+                    video_path, None, FileType.BLACKVUE, points, make, model
                 )
 
     if video_metadata is None:
@@ -272,7 +273,14 @@ def process_geotag_properties(
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ):
             LOG.debug("Extracting GPS track from %s", str(video_path))
-            metadatas.append(process_video(video_path, filetypes))
+            metadata = process_video(video_path, filetypes)
+            # calculate md5sum and update it
+            if not isinstance(metadata, types.ErrorMetadata):
+                if metadata.md5sum is None:
+                    LOG.debug("Calculating MD5 checksum for %s", str(metadata.filename))
+                    with metadata.filename.open("rb") as fp:
+                        metadata.md5sum = utils.md5sum_fp(fp).hexdigest()
+            metadatas.append(metadata)
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(metadatas) == len(

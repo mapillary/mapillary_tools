@@ -50,6 +50,13 @@
                     "type": "string",
                     "description": "Absolute path of the video"
                 },
+                "md5sum": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "MD5 checksum of the video content. If not provided, the uploader will compute it"
+                },
                 "filetype": {
                     "type": "string",
                     "enum": [
@@ -138,6 +145,13 @@
                 "filename": {
                     "type": "string",
                     "description": "Absolute path of the image"
+                },
+                "md5sum": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "description": "MD5 checksum of the image content. If not provided, the uploader will compute it"
                 },
                 "filetype": {
                     "type": "string",

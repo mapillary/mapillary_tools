@@ -68,6 +68,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1266719,
             "MAPLongitude": -117.3273063,
             "filetype": "image",
+            "md5sum": "1bc324304b5c935307681ea22a8e6c50",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000002.jpg": {
             "MAPAltitude": -21.62,
@@ -78,6 +79,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1266891,
             "MAPLongitude": -117.3273151,
             "filetype": "image",
+            "md5sum": "72b3c80738aa9e8f3cb9ba4de8b293ff",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000003.jpg": {
             "MAPAltitude": -21.896,
@@ -88,6 +90,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267078,
             "MAPLongitude": -117.3273264,
             "filetype": "image",
+            "md5sum": "498853a186a563106dd286f154fcfb61",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000004.jpg": {
             "MAPAltitude": -21.997,
@@ -98,6 +101,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267282,
             "MAPLongitude": -117.3273391,
             "filetype": "image",
+            "md5sum": "3292eaa6dd0c2e24d83b2ceea513ccd8",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000005.jpg": {
             "MAPAltitude": -22.364,
@@ -108,6 +112,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.12675,
             "MAPLongitude": -117.3273483,
             "filetype": "image",
+            "md5sum": "7be37335510d2c46ac896ff4962a9096",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000006.jpg": {
             "MAPAltitude": -22.539,
@@ -118,6 +123,7 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267663,
             "MAPLongitude": -117.3273595,
             "filetype": "image",
+            "md5sum": "501ca80e9dff7bf4a93594a198059266",
         },
     },
 }

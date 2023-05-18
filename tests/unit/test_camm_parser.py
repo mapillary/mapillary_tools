@@ -69,6 +69,7 @@ def build_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
     )
     return types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points or [],
         make=make,
@@ -94,6 +95,7 @@ def test_build_and_parse():
     ]
     metadata = types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points,
         make="test_make",
@@ -127,6 +129,7 @@ def test_build_and_parse2():
     ]
     metadata = types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
@@ -147,6 +150,7 @@ def test_build_and_parse9():
     ]
     metadata = types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
@@ -163,6 +167,7 @@ def test_build_and_parse10():
     ]
     metadata = types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",
@@ -182,6 +187,7 @@ def test_build_and_parse3():
     points = []
     metadata = types.VideoMetadata(
         Path(""),
+        None,
         filetype=types.FileType.CAMM,
         points=points,
         make="test_make汉字",

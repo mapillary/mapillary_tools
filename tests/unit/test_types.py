@@ -5,35 +5,51 @@ from mapillary_tools import geo, types
 
 
 def test_desc():
-    metadata = types.ImageMetadata(
-        filename=Path("foo").resolve(),
-        lat=1,
-        lon=2,
-        alt=3,
-        angle=4,
-        time=5,
-        MAPMetaTags={"foo": "bar", "baz": 1.2},
-        MAPSequenceUUID="MAPSequenceUUID",
-        MAPDeviceMake="MAPDeviceMake",
-        MAPDeviceModel="MAPDeviceModel",
-        MAPGPSAccuracyMeters=23,
-        MAPCameraUUID="MAPCameraUUID",
-        MAPFilename="MAPFilename",
-        MAPOrientation=1,
-        # width and height are not seralized yet so they have to be None to pass the conversion
-        width=None,
-        height=None,
-    )
-    desc = types.as_desc(metadata)
-    types.validate_image_desc(desc)
-    actual = types.from_desc(desc)
-    assert metadata == actual
+    metadatas = [
+        types.ImageMetadata(
+            filename=Path("foo").resolve(),
+            md5sum="1233",
+            lat=1,
+            lon=2,
+            alt=3,
+            angle=4,
+            time=5,
+            MAPMetaTags={"foo": "bar", "baz": 1.2},
+            MAPSequenceUUID="MAPSequenceUUID",
+            MAPDeviceMake="MAPDeviceMake",
+            MAPDeviceModel="MAPDeviceModel",
+            MAPGPSAccuracyMeters=23,
+            MAPCameraUUID="MAPCameraUUID",
+            MAPFilename="MAPFilename",
+            MAPOrientation=1,
+            # width and height are not seralized yet so they have to be None to pass the conversion
+            width=None,
+            height=None,
+        ),
+        types.ImageMetadata(
+            filename=Path("foo").resolve(),
+            md5sum=None,
+            lat=1,
+            lon=2,
+            alt=3,
+            angle=4,
+            time=5,
+            MAPMetaTags={"foo": "bar", "baz": 1.2},
+            MAPOrientation=1,
+        ),
+    ]
+    for metadata in metadatas:
+        desc = types.as_desc(metadata)
+        types.validate_image_desc(desc)
+        actual = types.from_desc(desc)
+        assert metadata == actual
 
 
 def test_desc_video():
     ds = [
         types.VideoMetadata(
             filename=Path("foo/bar.mp4").resolve(),
+            md5sum="123",
             filetype=types.FileType.CAMM,
             points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
             make="hello",
@@ -41,11 +57,13 @@ def test_desc_video():
         ),
         types.VideoMetadata(
             filename=Path("foo/bar.mp4").resolve(),
+            md5sum=None,
             filetype=types.FileType.CAMM,
             points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
         ),
         types.VideoMetadata(
             filename=Path("foo/bar.mp4").resolve(),
+            md5sum="456",
             filetype=types.FileType.CAMM,
             points=[],
         ),

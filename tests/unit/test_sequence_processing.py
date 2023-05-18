@@ -31,6 +31,7 @@ def _make_image_metadata(
             pass
     return types.ImageMetadata(
         filename=filename,
+        md5sum=None,
         lon=lng,
         lat=lat,
         time=time,
@@ -244,6 +245,7 @@ def test_interpolation(tmpdir: py.path.local):
         _make_image_metadata(Path(curdir) / Path("./e.jpg"), 1, 0, 2, angle=123),
         types.VideoMetadata(
             Path("test_video.mp4"),
+            None,
             types.FileType.IMAGE,
             points=[],
             make="hello",
@@ -313,6 +315,7 @@ def test_process_finalize(setup_data):
         _make_image_metadata(Path(corrupt_exif), 1000, 1, 4, angle=22),
         types.VideoMetadata(
             Path(setup_data.join("test_video.mp4")),
+            None,
             types.FileType.IMAGE,
             points=[],
             make="hello",
@@ -344,6 +347,7 @@ def test_process_finalize(setup_data):
             "MAPLongitude": 1,
             "MAPCaptureTime": "1970_01_01_00_00_02_000",
             "MAPCompassHeading": {"TrueHeading": 17.0, "MagneticHeading": 17.0},
+            "md5sum": None,
         },
         {
             "error": {
