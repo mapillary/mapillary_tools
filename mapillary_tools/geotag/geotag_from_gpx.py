@@ -9,9 +9,9 @@ from ..exceptions import (
     MapillaryOutsideGPXTrackError,
 )
 from ..exif_read import ExifRead
+from .geotag_from_exif import verify_image_exif_write
 
 from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_exif import verify_image_exif_write
 
 
 LOG = logging.getLogger(__name__)

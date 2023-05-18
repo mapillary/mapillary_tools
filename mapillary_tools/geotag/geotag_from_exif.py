@@ -2,10 +2,11 @@ import logging
 import typing as T
 from pathlib import Path
 
-from tqdm import tqdm
 import piexif
 
-from .. import geo, types, utils, exif_write
+from tqdm import tqdm
+
+from .. import exif_write, geo, types, utils
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead
 
