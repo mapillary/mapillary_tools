@@ -1,11 +1,11 @@
-import os
 import itertools
-import math
-import typing as T
 import logging
+import math
+import os
+import typing as T
 
 from . import constants, geo, types
-from .exceptions import MapillaryDuplicationError, MapillaryBadParameterError
+from .exceptions import MapillaryBadParameterError, MapillaryDuplicationError
 
 LOG = logging.getLogger(__name__)
 

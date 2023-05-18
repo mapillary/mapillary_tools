@@ -123,8 +123,8 @@ class EventEmitter:
 def _sequence_md5sum(sequence: T.Iterable[types.ImageMetadata]) -> str:
     md5 = hashlib.md5()
     for metadata in sequence:
-        with metadata.filename.open("rb") as fp:
-            md5 = utils.md5sum_fp(fp, md5=md5)
+        assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
+        md5.update(metadata.md5sum.encode("utf-8"))
     return md5.hexdigest()
 
 
@@ -195,6 +195,8 @@ class Uploader:
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
             }
+            for metadata in sequence:
+                metadata.update_md5sum()
             upload_md5sum = _sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
                 _zip_sequence_fp(sequence, fp, upload_md5sum)
@@ -266,18 +268,6 @@ class Uploader:
             return None
 
 
-def desc_file_to_exif(
-    desc: types.ImageDescription,
-) -> types.ImageDescription:
-    not_needed = ["MAPSequenceUUID"]
-    removed = {
-        key: value
-        for key, value in desc.items()
-        if key.startswith("MAP") and key not in not_needed
-    }
-    return T.cast(types.ImageDescription, removed)
-
-
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
         types.validate_image_desc(types.as_desc(metadata))
@@ -314,6 +304,8 @@ def zip_images(
     sequences = _group_sequences_by_uuid(metadatas)
     os.makedirs(zip_dir, exist_ok=True)
     for sequence_uuid, sequence in sequences.items():
+        for metadata in sequence:
+            metadata.update_md5sum()
         upload_md5sum = _sequence_md5sum(sequence)
         timestamp = int(time.time())
         wip_zip_filename = zip_dir.joinpath(
@@ -337,7 +329,7 @@ def _zip_sequence_fp(
             edit = exif_write.ExifEdit(metadata.filename)
             # The cast is to fix the type checker error
             edit.add_image_description(
-                T.cast(T.Dict, desc_file_to_exif(types.as_desc(metadata)))
+                T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
             )
             image_bytes = edit.dump_image_bytes()
             arcname: str = metadata.filename.name

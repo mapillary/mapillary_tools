@@ -711,9 +711,11 @@ def upload(
                 video_metadatas, video_paths
             )
             for idx, video_metadata in enumerate(specified_video_metadatas):
+                video_metadata.update_md5sum()
+                assert isinstance(
+                    video_metadata.md5sum, str
+                ), "md5sum should be updated"
                 generator = camm_builder.camm_sample_generator2(video_metadata)
-                with video_metadata.filename.open("rb") as src_fp:
-                    upload_md5sum = utils.md5sum_fp(src_fp).hexdigest()
                 with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
@@ -726,7 +728,7 @@ def upload(
                         cluster_id = mly_uploader.upload_stream(
                             T.cast(T.BinaryIO, camm_fp),
                             upload_api_v4.ClusterFileType.CAMM,
-                            upload_md5sum,
+                            video_metadata.md5sum,
                             event_payload=event_payload,
                         )
                     except Exception as ex:

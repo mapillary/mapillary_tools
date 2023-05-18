@@ -7,8 +7,19 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 
 def read_requirements():
+    import ssl
+
+    requires = []
+
+    # Workaround for python3.9 on macOS which is compiled with LibreSSL
+    # See https://github.com/urllib3/urllib3/issues/3020
+    if not ssl.OPENSSL_VERSION.startswith("OpenSSL "):
+        requires.append("urllib3<2.0.0")
+
     with open("requirements.txt") as fp:
-        return [row.strip() for row in fp if row.strip()]
+        requires.extend([row.strip() for row in fp if row.strip()])
+
+    return requires
 
 
 about = {}

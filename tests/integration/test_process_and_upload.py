@@ -137,7 +137,7 @@ def _validate_output(upload_dir: py.path.local, expected):
         actual[os.path.basename(desc["filename"])] = {
             k: v
             for k, v in desc.items()
-            if k not in ["filename", "MAPMetaTags", "MAPSequenceUUID"]
+            if k not in ["filename", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
         }
 
     assert expected == actual

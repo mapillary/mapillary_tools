@@ -1,8 +1,9 @@
 import argparse
 from pathlib import Path
 
-from mapillary_tools.geotag import camm_builder, simple_mp4_builder as builder
 from mapillary_tools import process_geotag_properties
+
+from mapillary_tools.geotag import camm_builder, simple_mp4_builder as builder
 
 
 def _parse_args():

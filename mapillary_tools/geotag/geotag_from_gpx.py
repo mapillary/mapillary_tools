@@ -2,13 +2,14 @@ import logging
 import typing as T
 from pathlib import Path
 
-from .. import geo, types
+from .. import geo, types, utils
 from ..exceptions import (
     MapillaryGeoTaggingError,
     MapillaryGPXEmptyError,
     MapillaryOutsideGPXTrackError,
 )
 from ..exif_read import ExifRead
+from .geotag_from_exif import verify_image_exif_write
 
 from .geotag_from_generic import GeotagFromGeneric
 
@@ -181,9 +182,12 @@ class GeotagFromGPX(GeotagFromGeneric):
                     continue
 
             interpolated = geo.interpolate(sorted_points, image_time)
+
             width, height = self.read_image_size(image_path)
+
             image_metadata = types.ImageMetadata(
                 filename=image_path,
+                md5sum=None,
                 lat=interpolated.lat,
                 lon=interpolated.lon,
                 alt=interpolated.alt,
@@ -192,7 +196,12 @@ class GeotagFromGPX(GeotagFromGeneric):
                 width=width,
                 height=height,
             )
-            metadatas.append(image_metadata)
+
+            image_metadata.update_md5sum()
+
+            image_metadata_or_error = verify_image_exif_write(image_metadata)
+
+            metadatas.append(image_metadata_or_error)
 
         assert len(self.image_paths) == len(metadatas)
         return metadatas
