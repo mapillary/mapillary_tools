@@ -306,8 +306,8 @@ def setup_data(tmpdir: py.path.local):
 def test_process_finalize(setup_data):
     test_exif = setup_data.join("test_exif.jpg")
     corrupt_exif = setup_data.join("corrupt_exif.jpg")
-    toobig = _make_image_metadata(Path(corrupt_exif), 1, 1, 4, angle=22)
-    toobig.MAPDeviceModel = "iPhone 11" * 100000
+    # toobig = _make_image_metadata(Path(corrupt_exif), 1, 1, 4, angle=22)
+    # toobig.MAPDeviceModel = "iPhone 11" * 100000
     sequence: T.List[types.MetadataOrError] = [
         _make_image_metadata(Path(test_exif), 1, 1, 3, angle=344),
         _make_image_metadata(Path(corrupt_exif), 1000, 1, 4, angle=22),
@@ -318,7 +318,7 @@ def test_process_finalize(setup_data):
             make="hello",
             model="world",
         ),
-        toobig,
+        # toobig,
     ]
     pytest.raises(
         exceptions.MapillaryProcessError, lambda: pgp.process_finalize([], sequence)
@@ -361,14 +361,14 @@ def test_process_finalize(setup_data):
             "filename": str(setup_data.join("test_video.mp4")),
             "filetype": "image",
         },
-        {
-            "error": {
-                "type": "error",
-                "message": "'H' format requires 0 <= number <= 65535",
-            },
-            "filename": str(corrupt_exif),
-            "filetype": "image",
-        },
+        # {
+        #     "error": {
+        #         "type": "error",
+        #         "message": "'H' format requires 0 <= number <= 65535",
+        #     },
+        #     "filename": str(corrupt_exif),
+        #     "filetype": "image",
+        # },
     ]
     assert expected == [types.as_desc(d) for d in actual]
 

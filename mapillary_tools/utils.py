@@ -4,7 +4,11 @@ import typing as T
 from pathlib import Path
 
 
-def md5sum_fp(fp: T.IO[bytes], md5: T.Any = None):
+# Use "hashlib._Hash" instead of hashlib._Hash because:
+# AttributeError: module 'hashlib' has no attribute '_Hash'
+def md5sum_fp(
+    fp: T.IO[bytes], md5: T.Optional["hashlib._Hash"] = None
+) -> "hashlib._Hash":
     if md5 is None:
         md5 = hashlib.md5()
     while True:

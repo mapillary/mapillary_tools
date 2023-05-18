@@ -186,7 +186,7 @@ class GeotagFromGPX(GeotagFromGeneric):
             width, height = self.read_image_size(image_path)
 
             with image_path.open("rb") as fp:
-                md5sum = utils.md5sum_fp(fp)
+                md5sum = utils.md5sum_fp(fp).hexdigest()
 
             image_metadata = types.ImageMetadata(
                 filename=image_path,
