@@ -447,12 +447,6 @@ class Box64ConstructBuilder:
     def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
         return T.cast(T.List[BoxDict], self.BoxList.parse(data))
 
-    def build_box(self, box: BoxDict) -> bytes:
-        return self.Box.build(box)
-
-    def build_boxlist(self, boxes: T.Sequence[BoxDict]) -> bytes:
-        return self.BoxList.build(boxes)
-
 
 class Box32ConstructBuilder(Box64ConstructBuilder):
     """
@@ -472,6 +466,18 @@ class Box32ConstructBuilder(Box64ConstructBuilder):
             )
 
         return self._box
+
+    def parse_box(self, data: bytes) -> BoxDict:
+        raise NotImplementedError("Box32ConstructBuilder does not support parsing")
+
+    def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
+        raise NotImplementedError("Box32ConstructBuilder does not support parsing")
+
+    def build_box(self, box: BoxDict) -> bytes:
+        return self.Box.build(box)
+
+    def build_boxlist(self, boxes: T.Sequence[BoxDict]) -> bytes:
+        return self.BoxList.build(boxes)
 
 
 # pyre-ignore[9]: pyre does not support recursive type SwitchMapType

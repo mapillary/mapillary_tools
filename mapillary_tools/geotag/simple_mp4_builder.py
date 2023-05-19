@@ -324,62 +324,68 @@ def transform_mp4(
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
-    source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = cparser.MP4WithoutSTBLBuilderConstruct.build_box(
-        {"type": b"ftyp", "data": source_ftyp_box_data}
-    )
+    ftyp_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
 
     # extract moov
     src_fp.seek(0)
-    src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
-    moov_children = _MOOVChildrenParserConstruct.parse_boxlist(src_moov_data)
+    moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
+    moov_children = _MOOVChildrenParserConstruct.parse_boxlist(moov_data)
 
     # filter tracks in moov
     moov_children = list(_filter_moov_children_boxes(moov_children))
 
     # extract video samples
     source_samples = list(iterate_samples(moov_children))
-    movie_sample_readers = [
+    sample_readers: T.List[io.IOBase] = [
         io_utils.SlicedIO(src_fp, sample.offset, sample.size)
         for sample in source_samples
     ]
     if sample_generator is not None:
-        sample_readers = list(sample_generator(src_fp, moov_children))
-    else:
-        sample_readers = []
+        sample_readers.extend(sample_generator(src_fp, moov_children))
 
     _update_all_trak_tkhd(moov_children)
 
-    # moov_boxes should be immutable since here
+    return build_mp4(ftyp_data, moov_children, sample_readers)
+
+
+def build_mp4(
+    ftyp_data: bytes,
+    moov_children: T.Sequence[BoxDict],
+    sample_readers: T.Iterable[io.IOBase],
+) -> io_utils.ChainedIO:
+    ftyp_box = cparser.MP4WithoutSTBLBuilderConstruct.build_box(
+        {"type": b"ftyp", "data": ftyp_data}
+    )
     mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
+    # moov_children should be immutable since here
+    new_moov_box = _rewrite_moov(len(ftyp_box), moov_children)
     return io_utils.ChainedIO(
         [
-            io.BytesIO(source_ftyp_data),
-            io.BytesIO(_rewrite_moov(len(source_ftyp_data), moov_children)),
+            io.BytesIO(ftyp_box),
+            io.BytesIO(new_moov_box),
             io.BytesIO(_build_mdat_header_bytes(mdat_body_size)),
-            *movie_sample_readers,
             *sample_readers,
         ]
     )
 
 
-def _rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
+def _rewrite_moov(moov_offset: int, moov_children: T.Sequence[BoxDict]) -> bytes:
     # build moov for calculating moov size
     sample_offset = 0
-    for box in _filter_trak_boxes(moov_boxes):
+    for box in _filter_trak_boxes(moov_children):
         sample_offset = _update_sbtl(box, sample_offset)
-    moov_data = _build_moov_bytes(moov_boxes)
-    moov_data_size = len(moov_data)
+    moov_bytes = _build_moov_bytes(moov_children)
+    moov_bytes_size = len(moov_bytes)
 
     # mdat header size
-    mdat_body_size = sum(sample.size for sample in iterate_samples(moov_boxes))
+    mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
     mdat_header = _build_mdat_header_bytes(mdat_body_size)
 
     # build moov for real
-    sample_offset = moov_offset + len(moov_data) + len(mdat_header)
-    for box in _filter_trak_boxes(moov_boxes):
+    sample_offset = moov_offset + len(moov_bytes) + len(mdat_header)
+    for box in _filter_trak_boxes(moov_children):
         sample_offset = _update_sbtl(box, sample_offset)
-    moov_data = _build_moov_bytes(moov_boxes)
-    assert len(moov_data) == moov_data_size, f"{len(moov_data)} != {moov_data_size}"
+    moov_bytes = _build_moov_bytes(moov_children)
+    assert len(moov_bytes) == moov_bytes_size, f"{len(moov_bytes)} != {moov_bytes_size}"
 
-    return moov_data
+    return moov_bytes
