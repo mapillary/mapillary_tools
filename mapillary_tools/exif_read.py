@@ -11,7 +11,16 @@ def eval_frac(value: Ratio) -> float:
 
 
 def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
-    deg, min, sec = values
+    try:
+        deg, min, sec, *_ = values
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(deg, Ratio):
+        return None
+    if not isinstance(min, Ratio):
+        return None
+    if not isinstance(sec, Ratio):
+        return None
     try:
         degrees = eval_frac(deg)
         minutes = eval_frac(min)
@@ -58,6 +67,9 @@ def make_valid_timezone_offset(delta: datetime.timedelta) -> datetime.timedelta:
     elif delta <= -h24:
         delta = delta % -h24
     return delta
+
+
+_FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
 
 
 def parse_datetimestr(
@@ -150,9 +162,19 @@ class ExifRead:
         gpstimestamp = self.tags.get("GPS GPSTimeStamp")
         if not gpstimestamp:
             return None
-        hour = int(eval_frac(gpstimestamp.values[0]))
-        minute = int(eval_frac(gpstimestamp.values[1]))
-        second = float(eval_frac(gpstimestamp.values[2]))
+        try:
+            h, m, s, *_ = gpstimestamp.values
+        except (ValueError, TypeError):
+            return None
+        if not isinstance(h, Ratio):
+            return None
+        if not isinstance(m, Ratio):
+            return None
+        if not isinstance(s, Ratio):
+            return None
+        hour = int(eval_frac(h))
+        minute = int(eval_frac(m))
+        second = float(eval_frac(s))
         dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
         # GPS timestamps are always GMT
         dt = dt.replace(tzinfo=datetime.timezone.utc)
@@ -312,8 +334,8 @@ class ExifRead:
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
-        field_type: T.Union[T.Type[float], T.Type[str], T.Type[int]],
-    ) -> T.Any:
+        field_type: T.Type[_FIELD_TYPE],
+    ) -> T.Optional[_FIELD_TYPE]:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -324,16 +346,19 @@ class ExifRead:
                 continue
             values = tag.values
             if field_type is float:
-                if values:
+                if values and isinstance(values[0], Ratio):
                     try:
-                        return eval_frac(values[0])
+                        return T.cast(_FIELD_TYPE, eval_frac(values[0]))
                     except ZeroDivisionError:
                         pass
             elif field_type is str:
-                return str(values)
+                return T.cast(_FIELD_TYPE, str(values))
             elif field_type is int:
                 if values:
-                    return int(values[0])
+                    try:
+                        return T.cast(_FIELD_TYPE, int(values[0]))
+                    except (ValueError, TypeError):
+                        pass
             else:
-                raise RuntimeError(f"Invalid field type {field_type}")
+                raise ValueError(f"Invalid field type {field_type}")
         return None
