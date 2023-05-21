@@ -1,16 +1,12 @@
+import dataclasses
 import logging
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
-from .. import geo, types, utils
-from ..exceptions import (
-    MapillaryGeoTaggingError,
-    MapillaryGPXEmptyError,
-    MapillaryOutsideGPXTrackError,
-)
-from ..exif_read import ExifRead
-from .geotag_from_exif import verify_image_exif_write
-
+from .. import geo, types
+from ..exceptions import MapillaryGPXEmptyError, MapillaryOutsideGPXTrackError
+from .geotag_from_exif import GeotagFromEXIF
 from .geotag_from_generic import GeotagFromGeneric
 
 
@@ -32,35 +28,69 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
-        self._exifs: T.Dict[Path, ExifRead] = {}
 
-    def read_image_time(self, image_path: Path) -> T.Optional[float]:
-        exif = self._exifs.get(image_path)
-        if exif is None:
-            exif = ExifRead(image_path)
-            self._exifs[image_path] = exif
-        image_time = exif.extract_capture_time()
-        if image_time is None:
-            return None
-        return geo.as_unix_time(image_time)
+    @staticmethod
+    def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
+        return GeotagFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
 
-    def read_image_size(
-        self, image_path: Path
-    ) -> T.Tuple[T.Optional[int], T.Optional[int]]:
-        exif = self._exifs.get(image_path)
-        if exif is None:
-            exif = ExifRead(image_path)
-            self._exifs[image_path] = exif
-        width = exif.extract_width()
-        height = exif.extract_height()
-        return width, height
+    def geotag_multiple_images(
+        self, image_paths: T.Sequence[Path]
+    ) -> T.List[types.ImageMetadataOrError]:
+        with Pool() as pool:
+            return pool.map(self.geotag_image, image_paths)
+
+    def _interpolate_image_metadata_along(
+        self,
+        image_metadata: types.ImageMetadata,
+        sorted_points: T.Sequence[geo.Point],
+    ) -> types.ImageMetadataOrError:
+        assert sorted_points, "must have at least one point"
+
+        if image_metadata.time < sorted_points[0].time:
+            delta = sorted_points[0].time - image_metadata.time
+            gpx_start_time = types.datetime_to_map_capture_time(sorted_points[0].time)
+            gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
+            # with the tolerance of 1ms
+            if 0.001 < delta:
+                exc = MapillaryOutsideGPXTrackError(
+                    f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
+                    image_time=types.datetime_to_map_capture_time(image_metadata.time),
+                    gpx_start_time=gpx_start_time,
+                    gpx_end_time=gpx_end_time,
+                )
+                return types.describe_error_metadata(
+                    exc, image_metadata.filename, filetype=types.FileType.IMAGE
+                )
+
+        if sorted_points[-1].time < image_metadata.time:
+            delta = image_metadata.time - sorted_points[-1].time
+            gpx_start_time = types.datetime_to_map_capture_time(sorted_points[0].time)
+            gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
+            # with the tolerance of 1ms
+            if 0.001 < delta:
+                exc = MapillaryOutsideGPXTrackError(
+                    f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
+                    image_time=types.datetime_to_map_capture_time(image_metadata.time),
+                    gpx_start_time=gpx_start_time,
+                    gpx_end_time=gpx_end_time,
+                )
+                return types.describe_error_metadata(
+                    exc, image_metadata.filename, filetype=types.FileType.IMAGE
+                )
+
+        interpolated = geo.interpolate(sorted_points, image_metadata.time)
+
+        return dataclasses.replace(
+            image_metadata,
+            lat=interpolated.lat,
+            lon=interpolated.lon,
+            alt=interpolated.alt,
+            angle=interpolated.angle,
+            time=interpolated.time,
+        )
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         metadatas: T.List[types.ImageMetadataOrError] = []
-
-        if not self.image_paths:
-            assert len(self.image_paths) == len(metadatas)
-            return metadatas
 
         if not self.points:
             exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
@@ -73,48 +103,32 @@ class GeotagFromGPX(GeotagFromGeneric):
             assert len(self.image_paths) == len(metadatas)
             return metadatas
 
-        # pairing the time and the image for sorting
-        image_pairs: T.List[T.Tuple[float, Path]] = []
-        for image_path in self.image_paths:
-            try:
-                image_time = self.read_image_time(image_path)
-            except Exception as exc:
-                metadatas.append(
-                    types.describe_error_metadata(
-                        exc, image_path, filetype=types.FileType.IMAGE
-                    ),
-                )
-                continue
+        image_metadata_or_errors = self.geotag_multiple_images(self.image_paths)
 
-            if image_time is None:
-                metadatas.append(
-                    types.describe_error_metadata(
-                        MapillaryGeoTaggingError(
-                            "No data time found from the image EXIF for interpolation"
-                        ),
-                        image_path,
-                        filetype=types.FileType.IMAGE,
-                    )
-                )
+        image_metadatas = []
+        for metadata_or_error in image_metadata_or_errors:
+            if isinstance(metadata_or_error, types.ErrorMetadata):
+                metadatas.append(metadata_or_error)
             else:
-                image_pairs.append((image_time, image_path))
+                image_metadatas.append(metadata_or_error)
 
-        if not image_pairs:
+        if not image_metadatas:
             assert len(self.image_paths) == len(metadatas)
             return metadatas
 
         # Do not use point itself for comparison because point.angle or point.alt could be None
         # when you compare nonnull value with None, it will throw
         sorted_points = sorted(self.points, key=lambda point: point.time)
-        sorted_images = sorted(image_pairs)
-
-        first_image_time, _ = sorted_images[0]
+        sorted_image_metadatas = sorted(image_metadatas, key=lambda m: m.sort_key())
 
         if self.use_image_start_time:
-            # point time must be delta here
+            # assume the image timestamps are [10010, 10020, 10030, 10040]
+            # the ordered gpx timestamps are [5, 6, 7, 8, 9]
+            # and NOTE: they they be used as timedelta instead of absolute timestamps
+            # after the shifting, the gpx timestamps will be [10015, 10016, 10017, 10018, 10019]
             sorted_points = [
                 geo.Point(
-                    time=first_image_time + p.time,
+                    time=sorted_image_metadatas[0].time + p.time,
                     lat=p.lat,
                     lon=p.lon,
                     alt=p.alt,
@@ -126,82 +140,22 @@ class GeotagFromGPX(GeotagFromGeneric):
         image_time_offset = self.offset_time
 
         if self.use_gpx_start_time:
-            if sorted_images and sorted_points:
-                # assume: the ordered image times are [2, 3, 4, 5]
-                # the ordered gpx times are [5, 6, 7, 8]
+            if sorted_image_metadatas and sorted_points:
+                # assume the image timestamps are [1002, 1004, 1008, 1010]
+                # the ordered gpx timestamps are [1005, 1006, 1007, 1008, 1009]
                 # then the offset will be 5 - 2 = 3
-                time_delta = sorted_points[0].time - first_image_time
+                # after the shifting, the image timestamps will be [1005, 1007, 1011, 1013]
+                time_delta = sorted_points[0].time - sorted_image_metadatas[0].time
                 LOG.debug("GPX start time delta: %s", time_delta)
                 image_time_offset += time_delta
 
         LOG.debug("Final time offset for interpolation: %s", image_time_offset)
 
-        for image_time, image_path in sorted_images:
-            image_time = image_time + image_time_offset
-
-            if image_time < sorted_points[0].time:
-                delta = sorted_points[0].time - image_time
-                # with the tolerance of 1ms
-                if 0.001 < delta:
-                    exc2 = MapillaryOutsideGPXTrackError(
-                        f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
-                        image_time=types.datetime_to_map_capture_time(image_time),
-                        gpx_start_time=types.datetime_to_map_capture_time(
-                            sorted_points[0].time
-                        ),
-                        gpx_end_time=types.datetime_to_map_capture_time(
-                            sorted_points[-1].time
-                        ),
-                    )
-                    metadatas.append(
-                        types.describe_error_metadata(
-                            exc2, image_path, filetype=types.FileType.IMAGE
-                        )
-                    )
-                    continue
-
-            if sorted_points[-1].time < image_time:
-                delta = image_time - sorted_points[-1].time
-                # with the tolerance of 1ms
-                if 0.001 < delta:
-                    exc2 = MapillaryOutsideGPXTrackError(
-                        f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
-                        image_time=types.datetime_to_map_capture_time(image_time),
-                        gpx_start_time=types.datetime_to_map_capture_time(
-                            sorted_points[0].time
-                        ),
-                        gpx_end_time=types.datetime_to_map_capture_time(
-                            sorted_points[-1].time
-                        ),
-                    )
-                    metadatas.append(
-                        types.describe_error_metadata(
-                            exc2, image_path, filetype=types.FileType.IMAGE
-                        ),
-                    )
-                    continue
-
-            interpolated = geo.interpolate(sorted_points, image_time)
-
-            width, height = self.read_image_size(image_path)
-
-            image_metadata = types.ImageMetadata(
-                filename=image_path,
-                md5sum=None,
-                lat=interpolated.lat,
-                lon=interpolated.lon,
-                alt=interpolated.alt,
-                angle=interpolated.angle,
-                time=interpolated.time,
-                width=width,
-                height=height,
+        for image_metadata in sorted_image_metadatas:
+            image_metadata.time += image_time_offset
+            metadatas.append(
+                self._interpolate_image_metadata_along(image_metadata, sorted_points)
             )
-
-            image_metadata.update_md5sum()
-
-            image_metadata_or_error = verify_image_exif_write(image_metadata)
-
-            metadatas.append(image_metadata_or_error)
 
         assert len(self.image_paths) == len(metadatas)
         return metadatas
@@ -226,10 +180,16 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
         )
         self._progress_bar = progress_bar
 
-    def read_image_time(self, image_path: Path) -> T.Optional[float]:
-        try:
-            image_time = super().read_image_time(image_path)
-        finally:
-            if self._progress_bar:
+    def geotag_multiple_images(
+        self, image_paths: T.Sequence[Path]
+    ) -> T.List[types.ImageMetadataOrError]:
+        if self._progress_bar is None:
+            return super().geotag_multiple_images(image_paths)
+
+        output = []
+        with Pool() as pool:
+            iter = pool.imap(self.geotag_image, image_paths)
+            for image_metadata_or_error in iter:
                 self._progress_bar.update(1)
-        return image_time
+                output.append(image_metadata_or_error)
+        return output

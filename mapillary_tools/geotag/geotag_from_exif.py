@@ -58,11 +58,13 @@ class GeotagFromEXIF(GeotagFromGeneric):
         super().__init__()
 
     @staticmethod
-    def geotag_image(image_path: Path):
+    def geotag_image(
+        image_path: Path, skip_lonlat_error: bool = False
+    ) -> types.ImageMetadataOrError:
         with image_path.open("rb") as fp:
             image_data = fp.read()
-
         image_bytesio = io.BytesIO(image_data)
+
         try:
             exif = ExifRead(image_bytesio)
         except Exception as ex:
@@ -77,13 +79,14 @@ class GeotagFromEXIF(GeotagFromGeneric):
 
         lonlat = exif.extract_lon_lat()
         if lonlat is None:
-            exc = MapillaryGeoTaggingError(
-                "Unable to extract GPS Longitude or GPS Latitude from the image"
-            )
-
-            return types.describe_error_metadata(
-                exc, image_path, filetype=types.FileType.IMAGE
-            )
+            if not skip_lonlat_error:
+                exc = MapillaryGeoTaggingError(
+                    "Unable to extract GPS Longitude or GPS Latitude from the image"
+                )
+                return types.describe_error_metadata(
+                    exc, image_path, filetype=types.FileType.IMAGE
+                )
+            lonlat = (0.0, 0.0)
         lon, lat = lonlat
 
         capture_time = exif.extract_capture_time()
@@ -120,15 +123,17 @@ class GeotagFromEXIF(GeotagFromGeneric):
         return image_metadata_or_error
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
-        pool = Pool()
-        processes = pool.imap(GeotagFromEXIF.geotag_image, self.image_paths)
-        metadatas = list(
-            tqdm(
-                processes,
-                desc=f"Extracting geotags from images",
-                unit="images",
-                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                total=len(self.image_paths),
+        with Pool() as pool:
+            image_metadatas = pool.imap(
+                GeotagFromEXIF.geotag_image,
+                self.image_paths,
             )
-        )
-        return metadatas
+            return list(
+                tqdm(
+                    image_metadatas,
+                    desc=f"Extracting geotags from images",
+                    unit="images",
+                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                    total=len(self.image_paths),
+                )
+            )
