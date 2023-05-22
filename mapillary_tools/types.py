@@ -2,6 +2,7 @@ import dataclasses
 import datetime
 import enum
 import hashlib
+import io
 import json
 import os
 import sys
@@ -61,10 +62,13 @@ class ImageMetadata(geo.Point):
     # deprecated since v0.10.0; keep here for compatibility
     MAPFilename: T.Optional[str] = None
 
-    def update_md5sum(self) -> None:
+    def update_md5sum(self, image_data: T.Optional[T.BinaryIO] = None) -> None:
         if self.md5sum is None:
-            with self.filename.open("rb") as fp:
-                self.md5sum = utils.md5sum_fp(fp).hexdigest()
+            if image_data is None:
+                with self.filename.open("rb") as fp:
+                    self.md5sum = utils.md5sum_fp(fp).hexdigest()
+            else:
+                self.md5sum = utils.md5sum_fp(image_data).hexdigest()
 
     def sort_key(self):
         """

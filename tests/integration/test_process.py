@@ -472,6 +472,47 @@ def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.
     )
 
 
+def test_process_filetypes(setup_data: py.path.local):
+    video_dir = setup_data.join("gopro_data")
+    x = subprocess.run(
+        f"{EXECUTABLE} --verbose process {PROCESS_FLAGS} --skip_process_errors {video_dir}",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    desc_path = video_dir.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+    assert 2 == len(descs)
+    assert 1 == len(find_desc_errors(descs))
+    assert 1 == len(filter_out_errors(descs))
+
+
+def test_process_unsupported_filetypes(setup_data: py.path.local):
+    video_dir = setup_data.join("gopro_data")
+    for filetypes in ["blackvue"]:
+        x = subprocess.run(
+            f"{EXECUTABLE} --verbose process --filetypes={filetypes} {PROCESS_FLAGS} --skip_process_errors {video_dir}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        desc_path = video_dir.join("mapillary_image_description.json")
+        with open(desc_path) as fp:
+            descs = json.load(fp)
+        assert 2 == len(descs)
+        assert 2 == len(find_desc_errors(descs))
+
+    for filetypes in ["image"]:
+        x = subprocess.run(
+            f"{EXECUTABLE} --verbose process --filetypes={filetypes} {PROCESS_FLAGS} --skip_process_errors {video_dir}",
+            shell=True,
+        )
+        assert x.returncode == 0, x.stderr
+        desc_path = video_dir.join("mapillary_image_description.json")
+        with open(desc_path) as fp:
+            descs = json.load(fp)
+        assert 0 == len(descs)
+
+
 def test_sample_video_relpath():
     if not is_ffmpeg_installed:
         pytest.skip("skip because ffmpeg not installed")
