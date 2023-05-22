@@ -1,6 +1,7 @@
 import io
 import logging
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -29,16 +30,26 @@ class GeotagFromVideo:
         self.filetypes = filetypes
 
     def to_descriptions(self) -> T.List[types.VideoMetadataOrError]:
-        metadatas = []
-        for video_path in tqdm(
-            self.video_paths,
-            desc="Extracting GPS tracks from videos",
-            unit="videos",
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-        ):
-            metadata = GeotagFromVideo.geotag_video(video_path, self.filetypes)
-            metadatas.append(metadata)
-        return metadatas
+        with Pool() as pool:
+            video_metadatas = pool.imap(
+                self._geotag_video,
+                self.video_paths,
+            )
+            return list(
+                tqdm(
+                    video_metadatas,
+                    desc=f"Extracting GPS tracks from videos",
+                    unit="videos",
+                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                    total=len(self.video_paths),
+                )
+            )
+
+    def _geotag_video(
+        self,
+        video_path: Path,
+    ) -> types.VideoMetadataOrError:
+        return GeotagFromVideo.geotag_video(video_path, self.filetypes)
 
     @staticmethod
     def geotag_video(

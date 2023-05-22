@@ -173,7 +173,7 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        geotag = geotag_from_video.GeotagFromVideo(video_paths)
+        geotag = geotag_from_video.GeotagFromVideo(video_paths, filetypes=filetypes)
         metadatas.extend(geotag.to_descriptions())
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
