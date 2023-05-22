@@ -14,10 +14,8 @@ else:
 
 from tqdm import tqdm
 
-from . import constants, exceptions, exif_write, geo, history, types, utils
+from . import constants, exceptions, exif_write, history, types, utils
 from .geotag import (
-    blackvue_parser,
-    camm_parser,
     geotag_from_blackvue,
     geotag_from_camm,
     geotag_from_exif,
@@ -25,10 +23,7 @@ from .geotag import (
     geotag_from_gopro,
     geotag_from_gpx_file,
     geotag_from_nmea_file,
-    gpmf_gps_filter,
-    gpmf_parser,
-    simple_mp4_parser as parser,
-    utils as video_utils,
+    geotag_from_video,
 )
 from .types import FileType
 
@@ -112,94 +107,6 @@ def _process_images(
     return geotag.to_description()
 
 
-def process_video(
-    video_path: Path,
-    filetypes: T.Optional[T.Set[FileType]] = None,
-) -> types.VideoMetadataOrError:
-    video_metadata = None
-    if filetypes is None or FileType.CAMM in filetypes:
-        with video_path.open("rb") as fp:
-            try:
-                points = camm_parser.extract_points(fp)
-            except parser.ParsingError:
-                points = None
-
-            if points is not None:
-                fp.seek(0, io.SEEK_SET)
-                make, model = camm_parser.extract_camera_make_and_model(fp)
-                video_metadata = types.VideoMetadata(
-                    video_path, None, FileType.CAMM, points, make, model
-                )
-
-    if filetypes is None or FileType.GOPRO in filetypes:
-        with video_path.open("rb") as fp:
-            try:
-                points_with_fix = gpmf_parser.extract_points(fp)
-            except parser.ParsingError:
-                points_with_fix = None
-
-            if points_with_fix is not None:
-                fp.seek(0, io.SEEK_SET)
-                make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                video_metadata = types.VideoMetadata(
-                    video_path,
-                    None,
-                    FileType.GOPRO,
-                    T.cast(T.List[geo.Point], points_with_fix),
-                    make,
-                    model,
-                )
-                video_metadata.points = T.cast(
-                    T.List[geo.Point],
-                    gpmf_gps_filter.filter_noisy_points(
-                        T.cast(
-                            T.List[gpmf_parser.PointWithFix],
-                            video_metadata.points,
-                        )
-                    ),
-                )
-
-    if filetypes is None or FileType.BLACKVUE in filetypes:
-        with video_path.open("rb") as fp:
-            try:
-                points = blackvue_parser.extract_points(fp)
-            except parser.ParsingError:
-                points = None
-
-            if points is not None:
-                fp.seek(0, io.SEEK_SET)
-                make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-                video_metadata = types.VideoMetadata(
-                    video_path, None, FileType.BLACKVUE, points, make, model
-                )
-
-    if video_metadata is None:
-        return types.describe_error_metadata(
-            exceptions.MapillaryVideoError("No GPS data found from the video"),
-            video_path,
-            filetype=None,
-        )
-
-    if not video_metadata.points:
-        return types.describe_error_metadata(
-            exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-            video_metadata.filename,
-            filetype=video_metadata.filetype,
-        )
-
-    stationary = video_utils.is_video_stationary(
-        geo.get_max_distance_from_start([(p.lat, p.lon) for p in video_metadata.points])
-    )
-    if stationary:
-        return types.describe_error_metadata(
-            exceptions.MapillaryStationaryVideoError(f"Stationary video"),
-            video_metadata.filename,
-            filetype=video_metadata.filetype,
-        )
-
-    return video_metadata
-
-
 def _normalize_import_paths(
     import_path: T.Union[Path, T.Sequence[Path]]
 ) -> T.Sequence[Path]:
@@ -266,18 +173,8 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        for video_path in tqdm(
-            video_paths,
-            desc="Extracting GPS tracks from videos",
-            unit="videos",
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-        ):
-            LOG.debug("Extracting GPS track from %s", str(video_path))
-            metadata = process_video(video_path, filetypes)
-            if not isinstance(metadata, types.ErrorMetadata):
-                LOG.debug("Calculating MD5 checksum for %s", str(metadata.filename))
-                metadata.update_md5sum()
-            metadatas.append(metadata)
+        geotag = geotag_from_video.GeotagFromVideo(video_paths)
+        metadatas.extend(geotag.to_descriptions())
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(metadatas) == len(
