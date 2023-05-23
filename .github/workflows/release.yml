@@ -4,15 +4,13 @@
 name: Release
 
 on:
-  # push:
-  #   branches: [main]
-  #   tags:
-  #     - "v*.*.*"
   workflow_run:
     workflows: ["Python package"]
-    branches: [main]
     types:
       - completed
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
   build:

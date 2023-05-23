@@ -4,7 +4,10 @@
 name: Python package
 
 on:
+  # Runs your workflow when activity on a pull request in the workflow's repository occurs.
+  # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
   pull_request:
+    # only run on pull requests that target specific branches
     branches: [main]
 
 jobs:
