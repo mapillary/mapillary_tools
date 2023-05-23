@@ -42,9 +42,17 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install .
         python -m pip install -r requirements-dev.txt
+    - name: Validate version
+      run: |
+        EXPECTED_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
+        if [[ "$EXPECTED_REF" != "$GITHUB_REF" ]]; then
+          echo "Version mismatch: $EXPECTED_REF != $GITHUB_REF"
+          exit 1
+        fi
+      if: matrix.platform != 'windows-latest'
     - name: Build and test with Pyinstaller on MacOS
       # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
-      if: matrix.platform == 'macos-latest' && startsWith(github.ref, 'refs/tags/')
+      if: matrix.platform == 'macos-latest'
       run: |
         # see https://github.com/mapillary/mapillary_tools/issues/566
         # TODO: move it to extras in setup.py
@@ -55,7 +63,7 @@ jobs:
       env:
         MAPILLARY_TOOLS_EXECUTABLE: ./dist/osx/mapillary_tools
     - name: Build and test with Pyinstaller on Ubuntu
-      if: matrix.platform == 'ubuntu-latest' && startsWith(github.ref, 'refs/tags/')
+      if: matrix.platform == 'ubuntu-latest'
       run: |
         # see https://github.com/mapillary/mapillary_tools/issues/566
         # TODO: move it to extras in setup.py
@@ -66,7 +74,7 @@ jobs:
       env:
         MAPILLARY_TOOLS_EXECUTABLE: ./dist/linux/mapillary_tools
     - name: Build and test with Pyinstaller on Windows
-      if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
+      if: matrix.platform == 'windows-latest'
       run: |
         # see https://github.com/mapillary/mapillary_tools/issues/566
         # TODO: move it to extras in setup.py
@@ -80,7 +88,6 @@ jobs:
         MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
     - name: Release
       uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         draft: true
         generate_release_notes: true
