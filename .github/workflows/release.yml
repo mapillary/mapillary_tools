@@ -8,9 +8,9 @@ on:
     workflows: ["Python package"]
     types:
       - completed
-  push:
-    tags:
-      - "v*.*.*"
+  # push:
+  #   tags:
+  #     - "v*.*.*"
 
 jobs:
   build:
