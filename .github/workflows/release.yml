@@ -24,24 +24,25 @@ jobs:
         include:
           - architecture: 'x86'
             platform: 'windows-latest'
+            python-version: 3.11
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup FFmpeg
-      uses: FedericoCarboni/setup-ffmpeg@v2
-    - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-        # optional x64 or x86. Defaults to x64 if not specified
-        architecture: ${{ matrix.architecture }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install .
-        python -m pip install -r requirements-dev.txt
+    # - uses: actions/checkout@v3
+    # - name: Setup FFmpeg
+    #   uses: FedericoCarboni/setup-ffmpeg@v2
+    # - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
+    #   uses: actions/setup-python@v4
+    #   with:
+    #     python-version: ${{ matrix.python-version }}
+    #     # optional x64 or x86. Defaults to x64 if not specified
+    #     architecture: ${{ matrix.architecture }}
+    # - name: Install dependencies
+    #   run: |
+    #     python -m pip install --upgrade pip
+    #     python -m pip install .
+    #     python -m pip install -r requirements-dev.txt
     - name: Validate version
       run: |
         EXPECTED_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
