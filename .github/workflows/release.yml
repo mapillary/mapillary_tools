@@ -22,7 +22,7 @@ jobs:
         include:
           - architecture: "x86"
             platform: "windows-latest"
-            python-version: 3.11
+            python-version: "3.11"
 
     runs-on: ${{ matrix.platform }}
 
