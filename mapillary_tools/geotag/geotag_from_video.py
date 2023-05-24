@@ -10,7 +10,6 @@ from .. import exceptions, geo, types
 from . import (
     blackvue_parser,
     camm_parser,
-    camm_parser,
     gpmf_gps_filter,
     gpmf_parser,
     simple_mp4_parser as parser,

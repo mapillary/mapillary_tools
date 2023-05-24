@@ -445,7 +445,7 @@ def _api_logging_finished(summary: T.Dict):
             action,
             exc_info=wrap_http_exception(exc),
         )
-    except:
+    except Exception:
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
@@ -468,7 +468,7 @@ def _api_logging_failed(payload: T.Dict, exc: Exception):
             action,
             exc_info=wrapped_exc,
         )
-    except:
+    except Exception:
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
