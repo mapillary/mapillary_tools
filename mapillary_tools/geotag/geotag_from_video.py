@@ -38,7 +38,7 @@ class GeotagFromVideo:
             return list(
                 tqdm(
                     video_metadatas,
-                    desc=f"Extracting GPS tracks from videos",
+                    desc="Extracting GPS tracks from videos",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
                     total=len(self.video_paths),
@@ -134,7 +134,7 @@ class GeotagFromVideo:
         )
         if stationary:
             return types.describe_error_metadata(
-                exceptions.MapillaryStationaryVideoError(f"Stationary video"),
+                exceptions.MapillaryStationaryVideoError("Stationary video"),
                 video_metadata.filename,
                 filetype=video_metadata.filetype,
             )

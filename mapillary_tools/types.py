@@ -2,7 +2,6 @@ import dataclasses
 import datetime
 import enum
 import hashlib
-import io
 import json
 import os
 import sys

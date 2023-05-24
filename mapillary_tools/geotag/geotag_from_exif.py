@@ -131,7 +131,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
             return list(
                 tqdm(
                     image_metadatas,
-                    desc=f"Extracting geotags from images",
+                    desc="Extracting geotags from images",
                     unit="images",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
                     total=len(self.image_paths),

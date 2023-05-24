@@ -177,7 +177,7 @@ def fetch_user_items(
             user_items = all_user_items[0]
         else:
             raise exceptions.MapillaryBadParameterError(
-                f"Found multiple Mapillary accounts. Please specify one with --user_name"
+                "Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
         try:
@@ -635,7 +635,7 @@ def upload(
                     raise UploadError(ex) from ex
 
                 if clusters:
-                    LOG.debug(f"Uploaded to cluster: %s", clusters)
+                    LOG.debug("Uploaded to cluster: %s", clusters)
 
         supported = CAMM_CONVERTABLES.intersection(filetypes)
         if supported:
@@ -675,7 +675,7 @@ def upload(
                         )
                     except Exception as ex:
                         raise UploadError(ex) from ex
-                    LOG.debug(f"Uploaded to cluster: %s", cluster_id)
+                    LOG.debug("Uploaded to cluster: %s", cluster_id)
 
         if DirectUploadFileType.RAW_BLACKVUE in filetypes:
             video_paths = utils.find_videos(
@@ -743,13 +743,13 @@ def _check_blackvue_DEPRECATED(video_path: Path) -> None:
 
     points = blackvue_parser.parse_gps_points(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the BlackVue video")
+        raise exceptions.MapillaryGPXEmptyError("No GPS found in the BlackVue video")
 
     stationary = video_utils.is_video_stationary(
         geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(f"Stationary BlackVue video")
+        raise exceptions.MapillaryStationaryVideoError("Stationary BlackVue video")
 
 
 def _upload_raw_blackvues_DEPRECATED(
@@ -768,7 +768,7 @@ def _upload_raw_blackvues_DEPRECATED(
             _check_blackvue_DEPRECATED(video_path)
         except Exception as ex:
             LOG.warning(
-                f"Skipping %s %s due to: %s",
+                "Skipping %s %s due to: %s",
                 DirectUploadFileType.RAW_BLACKVUE.value.upper(),
                 video_path.name,
                 ex,
@@ -786,7 +786,7 @@ def _upload_raw_blackvues_DEPRECATED(
                 )
             except Exception as ex:
                 raise UploadError(ex) from ex
-        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
+        LOG.debug("Uploaded to cluster: %s", cluster_id)
 
 
 def _check_camm_DEPRECATED(video_path: Path) -> None:
@@ -796,13 +796,13 @@ def _check_camm_DEPRECATED(video_path: Path) -> None:
 
     points = camm_parser.parse_gpx(video_path)
     if not points:
-        raise exceptions.MapillaryGPXEmptyError(f"No GPS found in the CAMM video")
+        raise exceptions.MapillaryGPXEmptyError("No GPS found in the CAMM video")
 
     stationary = video_utils.is_video_stationary(
         geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
     )
     if stationary:
-        raise exceptions.MapillaryStationaryVideoError(f"Stationary CAMM video")
+        raise exceptions.MapillaryStationaryVideoError("Stationary CAMM video")
 
 
 def _upload_raw_camm_DEPRECATED(
@@ -820,7 +820,7 @@ def _upload_raw_camm_DEPRECATED(
             _check_camm_DEPRECATED(video_path)
         except Exception as ex:
             LOG.warning(
-                f"Skipping %s %s due to: %s",
+                "Skipping %s %s due to: %s",
                 DirectUploadFileType.RAW_CAMM.value.upper(),
                 video_path.name,
                 ex,
@@ -838,7 +838,7 @@ def _upload_raw_camm_DEPRECATED(
         except Exception as ex:
             raise UploadError(ex) from ex
 
-        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
+        LOG.debug("Uploaded to cluster: %s", cluster_id)
 
 
 def _upload_zipfiles(
@@ -859,4 +859,4 @@ def _upload_zipfiles(
         except Exception as ex:
             raise UploadError(ex) from ex
 
-        LOG.debug(f"Uploaded to cluster: %s", cluster_id)
+        LOG.debug("Uploaded to cluster: %s", cluster_id)

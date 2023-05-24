@@ -60,7 +60,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with tqdm(
             total=len(self.images),
-            desc=f"Interpolating",
+            desc="Interpolating",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
@@ -76,7 +76,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
         processed: T.List[types.ImageMetadataOrError] = []
         metadata_tqdm = tqdm(
             metadatas,
-            desc=f"Processing",
+            desc="Processing",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
