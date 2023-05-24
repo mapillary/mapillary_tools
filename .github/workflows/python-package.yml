@@ -10,10 +10,7 @@ on:
     # only run on pull requests that target specific branches
     branches: [main]
   push:
-    # run on all pushes to the main branch, OR tags that match the pattern
-    branches: [ main ]
-    tags:
-      - "v*.*.*"
+    branches: [main]
 
 jobs:
   build:

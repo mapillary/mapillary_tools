@@ -3,14 +3,13 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["Python package"]
-    types:
-      - completed
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
   build_and_release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
 
     strategy:
       matrix:
@@ -41,9 +40,9 @@ jobs:
           python -m pip install -r requirements-dev.txt
       - name: Validate version
         run: |
-          EXPECTED_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
-          if [[ "$EXPECTED_REF" != "$GITHUB_REF" ]]; then
-            echo "Version mismatch: $EXPECTED_REF != $GITHUB_REF"
+          EXPECTED_GITHUB_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
+          if [[ "$EXPECTED_GITHUB_REF" != "$GITHUB_REF" ]]; then
+            echo "Version mismatch: $EXPECTED_GITHUB_REF != $GITHUB_REF"
             exit 1
           fi
         if: matrix.platform != 'windows-latest'
@@ -93,7 +92,7 @@ jobs:
             ./dist/releases/*
 
   pypi-publish:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.ref, 'refs/tags/') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     name: Upload release to PyPI
     needs: ["build_and_release"]
     runs-on: "ubuntu-latest"
