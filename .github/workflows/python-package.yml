@@ -9,6 +9,9 @@ on:
   pull_request:
     # only run on pull requests that target specific branches
     branches: [main]
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
   build:
