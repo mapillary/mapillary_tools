@@ -97,12 +97,20 @@ jobs:
     needs: ["build_and_release"]
     runs-on: "ubuntu-latest"
     steps:
+      # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+      - name: Install pypa/build
+        run: python3 -m pip install build
+      - name: Build
+        # the default ouput dir dist/ was used by pyinstaller
+        run: python3 -m build --outdir pypa_dist/ .
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.8.6
         with:
           repository-url: https://test.pypi.org/legacy/
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          packages-dir: pypa_dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.8.6
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: pypa_dist/
