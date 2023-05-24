@@ -97,6 +97,11 @@ jobs:
     needs: ["build_and_release"]
     runs-on: "ubuntu-latest"
     steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
       # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
       - name: Install pypa/build
         run: python3 -m pip install build
