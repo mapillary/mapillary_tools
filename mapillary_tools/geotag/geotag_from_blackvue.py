@@ -84,7 +84,7 @@ class GeotagFromBlackVue(GeotagFromGeneric):
             # update make and model
             with video_path.open("rb") as fp:
                 make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-            LOG.debug(f'Found camera make "%s" and model "%s"', make, model)
+            LOG.debug('Found camera make "%s" and model "%s"', make, model)
             for metadata in this_metadatas:
                 if isinstance(metadata, types.ImageMetadata):
                     metadata.MAPDeviceMake = make

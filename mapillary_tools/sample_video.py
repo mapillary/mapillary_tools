@@ -23,7 +23,7 @@ def _normalize_path(
             [video_import_path], skip_subfolders=skip_subfolders
         )
         video_dir = video_import_path.resolve()
-        LOG.debug(f"Found %d videos in %s", len(video_list), video_dir)
+        LOG.debug("Found %d videos in %s", len(video_list), video_dir)
     elif video_import_path.is_file():
         video_list = [video_import_path]
         video_dir = video_import_path.resolve().parent
@@ -74,7 +74,7 @@ def sample_video(
             sample_dir = Path(import_path).joinpath(
                 video_path.resolve().relative_to(video_dir)
             )
-            LOG.info(f"Removing the sample directory %s", sample_dir)
+            LOG.info("Removing the sample directory %s", sample_dir)
             if sample_dir.is_dir():
                 shutil.rmtree(sample_dir)
             elif sample_dir.is_file():
@@ -97,7 +97,7 @@ def sample_video(
         )
         if sample_dir.exists():
             LOG.warning(
-                f"Skip sampling video %s as it has been sampled in %s. Specify --rerun to resample it",
+                "Skip sampling video %s as it has been sampled in %s. Specify --rerun to resample it",
                 video_path.name,
                 sample_dir,
             )
@@ -128,9 +128,7 @@ def sample_video(
 
         except Exception:
             if skip_sample_errors:
-                LOG.warning(
-                    f"Skipping the error sampling %s", video_path, exc_info=True
-                )
+                LOG.warning("Skipping the error sampling %s", video_path, exc_info=True)
             else:
                 raise
 

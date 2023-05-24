@@ -1,6 +1,5 @@
 import logging
 
-from ..process_geotag_properties import GeotagSource
 from ..types import FileType
 from .process import Command as ProcessCommand
 from .sample_video import Command as SampleCommand

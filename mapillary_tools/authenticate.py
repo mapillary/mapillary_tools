@@ -57,7 +57,7 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
             if subcode in [1348028, 1348092, 3404005, 1348131]:
                 title = r.get("error", {}).get("error_user_title")
                 message = r.get("error", {}).get("error_user_msg")
-                LOG.error(f"%s: %s", title, message)
+                LOG.error("%s: %s", title, message)
                 return prompt_user_for_user_items(user_name)
             else:
                 raise ex

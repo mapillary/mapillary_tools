@@ -1,4 +1,3 @@
-import hashlib
 import io
 import json
 import logging
@@ -121,7 +120,7 @@ class Uploader:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
             if not namelist:
-                LOG.warning(f"Skipping empty zipfile: %s", zip_path)
+                LOG.warning("Skipping empty zipfile: %s", zip_path)
                 return None
 
         final_event_payload: Progress = {
@@ -406,7 +405,7 @@ def _upload_stream(
                     emitter.emit("upload_interrupted", mutable_payload)
                 LOG.warning(
                     # use %s instead of %d because offset could be None
-                    f"Error uploading chunk_size %d at begin_offset %s: %s: %s",
+                    "Error uploading chunk_size %d at begin_offset %s: %s: %s",
                     upload_service.chunk_size,
                     begin_offset,
                     ex.__class__.__name__,

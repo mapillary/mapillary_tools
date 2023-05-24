@@ -6,9 +6,9 @@ import typing as T
 from enum import Enum, unique
 
 if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
+    from typing import TypedDict  # pylint: disable=no-name-in-module
 else:
-    from typing_extensions import Literal, TypedDict
+    from typing_extensions import TypedDict
 
 import construct as C
 

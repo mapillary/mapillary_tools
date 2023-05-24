@@ -29,24 +29,24 @@ class GeotagFromNMEAFile(GeotagFromGPX):
 def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
     with nmea_file.open("r") as f:
         lines = f.readlines()
-        lines = [l.rstrip("\n\r") for l in lines]
+        lines = [line.rstrip("\n\r") for line in lines]
 
     # Get initial date
-    for l in lines:
-        if "GPRMC" in l:
-            data = pynmea2.parse(l)
+    for line in lines:
+        if "GPRMC" in line:
+            data = pynmea2.parse(line)
             date = data.datetime.date()
             break
 
     # Parse GPS trace
     points = []
-    for l in lines:
-        if "GPRMC" in l:
-            data = pynmea2.parse(l)
+    for line in lines:
+        if "GPRMC" in line:
+            data = pynmea2.parse(line)
             date = data.datetime.date()
 
-        if "$GPGGA" in l:
-            data = pynmea2.parse(l)
+        if "$GPGGA" in line:
+            data = pynmea2.parse(line)
             dt = datetime.datetime.combine(date, data.timestamp)
             lat, lon, alt = data.latitude, data.longitude, data.altitude
             points.append(
