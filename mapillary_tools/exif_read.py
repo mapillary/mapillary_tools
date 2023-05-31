@@ -366,19 +366,15 @@ class ExifReadFromEXIF(ExifReadABC):
     EXIF class for reading exif from an image
     """
 
-    def __init__(
-        self, path_or_stream: T.Union[Path, T.BinaryIO], details: bool = False
-    ) -> None:
+    def __init__(self, path_or_stream: T.Union[Path, T.BinaryIO]) -> None:
         """
         Initialize EXIF object with FILE as filename or fileobj
         """
         if isinstance(path_or_stream, Path):
             with path_or_stream.open("rb") as fp:
-                self.tags = exifread.process_file(fp, details=details, debug=True)
+                self.tags = exifread.process_file(fp, details=True, debug=True)
         else:
-            self.tags = exifread.process_file(
-                path_or_stream, details=details, debug=True
-            )
+            self.tags = exifread.process_file(path_or_stream, details=True, debug=True)
 
     def extract_altitude(self) -> T.Optional[float]:
         """
@@ -618,10 +614,8 @@ class ExifReadFromEXIF(ExifReadABC):
 
 
 class ExifRead(ExifReadFromEXIF):
-    def __init__(
-        self, path_or_stream: T.Union[Path, T.BinaryIO], details: bool = False
-    ) -> None:
-        super().__init__(path_or_stream, details)
+    def __init__(self, path_or_stream: T.Union[Path, T.BinaryIO]) -> None:
+        super().__init__(path_or_stream)
         self._xmp = self._extract_xmp()
 
     def _extract_xmp(self) -> T.Optional[ExifReadFromXMP]:
