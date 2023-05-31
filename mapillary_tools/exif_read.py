@@ -179,26 +179,20 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_altitude(self) -> T.Optional[float]:
         if self.first_rdf_description is None:
             return None
-        altitude = self._extract_alternative_attribute(["exif:GPSAltitude"])
-        if altitude is None:
-            return None
-        try:
-            return float(altitude)
-        except ValueError:
-            return None
+        return self._extract_alternative_attribute(["exif:GPSAltitude"], float)
 
     def _extract_exif_datetime(
         self, dt_tag: str, subsec_tag: str, offset_tag: str
     ) -> T.Optional[datetime.datetime]:
-        dtstr = self._extract_alternative_attribute([dt_tag])
+        dtstr = self._extract_alternative_attribute([dt_tag], str)
         if dtstr is None:
             return None
-        subsec = self._extract_alternative_attribute([subsec_tag])
+        subsec = self._extract_alternative_attribute([subsec_tag], str)
         # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
         # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
         if subsec:
             subsec = subsec.replace(" ", "0")
-        offset = self._extract_alternative_attribute([offset_tag])
+        offset = self._extract_alternative_attribute([offset_tag], str)
         dt = parse_datetimestr(dtstr, subsec, offset)
         if dt is None:
             return None
@@ -227,13 +221,13 @@ class ExifReadFromXMP(ExifReadABC):
         """
         Extract timestamp from GPS field.
         """
-        gpsdate = self._extract_alternative_attribute(["exif:GPSDateStamp"])
+        gpsdate = self._extract_alternative_attribute(["exif:GPSDateStamp"], str)
         if gpsdate is None:
             return None
         dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
         if dt is None:
             return None
-        gpstimestamp = self._extract_alternative_attribute(["exif:GPSTimeStamp"])
+        gpstimestamp = self._extract_alternative_attribute(["exif:GPSTimeStamp"], str)
         if not gpstimestamp:
             return None
         try:
@@ -265,99 +259,83 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_direction(self) -> T.Optional[float]:
         if self.first_rdf_description is None:
             return None
-        direction = self._extract_alternative_attribute(
-            ["exif:GPSImgDirection", "exif:GPSTrack"]
+        return self._extract_alternative_attribute(
+            ["exif:GPSImgDirection", "exif:GPSTrack"], float
         )
-        if direction is None:
-            return None
-        try:
-            return float(direction)
-        except ValueError:
-            return None
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
         if self.first_rdf_description is None:
             return None
-        lat_str = self._extract_alternative_attribute(["exif:GPSLatitude"])
-        lon_str = self._extract_alternative_attribute(["exif:GPSLongitude"])
-        if lat_str is not None and lon_str is not None:
-            lon = float(lon_str)
-            if lon is None:
-                return None
-            ref = self._extract_alternative_attribute(["exif:GPSLongitudeRef"])
-            if ref and ref.upper() == "W":
-                lon = -1 * lon
 
-            lat = float(lat_str)
-            if lat is None:
-                return None
-            ref = self._extract_alternative_attribute(["exif:GPSLatitudeRef"])
-            if ref and ref.upper() == "S":
-                lat = -1 * lat
+        lat = self._extract_alternative_attribute(["exif:GPSLatitude"], float)
+        if lat is None:
+            return None
 
-            return lon, lat
+        lon = self._extract_alternative_attribute(["exif:GPSLongitude"], float)
+        if lon is None:
+            return None
 
-        return None
+        ref = self._extract_alternative_attribute(["exif:GPSLongitudeRef"], str)
+        if ref and ref.upper() == "W":
+            lon = -1 * lon
+
+        ref = self._extract_alternative_attribute(["exif:GPSLatitudeRef"], str)
+        if ref and ref.upper() == "S":
+            lat = -1 * lat
+
+        return lon, lat
 
     def extract_make(self) -> T.Optional[str]:
         if self.first_rdf_description is None:
             return None
-        return self._extract_alternative_attribute(["exifEX:LensMake", "tiff:Make"])
+        return self._extract_alternative_attribute(
+            ["exifEX:LensMake", "tiff:Make"], str
+        )
 
     def extract_model(self) -> T.Optional[str]:
         if self.first_rdf_description is None:
             return None
-        return self._extract_alternative_attribute(["exifEX:LensModel", "tiff:Model"])
+        return self._extract_alternative_attribute(
+            ["exifEX:LensModel", "tiff:Model"], str
+        )
 
     def extract_width(self) -> T.Optional[int]:
         if self.first_rdf_description is None:
             return None
-        x = self._extract_alternative_attribute(
+        return self._extract_alternative_attribute(
             [
                 "exif:PixelXDimension",
                 "GPano:FullPanoWidthPixels",
                 "GPano:CroppedAreaImageWidthPixels",
-            ]
+            ],
+            int,
         )
-        if x is None:
-            return None
-        try:
-            return int(x)
-        except ValueError:
-            return None
 
     def extract_height(self) -> T.Optional[int]:
         if self.first_rdf_description is None:
             return None
-        y = self._extract_alternative_attribute(
+        return self._extract_alternative_attribute(
             [
                 "exif:PixelYDimension",
                 "GPano:FullPanoHeightPixels",
                 "GPano:CroppedAreaImageHeightPixels",
-            ]
+            ],
+            int,
         )
-        if y is None:
-            return None
-        try:
-            return int(y)
-        except ValueError:
-            return None
 
     def extract_orientation(self) -> int:
         if self.first_rdf_description is None:
             return 1
-        orientation = self._extract_alternative_attribute(["tiff:Orientation"])
-        if orientation is None:
+        orientation = self._extract_alternative_attribute(["tiff:Orientation"], int)
+        if orientation is None or orientation not in range(1, 9):
             return 1
-        try:
-            return int(orientation)
-        except ValueError:
-            return 1
+        return orientation
 
     def _extract_alternative_attribute(
         self,
         fields: T.Sequence[str],
-    ) -> T.Optional[str]:
+        field_type: T.Type[_FIELD_TYPE],
+    ) -> T.Optional[_FIELD_TYPE]:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -369,8 +347,25 @@ class ExifReadFromXMP(ExifReadABC):
             value = self.first_rdf_description.get(
                 "{" + XMP_NAMESPACES[ns] + "}" + attr
             )
-            if value is not None:
-                return value
+            if value is None:
+                continue
+            if field_type is int:
+                try:
+                    return T.cast(_FIELD_TYPE, int(value))
+                except (ValueError, TypeError):
+                    pass
+            elif field_type is float:
+                try:
+                    return T.cast(_FIELD_TYPE, float(value))
+                except (ValueError, TypeError):
+                    pass
+            elif field_type is str:
+                try:
+                    return T.cast(_FIELD_TYPE, str(value))
+                except (ValueError, TypeError):
+                    pass
+            else:
+                raise ValueError(f"Invalid field type {field_type}")
         return None
 
 
@@ -425,9 +420,9 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
         if not isinstance(s, Ratio):
             return None
-        hour = int(eval_frac(h))
-        minute = int(eval_frac(m))
-        second = float(eval_frac(s))
+        hour: int = int(eval_frac(h))
+        minute: int = int(eval_frac(m))
+        second: float = eval_frac(s)
         dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
         # GPS timestamps are always GMT
         dt = dt.replace(tzinfo=datetime.timezone.utc)
@@ -605,7 +600,10 @@ class ExifReadFromEXIF(ExifReadABC):
                     except ZeroDivisionError:
                         pass
             elif field_type is str:
-                return T.cast(_FIELD_TYPE, str(values))
+                try:
+                    return T.cast(_FIELD_TYPE, str(values))
+                except (ValueError, TypeError):
+                    pass
             elif field_type is int:
                 if values:
                     try:
