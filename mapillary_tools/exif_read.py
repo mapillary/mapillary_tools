@@ -1,8 +1,8 @@
-import datetime
 import abc
+import datetime
 import typing as T
-from pathlib import Path
 import xml.etree.ElementTree as et
+from pathlib import Path
 
 import exifread
 from exifread.utils import Ratio
