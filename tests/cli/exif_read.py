@@ -12,7 +12,14 @@ def main():
     parser.add_argument("path", nargs="+")
     parsed_args = parser.parse_args()
     for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
-        exif = ExifRead(image_path, details=True)
+        exif = ExifRead(image_path)
+        if "JPEGThumbnail" in exif.tags:
+            del exif.tags["JPEGThumbnail"]
+        if "Image ImageDescription" in exif.tags:
+            del exif.tags["Image ImageDescription"]
+        print(
+            f"============================= {image_path} ============================="
+        )
         pprint.pprint(exif.tags)
         pprint.pprint(
             {
@@ -27,6 +34,7 @@ def main():
                 "model": exif.extract_model(),
                 "width": exif.extract_width(),
                 "height": exif.extract_height(),
+                "orientation": exif.extract_orientation(),
             }
         )
 
