@@ -29,6 +29,22 @@ def main():
                 "height": exif.extract_height(),
             }
         )
+        xmp = exif.extract_xmp()
+        if xmp is not None:
+            pprint.pprint(
+                {
+                    "filename": image_path,
+                    "altitude": xmp.extract_altitude(),
+                    "capture_time": xmp.extract_capture_time(),
+                    "direction": xmp.extract_direction(),
+                    "gps_time": xmp.extract_gps_datetime(),
+                    "lon_lat": xmp.extract_lon_lat(),
+                    "make": xmp.extract_make(),
+                    "model": xmp.extract_model(),
+                    "width": xmp.extract_width(),
+                    "height": xmp.extract_height(),
+                }
+            )
 
 
 if __name__ == "__main__":
