@@ -380,12 +380,6 @@ class ExifReadFromEXIF(ExifReadABC):
                 path_or_stream, details=details, debug=True
             )
 
-    def extract_xmp(self) -> T.Optional[ExifReadFromXMP]:
-        application_notes = self._extract_application_notes()
-        if application_notes is None:
-            return None
-        return ExifReadFromXMP(application_notes)
-
     def extract_altitude(self) -> T.Optional[float]:
         """
         Extract altitude
@@ -613,15 +607,14 @@ class ExifReadFromEXIF(ExifReadABC):
                 raise ValueError(f"Invalid field type {field_type}")
         return None
 
-    def _extract_application_notes(self) -> T.Optional[et.ElementTree]:
+    def extract_application_notes(self) -> T.Optional[str]:
         xmp = self.tags.get("Image ApplicationNotes")
         if xmp is None:
             return None
         try:
-            e = et.fromstring(str(xmp))
-        except et.ParseError:
+            return str(xmp)
+        except (ValueError, TypeError):
             return None
-        return et.ElementTree(e)
 
 
 class ExifRead(ExifReadFromEXIF):
@@ -629,7 +622,17 @@ class ExifRead(ExifReadFromEXIF):
         self, path_or_stream: T.Union[Path, T.BinaryIO], details: bool = False
     ) -> None:
         super().__init__(path_or_stream, details)
-        self._xmp = self.extract_xmp()
+        self._xmp = self._extract_xmp()
+
+    def _extract_xmp(self) -> T.Optional[ExifReadFromXMP]:
+        application_notes = self.extract_application_notes()
+        if application_notes is None:
+            return None
+        try:
+            e = et.fromstring(application_notes)
+        except et.ParseError:
+            return None
+        return ExifReadFromXMP(et.ElementTree(e))
 
     def extract_altitude(self) -> T.Optional[float]:
         val = super().extract_altitude()
