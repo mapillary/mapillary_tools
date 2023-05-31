@@ -15,6 +15,7 @@ XMP_NAMESPACES = {
     "xmp": "http://ns.adobe.com/xap/1.0/",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "x": "adobe:ns:meta/",
+    "GPano": "http://ns.google.com/photos/1.0/panorama/",
 }
 
 
@@ -311,7 +312,13 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_width(self) -> T.Optional[int]:
         if self.first_rdf_description is None:
             return None
-        x = self._extract_alternative_attribute(["exif:PixelXDimension"])
+        x = self._extract_alternative_attribute(
+            [
+                "exif:PixelXDimension",
+                "GPano:FullPanoWidthPixels",
+                "GPano:CroppedAreaImageWidthPixels",
+            ]
+        )
         if x is None:
             return None
         try:
@@ -322,7 +329,13 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_height(self) -> T.Optional[int]:
         if self.first_rdf_description is None:
             return None
-        y = self._extract_alternative_attribute(["exif:PixelYDimension"])
+        y = self._extract_alternative_attribute(
+            [
+                "exif:PixelYDimension",
+                "GPano:FullPanoHeightPixels",
+                "GPano:CroppedAreaImageHeightPixels",
+            ]
+        )
         if y is None:
             return None
         try:

@@ -13,7 +13,7 @@ def main():
     parsed_args = parser.parse_args()
     for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
         exif = ExifRead(image_path)
-        # pprint.pprint(exif.tags)
+        pprint.pprint(exif.tags)
         pprint.pprint(
             {
                 "filename": image_path,
