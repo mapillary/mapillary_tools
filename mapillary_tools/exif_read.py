@@ -201,7 +201,7 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
         dt = self._extract_exif_datetime(
             "exif:DateTimeOriginal",
-            "exif:SubSecTimeOriginal",
+            "exif:SubsecTimeOriginal",
             "exif:OffsetTimeOriginal",
         )
         if dt is not None:
@@ -209,7 +209,7 @@ class ExifReadFromXMP(ExifReadABC):
 
         dt = self._extract_exif_datetime(
             "exif:DateTimeDigitized",
-            "exif:SubSecTimeDigitized",
+            "exif:SubsecTimeDigitized",
             "exif:OffsetTimeDigitized",
         )
         if dt is not None:
