@@ -6,22 +6,45 @@ from . import exif_read
 
 
 EXIFTOOL_NAMESPACES = {
-    "ExifTool": "http://ns.exiftool.org/ExifTool/1.0/",
-    "System": "http://ns.exiftool.org/File/System/1.0/",
-    "File": "http://ns.exiftool.org/File/1.0/",
-    "IFD0": "http://ns.exiftool.org/EXIF/IFD0/1.0/",
+    "Adobe": "http://ns.exiftool.org/APP14/Adobe/1.0/",
+    "Apple": "http://ns.exiftool.org/MakerNotes/Apple/1.0/",
+    "Composite": "http://ns.exiftool.org/Composite/1.0/",
     "ExifIFD": "http://ns.exiftool.org/EXIF/ExifIFD/1.0/",
-    "InteropIFD": "http://ns.exiftool.org/EXIF/InteropIFD/1.0/",
+    "ExifTool": "http://ns.exiftool.org/ExifTool/1.0/",
+    "File": "http://ns.exiftool.org/File/1.0/",
     "GPS": "http://ns.exiftool.org/EXIF/GPS/1.0/",
+    "GoPro": "http://ns.exiftool.org/APP6/GoPro/1.0/",
+    "ICC-chrm": "http://ns.exiftool.org/ICC_Profile/ICC-chrm/1.0/",
+    "ICC-header": "http://ns.exiftool.org/ICC_Profile/ICC-header/1.0/",
+    "ICC-meas": "http://ns.exiftool.org/ICC_Profile/ICC-meas/1.0/",
+    "ICC-view": "http://ns.exiftool.org/ICC_Profile/ICC-view/1.0/",
+    "ICC_Profile": "http://ns.exiftool.org/ICC_Profile/ICC_Profile/1.0/",
+    "IFD0": "http://ns.exiftool.org/EXIF/IFD0/1.0/",
     "IFD1": "http://ns.exiftool.org/EXIF/IFD1/1.0/",
+    "IPTC": "http://ns.exiftool.org/IPTC/IPTC/1.0/",
+    "InteropIFD": "http://ns.exiftool.org/EXIF/InteropIFD/1.0/",
+    "JFIF": "http://ns.exiftool.org/JFIF/JFIF/1.0/",
     "MPF0": "http://ns.exiftool.org/MPF/MPF0/1.0/",
     "MPImage1": "http://ns.exiftool.org/MPF/MPImage1/1.0/",
     "MPImage2": "http://ns.exiftool.org/MPF/MPImage2/1.0/",
-    "GoPro": "http://ns.exiftool.org/APP6/GoPro/1.0/",
-    "Composite": "http://ns.exiftool.org/Composite/1.0/",
-    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "Photoshop": "http://ns.exiftool.org/Photoshop/Photoshop/1.0/",
+    "Samsung": "http://ns.exiftool.org/MakerNotes/Samsung/1.0/",
+    "System": "http://ns.exiftool.org/File/System/1.0/",
+    "XMP-GAudio": "http://ns.exiftool.org/XMP/XMP-GAudio/1.0/",
+    "XMP-GImage": "http://ns.exiftool.org/XMP/XMP-GImage/1.0/",
+    "XMP-GPano": "http://ns.exiftool.org/XMP/XMP-GPano/1.0/",
+    "XMP-aux": "http://ns.exiftool.org/XMP/XMP-aux/1.0/",
+    "XMP-crs": "http://ns.exiftool.org/XMP/XMP-crs/1.0/",
+    "XMP-dc": "http://ns.exiftool.org/XMP/XMP-dc/1.0/",
     "XMP-exif": "http://ns.exiftool.org/XMP/XMP-exif/1.0/",
+    "XMP-exifEX": "http://ns.exiftool.org/XMP/XMP-exifEX/1.0/",
+    "XMP-photoshop": "http://ns.exiftool.org/XMP/XMP-photoshop/1.0/",
+    "XMP-tiff": "http://ns.exiftool.org/XMP/XMP-tiff/1.0/",
+    "XMP-x": "http://ns.exiftool.org/XMP/XMP-x/1.0/",
     "XMP-xmp": "http://ns.exiftool.org/XMP/XMP-xmp/1.0/",
+    "XMP-xmpMM": "http://ns.exiftool.org/XMP/XMP-xmpMM/1.0/",
+    "XMP-xmpNote": "http://ns.exiftool.org/XMP/XMP-xmpNote/1.0/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
 }
 
 
@@ -56,17 +79,19 @@ class ExifToolRead(exif_read.ExifReadABC):
             altitude = -1 * altitude
         return altitude
 
-    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
+    def _extract_gps_datetime(
+        self, date_tag: str, time_tag: str
+    ) -> T.Optional[datetime.datetime]:
         """
         Extract timestamp from GPS field.
         """
-        gpsdate = self._extract_alternative_fields(["GPS:GPSDateStamp"], str)
+        gpsdate = self._extract_alternative_fields([date_tag], str)
         if gpsdate is None:
             return None
         dt = exif_read.strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
         if dt is None:
             return None
-        gpstimestamp = self._extract_alternative_fields(["GPS:GPSTimeStamp"], str)
+        gpstimestamp = self._extract_alternative_fields([time_tag], str)
         if not gpstimestamp:
             return None
         try:
@@ -80,6 +105,20 @@ class ExifToolRead(exif_read.ExifReadABC):
         # GPS timestamps are always GMT
         dt = dt.replace(tzinfo=datetime.timezone.utc)
         return dt
+
+    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
+        """
+        Extract timestamp from GPS field.
+        """
+        return self._extract_gps_datetime("GPS:GPSDateStamp", "GPS:GPSTimeStamp")
+
+    def extract_gps_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
+        """
+        Extract timestamp from XMP GPS field.
+        """
+        return self._extract_gps_datetime(
+            "XMP-exif:GPSDateStamp", "XMP-exif:GPSDateTime"
+        )
 
     def _extract_exif_datetime(
         self,
@@ -101,12 +140,51 @@ class ExifToolRead(exif_read.ExifReadABC):
             return None
         return dt
 
+    def extract_exif_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
+        # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
+        # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
+        # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
+        dt = self._extract_exif_datetime(
+            ["XMP-exif:DateTimeOriginal"],
+            # NOTE: it is Subsec instead of SubSec
+            ["XMP-exif:SubsecTimeOriginal"],
+            ["XMP-exif:OffsetTimeOriginal"],
+        )
+        if dt is not None:
+            return dt
+
+        # EXIF DateTimeDigitized: 0x9004 CreateDate in ExifTool (called DateTimeDigitized by the EXIF spec.)
+        # EXIF SubSecTimeDigitized: 0x9292 (fractional seconds for CreateDate)
+        # EXIF OffsetTimeDigitized: 0x9012 (time zone for CreateDate)
+        dt = self._extract_exif_datetime(
+            ["XMP-exif:DateTimeDigitized", "XMP-xmp:CreateDate"],
+            # NOTE: it is Subsec instead of SubSec
+            ["XMP-exif:SubsecTimeDigitized"],
+            ["XMP-exif:OffsetTimeDigitized"],
+        )
+        if dt is not None:
+            return dt
+
+        # Image DateTime: 0x0132 ModifyDate in ExifTool (called DateTime by the EXIF spec.)
+        # EXIF SubSecTime: 0x9290 (fractional seconds for ModifyDate)
+        # EXIF OffsetTime: 0x9010 (time zone for ModifyDate)
+        dt = self._extract_exif_datetime(
+            ["XMP-exif:ModifyDate"],
+            # NOTE: this tag might not exist in XMP
+            ["XMP-exif:SubsecTime"],
+            ["XMP-exif:OffsetTime"],
+        )
+        if dt is not None:
+            return dt
+
+        return None
+
     def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
         # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
         # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
         # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
         dt = self._extract_exif_datetime(
-            ["ExifIFD:DateTimeOriginal", "XMP-exif:DateTimeOriginal"],
+            ["ExifIFD:DateTimeOriginal"],
             ["ExifIFD:SubSecTimeOriginal"],
             ["ExifIFD:OffsetTimeOriginal"],
         )
@@ -117,7 +195,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         # EXIF SubSecTimeDigitized: 0x9292 (fractional seconds for CreateDate)
         # EXIF OffsetTimeDigitized: 0x9012 (time zone for CreateDate)
         dt = self._extract_exif_datetime(
-            ["ExifIFD:DateTimeDigitized", "XMP-exif:DateTimeDigitized"],
+            ["ExifIFD:CreateDate"],
             ["ExifIFD:SubSecTimeDigitized"],
             ["ExifIFD:OffsetTimeDigitized"],
         )
@@ -128,7 +206,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         # EXIF SubSecTime: 0x9290 (fractional seconds for ModifyDate)
         # EXIF OffsetTime: 0x9010 (time zone for ModifyDate)
         dt = self._extract_exif_datetime(
-            ["IFD0:ModifyDate", "XMP-xmp:ModifyDate"],
+            ["ExifIFD:ModifyDate", "IFD0:ModifyDate", "IFD1:ModifyDate"],
             ["ExifIFD:SubSecTime"],
             ["ExifIFD:OffsetTime"],
         )
@@ -150,7 +228,18 @@ class ExifToolRead(exif_read.ExifReadABC):
         if dt is not None:
             return dt
 
+        try:
+            dt = self.extract_gps_datetime_from_xmp()
+        except (ValueError, TypeError, ZeroDivisionError):
+            dt = None
+        if dt is not None:
+            return dt
+
         dt = self.extract_exif_datetime()
+        if dt is not None:
+            return dt
+
+        dt = self.extract_exif_datetime_from_xmp()
         if dt is not None:
             return dt
 
@@ -160,6 +249,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
+        # https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/gps/gpsimgdirectionref.html
         return self._extract_alternative_fields(
             [
                 "GPS:GPSImgDirection",
@@ -169,29 +259,40 @@ class ExifToolRead(exif_read.ExifReadABC):
         )
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
-        lat = self._extract_alternative_fields(
-            ["GPS:GPSLatitude", "Composite:GPSLatitude"],
-            float,
-        )
-        if lat is None:
-            return None
-        ref = self._extract_alternative_fields(
-            ["GPS:GPSLatitudeRef", "Composite:GPSLatitudeRef"], str
-        )
-        if ref and ref.upper() in ["SOUTH", "S"]:
-            lat = -1 * lat
+        lon_lat = self._extract_lon_lat("GPS:GPSLongitude", "GPS:GPSLatitude")
+        if lon_lat is not None:
+            return lon_lat
 
+        lon_lat = self._extract_lon_lat(
+            "Composite:GPSLongitude", "Composite:GPSLatitude"
+        )
+        if lon_lat is not None:
+            return lon_lat
+
+        return None
+
+    def _extract_lon_lat(
+        self, lon_tag: str, lat_tag: str
+    ) -> T.Optional[T.Tuple[float, float]]:
         lon = self._extract_alternative_fields(
-            ["GPS:GPSLongitude", "Composite:GPSLongitude"],
+            [lon_tag],
             float,
         )
         if lon is None:
             return None
-        ref = self._extract_alternative_fields(
-            ["GPS:GPSLongitudeRef", "Composite:GPSLongitudeRef"], str
-        )
+        ref = self._extract_alternative_fields([lon_tag + "Ref"], str)
         if ref and ref.upper() in ["WEST", "W"]:
             lon = -1 * lon
+
+        lat = self._extract_alternative_fields(
+            [lat_tag],
+            float,
+        )
+        if lat is None:
+            return None
+        ref = self._extract_alternative_fields([lat_tag + "Ref"], str)
+        if ref and ref.upper() in ["SOUTH", "S"]:
+            lat = -1 * lat
 
         return lon, lat
 
@@ -199,20 +300,54 @@ class ExifToolRead(exif_read.ExifReadABC):
         """
         Extract camera make
         """
-        return self._extract_alternative_fields(["IFD0:Make"], str)
+        make = self._extract_alternative_fields(
+            [
+                "IFD0:Make",
+                "IFD1:Make",
+                "ExifIFD:Make",
+                "ExifIFD:LensMake",
+                "XMP-exif:Make",
+                "XMP-exifEX:LensMake",
+            ],
+            str,
+        )
+        if make is None:
+            return None
+        return make.strip()
 
     def extract_model(self) -> T.Optional[str]:
         """
         Extract camera model
         """
-        return self._extract_alternative_fields(["IFD0:Model", "GoPro:Model"], str)
+        model = self._extract_alternative_fields(
+            [
+                "IFD0:Model",
+                "IFD1:Model",
+                "ExifIFD:Model",
+                "GoPro:Model",
+                "ExifIFD:LensModel",
+                "XMP-exif:Model",
+                "XMP-exifEX:LensModel",
+            ],
+            str,
+        )
+        if model is None:
+            return None
+        return model.strip()
 
     def extract_width(self) -> T.Optional[int]:
         """
         Extract image width in pixels
         """
         return self._extract_alternative_fields(
-            ["File:ImageWidth", "ExifIFD:ExifImageWidth"], int
+            [
+                "File:ImageWidth",
+                "ExifIFD:ExifImageWidth",
+                "IFD0:ExifImageWidth",
+                "IFD1:ExifImageWidth",
+                "XMP-exif:ExifImageWidth",
+            ],
+            int,
         )
 
     def extract_height(self) -> T.Optional[int]:
@@ -220,14 +355,30 @@ class ExifToolRead(exif_read.ExifReadABC):
         Extract image height in pixels
         """
         return self._extract_alternative_fields(
-            ["File:ImageHeight", "ExifIFD:ExifImageHeight"], int
+            [
+                "File:ImageHeight",
+                "ExifIFD:ExifImageHeight",
+                "IFD0:ExifImageHeight",
+                "IFD1:ExifImageHeight",
+                "XMP-exif:ExifImageHeight",
+            ],
+            int,
         )
 
     def extract_orientation(self) -> int:
         """
         Extract image orientation
         """
-        orientation = self._extract_alternative_fields(["IFD0:Orientation"], int)
+        orientation = self._extract_alternative_fields(
+            [
+                "ExifIFD:Orientation",
+                "IFD0:Orientation",
+                "IFD1:Orientation",
+                "XMP-exif:Orientation",
+                "XMP-tiff:Orientation",
+            ],
+            int,
+        )
         if orientation is None:
             return 1
         if orientation not in range(1, 9):

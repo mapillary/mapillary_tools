@@ -10,12 +10,16 @@ from mapillary_tools.exiftool_read import EXIFTOOL_NAMESPACES, ExifToolRead
 
 
 def extract_and_show_exif(image_path):
-    exif = ExifRead(image_path)
-    if "JPEGThumbnail" in exif.tags:
-        del exif.tags["JPEGThumbnail"]
-    if "Image ImageDescription" in exif.tags:
-        del exif.tags["Image ImageDescription"]
-    print(f"============================= {image_path} =============================")
+    print(f"======== ExifRead Output {image_path} ========")
+    try:
+        exif = ExifRead(image_path)
+    except Exception as ex:
+        print(f"Error: {ex}")
+        return
+    not_interested = ["JPEGThumbnail", "Image ImageDescription"]
+    for tag in not_interested:
+        if tag in exif.tags:
+            del exif.tags[tag]
     pprint.pprint(exif.tags)
     pprint.pprint(as_dict(exif))
 
@@ -76,25 +80,44 @@ def extract_and_show_from_exiftool(fp, compare: bool = False):
             native_exif = ExifRead(image_path)
             diff = compare_exif(as_dict(exif), as_dict(native_exif))
             if diff:
-                print(
-                    f"============================= {image_path} ============================="
-                )
+                print(f"======== ExifTool Outuput {image_path} ========")
                 pprint.pprint(as_dict(exif))
+                print(f"======== ExifRead Output {image_path} ========")
                 pprint.pprint(as_dict(native_exif))
         else:
-            print(
-                f"============================= {image_path} ============================="
-            )
+            print(f"======== ExifTool Outuput {image_path} ========")
             pprint.pprint(as_dict(exif))
+
+
+def namespace(tag):
+    for ns, val in EXIFTOOL_NAMESPACES.items():
+        if tag.startswith("{" + val + "}"):
+            return ns + ":" + tag[len(val) + 2 :]
+    return tag
+
+
+def list_tags(fp):
+    etree = et.parse(fp)
+    descriptions = etree.findall(".//rdf:Description", namespaces=EXIFTOOL_NAMESPACES)
+    tags = set()
+    for description in descriptions:
+        for child in description.iter():
+            tags.add(child.tag)
+    for tag in sorted(tags):
+        print(namespace(tag))
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="*")
     parser.add_argument("--compare", action="store_true")
+    parser.add_argument("--list_keys", action="store_true")
     parsed_args = parser.parse_args()
     if not parsed_args.path:
-        extract_and_show_from_exiftool(sys.stdin, parsed_args.compare)
+        if parsed_args.list_keys:
+            list_tags(sys.stdin)
+        else:
+            extract_and_show_from_exiftool(sys.stdin, parsed_args.compare)
     else:
         for image_path in utils.find_images([Path(p) for p in parsed_args.path]):
             extract_and_show_exif(image_path)
