@@ -201,7 +201,7 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
         dt = self._extract_exif_datetime(
             "exif:DateTimeOriginal",
-            "exif:SubSecTimeOriginal",
+            "exif:SubsecTimeOriginal",
             "exif:OffsetTimeOriginal",
         )
         if dt is not None:
@@ -209,7 +209,7 @@ class ExifReadFromXMP(ExifReadABC):
 
         dt = self._extract_exif_datetime(
             "exif:DateTimeDigitized",
-            "exif:SubSecTimeDigitized",
+            "exif:SubsecTimeDigitized",
             "exif:OffsetTimeDigitized",
         )
         if dt is not None:
@@ -288,16 +288,22 @@ class ExifReadFromXMP(ExifReadABC):
     def extract_make(self) -> T.Optional[str]:
         if self.first_rdf_description is None:
             return None
-        return self._extract_alternative_attribute(
-            ["exifEX:LensMake", "tiff:Make"], str
+        make = self._extract_alternative_attribute(
+            ["tiff:Make", "exifEX:LensMake"], str
         )
+        if make is None:
+            return None
+        return make.strip()
 
     def extract_model(self) -> T.Optional[str]:
         if self.first_rdf_description is None:
             return None
-        return self._extract_alternative_attribute(
-            ["exifEX:LensModel", "tiff:Model"], str
+        model = self._extract_alternative_attribute(
+            ["tiff:Model", "exifEX:LensModel"], str
         )
+        if model is None:
+            return None
+        return model.strip()
 
     def extract_width(self) -> T.Optional[int]:
         if self.first_rdf_description is None:
@@ -380,9 +386,18 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         if isinstance(path_or_stream, Path):
             with path_or_stream.open("rb") as fp:
-                self.tags = exifread.process_file(fp, details=True, debug=True)
+                try:
+                    self.tags = exifread.process_file(fp, details=True, debug=True)
+                except Exception:
+                    self.tags = {}
+
         else:
-            self.tags = exifread.process_file(path_or_stream, details=True, debug=True)
+            try:
+                self.tags = exifread.process_file(
+                    path_or_stream, details=True, debug=True
+                )
+            except Exception:
+                self.tags = {}
 
     def extract_altitude(self) -> T.Optional[float]:
         """
@@ -544,13 +559,19 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         Extract camera make
         """
-        return self._extract_alternative_fields(["EXIF LensMake", "Image Make"], str)
+        make = self._extract_alternative_fields(["Image Make", "EXIF LensMake"], str)
+        if make is None:
+            return None
+        return make.strip()
 
     def extract_model(self) -> T.Optional[str]:
         """
         Extract camera model
         """
-        return self._extract_alternative_fields(["EXIF LensModel", "Image Model"], str)
+        model = self._extract_alternative_fields(["Image Model", "EXIF LensModel"], str)
+        if model is None:
+            return None
+        return model.strip()
 
     def extract_width(self) -> T.Optional[int]:
         """
@@ -594,11 +615,12 @@ class ExifReadFromEXIF(ExifReadABC):
                 continue
             values = tag.values
             if field_type is float:
-                if values and isinstance(values[0], Ratio):
-                    try:
-                        return T.cast(_FIELD_TYPE, eval_frac(values[0]))
-                    except ZeroDivisionError:
-                        pass
+                if values:
+                    if len(values) == 1 and isinstance(values[0], Ratio):
+                        try:
+                            return T.cast(_FIELD_TYPE, eval_frac(values[0]))
+                        except ZeroDivisionError:
+                            pass
             elif field_type is str:
                 try:
                     return T.cast(_FIELD_TYPE, str(values))
