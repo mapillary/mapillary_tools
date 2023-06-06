@@ -71,12 +71,6 @@ def strptime_alternative_formats(
 
 def parse_timestr_as_timedelta(timestr: str) -> T.Optional[datetime.timedelta]:
     timestr = timestr.strip()
-
-    # Eliminate trailing Z for now
-    # Ideally we should handle +HH:MM here as well
-    if timestr.endswith("Z"):
-        timestr = timestr[:-1]
-
     parts = timestr.strip().split(":")
     try:
         if len(parts) == 0:
