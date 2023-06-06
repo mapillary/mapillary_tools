@@ -214,6 +214,41 @@ def test_parse():
     )
     assert str(dt) == "2019-01-02 01:28:00.123457-00:23"
 
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456Z",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456+00:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456+11:00",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456+11:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.456789+11:00", "123", "+01:00"
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123000+01:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123000", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2021:10:10 17:29:54.124+02:00",
+    )
+    assert str(dt) == "2021-10-10 17:29:54.124000+02:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2021:10:10 17:29:54.124-02:00",
+    )
+    assert str(dt) == "2021-10-10 17:29:54.124000-02:00", dt
+
 
 # test ExifWrite write a timestamp and ExifRead read it back
 def test_read_and_write(setup_data: py.path.local):

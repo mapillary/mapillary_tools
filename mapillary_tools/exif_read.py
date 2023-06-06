@@ -43,23 +43,41 @@ def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     return degrees + minutes / 60 + seconds / 3600
 
 
+def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
+    try:
+        return datetime.datetime.fromisoformat(dtstr)
+    except ValueError:
+        # fromisoformat does not support trailing Z
+        return strptime_alternative_formats(
+            dtstr, ["%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"]
+        )
+
+
 def strptime_alternative_formats(
     dtstr: str, formats: T.Sequence[str]
 ) -> T.Optional[datetime.datetime]:
     for format in formats:
-        try:
-            if format == "ISO":
-                return datetime.datetime.fromisoformat(dtstr)
-            else:
+        if format == "ISO":
+            dt = _parse_iso(dtstr)
+            if dt is not None:
+                return dt
+        else:
+            try:
                 return datetime.datetime.strptime(dtstr, format)
-        except ValueError:
-            continue
+            except ValueError:
+                pass
     return None
 
 
 def parse_timestr_as_timedelta(timestr: str) -> T.Optional[datetime.timedelta]:
-    parts = timestr.strip().split(":")
+    timestr = timestr.strip()
 
+    # Eliminate trailing Z for now
+    # Ideally we should handle +HH:MM here as well
+    if timestr.endswith("Z"):
+        timestr = timestr[:-1]
+
+    parts = timestr.strip().split(":")
     try:
         if len(parts) == 0:
             raise ValueError
@@ -100,15 +118,19 @@ def parse_time_ratios_as_timedelta(
 def parse_gps_datetime(
     dtstr: str,
     default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
-):
+) -> T.Optional[datetime.datetime]:
+    dtstr = dtstr.strip()
+
     dt = strptime_alternative_formats(dtstr, ["ISO"])
     if dt is not None:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=default_tz)
         return dt
 
     date_and_time = dtstr.split(maxsplit=2)
     if len(date_and_time) < 2:
         return None
-    datestr, timestr = date_and_time[:2]
+    datestr, timestr, *_ = date_and_time
     return parse_gps_datetime_separately(datestr, timestr, default_tz=default_tz)
 
 
@@ -116,7 +138,7 @@ def parse_gps_datetime_separately(
     datestr: str,
     timestr: str,
     default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
-):
+) -> T.Optional[datetime.datetime]:
     """
     Parse GPSDateStamp and GPSTimeStamp and return the corresponding datetime object in GMT.
 
@@ -130,15 +152,43 @@ def parse_gps_datetime_separately(
     if dt is None:
         return None
 
+    # split the time part and timezone part
+    # examples: 12:22:00.123000+01:00
+    #           12:22:00.123000Z
+    #           12:22:00
     timestr = timestr.strip()
     if timestr.endswith("Z"):
-        timestr = timestr[:-1]
-    delta = parse_timestr_as_timedelta(timestr)
+        timepartstr = timestr[:-1]
+        tzinfo = datetime.timezone.utc
+    else:
+        # find the first + or -
+        idx = timestr.find("+")
+        if idx < 0:
+            idx = timestr.find("-")
+        # if found, then parse the offset
+        if 0 <= idx:
+            timepartstr = timestr[:idx]
+            offset_delta = parse_timestr_as_timedelta(timestr[idx + 1 :])
+            if offset_delta is not None:
+                if timestr[idx] == "-":
+                    offset_delta = -offset_delta
+                tzinfo = datetime.timezone(offset_delta)
+            else:
+                tzinfo = None
+        else:
+            timepartstr = timestr
+            tzinfo = None
+
+    delta = parse_timestr_as_timedelta(timepartstr)
     if delta is None:
         return None
     dt = dt + delta
-    if default_tz is not None:
-        dt = dt.replace(tzinfo=default_tz)
+
+    if tzinfo is None:
+        tzinfo = default_tz
+
+    dt = dt.replace(tzinfo=tzinfo)
+
     return dt
 
 

@@ -96,7 +96,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         """
         Extract timestamp from GPS field.
         """
-        return self._extract_gps_datetime("GPS:GPSDateStamp", "GPS:GPSTimeStamp")
+        return self._extract_gps_datetime(["GPS:GPSDateStamp"], ["GPS:GPSTimeStamp"])
 
     def extract_gps_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
         """
