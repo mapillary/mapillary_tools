@@ -8,7 +8,7 @@ import py.path
 import pytest
 from mapillary_tools import geo
 
-from mapillary_tools.exif_read import ExifRead, parse_datetimestr
+from mapillary_tools.exif_read import ExifRead, parse_datetimestr_with_subsec_and_offset
 from mapillary_tools.exif_write import ExifEdit
 from PIL import ExifTags, Image
 
@@ -164,37 +164,90 @@ class ExifReadTests(unittest.TestCase):
 
 
 def test_parse():
-    dt = parse_datetimestr("2019:02:01 12:13:14")
+    dt = parse_datetimestr_with_subsec_and_offset("2019:02:01 12:13:14")
     assert dt
     assert dt.tzinfo is None
     assert dt.timetuple() == (2019, 2, 1, 12, 13, 14, 4, 32, -1)
 
-    dt = parse_datetimestr("2019:03:03 23:00:00.123", "456", "+12:12:11")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:03:03 23:00:00.123", "456", "+12:12:11"
+    )
     assert str(dt) == "2019-03-03 23:00:00.456000+12:12:11"
 
-    dt = parse_datetimestr("2019:01:01 22:00:00.123", "1456", "+12:34")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 22:00:00.123", "1456", "+12:34"
+    )
     assert str(dt) == "2019-01-01 22:00:00.145600+12:34"
 
-    dt = parse_datetimestr("2019:01:01 22:00:00.123", "0456", "+12:34")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 22:00:00.123", "0456", "+12:34"
+    )
     assert str(dt) == "2019-01-01 22:00:00.045600+12:34"
 
-    dt = parse_datetimestr("2019:01:01 01:00:00.123456789", None, "-10:34")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 01:00:00.123456789", None, "-10:34"
+    )
     assert str(dt) == "2019-01-01 01:00:00.123457-10:34"
 
-    dt = parse_datetimestr("2019:01:01 01:00:00.123456789", None, "-24:00")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 01:00:00.123456789", None, "-24:00"
+    )
     assert str(dt) == "2019-01-01 01:00:00.123457+00:00"
 
-    dt = parse_datetimestr("2019:01:01 01:00:00.123456789", None, "24:00")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 01:00:00.123456789", None, "24:00"
+    )
     assert str(dt) == "2019-01-01 01:00:00.123457+00:00"
 
-    dt = parse_datetimestr("2019:01:01 01:00:00.123456789", None, "24:23")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 01:00:00.123456789", None, "24:23"
+    )
     assert str(dt) == "2019-01-01 01:00:00.123457+00:23"
 
-    dt = parse_datetimestr("2019:01:01 24:00:00.123456789", None, "24:23")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 24:00:00.123456789", None, "24:23"
+    )
     assert str(dt) == "2019-01-02 00:00:00.123457+00:23"
 
-    dt = parse_datetimestr("2019:01:01 24:88:00.123456789", None, "-24:23")
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019:01:01 24:88:00.123456789", None, "-24:23"
+    )
     assert str(dt) == "2019-01-02 01:28:00.123457-00:23"
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456Z",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456+00:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456+11:00",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456+11:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.456789+11:00", "123", "+01:00"
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123000+01:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123456",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123456", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2019-01-01T12:22:00.123",
+    )
+    assert str(dt) == "2019-01-01 12:22:00.123000", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2021:10:10 17:29:54.124+02:00",
+    )
+    assert str(dt) == "2021-10-10 17:29:54.124000+02:00", dt
+
+    dt = parse_datetimestr_with_subsec_and_offset(
+        "2021:10:10 17:29:54.124-02:00",
+    )
+    assert str(dt) == "2021-10-10 17:29:54.124000-02:00", dt
 
 
 # test ExifWrite write a timestamp and ExifRead read it back

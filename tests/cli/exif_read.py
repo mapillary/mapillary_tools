@@ -29,8 +29,8 @@ def as_dict(exif: ExifReadABC):
         "altitude": exif.extract_altitude(),
         "capture_time": exif.extract_capture_time(),
         "direction": exif.extract_direction(),
-        # "exif_time": exif.extract_exif_datetime(),
-        # "gps_time": exif.extract_gps_datetime(),
+        "exif_time": exif.extract_exif_datetime(),
+        "gps_time": exif.extract_gps_datetime(),
         "lon_lat": exif.extract_lon_lat(),
         "make": exif.extract_make(),
         "model": exif.extract_model(),
@@ -54,6 +54,8 @@ def compare_exif(left: dict, right: dict) -> bool:
     RESET_COLOR = "\x1b[0m"
     diff = False
     for key in left:
+        if key in ["width", "height"]:
+            continue
         if key in ["lon_lat", "altitude", "direction"]:
             left_value = _round(left[key])
             right_value = _round(right[key])

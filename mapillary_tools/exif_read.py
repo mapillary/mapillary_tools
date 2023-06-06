@@ -43,20 +43,35 @@ def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     return degrees + minutes / 60 + seconds / 3600
 
 
+def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
+    try:
+        return datetime.datetime.fromisoformat(dtstr)
+    except ValueError:
+        # fromisoformat does not support trailing Z
+        return strptime_alternative_formats(
+            dtstr, ["%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z"]
+        )
+
+
 def strptime_alternative_formats(
     dtstr: str, formats: T.Sequence[str]
 ) -> T.Optional[datetime.datetime]:
     for format in formats:
-        try:
-            return datetime.datetime.strptime(dtstr, format)
-        except ValueError:
-            continue
+        if format == "ISO":
+            dt = _parse_iso(dtstr)
+            if dt is not None:
+                return dt
+        else:
+            try:
+                return datetime.datetime.strptime(dtstr, format)
+            except ValueError:
+                pass
     return None
 
 
-def parse_timestr(timestr: str) -> T.Optional[datetime.timedelta]:
+def parse_timestr_as_timedelta(timestr: str) -> T.Optional[datetime.timedelta]:
+    timestr = timestr.strip()
     parts = timestr.strip().split(":")
-
     try:
         if len(parts) == 0:
             raise ValueError
@@ -72,6 +87,152 @@ def parse_timestr(timestr: str) -> T.Optional[datetime.timedelta]:
     return datetime.timedelta(hours=h, minutes=m, seconds=s)
 
 
+def parse_time_ratios_as_timedelta(
+    time_tuple: T.Sequence[Ratio],
+) -> T.Optional[datetime.timedelta]:
+    try:
+        hours, minutes, seconds, *_ = time_tuple
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(hours, Ratio):
+        return None
+    if not isinstance(minutes, Ratio):
+        return None
+    if not isinstance(seconds, Ratio):
+        return None
+    try:
+        h: int = int(eval_frac(hours))
+        m: int = int(eval_frac(minutes))
+        s: float = eval_frac(seconds)
+    except (ValueError, ZeroDivisionError):
+        return None
+    return datetime.timedelta(hours=h, minutes=m, seconds=s)
+
+
+def parse_gps_datetime(
+    dtstr: str,
+    default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
+) -> T.Optional[datetime.datetime]:
+    dtstr = dtstr.strip()
+
+    dt = strptime_alternative_formats(dtstr, ["ISO"])
+    if dt is not None:
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=default_tz)
+        return dt
+
+    date_and_time = dtstr.split(maxsplit=2)
+    if len(date_and_time) < 2:
+        return None
+    datestr, timestr, *_ = date_and_time
+    return parse_gps_datetime_separately(datestr, timestr, default_tz=default_tz)
+
+
+def parse_gps_datetime_separately(
+    datestr: str,
+    timestr: str,
+    default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
+) -> T.Optional[datetime.datetime]:
+    """
+    Parse GPSDateStamp and GPSTimeStamp and return the corresponding datetime object in GMT.
+
+    Valid examples:
+    - "2021:08:02" "07:57:06"
+    - "2022:06:10" "17:35:52.269367"
+    - "2022:06:10" "17:35:52.269367Z"
+    """
+    datestr = datestr.strip()
+    dt = strptime_alternative_formats(datestr, ["%Y:%m:%d", "%Y-%m-%d"])
+    if dt is None:
+        return None
+
+    # split the time part and timezone part
+    # examples: 12:22:00.123000+01:00
+    #           12:22:00.123000Z
+    #           12:22:00
+    timestr = timestr.strip()
+    if timestr.endswith("Z"):
+        timepartstr = timestr[:-1]
+        tzinfo = datetime.timezone.utc
+    else:
+        # find the first + or -
+        idx = timestr.find("+")
+        if idx < 0:
+            idx = timestr.find("-")
+        # if found, then parse the offset
+        if 0 <= idx:
+            timepartstr = timestr[:idx]
+            offset_delta = parse_timestr_as_timedelta(timestr[idx + 1 :])
+            if offset_delta is not None:
+                if timestr[idx] == "-":
+                    offset_delta = -offset_delta
+                tzinfo = datetime.timezone(offset_delta)
+            else:
+                tzinfo = None
+        else:
+            timepartstr = timestr
+            tzinfo = None
+
+    delta = parse_timestr_as_timedelta(timepartstr)
+    if delta is None:
+        return None
+    dt = dt + delta
+
+    if tzinfo is None:
+        tzinfo = default_tz
+
+    dt = dt.replace(tzinfo=tzinfo)
+
+    return dt
+
+
+def parse_datetimestr_with_subsec_and_offset(
+    dtstr: str, subsec: T.Optional[str] = None, tz_offset: T.Optional[str] = None
+) -> T.Optional[datetime.datetime]:
+    """
+    Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
+    It handles time "24:00:00" as "00:00:00" of the next day.
+    Subsec "123" will be parsed as seconds 0.123 i.e microseconds 123000 and added to the datetime object.
+    """
+    # handle dtstr
+    dtstr = dtstr.strip()
+
+    # example dtstr: <exif:DateTimeOriginal>2021-07-15T15:37:30+10:00</exif:DateTimeOriginal>
+    # example dtstr: 'EXIF DateTimeOriginal': (0x9003) ASCII=2021:07:15 15:37:30 @ 1278
+    dt = parse_gps_datetime(dtstr, default_tz=None)
+    if dt is None:
+        return None
+
+    # handle subsec
+    if subsec is not None:
+        subsec = subsec.strip()
+        if len(subsec) < 6:
+            subsec = subsec + ("0" * 6)
+        microseconds = int(subsec[:6])
+        # ValueError: microsecond must be in 0..999999
+        microseconds = microseconds % int(1e6)
+        # always overrides the microseconds
+        dt = dt.replace(microsecond=microseconds)
+
+    # handle tz_offset
+    if tz_offset is not None:
+        tz_offset = tz_offset.strip()
+        if tz_offset.startswith("+"):
+            offset_delta = parse_timestr_as_timedelta(tz_offset[1:])
+        elif tz_offset.startswith("-"):
+            offset_delta = parse_timestr_as_timedelta(tz_offset[1:])
+            if offset_delta is not None:
+                offset_delta = -1 * offset_delta
+        else:
+            offset_delta = parse_timestr_as_timedelta(tz_offset)
+        if offset_delta is not None:
+            offset_delta = make_valid_timezone_offset(offset_delta)
+            tzinfo = datetime.timezone(offset_delta)
+            dt = dt.replace(tzinfo=tzinfo)
+
+    return dt
+
+
 def make_valid_timezone_offset(delta: datetime.timedelta) -> datetime.timedelta:
     # otherwise: ValueError: offset must be a timedelta strictly between -timedelta(hours=24)
     # and timedelta(hours=24), not datetime.timedelta(days=1)
@@ -84,51 +245,6 @@ def make_valid_timezone_offset(delta: datetime.timedelta) -> datetime.timedelta:
 
 
 _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
-
-
-def parse_datetimestr(
-    dtstr: str, subsec: T.Optional[str] = None, tz_offset: T.Optional[str] = None
-) -> T.Optional[datetime.datetime]:
-    """
-    Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
-    It handles time "24:00:00" as "00:00:00" of the next day.
-    subsec "123" will be parsed as seconds 0.123 i.e microseconds 123000 and added to the datetime object.
-    """
-    dtstr = dtstr.strip()
-    date_and_time = dtstr.split(maxsplit=2)
-    if len(date_and_time) < 2:
-        return None
-    date, time = date_and_time[:2]
-    d = strptime_alternative_formats(date, ["%Y:%m:%d", "%Y-%m-%d"])
-    if d is None:
-        return None
-    time_delta = parse_timestr(time)
-    if time_delta is None:
-        # unable to parse HH:MM:SS
-        return None
-    d = d + time_delta
-    if subsec is not None:
-        if len(subsec) < 6:
-            subsec = subsec + ("0" * 6)
-        microseconds = int(subsec[:6])
-        # ValueError: microsecond must be in 0..999999
-        microseconds = microseconds % int(1e6)
-        # always overrides the microseconds
-        d = d.replace(microsecond=microseconds)
-    if tz_offset is not None:
-        if tz_offset.startswith("+"):
-            offset_delta = parse_timestr(tz_offset[1:])
-        elif tz_offset.startswith("-"):
-            offset_delta = parse_timestr(tz_offset[1:])
-            if offset_delta is not None:
-                offset_delta = -1 * offset_delta
-        else:
-            offset_delta = parse_timestr(tz_offset)
-        if offset_delta is not None:
-            offset_delta = make_valid_timezone_offset(offset_delta)
-            tzinfo = datetime.timezone(offset_delta)
-            d = d.replace(tzinfo=tzinfo)
-    return d
 
 
 class ExifReadABC(abc.ABC):
@@ -172,28 +288,32 @@ class ExifReadABC(abc.ABC):
 class ExifReadFromXMP(ExifReadABC):
     def __init__(self, etree: et.ElementTree):
         self.etree = etree
-        self.first_rdf_description = self.etree.find(
+        self._tags_or_attrs: T.Dict[str, str] = {}
+        for description in self.etree.iterfind(
             ".//rdf:Description", namespaces=XMP_NAMESPACES
-        )
+        ):
+            for k, v in description.items():
+                self._tags_or_attrs[k] = v
+            for child in description:
+                if child.text is not None:
+                    self._tags_or_attrs[child.tag] = child.text
 
     def extract_altitude(self) -> T.Optional[float]:
-        if self.first_rdf_description is None:
-            return None
-        return self._extract_alternative_attribute(["exif:GPSAltitude"], float)
+        return self._extract_alternative_fields(["exif:GPSAltitude"], float)
 
     def _extract_exif_datetime(
         self, dt_tag: str, subsec_tag: str, offset_tag: str
     ) -> T.Optional[datetime.datetime]:
-        dtstr = self._extract_alternative_attribute([dt_tag], str)
+        dtstr = self._extract_alternative_fields([dt_tag], str)
         if dtstr is None:
             return None
-        subsec = self._extract_alternative_attribute([subsec_tag], str)
+        subsec = self._extract_alternative_fields([subsec_tag], str)
         # See https://github.com/mapillary/mapillary_tools/issues/388#issuecomment-860198046
         # and https://community.gopro.com/t5/Cameras/subsecond-timestamp-bug/m-p/1057505
         if subsec:
             subsec = subsec.replace(" ", "0")
-        offset = self._extract_alternative_attribute([offset_tag], str)
-        dt = parse_datetimestr(dtstr, subsec, offset)
+        offset = self._extract_alternative_fields([offset_tag], str)
+        dt = parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
         if dt is None:
             return None
         return dt
@@ -221,31 +341,23 @@ class ExifReadFromXMP(ExifReadABC):
         """
         Extract timestamp from GPS field.
         """
-        gpsdate = self._extract_alternative_attribute(["exif:GPSDateStamp"], str)
-        if gpsdate is None:
+        timestr = self._extract_alternative_fields(["exif:GPSTimeStamp"], str)
+        if not timestr:
             return None
-        dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
-        if dt is None:
+
+        # handle: <exif:GPSTimeStamp>2021-07-15T05:37:30Z</exif:GPSTimeStamp>
+        dt = strptime_alternative_formats(timestr, ["ISO"])
+        if dt is not None:
+            return dt
+
+        datestr = self._extract_alternative_fields(["exif:GPSDateStamp"], str)
+        if datestr is None:
             return None
-        gpstimestamp = self._extract_alternative_attribute(["exif:GPSTimeStamp"], str)
-        if not gpstimestamp:
-            return None
-        try:
-            h, m, s, *_ = gpstimestamp.split(":")
-            hour = int(h)
-            minute = int(m)
-            second = float(s)
-        except (ValueError, TypeError):
-            return None
-        dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
-        # GPS timestamps are always GMT
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
-        return dt
+
+        # handle: exif:GPSTimeStamp="17:22:05.999000"
+        return parse_gps_datetime_separately(datestr, timestr)
 
     def extract_capture_time(self) -> T.Optional[datetime.datetime]:
-        if self.first_rdf_description is None:
-            return None
-
         dt = self.extract_gps_datetime()
         if dt is not None:
             return dt
@@ -257,48 +369,37 @@ class ExifReadFromXMP(ExifReadABC):
         return None
 
     def extract_direction(self) -> T.Optional[float]:
-        if self.first_rdf_description is None:
-            return None
-        return self._extract_alternative_attribute(
+        return self._extract_alternative_fields(
             ["exif:GPSImgDirection", "exif:GPSTrack"], float
         )
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
-        if self.first_rdf_description is None:
-            return None
-
-        lat = self._extract_alternative_attribute(["exif:GPSLatitude"], float)
+        lat = self._extract_alternative_fields(["exif:GPSLatitude"], float)
         if lat is None:
             return None
 
-        lon = self._extract_alternative_attribute(["exif:GPSLongitude"], float)
+        lon = self._extract_alternative_fields(["exif:GPSLongitude"], float)
         if lon is None:
             return None
 
-        ref = self._extract_alternative_attribute(["exif:GPSLongitudeRef"], str)
+        ref = self._extract_alternative_fields(["exif:GPSLongitudeRef"], str)
         if ref and ref.upper() == "W":
             lon = -1 * lon
 
-        ref = self._extract_alternative_attribute(["exif:GPSLatitudeRef"], str)
+        ref = self._extract_alternative_fields(["exif:GPSLatitudeRef"], str)
         if ref and ref.upper() == "S":
             lat = -1 * lat
 
         return lon, lat
 
     def extract_make(self) -> T.Optional[str]:
-        if self.first_rdf_description is None:
-            return None
-        make = self._extract_alternative_attribute(
-            ["tiff:Make", "exifEX:LensMake"], str
-        )
+        make = self._extract_alternative_fields(["tiff:Make", "exifEX:LensMake"], str)
         if make is None:
             return None
         return make.strip()
 
     def extract_model(self) -> T.Optional[str]:
-        if self.first_rdf_description is None:
-            return None
-        model = self._extract_alternative_attribute(
+        model = self._extract_alternative_fields(
             ["tiff:Model", "exifEX:LensModel"], str
         )
         if model is None:
@@ -306,9 +407,7 @@ class ExifReadFromXMP(ExifReadABC):
         return model.strip()
 
     def extract_width(self) -> T.Optional[int]:
-        if self.first_rdf_description is None:
-            return None
-        return self._extract_alternative_attribute(
+        return self._extract_alternative_fields(
             [
                 "exif:PixelXDimension",
                 "GPano:FullPanoWidthPixels",
@@ -318,9 +417,7 @@ class ExifReadFromXMP(ExifReadABC):
         )
 
     def extract_height(self) -> T.Optional[int]:
-        if self.first_rdf_description is None:
-            return None
-        return self._extract_alternative_attribute(
+        return self._extract_alternative_fields(
             [
                 "exif:PixelYDimension",
                 "GPano:FullPanoHeightPixels",
@@ -330,14 +427,12 @@ class ExifReadFromXMP(ExifReadABC):
         )
 
     def extract_orientation(self) -> int:
-        if self.first_rdf_description is None:
-            return 1
-        orientation = self._extract_alternative_attribute(["tiff:Orientation"], int)
+        orientation = self._extract_alternative_fields(["tiff:Orientation"], int)
         if orientation is None or orientation not in range(1, 9):
             return 1
         return orientation
 
-    def _extract_alternative_attribute(
+    def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
         field_type: T.Type[_FIELD_TYPE],
@@ -346,12 +441,10 @@ class ExifReadFromXMP(ExifReadABC):
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
         """
-        if self.first_rdf_description is None:
-            return None
         for field in fields:
-            ns, attr = field.split(":")
-            value = self.first_rdf_description.get(
-                "{" + XMP_NAMESPACES[ns] + "}" + attr
+            ns, attr_or_tag = field.split(":")
+            value = self._tags_or_attrs.get(
+                "{" + XMP_NAMESPACES[ns] + "}" + attr_or_tag
             )
             if value is None:
                 continue
@@ -419,26 +512,21 @@ class ExifReadFromEXIF(ExifReadABC):
         gpsdate = self._extract_alternative_fields(["GPS GPSDate"], str)
         if gpsdate is None:
             return None
-        dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
+
+        dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d", "%Y-%m-%d"])
         if dt is None:
             return None
+
         gpstimestamp = self.tags.get("GPS GPSTimeStamp")
         if not gpstimestamp:
             return None
-        try:
-            h, m, s, *_ = gpstimestamp.values
-        except (ValueError, TypeError):
+
+        delta = parse_time_ratios_as_timedelta(gpstimestamp.values)
+        if delta is None:
             return None
-        if not isinstance(h, Ratio):
-            return None
-        if not isinstance(m, Ratio):
-            return None
-        if not isinstance(s, Ratio):
-            return None
-        hour: int = int(eval_frac(h))
-        minute: int = int(eval_frac(m))
-        second: float = eval_frac(s)
-        dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
+
+        dt = dt + delta
+
         # GPS timestamps are always GMT
         dt = dt.replace(tzinfo=datetime.timezone.utc)
         return dt
@@ -455,7 +543,7 @@ class ExifReadFromEXIF(ExifReadABC):
         if subsec:
             subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields([offset_tag], field_type=str)
-        dt = parse_datetimestr(dtstr, subsec, offset)
+        dt = parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
         if dt is None:
             return None
         return dt

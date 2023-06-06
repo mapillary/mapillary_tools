@@ -60,9 +60,6 @@ class ExifToolRead(exif_read.ExifReadABC):
         self,
         etree: ElementTree,
     ) -> None:
-        """
-        Initialize EXIF object with FILE as filename or fileobj
-        """
         self.etree = etree
 
     def extract_altitude(self) -> T.Optional[float]:
@@ -80,44 +77,37 @@ class ExifToolRead(exif_read.ExifReadABC):
         return altitude
 
     def _extract_gps_datetime(
-        self, date_tag: str, time_tag: str
+        self, date_tags: T.Sequence[str], time_tags: T.Sequence[str]
     ) -> T.Optional[datetime.datetime]:
         """
         Extract timestamp from GPS field.
         """
-        gpsdate = self._extract_alternative_fields([date_tag], str)
+        gpsdate = self._extract_alternative_fields(date_tags, str)
         if gpsdate is None:
             return None
-        dt = exif_read.strptime_alternative_formats(gpsdate, ["%Y:%m:%d"])
-        if dt is None:
-            return None
-        gpstimestamp = self._extract_alternative_fields([time_tag], str)
+
+        gpstimestamp = self._extract_alternative_fields(time_tags, str)
         if not gpstimestamp:
             return None
-        try:
-            h, m, s, *_ = gpstimestamp.split(":")
-            hour = int(h)
-            minute = int(m)
-            second = float(s)
-        except (ValueError, TypeError):
-            return None
-        dt = dt + datetime.timedelta(hours=hour, minutes=minute, seconds=second)
-        # GPS timestamps are always GMT
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
-        return dt
+
+        return exif_read.parse_gps_datetime_separately(gpsdate, gpstimestamp)
 
     def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
         """
         Extract timestamp from GPS field.
         """
-        return self._extract_gps_datetime("GPS:GPSDateStamp", "GPS:GPSTimeStamp")
+        return self._extract_gps_datetime(["GPS:GPSDateStamp"], ["GPS:GPSTimeStamp"])
 
     def extract_gps_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
         """
         Extract timestamp from XMP GPS field.
         """
+        # example: <XMP-exif:GPSDateStamp>2021:09:14</XMP-exif:GPSDateStamp>
+        # example: <XMP-exif:GPSDateTime>08:23:56.000000</XMP-exif:GPSDateTime>
         return self._extract_gps_datetime(
-            "XMP-exif:GPSDateStamp", "XMP-exif:GPSDateTime"
+            ["XMP-exif:GPSDateStamp"],
+            # Put both here but I do not see any XMP-exif:GPSTimeStamp in my samples
+            ["XMP-exif:GPSDateTime", "XMP-exif:GPSTimeStamp"],
         )
 
     def _extract_exif_datetime(
@@ -135,7 +125,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         if subsec:
             subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields(offset_tags, str)
-        dt = exif_read.parse_datetimestr(dtstr, subsec, offset)
+        dt = exif_read.parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
         if dt is None:
             return None
         return dt
