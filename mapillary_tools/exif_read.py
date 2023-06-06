@@ -48,7 +48,10 @@ def strptime_alternative_formats(
 ) -> T.Optional[datetime.datetime]:
     for format in formats:
         try:
-            return datetime.datetime.strptime(dtstr, format)
+            if format == "ISO":
+                return datetime.datetime.fromisoformat(dtstr)
+            else:
+                return datetime.datetime.strptime(dtstr, format)
         except ValueError:
             continue
     return None
@@ -76,32 +79,29 @@ def parse_time_ratios_as_timedelta(
     time_tuple: T.Sequence[Ratio],
 ) -> T.Optional[datetime.timedelta]:
     try:
-        h, m, s, *_ = time_tuple
+        hours, minutes, seconds, *_ = time_tuple
     except (ValueError, TypeError):
         return None
-    if not isinstance(h, Ratio):
+    if not isinstance(hours, Ratio):
         return None
-    if not isinstance(m, Ratio):
+    if not isinstance(minutes, Ratio):
         return None
-    if not isinstance(s, Ratio):
+    if not isinstance(seconds, Ratio):
         return None
     try:
-        hour: int = int(eval_frac(h))
-        minute: int = int(eval_frac(m))
-        second: float = eval_frac(s)
+        h: int = int(eval_frac(hours))
+        m: int = int(eval_frac(minutes))
+        s: float = eval_frac(seconds)
     except (ValueError, ZeroDivisionError):
         return None
-    return datetime.timedelta(hours=hour, minutes=minute, seconds=second)
+    return datetime.timedelta(hours=h, minutes=m, seconds=s)
 
 
 def parse_gps_datetime(
     dtstr: str,
     default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
 ):
-    try:
-        dt = datetime.datetime.fromisoformat(dtstr)
-    except (ValueError, TypeError):
-        dt = None
+    dt = strptime_alternative_formats(dtstr, ["ISO"])
     if dt is not None:
         return dt
 
@@ -148,7 +148,7 @@ def parse_datetimestr_with_subsec_and_offset(
     """
     Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
     It handles time "24:00:00" as "00:00:00" of the next day.
-    subsec "123" will be parsed as seconds 0.123 i.e microseconds 123000 and added to the datetime object.
+    Subsec "123" will be parsed as seconds 0.123 i.e microseconds 123000 and added to the datetime object.
     """
     # handle dtstr
     dtstr = dtstr.strip()
@@ -302,10 +302,7 @@ class ExifReadFromXMP(ExifReadABC):
             return None
 
         # handle: <exif:GPSTimeStamp>2021-07-15T05:37:30Z</exif:GPSTimeStamp>
-        try:
-            dt = datetime.datetime.fromisoformat(timestr)
-        except (TypeError, ValueError):
-            dt = None
+        dt = strptime_alternative_formats(timestr, ["ISO"])
         if dt is not None:
             return dt
 
