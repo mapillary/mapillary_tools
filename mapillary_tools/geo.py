@@ -175,8 +175,16 @@ def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
     if isinstance(dt, (int, float)):
         return dt
     else:
-        # if dt is naive, assume it's in local timezone
-        return dt.timestamp()
+        try:
+            # if dt is naive, assume it's in local timezone
+            return dt.timestamp()
+        except ValueError:
+            # Some datetimes can't be converted to timestamp
+            # e.g. 0001-01-01 00:00:00 will throw ValueError: year 0 is out of range
+            try:
+                return dt.replace(year=1970).timestamp()
+            except ValueError:
+                return 0.0
 
 
 def _interpolate_segment(start: Point, end: Point, t: float) -> Point:

@@ -1,5 +1,6 @@
 import abc
 import datetime
+import logging
 import typing as T
 import xml.etree.ElementTree as et
 from pathlib import Path
@@ -17,6 +18,9 @@ XMP_NAMESPACES = {
     "x": "adobe:ns:meta/",
     "GPano": "http://ns.google.com/photos/1.0/panorama/",
 }
+# https://github.com/ianare/exif-py/issues/167
+EXIFREAD_LOG = logging.getLogger("exifread")
+EXIFREAD_LOG.setLevel(logging.ERROR)
 
 
 def eval_frac(value: Ratio) -> float:
