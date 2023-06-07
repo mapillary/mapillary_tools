@@ -48,9 +48,6 @@ def verify_image_exif_write(
         )
     except Exception as exc:
         # possible error here: struct.error: 'H' format requires 0 <= number <= 65535
-        LOG.warning(
-            "Unknown error test writing image %s", metadata.filename, exc_info=True
-        )
         return types.describe_error_metadata(
             exc,
             metadata.filename,
@@ -75,11 +72,6 @@ class GeotagFromEXIF(GeotagFromGeneric):
         try:
             exif = ExifRead(image_bytesio)
         except Exception as ex:
-            LOG.warning(
-                "Unknown error reading EXIF from image %s",
-                image_path,
-                exc_info=True,
-            )
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
             )
