@@ -62,37 +62,21 @@ class GeotagFromEXIF(GeotagFromGeneric):
         super().__init__()
 
     @staticmethod
-    def geotag_image(
-        image_path: Path, skip_lonlat_error: bool = False
-    ) -> types.ImageMetadataOrError:
-        with image_path.open("rb") as fp:
-            image_bytesio = io.BytesIO(fp.read())
-
-        try:
-            exif = ExifRead(image_bytesio)
-        except Exception as ex:
-            return types.describe_error_metadata(
-                ex, image_path, filetype=types.FileType.IMAGE
-            )
-
+    def build_image_metadata(
+        image_path: Path, exif: ExifReadABC, skip_lonlat_error: bool = False
+    ) -> types.ImageMetadata:
         lonlat = exif.extract_lon_lat()
         if lonlat is None:
             if not skip_lonlat_error:
-                exc = MapillaryGeoTaggingError(
+                raise MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
-                )
-                return types.describe_error_metadata(
-                    exc, image_path, filetype=types.FileType.IMAGE
                 )
             lonlat = (0.0, 0.0)
         lon, lat = lonlat
 
         capture_time = exif.extract_capture_time()
         if capture_time is None:
-            exc = MapillaryGeoTaggingError("Unable to extract timestamp from the image")
-            return types.describe_error_metadata(
-                exc, image_path, filetype=types.FileType.IMAGE
-            )
+            raise MapillaryGeoTaggingError("Unable to extract timestamp from the image")
 
         image_metadata = types.ImageMetadata(
             filename=image_path,
@@ -108,6 +92,31 @@ class GeotagFromEXIF(GeotagFromGeneric):
             MAPDeviceMake=exif.extract_make(),
             MAPDeviceModel=exif.extract_model(),
         )
+
+        return image_metadata
+
+    @staticmethod
+    def geotag_image(
+        image_path: Path, skip_lonlat_error: bool = False
+    ) -> types.ImageMetadataOrError:
+        with image_path.open("rb") as fp:
+            image_bytesio = io.BytesIO(fp.read())
+
+        try:
+            exif = ExifRead(image_bytesio)
+        except Exception as ex:
+            return types.describe_error_metadata(
+                ex, image_path, filetype=types.FileType.IMAGE
+            )
+
+        try:
+            image_metadata = GeotagFromEXIF.build_image_metadata(
+                image_path, exif, skip_lonlat_error=skip_lonlat_error
+            )
+        except Exception as ex:
+            return types.describe_error_metadata(
+                ex, image_path, filetype=types.FileType.IMAGE
+            )
 
         image_bytesio.seek(0, io.SEEK_SET)
         image_metadata.update_md5sum(image_bytesio)

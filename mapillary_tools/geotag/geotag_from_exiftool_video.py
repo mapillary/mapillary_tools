@@ -6,26 +6,14 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, geo, types, utils
+from .. import exceptions, geo, types
 
-from ..exiftool_read import EXIFTOOL_NAMESPACES
 from ..exiftool_read_video import ExifToolReadVideo
-from . import utils as video_utils
+from . import utils as video_utils, geotag_from_exiftool
 from .geotag_from_generic import GeotagFromVideoGeneric
 
 LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
-
-
-def _canonical_path(path: Path) -> str:
-    return str(path.resolve().as_posix())
-
-
-def _rdf_description_path(element: ET.Element) -> T.Optional[Path]:
-    about = element.get("{" + EXIFTOOL_NAMESPACES["rdf"] + "}about")
-    if about is None:
-        return None
-    return Path(about)
 
 
 class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
@@ -36,7 +24,7 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
 
     @staticmethod
     def geotag_video(element: ET.Element) -> types.VideoMetadataOrError:
-        video_path = _rdf_description_path(element)
+        video_path = geotag_from_exiftool.find_rdf_description_path(element)
         assert video_path is not None, "must find the path from the element"
 
         try:
@@ -75,30 +63,22 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
                 filetype=video_metadata.filetype,
             )
 
-        if not isinstance(video_metadata, types.ErrorMetadata):
-            LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-            video_metadata.update_md5sum()
+        LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
+        video_metadata.update_md5sum()
 
         return video_metadata
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
-        rdf_description_by_path: T.Dict[str, ET.Element] = {}
-        for xml_path in utils.find_xml_files([self.xml_path]):
-            try:
-                etree = ET.parse(xml_path)
-            except ET.ParseError:
-                continue
-
-            elements = etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
-            for element in elements:
-                path = _rdf_description_path(element)
-                if path is not None:
-                    rdf_description_by_path[_canonical_path(path)] = element
+        rdf_description_by_path = geotag_from_exiftool.index_rdf_description_by_path(
+            [self.xml_path]
+        )
 
         error_metadatas: T.List[types.ErrorMetadata] = []
         rdf_descriptions: T.List[ET.Element] = []
         for path in self.video_paths:
-            rdf_description = rdf_description_by_path.get(_canonical_path(path))
+            rdf_description = rdf_description_by_path.get(
+                geotag_from_exiftool.canonical_path(path)
+            )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(
                     f"The {_DESCRIPTION_TAG} XML element for the video not found"

@@ -360,7 +360,7 @@ def test_process_finalize(setup_data):
         {
             "error": {
                 "type": "ValidationError",
-                "message": "'image' is not one of ['camm', 'gopro', 'blackvue']",
+                "message": "'image' is not one of ['camm', 'gopro', 'blackvue', 'video']",
             },
             "filename": str(setup_data.join("test_video.mp4")),
             "filetype": "image",
