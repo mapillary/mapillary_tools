@@ -21,10 +21,17 @@ def verify_image_exif_write(
     metadata: types.ImageMetadata,
     image_data: T.Optional[bytes] = None,
 ) -> types.ImageMetadataOrError:
-    if image_data is None:
-        edit = exif_write.ExifEdit(metadata.filename)
-    else:
-        edit = exif_write.ExifEdit(image_data)
+    try:
+        if image_data is None:
+            edit = exif_write.ExifEdit(metadata.filename)
+        else:
+            edit = exif_write.ExifEdit(image_data)
+    except Exception as exc:
+        return types.describe_error_metadata(
+            exc,
+            metadata.filename,
+            filetype=types.FileType.IMAGE,
+        )
 
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
