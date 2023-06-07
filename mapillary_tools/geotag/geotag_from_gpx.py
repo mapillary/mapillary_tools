@@ -29,9 +29,9 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
 
-    @staticmethod
-    def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
-        return GeotagFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
+    def geotag_image(self, image_path: Path) -> types.ImageMetadataOrError:
+        exif = GeotagFromEXIF([image_path])
+        return exif.geotag_image(image_path, skip_lonlat_error=True)
 
     def geotag_multiple_images(
         self, image_paths: T.Sequence[Path]

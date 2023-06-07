@@ -90,6 +90,10 @@ class MapillaryUploadedAlreadyError(_MapillaryDescriptionError):
         self.desc = desc
 
 
+class MapillaryEXIFNotFoundError(_MapillaryDescriptionError):
+    pass
+
+
 class MapillaryUploadConnectionError(MapillaryUserError):
     exit_code = 12
 

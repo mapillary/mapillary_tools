@@ -20,12 +20,13 @@ class Command:
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
         geotag_sources: T.List[GeotagSource] = [
-            "exif",
-            "gpx",
-            "gopro_videos",
-            "nmea",
             "blackvue_videos",
             "camm",
+            "exif",
+            "exiftool",
+            "gopro_videos",
+            "gpx",
+            "nmea",
         ]
         geotag_gpx_based_sources: T.List[GeotagSource] = [
             "gpx",

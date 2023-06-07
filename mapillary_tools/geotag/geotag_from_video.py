@@ -15,11 +15,12 @@ from . import (
     simple_mp4_parser as parser,
     utils as video_utils,
 )
+from .geotag_from_generic import GeotagFromVideoGeneric
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromVideo:
+class GeotagFromVideo(GeotagFromVideoGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
@@ -28,7 +29,7 @@ class GeotagFromVideo:
         self.video_paths = video_paths
         self.filetypes = filetypes
 
-    def to_descriptions(self) -> T.List[types.VideoMetadataOrError]:
+    def to_description(self) -> T.List[types.VideoMetadataOrError]:
         with Pool() as pool:
             video_metadatas = pool.imap(
                 self._geotag_video,
