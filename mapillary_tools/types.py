@@ -40,6 +40,7 @@ class FileType(enum.Enum):
     CAMM = "camm"
     GOPRO = "gopro"
     IMAGE = "image"
+    VIDEO = "video"
 
 
 @dataclasses.dataclass
@@ -404,6 +405,7 @@ VideoDescriptionFileSchema = merge_schema(
                     FileType.CAMM.value,
                     FileType.GOPRO.value,
                     FileType.BLACKVUE.value,
+                    FileType.VIDEO.value,
                 ],
                 "description": "The video file type",
             },

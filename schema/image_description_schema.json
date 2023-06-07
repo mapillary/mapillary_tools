@@ -62,7 +62,8 @@
                     "enum": [
                         "camm",
                         "gopro",
-                        "blackvue"
+                        "blackvue",
+                        "video"
                     ],
                     "description": "The video file type"
                 }

@@ -144,3 +144,25 @@ def find_zipfiles(
             else:
                 zip_paths.append(path)
     return list(deduplicate_paths(zip_paths))
+
+
+def find_xml_files(
+    import_paths: T.Sequence[Path],
+    skip_subfolders: bool = False,
+    check_file_suffix: bool = False,
+) -> T.List[Path]:
+    xml_paths: T.List[Path] = []
+    for path in import_paths:
+        if path.is_dir():
+            xml_paths.extend(
+                file
+                for file in iterate_files(path, not skip_subfolders)
+                if file.suffix.lower() in [".xml"]
+            )
+        else:
+            if check_file_suffix:
+                if path.suffix.lower() in [".xml"]:
+                    xml_paths.append(path)
+            else:
+                xml_paths.append(path)
+    return list(deduplicate_paths(xml_paths))
