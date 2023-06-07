@@ -29,15 +29,15 @@ class GeotagFromGPX(GeotagFromGeneric):
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
 
-    def geotag_image(self, image_path: Path) -> types.ImageMetadataOrError:
-        exif = GeotagFromEXIF([image_path])
-        return exif.geotag_image(image_path, skip_lonlat_error=True)
+    @staticmethod
+    def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
+        return GeotagFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
 
     def geotag_multiple_images(
         self, image_paths: T.Sequence[Path]
     ) -> T.List[types.ImageMetadataOrError]:
         with Pool() as pool:
-            return pool.map(self.geotag_image, image_paths)
+            return pool.map(GeotagFromGPX.geotag_image, image_paths)
 
     def _interpolate_image_metadata_along(
         self,
@@ -188,7 +188,7 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
 
         output = []
         with Pool() as pool:
-            iter = pool.imap(self.geotag_image, image_paths)
+            iter = pool.imap(GeotagFromGPX.geotag_image, image_paths)
             for image_metadata_or_error in iter:
                 self._progress_bar.update(1)
                 output.append(image_metadata_or_error)

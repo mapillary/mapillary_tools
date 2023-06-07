@@ -62,15 +62,14 @@ class GeotagFromEXIF(GeotagFromGeneric):
         super().__init__()
 
     @staticmethod
-    def exif_read(image_path: Path) -> ExifReadABC:
-        return ExifRead(image_path)
-
-    @staticmethod
     def geotag_image(
         image_path: Path, skip_lonlat_error: bool = False
     ) -> types.ImageMetadataOrError:
+        with image_path.open("rb") as fp:
+            image_bytesio = io.BytesIO(fp.read())
+
         try:
-            exif = GeotagFromEXIF.exif_read(image_path)
+            exif = ExifRead(image_bytesio)
         except Exception as ex:
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
@@ -109,9 +108,6 @@ class GeotagFromEXIF(GeotagFromGeneric):
             MAPDeviceMake=exif.extract_make(),
             MAPDeviceModel=exif.extract_model(),
         )
-
-        with image_path.open("rb") as fp:
-            image_bytesio = io.BytesIO(fp.read())
 
         image_bytesio.seek(0, io.SEEK_SET)
         image_metadata.update_md5sum(image_bytesio)
