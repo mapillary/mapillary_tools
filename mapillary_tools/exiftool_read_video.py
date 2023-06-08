@@ -1,5 +1,6 @@
 import typing as T
 import xml.etree.ElementTree as ET
+import logging
 
 from . import exif_read, geo
 
@@ -17,6 +18,7 @@ EXIFTOOL_NAMESPACES: T.Dict[str, str] = {
         for track_id in range(1, MAX_TRACK_ID + 1)
     },
 }
+LOG = logging.getLogger(__name__)
 _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str, T.List[str])
 
 
@@ -99,8 +101,13 @@ def _aggregate_gps_track(
         for lat in _extract_alternative_fields(texts_by_tag, [lat_tag], list) or []
     ]
 
-    # no idea what to do if we have different number of lons and lats
     if len(lons) != len(lats):
+        # no idea what to do if we have different number of lons and lats
+        LOG.warning(
+            "Found different number of longitudes %d and latitudes %d",
+            len(lons),
+            len(lats),
+        )
         return []
 
     expected_length = len(lats)
@@ -113,8 +120,13 @@ def _aggregate_gps_track(
             or []
         ]
         timestamps = [geo.as_unix_time(dt) if dt is not None else None for dt in dts]
-        # no idea what to do if we have different number of timestamps and coordinates
         if expected_length != len(timestamps):
+            # no idea what to do if we have different number of timestamps and coordinates
+            LOG.warning(
+                "Found different number of timestamps %d and coordinates %d",
+                len(timestamps),
+                expected_length,
+            )
             return []
     else:
         timestamps = [0.0] * expected_length
@@ -131,7 +143,7 @@ def _aggregate_gps_track(
             ]
         else:
             vals = []
-        while len(alts) < expected_length:
+        while len(vals) < expected_length:
             vals.append(None)
         return vals
 

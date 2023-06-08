@@ -38,6 +38,7 @@ def index_rdf_description_by_path(
         try:
             etree = ET.parse(xml_path)
         except ET.ParseError:
+            LOG.warning(f"Failed to parse {xml_path}", exc_info=True)
             continue
 
         elements = etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
