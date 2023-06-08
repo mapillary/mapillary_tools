@@ -9,7 +9,7 @@ from tqdm import tqdm
 from .. import exceptions, geo, types
 
 from ..exiftool_read_video import ExifToolReadVideo
-from . import utils as video_utils, geotag_from_exiftool
+from . import geotag_from_exiftool, utils as video_utils
 from .geotag_from_generic import GeotagFromVideoGeneric
 
 LOG = logging.getLogger(__name__)
