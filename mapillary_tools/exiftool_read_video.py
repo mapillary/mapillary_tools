@@ -250,84 +250,16 @@ class ExifToolReadVideo:
         self._texts_by_tag = _index_text_by_tag(self.etree.getroot())
         self._all_tags = set(self._texts_by_tag.keys())
 
-    def _all_tags_exists(self, tags: T.Set[str]) -> bool:
-        return self._all_tags.issuperset(tags)
-
-    def extract_gps_track_from_quicktime(self) -> T.List[geo.Point]:
-        if not self._all_tags_exists(
-            {
-                _expand_tag("QuickTime:GPSDateTime"),
-                _expand_tag("QuickTime:GPSLongitude"),
-                _expand_tag("QuickTime:GPSLatitude"),
-            }
-        ):
-            return []
-
-        return _aggregate_gps_track(
-            self._texts_by_tag,
-            time_tag="QuickTime:GPSDateTime",
-            lon_tag="QuickTime:GPSLongitude",
-            lat_tag="QuickTime:GPSLatitude",
-            alt_tag="QuickTime:GPSAltitude",
-            direction_tag="QuickTime:GPSTrack",
-        )
-
-    def extract_gps_track_from_insta360_x3(self) -> T.List[geo.Point]:
-        if not self._all_tags_exists(
-            {
-                _expand_tag("Insta360:GPSDateTime"),
-                _expand_tag("Insta360:GPSLongitude"),
-                _expand_tag("Insta360:GPSLatitude"),
-            }
-        ):
-            return []
-
-        return _aggregate_gps_track(
-            self._texts_by_tag,
-            time_tag="Insta360:GPSDateTime",
-            lon_tag="Insta360:GPSLongitude",
-            lat_tag="Insta360:GPSLatitude",
-            alt_tag="Insta360:GPSAltitude",
-            direction_tag="Insta360:GPSTrack",
-        )
-
-    def extract_gps_track_from_track(self) -> T.List[geo.Point]:
-        for track_id in range(1, MAX_TRACK_ID + 1):
-            track_ns = f"Track{track_id}"
-            if self._all_tags_exists(
-                {
-                    _expand_tag(f"{track_ns}:SampleTime"),
-                    _expand_tag(f"{track_ns}:SampleDuration"),
-                    _expand_tag(f"{track_ns}:GPSLongitude"),
-                    _expand_tag(f"{track_ns}:GPSLatitude"),
-                }
-            ):
-                sample_iterator = _aggregate_samples(
-                    self.etree.getroot(),
-                    f"{track_ns}:SampleTime",
-                    f"{track_ns}:SampleDuration",
-                )
-                track = _aggregate_gps_track_by_sample_time(
-                    sample_iterator,
-                    lon_tag=f"{track_ns}:GPSLongitude",
-                    lat_tag=f"{track_ns}:GPSLatitude",
-                    alt_tag=f"{track_ns}:GPSAltitude",
-                    direction_tag=f"{track_ns}:GPSTrack",
-                )
-                if track:
-                    return track
-        return []
-
     def extract_gps_track(self) -> T.List[geo.Point]:
-        track = self.extract_gps_track_from_quicktime()
+        track = self._extract_gps_track_from_quicktime()
         if track:
             return track
 
-        track = self.extract_gps_track_from_insta360_x3()
+        track = self._extract_gps_track_from_quicktime(namespace="Insta360")
         if track:
             return track
 
-        track = self.extract_gps_track_from_track()
+        track = self._extract_gps_track_from_track()
         if track:
             return track
 
@@ -357,9 +289,60 @@ class ExifToolReadVideo:
             return None
         return model.strip()
 
+    def _extract_gps_track_from_track(self) -> T.List[geo.Point]:
+        for track_id in range(1, MAX_TRACK_ID + 1):
+            track_ns = f"Track{track_id}"
+            if self._all_tags_exists(
+                {
+                    _expand_tag(f"{track_ns}:SampleTime"),
+                    _expand_tag(f"{track_ns}:SampleDuration"),
+                    _expand_tag(f"{track_ns}:GPSLongitude"),
+                    _expand_tag(f"{track_ns}:GPSLatitude"),
+                }
+            ):
+                sample_iterator = _aggregate_samples(
+                    self.etree.getroot(),
+                    f"{track_ns}:SampleTime",
+                    f"{track_ns}:SampleDuration",
+                )
+                track = _aggregate_gps_track_by_sample_time(
+                    sample_iterator,
+                    lon_tag=f"{track_ns}:GPSLongitude",
+                    lat_tag=f"{track_ns}:GPSLatitude",
+                    alt_tag=f"{track_ns}:GPSAltitude",
+                    direction_tag=f"{track_ns}:GPSTrack",
+                )
+                if track:
+                    return track
+        return []
+
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
         field_type: T.Type[_FIELD_TYPE],
     ) -> T.Optional[_FIELD_TYPE]:
         return _extract_alternative_fields(self._texts_by_tag, fields, field_type)
+
+    def _all_tags_exists(self, tags: T.Set[str]) -> bool:
+        return self._all_tags.issuperset(tags)
+
+    def _extract_gps_track_from_quicktime(
+        self, namespace: str = "QuickTime"
+    ) -> T.List[geo.Point]:
+        if not self._all_tags_exists(
+            {
+                _expand_tag(f"{namespace}:GPSDateTime"),
+                _expand_tag(f"{namespace}:GPSLongitude"),
+                _expand_tag(f"{namespace}:GPSLatitude"),
+            }
+        ):
+            return []
+
+        return _aggregate_gps_track(
+            self._texts_by_tag,
+            time_tag=f"{namespace}:GPSDateTime",
+            lon_tag=f"{namespace}:GPSLongitude",
+            lat_tag=f"{namespace}:GPSLatitude",
+            alt_tag=f"{namespace}:GPSAltitude",
+            direction_tag=f"{namespace}:GPSTrack",
+        )
