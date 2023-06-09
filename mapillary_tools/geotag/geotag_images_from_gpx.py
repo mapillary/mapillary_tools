@@ -6,8 +6,8 @@ from pathlib import Path
 
 from .. import geo, types
 from ..exceptions import MapillaryGPXEmptyError, MapillaryOutsideGPXTrackError
-from .geotag_images_from_exif import GeotagFromEXIF
 from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_exif import GeotagFromEXIF
 
 
 LOG = logging.getLogger(__name__)

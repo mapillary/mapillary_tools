@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 from .. import exceptions, types, utils
 from ..exiftool_read import EXIFTOOL_NAMESPACES, ExifToolRead
-from .geotag_images_from_exif import GeotagFromEXIF, verify_image_exif_write
 from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_exif import GeotagFromEXIF, verify_image_exif_write
 
 LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
