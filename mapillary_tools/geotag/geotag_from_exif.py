@@ -4,14 +4,11 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
-import piexif
-
 from tqdm import tqdm
 
 from .. import exif_write, geo, types
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead, ExifReadABC
-
 from .geotag_from_generic import GeotagFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -20,40 +17,22 @@ LOG = logging.getLogger(__name__)
 def verify_image_exif_write(
     metadata: types.ImageMetadata,
     image_data: T.Optional[bytes] = None,
-) -> types.ImageMetadataOrError:
-    try:
-        if image_data is None:
-            edit = exif_write.ExifEdit(metadata.filename)
-        else:
-            edit = exif_write.ExifEdit(image_data)
-    except Exception as exc:
-        return types.describe_error_metadata(
-            exc,
-            metadata.filename,
-            filetype=types.FileType.IMAGE,
-        )
+) -> None:
+    if image_data is None:
+        edit = exif_write.ExifEdit(metadata.filename)
+    else:
+        edit = exif_write.ExifEdit(image_data)
 
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
     edit.add_image_description(
         T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
     )
-    try:
-        edit.dump_image_bytes()
-    except piexif.InvalidImageDataError as exc:
-        return types.describe_error_metadata(
-            exc,
-            metadata.filename,
-            filetype=types.FileType.IMAGE,
-        )
-    except Exception as exc:
-        # possible error here: struct.error: 'H' format requires 0 <= number <= 65535
-        return types.describe_error_metadata(
-            exc,
-            metadata.filename,
-            filetype=types.FileType.IMAGE,
-        )
-    return metadata
+
+    # Possible errors thrown here:
+    # - struct.error: 'H' format requires 0 <= number <= 65535
+    # - piexif.InvalidImageDataError
+    edit.dump_image_bytes()
 
 
 class GeotagFromEXIF(GeotagFromGeneric):
@@ -99,19 +78,17 @@ class GeotagFromEXIF(GeotagFromGeneric):
     def geotag_image(
         image_path: Path, skip_lonlat_error: bool = False
     ) -> types.ImageMetadataOrError:
-        with image_path.open("rb") as fp:
-            image_bytesio = io.BytesIO(fp.read())
-
         try:
+            with image_path.open("rb") as fp:
+                image_bytesio = io.BytesIO(fp.read())
             exif = ExifRead(image_bytesio)
-        except Exception as ex:
-            return types.describe_error_metadata(
-                ex, image_path, filetype=types.FileType.IMAGE
-            )
-
-        try:
             image_metadata = GeotagFromEXIF.build_image_metadata(
                 image_path, exif, skip_lonlat_error=skip_lonlat_error
+            )
+            image_bytesio.seek(0, io.SEEK_SET)
+            verify_image_exif_write(
+                image_metadata,
+                image_data=image_bytesio.read(),
             )
         except Exception as ex:
             return types.describe_error_metadata(
@@ -121,13 +98,7 @@ class GeotagFromEXIF(GeotagFromGeneric):
         image_bytesio.seek(0, io.SEEK_SET)
         image_metadata.update_md5sum(image_bytesio)
 
-        image_bytesio.seek(0, io.SEEK_SET)
-        image_metadata_or_error = verify_image_exif_write(
-            image_metadata,
-            image_data=image_bytesio.read(),
-        )
-
-        return image_metadata_or_error
+        return image_metadata
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with Pool() as pool:
