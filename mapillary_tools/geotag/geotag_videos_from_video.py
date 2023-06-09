@@ -20,7 +20,7 @@ from .geotag_from_generic import GeotagVideosFromGeneric
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromVideo(GeotagVideosFromGeneric):
+class GeotagVideosFromVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
@@ -49,10 +49,10 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
         self,
         video_path: Path,
     ) -> types.VideoMetadataOrError:
-        return GeotagFromVideo.geotag_video(video_path, self.filetypes)
+        return GeotagVideosFromVideo.geotag_video(video_path, self.filetypes)
 
     @staticmethod
-    def _geotag_video_by_filetypes(
+    def _extract_video_metadata(
         video_path: Path,
         filetypes: T.Optional[T.Set[types.FileType]] = None,
     ) -> T.Optional[types.VideoMetadata]:
@@ -138,7 +138,7 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
     ) -> types.VideoMetadataOrError:
         video_metadata = None
         try:
-            video_metadata = GeotagFromVideo._geotag_video_by_filetypes(
+            video_metadata = GeotagVideosFromVideo._extract_video_metadata(
                 video_path, filetypes
             )
 

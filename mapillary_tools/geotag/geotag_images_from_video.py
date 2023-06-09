@@ -28,10 +28,21 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
-        all_metadatas: T.List[types.ImageMetadataOrError] = []
+        video_paths = [
+            video_path
+            for video_path in self.video_paths
+            if list(utils.filter_video_samples(self.image_paths, video_path))
+        ]
 
-        for video_path in self.video_paths:
-            LOG.debug("Processing GoPro video: %s", video_path)
+        geotag_videos = geotag_videos_from_video.GeotagVideosFromVideo(
+            video_paths, filetypes=self.filetypes
+        )
+        video_metadatas = geotag_videos.to_description()
+
+        all_image_metadatas: T.List[types.ImageMetadataOrError] = []
+
+        for video_path, video_metadata in zip(video_paths, video_metadatas):
+            LOG.debug("Processing video: %s", video_path)
 
             sample_image_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
@@ -42,22 +53,14 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 video_path,
             )
 
-            if not sample_image_paths:
-                continue
-
-            video_metadata = geotag_videos_from_video.GeotagFromVideo.geotag_video(
-                video_path,
-                filetypes=self.filetypes,
-            )
-
             if isinstance(video_metadata, types.ErrorMetadata):
-                for image_path in sample_image_paths:
+                for sample_image_path in sample_image_paths:
                     err_metadata = types.describe_error_metadata(
                         video_metadata.error,
-                        image_path,
+                        sample_image_path,
                         filetype=types.FileType.IMAGE,
                     )
-                    all_metadatas.append(err_metadata)
+                    all_image_metadatas.append(err_metadata)
                 continue
 
             with tqdm(
@@ -75,7 +78,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                     progress_bar=pbar,
                 )
                 this_metadatas = geotag.to_description()
-                all_metadatas.extend(this_metadatas)
+                all_image_metadatas.extend(this_metadatas)
 
             # update make and model
             LOG.debug(
@@ -88,4 +91,4 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                     metadata.MAPDeviceMake = video_metadata.make
                     metadata.MAPDeviceModel = video_metadata.model
 
-        return all_metadatas
+        return all_image_metadatas

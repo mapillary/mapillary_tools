@@ -203,7 +203,7 @@ def process_geotag_properties(
                 video_paths, geotag_source_path
             )
         else:
-            geotag = geotag_videos_from_video.GeotagFromVideo(
+            geotag = geotag_videos_from_video.GeotagVideosFromVideo(
                 video_paths, filetypes=filetypes
             )
         metadatas.extend(geotag.to_description())
