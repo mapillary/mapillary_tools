@@ -4,8 +4,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, geo, types, utils
-from . import gpmf_gps_filter, gpmf_parser, utils as geotag_utils
+from .. import types, utils
+from . import geotag_videos_from_video
 from .geotag_from_generic import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagFromGPXWithProgress
 
@@ -43,24 +43,14 @@ class GeotagFromGoPro(GeotagImagesFromGeneric):
             if not sample_image_paths:
                 continue
 
-            points = gpmf_gps_filter.filter_noisy_points(
-                gpmf_parser.parse_gpx(video_path)
+            video_metadata = geotag_videos_from_video.GeotagFromVideo.geotag_video(
+                video_path, filetypes={types.FileType.GOPRO}
             )
 
-            # bypass empty points to raise MapillaryGPXEmptyError
-            if points and geotag_utils.is_video_stationary(
-                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-            ):
-                LOG.warning(
-                    "Fail %d sample images due to stationary video %s",
-                    len(sample_image_paths),
-                    video_path,
-                )
+            if isinstance(video_metadata, types.ErrorMetadata):
                 for image_path in sample_image_paths:
                     err_metadata = types.describe_error_metadata(
-                        exceptions.MapillaryStationaryVideoError(
-                            "Stationary GoPro video"
-                        ),
+                        video_metadata.error,
                         image_path,
                         filetype=types.FileType.IMAGE,
                     )
@@ -75,7 +65,7 @@ class GeotagFromGoPro(GeotagImagesFromGeneric):
             ) as pbar:
                 geotag = GeotagFromGPXWithProgress(
                     sample_image_paths,
-                    points,
+                    video_metadata.points,
                     use_gpx_start_time=False,
                     use_image_start_time=True,
                     offset_time=self.offset_time,
@@ -85,12 +75,14 @@ class GeotagFromGoPro(GeotagImagesFromGeneric):
                 all_metadatas.extend(this_metadatas)
 
             # update make and model
-            with video_path.open("rb") as fp:
-                make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-            LOG.debug('Found camera make "%s" and model "%s"', make, model)
+            LOG.debug(
+                'Found camera make "%s" and model "%s"',
+                video_metadata.make,
+                video_metadata.model,
+            )
             for metadata in this_metadatas:
                 if isinstance(metadata, types.ImageMetadata):
-                    metadata.MAPDeviceMake = make
-                    metadata.MAPDeviceModel = model
+                    metadata.MAPDeviceMake = video_metadata.make
+                    metadata.MAPDeviceModel = video_metadata.model
 
         return all_metadatas
