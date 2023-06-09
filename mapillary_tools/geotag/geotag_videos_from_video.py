@@ -15,12 +15,12 @@ from . import (
     simple_mp4_parser as parser,
     utils as video_utils,
 )
-from .geotag_from_generic import GeotagFromVideoGeneric
+from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromVideo(GeotagFromVideoGeneric):
+class GeotagFromVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],

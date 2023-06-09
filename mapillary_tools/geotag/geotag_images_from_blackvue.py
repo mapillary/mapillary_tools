@@ -5,15 +5,14 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, geo, types, utils
-from . import gpmf_gps_filter, gpmf_parser, utils as geotag_utils
-from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_gpx import GeotagFromGPXWithProgress
-
+from . import blackvue_parser, utils as geotag_utils
+from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_gpx import GeotagFromGPXWithProgress
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGoPro(GeotagFromGeneric):
+class GeotagFromBlackVue(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
@@ -29,7 +28,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
         all_metadatas: T.List[types.ImageMetadataOrError] = []
 
         for video_path in self.video_paths:
-            LOG.debug("Processing GoPro video: %s", video_path)
+            LOG.debug("Processing BlackVue video: %s", video_path)
 
             sample_image_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
@@ -43,9 +42,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
             if not sample_image_paths:
                 continue
 
-            points = gpmf_gps_filter.filter_noisy_points(
-                gpmf_parser.parse_gpx(video_path)
-            )
+            points = blackvue_parser.parse_gps_points(video_path)
 
             # bypass empty points to raise MapillaryGPXEmptyError
             if points and geotag_utils.is_video_stationary(
@@ -59,7 +56,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
                 for image_path in sample_image_paths:
                     err_metadata = types.describe_error_metadata(
                         exceptions.MapillaryStationaryVideoError(
-                            "Stationary GoPro video"
+                            "Stationary BlackVue video"
                         ),
                         image_path,
                         filetype=types.FileType.IMAGE,
@@ -86,7 +83,7 @@ class GeotagFromGoPro(GeotagFromGeneric):
 
             # update make and model
             with video_path.open("rb") as fp:
-                make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
+                make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
             LOG.debug('Found camera make "%s" and model "%s"', make, model)
             for metadata in this_metadatas:
                 if isinstance(metadata, types.ImageMetadata):

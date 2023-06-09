@@ -6,18 +6,17 @@ import gpxpy
 from tqdm import tqdm
 
 from .. import exif_read, geo, types
-
-from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_gpx import GeotagFromGPXWithProgress
+from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_gpx import GeotagFromGPXWithProgress
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPXFile(GeotagFromGeneric):
+class GeotagFromGPXFile(GeotagImagesFromGeneric):
     def __init__(
         self,
-        images: T.Sequence[Path],
+        image_paths: T.Sequence[Path],
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
@@ -31,7 +30,7 @@ class GeotagFromGPXFile(GeotagFromGeneric):
                 source_path,
             )
         self.points: T.List[geo.Point] = sum(tracks, [])
-        self.images = images
+        self.image_paths = image_paths
         self.source_path = source_path
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
@@ -59,13 +58,13 @@ class GeotagFromGPXFile(GeotagFromGeneric):
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with tqdm(
-            total=len(self.images),
+            total=len(self.image_paths),
             desc="Interpolating",
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
             geotag = GeotagFromGPXWithProgress(
-                self.images,
+                self.image_paths,
                 self.points,
                 use_gpx_start_time=self.use_gpx_start_time,
                 offset_time=self.offset_time,

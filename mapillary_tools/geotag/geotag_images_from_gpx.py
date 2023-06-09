@@ -6,14 +6,14 @@ from pathlib import Path
 
 from .. import geo, types
 from ..exceptions import MapillaryGPXEmptyError, MapillaryOutsideGPXTrackError
-from .geotag_from_exif import GeotagFromEXIF
-from .geotag_from_generic import GeotagFromGeneric
+from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_exif import GeotagFromEXIF
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPX(GeotagFromGeneric):
+class GeotagFromGPX(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],

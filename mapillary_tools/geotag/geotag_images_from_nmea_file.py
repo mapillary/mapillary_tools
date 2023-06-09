@@ -5,21 +5,20 @@ from pathlib import Path
 import pynmea2
 
 from .. import geo
-
-from .geotag_from_gpx import GeotagFromGPX
+from .geotag_images_from_gpx import GeotagFromGPX
 
 
 class GeotagFromNMEAFile(GeotagFromGPX):
     def __init__(
         self,
-        images: T.Sequence[Path],
+        image_paths: T.Sequence[Path],
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
     ):
         points = get_lat_lon_time_from_nmea(source_path)
         super().__init__(
-            images,
+            image_paths,
             points,
             use_gpx_start_time=use_gpx_start_time,
             offset_time=offset_time,
