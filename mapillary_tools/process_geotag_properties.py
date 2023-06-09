@@ -16,11 +16,9 @@ from tqdm import tqdm
 from . import constants, exceptions, exif_write, history, types, utils
 from .geotag import (
     geotag_from_generic,
-    geotag_images_from_blackvue,
-    geotag_images_from_camm,
     geotag_images_from_exif,
     geotag_images_from_exiftool,
-    geotag_images_from_gopro,
+    geotag_images_from_video,
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
     geotag_videos_from_exiftool_video,
@@ -93,21 +91,24 @@ def _process_images(
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "gopro_videos":
-            geotag = geotag_images_from_gopro.GeotagFromGoPro(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.GOPRO},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "blackvue_videos":
-            geotag = geotag_images_from_blackvue.GeotagFromBlackVue(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.BLACKVUE},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "camm":
-            geotag = geotag_images_from_camm.GeotagFromCAMM(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.CAMM},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "exiftool":
