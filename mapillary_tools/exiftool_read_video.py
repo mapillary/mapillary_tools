@@ -1,6 +1,6 @@
+import logging
 import typing as T
 import xml.etree.ElementTree as ET
-import logging
 
 from . import exif_read, geo
 

@@ -7,7 +7,6 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, geo, types
-
 from ..exiftool_read_video import ExifToolReadVideo
 from . import geotag_from_exiftool, utils as video_utils
 from .geotag_from_generic import GeotagFromVideoGeneric
@@ -29,17 +28,21 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
 
         try:
             exif = ExifToolReadVideo(ET.ElementTree(element))
+
+            points = exif.extract_gps_track()
+
+            if not points:
+                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            )
+
+            if stationary:
+                raise exceptions.MapillaryStationaryVideoError("Stationary video")
         except Exception as ex:
             return types.describe_error_metadata(
                 ex, video_path, filetype=types.FileType.VIDEO
-            )
-
-        points = exif.extract_gps_track()
-        if not points:
-            return types.describe_error_metadata(
-                exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-                video_path,
-                filetype=types.FileType.VIDEO,
             )
 
         video_metadata = types.VideoMetadata(
@@ -51,20 +54,13 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
             model=exif.extract_model(),
         )
 
-        stationary = video_utils.is_video_stationary(
-            geo.get_max_distance_from_start(
-                [(p.lat, p.lon) for p in video_metadata.points]
-            )
-        )
-        if stationary:
-            return types.describe_error_metadata(
-                exceptions.MapillaryStationaryVideoError("Stationary video"),
-                video_metadata.filename,
-                filetype=video_metadata.filetype,
-            )
-
         LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-        video_metadata.update_md5sum()
+        try:
+            video_metadata.update_md5sum()
+        except Exception as ex:
+            return types.describe_error_metadata(
+                ex, video_path, filetype=types.FileType.VIDEO
+            )
 
         return video_metadata
 
