@@ -6,14 +6,14 @@ from tqdm import tqdm
 
 from .. import exceptions, geo, types, utils
 from . import camm_parser, utils as geotag_utils
-from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_gpx import GeotagFromGPXWithProgress
+from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_gpx import GeotagFromGPXWithProgress
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromCAMM(GeotagFromGeneric):
+class GeotagFromCAMM(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],

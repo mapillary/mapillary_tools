@@ -9,8 +9,8 @@ from tqdm import tqdm
 
 from .. import exceptions, types, utils
 from ..exiftool_read import EXIFTOOL_NAMESPACES, ExifToolRead
-from .geotag_from_exif import GeotagFromEXIF, verify_image_exif_write
-from .geotag_from_generic import GeotagFromGeneric
+from .geotag_images_from_exif import GeotagFromEXIF, verify_image_exif_write
+from .geotag_from_generic import GeotagImagesFromGeneric
 
 LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
@@ -52,7 +52,7 @@ def index_rdf_description_by_path(
     return rdf_description_by_path
 
 
-class GeotagFromExifTool(GeotagFromGeneric):
+class GeotagFromExifTool(GeotagImagesFromGeneric):
     def __init__(self, image_paths: T.Sequence[Path], xml_path: Path):
         self.image_paths = image_paths
         self.xml_path = xml_path

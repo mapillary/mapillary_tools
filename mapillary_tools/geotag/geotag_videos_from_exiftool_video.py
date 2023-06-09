@@ -8,14 +8,14 @@ from tqdm import tqdm
 
 from .. import exceptions, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
-from . import geotag_from_exiftool, utils as video_utils
-from .geotag_from_generic import GeotagFromVideoGeneric
+from . import geotag_images_from_exiftool, utils as video_utils
+from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
 
 
-class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
+class GeotagFromExifToolVideo(GeotagVideosFromGeneric):
     def __init__(self, video_paths: T.Sequence[Path], xml_path: Path):
         self.video_paths = video_paths
         self.xml_path = xml_path
@@ -23,7 +23,7 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
 
     @staticmethod
     def geotag_video(element: ET.Element) -> types.VideoMetadataOrError:
-        video_path = geotag_from_exiftool.find_rdf_description_path(element)
+        video_path = geotag_images_from_exiftool.find_rdf_description_path(element)
         assert video_path is not None, "must find the path from the element"
 
         try:
@@ -65,15 +65,15 @@ class GeotagFromExifToolVideo(GeotagFromVideoGeneric):
         return video_metadata
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
-        rdf_description_by_path = geotag_from_exiftool.index_rdf_description_by_path(
-            [self.xml_path]
+        rdf_description_by_path = (
+            geotag_images_from_exiftool.index_rdf_description_by_path([self.xml_path])
         )
 
         error_metadatas: T.List[types.ErrorMetadata] = []
         rdf_descriptions: T.List[ET.Element] = []
         for path in self.video_paths:
             rdf_description = rdf_description_by_path.get(
-                geotag_from_exiftool.canonical_path(path)
+                geotag_images_from_exiftool.canonical_path(path)
             )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(

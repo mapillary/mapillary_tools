@@ -9,7 +9,7 @@ from tqdm import tqdm
 from .. import exif_write, geo, types
 from ..exceptions import MapillaryGeoTaggingError
 from ..exif_read import ExifRead, ExifReadABC
-from .geotag_from_generic import GeotagFromGeneric
+from .geotag_from_generic import GeotagImagesFromGeneric
 
 LOG = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def verify_image_exif_write(
     edit.dump_image_bytes()
 
 
-class GeotagFromEXIF(GeotagFromGeneric):
+class GeotagFromEXIF(GeotagImagesFromGeneric):
     def __init__(self, image_paths: T.Sequence[Path]):
         self.image_paths = image_paths
         super().__init__()

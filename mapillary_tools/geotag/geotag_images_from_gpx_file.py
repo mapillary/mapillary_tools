@@ -7,14 +7,14 @@ from tqdm import tqdm
 
 from .. import exif_read, geo, types
 
-from .geotag_from_generic import GeotagFromGeneric
-from .geotag_from_gpx import GeotagFromGPXWithProgress
+from .geotag_from_generic import GeotagImagesFromGeneric
+from .geotag_images_from_gpx import GeotagFromGPXWithProgress
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPXFile(GeotagFromGeneric):
+class GeotagFromGPXFile(GeotagImagesFromGeneric):
     def __init__(
         self,
         images: T.Sequence[Path],

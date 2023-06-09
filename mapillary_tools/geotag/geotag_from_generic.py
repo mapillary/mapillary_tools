@@ -3,7 +3,7 @@ import typing as T
 from .. import types
 
 
-class GeotagFromGeneric:
+class GeotagImagesFromGeneric:
     def __init__(self) -> None:
         pass
 
@@ -11,7 +11,7 @@ class GeotagFromGeneric:
         return []
 
 
-class GeotagFromVideoGeneric:
+class GeotagVideosFromGeneric:
     def __init__(self) -> None:
         pass
 

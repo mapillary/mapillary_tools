@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
-from .geotag import geotag_from_video, mp4_sample_parser
+from .geotag import geotag_videos_from_video, mp4_sample_parser
 from .process_geotag_properties import GeotagSource
 
 LOG = logging.getLogger(__name__)
@@ -270,7 +270,7 @@ def _sample_single_video_by_distance(
             )
 
     LOG.info("Extracting video metdata")
-    video_metadata = geotag_from_video.GeotagFromVideo.geotag_video(video_path)
+    video_metadata = geotag_videos_from_video.GeotagFromVideo.geotag_video(video_path)
     if isinstance(video_metadata, types.ErrorMetadata):
         LOG.warning(str(video_metadata.error))
         return

@@ -6,7 +6,7 @@ import pynmea2
 
 from .. import geo
 
-from .geotag_from_gpx import GeotagFromGPX
+from .geotag_images_from_gpx import GeotagFromGPX
 
 
 class GeotagFromNMEAFile(GeotagFromGPX):
