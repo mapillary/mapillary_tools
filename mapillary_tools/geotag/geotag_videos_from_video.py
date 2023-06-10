@@ -20,7 +20,7 @@ from .geotag_from_generic import GeotagVideosFromGeneric
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromVideo(GeotagVideosFromGeneric):
+class GeotagVideosFromVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
@@ -31,13 +31,13 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         with Pool() as pool:
-            video_metadatas = pool.imap(
+            video_metadatas_iter = pool.imap(
                 self._geotag_video,
                 self.video_paths,
             )
             return list(
                 tqdm(
-                    video_metadatas,
+                    video_metadatas_iter,
                     desc="Extracting GPS tracks from videos",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
@@ -49,15 +49,18 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
         self,
         video_path: Path,
     ) -> types.VideoMetadataOrError:
-        return GeotagFromVideo.geotag_video(video_path, self.filetypes)
+        return GeotagVideosFromVideo.geotag_video(video_path, self.filetypes)
 
     @staticmethod
-    def geotag_video(
+    def _extract_video_metadata(
         video_path: Path,
         filetypes: T.Optional[T.Set[types.FileType]] = None,
-    ) -> types.VideoMetadataOrError:
-        video_metadata = None
-        if filetypes is None or types.FileType.CAMM in filetypes:
+    ) -> T.Optional[types.VideoMetadata]:
+        if (
+            filetypes is None
+            or types.FileType.VIDEO in filetypes
+            or types.FileType.CAMM in filetypes
+        ):
             with video_path.open("rb") as fp:
                 try:
                     points = camm_parser.extract_points(fp)
@@ -67,11 +70,20 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
                 if points is not None:
                     fp.seek(0, io.SEEK_SET)
                     make, model = camm_parser.extract_camera_make_and_model(fp)
-                    video_metadata = types.VideoMetadata(
-                        video_path, None, types.FileType.CAMM, points, make, model
+                    return types.VideoMetadata(
+                        filename=video_path,
+                        md5sum=None,
+                        filetype=types.FileType.CAMM,
+                        points=points,
+                        make=make,
+                        model=model,
                     )
 
-        if filetypes is None or types.FileType.GOPRO in filetypes:
+        if (
+            filetypes is None
+            or types.FileType.VIDEO in filetypes
+            or types.FileType.GOPRO in filetypes
+        ):
             with video_path.open("rb") as fp:
                 try:
                     points_with_fix = gpmf_parser.extract_points(fp)
@@ -81,25 +93,24 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
                 if points_with_fix is not None:
                     fp.seek(0, io.SEEK_SET)
                     make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                    video_metadata = types.VideoMetadata(
-                        video_path,
-                        None,
-                        types.FileType.GOPRO,
-                        T.cast(T.List[geo.Point], points_with_fix),
-                        make,
-                        model,
-                    )
-                    video_metadata.points = T.cast(
+                    points = T.cast(
                         T.List[geo.Point],
-                        gpmf_gps_filter.filter_noisy_points(
-                            T.cast(
-                                T.List[gpmf_parser.PointWithFix],
-                                video_metadata.points,
-                            )
-                        ),
+                        gpmf_gps_filter.filter_noisy_points(points_with_fix),
+                    )
+                    return types.VideoMetadata(
+                        filename=video_path,
+                        md5sum=None,
+                        filetype=types.FileType.GOPRO,
+                        points=points,
+                        make=make,
+                        model=model,
                     )
 
-        if filetypes is None or types.FileType.BLACKVUE in filetypes:
+        if (
+            filetypes is None
+            or types.FileType.VIDEO in filetypes
+            or types.FileType.BLACKVUE in filetypes
+        ):
             with video_path.open("rb") as fp:
                 try:
                     points = blackvue_parser.extract_points(fp)
@@ -109,38 +120,56 @@ class GeotagFromVideo(GeotagVideosFromGeneric):
                 if points is not None:
                     fp.seek(0, io.SEEK_SET)
                     make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
-                    video_metadata = types.VideoMetadata(
-                        video_path, None, types.FileType.BLACKVUE, points, make, model
+                    return types.VideoMetadata(
+                        filename=video_path,
+                        md5sum=None,
+                        filetype=types.FileType.BLACKVUE,
+                        points=points,
+                        make=make,
+                        model=model,
                     )
 
-        if video_metadata is None:
-            return types.describe_error_metadata(
-                exceptions.MapillaryVideoError("No GPS data found from the video"),
-                video_path,
-                filetype=None,
+        return None
+
+    @staticmethod
+    def geotag_video(
+        video_path: Path,
+        filetypes: T.Optional[T.Set[types.FileType]] = None,
+    ) -> types.VideoMetadataOrError:
+        video_metadata = None
+        try:
+            video_metadata = GeotagVideosFromVideo._extract_video_metadata(
+                video_path, filetypes
             )
 
-        if not video_metadata.points:
-            return types.describe_error_metadata(
-                exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-                video_metadata.filename,
-                filetype=video_metadata.filetype,
-            )
+            if video_metadata is None:
+                raise exceptions.MapillaryVideoError("No GPS data found from the video")
 
-        stationary = video_utils.is_video_stationary(
-            geo.get_max_distance_from_start(
-                [(p.lat, p.lon) for p in video_metadata.points]
-            )
-        )
-        if stationary:
-            return types.describe_error_metadata(
-                exceptions.MapillaryStationaryVideoError("Stationary video"),
-                video_metadata.filename,
-                filetype=video_metadata.filetype,
-            )
+            if not video_metadata.points:
+                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
-        if not isinstance(video_metadata, types.ErrorMetadata):
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start(
+                    [(p.lat, p.lon) for p in video_metadata.points]
+                )
+            )
+            if stationary:
+                raise exceptions.MapillaryStationaryVideoError("Stationary video")
+
             LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
             video_metadata.update_md5sum()
+        except Exception as ex:
+            if video_metadata is None:
+                return types.describe_error_metadata(
+                    ex,
+                    video_path,
+                    filetype=None,
+                )
+            else:
+                return types.describe_error_metadata(
+                    ex,
+                    video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
 
         return video_metadata

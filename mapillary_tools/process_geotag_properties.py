@@ -16,13 +16,11 @@ from tqdm import tqdm
 from . import constants, exceptions, exif_write, history, types, utils
 from .geotag import (
     geotag_from_generic,
-    geotag_images_from_blackvue,
-    geotag_images_from_camm,
     geotag_images_from_exif,
     geotag_images_from_exiftool,
-    geotag_images_from_gopro,
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
+    geotag_images_from_video,
     geotag_videos_from_exiftool_video,
     geotag_videos_from_video,
 )
@@ -58,7 +56,7 @@ def _process_images(
         )
 
     if geotag_source == "exif":
-        geotag = geotag_images_from_exif.GeotagFromEXIF(image_paths)
+        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(image_paths)
 
     else:
         if geotag_source_path is None:
@@ -79,39 +77,42 @@ def _process_images(
                 )
 
         if geotag_source == "gpx":
-            geotag = geotag_images_from_gpx_file.GeotagFromGPXFile(
+            geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
                 image_paths,
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "nmea":
-            geotag = geotag_images_from_nmea_file.GeotagFromNMEAFile(
+            geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
                 image_paths,
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "gopro_videos":
-            geotag = geotag_images_from_gopro.GeotagFromGoPro(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.GOPRO},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "blackvue_videos":
-            geotag = geotag_images_from_blackvue.GeotagFromBlackVue(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.BLACKVUE},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "camm":
-            geotag = geotag_images_from_camm.GeotagFromCAMM(
+            geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 utils.find_videos([geotag_source_path]),
+                filetypes={FileType.CAMM},
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "exiftool":
-            geotag = geotag_images_from_exiftool.GeotagFromExifTool(
+            geotag = geotag_images_from_exiftool.GeotagImagesFromExifTool(
                 image_paths,
                 geotag_source_path,
             )
@@ -198,11 +199,11 @@ def process_geotag_properties(
                 raise exceptions.MapillaryFileNotFoundError(
                     f"Geotag source file not found: {geotag_source_path}"
                 )
-            geotag = geotag_videos_from_exiftool_video.GeotagFromExifToolVideo(
+            geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
                 video_paths, geotag_source_path
             )
         else:
-            geotag = geotag_videos_from_video.GeotagFromVideo(
+            geotag = geotag_videos_from_video.GeotagVideosFromVideo(
                 video_paths, filetypes=filetypes
             )
         metadatas.extend(geotag.to_description())

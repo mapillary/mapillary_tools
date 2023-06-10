@@ -5,10 +5,10 @@ from pathlib import Path
 import pynmea2
 
 from .. import geo
-from .geotag_images_from_gpx import GeotagFromGPX
+from .geotag_images_from_gpx import GeotagImagesFromGPX
 
 
-class GeotagFromNMEAFile(GeotagFromGPX):
+class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
