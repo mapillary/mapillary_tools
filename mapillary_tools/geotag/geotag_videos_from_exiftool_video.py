@@ -15,7 +15,7 @@ LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
 
 
-class GeotagFromExifToolVideo(GeotagVideosFromGeneric):
+class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
     def __init__(self, video_paths: T.Sequence[Path], xml_path: Path):
         self.video_paths = video_paths
         self.xml_path = xml_path
@@ -89,7 +89,7 @@ class GeotagFromExifToolVideo(GeotagVideosFromGeneric):
 
         with Pool() as pool:
             video_metadatas_iter = pool.imap(
-                GeotagFromExifToolVideo.geotag_video,
+                GeotagVideosFromExifToolVideo.geotag_video,
                 rdf_descriptions,
             )
             video_metadata_or_errors = list(

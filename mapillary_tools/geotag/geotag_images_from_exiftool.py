@@ -10,7 +10,7 @@ from tqdm import tqdm
 from .. import exceptions, types, utils
 from ..exiftool_read import EXIFTOOL_NAMESPACES, ExifToolRead
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_exif import GeotagFromEXIF, verify_image_exif_write
+from .geotag_images_from_exif import GeotagImagesFromEXIF, verify_image_exif_write
 
 LOG = logging.getLogger(__name__)
 _DESCRIPTION_TAG = "rdf:Description"
@@ -52,7 +52,7 @@ def index_rdf_description_by_path(
     return rdf_description_by_path
 
 
-class GeotagFromExifTool(GeotagImagesFromGeneric):
+class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
     def __init__(self, image_paths: T.Sequence[Path], xml_path: Path):
         self.image_paths = image_paths
         self.xml_path = xml_path
@@ -65,14 +65,16 @@ class GeotagFromExifTool(GeotagImagesFromGeneric):
 
         try:
             exif = ExifToolRead(ET.ElementTree(element))
-            image_metadata = GeotagFromEXIF.build_image_metadata(
+            image_metadata = GeotagImagesFromEXIF.build_image_metadata(
                 image_path, exif, skip_lonlat_error=False
             )
+            # load the image bytes into memory to avoid reading it multiple times
             with image_path.open("rb") as fp:
                 image_bytesio = io.BytesIO(fp.read())
+            image_bytesio.seek(0, io.SEEK_SET)
             verify_image_exif_write(
                 image_metadata,
-                image_data=image_bytesio.read(),
+                image_bytes=image_bytesio.read(),
             )
         except Exception as ex:
             return types.describe_error_metadata(
@@ -105,7 +107,7 @@ class GeotagFromExifTool(GeotagImagesFromGeneric):
 
         with Pool() as pool:
             image_metadatas_iter = pool.imap(
-                GeotagFromExifTool.geotag_image,
+                GeotagImagesFromExifTool.geotag_image,
                 rdf_descriptions,
             )
             image_metadata_or_errors = list(

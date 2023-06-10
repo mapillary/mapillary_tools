@@ -6,13 +6,13 @@ from pathlib import Path
 
 from .. import exceptions, geo, types
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_exif import GeotagFromEXIF
+from .geotag_images_from_exif import GeotagImagesFromEXIF
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPX(GeotagImagesFromGeneric):
+class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
@@ -30,13 +30,13 @@ class GeotagFromGPX(GeotagImagesFromGeneric):
 
     @staticmethod
     def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
-        return GeotagFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
+        return GeotagImagesFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
 
     def geotag_multiple_images(
         self, image_paths: T.Sequence[Path]
     ) -> T.List[types.ImageMetadataOrError]:
         with Pool() as pool:
-            return pool.map(GeotagFromGPX.geotag_image, image_paths)
+            return pool.map(GeotagImagesFromGPX.geotag_image, image_paths)
 
     def _interpolate_image_metadata_along(
         self,
@@ -162,7 +162,7 @@ class GeotagFromGPX(GeotagImagesFromGeneric):
         return metadatas
 
 
-class GeotagFromGPXWithProgress(GeotagFromGPX):
+class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
@@ -189,7 +189,9 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
 
         output = []
         with Pool() as pool:
-            image_metadatas_iter = pool.imap(GeotagFromGPX.geotag_image, image_paths)
+            image_metadatas_iter = pool.imap(
+                GeotagImagesFromGPX.geotag_image, image_paths
+            )
             for image_metadata_or_error in image_metadatas_iter:
                 self._progress_bar.update(1)
                 output.append(image_metadata_or_error)

@@ -9,13 +9,13 @@ from tqdm import tqdm
 
 from .. import exif_read, geo, types
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_gpx import GeotagFromGPXWithProgress
+from .geotag_images_from_gpx import GeotagImagesFromGPXWithProgress
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GeotagFromGPXFile(GeotagImagesFromGeneric):
+class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],
@@ -65,7 +65,7 @@ class GeotagFromGPXFile(GeotagImagesFromGeneric):
             unit="images",
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
-            geotag = GeotagFromGPXWithProgress(
+            geotag = GeotagImagesFromGPXWithProgress(
                 self.image_paths,
                 self.points,
                 use_gpx_start_time=self.use_gpx_start_time,
@@ -88,7 +88,7 @@ class GeotagFromGPXFile(GeotagImagesFromGeneric):
             # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
             # See https://stackoverflow.com/a/61432070
             image_metadatas_iter = pool.imap(
-                GeotagFromGPXFile._extract_image_metadata, image_metadatas
+                GeotagImagesFromGPXFile._extract_image_metadata, image_metadatas
             )
             image_metadata_or_errors = list(
                 tqdm(

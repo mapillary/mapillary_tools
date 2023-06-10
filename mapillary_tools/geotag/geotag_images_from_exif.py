@@ -15,12 +15,12 @@ LOG = logging.getLogger(__name__)
 
 def verify_image_exif_write(
     metadata: types.ImageMetadata,
-    image_data: T.Optional[bytes] = None,
+    image_bytes: T.Optional[bytes] = None,
 ) -> None:
-    if image_data is None:
+    if image_bytes is None:
         edit = exif_write.ExifEdit(metadata.filename)
     else:
-        edit = exif_write.ExifEdit(image_data)
+        edit = exif_write.ExifEdit(image_bytes)
 
     # The cast is to fix the type error in Python3.6:
     # Argument 1 to "add_image_description" of "ExifEdit" has incompatible type "ImageDescription"; expected "Dict[str, Any]"
@@ -34,7 +34,7 @@ def verify_image_exif_write(
     edit.dump_image_bytes()
 
 
-class GeotagFromEXIF(GeotagImagesFromGeneric):
+class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
     def __init__(self, image_paths: T.Sequence[Path]):
         self.image_paths = image_paths
         super().__init__()
@@ -80,16 +80,21 @@ class GeotagFromEXIF(GeotagImagesFromGeneric):
         image_path: Path, skip_lonlat_error: bool = False
     ) -> types.ImageMetadataOrError:
         try:
+            # load the image bytes into memory to avoid reading it multiple times
             with image_path.open("rb") as fp:
                 image_bytesio = io.BytesIO(fp.read())
+
+            image_bytesio.seek(0, io.SEEK_SET)
             exif = ExifRead(image_bytesio)
-            image_metadata = GeotagFromEXIF.build_image_metadata(
+
+            image_metadata = GeotagImagesFromEXIF.build_image_metadata(
                 image_path, exif, skip_lonlat_error=skip_lonlat_error
             )
+
             image_bytesio.seek(0, io.SEEK_SET)
             verify_image_exif_write(
                 image_metadata,
-                image_data=image_bytesio.read(),
+                image_bytes=image_bytesio.read(),
             )
         except Exception as ex:
             return types.describe_error_metadata(
@@ -104,7 +109,7 @@ class GeotagFromEXIF(GeotagImagesFromGeneric):
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with Pool() as pool:
             image_metadatas_iter = pool.imap(
-                GeotagFromEXIF.geotag_image,
+                GeotagImagesFromEXIF.geotag_image,
                 self.image_paths,
             )
             return list(

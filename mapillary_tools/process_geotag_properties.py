@@ -56,7 +56,7 @@ def _process_images(
         )
 
     if geotag_source == "exif":
-        geotag = geotag_images_from_exif.GeotagFromEXIF(image_paths)
+        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(image_paths)
 
     else:
         if geotag_source_path is None:
@@ -77,14 +77,14 @@ def _process_images(
                 )
 
         if geotag_source == "gpx":
-            geotag = geotag_images_from_gpx_file.GeotagFromGPXFile(
+            geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
                 image_paths,
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "nmea":
-            geotag = geotag_images_from_nmea_file.GeotagFromNMEAFile(
+            geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
                 image_paths,
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
@@ -112,7 +112,7 @@ def _process_images(
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "exiftool":
-            geotag = geotag_images_from_exiftool.GeotagFromExifTool(
+            geotag = geotag_images_from_exiftool.GeotagImagesFromExifTool(
                 image_paths,
                 geotag_source_path,
             )
@@ -199,7 +199,7 @@ def process_geotag_properties(
                 raise exceptions.MapillaryFileNotFoundError(
                     f"Geotag source file not found: {geotag_source_path}"
                 )
-            geotag = geotag_videos_from_exiftool_video.GeotagFromExifToolVideo(
+            geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
                 video_paths, geotag_source_path
             )
         else:
