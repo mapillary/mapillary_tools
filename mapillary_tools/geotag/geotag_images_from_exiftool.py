@@ -104,13 +104,13 @@ class GeotagFromExifTool(GeotagImagesFromGeneric):
                 rdf_descriptions.append(rdf_description)
 
         with Pool() as pool:
-            image_metadatas = pool.imap(
+            image_metadatas_iter = pool.imap(
                 GeotagFromExifTool.geotag_image,
                 rdf_descriptions,
             )
             image_metadata_or_errors = list(
                 tqdm(
-                    image_metadatas,
+                    image_metadatas_iter,
                     desc="Extracting geotags from images",
                     unit="images",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,

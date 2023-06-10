@@ -31,13 +31,13 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         with Pool() as pool:
-            video_metadatas = pool.imap(
+            video_metadatas_iter = pool.imap(
                 self._geotag_video,
                 self.video_paths,
             )
             return list(
                 tqdm(
-                    video_metadatas,
+                    video_metadatas_iter,
                     desc="Extracting GPS tracks from videos",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,

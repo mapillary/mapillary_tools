@@ -88,13 +88,13 @@ class GeotagFromExifToolVideo(GeotagVideosFromGeneric):
                 rdf_descriptions.append(rdf_description)
 
         with Pool() as pool:
-            video_metadatas = pool.imap(
+            video_metadatas_iter = pool.imap(
                 GeotagFromExifToolVideo.geotag_video,
                 rdf_descriptions,
             )
             video_metadata_or_errors = list(
                 tqdm(
-                    video_metadatas,
+                    video_metadatas_iter,
                     desc="Extracting GPS tracks from videos",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,

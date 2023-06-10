@@ -28,6 +28,8 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
+        # find videos that have sample images
+        # TODO: this is a bit inefficient O(M*N) where M is the number of videos and N is the number of images
         video_paths = [
             video_path
             for video_path in self.video_paths
@@ -38,6 +40,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
             video_paths, filetypes=self.filetypes
         )
         video_metadatas = geotag_videos.to_description()
+        assert len(video_metadatas) == len(video_paths)
 
         all_image_metadatas: T.List[types.ImageMetadataOrError] = []
 
@@ -90,5 +93,10 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 if isinstance(metadata, types.ImageMetadata):
                     metadata.MAPDeviceMake = video_metadata.make
                     metadata.MAPDeviceModel = video_metadata.model
+
+        # NOTE: this method only geotags images that have a corresponding video,
+        # so the number of image metadata objects returned might be less than
+        # the number of the input image_paths
+        assert len(all_image_metadatas) <= len(self.image_paths)
 
         return all_image_metadatas

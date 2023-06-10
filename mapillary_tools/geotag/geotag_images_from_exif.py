@@ -6,8 +6,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exif_write, geo, types
-from ..exceptions import MapillaryGeoTaggingError
+from .. import exceptions, exif_write, geo, types
 from ..exif_read import ExifRead, ExifReadABC
 from .geotag_from_generic import GeotagImagesFromGeneric
 
@@ -47,7 +46,7 @@ class GeotagFromEXIF(GeotagImagesFromGeneric):
         lonlat = exif.extract_lon_lat()
         if lonlat is None:
             if not skip_lonlat_error:
-                raise MapillaryGeoTaggingError(
+                raise exceptions.MapillaryGeoTaggingError(
                     "Unable to extract GPS Longitude or GPS Latitude from the image"
                 )
             lonlat = (0.0, 0.0)
@@ -55,7 +54,9 @@ class GeotagFromEXIF(GeotagImagesFromGeneric):
 
         capture_time = exif.extract_capture_time()
         if capture_time is None:
-            raise MapillaryGeoTaggingError("Unable to extract timestamp from the image")
+            raise exceptions.MapillaryGeoTaggingError(
+                "Unable to extract timestamp from the image"
+            )
 
         image_metadata = types.ImageMetadata(
             filename=image_path,
@@ -102,13 +103,13 @@ class GeotagFromEXIF(GeotagImagesFromGeneric):
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with Pool() as pool:
-            image_metadatas = pool.imap(
+            image_metadatas_iter = pool.imap(
                 GeotagFromEXIF.geotag_image,
                 self.image_paths,
             )
             return list(
                 tqdm(
-                    image_metadatas,
+                    image_metadatas_iter,
                     desc="Extracting geotags from images",
                     unit="images",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,

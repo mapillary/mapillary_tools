@@ -1,5 +1,7 @@
+import dataclasses
 import logging
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
 import gpxpy
@@ -35,26 +37,26 @@ class GeotagFromGPXFile(GeotagImagesFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
 
-    def _attach_exif(
-        self, image_metadata: types.ImageMetadata
+    @staticmethod
+    def _extract_image_metadata(
+        image_metadata: types.ImageMetadata,
     ) -> types.ImageMetadataOrError:
         try:
             exif = exif_read.ExifRead(image_metadata.filename)
-        except Exception as exc:
-            LOG.warning(
-                "Unknown error reading EXIF from image %s",
-                image_metadata.filename,
-                exc_info=True,
-            )
+            orientation = exif.extract_orientation()
+            make = exif.extract_make()
+            model = exif.extract_model()
+        except Exception as ex:
             return types.describe_error_metadata(
-                exc, image_metadata.filename, filetype=types.FileType.IMAGE
+                ex, image_metadata.filename, filetype=types.FileType.IMAGE
             )
 
-        image_metadata.MAPOrientation = exif.extract_orientation()
-        image_metadata.MAPDeviceMake = exif.extract_make()
-        image_metadata.MAPDeviceModel = exif.extract_model()
-
-        return image_metadata
+        return dataclasses.replace(
+            image_metadata,
+            MAPOrientation=orientation,
+            MAPDeviceMake=make,
+            MAPDeviceModel=model,
+        )
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
         with tqdm(
@@ -70,22 +72,37 @@ class GeotagFromGPXFile(GeotagImagesFromGeneric):
                 offset_time=self.offset_time,
                 progress_bar=pbar,
             )
-            metadatas = geotag.to_description()
+            image_metadata_or_errors = geotag.to_description()
 
-        processed: T.List[types.ImageMetadataOrError] = []
-        metadata_tqdm = tqdm(
-            metadatas,
-            desc="Processing",
-            unit="images",
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-        )
-        for metadata in metadata_tqdm:
+        image_metadatas: T.List[types.ImageMetadata] = []
+        error_metadatas: T.List[types.ErrorMetadata] = []
+        for metadata in image_metadata_or_errors:
             if isinstance(metadata, types.ErrorMetadata):
-                processed.append(metadata)
+                error_metadatas.append(metadata)
             else:
-                modified = self._attach_exif(metadata)
-                processed.append(modified)
-        return processed
+                image_metadatas.append(metadata)
+
+        with Pool() as pool:
+            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+            # Otherwise we get:
+            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+            # See https://stackoverflow.com/a/61432070
+            image_metadatas_iter = pool.imap(
+                GeotagFromGPXFile._extract_image_metadata, image_metadatas
+            )
+            image_metadata_or_errors = list(
+                tqdm(
+                    image_metadatas_iter,
+                    desc="Processing",
+                    unit="images",
+                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                )
+            )
+
+        return (
+            T.cast(T.List[types.ImageMetadataOrError], error_metadatas)
+            + image_metadata_or_errors
+        )
 
 
 Track = T.List[geo.Point]

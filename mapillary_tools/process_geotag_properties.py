@@ -18,9 +18,9 @@ from .geotag import (
     geotag_from_generic,
     geotag_images_from_exif,
     geotag_images_from_exiftool,
-    geotag_images_from_video,
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
+    geotag_images_from_video,
     geotag_videos_from_exiftool_video,
     geotag_videos_from_video,
 )

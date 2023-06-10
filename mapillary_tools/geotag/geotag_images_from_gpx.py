@@ -4,8 +4,7 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
-from .. import geo, types
-from ..exceptions import MapillaryGPXEmptyError, MapillaryOutsideGPXTrackError
+from .. import exceptions, geo, types
 from .geotag_from_generic import GeotagImagesFromGeneric
 from .geotag_images_from_exif import GeotagFromEXIF
 
@@ -52,7 +51,7 @@ class GeotagFromGPX(GeotagImagesFromGeneric):
             gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
             # with the tolerance of 1ms
             if 0.001 < delta:
-                exc = MapillaryOutsideGPXTrackError(
+                exc = exceptions.MapillaryOutsideGPXTrackError(
                     f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
                     image_time=types.datetime_to_map_capture_time(image_metadata.time),
                     gpx_start_time=gpx_start_time,
@@ -68,7 +67,7 @@ class GeotagFromGPX(GeotagImagesFromGeneric):
             gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
             # with the tolerance of 1ms
             if 0.001 < delta:
-                exc = MapillaryOutsideGPXTrackError(
+                exc = exceptions.MapillaryOutsideGPXTrackError(
                     f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
                     image_time=types.datetime_to_map_capture_time(image_metadata.time),
                     gpx_start_time=gpx_start_time,
@@ -93,7 +92,9 @@ class GeotagFromGPX(GeotagImagesFromGeneric):
         metadatas: T.List[types.ImageMetadataOrError] = []
 
         if not self.points:
-            exc = MapillaryGPXEmptyError("Empty GPS extracted from the geotag source")
+            exc = exceptions.MapillaryGPXEmptyError(
+                "Empty GPS extracted from the geotag source"
+            )
             for image_path in self.image_paths:
                 metadatas.append(
                     types.describe_error_metadata(
@@ -188,8 +189,8 @@ class GeotagFromGPXWithProgress(GeotagFromGPX):
 
         output = []
         with Pool() as pool:
-            iter = pool.imap(GeotagFromGPX.geotag_image, image_paths)
-            for image_metadata_or_error in iter:
+            image_metadatas_iter = pool.imap(GeotagFromGPX.geotag_image, image_paths)
+            for image_metadata_or_error in image_metadatas_iter:
                 self._progress_bar.update(1)
                 output.append(image_metadata_or_error)
         return output
