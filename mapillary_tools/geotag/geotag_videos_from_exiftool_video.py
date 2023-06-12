@@ -95,7 +95,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             video_metadata_or_errors = list(
                 tqdm(
                     video_metadatas_iter,
-                    desc="Extracting GPS tracks from videos",
+                    desc="Extracting GPS tracks from ExifTool XML",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
                     total=len(self.video_paths),

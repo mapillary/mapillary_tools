@@ -17,7 +17,7 @@ from . import constants, exceptions, exif_write, history, types, utils
 from .geotag import (
     geotag_from_generic,
     geotag_images_from_exif,
-    geotag_images_from_exiftool,
+    geotag_images_from_exiftool_both_image_and_video,
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
     geotag_images_from_video,
@@ -90,29 +90,30 @@ def _process_images(
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
             )
-        elif geotag_source == "gopro_videos":
+        elif geotag_source in ["gopro_videos", "blackvue_videos", "camm"]:
+            map_geotag_source_to_filetype: T.Dict[GeotagSource, FileType] = {
+                "gopro_videos": FileType.GOPRO,
+                "blackvue_videos": FileType.BLACKVUE,
+                "camm": FileType.CAMM,
+            }
+            video_paths = utils.find_videos([geotag_source_path])
+            # TODO: this is a bit inefficient O(M*N) where M is the number of videos and N is the number of images
+            video_paths = [
+                video_path
+                for video_path in video_paths
+                if list(utils.filter_video_samples(image_paths, video_path))
+            ]
+            video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
+                video_paths,
+                filetypes={map_geotag_source_to_filetype[geotag_source]},
+            ).to_description()
             geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
-                utils.find_videos([geotag_source_path]),
-                filetypes={FileType.GOPRO},
-                offset_time=interpolation_offset_time,
-            )
-        elif geotag_source == "blackvue_videos":
-            geotag = geotag_images_from_video.GeotagImagesFromVideo(
-                image_paths,
-                utils.find_videos([geotag_source_path]),
-                filetypes={FileType.BLACKVUE},
-                offset_time=interpolation_offset_time,
-            )
-        elif geotag_source == "camm":
-            geotag = geotag_images_from_video.GeotagImagesFromVideo(
-                image_paths,
-                utils.find_videos([geotag_source_path]),
-                filetypes={FileType.CAMM},
+                video_metadatas,
                 offset_time=interpolation_offset_time,
             )
         elif geotag_source == "exiftool":
-            geotag = geotag_images_from_exiftool.GeotagImagesFromExifTool(
+            geotag = geotag_images_from_exiftool_both_image_and_video.GeotagImagesFromExifToolBothImageAndVideo(
                 image_paths,
                 geotag_source_path,
             )

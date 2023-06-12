@@ -70,7 +70,12 @@ def sample_video(
 
     if rerun:
         for video_path in video_list:
-            # need to resolve video_path because video_dir might be absolute
+            # Example:
+            # - import_path: mapillary_sampled_video_frames
+            # - video_dir: foo/
+            # - video_path: foo/bar/zzz.mp4
+            # Then:
+            # - sample_dir: mapillary_sampled_video_frames/bar/zzz.mp4/
             sample_dir = Path(import_path).joinpath(
                 video_path.resolve().relative_to(video_dir)
             )
@@ -84,7 +89,7 @@ def sample_video(
         geotag_source = "exif"
 
     # If it is not exif, then we use the legacy interval-based sample and geotag them in "process" for backward compatibility
-    if geotag_source != "exif":
+    if geotag_source not in ["exif"]:
         if 0 <= video_sample_distance:
             raise exceptions.MapillaryBadParameterError(
                 f'Geotagging from "{geotag_source}" works with the legacy interval-based sampling only. To switch back, rerun the command with "--video_sample_distance -1 --video_sample_interval 2"'
@@ -126,9 +131,15 @@ def sample_video(
             # fatal error
             raise exceptions.MapillaryFFmpegNotFoundError(str(ex)) from ex
 
-        except Exception:
+        except Exception as ex:
             if skip_sample_errors:
-                LOG.warning("Skipping the error sampling %s", video_path, exc_info=True)
+                exc_info = LOG.getEffectiveLevel() <= logging.DEBUG
+                LOG.warning(
+                    "Skipping the error sampling %s: %s",
+                    video_path,
+                    str(ex),
+                    exc_info=exc_info,
+                )
             else:
                 raise
 
