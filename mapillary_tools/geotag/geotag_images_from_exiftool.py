@@ -113,7 +113,7 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             image_metadata_or_errors = list(
                 tqdm(
                     image_metadatas_iter,
-                    desc="Extracting geotags from images",
+                    desc="Extracting geotags from ExifTool XML",
                     unit="images",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
                     total=len(self.image_paths),

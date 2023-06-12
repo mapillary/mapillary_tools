@@ -6,9 +6,9 @@ from tqdm import tqdm
 
 from .. import types, utils
 from . import (
-    geotag_videos_from_exiftool_video,
     geotag_images_from_exiftool,
     geotag_images_from_video,
+    geotag_videos_from_exiftool_video,
 )
 from .geotag_from_generic import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPXWithProgress
