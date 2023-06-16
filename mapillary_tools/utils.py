@@ -37,12 +37,15 @@ def is_video_file(path: Path) -> bool:
     )
 
 
-def iterate_files(root: Path, recursive: bool = False) -> T.Generator[Path, None, None]:
+def iterate_files(
+    root: Path, recursive: bool = False, follow_hidden_dirs: bool = False
+) -> T.Generator[Path, None, None]:
     for dirpath, dirnames, files in os.walk(root, topdown=True):
         if not recursive:
             dirnames.clear()
         else:
-            dirnames[:] = [name for name in dirnames if not name.startswith(".")]
+            if not follow_hidden_dirs:
+                dirnames[:] = [name for name in dirnames if not name.startswith(".")]
         for file in files:
             if file.startswith("."):
                 continue
@@ -148,23 +151,18 @@ def find_zipfiles(
     return list(deduplicate_paths(zip_paths))
 
 
-def find_xml_files(
-    import_paths: T.Sequence[Path],
-    skip_subfolders: bool = False,
-    check_file_suffix: bool = False,
-) -> T.List[Path]:
+def find_xml_files(import_paths: T.Sequence[Path]) -> T.List[Path]:
     xml_paths: T.List[Path] = []
     for path in import_paths:
         if path.is_dir():
+            # XML could be hidden in hidden folders
+            # for example: exiftool -progress -w! /tmp/exiftool_outputs/%d%f.xml -r -n -ee -api LargeFileSupport=1 -X /path/to/.hidden_dirs/images/example.jpg
+            # The XML output will be /tmp/exiftool_outputs/path/to/.hidden_dirs/images/example.jpg
             xml_paths.extend(
                 file
-                for file in iterate_files(path, not skip_subfolders)
+                for file in iterate_files(path, recursive=True, follow_hidden_dirs=True)
                 if file.suffix.lower() in [".xml"]
             )
         else:
-            if check_file_suffix:
-                if path.suffix.lower() in [".xml"]:
-                    xml_paths.append(path)
-            else:
-                xml_paths.append(path)
+            xml_paths.append(path)
     return list(deduplicate_paths(xml_paths))
