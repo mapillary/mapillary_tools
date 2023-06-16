@@ -7,6 +7,5 @@ python3 ./waf all
 git diff
 cd ..  # pwd: ./pyinstaller_git
 # Error: Building wheels requires the 'wheel' package. Please `pip install wheel` then try again.
-python3 -m pip install wheel
-python3 setup.py install
+python3 -m pip install .
 cd ..  # pwd: ./
