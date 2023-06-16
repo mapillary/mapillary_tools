@@ -1,9 +1,11 @@
 import argparse
 from pathlib import Path
 
-from mapillary_tools import process_geotag_properties
-
-from mapillary_tools.geotag import camm_builder, simple_mp4_builder as builder
+from mapillary_tools.geotag import (
+    camm_builder,
+    geotag_videos_from_video,
+    simple_mp4_builder as builder,
+)
 
 
 def _parse_args():
@@ -15,10 +17,10 @@ def _parse_args():
 
 def main():
     parsed_args = _parse_args()
-    video_metadata = process_geotag_properties.process_video(
-        Path(parsed_args.source_mp4_path)
-    )
-    generator = camm_builder.camm_sample_generator2(video_metadata)
+    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
+        [Path(parsed_args.source_mp4_path)]
+    ).to_description()
+    generator = camm_builder.camm_sample_generator2(video_metadatas[0])
     with open(parsed_args.source_mp4_path, "rb") as src_fp:
         with open(parsed_args.target_mp4_path, "wb") as tar_fp:
             reader = builder.transform_mp4(

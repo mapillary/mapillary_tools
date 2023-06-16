@@ -70,7 +70,7 @@ class MapillaryDuplicationError(_MapillaryDescriptionError):
     def __init__(
         self,
         message: str,
-        desc: T.Mapping,
+        desc: T.Mapping[str, T.Any],
         distance: float,
         angle_diff: T.Optional[float],
     ) -> None:
@@ -84,7 +84,7 @@ class MapillaryUploadedAlreadyError(_MapillaryDescriptionError):
     def __init__(
         self,
         message: str,
-        desc: T.Mapping,
+        desc: T.Mapping[str, T.Any],
     ) -> None:
         super().__init__(message)
         self.desc = desc

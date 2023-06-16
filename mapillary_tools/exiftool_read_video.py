@@ -2,7 +2,7 @@ import logging
 import typing as T
 import xml.etree.ElementTree as ET
 
-from . import exif_read, geo
+from . import exif_read, exiftool_read, geo
 
 
 MAX_TRACK_ID = 10
@@ -31,14 +31,6 @@ def _maybe_float(text: T.Optional[str]) -> T.Optional[float]:
         return None
 
 
-def _expand_tag(ns_tag: str) -> str:
-    try:
-        ns, tag = ns_tag.split(":", maxsplit=2)
-    except ValueError:
-        raise ValueError(f"Invalid tag {ns_tag}")
-    return "{" + EXIFTOOL_NAMESPACES[ns] + "}" + tag
-
-
 def _index_text_by_tag(elements: T.Iterable[ET.Element]) -> T.Dict[str, T.List[str]]:
     texts_by_tag: T.Dict[str, T.List[str]] = {}
     for element in elements:
@@ -54,7 +46,7 @@ def _extract_alternative_fields(
     field_type: T.Type[_FIELD_TYPE],
 ) -> T.Optional[_FIELD_TYPE]:
     for field in fields:
-        values = texts_by_tag.get(_expand_tag(field))
+        values = texts_by_tag.get(exiftool_read.expand_tag(field))
         if values is None:
             continue
         if field_type is int:
@@ -202,8 +194,8 @@ def _aggregate_samples(
     sample_time_tag: str,
     sample_duration_tag: str,
 ) -> T.Generator[T.Tuple[float, float, T.List[ET.Element]], None, None]:
-    expanded_sample_time_tag = _expand_tag(sample_time_tag)
-    expanded_sample_duration_tag = _expand_tag(sample_duration_tag)
+    expanded_sample_time_tag = exiftool_read.expand_tag(sample_time_tag)
+    expanded_sample_duration_tag = exiftool_read.expand_tag(sample_duration_tag)
 
     accumulated_elements: T.List[ET.Element] = []
     sample_time = None
@@ -321,10 +313,10 @@ class ExifToolReadVideo:
             track_ns = f"Track{track_id}"
             if self._all_tags_exists(
                 {
-                    _expand_tag(f"{track_ns}:SampleTime"),
-                    _expand_tag(f"{track_ns}:SampleDuration"),
-                    _expand_tag(f"{track_ns}:GPSLongitude"),
-                    _expand_tag(f"{track_ns}:GPSLatitude"),
+                    exiftool_read.expand_tag(f"{track_ns}:SampleTime"),
+                    exiftool_read.expand_tag(f"{track_ns}:SampleDuration"),
+                    exiftool_read.expand_tag(f"{track_ns}:GPSLongitude"),
+                    exiftool_read.expand_tag(f"{track_ns}:GPSLatitude"),
                 }
             ):
                 sample_iterator = _aggregate_samples(
@@ -358,9 +350,9 @@ class ExifToolReadVideo:
     ) -> T.List[geo.Point]:
         if not self._all_tags_exists(
             {
-                _expand_tag(f"{namespace}:GPSDateTime"),
-                _expand_tag(f"{namespace}:GPSLongitude"),
-                _expand_tag(f"{namespace}:GPSLatitude"),
+                exiftool_read.expand_tag(f"{namespace}:GPSDateTime"),
+                exiftool_read.expand_tag(f"{namespace}:GPSLongitude"),
+                exiftool_read.expand_tag(f"{namespace}:GPSLatitude"),
             }
         ):
             return []

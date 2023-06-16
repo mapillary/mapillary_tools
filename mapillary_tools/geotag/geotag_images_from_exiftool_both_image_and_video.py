@@ -2,16 +2,13 @@ import logging
 import typing as T
 from pathlib import Path
 
-from tqdm import tqdm
-
-from .. import types, utils
+from .. import exiftool_read, types, utils
 from . import (
     geotag_images_from_exiftool,
     geotag_images_from_video,
     geotag_videos_from_exiftool_video,
 )
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_gpx import GeotagImagesFromGPXWithProgress
 
 
 LOG = logging.getLogger(__name__)
@@ -48,8 +45,8 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
                 final_image_metadatas.append(image_metadata)
 
         # find all video paths in self.xml_path
-        rdf_description_by_path = (
-            geotag_images_from_exiftool.index_rdf_description_by_path([self.xml_path])
+        rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
+            [self.xml_path]
         )
         video_paths = utils.find_videos(
             [Path(pathstr) for pathstr in rdf_description_by_path.keys()],
