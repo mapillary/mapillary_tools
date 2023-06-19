@@ -24,14 +24,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        with:
+          path: main
 
       - name: Setup ExifTool
         uses: actions/checkout@v3
         with:
           repository: "exiftool/exiftool"
+          path: exiftool
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v2
 
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
