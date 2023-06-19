@@ -22,6 +22,10 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    defaults:
+      run:
+        working-directory: ./main
+
     steps:
       - uses: actions/checkout@v3
         with:
