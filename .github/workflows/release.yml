@@ -45,8 +45,8 @@ jobs:
       - name: Check ExifTool version
         # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
         run: |
-          mv "${{ github.workspace }}/exiftool/exiftool" "$EXIFTOOL_EXECUTABLE_PATH"
-          perl "$EXIFTOOL_EXECUTABLE_PATH" -ver
+          mv ${{ github.workspace }}/exiftool/exiftool $EXIFTOOL_EXECUTABLE_PATH
+          perl $EXIFTOOL_EXECUTABLE_PATH -ver
         env:
           EXIFTOOL_EXECUTABLE_PATH: ${{ github.workspace }}/exiftool/exiftool.pl
 
