@@ -182,11 +182,13 @@ def test_time_with_offset_with_exiftool(setup_data: py.path.local):
     return test_time_with_offset(setup_data, use_exiftool=True)
 
 
-def test_process_images_with_overwrite_all_EXIF_tags(setup_data: py.path.local):
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
+def test_process_images_with_overwrite_all_EXIF_tags(
+    setup_data: py.path.local, use_exiftool: bool = False
+):
+    args = f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}"
+    if use_exiftool:
+        args = _gen_exiftool_args_or_skip(setup_data, args)
+    x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     expected_descs = [
         {
@@ -209,14 +211,23 @@ def test_process_images_with_overwrite_all_EXIF_tags(setup_data: py.path.local):
         expected_descs,
         Path(setup_data, "mapillary_image_description.json"),
     )
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
+
+    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
+    if use_exiftool:
+        args = _gen_exiftool_args_or_skip(setup_data, args)
+    x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     verify_descs(
         expected_descs,
         Path(setup_data, "mapillary_image_description.json"),
+    )
+
+
+def test_process_images_with_overwrite_all_EXIF_tags_with_exiftool(
+    setup_data: py.path.local,
+):
+    return test_process_images_with_overwrite_all_EXIF_tags(
+        setup_data, use_exiftool=True
     )
 
 
