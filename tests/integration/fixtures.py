@@ -71,11 +71,17 @@ def _ffmpeg_installed():
     ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
         subprocess.run(
-            [ffmpeg_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+            [ffmpeg_path, "-version"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
         )
         # In Windows, ffmpeg is installed but ffprobe is not?
         subprocess.run(
-            [ffprobe_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+            [ffprobe_path, "-version"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
         )
     except FileNotFoundError:
         return False
@@ -91,6 +97,7 @@ def _exiftool_installed():
             [EXIFTOOL_EXECUTABLE, "-ver"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            shell=True,
         )
     except FileNotFoundError:
         return False
