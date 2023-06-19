@@ -39,9 +39,10 @@ jobs:
 
       - name: Check ExifTool version
         run: |
-          perl "$MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS" -ver
+          mv "${EXIFTOOL_EXECUTABLE}" "${EXIFTOOL_EXECUTABLE}.pl"
+          perl "${EXIFTOOL_EXECUTABLE}.pl" -ver
         env:
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: ${{ github.workspace }}/exiftool/exiftool
+          EXIFTOOL_EXECUTABLE: ${{ github.workspace }}/exiftool/exiftool
 
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
@@ -84,4 +85,4 @@ jobs:
           pytest -s -vv tests
         env:
           MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: mapillary_tools
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
