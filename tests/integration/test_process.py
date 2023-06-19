@@ -77,10 +77,10 @@ def _local_to_utc(ct: str):
     )
 
 
-def _gen_exiftool_args_or_skip(setup_data, run_args: str) -> str:
+def _gen_exiftool_args_or_skip(test_data_dir: py.path.local, run_args: str) -> str:
     if not IS_EXIFTOOL_INSTALLED:
         pytest.skip("exiftool not installed")
-    exiftool_outuput_dir = run_exiftool(setup_data)
+    exiftool_outuput_dir = run_exiftool(test_data_dir)
     exiftool_params = (
         f"--geotag_source exiftool --geotag_source_path {exiftool_outuput_dir}"
     )
@@ -94,10 +94,7 @@ def test_process_images_with_defaults(
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
     if use_exiftool:
         args = _gen_exiftool_args_or_skip(setup_data, args)
-    x = subprocess.run(
-        args,
-        shell=True,
-    )
+    x = subprocess.run(args, shell=True)
 
     assert x.returncode == 0, x.stderr
     verify_descs(
