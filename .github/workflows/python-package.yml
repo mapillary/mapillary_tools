@@ -44,11 +44,10 @@ jobs:
       - name: Check ExifTool version
         # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
         run: |
-          ls -l ${{ github.workspace }}/exiftool/
-          mv ${{ github.workspace }}/exiftool/exiftool $MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS
-          perl "$MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS" -ver
+          mv "${{ github.workspace }}/exiftool/exiftool" "$EXIFTOOL_EXECUTABLE_PATH"
+          perl "$EXIFTOOL_EXECUTABLE_PATH" -ver
         env:
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+          EXIFTOOL_EXECUTABLE_PATH: ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
