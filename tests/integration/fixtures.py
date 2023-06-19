@@ -121,12 +121,12 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
     #     # Use %:1d to remove the drive letter:
     #     #                C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/exiftool_outuput_dir/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/videos/sample-5s.xml
     #     subprocess.check_call(
-    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%:1d%f.xml {setup_data}",
+    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%:1d%f.xml {setup_data}",
     #         shell=True,
     #     )
     # else:
     #     subprocess.check_call(
-    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
+    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
     #         shell=True,
     #     )
 
@@ -134,7 +134,7 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
     # -w C%c.txt       # C.txt, C1.txt, C2.txt ...
     # -w C%.c.txt       # C0.txt, C1.txt, C2.txt ...
     subprocess.check_call(
-        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%f%c.xml {setup_data}",
+        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%f%c.xml {setup_data}",
         shell=True,
     )
     return exiftool_outuput_dir
