@@ -39,10 +39,8 @@ jobs:
 
       - name: Check ExifTool version
         run: |
-          mv "${EXIFTOOL_EXECUTABLE}" "${EXIFTOOL_EXECUTABLE}.pl"
-          perl "${EXIFTOOL_EXECUTABLE}.pl" -ver
-        env:
-          EXIFTOOL_EXECUTABLE: ${{ github.workspace }}/exiftool/exiftool
+          mv ${{ github.workspace }}/exiftool/exiftool ${{ github.workspace }}/exiftool/exiftool.pl
+          perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
 
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
