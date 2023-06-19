@@ -23,21 +23,41 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    defaults:
+      run:
+        working-directory: ./main
+
     steps:
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/main
       - uses: actions/checkout@v3
+        with:
+          path: main
+
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/exiftool
+      - name: Setup ExifTool
+        uses: actions/checkout@v3
+        with:
+          repository: "exiftool/exiftool"
+          path: exiftool
+
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
+
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           # optional x64 or x86. Defaults to x64 if not specified
           architecture: ${{ matrix.architecture }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install .
           python -m pip install -r requirements-dev.txt
+
       - name: Validate version
         run: |
           EXPECTED_GITHUB_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
@@ -46,6 +66,7 @@ jobs:
             exit 1
           fi
         if: matrix.platform != 'windows-latest'
+
       - name: Build and test with Pyinstaller on MacOS
         # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
         if: matrix.platform == 'macos-latest'
@@ -57,7 +78,9 @@ jobs:
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS_EXECUTABLE: ./dist/osx/mapillary_tools
+          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: ./dist/osx/mapillary_tools
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+
       - name: Build and test with Pyinstaller on Ubuntu
         if: matrix.platform == 'ubuntu-latest'
         run: |
@@ -68,7 +91,9 @@ jobs:
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS_EXECUTABLE: ./dist/linux/mapillary_tools
+          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: ./dist/linux/mapillary_tools
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+
       - name: Build and test with Pyinstaller on Windows
         if: matrix.platform == 'windows-latest'
         run: |
@@ -81,7 +106,9 @@ jobs:
           cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
+          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
@@ -98,22 +125,27 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.x"
+
       # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
       - name: Install pypa/build
         run: python3 -m pip install build
+
       - name: Build
         # the default ouput dir dist/ was used by pyinstaller
         run: python3 -m build --outdir pypa_dist/ .
+
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.8.6
         with:
           repository-url: https://test.pypi.org/legacy/
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           packages-dir: pypa_dist/
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@v1.8.6
         with:

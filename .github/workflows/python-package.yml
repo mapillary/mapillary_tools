@@ -27,10 +27,14 @@ jobs:
         working-directory: ./main
 
     steps:
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/main
       - uses: actions/checkout@v3
         with:
           path: main
 
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/exiftool
       - name: Setup ExifTool
         uses: actions/checkout@v3
         with:
@@ -38,9 +42,12 @@ jobs:
           path: exiftool
 
       - name: Check ExifTool version
+        # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
         run: |
-          mv ${{ github.workspace }}/exiftool/exiftool ${{ github.workspace }}/exiftool/exiftool.pl
-          perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
+          mv ${{ github.workspace }}/exiftool/exiftool $MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS
+          perl "$MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS" -ver
+        env:
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2

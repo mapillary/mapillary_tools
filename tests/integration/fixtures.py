@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import typing as T
 import zipfile
@@ -109,10 +110,21 @@ IS_EXIFTOOL_INSTALLED = _exiftool_installed()
 
 def run_exiftool(setup_data: py.path.local) -> py.path.local:
     exiftool_outuput_dir = setup_data.join("exiftool_outuput_dir")
-    subprocess.check_call(
-        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
-        shell=True,
-    )
+    if sys.platform in ["win32"]:
+        # Use %d will create a folder with the drive letter (which causes the creation error in ExifTool)
+        # Error creating C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/exiftool_outuput_dir/C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/videos/sample-5s.xml
+
+        # Use %:1d to remove the drive letter:
+        #                C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/exiftool_outuput_dir/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/videos/sample-5s.xml
+        subprocess.check_call(
+            f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%:1d%f.xml {setup_data}",
+            shell=True,
+        )
+    else:
+        subprocess.check_call(
+            f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
+            shell=True,
+        )
     return exiftool_outuput_dir
 
 
