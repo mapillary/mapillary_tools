@@ -145,14 +145,24 @@ def sample_video(
 
 
 @contextmanager
-def wip_dir_context(wip_dir: Path, done_dir: Path):
+def wip_dir_context(wip_dir: Path, done_dir: Path, rename_timeout_sec:int=10):
     assert wip_dir != done_dir, "should not be the same dir"
     shutil.rmtree(wip_dir, ignore_errors=True)
     os.makedirs(wip_dir)
     try:
         yield wip_dir
         shutil.rmtree(done_dir, ignore_errors=True)
-        wip_dir.rename(done_dir)
+        error = None
+        renamed = False
+        start_time = time.time()
+        while (not renamed and time.time()-start_time < rename_timeout_sec):
+            try:
+                wip_dir.rename(done_dir)
+                renamed = True
+            except Exception as e:
+                error = e
+        if(not renamed and not error is None):
+            raise error
     finally:
         shutil.rmtree(wip_dir, ignore_errors=True)
 
