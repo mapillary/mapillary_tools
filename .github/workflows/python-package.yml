@@ -75,7 +75,7 @@ jobs:
       - name: Test with pytest
         run: |
           mapillary_tools --version
-          pytest tests
+          pytest -s -vv tests
         env:
           MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: mapillary_tools
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl exiftool/exiftool
+          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ../exiftool/exiftool
