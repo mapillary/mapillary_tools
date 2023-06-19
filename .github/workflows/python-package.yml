@@ -89,5 +89,5 @@ jobs:
           mapillary_tools --version
           pytest -s -vv tests
         env:
-          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: mapillary_tools
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+          MAPILLARY_TOOLS__TESTS_EXECUTABLE: mapillary_tools
+          MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl

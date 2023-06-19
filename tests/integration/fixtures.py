@@ -15,10 +15,10 @@ import pytest
 
 
 EXECUTABLE = os.getenv(
-    "MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS", "python3 -m mapillary_tools.commands"
+    "MAPILLARY_TOOLS__TESTS_EXECUTABLE", "python3 -m mapillary_tools.commands"
 )
 EXIFTOOL_EXECUTABLE = os.getenv(
-    "MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS", "exiftool"
+    "MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE", "exiftool"
 )
 IMPORT_PATH = "tests/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"

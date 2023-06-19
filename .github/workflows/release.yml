@@ -86,8 +86,8 @@ jobs:
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: ./dist/osx/mapillary_tools
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+          MAPILLARY_TOOLS__TESTS_EXECUTABLE: ./dist/osx/mapillary_tools
+          MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Ubuntu
         if: matrix.platform == 'ubuntu-latest'
@@ -99,8 +99,8 @@ jobs:
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: ./dist/linux/mapillary_tools
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+          MAPILLARY_TOOLS__TESTS_EXECUTABLE: ./dist/linux/mapillary_tools
+          MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Windows
         if: matrix.platform == 'windows-latest'
@@ -114,8 +114,8 @@ jobs:
           cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
           pytest tests/integration
         env:
-          MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
-          MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS: perl ${{ github.workspace }}/exiftool/exiftool.pl
+          MAPILLARY_TOOLS__TESTS_EXECUTABLE: mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
+          MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Release
         uses: softprops/action-gh-release@v1
