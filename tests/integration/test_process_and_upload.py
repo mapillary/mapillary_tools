@@ -7,7 +7,7 @@ import pytest
 
 from .fixtures import (
     EXECUTABLE,
-    is_ffmpeg_installed,
+    IS_FFMPEG_INSTALLED,
     setup_config,
     setup_data,
     setup_upload,
@@ -167,7 +167,7 @@ def test_process_and_upload(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    if is_ffmpeg_installed:
+    if IS_FFMPEG_INSTALLED:
         _validate_output(
             setup_upload, {**EXPECTED_DESCS["gopro"], **EXPECTED_DESCS["image"]}
         )

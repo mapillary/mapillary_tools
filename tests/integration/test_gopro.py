@@ -7,7 +7,7 @@ from pathlib import Path
 import py.path
 import pytest
 
-from .fixtures import EXECUTABLE, is_ffmpeg_installed, setup_config, setup_upload
+from .fixtures import EXECUTABLE, IS_FFMPEG_INSTALLED, setup_config, setup_upload
 
 
 IMPORT_PATH = "tests/data/gopro_data"
@@ -109,7 +109,7 @@ def setup_envvars():
 def test_process_gopro_hero8(
     setup_data: py.path.local,
 ):
-    if not is_ffmpeg_installed:
+    if not IS_FFMPEG_INSTALLED:
         pytest.skip("skip because ffmpeg not installed")
     video_path = setup_data.join("hero8.mp4")
     # this sample hero8.mp4 doesn't have any good GPS points,

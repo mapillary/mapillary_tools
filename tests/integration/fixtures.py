@@ -14,7 +14,10 @@ import pytest
 
 
 EXECUTABLE = os.getenv(
-    "MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools.commands"
+    "MAPILLARY_TOOLS__EXECUTABLE_FOR_TESTS", "python3 -m mapillary_tools.commands"
+)
+EXIFTOOL_EXECUTABLE = os.getenv(
+    "MAPILLARY_TOOLS__EXIFTOOL_EXECUTABLE_FOR_TESTS", "exiftool"
 )
 IMPORT_PATH = "tests/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
@@ -63,7 +66,7 @@ def setup_upload(tmpdir: py.path.local):
     del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
 
-def ffmpeg_installed():
+def _ffmpeg_installed():
     ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
     ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
@@ -79,7 +82,31 @@ def ffmpeg_installed():
     return True
 
 
-is_ffmpeg_installed = ffmpeg_installed()
+IS_FFMPEG_INSTALLED = _ffmpeg_installed()
+
+
+def _exiftool_installed():
+    try:
+        subprocess.run(
+            [EXIFTOOL_EXECUTABLE, "-ver"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        return False
+    return True
+
+
+IS_EXIFTOOL_INSTALLED = _exiftool_installed()
+
+
+def run_exiftool(setup_data: py.path.local) -> py.path.local:
+    exiftool_outuput_dir = setup_data.join("exiftool_outuput_dir")
+    subprocess.check_call(
+        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
+        shell=True,
+    )
+    return exiftool_outuput_dir
 
 
 with open("schema/image_description_schema.json") as fp:
@@ -117,7 +144,7 @@ def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
 
 
 def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
-    if not is_ffmpeg_installed:
+    if not IS_FFMPEG_INSTALLED:
         return []
 
     with tempfile.TemporaryDirectory() as tempdir:
