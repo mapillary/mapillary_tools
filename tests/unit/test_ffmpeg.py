@@ -8,7 +8,7 @@ import pytest
 from mapillary_tools import ffmpeg
 
 
-def ffmpeg_installed():
+def _ffmpeg_installed():
     ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
     ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
@@ -24,11 +24,11 @@ def ffmpeg_installed():
     return True
 
 
-is_ffmpeg_installed = ffmpeg_installed()
+IS_FFMPEG_INSTALLED = _ffmpeg_installed()
 
 
 def test_ffmpeg_not_exists():
-    if not is_ffmpeg_installed:
+    if not IS_FFMPEG_INSTALLED:
         pytest.skip("ffmpeg not installed")
 
     ff = ffmpeg.FFMPEG()
@@ -49,7 +49,7 @@ def test_ffmpeg_not_exists():
 
 
 def test_ffprobe_not_exists():
-    if not is_ffmpeg_installed:
+    if not IS_FFMPEG_INSTALLED:
         pytest.skip("ffmpeg not installed")
 
     ff = ffmpeg.FFMPEG()

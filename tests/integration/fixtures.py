@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import typing as T
@@ -14,7 +15,10 @@ import pytest
 
 
 EXECUTABLE = os.getenv(
-    "MAPILLARY_TOOLS_EXECUTABLE", "python3 -m mapillary_tools.commands"
+    "MAPILLARY_TOOLS__TESTS_EXECUTABLE", "python3 -m mapillary_tools.commands"
+)
+EXIFTOOL_EXECUTABLE = os.getenv(
+    "MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE", "exiftool"
 )
 IMPORT_PATH = "tests/data"
 USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
@@ -63,23 +67,79 @@ def setup_upload(tmpdir: py.path.local):
     del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
 
-def ffmpeg_installed():
+def _ffmpeg_installed():
     ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
     ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
     try:
         subprocess.run(
-            [ffmpeg_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+            [ffmpeg_path, "-version"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
         )
         # In Windows, ffmpeg is installed but ffprobe is not?
         subprocess.run(
-            [ffprobe_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
+            [ffprobe_path, "-version"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
         )
     except FileNotFoundError:
         return False
     return True
 
 
-is_ffmpeg_installed = ffmpeg_installed()
+IS_FFMPEG_INSTALLED = _ffmpeg_installed()
+
+
+def _exiftool_installed():
+    try:
+        subprocess.run(
+            [EXIFTOOL_EXECUTABLE, "-ver"],
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            shell=True,
+        )
+    except FileNotFoundError:
+        return False
+    return True
+
+
+IS_EXIFTOOL_INSTALLED = _exiftool_installed()
+
+
+def run_exiftool(setup_data: py.path.local) -> py.path.local:
+    exiftool_outuput_dir = setup_data.join("exiftool_outuput_dir")
+    # The "-w %c" option in exiftool will produce duplicated XML files therefore clean up the folder first
+    shutil.rmtree(exiftool_outuput_dir, ignore_errors=True)
+
+    # Below still causes error in Windows because the XML paths exceeds the max path length (260), hence commented out
+    # see https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+
+    # if sys.platform in ["win32"]:
+    #     # Use %d will create a folder with the drive letter (which causes the creation error in ExifTool)
+    #     # Error creating C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/exiftool_outuput_dir/C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/videos/sample-5s.xml
+
+    #     # Use %:1d to remove the drive letter:
+    #     #                C:/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/exiftool_outuput_dir/Users/runneradmin/AppData/Local/Temp/test_process_images_with_defau0/data/videos/sample-5s.xml
+    #     subprocess.check_call(
+    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%:1d%f.xml {setup_data}",
+    #         shell=True,
+    #     )
+    # else:
+    #     subprocess.check_call(
+    #         f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%d%f.xml {setup_data}",
+    #         shell=True,
+    #     )
+
+    # The solution is to use %c which suffixes the original filenames with an increasing number
+    # -w C%c.txt       # C.txt, C1.txt, C2.txt ...
+    # -w C%.c.txt       # C0.txt, C1.txt, C2.txt ...
+    subprocess.check_call(
+        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%f%c.xml {setup_data}",
+        shell=True,
+    )
+    return exiftool_outuput_dir
 
 
 with open("schema/image_description_schema.json") as fp:
@@ -117,7 +177,7 @@ def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
 
 
 def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
-    if not is_ffmpeg_installed:
+    if not IS_FFMPEG_INSTALLED:
         return []
 
     with tempfile.TemporaryDirectory() as tempdir:

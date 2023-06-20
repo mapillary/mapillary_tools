@@ -22,39 +22,71 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
 
+    defaults:
+      run:
+        working-directory: ./main
+
     steps:
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/main
       - uses: actions/checkout@v3
+        with:
+          path: main
+
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/exiftool
+      - name: Setup ExifTool
+        uses: actions/checkout@v3
+        with:
+          repository: "exiftool/exiftool"
+          path: exiftool
+
+      - name: Check ExifTool version
+        # DO NOT USE envvars here which does not work on Windows (needs prefixing with $env:)
+        # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
+        run: |
+          mv ${{ github.workspace }}/exiftool/exiftool ${{ github.workspace }}/exiftool/exiftool.pl
+          perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
+
       - name: Setup FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v2
+
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           # optional x64 or x86. Defaults to x64 if not specified
           architecture: ${{ matrix.architecture }}
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install .
           python -m pip install -r requirements-dev.txt
+
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
       - name: Lint with black
         run: |
           black --check mapillary_tools tests
+
       - name: Sort imports with usort
         run: |
           usort diff mapillary_tools/
+
       - name: Type check with mypy
         run: |
           mypy mapillary_tools
+
       - name: Test with pytest
         run: |
           mapillary_tools --version
-          pytest tests
+          pytest -s -vv tests
         env:
-          MAPILLARY_TOOLS_EXECUTABLE: mapillary_tools
+          MAPILLARY_TOOLS__TESTS_EXECUTABLE: mapillary_tools
+          MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
