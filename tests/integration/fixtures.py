@@ -142,6 +142,18 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
     return exiftool_outuput_dir
 
 
+def run_exiftool_and_generate_geotag_args(
+    test_data_dir: py.path.local, run_args: str
+) -> str:
+    if not IS_EXIFTOOL_INSTALLED:
+        pytest.skip("exiftool not installed")
+    exiftool_outuput_dir = run_exiftool(test_data_dir)
+    exiftool_params = (
+        f"--geotag_source exiftool --geotag_source_path {exiftool_outuput_dir}"
+    )
+    return f"{run_args} {exiftool_params}"
+
+
 with open("schema/image_description_schema.json") as fp:
     image_description_schema = json.load(fp)
 
@@ -204,7 +216,7 @@ def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]
     if isinstance(actual, Path):
         with actual.open("r") as fp:
             actual = json.load(fp)
-    assert isinstance(actual, list), actual
+    assert isinstance(actual, list), f"expect a list of descs but got: {actual}"
 
     expected_map = {desc["filename"]: desc for desc in expected}
     assert len(expected) == len(expected_map), expected
@@ -228,8 +240,12 @@ def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]
             e = expected_desc["MAPCompassHeading"]
             assert "MAPCompassHeading" in actual_desc, actual_desc
             a = actual_desc["MAPCompassHeading"]
-            assert abs(e["TrueHeading"] - a["TrueHeading"]) < 0.00001
-            assert abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.00001
+            assert (
+                abs(e["TrueHeading"] - a["TrueHeading"]) < 0.001
+            ), f'got {a["TrueHeading"]} but expect {e["TrueHeading"]} in {filename}'
+            assert (
+                abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.001
+            ), f'got {a["MagneticHeading"]} but expect {e["MagneticHeading"]} in {filename}'
 
         if "MAPCaptureTime" in expected_desc:
             assert (

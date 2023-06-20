@@ -10,9 +10,8 @@ import pytest
 
 from .fixtures import (
     EXECUTABLE,
-    IS_EXIFTOOL_INSTALLED,
     IS_FFMPEG_INSTALLED,
-    run_exiftool,
+    run_exiftool_and_generate_geotag_args,
     setup_config,
     setup_data,
     setup_upload,
@@ -77,23 +76,13 @@ def _local_to_utc(ct: str):
     )
 
 
-def _gen_exiftool_args_or_skip(test_data_dir: py.path.local, run_args: str) -> str:
-    if not IS_EXIFTOOL_INSTALLED:
-        pytest.skip("exiftool not installed")
-    exiftool_outuput_dir = run_exiftool(test_data_dir)
-    exiftool_params = (
-        f"--geotag_source exiftool --geotag_source_path {exiftool_outuput_dir}"
-    )
-    return f"{run_args} {exiftool_params}"
-
-
 def test_process_images_with_defaults(
     setup_data: py.path.local,
     use_exiftool: bool = False,
 ):
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
 
     assert x.returncode == 0, x.stderr
@@ -124,7 +113,7 @@ def test_process_images_with_defaults_with_exiftool(setup_data: py.path.local):
 def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False):
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=2.5"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     verify_descs(
@@ -150,7 +139,7 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
 
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=-1.0"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     verify_descs(
@@ -184,7 +173,7 @@ def test_process_images_with_overwrite_all_EXIF_tags(
 ):
     args = f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     expected_descs = [
@@ -211,7 +200,7 @@ def test_process_images_with_overwrite_all_EXIF_tags(
 
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
     verify_descs(
@@ -231,7 +220,7 @@ def test_process_images_with_overwrite_all_EXIF_tags_with_exiftool(
 def test_angle_with_offset(setup_data: py.path.local, use_exiftool: bool = False):
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_angle=2.5"
     if use_exiftool:
-        args = _gen_exiftool_args_or_skip(setup_data, args)
+        args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
 
