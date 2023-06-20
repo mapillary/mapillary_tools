@@ -1,7 +1,7 @@
 import json
 import os
+import shutil
 import subprocess
-import sys
 import tempfile
 import typing as T
 import zipfile
@@ -110,6 +110,8 @@ IS_EXIFTOOL_INSTALLED = _exiftool_installed()
 
 def run_exiftool(setup_data: py.path.local) -> py.path.local:
     exiftool_outuput_dir = setup_data.join("exiftool_outuput_dir")
+    # The "-w %c" option in exiftool will produce duplicated XML files therefore clean up the folder first
+    shutil.rmtree(exiftool_outuput_dir, ignore_errors=True)
 
     # Below still causes error in Windows because the XML paths exceeds the max path length (260), hence commented out
     # see https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
