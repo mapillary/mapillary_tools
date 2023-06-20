@@ -277,29 +277,44 @@ class ExifToolReadVideo:
 
         return []
 
-    def extract_make(self) -> T.Optional[str]:
+    def _extract_make_and_model(self) -> T.Tuple[T.Optional[str], T.Optional[str]]:
+        make = self._extract_alternative_fields(["GoPro:Make"], str)
+        model = self._extract_alternative_fields(["GoPro:Model"], str)
+        if model is not None:
+            if make is None:
+                make = "GoPro"
+            make = make.strip()
+            model = model.strip()
+            return make, model
+
+        make = self._extract_alternative_fields(["Insta360:Make"], str)
+        model = self._extract_alternative_fields(["Insta360:Model"], str)
+        if model is not None:
+            if make is None:
+                make = "Insta360"
+            make = make.strip()
+            model = model.strip()
+            return make, model
+
         make = self._extract_alternative_fields(
-            ["IFD0:Make", "Keys:Make", "UserData:Make", "Insta360:Make", "GoPro:Make"],
-            str,
+            ["IFD0:Make", "UserData:Make", "Keys:Make"], str
         )
-        if make is None:
-            return None
-        return make.strip()
+        model = self._extract_alternative_fields(
+            ["IFD0:Model", "UserData:Model", "Keys:Model"], str
+        )
+        if make is not None:
+            make = make.strip()
+        if model is not None:
+            model = model.strip()
+        return make, model
+
+    def extract_make(self) -> T.Optional[str]:
+        make, _ = self._extract_make_and_model()
+        return make
 
     def extract_model(self) -> T.Optional[str]:
-        model = self._extract_alternative_fields(
-            [
-                "IFD0:Model",
-                "Keys:Model",
-                "UserData:Model",
-                "Insta360:Model",
-                "GoPro:Model",
-            ],
-            str,
-        )
-        if model is None:
-            return None
-        return model.strip()
+        _, model = self._extract_make_and_model()
+        return model
 
     def _extract_gps_track_from_track(self) -> T.List[geo.Point]:
         for track_id in range(1, MAX_TRACK_ID + 1):
