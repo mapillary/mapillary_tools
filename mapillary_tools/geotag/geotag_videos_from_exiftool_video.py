@@ -40,24 +40,23 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
 
             if stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
-        except Exception as ex:
-            return types.describe_error_metadata(
-                ex, video_path, filetype=types.FileType.VIDEO
+
+            video_metadata = types.VideoMetadata(
+                video_path,
+                md5sum=None,
+                filetype=types.FileType.VIDEO,
+                points=points,
+                make=exif.extract_make(),
+                model=exif.extract_model(),
             )
 
-        video_metadata = types.VideoMetadata(
-            video_path,
-            md5sum=None,
-            filetype=types.FileType.VIDEO,
-            points=points,
-            make=exif.extract_make(),
-            model=exif.extract_model(),
-        )
+            LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
 
-        LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-        try:
             video_metadata.update_md5sum()
+
         except Exception as ex:
+            if not isinstance(ex, exceptions._MapillaryDescriptionError):
+                LOG.error("Failed to geotag video %s", video_path, exc_info=ex)
             return types.describe_error_metadata(
                 ex, video_path, filetype=types.FileType.VIDEO
             )

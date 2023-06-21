@@ -7,7 +7,7 @@ from pathlib import Path
 from . import exif_read, utils
 
 
-EXIFTOOL_NAMESPACES = {
+EXIFTOOL_NAMESPACES: T.Dict[str, str] = {
     "Adobe": "http://ns.exiftool.org/APP14/Adobe/1.0/",
     "Apple": "http://ns.exiftool.org/MakerNotes/Apple/1.0/",
     "Composite": "http://ns.exiftool.org/Composite/1.0/",
@@ -55,15 +55,15 @@ _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
 _DESCRIPTION_TAG = "rdf:Description"
 
 
-def expand_tag(ns_tag: str) -> str:
+def expand_tag(ns_tag: str, namespaces: T.Dict[str, str]) -> str:
     try:
         ns, tag = ns_tag.split(":", maxsplit=2)
     except ValueError:
         raise ValueError(f"Invalid tag {ns_tag}")
-    return "{" + EXIFTOOL_NAMESPACES[ns] + "}" + tag
+    return "{" + namespaces[ns] + "}" + tag
 
 
-_EXPANDED_ABOUT_TAG = expand_tag("rdf:about")
+_EXPANDED_ABOUT_TAG = expand_tag("rdf:about", EXIFTOOL_NAMESPACES)
 
 
 def canonical_path(path: Path) -> str:
