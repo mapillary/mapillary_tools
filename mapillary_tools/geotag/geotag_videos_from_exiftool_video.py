@@ -55,8 +55,13 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             video_metadata.update_md5sum()
 
         except Exception as ex:
-            if not isinstance(ex, exceptions._MapillaryDescriptionError):
-                LOG.error("Failed to geotag video %s", video_path, exc_info=ex)
+            if not isinstance(ex, exceptions.MapillaryDescriptionError):
+                LOG.warning(
+                    "Failed to geotag video %s: %s",
+                    video_path,
+                    str(ex),
+                    exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
+                )
             return types.describe_error_metadata(
                 ex, video_path, filetype=types.FileType.VIDEO
             )

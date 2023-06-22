@@ -159,17 +159,18 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
             video_metadata.update_md5sum()
         except Exception as ex:
-            if video_metadata is None:
-                return types.describe_error_metadata(
-                    ex,
+            if not isinstance(ex, exceptions.MapillaryDescriptionError):
+                LOG.warning(
+                    "Failed to geotag video %s: %s",
                     video_path,
-                    filetype=None,
+                    str(ex),
+                    exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
                 )
-            else:
-                return types.describe_error_metadata(
-                    ex,
-                    video_metadata.filename,
-                    filetype=video_metadata.filetype,
-                )
+            filetype = None if video_metadata is None else video_metadata.filetype
+            return types.describe_error_metadata(
+                ex,
+                video_path,
+                filetype=filetype,
+            )
 
         return video_metadata
