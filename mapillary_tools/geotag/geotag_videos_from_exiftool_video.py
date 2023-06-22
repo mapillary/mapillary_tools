@@ -6,9 +6,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, geo, types
+from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
-from . import geotag_images_from_exiftool, utils as video_utils
+from . import utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
 
     @staticmethod
     def geotag_video(element: ET.Element) -> types.VideoMetadataOrError:
-        video_path = geotag_images_from_exiftool.find_rdf_description_path(element)
+        video_path = exiftool_read.find_rdf_description_path(element)
         assert video_path is not None, "must find the path from the element"
 
         try:
@@ -40,24 +40,28 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
 
             if stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
-        except Exception as ex:
-            return types.describe_error_metadata(
-                ex, video_path, filetype=types.FileType.VIDEO
+
+            video_metadata = types.VideoMetadata(
+                video_path,
+                md5sum=None,
+                filetype=types.FileType.VIDEO,
+                points=points,
+                make=exif.extract_make(),
+                model=exif.extract_model(),
             )
 
-        video_metadata = types.VideoMetadata(
-            video_path,
-            md5sum=None,
-            filetype=types.FileType.VIDEO,
-            points=points,
-            make=exif.extract_make(),
-            model=exif.extract_model(),
-        )
+            LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
 
-        LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-        try:
             video_metadata.update_md5sum()
+
         except Exception as ex:
+            if not isinstance(ex, exceptions.MapillaryDescriptionError):
+                LOG.warning(
+                    "Failed to geotag video %s: %s",
+                    video_path,
+                    str(ex),
+                    exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
+                )
             return types.describe_error_metadata(
                 ex, video_path, filetype=types.FileType.VIDEO
             )
@@ -65,15 +69,15 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
         return video_metadata
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
-        rdf_description_by_path = (
-            geotag_images_from_exiftool.index_rdf_description_by_path([self.xml_path])
+        rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
+            [self.xml_path]
         )
 
         error_metadatas: T.List[types.ErrorMetadata] = []
         rdf_descriptions: T.List[ET.Element] = []
         for path in self.video_paths:
             rdf_description = rdf_description_by_path.get(
-                geotag_images_from_exiftool.canonical_path(path)
+                exiftool_read.canonical_path(path)
             )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(

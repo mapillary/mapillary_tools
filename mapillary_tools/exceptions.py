@@ -34,19 +34,19 @@ class MapillaryFFmpegNotFoundError(MapillaryUserError):
     help = "https://github.com/mapillary/mapillary_tools#video-support"
 
 
-class _MapillaryDescriptionError(Exception):
+class MapillaryDescriptionError(Exception):
     pass
 
 
-class MapillaryGeoTaggingError(_MapillaryDescriptionError):
+class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
 
-class MapillaryGPXEmptyError(_MapillaryDescriptionError, MapillaryUserError):
+class MapillaryGPXEmptyError(MapillaryDescriptionError, MapillaryUserError):
     exit_code = 9
 
 
-class MapillaryOutsideGPXTrackError(_MapillaryDescriptionError):
+class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
     def __init__(
         self, message: str, image_time: str, gpx_start_time: str, gpx_end_time: str
     ):
@@ -56,21 +56,19 @@ class MapillaryOutsideGPXTrackError(_MapillaryDescriptionError):
         self.gpx_end_time = gpx_end_time
 
 
-class MapillaryStationaryVideoError(_MapillaryDescriptionError, MapillaryUserError):
+class MapillaryStationaryVideoError(MapillaryDescriptionError, MapillaryUserError):
     exit_code = 10
 
 
-class MapillaryInvalidBlackVueVideoError(
-    _MapillaryDescriptionError, MapillaryUserError
-):
+class MapillaryInvalidBlackVueVideoError(MapillaryDescriptionError, MapillaryUserError):
     exit_code = 11
 
 
-class MapillaryDuplicationError(_MapillaryDescriptionError):
+class MapillaryDuplicationError(MapillaryDescriptionError):
     def __init__(
         self,
         message: str,
-        desc: T.Mapping,
+        desc: T.Mapping[str, T.Any],
         distance: float,
         angle_diff: T.Optional[float],
     ) -> None:
@@ -80,17 +78,17 @@ class MapillaryDuplicationError(_MapillaryDescriptionError):
         self.angle_diff = angle_diff
 
 
-class MapillaryUploadedAlreadyError(_MapillaryDescriptionError):
+class MapillaryUploadedAlreadyError(MapillaryDescriptionError):
     def __init__(
         self,
         message: str,
-        desc: T.Mapping,
+        desc: T.Mapping[str, T.Any],
     ) -> None:
         super().__init__(message)
         self.desc = desc
 
 
-class MapillaryEXIFNotFoundError(_MapillaryDescriptionError):
+class MapillaryEXIFNotFoundError(MapillaryDescriptionError):
     pass
 
 

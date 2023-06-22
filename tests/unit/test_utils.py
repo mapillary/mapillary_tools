@@ -20,6 +20,36 @@ def test_filter():
     ]
 
 
+def test_find_all_image_samples():
+    image_samples_by_video_path = utils.find_all_image_samples(
+        [
+            # hello.mp4
+            Path("foo/hello.mp4/hello_123.jpg"),
+            Path("foo/hello.mp4/hello_.jpg"),
+            # world.mp4
+            Path("world.mp4/world_123.jpg"),
+            # NOT image samples
+            Path("world.mp4/hello_123.jpg"),
+            Path("world.mp4/world.mp4_123.jpg"),
+            Path("hello/hello_123.jpg"),
+        ],
+        [
+            Path("foo/hello.mp4"),
+            Path("hello.mp4"),
+            Path("foo/world.mp4"),
+            Path("world.mp4"),
+            Path("."),
+        ],
+    )
+    assert {
+        Path("hello.mp4"): [
+            Path("foo/hello.mp4/hello_123.jpg"),
+            Path("foo/hello.mp4/hello_.jpg"),
+        ],
+        Path("world.mp4"): [Path("world.mp4/world_123.jpg")],
+    } == image_samples_by_video_path
+
+
 def test_deduplicates():
     pwd = Path(".").resolve()
     # TODO: life too short to test for windows

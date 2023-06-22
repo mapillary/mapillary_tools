@@ -1,11 +1,13 @@
 import datetime
+import logging
 import typing as T
-from xml.etree.ElementTree import ElementTree
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
-from . import exif_read
+from . import exif_read, utils
 
 
-EXIFTOOL_NAMESPACES = {
+EXIFTOOL_NAMESPACES: T.Dict[str, str] = {
     "Adobe": "http://ns.exiftool.org/APP14/Adobe/1.0/",
     "Apple": "http://ns.exiftool.org/MakerNotes/Apple/1.0/",
     "Composite": "http://ns.exiftool.org/Composite/1.0/",
@@ -48,7 +50,56 @@ EXIFTOOL_NAMESPACES = {
 }
 
 
+LOG = logging.getLogger(__name__)
 _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
+_DESCRIPTION_TAG = "rdf:Description"
+
+
+def expand_tag(ns_tag: str, namespaces: T.Dict[str, str]) -> str:
+    try:
+        ns, tag = ns_tag.split(":", maxsplit=2)
+    except ValueError:
+        raise ValueError(f"Invalid tag {ns_tag}")
+    return "{" + namespaces[ns] + "}" + tag
+
+
+_EXPANDED_ABOUT_TAG = expand_tag("rdf:about", EXIFTOOL_NAMESPACES)
+
+
+def canonical_path(path: Path) -> str:
+    return str(path.resolve().as_posix())
+
+
+def find_rdf_description_path(element: ET.Element) -> T.Optional[Path]:
+    about = element.get(_EXPANDED_ABOUT_TAG)
+    if about is None:
+        return None
+    return Path(about)
+
+
+def index_rdf_description_by_path(
+    xml_paths: T.Sequence[Path],
+) -> T.Dict[str, ET.Element]:
+    rdf_description_by_path: T.Dict[str, ET.Element] = {}
+
+    for xml_path in utils.find_xml_files(xml_paths):
+        try:
+            etree = ET.parse(xml_path)
+        except ET.ParseError as ex:
+            verbose = LOG.getEffectiveLevel() <= logging.DEBUG
+            if verbose:
+                LOG.warning(f"Failed to parse {xml_path}", exc_info=verbose)
+            else:
+                LOG.warning(f"Failed to parse {xml_path}: {ex}", exc_info=verbose)
+            continue
+
+        elements = etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
+        for element in elements:
+            path = find_rdf_description_path(element)
+            if path is not None:
+                rdf_description_by_path[canonical_path(path)] = element
+
+    return rdf_description_by_path
 
 
 class ExifToolRead(exif_read.ExifReadABC):
@@ -58,7 +109,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
     def __init__(
         self,
-        etree: ElementTree,
+        etree: ET.ElementTree,
     ) -> None:
         self.etree = etree
 
