@@ -52,18 +52,33 @@ def iterate_files(
 
 def filter_video_samples(
     image_paths: T.Sequence[Path],
-    video_path: Path,
+    video_filename_or_dir: Path,
     skip_subfolders: bool = False,
 ) -> T.Generator[Path, None, None]:
-    if video_path.is_dir():
-        video_basenames = set(
-            f.name
-            for f in iterate_files(video_path, not skip_subfolders)
-            if is_video_file(f)
+    if video_filename_or_dir.is_dir():
+        video_paths = list(
+            set(
+                path
+                for path in iterate_files(video_filename_or_dir, not skip_subfolders)
+                if is_video_file(path)
+            )
         )
     else:
-        video_basenames = {video_path.name}
+        video_paths = [video_filename_or_dir]
 
+    image_samples_by_video_path = find_all_image_samples(image_paths, list(video_paths))
+
+    for image_paths in image_samples_by_video_path.values():
+        for image_path in image_paths:
+            yield image_path
+
+
+def find_all_image_samples(
+    image_paths: T.Sequence[Path], video_paths: T.Sequence[Path]
+) -> T.Dict[Path, T.List[Path]]:
+    video_basenames = {path.name: path for path in video_paths}
+
+    image_samples_by_video_path: T.Dict[Path, T.List[Path]] = {}
     for image_path in image_paths:
         # If you want to walk an arbitrary filesystem path upwards,
         # it is recommended to first call Path.resolve() so as to resolve symlinks and eliminate “..” components.
@@ -71,7 +86,12 @@ def filter_video_samples(
         if image_dirname in video_basenames:
             root, _ = os.path.splitext(image_dirname)
             if image_path.name.startswith(root + "_"):
-                yield image_path
+                video_path = video_basenames[image_dirname]
+                image_samples_by_video_path.setdefault(video_path, []).append(
+                    image_path
+                )
+
+    return image_samples_by_video_path
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:

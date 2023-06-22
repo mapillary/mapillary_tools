@@ -153,3 +153,16 @@ def test_process_gopro_hero8(
 @pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8_with_exiftool(setup_data: py.path.local):
     return test_process_gopro_hero8(setup_data, use_exiftool=True)
+
+
+@pytest.mark.usefixtures("setup_config")
+@pytest.mark.usefixtures("setup_upload")
+@pytest.mark.usefixtures("setup_envvars")
+def test_process_gopro_hero8_with_exiftool_multiple_videos_with_the_same_name(
+    setup_data: py.path.local,
+):
+    video_path = setup_data.join("hero8.mp4")
+    for idx in range(11):
+        video_dir = setup_data.mkdir(f"video_dir_{idx}")
+        video_path.copy(video_dir.join(video_path.basename))
+    return test_process_gopro_hero8(setup_data, use_exiftool=True)

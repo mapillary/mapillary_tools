@@ -97,14 +97,12 @@ def _process_images(
                 "camm": FileType.CAMM,
             }
             video_paths = utils.find_videos([geotag_source_path])
-            # TODO: this is a bit inefficient O(M*N) where M is the number of videos and N is the number of images
-            video_paths = [
-                video_path
-                for video_path in video_paths
-                if list(utils.filter_video_samples(image_paths, video_path))
-            ]
+            image_samples_by_video_path = utils.find_all_image_samples(
+                image_paths, video_paths
+            )
+            video_paths_with_image_samples = list(image_samples_by_video_path.keys())
             video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
-                video_paths,
+                video_paths_with_image_samples,
                 filetypes={map_geotag_source_to_filetype[geotag_source]},
             ).to_description()
             geotag = geotag_images_from_video.GeotagImagesFromVideo(
