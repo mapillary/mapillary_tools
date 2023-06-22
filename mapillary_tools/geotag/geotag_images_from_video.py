@@ -44,12 +44,12 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
 
             if isinstance(video_metadata, types.ErrorMetadata):
                 for sample_image_path in sample_image_paths:
-                    err_metadata = types.describe_error_metadata(
+                    error_metadata = types.describe_error_metadata(
                         video_metadata.error,
                         sample_image_path,
                         filetype=types.FileType.IMAGE,
                     )
-                    final_image_metadatas.append(err_metadata)
+                    final_image_metadatas.append(error_metadata)
                 continue
 
             with tqdm(
