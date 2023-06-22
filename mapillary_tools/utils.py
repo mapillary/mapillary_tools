@@ -76,6 +76,7 @@ def filter_video_samples(
 def find_all_image_samples(
     image_paths: T.Sequence[Path], video_paths: T.Sequence[Path]
 ) -> T.Dict[Path, T.List[Path]]:
+    # TODO: not work with the same filenames, e.g. foo/hello.mp4 and bar/hello.mp4
     video_basenames = {path.name: path for path in video_paths}
 
     image_samples_by_video_path: T.Dict[Path, T.List[Path]] = {}
