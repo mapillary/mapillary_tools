@@ -2,14 +2,14 @@ import logging
 import typing as T
 
 from .. import constants, geo
-from . import gpmf_parser, gps_filter
+from . import gps_filter
 
 LOG = logging.getLogger(__name__)
 
 
 def filter_out_outliers(
-    points: T.Sequence[gpmf_parser.PointWithFix],
-) -> T.Sequence[gpmf_parser.PointWithFix]:
+    points: T.Sequence[geo.PointWithFix],
+) -> T.Sequence[geo.PointWithFix]:
     distances = [
         geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
         for left, right in geo.pairwise(points)
@@ -45,14 +45,14 @@ def filter_out_outliers(
     )
 
     return T.cast(
-        T.List[gpmf_parser.PointWithFix],
+        T.List[geo.PointWithFix],
         gps_filter.find_majority(merged.values()),
     )
 
 
 def filter_noisy_points(
-    points: T.Sequence[gpmf_parser.PointWithFix],
-) -> T.Sequence[gpmf_parser.PointWithFix]:
+    points: T.Sequence[geo.PointWithFix],
+) -> T.Sequence[geo.PointWithFix]:
     num_points = len(points)
     points = [
         p

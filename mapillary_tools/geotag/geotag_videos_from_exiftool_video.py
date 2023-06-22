@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
-from . import utils as video_utils
+from . import utils as video_utils, gpmf_gps_filter
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -30,6 +30,17 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             exif = ExifToolReadVideo(ET.ElementTree(element))
 
             points = exif.extract_gps_track()
+
+            if not points:
+                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            if all(isinstance(p, geo.PointWithFix) for p in points):
+                points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.filter_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], points)
+                    ),
+                )
 
             if not points:
                 raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
