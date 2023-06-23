@@ -32,7 +32,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             points = exif.extract_gps_track()
 
             if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+                raise exceptions.MapillaryVideoError("No GPS data found from the video")
 
             if all(isinstance(p, geo.PointWithFix) for p in points):
                 points = T.cast(

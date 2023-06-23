@@ -31,6 +31,7 @@ UPLOAD_CHUNK_SIZE_MB = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 16)
 # See https://github.com/gopro/gpmf-parser#hero5-black-with-gps-enabled-adds
 # It is used to filter out noisy points
 GOPRO_MAX_DOP100 = int(os.getenv(_ENV_PREFIX + "GOPRO_MAX_DOP100", 1000))
+# Within the GPS stream: 0 - no lock, 2 or 3 - 2D or 3D Lock
 GOPRO_GPS_FIXES: T.Set[int] = set(
     int(fix) for fix in os.getenv(_ENV_PREFIX + "GOPRO_GPS_FIXES", "2,3").split(",")
 )

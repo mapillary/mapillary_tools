@@ -259,6 +259,12 @@ def _aggregate_gps_track_by_sample_time(
             gps_precision_texts = texts_by_tag.get(expanded_gps_precision_tag)
             if gps_precision_texts:
                 gps_precision = _maybe_float(gps_precision_texts[0])
+                if gps_precision is not None:
+                    # GPS precision in ExifTool (i.e. horizontal positioning error) are in meters.
+                    # https://exiftool.org/forum/index.php?topic=11565.0
+                    # Here we multiply by 100 to be compatible with the GPSP
+                    # described in https://github.com/gopro/gpmf-parser
+                    gps_precision = gps_precision * 100
 
         points = _aggregate_gps_track(
             texts_by_tag,
@@ -368,6 +374,7 @@ class ExifToolReadVideo:
                     lat_tag=f"{track_ns}:GPSLatitude",
                     alt_tag=f"{track_ns}:GPSAltitude",
                     direction_tag=f"{track_ns}:GPSTrack",
+                    ground_speed_tag=f"{track_ns}:GPSSpeed",
                     gps_fix_tag=f"{track_ns}:GPSMeasureMode",
                     gps_precision_tag=f"{track_ns}:GPSHPositioningError",
                 )
