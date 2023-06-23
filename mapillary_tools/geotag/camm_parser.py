@@ -220,7 +220,9 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
         ]
         points = list(filter_points_by_elst(points, segments))
 
-    return points
+    if points is None:
+        return None
+    return geo.extend_deduplicate_points(points)
 
 
 def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
