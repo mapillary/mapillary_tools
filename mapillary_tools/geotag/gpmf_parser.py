@@ -297,9 +297,7 @@ def _extract_points_from_samples(
 
                 device_id = _find_first_device_id(device["data"])
                 device_points = points_by_dvid.setdefault(device_id, [])
-
-                # remove points with the same lat/lon
-                geo.extend_deduplicate_points(sample_points, to_extend=device_points)
+                device_points.extend(sample_points)
 
     values = list(points_by_dvid.values())
     return values[0] if values else []

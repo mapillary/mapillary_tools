@@ -32,6 +32,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         with Pool() as pool:
             video_metadatas_iter = pool.imap(
+                # TODO: check the performance of using self._geotag_video
                 self._geotag_video,
                 self.video_paths,
             )
@@ -145,8 +146,20 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             if video_metadata is None:
                 raise exceptions.MapillaryVideoError("No GPS data found from the video")
 
+            video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
+
             if not video_metadata.points:
                 raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            if all(isinstance(p, geo.PointWithFix) for p in video_metadata.points):
+                video_metadata.points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.filter_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], video_metadata.points)
+                    ),
+                )
+                if not video_metadata.points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
             stationary = video_utils.is_video_stationary(
                 geo.get_max_distance_from_start(

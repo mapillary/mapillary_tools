@@ -34,6 +34,8 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             if not points:
                 raise exceptions.MapillaryVideoError("No GPS data found from the video")
 
+            points = geo.extend_deduplicate_points(points)
+
             if all(isinstance(p, geo.PointWithFix) for p in points):
                 points = T.cast(
                     T.List[geo.Point],
@@ -41,9 +43,8 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
                         T.cast(T.List[geo.PointWithFix], points)
                     ),
                 )
-
-            if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+                if not points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
             stationary = video_utils.is_video_stationary(
                 geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
