@@ -180,21 +180,13 @@ def _aggregate_gps_track(
 
     track.sort(key=lambda point: point.time)
 
-    if track:
-        first_time = track[0].time
-        for point in track:
-            point.time = point.time - first_time
+    if time_tag is not None:
+        if track:
+            first_time = track[0].time
+            for point in track:
+                point.time = point.time - first_time
 
-    deduplicated_track = []
-    if track:
-        prev = None
-        for point in track:
-            cur = (point.time, point.lon, point.lat)
-            if prev is None or cur != prev:
-                deduplicated_track.append(point)
-            prev = cur
-
-    return deduplicated_track
+    return track
 
 
 def _aggregate_samples(
@@ -279,9 +271,14 @@ def _aggregate_gps_track_by_sample_time(
             avg_timedelta = sample_duration / len(points)
             for idx, point in enumerate(points):
                 point.time = sample_time + idx * avg_timedelta
-            track.extend(
-                dataclasses.replace(point, gps_fix=gps_fix, gps_precision=gps_precision)
-                for point in points
+            geo.extend_deduplicate_points(
+                (
+                    dataclasses.replace(
+                        point, gps_fix=gps_fix, gps_precision=gps_precision
+                    )
+                    for point in points
+                ),
+                to_extend=track,
             )
 
     track.sort(key=lambda point: point.time)
@@ -404,7 +401,7 @@ class ExifToolReadVideo:
         ):
             return []
 
-        return _aggregate_gps_track(
+        points = _aggregate_gps_track(
             self._texts_by_tag,
             time_tag=f"{namespace}:GPSDateTime",
             lon_tag=f"{namespace}:GPSLongitude",
@@ -412,3 +409,5 @@ class ExifToolReadVideo:
             alt_tag=f"{namespace}:GPSAltitude",
             direction_tag=f"{namespace}:GPSTrack",
         )
+
+        return geo.extend_deduplicate_points(points)

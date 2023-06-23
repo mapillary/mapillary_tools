@@ -299,14 +299,7 @@ def _extract_points_from_samples(
                 device_points = points_by_dvid.setdefault(device_id, [])
 
                 # remove points with the same lat/lon
-                for point in sample_points:
-                    if device_points:
-                        prev_latlon = device_points[-1].lat, device_points[-1].lon
-                        cur_latlon = point.lat, point.lon
-                        if prev_latlon != cur_latlon:
-                            device_points.append(point)
-                    else:
-                        device_points.append(point)
+                geo.extend_deduplicate_points(sample_points, to_extend=device_points)
 
     values = list(points_by_dvid.values())
     return values[0] if values else []

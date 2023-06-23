@@ -322,14 +322,14 @@ class Interpolator:
         return interpolated
 
 
-_PointLike = T.TypeVar("_PointLike")
+_PointAbstract = T.TypeVar("_PointAbstract")
 
 
 def sample_points_by_distance(
-    samples: T.Iterable[_PointLike],
+    samples: T.Iterable[_PointAbstract],
     min_distance: float,
-    point_func: T.Callable[[_PointLike], Point],
-) -> T.Generator[_PointLike, None, None]:
+    point_func: T.Callable[[_PointAbstract], Point],
+) -> T.Generator[_PointAbstract, None, None]:
     prevp: T.Optional[Point] = None
     for sample in samples:
         if prevp is None:
@@ -353,3 +353,23 @@ def interpolate_directions_if_none(sequence: T.Sequence[Point]) -> None:
     elif 2 <= len(sequence):
         if sequence[-1].angle is None:
             sequence[-1].angle = sequence[-2].angle
+
+
+_PointLike = T.TypeVar("_PointLike", bound=Point)
+
+
+def extend_deduplicate_points(
+    sequence: T.Iterable[_PointLike],
+    to_extend: T.Optional[T.List[_PointLike]] = None,
+) -> T.List[_PointLike]:
+    if to_extend is None:
+        to_extend = []
+    for point in sequence:
+        if to_extend:
+            prev = to_extend[-1].lon, to_extend[-1].lat
+            cur = (point.lon, point.lat)
+            if cur != prev:
+                to_extend.append(point)
+        else:
+            to_extend.append(point)
+    return to_extend
