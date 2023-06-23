@@ -234,12 +234,20 @@ def _aggregate_gps_track_by_sample_time(
 ) -> T.List[geo.PointWithFix]:
     track: T.List[geo.PointWithFix] = []
 
+    expanded_gps_fix_tag = None
+    if gps_fix_tag is not None:
+        expanded_gps_fix_tag = expand_tag(gps_fix_tag)
+
+    expanded_gps_precision_tag = None
+    if gps_precision_tag is not None:
+        expanded_gps_precision_tag = expand_tag(gps_precision_tag)
+
     for sample_time, sample_duration, elements in sample_iterator:
         texts_by_tag = _index_text_by_tag(elements)
 
         gps_fix = None
-        if gps_fix_tag is not None:
-            gps_fix_texts = texts_by_tag.get(gps_fix_tag)
+        if expanded_gps_fix_tag is not None:
+            gps_fix_texts = texts_by_tag.get(expanded_gps_fix_tag)
             if gps_fix_texts:
                 try:
                     gps_fix = geo.GPSFix(int(gps_fix_texts[0]))
@@ -247,8 +255,8 @@ def _aggregate_gps_track_by_sample_time(
                     gps_fix = None
 
         gps_precision = None
-        if gps_precision_tag is not None:
-            gps_precision_texts = texts_by_tag.get(gps_precision_tag)
+        if expanded_gps_precision_tag is not None:
+            gps_precision_texts = texts_by_tag.get(expanded_gps_precision_tag)
             if gps_precision_texts:
                 gps_precision = _maybe_float(gps_precision_texts[0])
 

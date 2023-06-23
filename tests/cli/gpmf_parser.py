@@ -14,13 +14,13 @@ import mapillary_tools.utils as utils
 
 
 def _convert_points_to_gpx_track_segment(
-    points: T.Sequence[gpmf_parser.PointWithFix],
+    points: T.Sequence[geo.PointWithFix],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gps_fix_map = {
-        gpmf_parser.GPSFix.NO_FIX: "none",
-        gpmf_parser.GPSFix.FIX_2D: "2d",
-        gpmf_parser.GPSFix.FIX_3D: "3d",
+        geo.GPSFix.NO_FIX: "none",
+        geo.GPSFix.FIX_2D: "2d",
+        geo.GPSFix.FIX_3D: "3d",
     }
     for idx, point in enumerate(points):
         if idx + 1 < len(points):

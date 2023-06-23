@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
-from . import utils as video_utils, gpmf_gps_filter
+from . import gpmf_gps_filter, utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
