@@ -32,14 +32,17 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             points = exif.extract_gps_track()
 
             if not points:
-                raise exceptions.MapillaryVideoError("No GPS data found from the video")
+                raise exceptions.MapillaryVideoGPSNotFoundError(
+                    "No GPS data found from the video"
+                )
 
             points = geo.extend_deduplicate_points(points)
+            assert points, "must have at least one point"
 
             if all(isinstance(p, geo.PointWithFix) for p in points):
                 points = T.cast(
                     T.List[geo.Point],
-                    gpmf_gps_filter.filter_noisy_points(
+                    gpmf_gps_filter.remove_noisy_points(
                         T.cast(T.List[geo.PointWithFix], points)
                     ),
                 )

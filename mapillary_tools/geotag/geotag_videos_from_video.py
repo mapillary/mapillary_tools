@@ -94,15 +94,11 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                 if points_with_fix is not None:
                     fp.seek(0, io.SEEK_SET)
                     make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                    points = T.cast(
-                        T.List[geo.Point],
-                        gpmf_gps_filter.filter_noisy_points(points_with_fix),
-                    )
                     return types.VideoMetadata(
                         filename=video_path,
                         md5sum=None,
                         filetype=types.FileType.GOPRO,
-                        points=points,
+                        points=T.cast(T.List[geo.Point], points_with_fix),
                         make=make,
                         model=model,
                     )
@@ -146,15 +142,16 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             if video_metadata is None:
                 raise exceptions.MapillaryVideoError("No GPS data found from the video")
 
-            video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
-
             if not video_metadata.points:
                 raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
+            assert video_metadata.points, "must have at least one point"
 
             if all(isinstance(p, geo.PointWithFix) for p in video_metadata.points):
                 video_metadata.points = T.cast(
                     T.List[geo.Point],
-                    gpmf_gps_filter.filter_noisy_points(
+                    gpmf_gps_filter.remove_noisy_points(
                         T.cast(T.List[geo.PointWithFix], video_metadata.points)
                     ),
                 )

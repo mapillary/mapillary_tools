@@ -88,6 +88,13 @@ def _aggregate_gps_track(
     direction_tag: T.Optional[str] = None,
     ground_speed_tag: T.Optional[str] = None,
 ) -> T.List[geo.PointWithFix]:
+    """
+    Aggregate all GPS data by the tags.
+    It requires lat, lon to be present, and their lengths must match.
+    Some cameras store time information in the SimpleTime tag (and each simple has multiple GPS data points),
+    therefore the time_tag is optional. If it is None, then all returned points will have time = 0.0.
+    """
+
     # aggregate coordinates (required)
     lons = [
         _maybe_float(lon)
@@ -258,6 +265,7 @@ def _aggregate_gps_track_by_sample_time(
                     # described in https://github.com/gopro/gpmf-parser
                     gps_precision = gps_precision * 100
 
+        # Aggregate GPS points in the sample
         points = _aggregate_gps_track(
             texts_by_tag,
             time_tag=None,
@@ -291,14 +299,17 @@ class ExifToolReadVideo:
         self._all_tags = set(self._texts_by_tag.keys())
 
     def extract_gps_track(self) -> T.List[geo.Point]:
+        # blackvue and many other cameras
         track_with_fix = self._extract_gps_track_from_quicktime()
         if track_with_fix:
             return T.cast(T.List[geo.Point], track_with_fix)
 
+        # insta360 has its own tag
         track_with_fix = self._extract_gps_track_from_quicktime(namespace="Insta360")
         if track_with_fix:
             return T.cast(T.List[geo.Point], track_with_fix)
 
+        # mostly for gopro
         track_with_fix = self._extract_gps_track_from_track()
         if track_with_fix:
             return T.cast(T.List[geo.Point], track_with_fix)

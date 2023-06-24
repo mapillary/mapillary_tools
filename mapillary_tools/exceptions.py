@@ -46,6 +46,10 @@ class MapillaryGPXEmptyError(MapillaryDescriptionError, MapillaryUserError):
     exit_code = 9
 
 
+class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError, MapillaryUserError):
+    exit_code = 9
+
+
 class MapillaryGPSNoiseError(MapillaryDescriptionError):
     pass
 
