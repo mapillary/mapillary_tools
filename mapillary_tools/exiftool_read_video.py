@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import logging
 import typing as T
@@ -85,8 +86,15 @@ def _aggregate_gps_track(
     lat_tag: str,
     alt_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
-    speed_tag: T.Optional[str] = None,
-) -> T.List[geo.Point]:
+    ground_speed_tag: T.Optional[str] = None,
+) -> T.List[geo.PointWithFix]:
+    """
+    Aggregate all GPS data by the tags.
+    It requires lat, lon to be present, and their lengths must match.
+    Some cameras store time information in the SimpleTime tag (and each simple has multiple GPS data points),
+    therefore the time_tag is optional. If it is None, then all returned points will have time = 0.0.
+    """
+
     # aggregate coordinates (required)
     lons = [
         _maybe_float(lon)
@@ -150,47 +158,42 @@ def _aggregate_gps_track(
     directions = _aggregate_float_values_same_length(direction_tag)
 
     # aggregate speeds (optional)
-    speeds = _aggregate_float_values_same_length(speed_tag)
+    ground_speeds = _aggregate_float_values_same_length(ground_speed_tag)
 
     # build track
     track = []
-    for timestamp, lon, lat, alt, direction, _speed in zip(
+    for timestamp, lon, lat, alt, direction, ground_speed in zip(
         timestamps,
         lons,
         lats,
         alts,
         directions,
-        speeds,
+        ground_speeds,
     ):
         if timestamp is None or lon is None or lat is None:
             continue
         track.append(
-            geo.Point(
+            geo.PointWithFix(
                 time=timestamp,
                 lon=lon,
                 lat=lat,
                 alt=alt,
                 angle=direction,
+                gps_fix=None,
+                gps_precision=None,
+                gps_ground_speed=ground_speed,
             )
         )
 
     track.sort(key=lambda point: point.time)
 
-    if track:
-        first_time = track[0].time
-        for point in track:
-            point.time = point.time - first_time
+    if time_tag is not None:
+        if track:
+            first_time = track[0].time
+            for point in track:
+                point.time = point.time - first_time
 
-    deduplicated_track = []
-    if track:
-        prev = None
-        for point in track:
-            cur = (point.time, point.lon, point.lat)
-            if prev is None or cur != prev:
-                deduplicated_track.append(point)
-            prev = cur
-
-    return deduplicated_track
+    return track
 
 
 def _aggregate_samples(
@@ -224,25 +227,62 @@ def _aggregate_gps_track_by_sample_time(
     lat_tag: str,
     alt_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
-    speed_tag: T.Optional[str] = None,
-) -> T.List[geo.Point]:
-    track: T.List[geo.Point] = []
+    ground_speed_tag: T.Optional[str] = None,
+    gps_fix_tag: T.Optional[str] = None,
+    gps_precision_tag: T.Optional[str] = None,
+) -> T.List[geo.PointWithFix]:
+    track: T.List[geo.PointWithFix] = []
+
+    expanded_gps_fix_tag = None
+    if gps_fix_tag is not None:
+        expanded_gps_fix_tag = expand_tag(gps_fix_tag)
+
+    expanded_gps_precision_tag = None
+    if gps_precision_tag is not None:
+        expanded_gps_precision_tag = expand_tag(gps_precision_tag)
 
     for sample_time, sample_duration, elements in sample_iterator:
+        texts_by_tag = _index_text_by_tag(elements)
+
+        gps_fix = None
+        if expanded_gps_fix_tag is not None:
+            gps_fix_texts = texts_by_tag.get(expanded_gps_fix_tag)
+            if gps_fix_texts:
+                try:
+                    gps_fix = geo.GPSFix(int(gps_fix_texts[0]))
+                except ValueError:
+                    gps_fix = None
+
+        gps_precision = None
+        if expanded_gps_precision_tag is not None:
+            gps_precision_texts = texts_by_tag.get(expanded_gps_precision_tag)
+            if gps_precision_texts:
+                gps_precision = _maybe_float(gps_precision_texts[0])
+                if gps_precision is not None:
+                    # GPS precision in ExifTool (i.e. horizontal positioning error) are in meters.
+                    # https://exiftool.org/forum/index.php?topic=11565.0
+                    # Here we multiply by 100 to be compatible with the GPSP
+                    # described in https://github.com/gopro/gpmf-parser
+                    gps_precision = gps_precision * 100
+
+        # Aggregate GPS points in the sample
         points = _aggregate_gps_track(
-            _index_text_by_tag(elements),
+            texts_by_tag,
             time_tag=None,
             lon_tag=lon_tag,
             lat_tag=lat_tag,
             alt_tag=alt_tag,
             direction_tag=direction_tag,
-            speed_tag=speed_tag,
+            ground_speed_tag=ground_speed_tag,
         )
         if points:
             avg_timedelta = sample_duration / len(points)
             for idx, point in enumerate(points):
                 point.time = sample_time + idx * avg_timedelta
-            track.extend(points)
+            track.extend(
+                dataclasses.replace(point, gps_fix=gps_fix, gps_precision=gps_precision)
+                for point in points
+            )
 
     track.sort(key=lambda point: point.time)
 
@@ -259,17 +299,20 @@ class ExifToolReadVideo:
         self._all_tags = set(self._texts_by_tag.keys())
 
     def extract_gps_track(self) -> T.List[geo.Point]:
-        track = self._extract_gps_track_from_quicktime()
-        if track:
-            return track
+        # blackvue and many other cameras
+        track_with_fix = self._extract_gps_track_from_quicktime()
+        if track_with_fix:
+            return T.cast(T.List[geo.Point], track_with_fix)
 
-        track = self._extract_gps_track_from_quicktime(namespace="Insta360")
-        if track:
-            return track
+        # insta360 has its own tag
+        track_with_fix = self._extract_gps_track_from_quicktime(namespace="Insta360")
+        if track_with_fix:
+            return T.cast(T.List[geo.Point], track_with_fix)
 
-        track = self._extract_gps_track_from_track()
-        if track:
-            return track
+        # mostly for gopro
+        track_with_fix = self._extract_gps_track_from_track()
+        if track_with_fix:
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         return []
 
@@ -312,7 +355,7 @@ class ExifToolReadVideo:
         _, model = self._extract_make_and_model()
         return model
 
-    def _extract_gps_track_from_track(self) -> T.List[geo.Point]:
+    def _extract_gps_track_from_track(self) -> T.List[geo.PointWithFix]:
         for track_id in range(1, MAX_TRACK_ID + 1):
             track_ns = f"Track{track_id}"
             if self._all_tags_exists(
@@ -334,6 +377,9 @@ class ExifToolReadVideo:
                     lat_tag=f"{track_ns}:GPSLatitude",
                     alt_tag=f"{track_ns}:GPSAltitude",
                     direction_tag=f"{track_ns}:GPSTrack",
+                    ground_speed_tag=f"{track_ns}:GPSSpeed",
+                    gps_fix_tag=f"{track_ns}:GPSMeasureMode",
+                    gps_precision_tag=f"{track_ns}:GPSHPositioningError",
                 )
                 if track:
                     return track
@@ -351,7 +397,7 @@ class ExifToolReadVideo:
 
     def _extract_gps_track_from_quicktime(
         self, namespace: str = "QuickTime"
-    ) -> T.List[geo.Point]:
+    ) -> T.List[geo.PointWithFix]:
         if not self._all_tags_exists(
             {
                 expand_tag(f"{namespace}:GPSDateTime"),

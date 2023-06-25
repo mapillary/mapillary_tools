@@ -1,9 +1,7 @@
-import dataclasses
 import io
 import pathlib
 import sys
 import typing as T
-from enum import Enum, unique
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict  # pylint: disable=no-name-in-module
@@ -37,26 +35,12 @@ NOTE:
 """
 
 
-@unique
-class GPSFix(Enum):
-    NO_FIX = 0
-    FIX_2D = 2
-    FIX_3D = 3
-
-
 class KLVDict(TypedDict):
     key: bytes
     type: bytes
     structure_size: int
     repeat: int
     data: T.List[T.Any]
-
-
-@dataclasses.dataclass
-class PointWithFix(geo.Point):
-    gps_fix: T.Optional[GPSFix]
-    gps_precision: T.Optional[float]
-    gps_ground_speed: T.Optional[float]
 
 
 GPMFSampleData: C.GreedyRange
@@ -194,7 +178,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 #             ]
 def gps_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[PointWithFix, None, None]:
+) -> T.Generator[geo.PointWithFix, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -212,7 +196,7 @@ def gps_from_stream(
 
     gpsf = indexed.get(b"GPSF")
     if gpsf is not None:
-        gpsf_value = GPSFix(gpsf[0][0])
+        gpsf_value = geo.GPSFix(gpsf[0][0])
     else:
         gpsf_value = None
 
@@ -226,7 +210,7 @@ def gps_from_stream(
         lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
-        yield PointWithFix(
+        yield geo.PointWithFix(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
@@ -255,8 +239,8 @@ def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     return device_id
 
 
-def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[PointWithFix]:
-    sample_points: T.List[PointWithFix] = []
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithFix]:
+    sample_points: T.List[geo.PointWithFix] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -292,9 +276,9 @@ def _extract_dvnm_from_samples(
 
 def _extract_points_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[sample_parser.Sample]
-) -> T.List[PointWithFix]:
+) -> T.List[geo.PointWithFix]:
     # To keep GPS points from different devices separated
-    points_by_dvid: T.Dict[int, T.List[PointWithFix]] = {}
+    points_by_dvid: T.Dict[int, T.List[geo.PointWithFix]] = {}
 
     for sample in samples:
         fp.seek(sample.offset, io.SEEK_SET)
@@ -313,22 +297,13 @@ def _extract_points_from_samples(
 
                 device_id = _find_first_device_id(device["data"])
                 device_points = points_by_dvid.setdefault(device_id, [])
-
-                # remove points with the same lat/lon
-                for point in sample_points:
-                    if device_points:
-                        prev_latlon = device_points[-1].lat, device_points[-1].lon
-                        cur_latlon = point.lat, point.lon
-                        if prev_latlon != cur_latlon:
-                            device_points.append(point)
-                    else:
-                        device_points.append(point)
+                device_points.extend(sample_points)
 
     values = list(points_by_dvid.values())
     return values[0] if values else []
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[PointWithFix]]:
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
     """
     Return a list of points (could be empty) if it is a valid GoPro video,
     otherwise None
@@ -411,7 +386,7 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     return unicode_names[0].strip()
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[PointWithFix]:
+def parse_gpx(path: pathlib.Path) -> T.List[geo.PointWithFix]:
     with path.open("rb") as fp:
         points = extract_points(fp)
     if points is None:

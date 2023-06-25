@@ -32,6 +32,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         with Pool() as pool:
             video_metadatas_iter = pool.imap(
+                # TODO: check the performance of using self._geotag_video
                 self._geotag_video,
                 self.video_paths,
             )
@@ -93,15 +94,11 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                 if points_with_fix is not None:
                     fp.seek(0, io.SEEK_SET)
                     make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                    points = T.cast(
-                        T.List[geo.Point],
-                        gpmf_gps_filter.filter_noisy_points(points_with_fix),
-                    )
                     return types.VideoMetadata(
                         filename=video_path,
                         md5sum=None,
                         filetype=types.FileType.GOPRO,
-                        points=points,
+                        points=T.cast(T.List[geo.Point], points_with_fix),
                         make=make,
                         model=model,
                     )
@@ -147,6 +144,19 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
 
             if not video_metadata.points:
                 raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
+            assert video_metadata.points, "must have at least one point"
+
+            if all(isinstance(p, geo.PointWithFix) for p in video_metadata.points):
+                video_metadata.points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.remove_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], video_metadata.points)
+                    ),
+                )
+                if not video_metadata.points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
             stationary = video_utils.is_video_stationary(
                 geo.get_max_distance_from_start(

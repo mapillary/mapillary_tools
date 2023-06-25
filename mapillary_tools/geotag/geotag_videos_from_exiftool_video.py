@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
-from . import utils as video_utils
+from . import gpmf_gps_filter, utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -32,7 +32,22 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             points = exif.extract_gps_track()
 
             if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+                raise exceptions.MapillaryVideoGPSNotFoundError(
+                    "No GPS data found from the video"
+                )
+
+            points = geo.extend_deduplicate_points(points)
+            assert points, "must have at least one point"
+
+            if all(isinstance(p, geo.PointWithFix) for p in points):
+                points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.remove_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], points)
+                    ),
+                )
+                if not points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
             stationary = video_utils.is_video_stationary(
                 geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])

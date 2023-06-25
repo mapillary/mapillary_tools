@@ -46,6 +46,14 @@ class MapillaryGPXEmptyError(MapillaryDescriptionError, MapillaryUserError):
     exit_code = 9
 
 
+class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError, MapillaryUserError):
+    exit_code = 9
+
+
+class MapillaryGPSNoiseError(MapillaryDescriptionError):
+    pass
+
+
 class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
     def __init__(
         self, message: str, image_time: str, gpx_start_time: str, gpx_end_time: str
