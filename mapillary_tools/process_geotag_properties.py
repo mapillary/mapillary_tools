@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
 if sys.version_info >= (3, 8):
@@ -470,6 +471,7 @@ def process_finalize(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
+    num_processes: T.Optional[int] = None,
 ) -> T.List[types.MetadataOrError]:
     # modified in place
     _apply_offsets(
@@ -482,8 +484,31 @@ def process_finalize(
         offset_angle=offset_angle,
     )
 
-    LOG.info("Validating %d metadatas", len(metadatas))
-    metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
+    LOG.debug("Validating %d metadatas", len(metadatas))
+    if num_processes is None:
+        pool_num_processes = None
+        disable_multiprocessing = False
+    else:
+        pool_num_processes = max(num_processes, 1)
+        disable_multiprocessing = num_processes < 1
+    # validating metadatas is slow, hence multiprocessing
+    with Pool(processes=pool_num_processes) as pool:
+        validated_metadatas_iter: T.Iterator[types.MetadataOrError]
+        if disable_multiprocessing:
+            validated_metadatas_iter = map(types.validate_and_fail_metadata, metadatas)
+        else:
+            validated_metadatas_iter = pool.imap(
+                types.validate_and_fail_metadata, metadatas
+            )
+        metadatas = list(
+            tqdm(
+                validated_metadatas_iter,
+                desc="Validating metadatas",
+                unit="file",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(metadatas),
+            )
+        )
 
     LOG.info("Checking upload status for %d metadatas", len(metadatas))
     metadatas = _check_upload_status(metadatas)

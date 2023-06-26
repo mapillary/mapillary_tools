@@ -45,7 +45,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                 video_metadatas_iter = map(self._geotag_video, self.video_paths)
             else:
                 video_metadatas_iter = pool.imap(
-                    # TODO: check the performance of using self._geotag_video
                     self._geotag_video,
                     self.video_paths,
                 )
