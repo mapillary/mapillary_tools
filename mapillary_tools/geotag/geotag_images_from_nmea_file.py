@@ -15,6 +15,7 @@ class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
     ):
         points = get_lat_lon_time_from_nmea(source_path)
         super().__init__(
@@ -22,6 +23,7 @@ class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
             points,
             use_gpx_start_time=use_gpx_start_time,
             offset_time=offset_time,
+            num_processes=num_processes,
         )
 
 

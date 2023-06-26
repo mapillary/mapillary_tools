@@ -19,10 +19,12 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         image_paths: T.Sequence[Path],
         video_metadatas: T.Sequence[types.VideoMetadataOrError],
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
     ):
         self.image_paths = image_paths
         self.video_metadatas = video_metadatas
         self.offset_time = offset_time
+        self.num_processes = num_processes
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
@@ -64,6 +66,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                     use_gpx_start_time=False,
                     use_image_start_time=True,
                     offset_time=self.offset_time,
+                    num_processes=self.num_processes,
                     progress_bar=pbar,
                 ).to_description()
                 final_image_metadatas.extend(image_metadatas)

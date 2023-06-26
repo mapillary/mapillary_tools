@@ -25,17 +25,30 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
         self,
         video_paths: T.Sequence[Path],
         filetypes: T.Optional[T.Set[types.FileType]] = None,
+        num_processes: T.Optional[int] = None,
     ):
         self.video_paths = video_paths
         self.filetypes = filetypes
+        self.num_processes = num_processes
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
-        with Pool() as pool:
-            video_metadatas_iter = pool.imap(
-                # TODO: check the performance of using self._geotag_video
-                self._geotag_video,
-                self.video_paths,
-            )
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes < 1
+
+        with Pool(processes=num_processes) as pool:
+            video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
+            if disable_multiprocessing:
+                video_metadatas_iter = map(self._geotag_video, self.video_paths)
+            else:
+                video_metadatas_iter = pool.imap(
+                    # TODO: check the performance of using self._geotag_video
+                    self._geotag_video,
+                    self.video_paths,
+                )
             return list(
                 tqdm(
                     video_metadatas_iter,

@@ -20,10 +20,12 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         image_paths: T.Sequence[Path],
         xml_path: Path,
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
     ):
         self.image_paths = image_paths
         self.xml_path = xml_path
         self.offset_time = offset_time
+        self.num_processes = num_processes
         super().__init__()
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
@@ -33,7 +35,9 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         # find the images that can be geotagged from EXIF
         image_metadatas_from_exiftool = (
             geotag_images_from_exiftool.GeotagImagesFromExifTool(
-                self.image_paths, self.xml_path
+                self.image_paths,
+                self.xml_path,
+                num_processes=self.num_processes,
             ).to_description()
         )
 
@@ -66,11 +70,15 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
             geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
                 video_paths_with_image_samples,
                 self.xml_path,
+                num_processes=self.num_processes,
             ).to_description()
         )
 
         image_metadatas_from_video = geotag_images_from_video.GeotagImagesFromVideo(
-            maybe_image_samples, video_metadatas, offset_time=self.offset_time
+            maybe_image_samples,
+            video_metadatas,
+            offset_time=self.offset_time,
+            num_processes=self.num_processes,
         ).to_description()
         final_image_metadatas.extend(image_metadatas_from_video)
 
