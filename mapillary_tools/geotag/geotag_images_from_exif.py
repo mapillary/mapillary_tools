@@ -115,7 +115,7 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
             disable_multiprocessing = False
         else:
             num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes < 1
+            disable_multiprocessing = self.num_processes <= 0
 
         with Pool(processes=num_processes) as pool:
             image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]

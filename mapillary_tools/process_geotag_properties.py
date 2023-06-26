@@ -490,7 +490,7 @@ def process_finalize(
         disable_multiprocessing = False
     else:
         pool_num_processes = max(num_processes, 1)
-        disable_multiprocessing = num_processes < 1
+        disable_multiprocessing = num_processes <= 0
     # validating metadatas is slow, hence multiprocessing
     with Pool(processes=pool_num_processes) as pool:
         validated_metadatas_iter: T.Iterator[types.MetadataOrError]

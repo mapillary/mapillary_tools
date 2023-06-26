@@ -117,7 +117,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             disable_multiprocessing = False
         else:
             num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes < 1
+            disable_multiprocessing = self.num_processes <= 0
 
         with Pool(processes=num_processes) as pool:
             video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]

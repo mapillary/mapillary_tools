@@ -42,7 +42,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
             disable_multiprocessing = False
         else:
             num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes < 1
+            disable_multiprocessing = self.num_processes <= 0
 
         if disable_multiprocessing:
             return list(map(GeotagImagesFromGPX.geotag_image, image_paths))
@@ -206,7 +206,7 @@ class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
             disable_multiprocessing = False
         else:
             num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes < 1
+            disable_multiprocessing = self.num_processes <= 0
 
         output = []
         with Pool(processes=num_processes) as pool:
