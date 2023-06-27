@@ -117,6 +117,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Release
+        if: matrix.platform != 'windows-latest'
         uses: softprops/action-gh-release@v1
         with:
           draft: true
@@ -124,6 +125,16 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             ${{ github.workspace }}/main/dist/releases/*
+
+      - name: Release for WINDOWS BACK SLASHES
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            ${{ github.workspace }}\main\dist\releases\*
 
   pypi-publish:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
