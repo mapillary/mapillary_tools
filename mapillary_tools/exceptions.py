@@ -110,3 +110,7 @@ class MapillaryUploadTimeoutError(MapillaryUserError):
 
 class MapillaryUploadUnauthorizedError(MapillaryUserError):
     exit_code = 14
+
+
+class MapillaryMetadataValidationError(MapillaryUserError, MapillaryDescriptionError):
+    exit_code = 15

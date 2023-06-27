@@ -20,6 +20,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
     ):
         super().__init__()
         self.image_paths = image_paths
@@ -27,6 +28,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
+        self.num_processes = num_processes
 
     @staticmethod
     def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
@@ -35,8 +37,18 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def geotag_multiple_images(
         self, image_paths: T.Sequence[Path]
     ) -> T.List[types.ImageMetadataOrError]:
-        with Pool() as pool:
-            return pool.map(GeotagImagesFromGPX.geotag_image, image_paths)
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
+        if disable_multiprocessing:
+            return list(map(GeotagImagesFromGPX.geotag_image, image_paths))
+        else:
+            with Pool(processes=num_processes) as pool:
+                return pool.map(GeotagImagesFromGPX.geotag_image, image_paths)
 
     def _interpolate_image_metadata_along(
         self,
@@ -170,6 +182,7 @@ class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
         progress_bar=None,
     ) -> None:
         super().__init__(
@@ -178,6 +191,7 @@ class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
             use_gpx_start_time=use_gpx_start_time,
             use_image_start_time=use_image_start_time,
             offset_time=offset_time,
+            num_processes=num_processes,
         )
         self._progress_bar = progress_bar
 
@@ -187,11 +201,24 @@ class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
         if self._progress_bar is None:
             return super().geotag_multiple_images(image_paths)
 
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
         output = []
-        with Pool() as pool:
-            image_metadatas_iter = pool.imap(
-                GeotagImagesFromGPX.geotag_image, image_paths
-            )
+        with Pool(processes=num_processes) as pool:
+            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
+            if disable_multiprocessing:
+                image_metadatas_iter = map(
+                    GeotagImagesFromGPX.geotag_image, image_paths
+                )
+            else:
+                image_metadatas_iter = pool.imap(
+                    GeotagImagesFromGPX.geotag_image, image_paths
+                )
             for image_metadata_or_error in image_metadatas_iter:
                 self._progress_bar.update(1)
                 output.append(image_metadata_or_error)

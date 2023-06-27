@@ -1,9 +1,11 @@
 import collections
 import datetime
+import itertools
 import json
 import logging
 import sys
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
 if sys.version_info >= (3, 8):
@@ -42,6 +44,7 @@ def _process_images(
     video_import_path: T.Optional[Path] = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
+    num_processes: T.Optional[int] = None,
     skip_subfolders=False,
 ) -> T.List[types.ImageMetadataOrError]:
     geotag: geotag_from_generic.GeotagImagesFromGeneric
@@ -56,7 +59,9 @@ def _process_images(
         )
 
     if geotag_source == "exif":
-        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(image_paths)
+        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
+            image_paths, num_processes=num_processes
+        )
 
     else:
         if geotag_source_path is None:
@@ -82,6 +87,7 @@ def _process_images(
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
+                num_processes=num_processes,
             )
         elif geotag_source == "nmea":
             geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
@@ -89,6 +95,7 @@ def _process_images(
                 geotag_source_path,
                 use_gpx_start_time=interpolation_use_gpx_start_time,
                 offset_time=interpolation_offset_time,
+                num_processes=num_processes,
             )
         elif geotag_source in ["gopro_videos", "blackvue_videos", "camm"]:
             map_geotag_source_to_filetype: T.Dict[GeotagSource, FileType] = {
@@ -104,11 +111,13 @@ def _process_images(
             video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
                 video_paths_with_image_samples,
                 filetypes={map_geotag_source_to_filetype[geotag_source]},
+                num_processes=num_processes,
             ).to_description()
             geotag = geotag_images_from_video.GeotagImagesFromVideo(
                 image_paths,
                 video_metadatas,
                 offset_time=interpolation_offset_time,
+                num_processes=num_processes,
             )
         elif geotag_source == "exiftool":
             geotag = geotag_images_from_exiftool_both_image_and_video.GeotagImagesFromExifToolBothImageAndVideo(
@@ -143,6 +152,7 @@ def process_geotag_properties(
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
     skip_subfolders=False,
+    num_processes: T.Optional[int] = None,
 ) -> T.List[types.MetadataOrError]:
     filetypes = set(FileType(f) for f in filetypes)
     import_paths = _normalize_import_paths(import_path)
@@ -173,6 +183,7 @@ def process_geotag_properties(
             video_import_path=video_import_path,
             interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
             interpolation_offset_time=interpolation_offset_time,
+            num_processes=num_processes,
             skip_subfolders=skip_subfolders,
         )
         metadatas.extend(image_metadatas)
@@ -199,11 +210,15 @@ def process_geotag_properties(
                     f"Geotag source file not found: {geotag_source_path}"
                 )
             geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
-                video_paths, geotag_source_path
+                video_paths,
+                geotag_source_path,
+                num_processes=num_processes,
             )
         else:
             geotag = geotag_videos_from_video.GeotagVideosFromVideo(
-                video_paths, filetypes=filetypes
+                video_paths,
+                filetypes=filetypes,
+                num_processes=num_processes,
             )
         metadatas.extend(geotag.to_description())
 
@@ -457,6 +472,7 @@ def process_finalize(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
+    num_processes: T.Optional[int] = None,
 ) -> T.List[types.MetadataOrError]:
     # modified in place
     _apply_offsets(
@@ -469,8 +485,38 @@ def process_finalize(
         offset_angle=offset_angle,
     )
 
-    LOG.info("Validating %d metadatas", len(metadatas))
-    metadatas = [types.validate_and_fail_metadata(metadata) for metadata in metadatas]
+    LOG.debug("Validating %d metadatas", len(metadatas))
+    # validating metadatas is slow, hence multiprocessing
+    if num_processes is None:
+        pool_num_processes = None
+        disable_multiprocessing = False
+    else:
+        pool_num_processes = max(num_processes, 1)
+        disable_multiprocessing = num_processes <= 0
+    with Pool(processes=pool_num_processes) as pool:
+        validated_metadatas_iter: T.Iterator[types.MetadataOrError]
+        if disable_multiprocessing:
+            validated_metadatas_iter = map(types.validate_and_fail_metadata, metadatas)
+        else:
+            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+            # Otherwise we get:
+            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+            # See https://stackoverflow.com/a/61432070
+            yes, no = split_if(metadatas, lambda m: isinstance(m, types.ErrorMetadata))
+            no_iter = pool.imap(
+                types.validate_and_fail_metadata,
+                no,
+            )
+            validated_metadatas_iter = itertools.chain(yes, no_iter)
+        metadatas = list(
+            tqdm(
+                validated_metadatas_iter,
+                desc="Validating metadatas",
+                unit="file",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(metadatas),
+            )
+        )
 
     LOG.info("Checking upload status for %d metadatas", len(metadatas))
     metadatas = _check_upload_status(metadatas)

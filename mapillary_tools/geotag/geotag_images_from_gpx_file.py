@@ -22,6 +22,7 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
+        num_processes: T.Optional[int] = None,
     ):
         super().__init__()
         tracks = parse_gpx(source_path)
@@ -36,6 +37,7 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
         self.source_path = source_path
         self.use_gpx_start_time = use_gpx_start_time
         self.offset_time = offset_time
+        self.num_processes = num_processes
 
     @staticmethod
     def _extract_image_metadata(
@@ -82,14 +84,27 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
             else:
                 image_metadatas.append(metadata)
 
-        with Pool() as pool:
-            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
-            # Otherwise we get:
-            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
-            # See https://stackoverflow.com/a/61432070
-            image_metadatas_iter = pool.imap(
-                GeotagImagesFromGPXFile._extract_image_metadata, image_metadatas
-            )
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
+        with Pool(processes=num_processes) as pool:
+            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
+            if disable_multiprocessing:
+                image_metadatas_iter = map(
+                    GeotagImagesFromGPXFile._extract_image_metadata, image_metadatas
+                )
+            else:
+                # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+                # Otherwise we get:
+                # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+                # See https://stackoverflow.com/a/61432070
+                image_metadatas_iter = pool.imap(
+                    GeotagImagesFromGPXFile._extract_image_metadata, image_metadatas
+                )
             image_metadata_or_errors = list(
                 tqdm(
                     image_metadatas_iter,

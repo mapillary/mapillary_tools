@@ -16,7 +16,7 @@ else:
 
 import jsonschema
 
-from . import geo, utils
+from . import exceptions, geo, utils
 
 
 # http://wiki.gis.com/wiki/index.php/Decimal_degrees
@@ -424,17 +424,23 @@ ImageVideoDescriptionFileSchema = {
 
 
 def validate_image_desc(desc: T.Any) -> None:
-    jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
+    try:
+        jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
+    except jsonschema.ValidationError as ex:
+        # do not use str(ex) which is more verbose
+        raise exceptions.MapillaryMetadataValidationError(ex.message)
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
-    except ValueError as exc:
-        raise jsonschema.ValidationError(
-            str(exc), instance=desc, schema=ImageDescriptionFileSchema
-        )
+    except ValueError as ex:
+        raise exceptions.MapillaryMetadataValidationError(str(ex))
 
 
 def validate_video_desc(desc: T.Any) -> None:
-    jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
+    try:
+        jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
+    except jsonschema.ValidationError as ex:
+        # do not use str(ex) which is more verbose
+        raise exceptions.MapillaryMetadataValidationError(ex.message)
 
 
 def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
@@ -606,16 +612,18 @@ def validate_and_fail_desc(desc: DescriptionOrError) -> DescriptionOrError:
             validate_image_desc(desc)
         else:
             validate_video_desc(desc)
-    except jsonschema.ValidationError as exc:
+    except exceptions.MapillaryMetadataValidationError as ex:
         return _describe_error_desc(
-            jsonschema.ValidationError(exc.message),
+            ex,
             Path(desc["filename"]),
             filetype=FileType(filetype) if filetype else None,
         )
 
     if not os.path.isfile(desc["filename"]):
         return _describe_error_desc(
-            FileNotFoundError(f"No such file {desc['filename']}"),
+            exceptions.MapillaryMetadataValidationError(
+                f"No such file {desc['filename']}"
+            ),
             Path(desc["filename"]),
             filetype=FileType(filetype) if filetype else None,
         )
@@ -623,18 +631,12 @@ def validate_and_fail_desc(desc: DescriptionOrError) -> DescriptionOrError:
     return desc
 
 
-_M = T.TypeVar(
-    "_M",
-    ImageMetadataOrError,
-    VideoMetadataOrError,
-    MetadataOrError,
-)
-
-
-def validate_and_fail_metadata(metadata: _M) -> _M:
+# Same as validate_and_fail_desc but for the metadata dataclass
+def validate_and_fail_metadata(metadata: MetadataOrError) -> MetadataOrError:
     if isinstance(metadata, ErrorMetadata):
         return metadata
 
+    filetype: T.Optional[FileType] = None
     try:
         if isinstance(metadata, ImageMetadata):
             filetype = FileType.IMAGE
@@ -643,17 +645,19 @@ def validate_and_fail_metadata(metadata: _M) -> _M:
             assert isinstance(metadata, VideoMetadata)
             filetype = metadata.filetype
             validate_video_desc(as_desc(metadata))
-    except jsonschema.ValidationError as exc:
+    except exceptions.MapillaryMetadataValidationError as ex:
         # rethrow because the original error is too verbose
         return describe_error_metadata(
-            jsonschema.ValidationError(exc.message),
+            ex,
             metadata.filename,
             filetype=filetype,
         )
 
     if not metadata.filename.is_file():
         return describe_error_metadata(
-            FileNotFoundError(f"No such file {metadata.filename}"),
+            exceptions.MapillaryMetadataValidationError(
+                f"No such file {metadata.filename}"
+            ),
             metadata.filename,
             filetype=filetype,
         )

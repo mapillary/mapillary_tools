@@ -35,8 +35,11 @@ def verify_image_exif_write(
 
 
 class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
-    def __init__(self, image_paths: T.Sequence[Path]):
+    def __init__(
+        self, image_paths: T.Sequence[Path], num_processes: T.Optional[int] = None
+    ):
         self.image_paths = image_paths
+        self.num_processes = num_processes
         super().__init__()
 
     @staticmethod
@@ -107,11 +110,25 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
         return image_metadata
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
-        with Pool() as pool:
-            image_metadatas_iter = pool.imap(
-                GeotagImagesFromEXIF.geotag_image,
-                self.image_paths,
-            )
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
+        with Pool(processes=num_processes) as pool:
+            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
+            if disable_multiprocessing:
+                image_metadatas_iter = map(
+                    GeotagImagesFromEXIF.geotag_image,
+                    self.image_paths,
+                )
+            else:
+                image_metadatas_iter = pool.imap(
+                    GeotagImagesFromEXIF.geotag_image,
+                    self.image_paths,
+                )
             return list(
                 tqdm(
                     image_metadatas_iter,

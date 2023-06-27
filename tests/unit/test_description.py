@@ -1,8 +1,11 @@
 import json
 
-import jsonschema
-
-from mapillary_tools.types import ImageVideoDescriptionFileSchema, validate_image_desc
+from mapillary_tools.exceptions import MapillaryMetadataValidationError
+from mapillary_tools.types import (
+    ImageVideoDescriptionFileSchema,
+    validate_and_fail_desc,
+    validate_image_desc,
+)
 
 
 def test_validate_descs_ok():
@@ -67,9 +70,22 @@ def test_validate_descs_not_ok():
     for desc in descs:
         try:
             validate_image_desc(desc)
-        except jsonschema.ValidationError:
+        except MapillaryMetadataValidationError:
             errors += 1
     assert errors == len(descs)
+
+    validated = [validate_and_fail_desc(desc) for desc in descs]
+    actual_errors = [
+        desc
+        for desc in validated
+        if desc["error"]["type"] == "MapillaryMetadataValidationError"
+    ]
+    assert {
+        "'MAPCaptureTime' is a required property",
+        "-90.1 is less than the minimum of -90",
+        "-180.2 is less than the minimum of -180",
+        "time data '2000_12_00_10_20_10_000' does not match format '%Y_%m_%d_%H_%M_%S_%f'",
+    } == set(e["error"]["message"] for e in actual_errors)
 
 
 def test_validate_image_description_schema():

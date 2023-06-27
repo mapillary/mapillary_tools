@@ -198,6 +198,12 @@ class Command:
             help="Time offset, in seconds, that will be added to your image timestamps after geotagging/interpolation. [default: %(default)s]",
             required=False,
         )
+        group_geotagging.add_argument(
+            "--num_processes",
+            help="The number of processes for processing the data concurrently. A non-positive number (N<=0) will disable multiprocessing (useful for debugging). [default: the number of CPUs]",
+            type=int,
+            required=False,
+        )
 
         group_sequence = parser.add_argument_group(
             f"{constants.ANSI_BOLD}PROCESS SEQUENCE OPTIONS{constants.ANSI_RESET_ALL}"

@@ -16,9 +16,15 @@ _DESCRIPTION_TAG = "rdf:Description"
 
 
 class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
-    def __init__(self, video_paths: T.Sequence[Path], xml_path: Path):
+    def __init__(
+        self,
+        video_paths: T.Sequence[Path],
+        xml_path: Path,
+        num_processes: T.Optional[int] = None,
+    ):
         self.video_paths = video_paths
         self.xml_path = xml_path
+        self.num_processes = num_processes
         super().__init__()
 
     @staticmethod
@@ -106,11 +112,24 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             else:
                 rdf_descriptions.append(rdf_description)
 
-        with Pool() as pool:
-            video_metadatas_iter = pool.imap(
-                GeotagVideosFromExifToolVideo.geotag_video,
-                rdf_descriptions,
-            )
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
+        with Pool(processes=num_processes) as pool:
+            video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
+            if disable_multiprocessing:
+                video_metadatas_iter = map(
+                    GeotagVideosFromExifToolVideo.geotag_video, rdf_descriptions
+                )
+            else:
+                video_metadatas_iter = pool.imap(
+                    GeotagVideosFromExifToolVideo.geotag_video,
+                    rdf_descriptions,
+                )
             video_metadata_or_errors = list(
                 tqdm(
                     video_metadatas_iter,

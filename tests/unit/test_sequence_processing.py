@@ -351,7 +351,7 @@ def test_process_finalize(setup_data):
         },
         {
             "error": {
-                "type": "ValidationError",
+                "type": "MapillaryMetadataValidationError",
                 "message": "1000 is greater than the maximum of 180",
             },
             "filename": str(corrupt_exif),
@@ -359,7 +359,7 @@ def test_process_finalize(setup_data):
         },
         {
             "error": {
-                "type": "ValidationError",
+                "type": "MapillaryMetadataValidationError",
                 "message": "'image' is not one of ['camm', 'gopro', 'blackvue', 'video']",
             },
             "filename": str(setup_data.join("test_video.mp4")),

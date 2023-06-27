@@ -15,9 +15,15 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
-    def __init__(self, image_paths: T.Sequence[Path], xml_path: Path):
+    def __init__(
+        self,
+        image_paths: T.Sequence[Path],
+        xml_path: Path,
+        num_processes: T.Optional[int] = None,
+    ):
         self.image_paths = image_paths
         self.xml_path = xml_path
+        self.num_processes = num_processes
         super().__init__()
 
     @staticmethod
@@ -71,11 +77,25 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             else:
                 rdf_descriptions.append(rdf_description)
 
-        with Pool() as pool:
-            image_metadatas_iter = pool.imap(
-                GeotagImagesFromExifTool.geotag_image,
-                rdf_descriptions,
-            )
+        if self.num_processes is None:
+            num_processes = self.num_processes
+            disable_multiprocessing = False
+        else:
+            num_processes = max(self.num_processes, 1)
+            disable_multiprocessing = self.num_processes <= 0
+
+        with Pool(processes=num_processes) as pool:
+            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
+            if disable_multiprocessing:
+                image_metadatas_iter = map(
+                    GeotagImagesFromExifTool.geotag_image,
+                    rdf_descriptions,
+                )
+            else:
+                image_metadatas_iter = pool.imap(
+                    GeotagImagesFromExifTool.geotag_image,
+                    rdf_descriptions,
+                )
             image_metadata_or_errors = list(
                 tqdm(
                     image_metadatas_iter,
