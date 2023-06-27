@@ -485,13 +485,13 @@ def process_finalize(
     )
 
     LOG.debug("Validating %d metadatas", len(metadatas))
+    # validating metadatas is slow, hence multiprocessing
     if num_processes is None:
         pool_num_processes = None
         disable_multiprocessing = False
     else:
         pool_num_processes = max(num_processes, 1)
         disable_multiprocessing = num_processes <= 0
-    # validating metadatas is slow, hence multiprocessing
     with Pool(processes=pool_num_processes) as pool:
         validated_metadatas_iter: T.Iterator[types.MetadataOrError]
         if disable_multiprocessing:
