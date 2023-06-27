@@ -124,17 +124,7 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: |
-            ${{ github.workspace }}/main/dist/releases/*
-
-      - name: Release for WINDOWS BACK SLASHES
-        if: matrix.platform == 'windows-latest'
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          generate_release_notes: true
-          fail_on_unmatched_files: false
-          files: |
-            ${{ github.workspace }}\main\dist\releases\*
+            ./main/dist/releases/*
 
   pypi-publish:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
