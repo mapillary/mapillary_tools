@@ -200,7 +200,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--num_processes",
-            help="The number of processes for processing the data concurrently. A non-positive number will disable multiprocessing (useful for debugging). [default: the number of CPUs]",
+            help="The number of processes for processing the data concurrently. A non-positive number (N<=0) will disable multiprocessing (useful for debugging). [default: the number of CPUs]",
             type=int,
             required=False,
         )
