@@ -1,5 +1,6 @@
 import collections
 import datetime
+import itertools
 import json
 import logging
 import sys
@@ -497,9 +498,16 @@ def process_finalize(
         if disable_multiprocessing:
             validated_metadatas_iter = map(types.validate_and_fail_metadata, metadatas)
         else:
-            validated_metadatas_iter = pool.imap(
-                types.validate_and_fail_metadata, metadatas
+            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+            # Otherwise we get:
+            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+            # See https://stackoverflow.com/a/61432070
+            yes, no = split_if(metadatas, lambda m: isinstance(m, types.ErrorMetadata))
+            no_iter = pool.imap(
+                types.validate_and_fail_metadata,
+                no,
             )
+            validated_metadatas_iter = itertools.chain(yes, no_iter)
         metadatas = list(
             tqdm(
                 validated_metadatas_iter,

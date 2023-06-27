@@ -16,7 +16,7 @@ else:
 
 import jsonschema
 
-from . import geo, utils, exceptions
+from . import exceptions, geo, utils
 
 
 # http://wiki.gis.com/wiki/index.php/Decimal_degrees

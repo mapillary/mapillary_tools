@@ -1,11 +1,10 @@
 import json
 
-
 from mapillary_tools.exceptions import MapillaryMetadataValidationError
 from mapillary_tools.types import (
     ImageVideoDescriptionFileSchema,
-    validate_image_desc,
     validate_and_fail_desc,
+    validate_image_desc,
 )
 
 
