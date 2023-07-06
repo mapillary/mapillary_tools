@@ -44,7 +44,8 @@ def is_video_file(path: Path) -> bool:
         ".mts",
         ".ts",
         ".mov",
-        ".qt" ".mkv",
+        ".qt",
+        ".mkv",
         # GoPro Max video filename extension
         ".360",
     )
