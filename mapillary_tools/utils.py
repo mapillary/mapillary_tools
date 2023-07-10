@@ -20,7 +20,15 @@ def md5sum_fp(
 
 
 def is_image_file(path: Path) -> bool:
-    return path.suffix.lower() in (".jpg", ".jpeg", ".tif", ".tiff", ".pgm", ".pnm")
+    return path.suffix.lower() in (
+        ".jpg",
+        ".jpeg",
+        ".jpe",
+        ".tif",
+        ".tiff",
+        ".pgm",
+        ".pnm",
+    )
 
 
 def is_video_file(path: Path) -> bool:
@@ -28,7 +36,15 @@ def is_video_file(path: Path) -> bool:
         ".mp4",
         ".avi",
         ".tavi",
+        ".dv",
+        ".m2t",
+        ".m2ts",
+        ".m4v",
+        ".mqv",
+        ".mts",
+        ".ts",
         ".mov",
+        ".qt",
         ".mkv",
         # GoPro Max video filename extension
         ".360",
