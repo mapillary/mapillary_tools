@@ -284,6 +284,9 @@ def process_sequence_properties(
         for cur, nxt in geo.pairwise(sequence):
             assert cur.time <= nxt.time, "sequence must be sorted"
 
+    for s in sequences_by_folder:
+        _interpolate_subsecs_for_sorting(s)
+
     # cut sequences
     sequences_after_cut: T.List[PointSequence] = []
     for sequence in sequences_by_folder:
@@ -319,9 +322,6 @@ def process_sequence_properties(
             max_sequence_filesize_in_bytes,
             max_sequence_pixels,
         )
-
-        for c in cut:
-            _interpolate_subsecs_for_sorting(c)
 
         # assign sequence UUIDs
         for c in cut:
