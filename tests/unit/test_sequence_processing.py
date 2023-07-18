@@ -296,8 +296,7 @@ def test_subsec_interpolation(tmpdir: py.path.local):
     image_metadatas.sort(key=lambda d: d.time)
 
     assert [0, 1, 1.3, 1.6, 2] == [
-        int(metadata.time * 10) / 10
-        for metadata in image_metadatas
+        int(metadata.time * 10) / 10 for metadata in image_metadatas
     ]
 
 
