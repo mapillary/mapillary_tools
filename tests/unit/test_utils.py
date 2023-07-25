@@ -67,10 +67,12 @@ def test_deduplicates():
 def test_filter_all(tmpdir: py.path.local):
     tmpdir.mkdir("foo")
     tmpdir.join("foo").join("hello.jpg").open("wb").close()
+    tmpdir.join("foo").join("hello.jpe").open("wb").close()
     tmpdir.join("foo").join("world.TIFF").open("wb").close()
     tmpdir.join("foo").join("world.ZIP").open("wb").close()
     tmpdir.join("foo").join("world.mp4").open("wb").close()
     tmpdir.join("foo").join("world.MP4").open("wb").close()
+    tmpdir.join("foo").join("world.ts").open("wb").close()
     tmpdir.join("foo").join(".jpg").open("wb").close()
     tmpdir.join("foo").join(".png").open("wb").close()
     tmpdir.join("foo").join(".zip").open("wb").close()
@@ -78,7 +80,7 @@ def test_filter_all(tmpdir: py.path.local):
     tmpdir.join("foo").mkdir(".git")
     # TODO: life too short to test for windows
     if not sys.platform.startswith("win"):
-        assert {"foo/world.TIFF", "foo/hello.jpg", "foo/.foo"} == set(
+        assert {"foo/world.TIFF", "foo/hello.jpg", "foo/.foo", "foo/hello.jpe"} == set(
             str(p.relative_to(tmpdir))
             for p in utils.find_images(
                 [
@@ -106,6 +108,7 @@ def test_filter_all(tmpdir: py.path.local):
                 [
                     Path(tmpdir),
                     Path(tmpdir.join("foo").join("world.mp4")),
+                    Path(tmpdir.join("foo").join("world.ts")),
                     Path(tmpdir.join("foo").join(".foo")),
                     Path(tmpdir.join("foo").join("../foo")),
                 ]
@@ -113,12 +116,7 @@ def test_filter_all(tmpdir: py.path.local):
         )
         # some platform filenames are case sensitive?
         assert (
-            {"foo/world.MP4", "foo/.foo"} == actual
-            or {
-                "foo/world.mp4",
-                "foo/world.MP4",
-                "foo/.foo",
-            }
-            == actual
-            or {"foo/world.mp4", "foo/.foo"} == actual
+            {"foo/world.MP4", "foo/.foo", "foo/world.ts"} == actual
+            or {"foo/world.mp4", "foo/world.MP4", "foo/.foo", "foo/world.ts"} == actual
+            or {"foo/world.mp4", "foo/.foo", "foo/world.ts"} == actual
         )
