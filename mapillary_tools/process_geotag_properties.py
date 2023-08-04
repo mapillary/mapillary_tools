@@ -8,6 +8,8 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
+from mapillary_tools.geotag import geotag_videos_from_gpx
+
 if sys.version_info >= (3, 8):
     from typing import Literal  # pylint: disable=no-name-in-module
 else:
@@ -200,16 +202,15 @@ def process_geotag_properties(
             check_file_suffix=check_file_suffix,
         )
         geotag: geotag_from_generic.GeotagVideosFromGeneric
+
         if geotag_source == "exiftool":
-            if geotag_source_path is None:
-                raise exceptions.MapillaryFileNotFoundError(
-                    "Geotag source path (--geotag_source_path) is required"
-                )
-            if not geotag_source_path.exists():
-                raise exceptions.MapillaryFileNotFoundError(
-                    f"Geotag source file not found: {geotag_source_path}"
-                )
             geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
+                video_paths,
+                geotag_source_path,
+                num_processes=num_processes,
+            )
+        if geotag_source == "gpx":
+            geotag = geotag_videos_from_gpx.GeotagVideosFromGpx(
                 video_paths,
                 geotag_source_path,
                 num_processes=num_processes,
@@ -220,6 +221,7 @@ def process_geotag_properties(
                 filetypes=filetypes,
                 num_processes=num_processes,
             )
+
         metadatas.extend(geotag.to_description())
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
