@@ -49,6 +49,6 @@ def test_movie_box_parser():
     }
     assert isinstance(video_track.tkhd(), dict)
     for sample, raw_sample in zip(samples, raw_samples):
-        assert sample.offset == raw_sample.offset
-        assert sample.is_sync == raw_sample.is_sync
-        assert sample.size == raw_sample.size
+        assert sample.raw_sample.offset == raw_sample.offset
+        assert sample.raw_sample.is_sync == raw_sample.is_sync
+        assert sample.raw_sample.size == raw_sample.size

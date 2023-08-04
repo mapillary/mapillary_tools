@@ -82,12 +82,12 @@ CAMMSampleData = C.Struct(
 def _parse_point_from_sample(
     fp: T.BinaryIO, sample: sample_parser.Sample
 ) -> T.Optional[geo.Point]:
-    fp.seek(sample.offset, io.SEEK_SET)
-    data = fp.read(sample.size)
+    fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+    data = fp.read(sample.raw_sample.size)
     box = CAMMSampleData.parse(data)
     if box.type == CAMMType.MIN_GPS.value:
         return geo.Point(
-            time=sample.time_offset,
+            time=sample.exact_time,
             lat=box.data[0],
             lon=box.data[1],
             alt=box.data[2],
@@ -97,7 +97,7 @@ def _parse_point_from_sample(
         # Not using box.data.time_gps_epoch as the point timestamp
         # because it is from another clock
         return geo.Point(
-            time=sample.time_offset,
+            time=sample.exact_time,
             lat=box.data.latitude,
             lon=box.data.longitude,
             alt=box.data.altitude,

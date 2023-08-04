@@ -62,7 +62,7 @@ def test_build_stbl_happy():
             offset=1,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         sample_parser.RawSample(
@@ -70,7 +70,7 @@ def test_build_stbl_happy():
             offset=2,
             size=9,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
     ]
@@ -82,7 +82,7 @@ def test_build_stbl_happy():
             offset=1,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         sample_parser.RawSample(
@@ -90,7 +90,7 @@ def test_build_stbl_happy():
             offset=2,
             size=2,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
         # another chunk here due to a 1-byte break
@@ -99,7 +99,7 @@ def test_build_stbl_happy():
             offset=5,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         sample_parser.RawSample(
@@ -107,7 +107,7 @@ def test_build_stbl_happy():
             offset=6,
             size=9,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
     ]
@@ -119,7 +119,7 @@ def test_build_stbl_happy():
             offset=1,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
         sample_parser.RawSample(
@@ -127,7 +127,7 @@ def test_build_stbl_happy():
             offset=2,
             size=2,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         # another chunk here
@@ -136,7 +136,7 @@ def test_build_stbl_happy():
             offset=4,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         # another chunk here
@@ -145,7 +145,7 @@ def test_build_stbl_happy():
             offset=5,
             size=9,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
     ]
@@ -157,7 +157,7 @@ def test_build_stbl_happy():
             offset=1,
             size=1,
             timedelta=2,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
     ]
@@ -257,7 +257,7 @@ def test_parse_raw_samples_from_stbl():
             offset=1,
             size=1,
             timedelta=20,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         sample_parser.RawSample(
@@ -265,7 +265,7 @@ def test_parse_raw_samples_from_stbl():
             offset=2,
             size=2,
             timedelta=30,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
         sample_parser.RawSample(
@@ -273,7 +273,7 @@ def test_parse_raw_samples_from_stbl():
             offset=5,
             size=3,
             timedelta=30,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=True,
         ),
         sample_parser.RawSample(
@@ -281,7 +281,7 @@ def test_parse_raw_samples_from_stbl():
             offset=8,
             size=3,
             timedelta=50,
-            composition_offset=0,
+            composition_timedelta=0,
             is_sync=False,
         ),
     ] == samples

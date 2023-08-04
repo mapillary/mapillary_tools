@@ -237,7 +237,7 @@ def _sample_video_stream_by_distance(
     sorted_samples = list(video_track_parser.parse_samples())
     # we need sort sampels by composition time (CT) not the decoding offset (DT)
     # CT is the oder of videos streaming to audiences, as well as the order ffmpeg sampling
-    sorted_samples.sort(key=lambda sample: sample.composition_time_offset)
+    sorted_samples.sort(key=lambda sample: sample.exact_composition_time)
     LOG.info("Found total %d video samples", len(sorted_samples))
 
     # interpolate sample points between the GPS track range (with 1ms buffer)
@@ -251,11 +251,11 @@ def _sample_video_stream_by_distance(
         (
             frame_idx_0based,
             video_sample,
-            interpolator.interpolate(video_sample.composition_time_offset),
+            interpolator.interpolate(video_sample.exact_composition_time),
         )
         for frame_idx_0based, video_sample in enumerate(sorted_samples)
         if _within_track_time_range_buffered(
-            points, video_sample.composition_time_offset
+            points, video_sample.exact_composition_time
         )
     ]
     LOG.info("Found total %d interpolated video samples", len(interp_sample_points))
@@ -350,8 +350,8 @@ def _sample_single_video_by_distance(
 
             video_sample, interp = sample_point
             assert (
-                interp.time == video_sample.composition_time_offset
-            ), f"interpolated time {interp.time} should match the video sample time {video_sample.composition_time_offset}"
+                interp.time == video_sample.exact_composition_time
+            ), f"interpolated time {interp.time} should match the video sample time {video_sample.exact_composition_time}"
 
             timestamp = start_time + datetime.timedelta(seconds=interp.time)
             exif_edit = ExifEdit(sample_paths[0])

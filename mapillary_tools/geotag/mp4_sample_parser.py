@@ -9,47 +9,39 @@ from . import construct_mp4_parser as cparser, simple_mp4_parser as parser
 class RawSample(T.NamedTuple):
     # 1-based index
     description_idx: int
-    # sample offset
+
+    # sample offset (offset from the beginning of the file)
     offset: int
-    # sample size
+
+    # sample size (in bytes)
     size: int
-    # sample_delta read from stts entries,
+
+    # sample_delta read from stts entries that decides when to decode the sample,
     # i.e. STTS(n) in the forumula DT(n+1) = DT(n) + STTS(n)
+    # NOTE: timescale is not applied yet (hence int)
     timedelta: int
-    # sample composition offset,
+
+    # sample composition offset that decides when to present the sample,
     # i.e. CTTS(n) in the forumula CT(n) = DT(n) + CTTS(n).
-    composition_offset: int
+    # NOTE: timescale is not applied yet (hence int)
+    composition_timedelta: int
+
     # if it is a sync sample
     is_sync: bool
 
 
-# TODO: can not inherit RawSample?
 class Sample(T.NamedTuple):
-    # copied from RawSample
+    raw_sample: RawSample
 
-    # 1-based index
-    description_idx: int
-    # sample offset
-    offset: int
-    # sample size
-    size: int
-    # sample delta in seconds read from stts entries,
-    # i.e. (STTS(n) / timescale) in the forumula DT(n+1) = DT(n) + STTS(n)
-    timedelta: float
-    # sample composition offset in seconds,
-    # i.e. (CTTS(n) / timescale) in the forumula CT(n) = DT(n) + CTTS(n).
-    composition_offset: float
-    # if it is a sync sample
-    is_sync: bool
+    # accumulated timedelta in seconds, i.e. DT(n) / timescale
+    exact_time: float
 
-    # extended fields below
+    # accumulated composition timedelta in seconds, i.e. CT(n) / timescale
+    exact_composition_time: float
 
-    # accumulated sample_delta in seconds,
-    # i.e. (DT(n) / timescale) in the forumula DT(n+1) = DT(n) + STTS(n)
-    time_offset: T.Union[int, float]
-    # accumulated composition offset in seconds,
-    # i.e. (CT(n) / timescale) in the forumula CT(n) = DT(n) + CTTS(n).
-    composition_time_offset: T.Union[int, float]
+    # exact timedelta in seconds, i.e. STTS(n) / timescale
+    exact_timedelta: float
+
     # reference to the sample description
     description: T.Dict
 
@@ -59,7 +51,7 @@ def _extract_raw_samples(
     chunk_entries: T.Sequence[T.Dict],
     chunk_offsets: T.Sequence[int],
     timedeltas: T.Sequence[int],
-    composition_offsets: T.Optional[T.Sequence[int]],
+    composition_timedeltas: T.Optional[T.Sequence[int]],
     syncs: T.Optional[T.Set[int]],
 ) -> T.Generator[RawSample, None, None]:
     if not sizes:
@@ -90,9 +82,9 @@ def _extract_raw_samples(
             # iterate samples in this chunk
             for _ in range(entry["samples_per_chunk"]):
                 is_sync = syncs is None or (sample_idx + 1) in syncs
-                composition_offset = (
-                    composition_offsets[sample_idx]
-                    if composition_offsets is not None
+                composition_timedelta = (
+                    composition_timedeltas[sample_idx]
+                    if composition_timedeltas is not None
                     else 0
                 )
                 yield RawSample(
@@ -100,7 +92,7 @@ def _extract_raw_samples(
                     offset=sample_offset,
                     size=sizes[sample_idx],
                     timedelta=timedeltas[sample_idx],
-                    composition_offset=composition_offset,
+                    composition_timedelta=composition_timedelta,
                     is_sync=is_sync,
                 )
                 sample_offset += sizes[sample_idx]
@@ -117,9 +109,9 @@ def _extract_raw_samples(
         # iterate samples in this chunk
         for _ in range(chunk_entries[-1]["samples_per_chunk"]):
             is_sync = syncs is None or (sample_idx + 1) in syncs
-            composition_offset = (
-                composition_offsets[sample_idx]
-                if composition_offsets is not None
+            composition_timedelta = (
+                composition_timedeltas[sample_idx]
+                if composition_timedeltas is not None
                 else 0
             )
             yield RawSample(
@@ -127,7 +119,7 @@ def _extract_raw_samples(
                 offset=sample_offset,
                 size=sizes[sample_idx],
                 timedelta=timedeltas[sample_idx],
-                composition_offset=composition_offset,
+                composition_timedelta=composition_timedelta,
                 is_sync=is_sync,
             )
             sample_offset += sizes[sample_idx]
@@ -138,36 +130,20 @@ def _extract_raw_samples(
 def _extract_samples(
     raw_samples: T.Iterator[RawSample],
     descriptions: T.List,
+    timescale: int,
 ) -> T.Generator[Sample, None, None]:
     acc_delta = 0
     for raw_sample in raw_samples:
         yield Sample(
-            description_idx=raw_sample.description_idx,
-            offset=raw_sample.offset,
-            size=raw_sample.size,
-            timedelta=raw_sample.timedelta,
-            composition_offset=raw_sample.composition_offset,
-            is_sync=raw_sample.is_sync,
+            raw_sample=raw_sample,
             description=descriptions[raw_sample.description_idx - 1],
-            time_offset=acc_delta,
+            exact_time=acc_delta / timescale,
+            exact_timedelta=raw_sample.timedelta / timescale,
             # CT(n) = DT(n) + CTTS(n)
-            composition_time_offset=(acc_delta + raw_sample.composition_offset),
+            exact_composition_time=(acc_delta + raw_sample.composition_timedelta)
+            / timescale,
         )
         acc_delta += raw_sample.timedelta
-
-
-def _apply_timescale(sample: Sample, media_timescale: int) -> Sample:
-    return Sample(
-        description_idx=sample.description_idx,
-        offset=sample.offset,
-        size=sample.size,
-        timedelta=sample.timedelta / media_timescale,
-        composition_offset=sample.composition_offset / media_timescale,
-        is_sync=sample.is_sync,
-        description=sample.description,
-        time_offset=sample.time_offset / media_timescale,
-        composition_time_offset=sample.composition_time_offset / media_timescale,
-    )
 
 
 def parse_raw_samples_from_stbl(
@@ -183,7 +159,7 @@ def parse_raw_samples_from_stbl(
     chunk_offsets = []
     chunk_entries = []
     timedeltas: T.List[int] = []
-    composition_offsets: T.Optional[T.List[int]] = None
+    composition_timedeltas: T.Optional[T.List[int]] = None
     syncs: T.Optional[T.Set[int]] = None
 
     for h, s in parser.parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
@@ -212,11 +188,11 @@ def parse_raw_samples_from_stbl(
                 for _ in range(entry.sample_count):
                     timedeltas.append(entry.sample_delta)
         elif h.type == b"ctts":
-            composition_offsets = []
+            composition_timedeltas = []
             box = cparser.CompositionTimeToSampleBox.parse(s.read(h.maxsize))
             for entry in box.entries:
                 for _ in range(entry.sample_count):
-                    composition_offsets.append(entry.sample_offset)
+                    composition_timedeltas.append(entry.sample_offset)
         elif h.type == b"stss":
             box = cparser.SyncSampleBox.parse(s.read(h.maxsize))
             syncs = set(box.entries)
@@ -225,12 +201,12 @@ def parse_raw_samples_from_stbl(
     # in this case append 0's to timedeltas
     while len(timedeltas) < len(sizes):
         timedeltas.append(0)
-    if composition_offsets is not None:
-        while len(composition_offsets) < len(sizes):
-            composition_offsets.append(0)
+    if composition_timedeltas is not None:
+        while len(composition_timedeltas) < len(sizes):
+            composition_timedeltas.append(0)
 
     raw_samples = _extract_raw_samples(
-        sizes, chunk_entries, chunk_offsets, timedeltas, composition_offsets, syncs
+        sizes, chunk_entries, chunk_offsets, timedeltas, composition_timedeltas, syncs
     )
     return descriptions, raw_samples
 
@@ -248,7 +224,7 @@ def parse_raw_samples_from_stbl_bytes(
     chunk_offsets = []
     chunk_entries = []
     timedeltas: T.List[int] = []
-    composition_offsets: T.Optional[T.List[int]] = None
+    composition_timedeltas: T.Optional[T.List[int]] = None
     syncs: T.Optional[T.Set[int]] = None
 
     stbl_boxes = T.cast(T.Sequence[cparser.BoxDict], STBLBoxlistConstruct.parse(stbl))
@@ -275,10 +251,10 @@ def parse_raw_samples_from_stbl_bytes(
                 for _ in range(entry["sample_count"]):
                     timedeltas.append(entry["sample_delta"])
         elif box["type"] == b"ctts":
-            composition_offsets = []
+            composition_timedeltas = []
             for entry in data["entries"]:
                 for _ in range(entry["sample_count"]):
-                    composition_offsets.append(entry["sample_offset"])
+                    composition_timedeltas.append(entry["sample_offset"])
         elif box["type"] == b"stss":
             syncs = set(data["entries"])
 
@@ -286,12 +262,12 @@ def parse_raw_samples_from_stbl_bytes(
     # in this case append 0's to timedeltas
     while len(timedeltas) < len(sizes):
         timedeltas.append(0)
-    if composition_offsets is not None:
-        while len(composition_offsets) < len(sizes):
-            composition_offsets.append(0)
+    if composition_timedeltas is not None:
+        while len(composition_timedeltas) < len(sizes):
+            composition_timedeltas.append(0)
 
     raw_samples = _extract_raw_samples(
-        sizes, chunk_entries, chunk_offsets, timedeltas, composition_offsets, syncs
+        sizes, chunk_entries, chunk_offsets, timedeltas, composition_timedeltas, syncs
     )
     return descriptions, raw_samples
 
@@ -322,10 +298,7 @@ def parse_samples_from_trak(
     )
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
 
-    yield from (
-        _apply_timescale(s, mdhd["timescale"])
-        for s in _extract_samples(raw_samples, descriptions)
-    )
+    yield from _extract_samples(raw_samples, descriptions, mdhd["timescale"])
 
 
 STSDBoxListConstruct = cparser.Box64ConstructBuilder(
@@ -369,10 +342,7 @@ class TrackBoxParser:
             T.Dict,
             cparser.find_box_at_pathx(self.trak_boxes, [b"mdia", b"mdhd"])["data"],
         )
-        yield from (
-            _apply_timescale(s, mdhd["timescale"])
-            for s in _extract_samples(raw_samples, descriptions)
-        )
+        yield from _extract_samples(raw_samples, descriptions, mdhd["timescale"])
 
 
 class MovieBoxParser:

@@ -257,8 +257,8 @@ def _extract_dvnm_from_samples(
     dvnm_by_dvid: T.Dict[int, bytes] = {}
 
     for sample in samples:
-        fp.seek(sample.offset, io.SEEK_SET)
-        data = fp.read(sample.size)
+        fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+        data = fp.read(sample.raw_sample.size)
         gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
 
         # iterate devices
@@ -281,8 +281,8 @@ def _extract_points_from_samples(
     points_by_dvid: T.Dict[int, T.List[geo.PointWithFix]] = {}
 
     for sample in samples:
-        fp.seek(sample.offset, io.SEEK_SET)
-        data = fp.read(sample.size)
+        fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+        data = fp.read(sample.raw_sample.size)
         gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
 
         # iterate devices
@@ -291,9 +291,9 @@ def _extract_points_from_samples(
             sample_points = _find_first_gps_stream(device["data"])
             if sample_points:
                 # interpolate timestamps in between
-                avg_timedelta = sample.timedelta / len(sample_points)
+                avg_timedelta = sample.exact_timedelta / len(sample_points)
                 for idx, point in enumerate(sample_points):
-                    point.time = sample.time_offset + avg_timedelta * idx
+                    point.time = sample.exact_time + avg_timedelta * idx
 
                 device_id = _find_first_device_id(device["data"])
                 device_points = points_by_dvid.setdefault(device_id, [])
@@ -340,10 +340,9 @@ def _extract_gpmd_samples_from_trak(
     if gpmd_descriptions:
         s.seek(trak_start_offset, io.SEEK_SET)
         samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
-        gpmd_samples = (
-            sample for sample in samples if sample.description["format"] == b"gpmd"
-        )
-        yield from gpmd_samples
+        for sample in samples:
+            if sample.description["format"] == b"gpmd":
+                yield sample
 
 
 def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
@@ -398,6 +397,6 @@ def iterate_gpmd_sample_data(fp: T.BinaryIO) -> T.Generator[T.Dict, None, None]:
     for h, s in parser.parse_path(fp, [b"moov", b"trak"]):
         gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
         for sample in gpmd_samples:
-            fp.seek(sample.offset, io.SEEK_SET)
-            data = fp.read(sample.size)
+            fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+            data = fp.read(sample.raw_sample.size)
             yield T.cast(T.Dict, GPMFSampleData.parse(data))
