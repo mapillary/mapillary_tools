@@ -5,7 +5,7 @@ from mapillary_tools.geotag import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
     simple_mp4_builder as builder,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 
 
@@ -44,7 +44,7 @@ def _build_and_parse_stbl(
     d = cparser.Box32ConstructBuilder({b"stbl": cparser.CMAP[b"stbl"]}).Box.build(
         {"type": b"stbl", "data": s}
     )
-    ss = parser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
+    ss = sparser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
     _, parsed_samples = sample_parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
     assert expected_samples == list(parsed_samples)

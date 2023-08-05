@@ -3,7 +3,7 @@ import io
 import typing as T
 from pathlib import Path
 
-from . import construct_mp4_parser as cparser, simple_mp4_parser as parser
+from . import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 
 
 class RawSample(T.NamedTuple):
@@ -162,7 +162,7 @@ def parse_raw_samples_from_stbl(
     composition_timedeltas: T.Optional[T.List[int]] = None
     syncs: T.Optional[T.Set[int]] = None
 
-    for h, s in parser.parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
+    for h, s in sparser.parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
         if h.type == b"stsd":
             box = cparser.SampleDescriptionBox.parse(s.read(h.maxsize))
             descriptions = list(box.entries)
@@ -273,7 +273,7 @@ def parse_raw_samples_from_stbl_bytes(
 
 
 def parse_descriptions_from_trak(trak: T.BinaryIO, maxsize: int = -1) -> T.List[T.Dict]:
-    data = parser.parse_box_data_first(
+    data = sparser.parse_box_data_first(
         trak, [b"mdia", b"minf", b"stbl", b"stsd"], maxsize=maxsize
     )
     if data is None:
@@ -289,11 +289,11 @@ def parse_samples_from_trak(
     trak_start_offset = trak.tell()
 
     trak.seek(trak_start_offset, io.SEEK_SET)
-    mdhd_box = parser.parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
+    mdhd_box = sparser.parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
     mdhd = T.cast(T.Dict, cparser.MediaHeaderBox.parse(mdhd_box))
 
     trak.seek(trak_start_offset, io.SEEK_SET)
-    h, s = parser.parse_box_path_firstx(
+    h, s = sparser.parse_box_path_firstx(
         trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize
     )
     descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
@@ -357,7 +357,7 @@ class MovieBoxParser:
     @classmethod
     def parse_file(cls, video_path: Path) -> "MovieBoxParser":
         with video_path.open("rb") as fp:
-            moov = parser.parse_box_data_firstx(fp, [b"moov"])
+            moov = sparser.parse_box_data_firstx(fp, [b"moov"])
         return MovieBoxParser(moov)
 
     def mvhd(self):

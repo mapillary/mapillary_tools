@@ -6,7 +6,7 @@ from . import (
     construct_mp4_parser as cparser,
     io_utils,
     mp4_sample_parser as sample_parser,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 from .construct_mp4_parser import BoxDict
 from .mp4_sample_parser import RawSample
@@ -335,11 +335,11 @@ def transform_mp4(
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
-    ftyp_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
+    ftyp_data = sparser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
 
     # extract moov
     src_fp.seek(0)
-    moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
+    moov_data = sparser.parse_mp4_data_firstx(src_fp, [b"moov"])
     moov_children = _MOOVChildrenParserConstruct.parse_boxlist(moov_data)
 
     # filter tracks in moov

@@ -13,7 +13,7 @@ from . import (
     construct_mp4_parser as cparser,
     geo,
     mp4_sample_parser as sample_parser,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 
 
@@ -170,7 +170,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     media_timescale = None
     elst_entries = None
 
-    for h, s in parser.parse_path(fp, [b"moov", [b"mvhd", b"trak"]]):
+    for h, s in sparser.parse_path(fp, [b"moov", [b"mvhd", b"trak"]]):
         if h.type == b"trak":
             trak_start_offset = s.tell()
 
@@ -191,14 +191,14 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
                 points = [p for p in points_with_nones if p is not None]
                 if points:
                     s.seek(trak_start_offset)
-                    elst_data = parser.parse_box_data_first(
+                    elst_data = sparser.parse_box_data_first(
                         s, [b"edts", b"elst"], maxsize=h.maxsize
                     )
                     if elst_data is not None:
                         elst_entries = cparser.EditBox.parse(elst_data)["entries"]
 
                     s.seek(trak_start_offset)
-                    mdhd_data = parser.parse_box_data_firstx(
+                    mdhd_data = sparser.parse_box_data_firstx(
                         s, [b"mdia", b"mdhd"], maxsize=h.maxsize
                     )
                     mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
@@ -238,7 +238,7 @@ MakeOrModel = C.Struct(
 )
 
 
-def _decode_quietly(data: bytes, h: parser.Header) -> str:
+def _decode_quietly(data: bytes, h: sparser.Header) -> str:
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:
@@ -246,7 +246,7 @@ def _decode_quietly(data: bytes, h: parser.Header) -> str:
         return ""
 
 
-def _parse_quietly(data: bytes, h: parser.Header) -> bytes:
+def _parse_quietly(data: bytes, h: sparser.Header) -> bytes:
     try:
         parsed = MakeOrModel.parse(data)
     except C.ConstructError:
@@ -256,7 +256,7 @@ def _parse_quietly(data: bytes, h: parser.Header) -> bytes:
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
-    header_and_stream = parser.parse_path(
+    header_and_stream = sparser.parse_path(
         fp,
         [
             b"moov",
@@ -296,7 +296,7 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
             # quit when both found
             if make and model:
                 break
-    except parser.ParsingError:
+    except sparser.ParsingError:
         pass
 
     if make:
