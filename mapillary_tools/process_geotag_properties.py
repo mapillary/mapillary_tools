@@ -6,7 +6,7 @@ import logging
 import typing as T
 from multiprocessing import Pool
 from pathlib import Path
-from mapillary_tools.geotag import geotag_videos_from_gpx
+from mapillary_tools.geotag import geotag_videos_from_gpx, geotag_videos_from_nmea
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, history, types, utils
@@ -201,8 +201,14 @@ def process_geotag_properties(
                 geotag_source_path,
                 num_processes=num_processes,
             )
-        if geotag_source == "gpx":
+        elif geotag_source == "gpx":
             geotag = geotag_videos_from_gpx.GeotagVideosFromGpx(
+                video_paths,
+                geotag_source_path,
+                num_processes=num_processes,
+            )
+        elif geotag_source == "nmea":
+            geotag = geotag_videos_from_nmea.GeotagVideosFromNmea(
                 video_paths,
                 geotag_source_path,
                 num_processes=num_processes,

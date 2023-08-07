@@ -6,11 +6,12 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from mapillary_tools.geotag import geotag_images_from_gpx_file
+from mapillary_tools.geotag import (
+    external_geotag_source_helper,
+    geotag_images_from_gpx_file,
+)
 
-from .. import exceptions, exiftool_read, geo, types
-from ..exiftool_read_video import ExifToolReadVideo
-from . import gpmf_gps_filter, utils as video_utils
+from .. import exceptions, types
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -24,12 +25,10 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
         num_processes: T.Optional[int] = None,
     ):
         self.xml_path = xml_path
+        self.video_geotag_pairs: T.Dict[Path, Path] = {}
         super().__init__(video_paths=video_paths, num_processes=num_processes)
-        self.video_geotag_pairs = self.match_videos_and_geotag_files(
-            xml_path, ["gpx", "GPX"]
-        )
 
-    def geotag_video(self, video_path: Path) -> types.VideoMetadataOrError:
+    def _geotag_video(self, video_path: Path) -> types.VideoMetadataOrError:
         try:
             tracks = geotag_images_from_gpx_file.parse_gpx(
                 self.video_geotag_pairs[video_path]
@@ -41,40 +40,20 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
                     "No GPS data found from the video"
                 )
 
+            points = GeotagVideosFromGeneric.process_points(points)
             for p in points:
                 p.time = p.time - points[0].time
-
-            points = geo.extend_deduplicate_points(points)
-            assert points, "must have at least one point"
-
-            if all(isinstance(p, geo.PointWithFix) for p in points):
-                points = T.cast(
-                    T.List[geo.Point],
-                    gpmf_gps_filter.remove_noisy_points(
-                        T.cast(T.List[geo.PointWithFix], points)
-                    ),
-                )
-                if not points:
-                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
-
-            stationary = video_utils.is_video_stationary(
-                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-            )
-
-            if stationary:
-                raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
             video_metadata = types.VideoMetadata(
                 video_path,
                 md5sum=None,
                 filetype=types.FileType.VIDEO,
                 points=points,
-                make="asd",
-                model="asd",
+                make=None,
+                model=None,
             )
 
             LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-
             video_metadata.update_md5sum()
 
         except Exception as ex:
@@ -93,7 +72,7 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         error_metadatas: T.List[types.ErrorMetadata] = []
-
+        
         if self.num_processes is None:
             num_processes = self.num_processes
             disable_multiprocessing = False
@@ -101,13 +80,17 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
             num_processes = max(self.num_processes, 1)
             disable_multiprocessing = self.num_processes <= 0
 
+        self.video_geotag_pairs = external_geotag_source_helper.match_videos_and_geotag_files(
+                self.video_paths, self.xml_path, ["gpx"]
+            )
+
         with Pool(processes=num_processes) as pool:
             video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
             if disable_multiprocessing:
-                video_metadatas_iter = map(self.geotag_video, self.video_paths)
+                video_metadatas_iter = map(self._geotag_video, self.video_paths)
             else:
                 video_metadatas_iter = pool.imap(
-                    self.geotag_video,
+                    self._geotag_video,
                     self.video_paths,
                 )
             video_metadata_or_errors = list(
