@@ -79,8 +79,10 @@ class GeotagVideosFromNmea(GeotagVideosFromGeneric):
             num_processes = max(self.num_processes, 1)
             disable_multiprocessing = self.num_processes <= 0
 
-        self.video_geotag_pairs = external_geotag_source_helper.match_videos_and_geotag_files(
-            self.video_paths, self.xml_path, ["nmea", "log"]
+        self.video_geotag_pairs = (
+            external_geotag_source_helper.match_videos_and_geotag_files(
+                self.video_paths, self.xml_path, ["nmea", "log"]
+            )
         )
 
         with Pool(processes=num_processes) as pool:

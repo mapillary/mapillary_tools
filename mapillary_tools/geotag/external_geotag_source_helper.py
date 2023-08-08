@@ -7,7 +7,9 @@ from pathlib import Path
 from mapillary_tools import exceptions
 
 
-def _check_single_geotag_source(video_paths: T.Sequence[Path], geotag_source_path: Path) -> T.Dict[Path, Path]:
+def _check_single_geotag_source(
+    video_paths: T.Sequence[Path], geotag_source_path: Path
+) -> T.Dict[Path, Path]:
     if 0 < len(video_paths):
         raise exceptions.MapillaryBadParameterError(
             "Cannot use a single geotag file for multiple videos"
@@ -16,7 +18,7 @@ def _check_single_geotag_source(video_paths: T.Sequence[Path], geotag_source_pat
         raise exceptions.MapillaryFileNotFoundError(
             f"Geotag source file not found: {geotag_source_path}"
         )
-    
+
     return {video_paths[0]: geotag_source_path}
 
 
@@ -35,13 +37,15 @@ def _find_geotag_video_pairs(
             if extension_regex.search(candidate):
                 if path.isfile(candidate):
                     video_geotag_pairs[video_path] = Path(candidate)
-    
+
     _check_video_geotag_pairs(video_paths, video_geotag_pairs)
 
     return video_geotag_pairs
 
 
-def _check_video_geotag_pairs(video_paths: T.Sequence[Path], video_geotag_pairs: T.Dict[Path, Path]):
+def _check_video_geotag_pairs(
+    video_paths: T.Sequence[Path], video_geotag_pairs: T.Dict[Path, Path]
+):
     if len(video_geotag_pairs) != len(video_paths):
         videos_list = set(video_paths).difference(video_geotag_pairs.keys())
         raise exceptions.MapillaryFileNotFoundError(
