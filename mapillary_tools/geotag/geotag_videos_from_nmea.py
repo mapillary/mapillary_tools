@@ -20,7 +20,7 @@ class GeotagVideosFromNmea(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
-        xml_path: Path,
+        xml_path: T.Optional[Path],
         num_processes: T.Optional[int] = None,
     ):
         self.xml_path = xml_path

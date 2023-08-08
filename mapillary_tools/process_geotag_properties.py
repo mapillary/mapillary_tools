@@ -48,7 +48,7 @@ def _process_images(
     interpolation_offset_time: float = 0.0,
     num_processes: T.Optional[int] = None,
     skip_subfolders=False,
-) -> T.List[types.ImageMetadataOrError]:
+) -> T.Sequence[types.ImageMetadataOrError]:
     geotag: geotag_from_generic.GeotagImagesFromGeneric
 
     if video_import_path is not None:

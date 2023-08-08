@@ -22,7 +22,7 @@ def _check_single_geotag_source(video_paths: T.Sequence[Path], geotag_source_pat
 
 def _find_geotag_video_pairs(
     video_paths: T.Sequence[Path],
-    geotag_file_extensions: T.List[str],
+    geotag_file_extensions: T.Sequence[str],
 ) -> T.Dict[Path, Path]:
     extension_regex = re.compile(
         f".({'|'.join(geotag_file_extensions)})$", re.IGNORECASE
@@ -52,8 +52,8 @@ def _check_video_geotag_pairs(video_paths: T.Sequence[Path], video_geotag_pairs:
 
 def match_videos_and_geotag_files(
     video_paths: T.Sequence[Path],
-    geotag_source_path: Path,
-    geotag_file_extensions: T.List[str],
+    geotag_source_path: T.Optional[Path],
+    geotag_file_extensions: T.Sequence[str],
 ) -> T.Dict[Path, Path]:
     if geotag_source_path:
         return _check_single_geotag_source(video_paths, geotag_source_path)
