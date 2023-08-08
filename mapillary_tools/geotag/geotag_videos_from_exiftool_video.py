@@ -19,10 +19,19 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
-        xml_path: Path,
+        xml_path: T.Optional[Path],
         num_processes: T.Optional[int] = None,
     ):
-        self.xml_path = xml_path
+        if xml_path is None:
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path (--xml_path) is required"
+            )
+        if not xml_path.exists():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Geotag source file not found: {xml_path}"
+            )
+
+        self.xml_path: Path = xml_path
         super().__init__(video_paths=video_paths, num_processes=num_processes)
 
     @staticmethod

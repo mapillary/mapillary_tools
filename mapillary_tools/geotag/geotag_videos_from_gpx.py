@@ -5,6 +5,7 @@ from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
+from mapillary_tools import geo
 
 from mapillary_tools.geotag import (
     external_geotag_source_helper,
@@ -21,7 +22,7 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
-        xml_path: Path,
+        xml_path: T.Optional[Path],
         num_processes: T.Optional[int] = None,
     ):
         self.xml_path = xml_path
@@ -33,7 +34,7 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
             tracks = geotag_images_from_gpx_file.parse_gpx(
                 self.video_geotag_pairs[video_path]
             )
-            points = sum(tracks, [])
+            points: T.Sequence[geo.Point] = sum(tracks, [])
 
             if not points:
                 raise exceptions.MapillaryVideoGPSNotFoundError(
