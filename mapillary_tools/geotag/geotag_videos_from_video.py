@@ -7,12 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, geo, types
-from . import (
-    blackvue_parser,
-    camm_parser,
-    gpmf_parser,
-    simple_mp4_parser as parser
-)
+from . import blackvue_parser, camm_parser, gpmf_parser, simple_mp4_parser as parser
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)

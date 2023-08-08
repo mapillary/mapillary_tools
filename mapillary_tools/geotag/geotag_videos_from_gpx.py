@@ -5,6 +5,7 @@ from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
+
 from mapillary_tools import geo
 
 from mapillary_tools.geotag import (
@@ -73,7 +74,7 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
         error_metadatas: T.List[types.ErrorMetadata] = []
-        
+
         if self.num_processes is None:
             num_processes = self.num_processes
             disable_multiprocessing = False
@@ -81,9 +82,11 @@ class GeotagVideosFromGpx(GeotagVideosFromGeneric):
             num_processes = max(self.num_processes, 1)
             disable_multiprocessing = self.num_processes <= 0
 
-        self.video_geotag_pairs = external_geotag_source_helper.match_videos_and_geotag_files(
+        self.video_geotag_pairs = (
+            external_geotag_source_helper.match_videos_and_geotag_files(
                 self.video_paths, self.xml_path, ["gpx"]
             )
+        )
 
         with Pool(processes=num_processes) as pool:
             video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
