@@ -38,10 +38,10 @@ class GeotagVideosFromNmea(GeotagVideosFromGeneric):
                     "No GPS data found from the video"
                 )
 
-            points = GeotagVideosFromGeneric.process_points(points)
             first_timestamp = points[0].time
             for p in points:
                 p.time = p.time - first_timestamp
+            points = GeotagVideosFromGeneric.process_points(points)
 
             video_metadata = types.VideoMetadata(
                 video_path,
