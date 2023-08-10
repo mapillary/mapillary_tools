@@ -10,7 +10,6 @@ from enum import Enum
 import construct as C
 
 from . import (
-    construct_mp4_parser as cparser,
     geo,
     mp4_sample_parser as sample_parser,
     simple_mp4_parser as sparser,
@@ -148,15 +147,8 @@ def elst_entry_to_seconds(
     return (media_time, duration)
 
 
-def _extract_camm_samples(
-    s: T.BinaryIO,
-    maxsize: int = -1,
-) -> T.Generator[sample_parser.Sample, None, None]:
-    samples = sample_parser.parse_samples_from_trak_DEPRECATED(s, maxsize=maxsize)
-    camm_samples = (
-        sample for sample in samples if sample.description["format"] == b"camm"
-    )
-    yield from camm_samples
+def _is_camm_description(description: T.Dict) -> bool:
+    return description["format"] == b"camm"
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
@@ -166,59 +158,37 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     """
 
     points = None
-    movie_timescale = None
-    media_timescale = None
-    elst_entries = None
 
-    for h, s in sparser.parse_path(fp, [b"moov", [b"mvhd", b"trak"]]):
-        if h.type == b"trak":
-            trak_start_offset = s.tell()
-
-            descriptions = sample_parser.parse_descriptions_from_trak(
-                s, maxsize=h.maxsize
+    moov = sample_parser.MovieBoxParser.parse_stream(fp)
+    for track in moov.parse_tracks():
+        descriptions = track.parse_sample_descriptions()
+        if any(_is_camm_description(d) for d in descriptions):
+            maybe_points = (
+                _parse_point_from_sample(fp, sample)
+                for sample in track.parse_samples()
+                if _is_camm_description(sample.description)
             )
-            camm_descriptions = [d for d in descriptions if d["format"] == b"camm"]
-            if camm_descriptions:
-                s.seek(trak_start_offset, io.SEEK_SET)
-                camm_samples = _extract_camm_samples(s, h.maxsize)
-
-                points_with_nones = (
-                    _parse_point_from_sample(fp, sample)
-                    for sample in camm_samples
-                    if sample.description["format"] == b"camm"
-                )
-
-                points = [p for p in points_with_nones if p is not None]
-                if points:
-                    s.seek(trak_start_offset)
-                    elst_data = sparser.parse_box_data_first(
-                        s, [b"edts", b"elst"], maxsize=h.maxsize
-                    )
-                    if elst_data is not None:
-                        elst_entries = cparser.EditBox.parse(elst_data)["entries"]
-
-                    s.seek(trak_start_offset)
-                    mdhd_data = sparser.parse_box_data_firstx(
-                        s, [b"mdia", b"mdhd"], maxsize=h.maxsize
-                    )
-                    mdhd = cparser.MediaHeaderBox.parse(mdhd_data)
-                    media_timescale = mdhd["timescale"]
-        else:
-            assert h.type == b"mvhd"
-            if not movie_timescale:
-                mvhd = cparser.MovieHeaderBox.parse(s.read(h.maxsize))
-                movie_timescale = mvhd["timescale"]
-
-        # exit when both found
-        if movie_timescale is not None and points:
-            break
-
-    if points and movie_timescale and media_timescale and elst_entries:
-        segments = [
-            elst_entry_to_seconds(entry, movie_timescale, media_timescale)
-            for entry in elst_entries
-        ]
-        points = list(filter_points_by_elst(points, segments))
+            points = [p for p in maybe_points if p is not None]
+            if points:
+                elst_boxdata = track.extract_elst_boxdata()
+                if elst_boxdata is not None:
+                    elst_entries = elst_boxdata["entries"]
+                    if elst_entries:
+                        # media_timescale
+                        mdhd_boxdata = track.extract_mdhd_boxdata()
+                        media_timescale = mdhd_boxdata["timescale"]
+                        # movie_timescale
+                        mvhd_boxdata = moov.mvhd()
+                        movie_timescale = mvhd_boxdata["timescale"]
+                        segments = [
+                            elst_entry_to_seconds(
+                                entry,
+                                movie_timescale=movie_timescale,
+                                media_timescale=media_timescale,
+                            )
+                            for entry in elst_entries
+                        ]
+                        points = list(filter_points_by_elst(points, segments))
 
     return points
 
