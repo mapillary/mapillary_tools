@@ -314,12 +314,12 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
     """
     points = None
     moov = sample_parser.MovieBoxParser.parse_stream(fp)
-    for track in moov.parse_tracks():
-        descriptions = track.parse_sample_descriptions()
+    for track in moov.extract_tracks():
+        descriptions = track.extract_sample_descriptions()
         if any(_is_gpmd_description(d) for d in descriptions):
             gpmd_samples = (
                 sample
-                for sample in track.parse_samples()
+                for sample in track.extract_samples()
                 if _is_gpmd_description(sample.description)
             )
             points = list(_extract_points_from_samples(fp, gpmd_samples))
@@ -332,12 +332,12 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
 
 def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
     moov = sample_parser.MovieBoxParser.parse_stream(fp)
-    for track in moov.parse_tracks():
-        descriptions = track.parse_sample_descriptions()
+    for track in moov.extract_tracks():
+        descriptions = track.extract_sample_descriptions()
         if any(_is_gpmd_description(d) for d in descriptions):
             gpmd_samples = (
                 sample
-                for sample in track.parse_samples()
+                for sample in track.extract_samples()
                 if _is_gpmd_description(sample.description)
             )
             device_names = _extract_dvnm_from_samples(fp, gpmd_samples)

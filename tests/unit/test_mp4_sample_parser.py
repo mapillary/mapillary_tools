@@ -7,13 +7,13 @@ def test_movie_box_parser():
     moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(
         Path("tests/data/videos/sample-5s.mp4")
     )
-    assert 2 == len(list(moov_parser.parse_tracks()))
-    video_track = moov_parser.parse_track_at(0)
+    assert 2 == len(list(moov_parser.extract_tracks()))
+    video_track = moov_parser.extract_track_at(0)
     assert video_track.is_video_track()
-    aac_track = moov_parser.parse_track_at(1)
+    aac_track = moov_parser.extract_track_at(1)
     assert not aac_track.is_video_track()
-    samples = list(video_track.parse_samples())
-    raw_samples = list(video_track.parse_raw_samples())
+    samples = list(video_track.extract_samples())
+    raw_samples = list(video_track.extract_raw_samples())
     assert 171 == len(samples)
     assert len(samples) == len(raw_samples)
     assert {
@@ -31,7 +31,7 @@ def test_movie_box_parser():
         "height": 70778880,
     } == {
         k: v
-        for k, v in video_track.tkhd().items()
+        for k, v in video_track.extract_tkhd_boxdata().items()
         if k
         in [
             "version",
@@ -47,7 +47,7 @@ def test_movie_box_parser():
             "height",
         ]
     }
-    assert isinstance(video_track.tkhd(), dict)
+    assert isinstance(video_track.extract_tkhd_boxdata(), dict)
     for sample, raw_sample in zip(samples, raw_samples):
         assert sample.raw_sample.offset == raw_sample.offset
         assert sample.raw_sample.is_sync == raw_sample.is_sync

@@ -160,12 +160,12 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     points = None
 
     moov = sample_parser.MovieBoxParser.parse_stream(fp)
-    for track in moov.parse_tracks():
-        descriptions = track.parse_sample_descriptions()
+    for track in moov.extract_tracks():
+        descriptions = track.extract_sample_descriptions()
         if any(_is_camm_description(d) for d in descriptions):
             maybe_points = (
                 _parse_point_from_sample(fp, sample)
-                for sample in track.parse_samples()
+                for sample in track.extract_samples()
                 if _is_camm_description(sample.description)
             )
             points = [p for p in maybe_points if p is not None]
@@ -178,7 +178,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
                         mdhd_boxdata = track.extract_mdhd_boxdata()
                         media_timescale = mdhd_boxdata["timescale"]
                         # movie_timescale
-                        mvhd_boxdata = moov.mvhd()
+                        mvhd_boxdata = moov.extract_mvhd_boxdata()
                         movie_timescale = mvhd_boxdata["timescale"]
                         segments = [
                             elst_entry_to_seconds(

@@ -234,7 +234,7 @@ def _sample_video_stream_by_distance(
     """
 
     LOG.info("Extracting video samples")
-    sorted_samples = list(video_track_parser.parse_samples())
+    sorted_samples = list(video_track_parser.extract_samples())
     # we need sort sampels by composition time (CT) not the decoding offset (DT)
     # CT is the oder of videos streaming to audiences, as well as the order ffmpeg sampling
     sorted_samples.sort(key=lambda sample: sample.exact_composition_time)
@@ -316,7 +316,7 @@ def _sample_single_video_by_distance(
     LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
     moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
-    video_track_parser = moov_parser.parse_track_at(video_stream_idx)
+    video_track_parser = moov_parser.extract_track_at(video_stream_idx)
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
         video_metadata.points, video_track_parser, sample_distance
     )

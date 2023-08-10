@@ -255,7 +255,7 @@ def _update_sbtl_sample_offsets(trak: BoxDict, sample_offset: int) -> int:
         )
         sample_offset += sample.size
     stbl_box = cparser.find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
-    descriptions, _ = sample_parser.parse_raw_samples_from_stbl_data(
+    descriptions, _ = sample_parser.extract_raw_samples_from_stbl_data(
         T.cast(bytes, stbl_box["data"])
     )
     stbl_children_boxes = build_stbl_from_raw_samples(
@@ -274,7 +274,7 @@ def iterate_samples(
             stbl_box = cparser.find_box_at_pathx(
                 box, [b"trak", b"mdia", b"minf", b"stbl"]
             )
-            _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl_data(
+            _, raw_samples_iter = sample_parser.extract_raw_samples_from_stbl_data(
                 T.cast(bytes, stbl_box["data"])
             )
             yield from raw_samples_iter

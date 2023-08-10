@@ -50,7 +50,7 @@ def _build_and_parse_stbl(
         io.BytesIO(ss)
     )
     assert expected_samples == list(parsed_samples)
-    _, parsed_samples = sample_parser.parse_raw_samples_from_stbl_data(ss)
+    _, parsed_samples = sample_parser.extract_raw_samples_from_stbl_data(ss)
     assert expected_samples == list(parsed_samples)
 
 
@@ -330,7 +330,7 @@ def test_parse_raw_samples_from_stbl():
     samples = list(sample_iter)
     _verify_samples(descs, samples)
 
-    descs, sample_iter = sample_parser.parse_raw_samples_from_stbl_data(stbl_bytes)
+    descs, sample_iter = sample_parser.extract_raw_samples_from_stbl_data(stbl_bytes)
     samples = list(sample_iter)
     _verify_samples(descs, samples)
 

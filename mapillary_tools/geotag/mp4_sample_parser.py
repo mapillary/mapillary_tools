@@ -150,7 +150,7 @@ STBLBoxlistConstruct = cparser.Box64ConstructBuilder(
 ).BoxList
 
 
-def parse_raw_samples_from_stbl_data(
+def extract_raw_samples_from_stbl_data(
     stbl: bytes,
 ) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
     descriptions = []
@@ -225,7 +225,7 @@ class TrackBoxParser:
         )
         self.stbl_data = T.cast(bytes, stbl["data"])
 
-    def tkhd(self) -> T.Dict:
+    def extract_tkhd_boxdata(self) -> T.Dict:
         return T.cast(
             T.Dict, cparser.find_box_at_pathx(self.trak_children, [b"tkhd"])["data"]
         )
@@ -234,7 +234,7 @@ class TrackBoxParser:
         hdlr = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"hdlr"])
         return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
-    def parse_sample_descriptions(self) -> T.List[T.Dict]:
+    def extract_sample_descriptions(self) -> T.List[T.Dict]:
         # TODO: return [] if parsing fail
         boxes = _STSDBoxListConstruct.parse(self.stbl_data)
         stsd = cparser.find_box_at_pathx(
@@ -252,12 +252,12 @@ class TrackBoxParser:
         box = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])
         return T.cast(T.Dict, box["data"])
 
-    def parse_raw_samples(self) -> T.Generator[RawSample, None, None]:
-        _, raw_samples = parse_raw_samples_from_stbl_data(self.stbl_data)
+    def extract_raw_samples(self) -> T.Generator[RawSample, None, None]:
+        _, raw_samples = extract_raw_samples_from_stbl_data(self.stbl_data)
         yield from raw_samples
 
-    def parse_samples(self) -> T.Generator[Sample, None, None]:
-        descriptions, raw_samples = parse_raw_samples_from_stbl_data(self.stbl_data)
+    def extract_samples(self) -> T.Generator[Sample, None, None]:
+        descriptions, raw_samples = extract_raw_samples_from_stbl_data(self.stbl_data)
         mdhd = T.cast(
             T.Dict,
             cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])["data"],
@@ -285,16 +285,16 @@ class MovieBoxParser:
         moov = sparser.parse_box_data_firstx(stream, [b"moov"])
         return MovieBoxParser(moov)
 
-    def mvhd(self) -> T.Dict:
+    def extract_mvhd_boxdata(self) -> T.Dict:
         mvhd = cparser.find_box_at_pathx(self.moov_children, [b"mvhd"])
         return T.cast(T.Dict, mvhd["data"])
 
-    def parse_tracks(self) -> T.Generator[TrackBoxParser, None, None]:
+    def extract_tracks(self) -> T.Generator[TrackBoxParser, None, None]:
         for box in self.moov_children:
             if box["type"] == b"trak":
                 yield TrackBoxParser(T.cast(T.Sequence[cparser.BoxDict], box["data"]))
 
-    def parse_track_at(self, stream_idx: int) -> TrackBoxParser:
+    def extract_track_at(self, stream_idx: int) -> TrackBoxParser:
         """
         stream_idx should be the stream_index specifier. See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
         > Stream numbering is based on the order of the streams as detected by libavformat
