@@ -11,7 +11,7 @@ else:
 import construct as C
 
 from .. import geo
-from . import mp4_sample_parser as sample_parser, simple_mp4_parser as sparser
+from . import mp4_sample_parser as sample_parser
 
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser
@@ -303,18 +303,25 @@ def _extract_points_from_samples(
     return values[0] if values else []
 
 
+def _is_gpmd_description(description: T.Dict) -> bool:
+    return description["format"] == b"gpmd"
+
+
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
     """
     Return a list of points (could be empty) if it is a valid GoPro video,
     otherwise None
     """
     points = None
-    for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        trak_start_offset = s.tell()
-        descriptions = _extract_gpmd_descriptions_from_trak(s, h.maxsize)
-        if descriptions:
-            s.seek(trak_start_offset, io.SEEK_SET)
-            gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
+    moov = sample_parser.MovieBoxParser.parse_stream(fp)
+    for track in moov.parse_tracks():
+        descriptions = track.parse_sample_descriptions()
+        if any(_is_gpmd_description(d) for d in descriptions):
+            gpmd_samples = (
+                sample
+                for sample in track.parse_samples()
+                if _is_gpmd_description(sample.description)
+            )
             points = list(_extract_points_from_samples(fp, gpmd_samples))
             # return the firstly found non-empty points
             if points:
@@ -323,34 +330,19 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
     return points
 
 
-def _extract_gpmd_descriptions_from_trak(
-    s: T.BinaryIO,
-    maxsize: int = -1,
-):
-    descriptions = sample_parser.parse_descriptions_from_trak(s, maxsize=maxsize)
-    return [d for d in descriptions if d["format"] == b"gpmd"]
-
-
-def _extract_gpmd_samples_from_trak(
-    s: T.BinaryIO,
-    maxsize: int = -1,
-) -> T.Generator[sample_parser.Sample, None, None]:
-    trak_start_offset = s.tell()
-    gpmd_descriptions = _extract_gpmd_descriptions_from_trak(s, maxsize=maxsize)
-    if gpmd_descriptions:
-        s.seek(trak_start_offset, io.SEEK_SET)
-        samples = sample_parser.parse_samples_from_trak_DEPRECATED(s, maxsize=maxsize)
-        for sample in samples:
-            if sample.description["format"] == b"gpmd":
-                yield sample
-
-
 def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
-    for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
-        device_names = _extract_dvnm_from_samples(fp, gpmd_samples)
-        if device_names:
-            return device_names
+    moov = sample_parser.MovieBoxParser.parse_stream(fp)
+    for track in moov.parse_tracks():
+        descriptions = track.parse_sample_descriptions()
+        if any(_is_gpmd_description(d) for d in descriptions):
+            gpmd_samples = (
+                sample
+                for sample in track.parse_samples()
+                if _is_gpmd_description(sample.description)
+            )
+            device_names = _extract_dvnm_from_samples(fp, gpmd_samples)
+            if device_names:
+                return device_names
     return {}
 
 
@@ -391,12 +383,3 @@ def parse_gpx(path: pathlib.Path) -> T.List[geo.PointWithFix]:
     if points is None:
         return []
     return points
-
-
-def iterate_gpmd_sample_data(fp: T.BinaryIO) -> T.Generator[T.Dict, None, None]:
-    for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        gpmd_samples = _extract_gpmd_samples_from_trak(s, h.maxsize)
-        for sample in gpmd_samples:
-            fp.seek(sample.raw_sample.offset, io.SEEK_SET)
-            data = fp.read(sample.raw_sample.size)
-            yield T.cast(T.Dict, GPMFSampleData.parse(data))

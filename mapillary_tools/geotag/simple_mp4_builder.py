@@ -15,8 +15,8 @@ from .mp4_sample_parser import RawSample
 Variable naming conventions:
 
 - *_box: a BoxDict
-- *_boxes: a list of BoxDicts
-- *_children: a list of BoxDicts under the parent box
+- *_children: a list of child BoxDicts under the parent box
+- *_boxdata: BoxDict["data"]
 - *_data: the data in bytes of a box (without the header (type and size))
 - *_typed_data: the data in bytes of a box (with the header (type and size))
 """
@@ -255,8 +255,8 @@ def _update_sbtl_sample_offsets(trak: BoxDict, sample_offset: int) -> int:
         )
         sample_offset += sample.size
     stbl_box = cparser.find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
-    descriptions, _ = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
-        io.BytesIO(T.cast(bytes, stbl_box["data"]))
+    descriptions, _ = sample_parser.parse_raw_samples_from_stbl_data(
+        T.cast(bytes, stbl_box["data"])
     )
     stbl_children_boxes = build_stbl_from_raw_samples(
         descriptions, repositioned_samples
@@ -274,8 +274,8 @@ def iterate_samples(
             stbl_box = cparser.find_box_at_pathx(
                 box, [b"trak", b"mdia", b"minf", b"stbl"]
             )
-            _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
-                io.BytesIO(T.cast(bytes, stbl_box["data"]))
+            _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl_data(
+                T.cast(bytes, stbl_box["data"])
             )
             yield from raw_samples_iter
 
