@@ -1,5 +1,4 @@
 import datetime
-import io
 import typing as T
 from pathlib import Path
 
@@ -146,77 +145,12 @@ def _extract_samples(
         acc_delta += raw_sample.timedelta
 
 
-def parse_raw_samples_from_stbl(
-    stbl: T.BinaryIO,
-    maxsize: int = -1,
-) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
-    """
-    DEPRECATED: use parse_raw_samples_from_stbl_bytes instead
-    """
-
-    descriptions = []
-    sizes = []
-    chunk_offsets = []
-    chunk_entries = []
-    timedeltas: T.List[int] = []
-    composition_timedeltas: T.Optional[T.List[int]] = None
-    syncs: T.Optional[T.Set[int]] = None
-
-    for h, s in sparser.parse_boxes(stbl, maxsize=maxsize, extend_eof=False):
-        if h.type == b"stsd":
-            box = cparser.SampleDescriptionBox.parse(s.read(h.maxsize))
-            descriptions = list(box.entries)
-        elif h.type == b"stsz":
-            box = cparser.SampleSizeBox.parse(s.read(h.maxsize))
-            if box.sample_size == 0:
-                sizes = list(box.entries)
-            else:
-                sizes = [box.sample_size for _ in range(box.sample_count)]
-        elif h.type == b"stco":
-            box = cparser.ChunkOffsetBox.parse(s.read(h.maxsize))
-            chunk_offsets = list(box.entries)
-        elif h.type == b"co64":
-            box = cparser.ChunkLargeOffsetBox.parse(s.read(h.maxsize))
-            chunk_offsets = list(box.entries)
-        elif h.type == b"stsc":
-            box = cparser.SampleToChunkBox.parse(s.read(h.maxsize))
-            chunk_entries = list(box.entries)
-        elif h.type == b"stts":
-            timedeltas = []
-            box = cparser.TimeToSampleBox.parse(s.read(h.maxsize))
-            for entry in box.entries:
-                for _ in range(entry.sample_count):
-                    timedeltas.append(entry.sample_delta)
-        elif h.type == b"ctts":
-            composition_timedeltas = []
-            box = cparser.CompositionTimeToSampleBox.parse(s.read(h.maxsize))
-            for entry in box.entries:
-                for _ in range(entry.sample_count):
-                    composition_timedeltas.append(entry.sample_offset)
-        elif h.type == b"stss":
-            box = cparser.SyncSampleBox.parse(s.read(h.maxsize))
-            syncs = set(box.entries)
-
-    # some stbl have less timedeltas than the sample count i.e. len(sizes),
-    # in this case append 0's to timedeltas
-    while len(timedeltas) < len(sizes):
-        timedeltas.append(0)
-    if composition_timedeltas is not None:
-        while len(composition_timedeltas) < len(sizes):
-            composition_timedeltas.append(0)
-
-    raw_samples = _extract_raw_samples(
-        sizes, chunk_entries, chunk_offsets, timedeltas, composition_timedeltas, syncs
-    )
-    return descriptions, raw_samples
-
-
 STBLBoxlistConstruct = cparser.Box64ConstructBuilder(
     T.cast(cparser.SwitchMapType, cparser.CMAP[b"stbl"])
 ).BoxList
 
 
-def parse_raw_samples_from_stbl_bytes(
+def parse_raw_samples_from_stbl_data(
     stbl: bytes,
 ) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
     descriptions = []
@@ -227,9 +161,11 @@ def parse_raw_samples_from_stbl_bytes(
     composition_timedeltas: T.Optional[T.List[int]] = None
     syncs: T.Optional[T.Set[int]] = None
 
-    stbl_boxes = T.cast(T.Sequence[cparser.BoxDict], STBLBoxlistConstruct.parse(stbl))
+    stbl_children = T.cast(
+        T.Sequence[cparser.BoxDict], STBLBoxlistConstruct.parse(stbl)
+    )
 
-    for box in stbl_boxes:
+    for box in stbl_children:
         data: T.Dict = T.cast(T.Dict, box["data"])
 
         if box["type"] == b"stsd":
@@ -272,86 +208,70 @@ def parse_raw_samples_from_stbl_bytes(
     return descriptions, raw_samples
 
 
-def parse_descriptions_from_trak(trak: T.BinaryIO, maxsize: int = -1) -> T.List[T.Dict]:
-    data = sparser.parse_box_data_first(
-        trak, [b"mdia", b"minf", b"stbl", b"stsd"], maxsize=maxsize
-    )
-    if data is None:
-        return []
-    box = cparser.SampleDescriptionBox.parse(data)
-    return list(box.entries)
-
-
-def parse_samples_from_trak(
-    trak: T.BinaryIO,
-    maxsize: int = -1,
-) -> T.Generator[Sample, None, None]:
-    trak_start_offset = trak.tell()
-
-    trak.seek(trak_start_offset, io.SEEK_SET)
-    mdhd_box = sparser.parse_box_data_firstx(trak, [b"mdia", b"mdhd"], maxsize=maxsize)
-    mdhd = T.cast(T.Dict, cparser.MediaHeaderBox.parse(mdhd_box))
-
-    trak.seek(trak_start_offset, io.SEEK_SET)
-    h, s = sparser.parse_box_path_firstx(
-        trak, [b"mdia", b"minf", b"stbl"], maxsize=maxsize
-    )
-    descriptions, raw_samples = parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
-
-    yield from _extract_samples(raw_samples, descriptions, mdhd["timescale"])
-
-
-STSDBoxListConstruct = cparser.Box64ConstructBuilder(
+_STSDBoxListConstruct = cparser.Box64ConstructBuilder(
     # pyre-ignore[6]: pyre does not support recursive type SwitchMapType
     {b"stsd": cparser.CMAP[b"stsd"]}
 ).BoxList
 
 
 class TrackBoxParser:
-    trak_boxes: T.Sequence[cparser.BoxDict]
+    trak_children: T.Sequence[cparser.BoxDict]
     stbl_data: bytes
 
-    def __init__(self, trak_boxes: T.Sequence[cparser.BoxDict]):
-        self.trak_boxes = trak_boxes
-        stbl = cparser.find_box_at_pathx(self.trak_boxes, [b"mdia", b"minf", b"stbl"])
+    def __init__(self, trak_children: T.Sequence[cparser.BoxDict]):
+        self.trak_children = trak_children
+        stbl = cparser.find_box_at_pathx(
+            self.trak_children, [b"mdia", b"minf", b"stbl"]
+        )
         self.stbl_data = T.cast(bytes, stbl["data"])
 
     def tkhd(self) -> T.Dict:
         return T.cast(
-            T.Dict, cparser.find_box_at_pathx(self.trak_boxes, [b"tkhd"])["data"]
+            T.Dict, cparser.find_box_at_pathx(self.trak_children, [b"tkhd"])["data"]
         )
 
     def is_video_track(self) -> bool:
-        hdlr = cparser.find_box_at_pathx(self.trak_boxes, [b"mdia", b"hdlr"])
+        hdlr = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"hdlr"])
         return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
-    def parse_sample_description(self) -> T.Dict:
-        boxes = STSDBoxListConstruct.parse(self.stbl_data)
+    def parse_sample_descriptions(self) -> T.List[T.Dict]:
+        # TODO: return [] if parsing fail
+        boxes = _STSDBoxListConstruct.parse(self.stbl_data)
         stsd = cparser.find_box_at_pathx(
             T.cast(T.Sequence[cparser.BoxDict], boxes), [b"stsd"]
         )
-        return T.cast(T.Dict, stsd["data"])
+        return T.cast(T.List[T.Dict], T.cast(T.Dict, stsd["data"])["entries"])
+
+    def extract_elst_boxdata(self) -> T.Optional[T.Dict]:
+        box = cparser.find_box_at_path(self.trak_children, [b"edts", b"elst"])
+        if box is None:
+            return None
+        return T.cast(T.Dict, box["data"])
+
+    def extract_mdhd_boxdata(self) -> T.Dict:
+        box = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])
+        return T.cast(T.Dict, box["data"])
 
     def parse_raw_samples(self) -> T.Generator[RawSample, None, None]:
-        _, raw_samples = parse_raw_samples_from_stbl_bytes(self.stbl_data)
+        _, raw_samples = parse_raw_samples_from_stbl_data(self.stbl_data)
         yield from raw_samples
 
     def parse_samples(self) -> T.Generator[Sample, None, None]:
-        descriptions, raw_samples = parse_raw_samples_from_stbl_bytes(self.stbl_data)
+        descriptions, raw_samples = parse_raw_samples_from_stbl_data(self.stbl_data)
         mdhd = T.cast(
             T.Dict,
-            cparser.find_box_at_pathx(self.trak_boxes, [b"mdia", b"mdhd"])["data"],
+            cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])["data"],
         )
         yield from _extract_samples(raw_samples, descriptions, mdhd["timescale"])
 
 
 class MovieBoxParser:
-    moov_boxes: T.Sequence[cparser.BoxDict]
+    moov_children: T.Sequence[cparser.BoxDict]
 
-    def __init__(self, moov: bytes):
-        self.moov_boxes = T.cast(
+    def __init__(self, moov_data: bytes):
+        self.moov_children = T.cast(
             T.Sequence[cparser.BoxDict],
-            cparser.MOOVWithoutSTBLBuilderConstruct.BoxList.parse(moov),
+            cparser.MOOVWithoutSTBLBuilderConstruct.BoxList.parse(moov_data),
         )
 
     @classmethod
@@ -360,12 +280,17 @@ class MovieBoxParser:
             moov = sparser.parse_box_data_firstx(fp, [b"moov"])
         return MovieBoxParser(moov)
 
-    def mvhd(self):
-        mvhd = cparser.find_box_at_pathx(self.moov_boxes, [b"mvhd"])
-        return mvhd["data"]
+    @classmethod
+    def parse_stream(cls, stream: T.BinaryIO) -> "MovieBoxParser":
+        moov = sparser.parse_box_data_firstx(stream, [b"moov"])
+        return MovieBoxParser(moov)
+
+    def mvhd(self) -> T.Dict:
+        mvhd = cparser.find_box_at_pathx(self.moov_children, [b"mvhd"])
+        return T.cast(T.Dict, mvhd["data"])
 
     def parse_tracks(self) -> T.Generator[TrackBoxParser, None, None]:
-        for box in self.moov_boxes:
+        for box in self.moov_children:
             if box["type"] == b"trak":
                 yield TrackBoxParser(T.cast(T.Sequence[cparser.BoxDict], box["data"]))
 
@@ -374,16 +299,17 @@ class MovieBoxParser:
         stream_idx should be the stream_index specifier. See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
         > Stream numbering is based on the order of the streams as detected by libavformat
         """
-        trak_boxes = [box for box in self.moov_boxes if box["type"] == b"trak"]
+        trak_boxes = [box for box in self.moov_children if box["type"] == b"trak"]
         if not (0 <= stream_idx < len(trak_boxes)):
             raise IndexError(
                 "unable to read stream at %d from the track list (length %d)",
                 stream_idx,
                 len(trak_boxes),
             )
-        return TrackBoxParser(
-            T.cast(T.Sequence[cparser.BoxDict], trak_boxes[stream_idx]["data"])
+        trak_children = T.cast(
+            T.Sequence[cparser.BoxDict], trak_boxes[stream_idx]["data"]
         )
+        return TrackBoxParser(trak_children)
 
 
 _DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)

@@ -152,7 +152,7 @@ def _extract_camm_samples(
     s: T.BinaryIO,
     maxsize: int = -1,
 ) -> T.Generator[sample_parser.Sample, None, None]:
-    samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
+    samples = sample_parser.parse_samples_from_trak_DEPRECATED(s, maxsize=maxsize)
     camm_samples = (
         sample for sample in samples if sample.description["format"] == b"camm"
     )

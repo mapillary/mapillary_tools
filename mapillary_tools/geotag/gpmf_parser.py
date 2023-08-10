@@ -339,7 +339,7 @@ def _extract_gpmd_samples_from_trak(
     gpmd_descriptions = _extract_gpmd_descriptions_from_trak(s, maxsize=maxsize)
     if gpmd_descriptions:
         s.seek(trak_start_offset, io.SEEK_SET)
-        samples = sample_parser.parse_samples_from_trak(s, maxsize=maxsize)
+        samples = sample_parser.parse_samples_from_trak_DEPRECATED(s, maxsize=maxsize)
         for sample in samples:
             if sample.description["format"] == b"gpmd":
                 yield sample

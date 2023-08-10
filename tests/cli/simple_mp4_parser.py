@@ -43,7 +43,9 @@ def _validate_samples(
             (
                 descriptions,
                 raw_samples,
-            ) = sample_parser.parse_raw_samples_from_stbl(s, maxsize=h.maxsize)
+            ) = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
+                s, maxsize=h.maxsize
+            )
             samples.extend(
                 sample
                 for sample in raw_samples
@@ -111,14 +113,18 @@ def _parse_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = Non
             LOG.info(sample_parser.to_datetime(box.creation_time))
             LOG.info(box.duration / box.timescale)
         s.seek(offset, io.SEEK_SET)
-        for sample in sample_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
+        for sample in sample_parser.parse_samples_from_trak_DEPRECATED(
+            s, maxsize=h.maxsize
+        ):
             if filters is None or sample.description["format"] in filters:
                 print(sample)
 
 
 def _dump_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
     for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        for sample in sample_parser.parse_samples_from_trak(s, maxsize=h.maxsize):
+        for sample in sample_parser.parse_samples_from_trak_DEPRECATED(
+            s, maxsize=h.maxsize
+        ):
             if filters is None or sample.description["format"] in filters:
                 fp.seek(sample.offset, io.SEEK_SET)
                 data = fp.read(sample.size)
