@@ -264,10 +264,24 @@ class Command:
 
     def run(self, vars_args: dict):
         if vars_args["geotag_sources"]:
+            # gpx:format=A,exif:format=B -> {'gpx': {'format': 'A'}, 'exif': {'format': 'B'}]
+            geotag_sources = vars_args["geotag_sources"].split(",")
+            geotag_sources_opts = {}
+            for gs in geotag_sources:
+                (source_name, source_opts) = (
+                    gs.split(":") if ":" in gs else [gs, "format=%d/%f.%e"]
+                )
+                (opt_name, opt_value) = (
+                    source_opts.split("=")
+                    if "=" in source_opts
+                    else [source_opts, "%d/%f.%e"]
+                )
+                geotag_sources_opts[source_name] = {opt_name: opt_value}
+
             options: Options = {
                 "paths": vars_args["import_path"],
                 "recursive": vars_args["skip_subfolders"] == False,
-                "geotag_sources": vars_args["geotag_sources"].split(","),
+                "geotag_sources_options": geotag_sources_opts,
                 "geotag_source_path": vars_args["geotag_source_path"],
                 "exiftool_path": vars_args["exiftool_path"],
                 "num_processes": vars_args["num_processes"],

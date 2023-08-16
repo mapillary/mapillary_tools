@@ -1,4 +1,5 @@
 import functools
+import os
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -12,9 +13,25 @@ from mapillary_tools.geotag.geotag_videos_from_exiftool_video import _DESCRIPTIO
 
 
 class ExiftoolRdfParser(BaseParser):
+    def _devise_rdf_file(self):
+        video_dir = self.videoPath.parent
+        video_filename = self.videoPath.name
+        video_basename = os.path.splitext(video_filename)[0]
+        format = (
+            self.options["geotag_sources_options"]
+            .get("exiftool_rdf", {})
+            .get("format", "%f.%e")
+        )
+        replaced = (
+            format.replace("%f", video_basename)
+            .replace("%e", ".xml")
+        )
+        return Path.joinpath(video_dir, replaced)
+
     @functools.cache
     def _get_reader(self) -> ExifToolReadVideo:
-        etree = ET.parse(self.videoPath)
+        rdf_file = self._devise_rdf_file()
+        etree = ET.parse(rdf_file)
         element = next(etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES))
         return ExifToolReadVideo(ET.ElementTree(element))
 

@@ -27,9 +27,9 @@ known_parsers = {
 
 
 def make_parsers(file: Path, options: Options) -> T.Sequence[BaseParser]:
-    geotag_sources = options["geotag_sources"]
+    geotag_sources = options["geotag_sources_options"]
     parsers = [
-        known_parsers[s](file, options) for s in geotag_sources if s in known_parsers
+        known_parsers[s](file, options) for s in geotag_sources.keys() if s in known_parsers
     ]
 
     return parsers

@@ -21,8 +21,8 @@ class ExiftoolRuntimeParser(BaseParser):
 
     exiftoolRdfPath: T.Optional[Path]
 
-    def __init__(self, file_path: Path, options: Options) -> None:
-        super().__init__(file_path, options)
+    def __init__(self, video_path: Path, options: Options) -> None:
+        super().__init__(video_path, options)
         self.exiftoolRdfPath = None
 
     @functools.cache

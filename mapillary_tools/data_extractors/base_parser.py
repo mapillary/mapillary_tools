@@ -11,8 +11,8 @@ class BaseParser:
     geotagSourcePath: T.Optional[Path]
     options: Options
 
-    def __init__(self, file_path: Path, options: Options) -> None:
-        self.videoPath = file_path
+    def __init__(self, video_path: Path, options: Options) -> None:
+        self.videoPath = video_path
         self.geotagSourcePath = None
         self.options = options
 
