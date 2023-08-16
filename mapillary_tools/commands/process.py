@@ -3,6 +3,10 @@ import inspect
 import typing as T
 from pathlib import Path
 
+from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
+
+from mapillary_tools.video_data_extraction.options import Options
+
 from .. import constants
 from ..process_geotag_properties import (
     FileType,
@@ -164,10 +168,25 @@ class Command:
             required=False,
         )
         group_geotagging.add_argument(
+            "--geotag_sources",
+            help="Provide the source of date/time and GPS information needed for geotagging. [default: %(default)s]",
+            action="store",
+            default="exif",
+            required=False,
+        )
+        group_geotagging.add_argument(
             "--geotag_source_path",
             help="Provide the path to the file source of date/time and GPS information needed for geotagging.",
             action="store",
             default=None,
+            required=False,
+            type=Path,
+        )
+        group_geotagging.add_argument(
+            "--exiftool_path",
+            help="Absolute path to the exiftool executable.",
+            action="store",
+            default="exiftool",
             required=False,
             type=Path,
         )
@@ -244,31 +263,43 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        if (
-            "geotag_source" in vars_args
-            and vars_args["geotag_source"] == "blackvue_videos"
-            and (
-                "device_make" not in vars_args
-                or ("device_make" in vars_args and not vars_args["device_make"])
-            )
-        ):
-            vars_args["device_make"] = "Blackvue"
-        if (
-            "device_make" in vars_args
-            and vars_args["device_make"]
-            and vars_args["device_make"].lower() == "blackvue"
-        ):
-            vars_args["duplicate_angle"] = 360
+        if vars_args["geotag_sources"]:
+            options: Options = {
+                "paths": vars_args["import_path"],
+                "recursive": vars_args["skip_subfolders"] == False,
+                "geotag_sources": vars_args["geotag_sources"].split(","),
+                "geotag_source_path": vars_args["geotag_source_path"],
+                "exiftool_path": vars_args["exiftool_path"],
+                "num_processes": vars_args["num_processes"],
+            }
+            extractor = VideoDataExtractor(options)
+            metadatas = extractor.process()
+        else:
+            if (
+                "geotag_source" in vars_args
+                and vars_args["geotag_source"] == "blackvue_videos"
+                and (
+                    "device_make" not in vars_args
+                    or ("device_make" in vars_args and not vars_args["device_make"])
+                )
+            ):
+                vars_args["device_make"] = "Blackvue"
+            if (
+                "device_make" in vars_args
+                and vars_args["device_make"]
+                and vars_args["device_make"].lower() == "blackvue"
+            ):
+                vars_args["duplicate_angle"] = 360
 
-        metadatas = process_geotag_properties(
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(process_geotag_properties).args
-                }
+            metadatas = process_geotag_properties(
+                **(
+                    {
+                        k: v
+                        for k, v in vars_args.items()
+                        if k in inspect.getfullargspec(process_geotag_properties).args
+                    }
+                )
             )
-        )
 
         metadatas = process_import_meta_properties(
             metadatas=metadatas,
