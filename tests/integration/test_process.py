@@ -63,7 +63,7 @@ _DEFAULT_EXPECTED_DESCS = {
         "filetype": "image",
         "MAPLatitude": -0.0702668,
         "MAPLongitude": 34.3819352,
-        "MAPCaptureTime": "2019_07_16_08_26_11_000",
+        "MAPCaptureTime": "2019_07_16_10_26_11_000",
         "MAPCompassHeading": {"TrueHeading": 0, "MagneticHeading": 0},
         "MAPDeviceMake": "SAMSUNG",
         "MAPDeviceModel": "SM-C200",
