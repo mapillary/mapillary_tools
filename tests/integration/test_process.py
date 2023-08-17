@@ -280,7 +280,7 @@ def test_parse_adobe_coordinates(setup_data: py.path.local):
                 "filetype": "image",
                 "MAPLatitude": -0.0702668,
                 "MAPLongitude": 34.3819352,
-                "MAPCaptureTime": "2019_07_16_10_26_11_000",
+                "MAPCaptureTime": _local_to_utc("2019_07_16_10_26_11_000"),
                 "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
                 "MAPDeviceMake": "SAMSUNG",
                 "MAPDeviceModel": "SM-C200",
