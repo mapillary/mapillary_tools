@@ -64,14 +64,11 @@ _DEFAULT_EXPECTED_DESCS = {
         "MAPLatitude": -0.0702668,
         "MAPLongitude": 34.3819352,
         "MAPCaptureTime": "2019_07_16_08_26_11_000",
-        "MAPCompassHeading": {
-        "TrueHeading": 0,
-        "MagneticHeading": 0
-        },
+        "MAPCompassHeading": {"TrueHeading": 0, "MagneticHeading": 0},
         "MAPDeviceMake": "SAMSUNG",
         "MAPDeviceModel": "SM-C200",
-        "MAPOrientation": 1
-    }
+        "MAPOrientation": 1,
+    },
 }
 
 
@@ -276,21 +273,21 @@ def test_angle_with_offset_with_exiftool(setup_data: py.path.local):
 def test_parse_adobe_coordinates(setup_data: py.path.local):
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}/adobe_coords"
     x = subprocess.run(args, shell=True)
-    verify_descs([{
-            "filename": str(Path(setup_data, "adobe_coords", "adobe_coords.jpg")),
-            "filetype": "image",
-            "MAPLatitude": -0.0702668,
-            "MAPLongitude": 34.3819352,
-            "MAPCaptureTime": "2019_07_16_08_26_11_000",
-            "MAPCompassHeading": {
-                "TrueHeading": 0.0,
-                "MagneticHeading": 0.0
-            },
-            "MAPDeviceMake": "SAMSUNG",
-            "MAPDeviceModel": "SM-C200",
-            "MAPOrientation": 1,
-    }], 
-    Path(setup_data, "adobe_coords/mapillary_image_description.json"),
+    verify_descs(
+        [
+            {
+                "filename": str(Path(setup_data, "adobe_coords", "adobe_coords.jpg")),
+                "filetype": "image",
+                "MAPLatitude": -0.0702668,
+                "MAPLongitude": 34.3819352,
+                "MAPCaptureTime": "2019_07_16_08_26_11_000",
+                "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
+                "MAPDeviceMake": "SAMSUNG",
+                "MAPDeviceModel": "SM-C200",
+                "MAPOrientation": 1,
+            }
+        ],
+        Path(setup_data, "adobe_coords/mapillary_image_description.json"),
     )
 
 

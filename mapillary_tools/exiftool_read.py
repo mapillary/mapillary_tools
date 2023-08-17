@@ -310,9 +310,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         if lon_lat is not None:
             return lon_lat
 
-        lon_lat = self._extract_lon_lat(
-            "XMP-exif:GPSLongitude", "XMP-exif:GPSLatitude"
-        )
+        lon_lat = self._extract_lon_lat("XMP-exif:GPSLongitude", "XMP-exif:GPSLatitude")
         if lon_lat is not None:
             return lon_lat
 
