@@ -76,6 +76,7 @@ def parse_coordinate(coord: T.Optional[str]) -> T.Optional[float]:
 
     return None
 
+
 def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
     try:
         return datetime.datetime.fromisoformat(dtstr)
@@ -407,12 +408,16 @@ class ExifReadFromXMP(ExifReadABC):
         )
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
-        lat_str: T.Optional[str] = self._extract_alternative_fields(["exif:GPSLatitude"], str)
+        lat_str: T.Optional[str] = self._extract_alternative_fields(
+            ["exif:GPSLatitude"], str
+        )
         lat: T.Optional[float] = parse_coordinate(lat_str)
         if lat is None:
             return None
 
-        lon_str: T.Optional[str] = self._extract_alternative_fields(["exif:GPSLongitude"], str)
+        lon_str: T.Optional[str] = self._extract_alternative_fields(
+            ["exif:GPSLongitude"], str
+        )
         lon = parse_coordinate(lon_str)
         if lon is None:
             return None
