@@ -1,6 +1,8 @@
 import abc
 import datetime
+from fractions import Fraction
 import logging
+import re
 import typing as T
 import xml.etree.ElementTree as et
 from pathlib import Path
@@ -45,6 +47,32 @@ def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     except ZeroDivisionError:
         return None
     return degrees + minutes / 60 + seconds / 3600
+
+
+def parse_coordinate(coord: T.Optional[str]) -> T.Optional[float]:
+    """ If the coordinate is in decimal degrees, just convert it to float,
+        otherwise try to parse it from the Adobe format 
+        <degree,fractionalminute[NSEW]>
+    """
+
+    if not coord:
+        return None
+    
+    try:
+        return float(coord)
+    except ValueError:
+        pass
+    
+    adobe_format = re.match(r'(\d+),(\d{1,3}\.?\d*)([NSWE])', coord)
+    if adobe_format:
+        sign = {'N': 1, 'S': -1, 'E': 1, 'W': -1}
+        deg = Ratio(int(adobe_format.group(1)), 1)
+        min_frac = Fraction.from_float(float(adobe_format.group(2)))
+        min = Ratio(min_frac.numerator, min_frac.denominator)
+        sec = Ratio(0 ,1)
+        converted = gps_to_decimal((deg, min, sec))
+        if converted:
+            return converted * sign[adobe_format.group(3)]
 
 
 def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
@@ -378,20 +406,22 @@ class ExifReadFromXMP(ExifReadABC):
         )
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
-        lat = self._extract_alternative_fields(["exif:GPSLatitude"], float)
+        lat = self._extract_alternative_fields(["exif:GPSLatitude"], str)
+        lat = parse_coordinate(lat)
         if lat is None:
             return None
-
-        lon = self._extract_alternative_fields(["exif:GPSLongitude"], float)
+        
+        lon = self._extract_alternative_fields(["exif:GPSLongitude"], str)
+        lon = parse_coordinate(lon)
         if lon is None:
             return None
 
         ref = self._extract_alternative_fields(["exif:GPSLongitudeRef"], str)
-        if ref and ref.upper() == "W":
+        if ref and ref.upper() == "W" and lon > 0:
             lon = -1 * lon
 
         ref = self._extract_alternative_fields(["exif:GPSLatitudeRef"], str)
-        if ref and ref.upper() == "S":
+        if ref and ref.upper() == "S" and lat > 0:
             lat = -1 * lat
 
         return lon, lat
