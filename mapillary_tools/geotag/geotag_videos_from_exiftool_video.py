@@ -19,20 +19,13 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
-        xml_path: T.Optional[Path],
+        xml_path: Path,
         num_processes: T.Optional[int] = None,
     ):
-        if xml_path is None:
-            raise exceptions.MapillaryFileNotFoundError(
-                "Geotag source path (--xml_path) is required"
-            )
-        if not xml_path.exists():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Geotag source file not found: {xml_path}"
-            )
-
-        self.xml_path: Path = xml_path
-        super().__init__(video_paths=video_paths, num_processes=num_processes)
+        self.video_paths = video_paths
+        self.xml_path = xml_path
+        self.num_processes = num_processes
+        super().__init__()
 
     @staticmethod
     def geotag_video(element: ET.Element) -> types.VideoMetadataOrError:
@@ -41,13 +34,34 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
 
         try:
             exif = ExifToolReadVideo(ET.ElementTree(element))
+
             points = exif.extract_gps_track()
+
             if not points:
                 raise exceptions.MapillaryVideoGPSNotFoundError(
                     "No GPS data found from the video"
                 )
 
-            points = GeotagVideosFromGeneric.process_points(points)
+            points = geo.extend_deduplicate_points(points)
+            assert points, "must have at least one point"
+
+            if all(isinstance(p, geo.PointWithFix) for p in points):
+                points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.remove_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], points)
+                    ),
+                )
+                if not points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            )
+
+            if stationary:
+                raise exceptions.MapillaryStationaryVideoError("Stationary video")
+
             video_metadata = types.VideoMetadata(
                 video_path,
                 md5sum=None,
@@ -58,6 +72,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             )
 
             LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
+
             video_metadata.update_md5sum()
 
         except Exception as ex:

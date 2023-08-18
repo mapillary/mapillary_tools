@@ -7,7 +7,14 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, geo, types
-from . import blackvue_parser, camm_parser, gpmf_parser, simple_mp4_parser as parser
+from . import (
+    blackvue_parser,
+    camm_parser,
+    gpmf_gps_filter,
+    gpmf_parser,
+    simple_mp4_parser as parser,
+    utils as video_utils,
+)
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -150,13 +157,29 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             if not video_metadata.points:
                 raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
-            video_metadata.points = GeotagVideosFromGeneric.process_points(
-                video_metadata.points
+            video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
+            assert video_metadata.points, "must have at least one point"
+
+            if all(isinstance(p, geo.PointWithFix) for p in video_metadata.points):
+                video_metadata.points = T.cast(
+                    T.List[geo.Point],
+                    gpmf_gps_filter.remove_noisy_points(
+                        T.cast(T.List[geo.PointWithFix], video_metadata.points)
+                    ),
+                )
+                if not video_metadata.points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+
+            stationary = video_utils.is_video_stationary(
+                geo.get_max_distance_from_start(
+                    [(p.lat, p.lon) for p in video_metadata.points]
+                )
             )
+            if stationary:
+                raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
             LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
             video_metadata.update_md5sum()
-
         except Exception as ex:
             if not isinstance(ex, exceptions.MapillaryDescriptionError):
                 LOG.warning(

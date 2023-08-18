@@ -298,21 +298,21 @@ class ExifToolReadVideo:
         self._texts_by_tag = _index_text_by_tag(self.etree.getroot())
         self._all_tags = set(self._texts_by_tag.keys())
 
-    def extract_gps_track(self) -> T.Sequence[geo.Point]:
+    def extract_gps_track(self) -> T.List[geo.Point]:
         # blackvue and many other cameras
         track_with_fix = self._extract_gps_track_from_quicktime()
         if track_with_fix:
-            return T.cast(T.Sequence[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         # insta360 has its own tag
         track_with_fix = self._extract_gps_track_from_quicktime(namespace="Insta360")
         if track_with_fix:
-            return T.cast(T.Sequence[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         # mostly for gopro
         track_with_fix = self._extract_gps_track_from_track()
         if track_with_fix:
-            return T.cast(T.Sequence[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         return []
 
