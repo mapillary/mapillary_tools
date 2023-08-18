@@ -55,7 +55,7 @@ def _parse_coord_numeric(coord: str) -> T.Optional[float]:
     try:
         return float(coord)
     except ValueError:
-        pass
+        return None
 
 
 def _parse_coord_adobe(coord: str) -> T.Optional[float]:
