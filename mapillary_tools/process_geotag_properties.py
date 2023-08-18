@@ -201,18 +201,6 @@ def process_geotag_properties(
                 geotag_source_path,
                 num_processes=num_processes,
             )
-        elif geotag_source == "gpx":
-            geotag = geotag_videos_from_gpx.GeotagVideosFromGpx(
-                video_paths,
-                geotag_source_path,
-                num_processes=num_processes,
-            )
-        elif geotag_source == "nmea":
-            geotag = geotag_videos_from_nmea.GeotagVideosFromNmea(
-                video_paths,
-                geotag_source_path,
-                num_processes=num_processes,
-            )
         else:
             geotag = geotag_videos_from_video.GeotagVideosFromVideo(
                 video_paths,
