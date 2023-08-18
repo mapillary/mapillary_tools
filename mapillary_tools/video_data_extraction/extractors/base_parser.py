@@ -25,7 +25,7 @@ class BaseParser(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def default_source_pattern(cls) -> str:
+    def default_source_pattern(self) -> str:
         raise NotImplementedError
 
     @property
