@@ -5,7 +5,7 @@ from pathlib import Path
 
 from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
 
-from mapillary_tools.video_data_extraction.options import Options
+from mapillary_tools.video_data_extraction.options import Options, ParserOptions
 
 from .. import constants
 from ..process_geotag_properties import (
@@ -171,7 +171,7 @@ class Command:
             "--geotag_sources",
             help="Provide the source of date/time and GPS information needed for geotagging. [default: %(default)s]",
             action="store",
-            default="exif",
+            default=None,
             required=False,
         )
         group_geotagging.add_argument(
@@ -264,19 +264,23 @@ class Command:
 
     def run(self, vars_args: dict):
         if vars_args["geotag_sources"]:
-            # gpx:format=A,exif:format=B -> {'gpx': {'format': 'A'}, 'exif': {'format': 'B'}]
+            # gpx:format=A,exif:format=B -> [{source: 'gpx', 'format': 'A'}, {'source': 'exif', format': 'B'}]
+            # FIXME: This is just a temporary placeholder while deciding on the command line format
             geotag_sources = vars_args["geotag_sources"].split(",")
-            geotag_sources_opts = {}
-            for gs in geotag_sources:
+            geotag_sources_opts: T.List[ParserOptions] = []
+            for source in geotag_sources:
                 (source_name, source_opts) = (
-                    gs.split(":") if ":" in gs else [gs, "format=%d/%f.%e"]
+                    source.split(":") if ":" in source else [source, ""]
                 )
-                (opt_name, opt_value) = (
-                    source_opts.split("=")
-                    if "=" in source_opts
-                    else [source_opts, "%d/%f.%e"]
-                )
-                geotag_sources_opts[source_name] = {opt_name: opt_value}
+                compiled_source_opts: ParserOptions = {"source": source_name}
+                for opt_key_value in source_opts.split(";"):
+                    (opt_name, opt_value) = (
+                        opt_key_value.split("=")
+                        if "=" in opt_key_value
+                        else [opt_key_value, ""]
+                    )
+                    compiled_source_opts[opt_name] = opt_value  # type: ignore
+                geotag_sources_opts.append(compiled_source_opts)
 
             options: Options = {
                 "paths": vars_args["import_path"],

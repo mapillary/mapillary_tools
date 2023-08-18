@@ -1,21 +1,23 @@
 import functools
-import os
 import typing as T
 from pathlib import Path
 
 from mapillary_tools import exceptions, geo
-from mapillary_tools.data_extractors.base_parser import BaseParser
 from mapillary_tools.geotag import geotag_images_from_gpx_file
+from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
 
 
 class GpxParser(BaseParser):
-    @functools.cache
-    def _get_geotag_source(self) -> Path:
-        return next(self.videoPath.parent.glob("*gpx"))
+    default_source_pattern = "%g.gpx"
+    must_rebase_times_to_zero = True
+    parser_label = "gpx"
 
     def extract_points(self) -> T.Sequence[geo.Point]:
+        path = self.get_geotag_source_path()
+        if not path:
+            return []
         try:
-            tracks = geotag_images_from_gpx_file.parse_gpx(self._get_geotag_source())
+            tracks = geotag_images_from_gpx_file.parse_gpx(path)
         except Exception as e:
             return []
 
@@ -27,7 +29,3 @@ class GpxParser(BaseParser):
 
     def extract_model(self) -> T.Optional[str]:
         return None
-
-    @staticmethod
-    def must_rebase_times_to_zero() -> bool:
-        return True
