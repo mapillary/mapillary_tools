@@ -23,8 +23,8 @@ XMP_NAMESPACES = {
 # https://github.com/ianare/exif-py/issues/167
 EXIFREAD_LOG = logging.getLogger("exifread")
 EXIFREAD_LOG.setLevel(logging.ERROR)
-
-adobe_format_regex = re.compile(r"(\d+),(\d{1,3}\.?\d*)([NSWE])")
+SIGN_BY_DIRECTION = {None: 1, "N": 1, "S": -1, "E": 1, "W": -1}
+ADOBE_FORMAT_REGEX = re.compile(r"(\d+),(\d{1,3}\.?\d*)([NSWE])")
 
 
 def eval_frac(value: Ratio) -> float:
@@ -51,10 +51,10 @@ def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     return degrees + minutes / 60 + seconds / 3600
 
 
-def _parse_coord_numeric(coord: str) -> T.Optional[float]:
+def _parse_coord_numeric(coord: str, ref: T.Optional[str]) -> T.Optional[float]:
     try:
-        return float(coord)
-    except ValueError:
+        return float(coord) * SIGN_BY_DIRECTION[ref]
+    except (ValueError, KeyError):
         return None
 
 
@@ -62,23 +62,22 @@ def _parse_coord_adobe(coord: str) -> T.Optional[float]:
     """
     Parse Adobe coordinate format: <degrees,fractionalminutes[NSEW]>
     """
-    matches = adobe_format_regex.match(coord)
+    matches = ADOBE_FORMAT_REGEX.match(coord)
     if matches:
-        sign = {"N": 1, "S": -1, "E": 1, "W": -1}
         deg = Ratio(int(matches.group(1)), 1)
         min_frac = Fraction.from_float(float(matches.group(2)))
         min = Ratio(min_frac.numerator, min_frac.denominator)
         sec = Ratio(0, 1)
         converted = gps_to_decimal((deg, min, sec))
         if converted is not None:
-            return converted * sign[matches.group(3)]
+            return converted * SIGN_BY_DIRECTION[matches.group(3)]
     return None
 
 
-def _parse_coord(coord: T.Optional[str]) -> T.Optional[float]:
+def _parse_coord(coord: T.Optional[str], ref: T.Optional[str]) -> T.Optional[float]:
     if coord is None:
         return None
-    parsed = _parse_coord_numeric(coord)
+    parsed = _parse_coord_numeric(coord, ref)
     if parsed is None:
         parsed = _parse_coord_adobe(coord)
     return parsed
@@ -415,27 +414,21 @@ class ExifReadFromXMP(ExifReadABC):
         )
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+        lat_ref = self._extract_alternative_fields(["exif:GPSLatitudeRef"], str)
         lat_str: T.Optional[str] = self._extract_alternative_fields(
             ["exif:GPSLatitude"], str
         )
-        lat: T.Optional[float] = _parse_coord(lat_str)
+        lat: T.Optional[float] = _parse_coord(lat_str, lat_ref)
         if lat is None:
             return None
 
+        lon_ref = self._extract_alternative_fields(["exif:GPSLongitudeRef"], str)
         lon_str: T.Optional[str] = self._extract_alternative_fields(
             ["exif:GPSLongitude"], str
         )
-        lon = _parse_coord(lon_str)
+        lon = _parse_coord(lon_str, lon_ref)
         if lon is None:
             return None
-
-        ref = self._extract_alternative_fields(["exif:GPSLongitudeRef"], str)
-        if ref and ref.upper() == "W" and lon > 0:
-            lon = -1 * lon
-
-        ref = self._extract_alternative_fields(["exif:GPSLatitudeRef"], str)
-        if ref and ref.upper() == "S" and lat > 0:
-            lat = -1 * lat
 
         return lon, lat
 

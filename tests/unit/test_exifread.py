@@ -1,5 +1,7 @@
 import datetime
 import os
+
+import typing as T
 import unittest
 from pathlib import Path
 
@@ -9,14 +11,12 @@ import pytest
 from mapillary_tools import geo
 
 from mapillary_tools.exif_read import (
-    ExifRead,
     _parse_coord,
+    ExifRead,
     parse_datetimestr_with_subsec_and_offset,
 )
 from mapillary_tools.exif_write import ExifEdit
 from PIL import ExifTags, Image
-
-import typing as T
 
 """Initialize all the neccessary data"""
 
@@ -257,20 +257,28 @@ def test_parse():
 
 
 @pytest.mark.parametrize(
-    "raw_coord,expected",
+    "raw_coord,raw_ref,expected",
     [
-        ("0.0", 0),
-        ("foo", None),
-        ("1.5", 1.5),
-        ("-1.5", -1.5),
-        ("33,18.32N", 33.30533),
-        ("33,18.32S", -33.30533),
-        ("44,24.54E", 44.40900),
-        ("44,24.54W", -44.40900),
+        (None, "", None),
+        ("foo", "N", None),
+        ("0.0", "foo", None),
+        ("0.0", "N", 0),
+        ("1.5", "N", 1.5),
+        ("1.5", "S", -1.5),
+        ("-1.5", "N", -1.5),
+        ("-1.5", "S", 1.5),
+        ("-1.5", "S", 1.5),
+        ("33,18.32N", "N", 33.30533),
+        ("33,18.32N", "S", 33.30533),
+        ("33,18.32S", "", -33.30533),
+        ("44,24.54E", "", 44.40900),
+        ("44,24.54W", "", -44.40900),
     ],
 )
-def test_parse_coordinates(raw_coord: T.Optional[str], expected: T.Optional[float]):
-    assert _parse_coord(raw_coord) == pytest.approx(expected)
+def test_parse_coordinates(
+    raw_coord: T.Optional[str], raw_ref: str, expected: T.Optional[float]
+):
+    assert _parse_coord(raw_coord, raw_ref) == pytest.approx(expected)
 
 
 # test ExifWrite write a timestamp and ExifRead read it back
