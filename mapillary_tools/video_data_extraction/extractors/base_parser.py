@@ -2,22 +2,26 @@ import abc
 import functools
 import logging
 import os
+import sys
 import typing as T
 from pathlib import Path
 
 from mapillary_tools import geo
-from mapillary_tools.video_data_extraction.options import Options, ParserOptions
+from mapillary_tools.video_data_extraction.cli_options import (
+    CliOptions,
+    CliParserOptions,
+)
 
 LOG = logging.getLogger(__name__)
 
 
 class BaseParser(metaclass=abc.ABCMeta):
     videoPath: Path
-    options: Options
-    parserOptions: ParserOptions
+    options: CliOptions
+    parserOptions: CliParserOptions
 
     def __init__(
-        self, video_path: Path, options: Options, parser_options: ParserOptions
+        self, video_path: Path, options: CliOptions, parser_options: CliParserOptions
     ) -> None:
         self.videoPath = video_path
         self.options = options
@@ -42,17 +46,16 @@ class BaseParser(metaclass=abc.ABCMeta):
     def extract_points(self) -> T.Sequence[geo.Point]:
         raise NotImplementedError
 
+    @abc.abstractmethod
     def extract_make(self) -> T.Optional[str]:
-        return None
+        raise NotImplementedError
 
+    @abc.abstractmethod
     def extract_model(self) -> T.Optional[str]:
-        return None
+        raise NotImplementedError
 
-    def cleanup(self) -> None:
-        pass
-
-    @functools.cache
-    def get_geotag_source_path(self) -> T.Optional[Path]:
+    @functools.cached_property
+    def geotag_source_path(self) -> T.Optional[Path]:
         video_dir = self.videoPath.parent.resolve()
         video_filename = self.videoPath.name
         video_basename, video_ext = os.path.splitext(video_filename)

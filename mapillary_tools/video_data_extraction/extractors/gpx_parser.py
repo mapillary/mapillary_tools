@@ -1,8 +1,6 @@
-import functools
 import typing as T
-from pathlib import Path
 
-from mapillary_tools import exceptions, geo
+from mapillary_tools import geo
 from mapillary_tools.geotag import geotag_images_from_gpx_file
 from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
 
@@ -13,7 +11,7 @@ class GpxParser(BaseParser):
     parser_label = "gpx"
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        path = self.get_geotag_source_path()
+        path = self.geotag_source_path
         if not path:
             return []
         try:

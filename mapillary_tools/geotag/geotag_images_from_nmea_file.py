@@ -27,7 +27,7 @@ class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
         )
 
 
-def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.Sequence[geo.Point]:
+def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
     with nmea_file.open("r") as f:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]

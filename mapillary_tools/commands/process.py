@@ -3,9 +3,12 @@ import inspect
 import typing as T
 from pathlib import Path
 
-from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
+from mapillary_tools.video_data_extraction.cli_options import (
+    CliOptions,
+    CliParserOptions,
+)
 
-from mapillary_tools.video_data_extraction.options import Options, ParserOptions
+from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
 
 from .. import constants
 from ..process_geotag_properties import (
@@ -267,12 +270,12 @@ class Command:
             # gpx:format=A,exif:format=B -> [{source: 'gpx', 'format': 'A'}, {'source': 'exif', format': 'B'}]
             # FIXME: This is just a temporary placeholder while deciding on the command line format
             geotag_sources = vars_args["geotag_sources"].split(",")
-            geotag_sources_opts: T.List[ParserOptions] = []
+            geotag_sources_opts: T.List[CliParserOptions] = []
             for source in geotag_sources:
                 (source_name, source_opts) = (
                     source.split(":") if ":" in source else [source, ""]
                 )
-                compiled_source_opts: ParserOptions = {"source": source_name}
+                compiled_source_opts: CliParserOptions = {"source": source_name}
                 for opt_key_value in source_opts.split(";"):
                     (opt_name, opt_value) = (
                         opt_key_value.split("=")
@@ -282,7 +285,7 @@ class Command:
                     compiled_source_opts[opt_name] = opt_value  # type: ignore
                 geotag_sources_opts.append(compiled_source_opts)
 
-            options: Options = {
+            options: CliOptions = {
                 "paths": vars_args["import_path"],
                 "recursive": vars_args["skip_subfolders"] == False,
                 "geotag_sources_options": geotag_sources_opts,

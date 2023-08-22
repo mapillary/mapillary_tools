@@ -5,16 +5,16 @@ from pathlib import Path
 known_parser_options = ["source", "pattern", "exiftool_path"]
 
 
-class ParserOptions(T.TypedDict):
+class CliParserOptions(T.TypedDict, total=False):
     source: str
-    pattern: T.NotRequired[str]
-    exiftool_path: T.NotRequired[Path]
+    pattern: T.Optional[str]
+    exiftool_path: T.Optional[Path]
 
 
-class Options(T.TypedDict):
+class CliOptions(T.TypedDict, total=False):
     paths: T.Sequence[Path]
     recursive: bool
-    geotag_sources_options: T.Sequence[ParserOptions]
+    geotag_sources_options: T.Sequence[CliParserOptions]
     geotag_source_path: Path
     exiftool_path: Path
     num_processes: int

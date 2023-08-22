@@ -11,7 +11,7 @@ class BlackVueParser(BaseParser):
     parser_label = "blackvue"
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return []
         with source_path.open("rb") as fp:

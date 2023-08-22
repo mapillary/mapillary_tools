@@ -10,5 +10,6 @@ __pycache__
 /build/
 /dist/
 /venv/
+/.pyre/
 .DS_Store
 *.log

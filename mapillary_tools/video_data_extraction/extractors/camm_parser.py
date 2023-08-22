@@ -1,4 +1,3 @@
-import abc
 import functools
 import typing as T
 
@@ -12,13 +11,13 @@ class CammParser(BaseParser):
     must_rebase_times_to_zero = False
     parser_label = "camm"
 
-    @functools.cache
-    def _get_camera_info(self) -> T.Tuple[str, str]:
+    @functools.cached_property
+    def __camera_info(self) -> T.Tuple[str, str]:
         with self.videoPath.open("rb") as fp:
             return camm_parser.extract_camera_make_and_model(fp)
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return []
         with source_path.open("rb") as fp:
@@ -28,15 +27,15 @@ class CammParser(BaseParser):
                 return []
 
     def extract_make(self) -> T.Optional[str]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return None
         with source_path.open("rb") as fp:
-            return self._get_camera_info()[0]
+            return self.__camera_info[0]
 
     def extract_model(self) -> T.Optional[str]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return None
         with source_path.open("rb") as fp:
-            return self._get_camera_info()[1]
+            return self.__camera_info[1]

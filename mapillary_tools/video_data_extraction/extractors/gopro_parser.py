@@ -1,6 +1,6 @@
 import typing as T
 
-from mapillary_tools import exceptions, geo
+from mapillary_tools import geo
 from mapillary_tools.geotag import gpmf_parser, simple_mp4_parser
 from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
 
@@ -11,7 +11,7 @@ class GoProParser(BaseParser):
     parser_label = "gopro"
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return []
         with source_path.open("rb") as fp:
@@ -24,7 +24,7 @@ class GoProParser(BaseParser):
         return "GoPro"
 
     def extract_model(self) -> T.Optional[str]:
-        source_path = self.get_geotag_source_path()
+        source_path = self.geotag_source_path
         if not source_path:
             return None
         with source_path.open("rb") as fp:
