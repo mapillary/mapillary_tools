@@ -18,3 +18,5 @@ class CliOptions(T.TypedDict, total=False):
     geotag_source_path: Path
     exiftool_path: Path
     num_processes: int
+    device_make: T.Optional[str]
+    device_model: T.Optional[str]

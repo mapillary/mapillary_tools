@@ -292,6 +292,8 @@ class Command:
                 "geotag_source_path": vars_args["geotag_source_path"],
                 "exiftool_path": vars_args["exiftool_path"],
                 "num_processes": vars_args["num_processes"],
+                "device_make": vars_args["device_make"],
+                "device_model": vars_args["device_model"],
             }
             extractor = VideoDataExtractor(options)
             metadatas = extractor.process()
@@ -310,6 +312,7 @@ class Command:
                 and vars_args["device_make"]
                 and vars_args["device_make"].lower() == "blackvue"
             ):
+                # TODO: If relevant, port this to new process
                 vars_args["duplicate_angle"] = 360
 
             metadatas = process_geotag_properties(

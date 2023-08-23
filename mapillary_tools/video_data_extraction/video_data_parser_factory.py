@@ -15,6 +15,9 @@ from mapillary_tools.video_data_extraction.extractors.exiftool_runtime_parser im
 from mapillary_tools.video_data_extraction.extractors.exiftool_xml_parser import (
     ExiftoolXmlParser,
 )
+from mapillary_tools.video_data_extraction.extractors.generic_video_parser import (
+    GenericVideoParser,
+)
 from mapillary_tools.video_data_extraction.extractors.gopro_parser import GoProParser
 from mapillary_tools.video_data_extraction.extractors.gpx_parser import GpxParser
 from mapillary_tools.video_data_extraction.extractors.nmea_parser import NmeaParser
@@ -28,6 +31,7 @@ known_parsers = {
     "camm": CammParser,
     "blackvue": BlackVueParser,
     "gopro": GoProParser,
+    "video": GenericVideoParser,
 }
 
 

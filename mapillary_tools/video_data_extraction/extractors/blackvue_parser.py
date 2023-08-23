@@ -21,7 +21,7 @@ class BlackVueParser(BaseParser):
                 return []
 
     def extract_make(self) -> T.Optional[str]:
-        return "BlackVue"
+        return "Blackvue"
 
     def extract_model(self) -> T.Optional[str]:
         with self.videoPath.open("rb") as fp:

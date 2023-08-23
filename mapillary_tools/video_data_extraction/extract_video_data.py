@@ -31,10 +31,12 @@ class VideoDataExtractor:
         self.options = options
 
     def process(self) -> T.List[MetadataOrError]:
-        files = utils.find_videos(self.options["paths"])
+        paths = self.options["paths"]
+        self._check_paths(paths)
+        files = utils.find_videos(paths)
         self._check_sources_cardinality(files)
-        num_processes = self.options["num_processes"] or None
 
+        num_processes = self.options["num_processes"] or None
         with Pool(processes=num_processes) as pool:
             if num_processes == 1:
                 iter: T.Iterator[VideoMetadataOrError] = map(self.process_file, files)
@@ -56,8 +58,8 @@ class VideoDataExtractor:
     def process_file(self, file: Path) -> VideoMetadataOrError:
         parsers = make_parsers(file, self.options)
         points: T.Sequence[geo.Point] = []
-        make = None
-        model = None
+        make = self.options["device_make"]
+        model = self.options["device_model"]
 
         exc_list: T.List[T.Dict[str, Exception]] = []
         for parser in parsers:
@@ -74,7 +76,7 @@ class VideoDataExtractor:
                 make = parser.extract_make()
 
         if points:
-            return VideoMetadata(
+            video_metadata = VideoMetadata(
                 filename=file,
                 filetype=FileType.VIDEO,
                 md5sum=None,
@@ -82,6 +84,8 @@ class VideoDataExtractor:
                 make=make,
                 model=model,
             )
+            video_metadata.update_md5sum()
+            return video_metadata
         else:
             return ErrorMetadata(
                 filename=file,
@@ -123,11 +127,20 @@ class VideoDataExtractor:
                 "%(filename)s: Exception during sanitization of points by parser %(parser)s while processing source %(source)s: %(e)s",
                 {**log_details, "e": e},
             )
+        # TODO: Incorporate mapillary_tools/geotag/geotag_videos_from_exiftool_video.py:78
 
         if parser.must_rebase_times_to_zero:
             points = self._rebase_times(points)
 
         return points
+
+    @staticmethod
+    def _check_paths(import_paths: T.Sequence[Path]):
+        for path in import_paths:
+            if not path.is_file() and not path.is_dir():
+                raise exceptions.MapillaryFileNotFoundError(
+                    f"Import file or directory not found: {path}"
+                )
 
     def _check_sources_cardinality(self, files: T.Sequence[Path]):
         if len(files) > 1:
@@ -174,6 +187,9 @@ class VideoDataExtractor:
 
     @staticmethod
     def _rebase_times(points: T.Sequence[geo.Point]):
+        """
+        Make point times start from 0
+        """
         if points:
             first_timestamp = points[0].time
             for p in points:

@@ -63,14 +63,14 @@ def add_general_arguments(parser, command):
     elif command in ["upload"]:
         parser.add_argument(
             "import_path",
-            help="Path to your images.",
+            help="Paths to your images or videos.",
             nargs="+",
             type=Path,
         )
     elif command in ["process", "process_and_upload"]:
         parser.add_argument(
             "import_path",
-            help="Path to your images.",
+            help="Paths to your images or videos.",
             nargs="+",
             type=Path,
         )
