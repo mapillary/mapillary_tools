@@ -3,15 +3,9 @@ import datetime
 import itertools
 import json
 import logging
-import sys
 import typing as T
 from multiprocessing import Pool
 from pathlib import Path
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
 
 from tqdm import tqdm
 
@@ -32,7 +26,7 @@ from .types import FileType
 LOG = logging.getLogger(__name__)
 
 
-GeotagSource = Literal[
+GeotagSource = T.Literal[
     "gopro_videos", "blackvue_videos", "camm", "exif", "gpx", "nmea", "exiftool"
 ]
 
