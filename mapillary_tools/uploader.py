@@ -2,7 +2,6 @@ import io
 import json
 import logging
 import os
-import sys
 import tempfile
 import time
 import typing as T
@@ -12,13 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import jsonschema
-
 import requests
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
 
 from . import constants, exif_write, types, upload_api_v4, utils
 
@@ -26,7 +19,7 @@ from . import constants, exif_write, types, upload_api_v4, utils
 LOG = logging.getLogger(__name__)
 
 
-class Progress(types.TypedDict, total=False):
+class Progress(T.TypedDict, total=False):
     # The size of the chunk, in bytes, that has been uploaded in the last request
     chunk_size: int
 
@@ -68,7 +61,7 @@ class UploadCancelled(Exception):
     pass
 
 
-EventName = Literal[
+EventName = T.Literal[
     "upload_start",
     "upload_fetch_offset",
     "upload_progress",

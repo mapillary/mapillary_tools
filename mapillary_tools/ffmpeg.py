@@ -11,22 +11,17 @@ import tempfile
 import typing as T
 from pathlib import Path
 
-if sys.version_info >= (3, 8):
-    from typing import TypedDict  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import TypedDict
-
 LOG = logging.getLogger(__name__)
 FRAME_EXT = ".jpg"
 NA_STREAM_IDX = "NA"
 
 
-class StreamTag(TypedDict):
+class StreamTag(T.TypedDict):
     creation_time: str
     language: str
 
 
-class Stream(TypedDict):
+class Stream(T.TypedDict):
     codec_name: str
     codec_tag_string: str
     codec_type: str
@@ -37,7 +32,7 @@ class Stream(TypedDict):
     width: int
 
 
-class ProbeOutput(TypedDict):
+class ProbeOutput(T.TypedDict):
     streams: T.List[Stream]
 
 
