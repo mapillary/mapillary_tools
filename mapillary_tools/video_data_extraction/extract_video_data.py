@@ -16,9 +16,9 @@ from mapillary_tools.types import (
     VideoMetadata,
     VideoMetadataOrError,
 )
+from mapillary_tools.video_data_extraction import video_data_parser_factory
 from mapillary_tools.video_data_extraction.cli_options import CliOptions
 from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
-from mapillary_tools.video_data_extraction.video_data_parser_factory import make_parsers
 
 
 LOG = logging.getLogger(__name__)
@@ -39,7 +39,9 @@ class VideoDataExtractor:
         num_processes = self.options["num_processes"] or None
         with Pool(processes=num_processes) as pool:
             if num_processes == 1:
-                iter: T.Iterator[VideoMetadataOrError] = map(self.process_file, video_files)
+                iter: T.Iterator[VideoMetadataOrError] = map(
+                    self.process_file, video_files
+                )
             else:
                 iter = pool.imap(self.process_file, video_files)
 
@@ -56,25 +58,36 @@ class VideoDataExtractor:
         return video_metadata_or_errors
 
     def process_file(self, file: Path) -> VideoMetadataOrError:
-        parsers = make_parsers(file, self.options)
+        parsers = video_data_parser_factory.make_parsers(file, self.options)
         points: T.Sequence[geo.Point] = []
         make = self.options["device_make"]
         model = self.options["device_model"]
 
-        exc_list: T.List[T.Dict[str, Exception]] = []
+        ex: T.Optional[Exception]
         for parser in parsers:
-            log_details = {
+            log_vars = {
                 "filename": file,
                 "parser": parser.parser_label,
                 "source": parser.geotag_source_path,
             }
-            if not points:
-                points = self._parse_points(points, parser, log_details, exc_list)
-            if not model:
-                model = parser.extract_model()
-            if not make:
-                make = parser.extract_make()
+            try:
+                if not points:
+                    points = self._extract_points(parser, log_vars)
+                if not model:
+                    model = parser.extract_model()
+                if not make:
+                    make = parser.extract_make()
+            except Exception as e:
+                ex = e
+                LOG.warn(
+                    '%(filename)s: Exception for parser %(parser)s while processing source %(source)s: "%(e)s"',
+                    {**log_vars, "e": e},
+                )
 
+        # After trying all parsers, return the points if we found any, otherwise
+        # the last exception thrown or a default one.
+        # Note that if we have points, we return them, regardless of exceptions
+        # with make or model.
         if points:
             video_metadata = VideoMetadata(
                 filename=file,
@@ -89,45 +102,25 @@ class VideoDataExtractor:
         else:
             return ErrorMetadata(
                 filename=file,
-                error=exc_list[-1]["exception"]
-                if len(exc_list) > 0
+                error=ex
+                if ex
                 else exceptions.MapillaryVideoGPSNotFoundError(
-                    "No points found"
-                ),  # TODO: improve what to return
+                    "No GPS data found from the video"
+                ),
                 filetype=FileType.VIDEO,
             )
 
-    def _parse_points(
-        self,
-        points: T.Sequence[geo.Point],
-        parser: BaseParser,
-        log_details: T.Dict,
-        exceptions: T.List[T.Dict[str, Exception]],
-    ):
-        try:
-            points = parser.extract_points()
-        except Exception as e:
-            exceptions.append({"exception": e})
-            LOG.warning(
-                "%(filename)s: Exception from parser %(parser)s while processing source %(source)s: %(e)s",
-                {**log_details, "e": e},
+    def _extract_points(
+        self, parser: BaseParser, log_vars: T.Dict
+    ) -> T.Sequence[geo.Point]:
+        points = parser.extract_points()
+        if points:
+            LOG.debug(
+                "%(filename)s: %(points)d points extracted by parser %(parser)s from file %(source)s}",
+                {**log_vars, "points": len(points)},
             )
 
-        LOG.debug(
-            "%(filename)s: %(points)d points extracted by parser %(parser)s from file %(source)s}",
-            {**log_details, "points": len(points)},
-        )
-
-        try:
-            points = self._sanitize_points(points)
-        except Exception as e:
-            exceptions.append({"exception": e})
-            points = []
-            LOG.warning(
-                "%(filename)s: Exception during sanitization of points by parser %(parser)s while processing source %(source)s: %(e)s",
-                {**log_details, "e": e},
-            )
-        # TODO: Incorporate mapillary_tools/geotag/geotag_videos_from_exiftool_video.py:78
+        points = self._sanitize_points(points)
 
         if parser.must_rebase_times_to_zero:
             points = self._rebase_times(points)

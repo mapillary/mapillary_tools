@@ -3,13 +3,6 @@ import inspect
 import typing as T
 from pathlib import Path
 
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
-
-from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
-
 from .. import constants
 from ..process_geotag_properties import (
     FileType,

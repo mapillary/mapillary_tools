@@ -7,12 +7,6 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
-from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
-
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, history, types, utils
@@ -27,6 +21,9 @@ from .geotag import (
     geotag_videos_from_video,
 )
 from .types import FileType, VideoMetadataOrError
+
+from .video_data_extraction.cli_options import CliOptions, CliParserOptions
+from .video_data_extraction.extract_video_data import VideoDataExtractor
 
 
 LOG = logging.getLogger(__name__)
