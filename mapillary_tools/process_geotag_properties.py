@@ -6,6 +6,13 @@ import logging
 import typing as T
 from multiprocessing import Pool
 from pathlib import Path
+
+from mapillary_tools.video_data_extraction.cli_options import (
+    CliOptions,
+    CliParserOptions,
+)
+from mapillary_tools.video_data_extraction.extract_video_data import VideoDataExtractor
+
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, history, types, utils
@@ -19,7 +26,7 @@ from .geotag import (
     geotag_videos_from_exiftool_video,
     geotag_videos_from_video,
 )
-from .types import FileType
+from .types import FileType, VideoMetadataOrError
 
 
 LOG = logging.getLogger(__name__)
@@ -27,6 +34,17 @@ LOG = logging.getLogger(__name__)
 
 GeotagSource = T.Literal[
     "gopro_videos", "blackvue_videos", "camm", "exif", "gpx", "nmea", "exiftool"
+]
+
+VideoGeotagSource = T.Literal[
+    "video",
+    "camm",
+    "gopro",
+    "blackvue",
+    "gpx",
+    "nmea",
+    "exiftool_xml",
+    "exiftool_runtime",
 ]
 
 
@@ -123,6 +141,37 @@ def _process_images(
     return geotag.to_description()
 
 
+def _process_videos(
+    geotag_source: str,
+    geotag_source_path: T.Optional[Path],
+    video_paths: T.Sequence[Path],
+    num_processes: T.Optional[int],
+    filetypes: T.Optional[T.Set[FileType]],
+) -> T.Sequence[VideoMetadataOrError]:
+    geotag: geotag_from_generic.GeotagVideosFromGeneric
+    if geotag_source == "exiftool":
+        if geotag_source_path is None:
+            raise exceptions.MapillaryFileNotFoundError(
+                "Geotag source path (--geotag_source_path) is required"
+            )
+        if not geotag_source_path.exists():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Geotag source file not found: {geotag_source_path}"
+            )
+        geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
+            video_paths,
+            geotag_source_path,
+            num_processes=num_processes,
+        )
+    else:
+        geotag = geotag_videos_from_video.GeotagVideosFromVideo(
+            video_paths,
+            filetypes=filetypes,
+            num_processes=num_processes,
+        )
+    return geotag.to_description()
+
+
 def _normalize_import_paths(
     import_path: T.Union[Path, T.Sequence[Path]]
 ) -> T.Sequence[Path]:
@@ -136,6 +185,7 @@ def _normalize_import_paths(
 
 
 def process_geotag_properties(
+    vars_args: T.Dict,  # Hello, I'm a hack
     import_path: T.Union[Path, T.Sequence[Path]],
     filetypes: T.Set[FileType],
     geotag_source: GeotagSource,
@@ -169,52 +219,43 @@ def process_geotag_properties(
             skip_subfolders=skip_subfolders,
             check_file_suffix=check_file_suffix,
         )
-        image_metadatas = _process_images(
-            image_paths,
-            geotag_source=geotag_source,
-            geotag_source_path=geotag_source_path,
-            video_import_path=video_import_path,
-            interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
-            interpolation_offset_time=interpolation_offset_time,
-            num_processes=num_processes,
-            skip_subfolders=skip_subfolders,
-        )
-        metadatas.extend(image_metadatas)
-
-    if (
-        FileType.CAMM in filetypes
-        or FileType.GOPRO in filetypes
-        or FileType.BLACKVUE in filetypes
-        or FileType.VIDEO in filetypes
-    ):
-        video_paths = utils.find_videos(
-            import_paths,
-            skip_subfolders=skip_subfolders,
-            check_file_suffix=check_file_suffix,
-        )
-        geotag: geotag_from_generic.GeotagVideosFromGeneric
-        if geotag_source == "exiftool":
-            if geotag_source_path is None:
-                raise exceptions.MapillaryFileNotFoundError(
-                    "Geotag source path (--geotag_source_path) is required"
-                )
-            if not geotag_source_path.exists():
-                raise exceptions.MapillaryFileNotFoundError(
-                    f"Geotag source file not found: {geotag_source_path}"
-                )
-            geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
-                video_paths,
-                geotag_source_path,
+        if image_paths:
+            image_metadatas = _process_images(
+                image_paths,
+                geotag_source=geotag_source,
+                geotag_source_path=geotag_source_path,
+                video_import_path=video_import_path,
+                interpolation_use_gpx_start_time=interpolation_use_gpx_start_time,
+                interpolation_offset_time=interpolation_offset_time,
                 num_processes=num_processes,
+                skip_subfolders=skip_subfolders,
             )
-        else:
-            geotag = geotag_videos_from_video.GeotagVideosFromVideo(
-                video_paths,
-                filetypes=filetypes,
-                num_processes=num_processes,
-            )
+            metadatas.extend(image_metadatas)
 
-        metadatas.extend(geotag.to_description())
+    # --video_geotag_source is still experimental, for videos execute it XOR the legacy code
+    if vars_args["video_geotag_source"]:
+        metadatas.extend(_process_videos_beta(vars_args))
+    else:
+        if (
+            FileType.CAMM in filetypes
+            or FileType.GOPRO in filetypes
+            or FileType.BLACKVUE in filetypes
+            or FileType.VIDEO in filetypes
+        ):
+            video_paths = utils.find_videos(
+                import_paths,
+                skip_subfolders=skip_subfolders,
+                check_file_suffix=check_file_suffix,
+            )
+            if video_paths:
+                video_metadata = _process_videos(
+                    geotag_source,
+                    geotag_source_path,
+                    video_paths,
+                    num_processes,
+                    filetypes,
+                )
+                metadatas.extend(video_metadata)
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
     assert len(metadatas) == len(
@@ -222,6 +263,38 @@ def process_geotag_properties(
     ), "duplicate filenames found"
 
     return metadatas
+
+
+def _process_videos_beta(vars_args: T.Dict):
+    geotag_sources = vars_args["video_geotag_source"]
+    geotag_sources_opts: T.List[CliParserOptions] = []
+    for source in geotag_sources:
+        parsed_opts: CliParserOptions = {}
+        try:
+            parsed_opts = json.loads(source)
+        except ValueError:
+            if source not in T.get_args(VideoGeotagSource):
+                raise exceptions.MapillaryBadParameterError(
+                    "Unknown beta source %s or invalid JSON", source
+                )
+            parsed_opts = {"source": source}
+
+        if "source" not in parsed_opts:
+            raise exceptions.MapillaryBadParameterError("Missing beta source name")
+
+        geotag_sources_opts.append(parsed_opts)
+
+    options: CliOptions = {
+        "paths": vars_args["import_path"],
+        "recursive": vars_args["skip_subfolders"] == False,
+        "geotag_sources_options": geotag_sources_opts,
+        "geotag_source_path": vars_args["geotag_source_path"],
+        "num_processes": vars_args["num_processes"],
+        "device_make": vars_args["device_make"],
+        "device_model": vars_args["device_model"],
+    }
+    extractor = VideoDataExtractor(options)
+    return extractor.process()
 
 
 def _apply_offsets(

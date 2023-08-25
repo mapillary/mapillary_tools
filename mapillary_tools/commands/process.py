@@ -171,13 +171,6 @@ class Command:
             required=False,
         )
         group_geotagging.add_argument(
-            "--geotag_sources",
-            help="Provide the source of date/time and GPS information needed for geotagging. [default: %(default)s]",
-            action="store",
-            default=None,
-            required=False,
-        )
-        group_geotagging.add_argument(
             "--geotag_source_path",
             help="Provide the path to the file source of date/time and GPS information needed for geotagging.",
             action="store",
@@ -186,12 +179,11 @@ class Command:
             type=Path,
         )
         group_geotagging.add_argument(
-            "--exiftool_path",
-            help="Absolute path to the exiftool executable.",
-            action="store",
-            default="exiftool",
+            "--video_geotag_source",
+            help="Name of the video data extractor and optional arguments. Can be specified multiple times. See the documentation for details. [Experimental, subject to change]",
+            action="append",
+            default=[],
             required=False,
-            type=Path,
         )
         group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",
@@ -266,64 +258,32 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        if vars_args["geotag_sources"]:
-            # gpx:format=A,exif:format=B -> [{source: 'gpx', 'format': 'A'}, {'source': 'exif', format': 'B'}]
-            # FIXME: This is just a temporary placeholder while deciding on the command line format
-            geotag_sources = vars_args["geotag_sources"].split(",")
-            geotag_sources_opts: T.List[CliParserOptions] = []
-            for source in geotag_sources:
-                (source_name, source_opts) = (
-                    source.split(":") if ":" in source else [source, ""]
-                )
-                compiled_source_opts: CliParserOptions = {"source": source_name}
-                for opt_key_value in source_opts.split(";"):
-                    (opt_name, opt_value) = (
-                        opt_key_value.split("=")
-                        if "=" in opt_key_value
-                        else [opt_key_value, ""]
-                    )
-                    compiled_source_opts[opt_name] = opt_value  # type: ignore
-                geotag_sources_opts.append(compiled_source_opts)
-
-            options: CliOptions = {
-                "paths": vars_args["import_path"],
-                "recursive": vars_args["skip_subfolders"] == False,
-                "geotag_sources_options": geotag_sources_opts,
-                "geotag_source_path": vars_args["geotag_source_path"],
-                "exiftool_path": vars_args["exiftool_path"],
-                "num_processes": vars_args["num_processes"],
-                "device_make": vars_args["device_make"],
-                "device_model": vars_args["device_model"],
-            }
-            extractor = VideoDataExtractor(options)
-            metadatas = extractor.process()
-        else:
-            if (
-                "geotag_source" in vars_args
-                and vars_args["geotag_source"] == "blackvue_videos"
-                and (
-                    "device_make" not in vars_args
-                    or ("device_make" in vars_args and not vars_args["device_make"])
-                )
-            ):
-                vars_args["device_make"] = "Blackvue"
-            if (
-                "device_make" in vars_args
-                and vars_args["device_make"]
-                and vars_args["device_make"].lower() == "blackvue"
-            ):
-                # TODO: If relevant, port this to new process
-                vars_args["duplicate_angle"] = 360
-
-            metadatas = process_geotag_properties(
-                **(
-                    {
-                        k: v
-                        for k, v in vars_args.items()
-                        if k in inspect.getfullargspec(process_geotag_properties).args
-                    }
-                )
+        if (
+            "geotag_source" in vars_args
+            and vars_args["geotag_source"] == "blackvue_videos"
+            and (
+                "device_make" not in vars_args
+                or ("device_make" in vars_args and not vars_args["device_make"])
             )
+        ):
+            vars_args["device_make"] = "Blackvue"
+        if (
+            "device_make" in vars_args
+            and vars_args["device_make"]
+            and vars_args["device_make"].lower() == "blackvue"
+        ):
+            vars_args["duplicate_angle"] = 360
+
+        metadatas = process_geotag_properties(
+            vars_args=vars_args,
+            **(
+                {
+                    k: v
+                    for k, v in vars_args.items()
+                    if k in inspect.getfullargspec(process_geotag_properties).args
+                }
+            ),
+        )
 
         metadatas = process_import_meta_properties(
             metadatas=metadatas,

@@ -33,15 +33,15 @@ class VideoDataExtractor:
     def process(self) -> T.List[MetadataOrError]:
         paths = self.options["paths"]
         self._check_paths(paths)
-        files = utils.find_videos(paths)
-        self._check_sources_cardinality(files)
+        video_files = utils.find_videos(paths)
+        self._check_sources_cardinality(video_files)
 
         num_processes = self.options["num_processes"] or None
         with Pool(processes=num_processes) as pool:
             if num_processes == 1:
-                iter: T.Iterator[VideoMetadataOrError] = map(self.process_file, files)
+                iter: T.Iterator[VideoMetadataOrError] = map(self.process_file, video_files)
             else:
-                iter = pool.imap(self.process_file, files)
+                iter = pool.imap(self.process_file, video_files)
 
             video_metadata_or_errors = list(
                 tqdm.tqdm(
@@ -49,7 +49,7 @@ class VideoDataExtractor:
                     desc="Extracting GPS tracks",
                     unit="videos",
                     disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(files),
+                    total=len(video_files),
                 )
             )
 
