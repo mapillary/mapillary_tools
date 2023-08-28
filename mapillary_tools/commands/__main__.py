@@ -167,7 +167,9 @@ def main():
     try:
         args.func(argvars)
     except exceptions.MapillaryUserError as exc:
-        LOG.error("%s: %s", exc.__class__.__name__, exc)
+        LOG.error(
+            "%s: %s", exc.__class__.__name__, exc, exc_info=log_level == logging.DEBUG
+        )
         sys.exit(exc.exit_code)
 
 

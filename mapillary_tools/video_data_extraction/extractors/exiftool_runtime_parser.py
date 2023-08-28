@@ -1,8 +1,9 @@
+import shutil
 import subprocess
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import constants, geo
+from mapillary_tools import constants, exceptions, geo
 from mapillary_tools.video_data_extraction.cli_options import (
     CliOptions,
     CliParserOptions,
@@ -28,9 +29,14 @@ class ExiftoolRuntimeParser(BaseParser):
         self, video_path: Path, options: CliOptions, parser_options: CliParserOptions
     ):
         super().__init__(video_path, options, parser_options)
+        exiftool_path = shutil.which(constants.EXIFTOOL_PATH)
+        if not exiftool_path:
+            raise exceptions.MapillaryExiftoolNotFoundError(
+                "Cannot execute exiftool. Please install it from https://exiftool.org/ or you package manager, or set the environment variable MAPILLARY_TOOLS_EXIFTOOL_PATH"
+            )
 
         args = (
-            f"{constants.EXIFTOOL_PATH} -q -r -n -ee -api LargeFileSupport=1 -X {self.geotag_source_path}"
+            f"{exiftool_path} -q -r -n -ee -api LargeFileSupport=1 -X {self.geotag_source_path}"
         ).split(" ")
         xml_content = subprocess.run(args, capture_output=True, text=True).stdout
 

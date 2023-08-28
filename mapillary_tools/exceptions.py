@@ -34,6 +34,10 @@ class MapillaryFFmpegNotFoundError(MapillaryUserError):
     help = "https://github.com/mapillary/mapillary_tools#video-support"
 
 
+class MapillaryExiftoolNotFoundError(MapillaryUserError):
+    exit_code = 8
+
+
 class MapillaryDescriptionError(Exception):
     pass
 
