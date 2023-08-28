@@ -300,7 +300,8 @@ As experimental features, mapillary_tools can now:
 range of video formats, allowing us to support more cameras with less trouble for the end user.
 * Try several geotagging sources sequentially, until proper data is found.
 
-These features are experimental and will be subject to change in future releases.
+These features apply to the `process` command, which analyzes the video for direct upload instead of sampling it
+into images. They are experimental and will be subject to change in future releases.
 
 ### Usage
 
