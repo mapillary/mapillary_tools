@@ -31,11 +31,11 @@ class CammParser(BaseParser):
         if not source_path:
             return None
         with source_path.open("rb") as fp:
-            return self.__camera_info[0]
+            return self.__camera_info[0] or None
 
     def extract_model(self) -> T.Optional[str]:
         source_path = self.geotag_source_path
         if not source_path:
             return None
         with source_path.open("rb") as fp:
-            return self.__camera_info[1]
+            return self.__camera_info[1] or None
