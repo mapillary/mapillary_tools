@@ -172,6 +172,13 @@ class Command:
             type=Path,
         )
         group_geotagging.add_argument(
+            "--video_geotag_source",
+            help="Name of the video data extractor and optional arguments. Can be specified multiple times. See the documentation for details. [Experimental, subject to change]",
+            action="append",
+            default=[],
+            required=False,
+        )
+        group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",
             help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}.",
             action="store_true",
@@ -261,13 +268,14 @@ class Command:
             vars_args["duplicate_angle"] = 360
 
         metadatas = process_geotag_properties(
+            vars_args=vars_args,
             **(
                 {
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(process_geotag_properties).args
                 }
-            )
+            ),
         )
 
         metadatas = process_import_meta_properties(
