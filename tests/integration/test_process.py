@@ -59,6 +59,16 @@ _DEFAULT_EXPECTED_DESCS = {
         "MAPDeviceModel": "VIRB 360",
         "MAPOrientation": 1,
     },
+    "adobe_coords.jpg": {
+        "filetype": "image",
+        "MAPLatitude": -0.0702668,
+        "MAPLongitude": 34.3819352,
+        "MAPCaptureTime": "2019_07_16_10_26_11_000",
+        "MAPCompassHeading": {"TrueHeading": 0, "MagneticHeading": 0},
+        "MAPDeviceMake": "SAMSUNG",
+        "MAPDeviceModel": "SM-C200",
+        "MAPOrientation": 1,
+    },
 }
 
 
@@ -258,6 +268,27 @@ def test_angle_with_offset(setup_data: py.path.local, use_exiftool: bool = False
 
 def test_angle_with_offset_with_exiftool(setup_data: py.path.local):
     return test_angle_with_offset(setup_data, use_exiftool=True)
+
+
+def test_parse_adobe_coordinates(setup_data: py.path.local):
+    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}/adobe_coords"
+    x = subprocess.run(args, shell=True)
+    verify_descs(
+        [
+            {
+                "filename": str(Path(setup_data, "adobe_coords", "adobe_coords.jpg")),
+                "filetype": "image",
+                "MAPLatitude": -0.0702668,
+                "MAPLongitude": 34.3819352,
+                "MAPCaptureTime": _local_to_utc("2019-07-16T10:26:11"),
+                "MAPCompassHeading": {"TrueHeading": 0.0, "MagneticHeading": 0.0},
+                "MAPDeviceMake": "SAMSUNG",
+                "MAPDeviceModel": "SM-C200",
+                "MAPOrientation": 1,
+            }
+        ],
+        Path(setup_data, "adobe_coords/mapillary_image_description.json"),
+    )
 
 
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):

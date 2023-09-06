@@ -181,7 +181,7 @@ def test_process_and_upload_images_only(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --filetypes=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG --desc_path=-",
+        f"{EXECUTABLE} --verbose process_and_upload --filetypes=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data}/images {setup_data}/images {setup_data}/images/DSC00001.JPG --desc_path=-",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

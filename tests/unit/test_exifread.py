@@ -1,5 +1,7 @@
 import datetime
 import os
+
+import typing as T
 import unittest
 from pathlib import Path
 
@@ -8,7 +10,11 @@ import py.path
 import pytest
 from mapillary_tools import geo
 
-from mapillary_tools.exif_read import ExifRead, parse_datetimestr_with_subsec_and_offset
+from mapillary_tools.exif_read import (
+    _parse_coord,
+    ExifRead,
+    parse_datetimestr_with_subsec_and_offset,
+)
 from mapillary_tools.exif_write import ExifEdit
 from PIL import ExifTags, Image
 
@@ -248,6 +254,31 @@ def test_parse():
         "2021:10:10 17:29:54.124-02:00",
     )
     assert str(dt) == "2021-10-10 17:29:54.124000-02:00", dt
+
+
+@pytest.mark.parametrize(
+    "raw_coord,raw_ref,expected",
+    [
+        (None, "", None),
+        ("foo", "N", None),
+        ("0.0", "foo", None),
+        ("0.0", "N", 0),
+        ("1.5", "N", 1.5),
+        ("1.5", "S", -1.5),
+        ("-1.5", "N", -1.5),
+        ("-1.5", "S", 1.5),
+        ("-1.5", "S", 1.5),
+        ("33,18.32N", "N", 33.30533),
+        ("33,18.32N", "S", 33.30533),
+        ("33,18.32S", "", -33.30533),
+        ("44,24.54E", "", 44.40900),
+        ("44,24.54W", "", -44.40900),
+    ],
+)
+def test_parse_coordinates(
+    raw_coord: T.Optional[str], raw_ref: str, expected: T.Optional[float]
+):
+    assert _parse_coord(raw_coord, raw_ref) == pytest.approx(expected)
 
 
 # test ExifWrite write a timestamp and ExifRead read it back
