@@ -335,9 +335,10 @@ Supported sources and their default pattern are:
 * `exiftool_runtime`: execute exiftool on the video file. Pattern: `%f`
 
 Notes:
-* `exiftool_runtime` only works if exiftool is installed in the system. If exiftool is not in the default
-execution path, it is possible to specify its location by setting the environment variable `EXIFTOOL_PATH`.
-* pattern are case-sensitive or not depending on the filesystem - in Windows, `%g.gpx` will match both `basename.gpx`
+* `exiftool_runtime` only works if exiftool is installed on the system. You can find it at https://exiftool.org/ or through
+your software manager. If exiftool is installed, but is not in the default execution path, it is
+possible to specify its location by setting the environment variable `MAPILLARY_TOOLS_EXIFTOOL_PATH`.
+* Pattern are case-sensitive or not depending on the filesystem - in Windows, `%g.gpx` will match both `basename.gpx`
 and `basename.GPX`, in MacOs, Linux or other Unix systems no.
 * If both `--video_geotag_source` and `--geotag_source` are specified, `--video_geotag_source` will apply to video files
 and `--geotag_source` to image files.
