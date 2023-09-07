@@ -19,7 +19,7 @@ class ExiftoolXmlParser(BaseParser):
     must_rebase_times_to_zero = True
     parser_label = "exiftool_xml"
 
-    exifToolReadVideo: ExifToolReadVideo
+    exifToolReadVideo: T.Optional[ExifToolReadVideo] = None
 
     def __init__(
         self,
@@ -35,17 +35,21 @@ class ExiftoolXmlParser(BaseParser):
         else:
             xml_path = self.geotag_source_path
             if not xml_path:
-                return None
+                return
             etree = ET.parse(xml_path).getroot()
 
         element = next(etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES))
         self.exifToolReadVideo = ExifToolReadVideo(ET.ElementTree(element))
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        return self.exifToolReadVideo.extract_gps_track()
+        return (
+            self.exifToolReadVideo.extract_gps_track() if self.exifToolReadVideo else []
+        )
 
     def extract_make(self) -> T.Optional[str]:
-        return self.exifToolReadVideo.extract_make()
+        return self.exifToolReadVideo.extract_make() if self.exifToolReadVideo else None
 
     def extract_model(self) -> T.Optional[str]:
-        return self.exifToolReadVideo.extract_model()
+        return (
+            self.exifToolReadVideo.extract_model() if self.exifToolReadVideo else None
+        )
