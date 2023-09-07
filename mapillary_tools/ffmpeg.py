@@ -285,10 +285,25 @@ class Probe:
     def probe_video_start_time(self) -> T.Optional[datetime.datetime]:
         """
         Find video start time of the given video.
-        It searches video creation time and duration in video streams first and then the other streams.
-        Once found, return stream creation time - stream duration as the video start time.
+        It searches video creation time and duration in camm streams first, then in video streams,
+        then any other. If a camm time exists, return it only if it's more than one day apart from
+        the time in the other track, so that we privilege GPS time if the skew is too big.
         """
         streams = self.probe.get("streams", [])
+
+        # search start time from camm streams
+        camm_streams = self.probe_camm_streams()
+        camm_ts = None
+        for stream in camm_streams:
+            camm_ts = extract_stream_start_time(stream)
+
+        def choose_timestamp(candidate_ts: datetime.datetime) -> datetime.datetime:
+            return (
+                camm_ts
+                if camm_ts
+                and abs(candidate_ts.timestamp() - camm_ts.timestamp()) > 86400
+                else candidate_ts
+            )
 
         # search start time from video streams
         video_streams = self.probe_video_streams()
@@ -298,20 +313,29 @@ class Probe:
         for stream in video_streams:
             start_time = extract_stream_start_time(stream)
             if start_time is not None:
-                return start_time
+                return choose_timestamp(start_time)
 
         # search start time from the other streams
         for stream in streams:
             if stream.get("codec_type") != "video":
                 start_time = extract_stream_start_time(stream)
                 if start_time is not None:
-                    return start_time
+                    return choose_timestamp(start_time)
 
         return None
 
     def probe_video_streams(self) -> T.List[Stream]:
         streams = self.probe.get("streams", [])
         return [stream for stream in streams if stream.get("codec_type") == "video"]
+
+    def probe_camm_streams(self) -> T.List[Stream]:
+        streams = self.probe.get("streams", [])
+        return [
+            stream
+            for stream in streams
+            if stream.get("codec_type") == "data"
+            and stream.get("codec_tag_string") == "camm"
+        ]
 
     def probe_video_with_max_resolution(self) -> T.Optional[Stream]:
         video_streams = self.probe_video_streams()

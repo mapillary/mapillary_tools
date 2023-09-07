@@ -14,22 +14,36 @@ WGS84_b = 6356752.314245
 WGS84_b_SQ = WGS84_b**2
 
 
-@dataclasses.dataclass(order=True)
+@dataclasses.dataclass()
 class Point:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
     __slots__ = (
+        "unix_timestamp",
         "time",
         "lat",
         "lon",
         "alt",
         "angle",
     )
+    unix_timestamp: T.Optional[float]
     time: float
     lat: float
     lon: float
     alt: T.Optional[float]
     angle: T.Optional[float]
+
+    def __lt__(self, other):
+        return self.time < other.time
+
+    def __le__(self, other):
+        return self.time <= other.time
+
+    def __gt__(self, other):
+        return self.time > other.time
+
+    def __ge__(self, other):
+        return self.time >= other.time
 
 
 @unique
@@ -217,7 +231,14 @@ def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
     else:
         alt = None
 
-    return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
+    return Point(
+        unix_timestamp=start.unix_timestamp + t if start.unix_timestamp else None,
+        time=t,
+        lat=lat,
+        lon=lon,
+        alt=alt,
+        angle=angle,
+    )
 
 
 def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int):
@@ -252,7 +273,14 @@ def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
     # for cur, nex in pairwise(points):
     #     assert cur.time <= nex.time, "Points not sorted"
 
-    p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
+    p = Point(
+        unix_timestamp=None,
+        time=t,
+        lat=float("-inf"),
+        lon=float("-inf"),
+        alt=None,
+        angle=None,
+    )
     idx = bisect.bisect_left(points, p, lo=lo)
     return _interpolate_at_index(points, t, idx)
 

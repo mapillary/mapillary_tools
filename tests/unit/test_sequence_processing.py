@@ -35,6 +35,7 @@ def _make_image_metadata(
         md5sum=None,
         lon=lng,
         lat=lat,
+        unix_timestamp=time,
         time=time,
         alt=None,
         angle=angle,

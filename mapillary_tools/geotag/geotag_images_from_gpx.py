@@ -141,6 +141,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
             # after the shifting, the gpx timestamps will be [10015, 10016, 10017, 10018, 10019]
             sorted_points = [
                 geo.Point(
+                    unix_timestamp=sorted_image_metadatas[0].time + p.time,
                     time=sorted_image_metadatas[0].time + p.time,
                     lat=p.lat,
                     lon=p.lon,

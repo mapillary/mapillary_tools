@@ -81,6 +81,7 @@ class VideoMetadata:
     points: T.Sequence[geo.Point]
     make: T.Optional[str] = None
     model: T.Optional[str] = None
+    gps_creation_time: T.Optional[float] = None
 
     def update_md5sum(self) -> None:
         if self.md5sum is None:
@@ -297,6 +298,10 @@ VideoDescriptionSchema = {
                 "type": "array",
                 "description": "track point",
                 "prefixItems": [
+                    {
+                        "type": ["number", "null"],
+                        "description": "UNIX timestamp of the track point, in milliseconds, if available",
+                    },
                     {
                         "type": "number",
                         "description": "Time offset of the track point, in milliseconds, relative to the beginning of the video",
@@ -552,6 +557,7 @@ def _from_image_desc(desc) -> ImageMetadata:
             "MAPLongitude",
             "MAPAltitude",
             "MAPCaptureTime",
+            "MAPCaptureUnixTimestamp",
             "MAPCompassHeading",
         ]:
             kwargs[k] = v
@@ -562,6 +568,11 @@ def _from_image_desc(desc) -> ImageMetadata:
         lat=desc["MAPLatitude"],
         lon=desc["MAPLongitude"],
         alt=desc.get("MAPAltitude"),
+        unix_timestamp=geo.as_unix_time(
+            map_capture_time_to_datetime(desc["MAPCaptureUnixTimestamp"])
+        )
+        if "MAPCaptureUnixTimestamp" in desc
+        else None,
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
         width=None,
@@ -572,6 +583,7 @@ def _from_image_desc(desc) -> ImageMetadata:
 
 def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
     entry = [
+        int(p.unix_timestamp * 1000) if p.unix_timestamp is not None else None,
         int(p.time * 1000),
         round(p.lon, _COORDINATES_PRECISION),
         round(p.lat, _COORDINATES_PRECISION),
@@ -582,8 +594,17 @@ def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
 
 
 def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
-    time_ms, lon, lat, alt, angle = entry
-    return geo.Point(time=time_ms / 1000, lon=lon, lat=lat, alt=alt, angle=angle)
+    unix_timestamp, time_ms, lon, lat, alt, angle = (
+        entry if len(entry) == 6 else [None, *entry]
+    )
+    return geo.Point(
+        unix_timestamp=unix_timestamp,
+        time=time_ms / 1000,
+        lon=lon,
+        lat=lat,
+        alt=alt,
+        angle=angle,
+    )
 
 
 def _from_video_desc(desc: VideoDescription) -> VideoMetadata:

@@ -58,6 +58,7 @@ def _gpx_track_segment_to_points(
             ground_speed = None
 
         point = geo.PointWithFix(
+            unix_timestamp=geo.as_unix_time(T.cast(datetime.datetime, p.time)),
             time=geo.as_unix_time(T.cast(datetime.datetime, p.time)),
             lat=p.latitude,
             lon=p.longitude,

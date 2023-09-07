@@ -1,5 +1,7 @@
+import datetime
 import io
 import pathlib
+import time
 import typing as T
 
 import construct as C
@@ -194,6 +196,15 @@ def gps_from_stream(
     else:
         gpsf_value = None
 
+    gpsu = indexed.get(b"GPSU")  # Datetime yymmddhhmmss.sss
+    str_datetime = (
+        str(gpsu[0][0], "utf-8")
+        if gpsu and len(gpsu) == 1 and len(gpsu[0]) == 1
+        else None
+    )
+    ts_struct = time.strptime(str_datetime, "%y%m%d%H%M%S.%f") if str_datetime else None
+    ts = time.mktime(ts_struct) if ts_struct else None
+
     gpsp = indexed.get(b"GPSP")
     if gpsp is not None:
         gpsp_value = gpsp[0][0]
@@ -204,7 +215,10 @@ def gps_from_stream(
         lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
+        gpsp = indexed.get(b"GPSP")
+
         yield geo.PointWithFix(
+            unix_timestamp=ts if ts is not None else None,
             # will figure out the actual timestamp later
             time=0,
             lat=lat,

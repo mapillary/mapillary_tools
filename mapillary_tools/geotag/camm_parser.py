@@ -87,6 +87,7 @@ def _parse_point_from_sample(
     box = CAMMSampleData.parse(data)
     if box.type == CAMMType.MIN_GPS.value:
         return geo.Point(
+            None,
             time=sample.time_offset,
             lat=box.data[0],
             lon=box.data[1],
@@ -97,6 +98,7 @@ def _parse_point_from_sample(
         # Not using box.data.time_gps_epoch as the point timestamp
         # because it is from another clock
         return geo.Point(
+            unix_timestamp=_gps_timestamp_to_unix(box.data.time_gps_epoch),
             time=sample.time_offset,
             lat=box.data.latitude,
             lon=box.data.longitude,
@@ -104,6 +106,16 @@ def _parse_point_from_sample(
             angle=None,
         )
     return None
+
+
+def _gps_timestamp_to_unix(ts: float) -> float:
+    """
+    Convert a GPS timestamp to UNIX timestamp.
+    See https://stackoverflow.com/questions/20521750/ticks-between-unix-epoch-and-gps-epoch
+    for some info on GPS timestamp. Here we arbitrarily use the offset as of 2023, since we
+    are not interested in precision to the second.
+    """
+    return ts + 315964800 - 18
 
 
 def filter_points_by_elst(

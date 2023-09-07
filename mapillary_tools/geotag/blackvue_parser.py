@@ -45,6 +45,7 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
                 continue
             epoch_ms = int(match.group(1))
             yield geo.Point(
+                unix_timestamp=epoch_ms / 1000,
                 time=epoch_ms,
                 lat=nmea.latitude,
                 lon=nmea.longitude,

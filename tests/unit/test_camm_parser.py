@@ -15,10 +15,10 @@ from mapillary_tools.geotag import (
 def test_filter_points_by_edit_list():
     assert [] == list(camm_parser.filter_points_by_elst([], []))
     points = [
-        geo.Point(time=0, lat=0, lon=0, alt=None, angle=None),
-        geo.Point(time=0.23, lat=0, lon=0, alt=None, angle=None),
-        geo.Point(time=0.29, lat=0, lon=0, alt=None, angle=None),
-        geo.Point(time=0.31, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(unix_timestamp=None, time=0, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(unix_timestamp=None, time=0.23, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(unix_timestamp=None, time=0.29, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(unix_timestamp=None, time=0.31, lat=0, lon=0, alt=None, angle=None),
     ]
     assert points == list(camm_parser.filter_points_by_elst(points, []))
     assert [dataclasses.replace(p, time=p.time + 4.4) for p in points] == list(
@@ -26,8 +26,12 @@ def test_filter_points_by_edit_list():
     )
 
     assert [
-        geo.Point(time=0.23 + 4.4, lat=0, lon=0, alt=None, angle=None),
-        geo.Point(time=0.31 + 4.4, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.23 + 4.4, lat=0, lon=0, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.31 + 4.4, lat=0, lon=0, alt=None, angle=None
+        ),
     ] == list(
         camm_parser.filter_points_by_elst(
             points, [(-1, 3), (-1, 4.4), (0.21, 0.04), (0.30, 0.04)]
@@ -35,8 +39,12 @@ def test_filter_points_by_edit_list():
     )
 
     assert [
-        geo.Point(time=0.29 + 4.4, lat=0, lon=0, alt=None, angle=None),
-        geo.Point(time=0.31 + 4.4, lat=0, lon=0, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.29 + 4.4, lat=0, lon=0, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.31 + 4.4, lat=0, lon=0, alt=None, angle=None
+        ),
     ] == list(camm_parser.filter_points_by_elst(points, [(-1, 4.4), (0.24, 0.3)]))
 
 
@@ -88,10 +96,18 @@ def approximate(expected, actual):
 
 def test_build_and_parse():
     points = [
-        geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
-        geo.Point(time=0.23, lat=0.001, lon=0.21, alt=None, angle=None),
-        geo.Point(time=0.29, lat=0.002, lon=0.203, alt=None, angle=None),
-        geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.1, lat=0.01, lon=0.2, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.23, lat=0.001, lon=0.21, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.29, lat=0.002, lon=0.203, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.31, lat=0.0025, lon=0.2004, alt=None, angle=None
+        ),
     ]
     metadata = types.VideoMetadata(
         Path(""),
@@ -107,16 +123,36 @@ def test_build_and_parse():
     assert approximate(
         [
             geo.Point(
-                time=0.09999999988358467, lat=0.01, lon=0.2, alt=-1.0, angle=None
+                unix_timestamp=None,
+                time=0.09999999988358467,
+                lat=0.01,
+                lon=0.2,
+                alt=-1.0,
+                angle=None,
             ),
             geo.Point(
-                time=0.22999999580209396, lat=0.001, lon=0.21, alt=-1.0, angle=None
+                unix_timestamp=None,
+                time=0.22999999580209396,
+                lat=0.001,
+                lon=0.21,
+                alt=-1.0,
+                angle=None,
             ),
             geo.Point(
-                time=0.2899999996391125, lat=0.002, lon=0.203, alt=-1.0, angle=None
+                unix_timestamp=None,
+                time=0.2899999996391125,
+                lat=0.002,
+                lon=0.203,
+                alt=-1.0,
+                angle=None,
             ),
             geo.Point(
-                time=0.3099999994295649, lat=0.0025, lon=0.2004, alt=-1.0, angle=None
+                unix_timestamp=None,
+                time=0.3099999994295649,
+                lat=0.0025,
+                lon=0.2004,
+                alt=-1.0,
+                angle=None,
             ),
         ],
         x.points,
@@ -125,7 +161,9 @@ def test_build_and_parse():
 
 def test_build_and_parse2():
     points = [
-        geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.1, lat=0.01, lon=0.2, alt=None, angle=None
+        ),
     ]
     metadata = types.VideoMetadata(
         Path(""),
@@ -139,14 +177,25 @@ def test_build_and_parse2():
     assert x.make == "test_make汉字"
     assert x.model == "test_model汉字"
     assert approximate(
-        [geo.Point(time=0.09999999988358468, lat=0.01, lon=0.2, alt=-1.0, angle=None)],
+        [
+            geo.Point(
+                unix_timestamp=None,
+                time=0.09999999988358468,
+                lat=0.01,
+                lon=0.2,
+                alt=-1.0,
+                angle=None,
+            )
+        ],
         x.points,
     )
 
 
 def test_build_and_parse9():
     points = [
-        geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.0, lat=0.01, lon=0.2, alt=None, angle=None
+        ),
     ]
     metadata = types.VideoMetadata(
         Path(""),
@@ -157,13 +206,21 @@ def test_build_and_parse9():
         model="test_model汉字",
     )
     x = build_mp4(metadata)
-    assert [geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None)] == x.points
+    assert [
+        geo.Point(
+            unix_timestamp=None, time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None
+        )
+    ] == x.points
 
 
 def test_build_and_parse10():
     points = [
-        geo.Point(time=0.0, lat=0.01, lon=0.2, alt=None, angle=None),
-        geo.Point(time=0.1, lat=0.03, lon=0.2, alt=None, angle=None),
+        geo.Point(
+            unix_timestamp=None, time=0.0, lat=0.01, lon=0.2, alt=None, angle=None
+        ),
+        geo.Point(
+            unix_timestamp=None, time=0.1, lat=0.03, lon=0.2, alt=None, angle=None
+        ),
     ]
     metadata = types.VideoMetadata(
         Path(""),
@@ -176,8 +233,12 @@ def test_build_and_parse10():
     x = build_mp4(metadata)
     assert approximate(
         [
-            geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None),
-            geo.Point(time=0.1, lat=0.03, lon=0.2, alt=-1.0, angle=None),
+            geo.Point(
+                unix_timestamp=None, time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None
+            ),
+            geo.Point(
+                unix_timestamp=None, time=0.1, lat=0.03, lon=0.2, alt=-1.0, angle=None
+            ),
         ],
         x.points,
     )

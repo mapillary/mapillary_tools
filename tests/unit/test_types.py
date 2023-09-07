@@ -13,6 +13,7 @@ def test_desc():
             lon=2,
             alt=3,
             angle=4,
+            unix_timestamp=None,
             time=5,
             MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPSequenceUUID="MAPSequenceUUID",
@@ -33,6 +34,7 @@ def test_desc():
             lon=2,
             alt=3,
             angle=4,
+            unix_timestamp=None,
             time=5,
             MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPOrientation=1,
@@ -51,7 +53,16 @@ def test_desc_video():
             filename=Path("foo/bar.mp4").resolve(),
             md5sum="123",
             filetype=types.FileType.CAMM,
-            points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
+            points=[
+                geo.Point(
+                    unix_timestamp=None,
+                    time=123,
+                    lat=1.331,
+                    lon=2.33,
+                    alt=3.123,
+                    angle=123,
+                )
+            ],
             make="hello",
             model="world",
         ),
@@ -59,7 +70,16 @@ def test_desc_video():
             filename=Path("foo/bar.mp4").resolve(),
             md5sum=None,
             filetype=types.FileType.CAMM,
-            points=[geo.Point(time=123, lat=1.331, lon=2.33, alt=3.123, angle=123)],
+            points=[
+                geo.Point(
+                    unix_timestamp=None,
+                    time=123,
+                    lat=1.331,
+                    lon=2.33,
+                    alt=3.123,
+                    angle=123,
+                )
+            ],
         ),
         types.VideoMetadata(
             filename=Path("foo/bar.mp4").resolve(),

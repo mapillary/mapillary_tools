@@ -136,6 +136,9 @@ def parse_gpx(gpx_file: Path) -> T.List[Track]:
                 if point.time is not None:
                     tracks[-1].append(
                         geo.Point(
+                            unix_timestamp=geo.as_unix_time(point.time)
+                            if point.time
+                            else None,
                             time=geo.as_unix_time(point.time),
                             lat=point.latitude,
                             lon=point.longitude,

@@ -52,7 +52,12 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
             lat, lon, alt = data.latitude, data.longitude, data.altitude
             points.append(
                 geo.Point(
-                    time=geo.as_unix_time(dt), lat=lat, lon=lon, alt=alt, angle=None
+                    unix_timestamp=geo.as_unix_time(dt),
+                    time=geo.as_unix_time(dt),
+                    lat=lat,
+                    lon=lon,
+                    alt=alt,
+                    angle=None,
                 )
             )
 

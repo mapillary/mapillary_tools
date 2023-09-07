@@ -10,6 +10,10 @@
                         "description": "track point",
                         "prefixItems": [
                             {
+                                "type": ["number", "null"],
+                                "description": "UNIX timestamp of the track point, in milliseconds, if available"
+                            },
+                            {
                                 "type": "number",
                                 "description": "Time offset of the track point, in milliseconds, relative to the beginning of the video"
                             },
