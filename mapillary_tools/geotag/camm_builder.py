@@ -248,7 +248,7 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
         last_timestamp = (
             video_metadata.points[-1].unix_timestamp if video_metadata.points else 0
         )
-        creation_timestamp = int((last_timestamp or 0) / 1000)
+        creation_timestamp = int(last_timestamp or 0)
         camm_trak = create_camm_trak(camm_samples, media_timescale, creation_timestamp)
         elst = _create_edit_list(
             [video_metadata.points], movie_timescale, media_timescale

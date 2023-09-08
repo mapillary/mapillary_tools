@@ -557,7 +557,6 @@ def _from_image_desc(desc) -> ImageMetadata:
             "MAPLongitude",
             "MAPAltitude",
             "MAPCaptureTime",
-            "MAPCaptureUnixTimestamp",
             "MAPCompassHeading",
         ]:
             kwargs[k] = v
@@ -569,10 +568,8 @@ def _from_image_desc(desc) -> ImageMetadata:
         lon=desc["MAPLongitude"],
         alt=desc.get("MAPAltitude"),
         unix_timestamp=geo.as_unix_time(
-            map_capture_time_to_datetime(desc["MAPCaptureUnixTimestamp"])
-        )
-        if "MAPCaptureUnixTimestamp" in desc
-        else None,
+            map_capture_time_to_datetime(desc["MAPCaptureTime"])
+        ),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
         width=None,
@@ -594,11 +591,11 @@ def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
 
 
 def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
-    unix_timestamp, time_ms, lon, lat, alt, angle = (
+    unix_timestamp_ms, time_ms, lon, lat, alt, angle = (
         entry if len(entry) == 6 else [None, *entry]
     )
     return geo.Point(
-        unix_timestamp=unix_timestamp,
+        unix_timestamp=unix_timestamp_ms / 1000 if unix_timestamp_ms else None,
         time=time_ms / 1000,
         lon=lon,
         lat=lat,
