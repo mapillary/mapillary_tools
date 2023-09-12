@@ -19,14 +19,14 @@ class Point:
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
     __slots__ = (
-        "unix_timestamp",
+        "unix_timestamp_ms",
         "time",
         "lat",
         "lon",
         "alt",
         "angle",
     )
-    unix_timestamp: T.Optional[float]
+    unix_timestamp_ms: T.Optional[int]
     time: float
     lat: float
     lon: float
@@ -232,7 +232,9 @@ def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
         alt = None
 
     return Point(
-        unix_timestamp=start.unix_timestamp + t if start.unix_timestamp else None,
+        unix_timestamp_ms=int(start.unix_timestamp_ms + t)
+        if start.unix_timestamp_ms
+        else None,
         time=t,
         lat=lat,
         lon=lon,
@@ -274,7 +276,7 @@ def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
     #     assert cur.time <= nex.time, "Points not sorted"
 
     p = Point(
-        unix_timestamp=None,
+        unix_timestamp_ms=None,
         time=t,
         lat=float("-inf"),
         lon=float("-inf"),

@@ -81,7 +81,6 @@ class VideoMetadata:
     points: T.Sequence[geo.Point]
     make: T.Optional[str] = None
     model: T.Optional[str] = None
-    gps_creation_time: T.Optional[float] = None
 
     def update_md5sum(self) -> None:
         if self.md5sum is None:
@@ -567,8 +566,9 @@ def _from_image_desc(desc) -> ImageMetadata:
         lat=desc["MAPLatitude"],
         lon=desc["MAPLongitude"],
         alt=desc.get("MAPAltitude"),
-        unix_timestamp=geo.as_unix_time(
-            map_capture_time_to_datetime(desc["MAPCaptureTime"])
+        unix_timestamp_ms=int(
+            geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"]))
+            * 1000
         ),
         time=geo.as_unix_time(map_capture_time_to_datetime(desc["MAPCaptureTime"])),
         angle=desc.get("MAPCompassHeading", {}).get("TrueHeading"),
@@ -580,7 +580,7 @@ def _from_image_desc(desc) -> ImageMetadata:
 
 def _encode_point(p: geo.Point) -> T.Sequence[T.Union[float, int, None]]:
     entry = [
-        int(p.unix_timestamp * 1000) if p.unix_timestamp is not None else None,
+        int(p.unix_timestamp_ms) if p.unix_timestamp_ms is not None else None,
         int(p.time * 1000),
         round(p.lon, _COORDINATES_PRECISION),
         round(p.lat, _COORDINATES_PRECISION),
@@ -595,7 +595,7 @@ def _decode_point(entry: T.Sequence[T.Any]) -> geo.Point:
         entry if len(entry) == 6 else [None, *entry]
     )
     return geo.Point(
-        unix_timestamp=unix_timestamp_ms / 1000 if unix_timestamp_ms else None,
+        unix_timestamp_ms=int(unix_timestamp_ms) if unix_timestamp_ms else None,
         time=time_ms / 1000,
         lon=lon,
         lat=lat,

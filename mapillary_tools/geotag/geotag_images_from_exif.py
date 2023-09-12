@@ -64,7 +64,7 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
         image_metadata = types.ImageMetadata(
             filename=image_path,
             md5sum=None,
-            unix_timestamp=geo.as_unix_time(capture_time),
+            unix_timestamp_ms=int(geo.as_unix_time(capture_time) * 1000),
             time=geo.as_unix_time(capture_time),
             lat=lat,
             lon=lon,

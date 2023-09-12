@@ -20,30 +20,19 @@ def test_dbscan():
     assert gps_filter.dbscan([], _true_decider) == {}
 
     assert gps_filter.dbscan(
-        [[geo.Point(unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None)]],
-        _true_decider,
-    ) == {
-        0: [geo.Point(unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None)]
-    }
-
-    assert gps_filter.dbscan(
         [
             [
                 geo.Point(
-                    unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None
+                    unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
                 )
-            ],
-            [
-                geo.Point(
-                    unix_timestamp=None, time=2, lat=1, lon=1, angle=None, alt=None
-                )
-            ],
+            ]
         ],
         _true_decider,
     ) == {
         0: [
-            geo.Point(unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None),
-            geo.Point(unix_timestamp=None, time=2, lat=1, lon=1, angle=None, alt=None),
+            geo.Point(
+                unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
+            )
         ]
     }
 
@@ -51,19 +40,48 @@ def test_dbscan():
         [
             [
                 geo.Point(
-                    unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None
+                    unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
                 )
             ],
             [
                 geo.Point(
-                    unix_timestamp=None, time=2, lat=1, lon=1, angle=None, alt=None
+                    unix_timestamp_ms=None, time=2, lat=1, lon=1, angle=None, alt=None
+                )
+            ],
+        ],
+        _true_decider,
+    ) == {
+        0: [
+            geo.Point(
+                unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
+            ),
+            geo.Point(
+                unix_timestamp_ms=None, time=2, lat=1, lon=1, angle=None, alt=None
+            ),
+        ]
+    }
+
+    assert gps_filter.dbscan(
+        [
+            [
+                geo.Point(
+                    unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
+                )
+            ],
+            [
+                geo.Point(
+                    unix_timestamp_ms=None, time=2, lat=1, lon=1, angle=None, alt=None
                 )
             ],
         ],
         gps_filter.speed_le(1000),
     ) == {
         0: [
-            geo.Point(unix_timestamp=None, time=1, lat=1, lon=1, angle=None, alt=None),
-            geo.Point(unix_timestamp=None, time=2, lat=1, lon=1, angle=None, alt=None),
+            geo.Point(
+                unix_timestamp_ms=None, time=1, lat=1, lon=1, angle=None, alt=None
+            ),
+            geo.Point(
+                unix_timestamp_ms=None, time=2, lat=1, lon=1, angle=None, alt=None
+            ),
         ]
     }

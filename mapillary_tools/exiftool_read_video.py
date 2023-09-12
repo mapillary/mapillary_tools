@@ -174,7 +174,7 @@ def _aggregate_gps_track(
             continue
         track.append(
             geo.PointWithFix(
-                unix_timestamp=timestamp,
+                unix_timestamp_ms=int(timestamp * 1000),
                 time=timestamp,
                 lon=lon,
                 lat=lat,

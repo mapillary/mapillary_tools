@@ -13,7 +13,7 @@ def test_desc():
             lon=2,
             alt=3,
             angle=4,
-            unix_timestamp=5,
+            unix_timestamp_ms=5000,
             time=5,
             MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPSequenceUUID="MAPSequenceUUID",
@@ -34,7 +34,7 @@ def test_desc():
             lon=2,
             alt=3,
             angle=4,
-            unix_timestamp=5,
+            unix_timestamp_ms=5000,
             time=5,
             MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPOrientation=1,
@@ -55,7 +55,7 @@ def test_desc_video():
             filetype=types.FileType.CAMM,
             points=[
                 geo.Point(
-                    unix_timestamp=None,
+                    unix_timestamp_ms=None,
                     time=123,
                     lat=1.331,
                     lon=2.33,
@@ -72,7 +72,7 @@ def test_desc_video():
             filetype=types.FileType.CAMM,
             points=[
                 geo.Point(
-                    unix_timestamp=None,
+                    unix_timestamp_ms=1234,
                     time=123,
                     lat=1.331,
                     lon=2.33,

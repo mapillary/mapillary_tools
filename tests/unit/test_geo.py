@@ -20,14 +20,14 @@ def approximate_point(a: Point, b: Point):
 
 def test_interpolate_compare():
     points = [
-        Point(unix_timestamp=None, time=1, lon=3, lat=2, alt=1, angle=None),
-        Point(unix_timestamp=None, time=2, lon=2, lat=0, alt=None, angle=2),
+        Point(unix_timestamp_ms=None, time=1, lon=3, lat=2, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=2, lon=2, lat=0, alt=None, angle=2),
     ]
     a = geo.interpolate(points, 1.5)
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=1.5,
             lat=1.0,
             lon=2.5,
@@ -39,8 +39,8 @@ def test_interpolate_compare():
 
 def test_interpolate():
     points = [
-        Point(unix_timestamp=None, lon=1, lat=1, time=1, alt=1, angle=None),
-        Point(unix_timestamp=None, lon=2, lat=2, time=2, alt=2, angle=None),
+        Point(unix_timestamp_ms=None, lon=1, lat=1, time=1, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, lon=2, lat=2, time=2, alt=2, angle=None),
     ]
     interpolator = geo.Interpolator([points])
 
@@ -95,7 +95,7 @@ def test_interpolate():
 
 def test_interpolate_single():
     points = [
-        Point(unix_timestamp=None, lon=1, lat=1, time=1, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, lon=1, lat=1, time=1, alt=1, angle=None),
     ]
     interpolator = geo.Interpolator([points])
 
@@ -123,17 +123,19 @@ def test_multiple_sequences():
     interpolator = geo.Interpolator(
         [
             [
-                Point(unix_timestamp=None, lon=4, lat=4, time=1.5, alt=1, angle=None),
-                Point(unix_timestamp=None, lon=5, lat=5, time=3, alt=2, angle=None),
+                Point(
+                    unix_timestamp_ms=None, lon=4, lat=4, time=1.5, alt=1, angle=None
+                ),
+                Point(unix_timestamp_ms=None, lon=5, lat=5, time=3, alt=2, angle=None),
             ],
             [
-                Point(unix_timestamp=None, lon=1, lat=1, time=1, alt=1, angle=None),
-                Point(unix_timestamp=None, lon=2, lat=2, time=2, alt=2, angle=None),
+                Point(unix_timestamp_ms=None, lon=1, lat=1, time=1, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, lon=2, lat=2, time=2, alt=2, angle=None),
             ],
             [],
             [
-                Point(unix_timestamp=None, lon=6, lat=6, time=9, alt=1, angle=None),
-                Point(unix_timestamp=None, lon=7, lat=7, time=10, alt=2, angle=None),
+                Point(unix_timestamp_ms=None, lon=6, lat=6, time=9, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, lon=7, lat=7, time=10, alt=2, angle=None),
             ],
         ]
     )
@@ -141,7 +143,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=-1,
             lat=-1.0,
             lon=-1.0,
@@ -153,7 +155,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=1,
             lat=1.0,
             lon=1.0,
@@ -165,7 +167,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=1,
             lat=1.0,
             lon=1.0,
@@ -177,7 +179,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=1.5,
             lat=1.5,
             lon=1.5,
@@ -189,7 +191,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=2,
             lat=2.0,
             lon=2.0,
@@ -201,7 +203,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=3,
             lat=5.0,
             lon=5.0,
@@ -213,7 +215,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=10,
             lat=7.0,
             lon=7.0,
@@ -225,7 +227,7 @@ def test_multiple_sequences():
     approximate_point(
         a,
         Point(
-            unix_timestamp=None,
+            unix_timestamp_ms=None,
             time=11,
             lat=8.0,
             lon=8.0,
@@ -237,12 +239,12 @@ def test_multiple_sequences():
 
 def test_multiple_sequences_random():
     track = [
-        Point(unix_timestamp=None, lon=4, lat=4, time=1.5, alt=1, angle=None),
-        Point(unix_timestamp=None, lon=5, lat=5, time=3, alt=2, angle=None),
-        Point(unix_timestamp=None, lon=5, lat=5, time=4.3, alt=8, angle=None),
-        Point(unix_timestamp=None, lon=5, lat=8, time=4.3, alt=2, angle=None),
-        Point(unix_timestamp=None, lon=5, lat=8, time=7.3, alt=1, angle=None),
-        Point(unix_timestamp=None, lon=5, lat=8, time=9.3, alt=3, angle=None),
+        Point(unix_timestamp_ms=None, lon=4, lat=4, time=1.5, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, lon=5, lat=5, time=3, alt=2, angle=None),
+        Point(unix_timestamp_ms=None, lon=5, lat=5, time=4.3, alt=8, angle=None),
+        Point(unix_timestamp_ms=None, lon=5, lat=8, time=4.3, alt=2, angle=None),
+        Point(unix_timestamp_ms=None, lon=5, lat=8, time=7.3, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, lon=5, lat=8, time=9.3, alt=3, angle=None),
     ]
     interpolator = geo.Interpolator(
         [
@@ -261,10 +263,10 @@ def test_point_sorting():
     class _Point(Point):
         p: float
 
-    t1 = _Point(lon=1, lat=1, unix_timestamp=None, time=1, alt=1, angle=None, p=123)
-    t2 = _Point(lon=1, lat=1, unix_timestamp=None, time=1, alt=1, angle=2, p=123)
-    t3 = _Point(lon=9, lat=1, unix_timestamp=None, time=1, alt=1, angle=123, p=1)
-    t4 = _Point(lon=1, lat=1, unix_timestamp=None, time=2, alt=1, angle=None, p=100)
+    t1 = _Point(lon=1, lat=1, unix_timestamp_ms=None, time=1, alt=1, angle=None, p=123)
+    t2 = _Point(lon=1, lat=1, unix_timestamp_ms=None, time=1, alt=1, angle=2, p=123)
+    t3 = _Point(lon=9, lat=1, unix_timestamp_ms=None, time=1, alt=1, angle=123, p=1)
+    t4 = _Point(lon=1, lat=1, unix_timestamp_ms=None, time=2, alt=1, angle=None, p=100)
     # not a very useful tests
     # just be careful with comparing points: angle could be None
     s = sorted([t1, t2, t3, t4], key=lambda x: x.time)
@@ -281,33 +283,37 @@ def test_sample_points_by_distance():
     x = list(
         geo.sample_points_by_distance(
             [
-                Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=None),
-                Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=None),
-                Point(unix_timestamp=None, time=1, lat=1.1, lon=1.1, alt=1, angle=None),
-                Point(unix_timestamp=None, time=1, lat=1.1, lon=1.1, alt=1, angle=None),
-                Point(unix_timestamp=None, time=1, lat=2, lon=2, alt=1, angle=None),
-                Point(unix_timestamp=None, time=1, lat=2, lon=2, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=None),
+                Point(
+                    unix_timestamp_ms=None, time=1, lat=1.1, lon=1.1, alt=1, angle=None
+                ),
+                Point(
+                    unix_timestamp_ms=None, time=1, lat=1.1, lon=1.1, alt=1, angle=None
+                ),
+                Point(unix_timestamp_ms=None, time=1, lat=2, lon=2, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, time=1, lat=2, lon=2, alt=1, angle=None),
             ],
             100000,
             lambda x: x,
         )
     )
     assert [
-        Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=None),
-        Point(unix_timestamp=None, time=1, lat=2, lon=2, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=2, lon=2, alt=1, angle=None),
     ] == x
 
     x = list(
         geo.sample_points_by_distance(
             [
-                Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=None),
+                Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=None),
             ],
             100000,
             lambda x: x,
         )
     )
     assert [
-        Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=None),
     ] == x
 
     x = list(
@@ -343,11 +349,11 @@ def test_compute_bearing():
 
 def test_interpolate_directions_if_none():
     points = [
-        Point(unix_timestamp=None, time=1, lat=0, lon=0, alt=1, angle=None),
-        Point(unix_timestamp=None, time=1, lat=0, lon=1, alt=1, angle=1),
-        Point(unix_timestamp=None, time=1, lat=1, lon=1, alt=1, angle=2),
-        Point(unix_timestamp=None, time=1, lat=1, lon=0, alt=1, angle=None),
-        Point(unix_timestamp=None, time=1, lat=0, lon=0, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=0, lon=0, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=0, lon=1, alt=1, angle=1),
+        Point(unix_timestamp_ms=None, time=1, lat=1, lon=1, alt=1, angle=2),
+        Point(unix_timestamp_ms=None, time=1, lat=1, lon=0, alt=1, angle=None),
+        Point(unix_timestamp_ms=None, time=1, lat=0, lon=0, alt=1, angle=None),
     ]
     geo.interpolate_directions_if_none(points)
     assert [90, 1, 2, 180, 180] == [p.angle for p in points]

@@ -45,7 +45,7 @@ def test_parse_points():
     assert x is not None
     assert [
         geo.Point(
-            unix_timestamp=1623057129.253,
+            unix_timestamp_ms=1623057129253,
             time=0.0,
             lat=38.8861575,
             lon=-76.99239516666667,
@@ -53,7 +53,7 @@ def test_parse_points():
             angle=None,
         ),
         geo.Point(
-            unix_timestamp=1623057130.221,
+            unix_timestamp_ms=1623057130221,
             time=0.968,
             lat=38.88615816666667,
             lon=-76.992434,
@@ -61,7 +61,7 @@ def test_parse_points():
             angle=None,
         ),
         geo.Point(
-            unix_timestamp=1623057130.221,
+            unix_timestamp_ms=1623057130221,
             time=0.968,
             lat=38.88615816666667,
             lon=-76.992434,

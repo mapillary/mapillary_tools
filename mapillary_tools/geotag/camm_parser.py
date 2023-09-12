@@ -98,7 +98,9 @@ def _parse_point_from_sample(
         # Not using box.data.time_gps_epoch as the point timestamp
         # because it is from another clock
         return geo.Point(
-            unix_timestamp=_gps_timestamp_to_unix(box.data.time_gps_epoch),
+            unix_timestamp_ms=int(
+                _gps_timestamp_to_unix(box.data.time_gps_epoch) * 1000
+            ),
             time=sample.time_offset,
             lat=box.data.latitude,
             lon=box.data.longitude,

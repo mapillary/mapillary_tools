@@ -218,7 +218,7 @@ def gps_from_stream(
         gpsp = indexed.get(b"GPSP")
 
         yield geo.PointWithFix(
-            unix_timestamp=ts if ts is not None else None,
+            unix_timestamp_ms=int(ts * 1000) if ts is not None else None,
             # will figure out the actual timestamp later
             time=0,
             lat=lat,

@@ -244,11 +244,13 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             convert_points_to_raw_samples(video_metadata.points, media_timescale)
         )
         # We adhere to some vendor's behavior and set creation_time to the time
-        # the recording ended
+        # the recording ended, and add 2082844800 to rebase to quicktime epoch 1904-01-01
         last_timestamp = (
-            video_metadata.points[-1].unix_timestamp if video_metadata.points else 0
+            (video_metadata.points[-1].unix_timestamp_ms or 0) / 1000 + 2082844800
+            if video_metadata.points
+            else 0
         )
-        creation_timestamp = int(last_timestamp or 0)
+        creation_timestamp = int(last_timestamp)
         camm_trak = create_camm_trak(camm_samples, media_timescale, creation_timestamp)
         elst = _create_edit_list(
             [video_metadata.points], movie_timescale, media_timescale
