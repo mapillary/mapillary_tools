@@ -59,7 +59,7 @@ class VideoDataExtractor:
 
     def process_file(self, file: Path) -> VideoMetadataOrError:
         parsers = video_data_parser_factory.make_parsers(file, self.options)
-        points: T.Sequence[geo.Point] = []
+        points: T.Sequence[geo.GpsPoint] = []
         make = self.options["device_make"]
         model = self.options["device_model"]
 
@@ -84,6 +84,9 @@ class VideoDataExtractor:
                     {**log_vars, "e": e},
                 )
 
+        last_ts = points[-1].unix_timestamp_ms if len(points) > 0 else None
+        last_unix_ts = int(last_ts/1000) if last_ts else None
+
         # After trying all parsers, return the points if we found any, otherwise
         # the last exception thrown or a default one.
         # Note that if we have points, we return them, regardless of exceptions
@@ -93,9 +96,10 @@ class VideoDataExtractor:
                 filename=file,
                 filetype=FileType.VIDEO,
                 md5sum=None,
-                points=points,
+                points=self._gps_points_to_points(points),
                 make=make,
                 model=model,
+                last_unix_ts=last_unix_ts
             )
             video_metadata.update_md5sum()
             return video_metadata
@@ -112,7 +116,7 @@ class VideoDataExtractor:
 
     def _extract_points(
         self, parser: BaseParser, log_vars: T.Dict
-    ) -> T.Sequence[geo.Point]:
+    ) -> T.Sequence[geo.GpsPoint]:
         points = parser.extract_points()
         if points:
             LOG.debug(
@@ -125,7 +129,7 @@ class VideoDataExtractor:
         if parser.must_rebase_times_to_zero:
             points = self._rebase_times(points)
 
-        return self._gps_points_to_points(points)
+        return points
 
     @staticmethod
     def _check_paths(import_paths: T.Sequence[Path]):
