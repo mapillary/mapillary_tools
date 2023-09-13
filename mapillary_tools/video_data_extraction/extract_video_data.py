@@ -125,7 +125,7 @@ class VideoDataExtractor:
         if parser.must_rebase_times_to_zero:
             points = self._rebase_times(points)
 
-        return points
+        return self._gps_points_to_points(points)
 
     @staticmethod
     def _check_paths(import_paths: T.Sequence[Path]):
@@ -146,7 +146,7 @@ class VideoDataExtractor:
                     )
 
     @staticmethod
-    def _sanitize_points(points: T.Sequence[geo.Point]) -> T.Sequence[geo.Point]:
+    def _sanitize_points(points: T.Sequence[geo.GpsPoint]) -> T.Sequence[geo.GpsPoint]:
         """
         Deduplicates points, when possible removes noisy ones, and checks
         against stationary videos
@@ -158,16 +158,10 @@ class VideoDataExtractor:
             )
 
         points = geo.extend_deduplicate_points(points)
+        points = gpmf_gps_filter.remove_noisy_points(points)
 
-        if all(isinstance(p, geo.PointWithFix) for p in points):
-            points = T.cast(
-                T.Sequence[geo.Point],
-                gpmf_gps_filter.remove_noisy_points(
-                    T.cast(T.Sequence[geo.PointWithFix], points)
-                ),
-            )
-            if not points:
-                raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+        if not points:
+            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
         stationary = video_utils.is_video_stationary(
             geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
@@ -179,7 +173,7 @@ class VideoDataExtractor:
         return points
 
     @staticmethod
-    def _rebase_times(points: T.Sequence[geo.Point]):
+    def _rebase_times(points: T.Sequence[geo.GpsPoint]):
         """
         Make point times start from 0
         """
@@ -188,3 +182,10 @@ class VideoDataExtractor:
             for p in points:
                 p.time = p.time - first_timestamp
         return points
+
+    @staticmethod
+    def _gps_points_to_points(points: T.Sequence[geo.GpsPoint]):
+        return [
+            geo.Point(time=p.time, lat=p.lat, lon=p.lon, alt=p.alt, angle=p.angle)
+            for p in points
+        ]

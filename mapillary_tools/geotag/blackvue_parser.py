@@ -26,7 +26,7 @@ NMEA_LINE_REGEX = re.compile(
 )
 
 
-def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
+def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.GpsPoint, None, None]:
     for line_bytes in gps_data.splitlines():
         match = NMEA_LINE_REGEX.match(line_bytes)
         if match is None:
@@ -44,7 +44,7 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
             if not nmea.is_valid:
                 continue
             epoch_ms = int(match.group(1))
-            yield geo.Point(
+            yield geo.GpsPoint(
                 time=epoch_ms,
                 lat=nmea.latitude,
                 lon=nmea.longitude,
@@ -90,7 +90,7 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
         return ""
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.GpsPoint]]:
     gps_data = simple_mp4_parser.parse_mp4_data_first(fp, [b"free", b"gps "])
     if gps_data is None:
         return None
@@ -108,7 +108,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     return points
 
 
-def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
+def parse_gps_points(path: pathlib.Path) -> T.List[geo.GpsPoint]:
     with path.open("rb") as fp:
         points = extract_points(fp)
 

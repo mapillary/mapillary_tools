@@ -27,7 +27,7 @@ class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
         )
 
 
-def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
+def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.GpsPoint]:
     with nmea_file.open("r") as f:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]
@@ -49,10 +49,19 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.Point]:
         if "$GPGGA" in line:
             data = pynmea2.parse(line)
             dt = datetime.datetime.combine(date, data.timestamp)
+            time = geo.as_unix_time(dt)
             lat, lon, alt = data.latitude, data.longitude, data.altitude
             points.append(
-                geo.Point(
-                    time=geo.as_unix_time(dt), lat=lat, lon=lon, alt=alt, angle=None
+                geo.GpsPoint(
+                    time=time,
+                    lat=lat,
+                    lon=lon,
+                    alt=alt,
+                    angle=None,
+                    unix_timestamp_ms=int(time * 1000),
+                    gps_fix=None,
+                    gps_ground_speed=None,
+                    gps_precision=None,
                 )
             )
 

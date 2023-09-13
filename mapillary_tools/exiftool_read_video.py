@@ -87,7 +87,7 @@ def _aggregate_gps_track(
     alt_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
     ground_speed_tag: T.Optional[str] = None,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[geo.GpsPoint]:
     """
     Aggregate all GPS data by the tags.
     It requires lat, lon to be present, and their lengths must match.
@@ -173,7 +173,7 @@ def _aggregate_gps_track(
         if timestamp is None or lon is None or lat is None:
             continue
         track.append(
-            geo.PointWithFix(
+            geo.GpsPoint(
                 time=timestamp,
                 lon=lon,
                 lat=lat,
@@ -182,6 +182,7 @@ def _aggregate_gps_track(
                 gps_fix=None,
                 gps_precision=None,
                 gps_ground_speed=ground_speed,
+                unix_timestamp_ms=int(timestamp * 1000),
             )
         )
 
@@ -230,8 +231,8 @@ def _aggregate_gps_track_by_sample_time(
     ground_speed_tag: T.Optional[str] = None,
     gps_fix_tag: T.Optional[str] = None,
     gps_precision_tag: T.Optional[str] = None,
-) -> T.List[geo.PointWithFix]:
-    track: T.List[geo.PointWithFix] = []
+) -> T.List[geo.GpsPoint]:
+    track: T.List[geo.GpsPoint] = []
 
     expanded_gps_fix_tag = None
     if gps_fix_tag is not None:
@@ -298,21 +299,21 @@ class ExifToolReadVideo:
         self._texts_by_tag = _index_text_by_tag(self.etree.getroot())
         self._all_tags = set(self._texts_by_tag.keys())
 
-    def extract_gps_track(self) -> T.List[geo.Point]:
+    def extract_gps_track(self) -> T.List[geo.GpsPoint]:
         # blackvue and many other cameras
         track_with_fix = self._extract_gps_track_from_quicktime()
         if track_with_fix:
-            return T.cast(T.List[geo.Point], track_with_fix)
+            return track_with_fix
 
         # insta360 has its own tag
         track_with_fix = self._extract_gps_track_from_quicktime(namespace="Insta360")
         if track_with_fix:
-            return T.cast(T.List[geo.Point], track_with_fix)
+            return track_with_fix
 
         # mostly for gopro
         track_with_fix = self._extract_gps_track_from_track()
         if track_with_fix:
-            return T.cast(T.List[geo.Point], track_with_fix)
+            return track_with_fix
 
         return []
 
@@ -355,7 +356,7 @@ class ExifToolReadVideo:
         _, model = self._extract_make_and_model()
         return model
 
-    def _extract_gps_track_from_track(self) -> T.List[geo.PointWithFix]:
+    def _extract_gps_track_from_track(self) -> T.List[geo.GpsPoint]:
         for track_id in range(1, MAX_TRACK_ID + 1):
             track_ns = f"Track{track_id}"
             if self._all_tags_exists(
@@ -397,7 +398,7 @@ class ExifToolReadVideo:
 
     def _extract_gps_track_from_quicktime(
         self, namespace: str = "QuickTime"
-    ) -> T.List[geo.PointWithFix]:
+    ) -> T.List[geo.GpsPoint]:
         if not self._all_tags_exists(
             {
                 expand_tag(f"{namespace}:GPSDateTime"),

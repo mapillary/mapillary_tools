@@ -36,7 +36,7 @@ def _parse_args():
 
 def _gpx_track_segment_to_points(
     segment: gpxpy.gpx.GPXTrackSegment,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[geo.GpsPoint]:
     gps_fix_map = {
         "none": geo.GPSFix.NO_FIX,
         "2d": geo.GPSFix.FIX_2D,
@@ -57,7 +57,7 @@ def _gpx_track_segment_to_points(
         else:
             ground_speed = None
 
-        point = geo.PointWithFix(
+        point = geo.GpsPoint(
             time=geo.as_unix_time(T.cast(datetime.datetime, p.time)),
             lat=p.latitude,
             lon=p.longitude,
@@ -74,10 +74,10 @@ def _gpx_track_segment_to_points(
 
 
 def _filter_noise(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[geo.GpsPoint],
     gps_fix: T.Set[int],
     max_dop: float,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[geo.GpsPoint]:
     return [
         p
         for p in points
@@ -87,9 +87,9 @@ def _filter_noise(
 
 
 def _filter_outliers(
-    points: T.List[geo.PointWithFix],
+    points: T.List[geo.GpsPoint],
     gps_precision: float,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[geo.GpsPoint]:
     if gps_precision == 0:
         return points
 
@@ -118,7 +118,7 @@ def _filter_outliers(
     merged = gps_filter.dbscan(subseqs, gps_filter.speed_le(max_speed))
 
     return T.cast(
-        T.List[geo.PointWithFix],
+        T.List[geo.GpsPoint],
         gps_filter.find_majority(merged.values()),
     )
 

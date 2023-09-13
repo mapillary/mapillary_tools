@@ -172,7 +172,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 #             ]
 def gps_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[geo.PointWithFix, None, None]:
+) -> T.Generator[geo.GpsPoint, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -204,7 +204,7 @@ def gps_from_stream(
         lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
-        yield geo.PointWithFix(
+        yield geo.GpsPoint(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
@@ -233,8 +233,8 @@ def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     return device_id
 
 
-def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithFix]:
-    sample_points: T.List[geo.PointWithFix] = []
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.GpsPoint]:
+    sample_points: T.List[geo.GpsPoint] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -270,9 +270,9 @@ def _extract_dvnm_from_samples(
 
 def _extract_points_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[sample_parser.Sample]
-) -> T.List[geo.PointWithFix]:
+) -> T.List[geo.GpsPoint]:
     # To keep GPS points from different devices separated
-    points_by_dvid: T.Dict[int, T.List[geo.PointWithFix]] = {}
+    points_by_dvid: T.Dict[int, T.List[geo.GpsPoint]] = {}
 
     for sample in samples:
         fp.seek(sample.offset, io.SEEK_SET)
@@ -297,7 +297,7 @@ def _extract_points_from_samples(
     return values[0] if values else []
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.PointWithFix]]:
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.GpsPoint]]:
     """
     Return a list of points (could be empty) if it is a valid GoPro video,
     otherwise None
@@ -380,7 +380,7 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     return unicode_names[0].strip()
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[geo.PointWithFix]:
+def parse_gpx(path: pathlib.Path) -> T.List[geo.GpsPoint]:
     with path.open("rb") as fp:
         points = extract_points(fp)
     if points is None:

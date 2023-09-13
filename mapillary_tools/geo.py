@@ -40,10 +40,12 @@ class GPSFix(Enum):
 
 
 @dataclasses.dataclass
-class PointWithFix(Point):
-    gps_fix: T.Optional[GPSFix]
-    gps_precision: T.Optional[float]
-    gps_ground_speed: T.Optional[float]
+class GpsPoint(Point):
+    gps_fix: T.Optional[GPSFix] = None
+    gps_precision: T.Optional[float] = None
+    gps_ground_speed: T.Optional[float] = None
+    unix_timestamp_ms: T.Optional[int] = None
+    gps_horizontal_accuracy: T.Optional[float] = None
 
 
 def _ecef_from_lla_DEPRECATED(
