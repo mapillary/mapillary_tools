@@ -50,6 +50,7 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.GpsPoint, None, None]:
                 lon=nmea.longitude,
                 alt=nmea.altitude,
                 angle=None,
+                unix_timestamp=int(epoch_ms / 1000),
             )
 
 

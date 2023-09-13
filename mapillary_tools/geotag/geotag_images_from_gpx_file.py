@@ -146,10 +146,8 @@ def parse_gpx(gpx_file: Path) -> T.List[Track]:
                             lon=point.longitude,
                             alt=point.elevation,
                             angle=None,
-                            gps_fix=None,
-                            gps_precision=None,
                             gps_ground_speed=point.speed,
-                            unix_timestamp_ms=int(time * 1000),
+                            unix_timestamp=int(time),
                         )
                     )
 

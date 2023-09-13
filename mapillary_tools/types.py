@@ -81,7 +81,7 @@ class VideoMetadata:
     points: T.Sequence[geo.Point]
     make: T.Optional[str] = None
     model: T.Optional[str] = None
-    last_unix_ts: T.Optional[int] = None # GPS time of the last point as Unix ts
+    last_unix_ts: T.Optional[int] = None  # GPS time of the last point as Unix ts
 
     def update_md5sum(self) -> None:
         if self.md5sum is None:
@@ -332,8 +332,8 @@ VideoDescriptionSchema = {
         },
         "MAPLastUnixTimestamp": {
             "type": "integer",
-            "description": "UNIX timestamp of the last GPS point"
-        }        
+            "description": "UNIX timestamp of the last GPS point",
+        },
     },
     "required": [
         "MAPGPSTrack",
@@ -602,7 +602,7 @@ def _from_video_desc(desc: VideoDescription) -> VideoMetadata:
         points=[_decode_point(entry) for entry in desc["MAPGPSTrack"]],
         make=desc.get("MAPDeviceMake"),
         model=desc.get("MAPDeviceModel"),
-        last_unix_ts=desc.get("MAPLastUnixTimestamp")
+        last_unix_ts=desc.get("MAPLastUnixTimestamp"),
     )
 
 

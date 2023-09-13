@@ -16,6 +16,10 @@ WGS84_b_SQ = WGS84_b**2
 
 @dataclasses.dataclass(order=True)
 class Point:
+    """
+    5-dimensional point. Its coordinates will also be dumped to the JSON description.
+    """
+
     # For reducing object sizes
     # dataclass(slots=True) not available until 3.10
     __slots__ = (
@@ -41,11 +45,15 @@ class GPSFix(Enum):
 
 @dataclasses.dataclass
 class GpsPoint(Point):
+    """
+    Extends Point with GPS data for filtering etc.
+    """
+
     gps_fix: T.Optional[GPSFix] = None
     gps_precision: T.Optional[float] = None
     gps_ground_speed: T.Optional[float] = None
-    unix_timestamp_ms: T.Optional[int] = None
     gps_horizontal_accuracy: T.Optional[float] = None
+    unix_timestamp: T.Optional[int] = None
 
 
 def _ecef_from_lla_DEPRECATED(

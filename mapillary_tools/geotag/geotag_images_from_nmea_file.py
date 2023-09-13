@@ -58,10 +58,7 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> T.List[geo.GpsPoint]:
                     lon=lon,
                     alt=alt,
                     angle=None,
-                    unix_timestamp_ms=int(time * 1000),
-                    gps_fix=None,
-                    gps_ground_speed=None,
-                    gps_precision=None,
+                    unix_timestamp=int(time),
                 )
             )
 

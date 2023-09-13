@@ -182,7 +182,7 @@ def _aggregate_gps_track(
                 gps_fix=None,
                 gps_precision=None,
                 gps_ground_speed=ground_speed,
-                unix_timestamp_ms=int(timestamp * 1000),
+                unix_timestamp=timestamp,
             )
         )
 

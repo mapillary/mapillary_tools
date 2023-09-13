@@ -107,9 +107,7 @@ def _parse_point_from_sample(
             lon=box.data.longitude,
             alt=box.data.altitude,
             angle=None,
-            unix_timestamp_ms=int(
-                _gps_timestamp_to_unix(box.data.time_gps_epoch) * 1000
-            ),
+            unix_timestamp=int(_gps_timestamp_to_unix(box.data.time_gps_epoch)),
             gps_fix=geo.GPSFix(box.data.gps_fix_type),
             gps_ground_speed=speed,
             gps_horizontal_accuracy=box.data.horizontal_accuracy,

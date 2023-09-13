@@ -84,8 +84,8 @@ class VideoDataExtractor:
                     {**log_vars, "e": e},
                 )
 
-        last_ts = points[-1].unix_timestamp_ms if len(points) > 0 else None
-        last_unix_ts = int(last_ts/1000) if last_ts else None
+        last_ts = points[-1].unix_timestamp if len(points) > 0 else None
+        last_ts_int = int(last_ts) if last_ts else None
 
         # After trying all parsers, return the points if we found any, otherwise
         # the last exception thrown or a default one.
@@ -99,7 +99,7 @@ class VideoDataExtractor:
                 points=self._gps_points_to_points(points),
                 make=make,
                 model=model,
-                last_unix_ts=last_unix_ts
+                last_unix_ts=last_ts_int,
             )
             video_metadata.update_md5sum()
             return video_metadata
