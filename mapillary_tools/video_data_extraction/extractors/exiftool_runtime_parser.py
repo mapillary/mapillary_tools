@@ -35,9 +35,11 @@ class ExiftoolRuntimeParser(BaseParser):
                 "Cannot execute exiftool. Please install it from https://exiftool.org/ or you package manager, or set the environment variable MAPILLARY_TOOLS_EXIFTOOL_PATH"
             )
 
-        args = (
-            f"{exiftool_path} -q -r -n -ee -api LargeFileSupport=1 -X {self.geotag_source_path}"
-        ).split(" ")
+        if not self.geotag_source_path:
+            return
+        args = f"{exiftool_path} -q -r -n -ee -api LargeFileSupport=1 -X".split(" ")
+        args.append(str(self.geotag_source_path))
+
         xml_content = subprocess.run(args, capture_output=True, text=True).stdout
 
         self.exiftoolXmlParser = ExiftoolXmlParser(
