@@ -37,8 +37,17 @@ class ExiftoolRuntimeParser(BaseParser):
 
         if not self.geotag_source_path:
             return
-        args = f"{exiftool_path} -q -r -n -ee -api LargeFileSupport=1 -X".split(" ")
-        args.append(str(self.geotag_source_path))
+        args = [
+            exiftool_path,
+            "-q",
+            "-r",
+            "-n",
+            "-ee",
+            "-api",
+            "LargeFileSupport=1",
+            "-X",
+            str(self.geotag_source_path),
+        ]
 
         xml_content = subprocess.run(args, capture_output=True, text=True).stdout
 
