@@ -30,13 +30,17 @@ class ExiftoolRuntimeParser(BaseParser):
     ):
         super().__init__(video_path, options, parser_options)
         exiftool_path = shutil.which(constants.EXIFTOOL_PATH)
+
         if not exiftool_path:
             raise exceptions.MapillaryExiftoolNotFoundError(
                 "Cannot execute exiftool. Please install it from https://exiftool.org/ or you package manager, or set the environment variable MAPILLARY_TOOLS_EXIFTOOL_PATH"
             )
-
         if not self.geotag_source_path:
             return
+
+        # To handle non-latin1 filenames under Windows, we pass the path
+        # via stdin. See https://exiftool.org/faq.html#Q18
+        stdin = str(self.geotag_source_path)
         args = [
             exiftool_path,
             "-q",
@@ -46,13 +50,18 @@ class ExiftoolRuntimeParser(BaseParser):
             "-api",
             "LargeFileSupport=1",
             "-X",
-            str(self.geotag_source_path),
+            "-charset",
+            "filename=utf8",
+            "-@",
+            "-",
         ]
 
-        xml_content = subprocess.run(args, capture_output=True, text=True).stdout
+        process = subprocess.run(
+            args, capture_output=True, text=True, input=stdin, encoding="utf-8"
+        )
 
         self.exiftoolXmlParser = ExiftoolXmlParser(
-            video_path, options, parser_options, xml_content
+            video_path, options, parser_options, process.stdout
         )
 
     def extract_points(self) -> T.Sequence[geo.Point]:
