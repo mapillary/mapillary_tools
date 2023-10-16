@@ -321,7 +321,11 @@ def _extract_upload_md5sum(fp: T.IO[bytes]) -> T.Optional[str]:
 
 
 def _is_immediate_retry(ex: Exception):
-    if isinstance(ex, requests.HTTPError) and ex.response.status_code == 412:
+    if (
+        isinstance(ex, requests.HTTPError)
+        and isinstance(ex.response, requests.Response)
+        and ex.response.status_code == 412
+    ):
         try:
             resp = ex.response.json()
         except json.JSONDecodeError:
@@ -334,7 +338,9 @@ def _is_retriable_exception(ex: Exception):
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 
-    if isinstance(ex, requests.HTTPError):
+    if isinstance(ex, requests.HTTPError) and isinstance(
+        ex.response, requests.Response
+    ):
         if 400 <= ex.response.status_code < 500:
             try:
                 resp = ex.response.json()
