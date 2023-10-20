@@ -289,6 +289,7 @@ def _process_videos_beta(vars_args: T.Dict):
         "num_processes": vars_args["num_processes"],
         "device_make": vars_args["device_make"],
         "device_model": vars_args["device_model"],
+        "check_file_suffix": len(vars_args["filetypes"]) > 1,
     }
     extractor = VideoDataExtractor(options)
     return extractor.process()

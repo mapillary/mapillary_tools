@@ -33,7 +33,9 @@ class VideoDataExtractor:
     def process(self) -> T.List[MetadataOrError]:
         paths = self.options["paths"]
         self._check_paths(paths)
-        video_files = utils.find_videos(paths)
+        video_files = utils.find_videos(
+            paths, check_file_suffix=self.options["check_file_suffix"]
+        )
         self._check_sources_cardinality(video_files)
 
         num_processes = self.options["num_processes"] or None
