@@ -41,8 +41,14 @@ setup(
     url="https://github.com/mapillary/mapillary_tools",
     author="Mapillary",
     license="BSD",
-    python_requires=">=3.6",
-    packages=["mapillary_tools", "mapillary_tools.commands", "mapillary_tools.geotag"],
+    python_requires=">=3.8",
+    packages=[
+        "mapillary_tools",
+        "mapillary_tools.commands",
+        "mapillary_tools.geotag",
+        "mapillary_tools.video_data_extraction",
+        "mapillary_tools.video_data_extraction.extractors",
+    ],
     entry_points="""
       [console_scripts]
       mapillary_tools=mapillary_tools.commands.__main__:main

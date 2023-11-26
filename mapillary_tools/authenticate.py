@@ -51,7 +51,11 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     try:
         resp = api_v4.get_upload_token(user_email, user_password)
     except requests.HTTPError as ex:
-        if 400 <= ex.response.status_code < 500:
+        if (
+            isinstance(ex, requests.HTTPError)
+            and isinstance(ex.response, requests.Response)
+            and 400 <= ex.response.status_code < 500
+        ):
             r = ex.response.json()
             subcode = r.get("error", {}).get("error_subcode")
             if subcode in [1348028, 1348092, 3404005, 1348131]:

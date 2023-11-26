@@ -2,7 +2,6 @@ import io
 import json
 import logging
 import os
-import sys
 import tempfile
 import time
 import typing as T
@@ -12,13 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import jsonschema
-
 import requests
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
 
 from . import constants, exif_write, types, upload_api_v4, utils
 
@@ -26,7 +19,7 @@ from . import constants, exif_write, types, upload_api_v4, utils
 LOG = logging.getLogger(__name__)
 
 
-class Progress(types.TypedDict, total=False):
+class Progress(T.TypedDict, total=False):
     # The size of the chunk, in bytes, that has been uploaded in the last request
     chunk_size: int
 
@@ -68,7 +61,7 @@ class UploadCancelled(Exception):
     pass
 
 
-EventName = Literal[
+EventName = T.Literal[
     "upload_start",
     "upload_fetch_offset",
     "upload_progress",
@@ -328,7 +321,11 @@ def _extract_upload_md5sum(fp: T.IO[bytes]) -> T.Optional[str]:
 
 
 def _is_immediate_retry(ex: Exception):
-    if isinstance(ex, requests.HTTPError) and ex.response.status_code == 412:
+    if (
+        isinstance(ex, requests.HTTPError)
+        and isinstance(ex.response, requests.Response)
+        and ex.response.status_code == 412
+    ):
         try:
             resp = ex.response.json()
         except json.JSONDecodeError:
@@ -341,7 +338,9 @@ def _is_retriable_exception(ex: Exception):
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 
-    if isinstance(ex, requests.HTTPError):
+    if isinstance(ex, requests.HTTPError) and isinstance(
+        ex.response, requests.Response
+    ):
         if 400 <= ex.response.status_code < 500:
             try:
                 resp = ex.response.json()

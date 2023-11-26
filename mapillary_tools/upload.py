@@ -62,12 +62,17 @@ class DirectUploadFileType(enum.Enum):
 
 
 def wrap_http_exception(ex: requests.HTTPError):
+    req = ex.request
     resp = ex.response
-    lines = [
-        f"{ex.request.method} {resp.url}",
-        f"> HTTP Status: {ex.response.status_code}",
-        f"{resp.content}",
-    ]
+    if isinstance(resp, requests.Response) and isinstance(req, requests.Request):
+        lines = [
+            f"{req.method} {resp.url}",
+            f"> HTTP Status: {resp.status_code}",
+            str(resp.content),
+        ]
+    else:
+        lines = []
+
     return UploadHTTPError("\n".join(lines))
 
 
@@ -713,7 +718,9 @@ def upload(
         if isinstance(inner_ex, requests.Timeout):
             raise exceptions.MapillaryUploadTimeoutError(str(inner_ex)) from inner_ex
 
-        if isinstance(inner_ex, requests.HTTPError):
+        if isinstance(inner_ex, requests.HTTPError) and isinstance(
+            inner_ex.response, requests.Response
+        ):
             if inner_ex.response.status_code in [400, 401]:
                 try:
                     error_body = inner_ex.response.json()

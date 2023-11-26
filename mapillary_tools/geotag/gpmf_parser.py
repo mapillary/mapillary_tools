@@ -1,12 +1,6 @@
 import io
 import pathlib
-import sys
 import typing as T
-
-if sys.version_info >= (3, 8):
-    from typing import TypedDict  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import TypedDict
 
 import construct as C
 
@@ -35,7 +29,7 @@ NOTE:
 """
 
 
-class KLVDict(TypedDict):
+class KLVDict(T.TypedDict):
     key: bytes
     type: bytes
     structure_size: int

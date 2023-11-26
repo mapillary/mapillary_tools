@@ -1,14 +1,7 @@
 import os
-import sys
 import typing as T
-from typing import Union
 
 import requests
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal
 
 MAPILLARY_CLIENT_TOKEN = os.getenv(
     "MAPILLARY_CLIENT_TOKEN", "MLY|5675152195860640|6b02c72e6e3c801e5603ab0495623282"
@@ -31,7 +24,7 @@ def get_upload_token(email: str, password: str) -> requests.Response:
 
 
 def fetch_organization(
-    user_access_token: str, organization_id: Union[int, str]
+    user_access_token: str, organization_id: T.Union[int, str]
 ) -> requests.Response:
     resp = requests.get(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/{organization_id}",
@@ -47,7 +40,7 @@ def fetch_organization(
     return resp
 
 
-ActionType = Literal[
+ActionType = T.Literal[
     "upload_started_upload", "upload_finished_upload", "upload_failed_upload"
 ]
 

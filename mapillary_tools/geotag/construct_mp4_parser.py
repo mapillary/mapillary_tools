@@ -1,17 +1,11 @@
 # pyre-ignore-all-errors[5, 16, 21, 58]
 
-import sys
 import typing as T
-
-if sys.version_info >= (3, 8):
-    from typing import Literal, TypedDict  # pylint: disable=no-name-in-module
-else:
-    from typing_extensions import Literal, TypedDict
 
 import construct as C
 
 
-BoxType = Literal[
+BoxType = T.Literal[
     b"@mak",
     b"@mod",
     b"co64",
@@ -46,7 +40,7 @@ BoxType = Literal[
 ]
 
 
-class BoxDict(TypedDict, total=True):
+class BoxDict(T.TypedDict, total=True):
     type: BoxType
     data: T.Union[T.Sequence["BoxDict"], T.Dict[str, T.Any], bytes]
 
