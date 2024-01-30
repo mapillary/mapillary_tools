@@ -703,7 +703,7 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
                         Path(
                             sample_dir,
                             "max-360mode.mp4",
-                            "max-360mode_0_000000.jpg",
+                            "max-360mode_0_000001.jpg",
                         )
                     ),
                     "filetype": "image",
@@ -725,7 +725,7 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
                         Path(
                             sample_dir,
                             "max-360mode.mp4",
-                            "max-360mode_0_000127.jpg",
+                            "max-360mode_0_000002.jpg",
                         )
                     ),
                     "filetype": "image",
@@ -747,7 +747,7 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
                         Path(
                             sample_dir,
                             "max-360mode.mp4",
-                            "max-360mode_0_000250.jpg",
+                            "max-360mode_0_000003.jpg",
                         )
                     ),
                     "filetype": "image",

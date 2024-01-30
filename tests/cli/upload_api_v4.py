@@ -75,9 +75,11 @@ def main():
         user_access_token,
         session_key,
         entity_size,
-        chunk_size=int(parsed.chunk_size * 1024 * 1024)
-        if parsed.chunk_size is not None
-        else DEFAULT_CHUNK_SIZE,
+        chunk_size=(
+            int(parsed.chunk_size * 1024 * 1024)
+            if parsed.chunk_size is not None
+            else DEFAULT_CHUNK_SIZE
+        ),
     )
     initial_offset = service.fetch_offset()
 
