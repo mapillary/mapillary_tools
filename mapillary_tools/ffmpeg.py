@@ -259,7 +259,7 @@ class FFMPEG:
                         # Set the number of video frames to output
                         *[f"-frames:{stream_specifier}", str(len(frame_indices))],
                         # Disabled because it doesn't always name the sample images as expected
-                        # For example "select(n\,0)" we expected the first sample to be IMG_000.JPG
+                        # For example "select(n\,1)" we expected the first sample to be IMG_001.JPG
                         # but it could be IMG_005.JPG
                         # https://www.ffmpeg.org/ffmpeg-formats.html#Options-21
                         # If set to 1, expand the filename with pts from pkt->pts. Default value is 0.
