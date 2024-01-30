@@ -320,35 +320,37 @@ def _sample_single_video_by_distance(
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
         video_metadata.points, video_track_parser, sample_distance
     )
+    sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_specified_frames(
             video_path,
             wip_dir,
-            frame_indices=set(sample_points_by_frame_idx.keys()),
+            frame_indices=set(sorted_sample_indices),
             stream_idx=video_stream_idx,
         )
 
         frame_samples = ffmpeglib.sort_selected_samples(
             wip_dir, video_path, [video_stream_idx]
         )
-        # extract_specified_frames() produces 0-based frame indices
-        for frame_idx_0based, sample_paths in frame_samples:
-            assert len(sample_paths) == 1
+        if len(frame_samples) != len(sorted_sample_indices):
+            raise exceptions.MapillaryVideoError(
+                f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
+            )
+        for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
+            assert (
+                len(sample_paths) == 1
+            ), "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
+            if idx + 1 != frame_idx_1based:
+                raise exceptions.MapillaryVideoError(
+                    f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
+                )
+
+        for (_, sample_paths), sample_idx in zip(frame_samples, sorted_sample_indices):
             if sample_paths[0] is None:
                 continue
 
-            sample_point = sample_points_by_frame_idx.get(frame_idx_0based)
-            if sample_point is None:
-                # this should not happen
-                LOG.warning(
-                    "The specified frame index %d was not extracted from stream index %d",
-                    frame_idx_0based,
-                    video_stream_idx,
-                )
-                continue
-
-            video_sample, interp = sample_point
+            video_sample, interp = sample_points_by_frame_idx[sample_idx]
             assert (
                 interp.time == video_sample.composition_time_offset
             ), f"interpolated time {interp.time} should match the video sample time {video_sample.composition_time_offset}"
