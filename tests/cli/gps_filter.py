@@ -63,9 +63,11 @@ def _gpx_track_segment_to_points(
             lon=p.longitude,
             alt=p.elevation,
             angle=None,
-            gps_fix=gps_fix_map[p.type_of_gpx_fix]
-            if p.type_of_gpx_fix is not None
-            else None,
+            gps_fix=(
+                gps_fix_map[p.type_of_gpx_fix]
+                if p.type_of_gpx_fix is not None
+                else None
+            ),
             gps_precision=p.position_dilution,
             gps_ground_speed=ground_speed,
         )
