@@ -456,18 +456,15 @@ def map_capture_time_to_datetime(time: str) -> datetime.datetime:
 
 
 @T.overload
-def as_desc(metadata: ImageMetadata) -> ImageDescription:
-    ...
+def as_desc(metadata: ImageMetadata) -> ImageDescription: ...
 
 
 @T.overload
-def as_desc(metadata: ErrorMetadata) -> ImageDescriptionError:
-    ...
+def as_desc(metadata: ErrorMetadata) -> ImageDescriptionError: ...
 
 
 @T.overload
-def as_desc(metadata: VideoMetadata) -> VideoDescription:
-    ...
+def as_desc(metadata: VideoMetadata) -> VideoDescription: ...
 
 
 def as_desc(metadata):
@@ -524,13 +521,11 @@ def _as_image_desc(metadata: ImageMetadata) -> ImageDescription:
 
 
 @T.overload
-def from_desc(metadata: ImageDescription) -> ImageMetadata:
-    ...
+def from_desc(metadata: ImageDescription) -> ImageMetadata: ...
 
 
 @T.overload
-def from_desc(metadata: VideoDescription) -> VideoMetadata:
-    ...
+def from_desc(metadata: VideoDescription) -> VideoMetadata: ...
 
 
 def from_desc(desc):

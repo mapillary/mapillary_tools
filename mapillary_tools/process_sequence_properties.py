@@ -195,9 +195,11 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
 
         t = sequence[gidx].time
         nt = min(
-            sequence[gidx + len(group)].time
-            if gidx + len(group) < len(sequence)
-            else math.floor(t + 1.0),
+            (
+                sequence[gidx + len(group)].time
+                if gidx + len(group) < len(sequence)
+                else math.floor(t + 1.0)
+            ),
             math.floor(t + 1.0),
         )
         assert t <= nt, f"expect sorted but got {t} > {nt}"

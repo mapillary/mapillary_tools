@@ -104,10 +104,12 @@ class VideoDataExtractor:
         else:
             return ErrorMetadata(
                 filename=file,
-                error=ex
-                if ex
-                else exceptions.MapillaryVideoGPSNotFoundError(
-                    "No GPS data found from the video"
+                error=(
+                    ex
+                    if ex
+                    else exceptions.MapillaryVideoGPSNotFoundError(
+                        "No GPS data found from the video"
+                    )
                 ),
                 filetype=FileType.VIDEO,
             )
