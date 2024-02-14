@@ -266,14 +266,14 @@ class ExifToolRead(exif_read.ExifReadABC):
             dt = self.extract_gps_datetime()
         except (ValueError, TypeError, ZeroDivisionError):
             dt = None
-        if dt is not None:
+        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
             return dt
 
         try:
             dt = self.extract_gps_datetime_from_xmp()
         except (ValueError, TypeError, ZeroDivisionError):
             dt = None
-        if dt is not None:
+        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
             return dt
 
         dt = self.extract_exif_datetime()
