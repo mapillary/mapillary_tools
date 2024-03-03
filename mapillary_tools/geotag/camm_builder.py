@@ -135,6 +135,7 @@ def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDi
 def create_camm_trak(
     raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
+    creation_timestamp: int,
 ) -> BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
@@ -158,8 +159,8 @@ def create_camm_trak(
             # TODO: find timestamps from mvhd?
             # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
             # make sure the md5 of the new mp4 file unchanged
-            "creation_time": 0,
-            "modification_time": 0,
+            "creation_time": creation_timestamp,
+            "modification_time": creation_timestamp,
             "timescale": media_timescale,
             "duration": media_duration,
             "language": 21956,
@@ -203,8 +204,8 @@ def create_camm_trak(
             # TODO: find timestamps from mvhd?
             # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
             # make sure the md5 of the new mp4 file unchanged
-            "creation_time": 0,
-            "modification_time": 0,
+            "creation_time": creation_timestamp,
+            "modification_time": creation_timestamp,
             # will update the track ID later
             "track_ID": 0,
             # If the duration of this track cannot be determined then duration is set to all 1s (32-bit maxint).
@@ -242,7 +243,15 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
         camm_samples = list(
             convert_points_to_raw_samples(video_metadata.points, media_timescale)
         )
-        camm_trak = create_camm_trak(camm_samples, media_timescale)
+        # We adhere to some vendor's behavior and set creation_time to the time
+        # the recording ended, and add 2082844800 to rebase to quicktime epoch 1904-01-01
+        last_timestamp = (
+            video_metadata.last_unix_ts + 2082844800
+            if video_metadata.last_unix_ts
+            else 0
+        )
+        creation_timestamp = int(last_timestamp)
+        camm_trak = create_camm_trak(camm_samples, media_timescale, creation_timestamp)
         elst = _create_edit_list(
             [video_metadata.points], movie_timescale, media_timescale
         )

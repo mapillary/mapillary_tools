@@ -13,8 +13,8 @@ LOG = logging.getLogger(__name__)
 
 
 def remove_outliers(
-    sequence: T.Sequence[geo.PointWithFix],
-) -> T.Sequence[geo.PointWithFix]:
+    sequence: T.Sequence[geo.GpsPoint],
+) -> T.Sequence[geo.GpsPoint]:
     distances = [
         geo.gps_distance((left.lat, left.lon), (right.lat, right.lon))
         for left, right in geo.pairwise(sequence)
@@ -50,14 +50,14 @@ def remove_outliers(
     )
 
     return T.cast(
-        T.List[geo.PointWithFix],
+        T.List[geo.GpsPoint],
         gps_filter.find_majority(merged.values()),
     )
 
 
 def remove_noisy_points(
-    sequence: T.Sequence[geo.PointWithFix],
-) -> T.Sequence[geo.PointWithFix]:
+    sequence: T.Sequence[geo.GpsPoint],
+) -> T.Sequence[geo.GpsPoint]:
     num_points = len(sequence)
     sequence = [
         p

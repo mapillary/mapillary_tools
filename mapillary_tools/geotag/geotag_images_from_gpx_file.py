@@ -32,7 +32,11 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
                 len(tracks),
                 source_path,
             )
-        self.points: T.List[geo.Point] = sum(tracks, [])
+        points: T.List[geo.GpsPoint] = sum(tracks, [])
+        self.points = [
+            geo.Point(time=p.time, lat=p.lat, lon=p.lon, alt=p.alt, angle=p.angle)
+            for p in points
+        ]
         self.image_paths = image_paths
         self.source_path = source_path
         self.use_gpx_start_time = use_gpx_start_time
@@ -120,7 +124,7 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
         )
 
 
-Track = T.List[geo.Point]
+Track = T.List[geo.GpsPoint]
 
 
 def parse_gpx(gpx_file: Path) -> T.List[Track]:
@@ -134,13 +138,16 @@ def parse_gpx(gpx_file: Path) -> T.List[Track]:
             tracks.append([])
             for point in segment.points:
                 if point.time is not None:
+                    time = geo.as_unix_time(point.time) if point.time else 0
                     tracks[-1].append(
-                        geo.Point(
-                            time=geo.as_unix_time(point.time),
+                        geo.GpsPoint(
+                            time=time,
                             lat=point.latitude,
                             lon=point.longitude,
                             alt=point.elevation,
                             angle=None,
+                            gps_ground_speed=point.speed,
+                            unix_timestamp=int(time),
                         )
                     )
 
