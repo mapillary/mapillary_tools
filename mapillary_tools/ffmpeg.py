@@ -195,6 +195,21 @@ class FFMPEG:
 
         self._run_ffmpeg(cmd)
 
+    def generate_binary_search(
+        self,
+        sorted_frame_indices: T.Set[int]
+    ) -> str:
+        length = len(sorted_frame_indices)
+
+        if length == 0:
+            return "0"
+
+        if length == 1:
+            return f"eq(n\\,{ sorted_frame_indices[0] })"
+
+        middle = length // 2
+        return f"if(lt(n\\,{ sorted_frame_indices[middle] })\\,{ self.generate_binary_search(sorted_frame_indices[:middle]) }\\,{ self.generate_binary_search(sorted_frame_indices[middle:]) })"
+
     def extract_specified_frames(
         self,
         video_path: Path,
@@ -226,7 +241,7 @@ class FFMPEG:
         # the maximum command line length for the CreateProcess function is 32767 characters
         # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
 
-        eqs = "+".join(f"eq(n\\,{idx})" for idx in sorted(frame_indices))
+        eqs = self.generate_binary_search(sorted(frame_indices))
 
         # https://github.com/mapillary/mapillary_tools/issues/503
         if sys.platform in ["win32"]:
