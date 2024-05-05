@@ -55,7 +55,7 @@ jobs:
         if: matrix.platform != 'macos-latest'
 
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           # optional x64 or x86. Defaults to x64 if not specified
