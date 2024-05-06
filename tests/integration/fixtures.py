@@ -75,14 +75,12 @@ def _ffmpeg_installed():
             [ffmpeg_path, "-version"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            shell=True,
         )
         # In Windows, ffmpeg is installed but ffprobe is not?
         subprocess.run(
             [ffprobe_path, "-version"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            shell=True,
         )
     except FileNotFoundError:
         return False
