@@ -51,7 +51,7 @@ jobs:
           perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
 
       - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        uses: FedericoCarboni/setup-ffmpeg@v3
         # ffmpeg is not supported in the latest macOS arch:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.platform != 'macos-latest'
