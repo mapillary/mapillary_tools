@@ -10,7 +10,7 @@ class NmeaParser(BaseParser):
     must_rebase_times_to_zero = True
     parser_label = "nmea"
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         source_path = self.geotag_source_path
         if not source_path:
             return []
