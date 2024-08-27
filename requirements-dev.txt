@@ -1,4 +1,4 @@
-Pillow>=9.0.0,<10.0.0; python_version>='3.8'
+Pillow; python_version>='3.8'
 pytest
 black
 mypy
