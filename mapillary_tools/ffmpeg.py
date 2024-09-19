@@ -195,10 +195,7 @@ class FFMPEG:
 
         self._run_ffmpeg(cmd)
 
-    def generate_binary_search(
-        self,
-        sorted_frame_indices: T.Set[int]
-    ) -> str:
+    def generate_binary_search(self, sorted_frame_indices: T.Sequence[int]) -> str:
         length = len(sorted_frame_indices)
 
         if length == 0:
