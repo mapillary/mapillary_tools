@@ -61,7 +61,7 @@ class VideoDataExtractor:
 
     def process_file(self, file: Path) -> VideoMetadataOrError:
         parsers = video_data_parser_factory.make_parsers(file, self.options)
-        points: T.Sequence[geo.Point] = []
+        points: T.Sequence[geo.GpsPoint] = []
         make = self.options["device_make"]
         model = self.options["device_model"]
 
@@ -86,6 +86,9 @@ class VideoDataExtractor:
                     {**log_vars, "e": e},
                 )
 
+        last_ts = points[-1].unix_timestamp if len(points) > 0 else None
+        last_ts_int = int(last_ts) if last_ts else None
+
         # After trying all parsers, return the points if we found any, otherwise
         # the last exception thrown or a default one.
         # Note that if we have points, we return them, regardless of exceptions
@@ -95,9 +98,10 @@ class VideoDataExtractor:
                 filename=file,
                 filetype=FileType.VIDEO,
                 md5sum=None,
-                points=points,
+                points=self._gps_points_to_points(points),
                 make=make,
                 model=model,
+                last_unix_ts=last_ts_int,
             )
             video_metadata.update_md5sum()
             return video_metadata
@@ -116,7 +120,7 @@ class VideoDataExtractor:
 
     def _extract_points(
         self, parser: BaseParser, log_vars: T.Dict
-    ) -> T.Sequence[geo.Point]:
+    ) -> T.Sequence[geo.GpsPoint]:
         points = parser.extract_points()
         if points:
             LOG.debug(
@@ -150,7 +154,7 @@ class VideoDataExtractor:
                     )
 
     @staticmethod
-    def _sanitize_points(points: T.Sequence[geo.Point]) -> T.Sequence[geo.Point]:
+    def _sanitize_points(points: T.Sequence[geo.GpsPoint]) -> T.Sequence[geo.GpsPoint]:
         """
         Deduplicates points, when possible removes noisy ones, and checks
         against stationary videos
@@ -162,16 +166,10 @@ class VideoDataExtractor:
             )
 
         points = geo.extend_deduplicate_points(points)
+        points = gpmf_gps_filter.remove_noisy_points(points)
 
-        if all(isinstance(p, geo.PointWithFix) for p in points):
-            points = T.cast(
-                T.Sequence[geo.Point],
-                gpmf_gps_filter.remove_noisy_points(
-                    T.cast(T.Sequence[geo.PointWithFix], points)
-                ),
-            )
-            if not points:
-                raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+        if not points:
+            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
         stationary = video_utils.is_video_stationary(
             geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
@@ -183,7 +181,7 @@ class VideoDataExtractor:
         return points
 
     @staticmethod
-    def _rebase_times(points: T.Sequence[geo.Point]):
+    def _rebase_times(points: T.Sequence[geo.GpsPoint]):
         """
         Make point times start from 0
         """
@@ -192,3 +190,10 @@ class VideoDataExtractor:
             for p in points:
                 p.time = p.time - first_timestamp
         return points
+
+    @staticmethod
+    def _gps_points_to_points(points: T.Sequence[geo.GpsPoint]):
+        return [
+            geo.Point(time=p.time, lat=p.lat, lon=p.lon, alt=p.alt, angle=p.angle)
+            for p in points
+        ]

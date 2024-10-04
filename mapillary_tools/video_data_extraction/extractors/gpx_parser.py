@@ -10,7 +10,7 @@ class GpxParser(BaseParser):
     must_rebase_times_to_zero = True
     parser_label = "gpx"
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         path = self.geotag_source_path
         if not path:
             return []
@@ -19,7 +19,7 @@ class GpxParser(BaseParser):
         except Exception as e:
             return []
 
-        points: T.Sequence[geo.Point] = sum(tracks, [])
+        points: T.Sequence[geo.GpsPoint] = sum(tracks, [])
         return points
 
     def extract_make(self) -> T.Optional[str]:

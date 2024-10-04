@@ -16,7 +16,7 @@ class CammParser(BaseParser):
         with self.videoPath.open("rb") as fp:
             return camm_parser.extract_camera_make_and_model(fp)
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         source_path = self.geotag_source_path
         if not source_path:
             return []

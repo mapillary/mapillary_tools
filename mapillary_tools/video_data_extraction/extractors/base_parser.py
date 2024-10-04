@@ -43,7 +43,7 @@ class BaseParser(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         raise NotImplementedError
 
     @abc.abstractmethod

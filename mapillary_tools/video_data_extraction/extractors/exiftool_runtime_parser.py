@@ -64,7 +64,7 @@ class ExiftoolRuntimeParser(BaseParser):
             video_path, options, parser_options, process.stdout
         )
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         return self.exiftoolXmlParser.extract_points() if self.exiftoolXmlParser else []
 
     def extract_make(self) -> T.Optional[str]:
