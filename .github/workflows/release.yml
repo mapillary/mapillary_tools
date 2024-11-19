@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11"]
-        platform: ["ubuntu-20.04", "macos-latest", "windows-latest"]
+        platform: ["ubuntu-20.04", "macos-13", "windows-latest"]
         architecture: ["x64"]
         include:
           - architecture: "x86"
@@ -30,14 +30,14 @@ jobs:
     steps:
       # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
       # pull into mapillary/mapillary_tools/main
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: main
 
       # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
       # pull into mapillary/mapillary_tools/exiftool
       - name: Setup ExifTool
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "exiftool/exiftool"
           path: exiftool
@@ -50,10 +50,13 @@ jobs:
           perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
 
       - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        # ffmpeg is not supported in the latest macOS arch:
+        # Error: setup-ffmpeg can only be run on 64-bit systems
+        if: matrix.platform != 'macos-13'
 
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           # optional x64 or x86. Defaults to x64 if not specified
@@ -76,7 +79,7 @@ jobs:
 
       - name: Build and test with Pyinstaller on MacOS
         # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-13'
         run: |
           # see https://github.com/mapillary/mapillary_tools/issues/566
           # TODO: move it to extras in setup.py
@@ -131,7 +134,7 @@ jobs:
     needs: ["build_and_release"]
     runs-on: "ubuntu-20.04"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -147,14 +150,15 @@ jobs:
         run: python3 -m build --outdir pypa_dist/ .
 
       - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@v1.8.6
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           packages-dir: pypa_dist/
+          skip-existing: true
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.8.6
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: pypa_dist/

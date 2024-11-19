@@ -108,7 +108,7 @@ A command line program such as Termux is required. Installation can be done with
 commands will install Python 3, pip3, git, and all required libraries for mapillary_tools on Termux:
 
 ```sh
-pkg install python git build-essential libgeos openssl libjpeg-turbo
+pkg install python git build-essential libgeos openssl libjpeg-turbo libexpat libexpat-static
 pip install --upgrade pip wheel
 pip install --upgrade mapillary_tools
 ```

@@ -182,6 +182,14 @@ class ExifEdit:
                         # retry later
                 else:
                     raise exc
+            except Exception as exc:
+                zeroth_ifd = self._ef.get("0th", {})
+                # workaround: https://github.com/mapillary/mapillary_tools/issues/662
+                if piexif.ImageIFD.AsShotNeutral in zeroth_ifd:
+                    del zeroth_ifd[piexif.ImageIFD.AsShotNeutral]
+                    assert piexif.ImageIFD.AsShotNeutral not in zeroth_ifd
+                else:
+                    raise exc
             else:
                 break
 

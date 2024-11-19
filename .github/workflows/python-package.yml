@@ -16,9 +16,11 @@ jobs:
   build:
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         platform: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        architecture: ["x64"]
+        # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+        # Optional - x64 or x86 architecture, defaults to x64
+        # architecture: "x64"
 
     runs-on: ${{ matrix.platform }}
 
@@ -29,14 +31,14 @@ jobs:
     steps:
       # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
       # pull into mapillary/mapillary_tools/main
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: main
 
       # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
       # pull into mapillary/mapillary_tools/exiftool
       - name: Setup ExifTool
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "exiftool/exiftool"
           path: exiftool
@@ -49,14 +51,15 @@ jobs:
           perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
 
       - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v2
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        # ffmpeg is not supported in the latest macOS arch:
+        # Error: setup-ffmpeg can only be run on 64-bit systems
+        if: matrix.platform != 'macos-latest'
 
-      - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          # optional x64 or x86. Defaults to x64 if not specified
-          architecture: ${{ matrix.architecture }}
 
       - name: Install dependencies
         run: |

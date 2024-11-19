@@ -399,7 +399,7 @@ class ExifReadFromXMP(ExifReadABC):
 
     def extract_capture_time(self) -> T.Optional[datetime.datetime]:
         dt = self.extract_gps_datetime()
-        if dt is not None:
+        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
             return dt
 
         dt = self.extract_exif_datetime()
@@ -554,7 +554,7 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
 
         dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d", "%Y-%m-%d"])
-        if dt is None:
+        if dt is None or dt == datetime.date(1970, 1, 1):
             return None
 
         gpstimestamp = self.tags.get("GPS GPSTimeStamp")
@@ -632,7 +632,7 @@ class ExifReadFromEXIF(ExifReadABC):
             gps_dt = self.extract_gps_datetime()
         except (ValueError, TypeError, ZeroDivisionError):
             gps_dt = None
-        if gps_dt is not None:
+        if gps_dt is not None and gps_dt.date() != datetime.date(1970, 1, 1):
             return gps_dt
 
         dt = self.extract_exif_datetime()
