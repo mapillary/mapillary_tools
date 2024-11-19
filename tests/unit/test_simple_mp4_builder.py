@@ -46,10 +46,6 @@ def _build_and_parse_stbl(
     )
     ss = sparser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
-    _, parsed_samples = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
-        io.BytesIO(ss)
-    )
-    assert expected_samples == list(parsed_samples)
     _, parsed_samples = sample_parser.extract_raw_samples_from_stbl_data(ss)
     assert expected_samples == list(parsed_samples)
 
@@ -323,12 +319,6 @@ def test_parse_raw_samples_from_stbl():
             {"data": {"entries": [1, 5]}, "type": b"co64"},
             {"data": {"entries": [1, 3]}, "type": b"stss"},
         ]
-
-    descs, sample_iter = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
-        io.BytesIO(stbl_bytes)
-    )
-    samples = list(sample_iter)
-    _verify_samples(descs, samples)
 
     descs, sample_iter = sample_parser.extract_raw_samples_from_stbl_data(stbl_bytes)
     samples = list(sample_iter)
