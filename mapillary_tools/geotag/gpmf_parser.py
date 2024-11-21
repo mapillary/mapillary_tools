@@ -170,7 +170,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 #                 [378081666, -1224280064, 9621, 1492, 138],
 #                 [378081662, -1224280049, 9592, 1476, 150],
 #             ]
-def gps_from_stream(
+def gps5_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[geo.PointWithFix, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
@@ -238,7 +238,7 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithF
 
     for klv in stream:
         if klv["key"] == b"STRM":
-            sample_points = list(gps_from_stream(klv["data"]))
+            sample_points = list(gps5_from_stream(klv["data"]))
             if sample_points:
                 break
 
