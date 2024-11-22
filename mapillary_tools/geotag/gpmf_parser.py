@@ -78,6 +78,29 @@ _type_mapping = {
 }
 
 
+_klv_data_switch = C.Switch(
+    C.this.type,
+    {
+        **{
+            type_char: C.Array(
+                C.this.repeat, C.Array(C.this.structure_size // size, ctype)
+            )
+            for type_char, (ctype, size) in _type_mapping.items()
+        },
+        # c	single byte 'c' style ASCII character string	char	Optionally NULL terminated - size/repeat sets the length
+        b"c": C.Array(
+            C.this.repeat, C.Bytes(C.this.structure_size)
+        ),  # overwrite the one in _type_mapping to make sure it returns bytes instead of a list of bytes
+        # null      Nested metadata uint32_t        The data within is GPMF structured KLV data
+        b"\x00": C.FixedSized(
+            (C.this.repeat * C.this.structure_size),
+            C.LazyBound(lambda: GPMFSampleData),
+        ),
+    },
+    C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
+)
+
+
 KLV = C.Struct(
     # FourCC
     "key" / C.Bytes(4),
@@ -90,28 +113,7 @@ KLV = C.Struct(
     # this is the Repeat field. Struct Size and the Repeat allow for up to
     # 16.7MB of data in a single KLV GPMF payload.
     "repeat" / C.Int16ub,
-    "data"
-    / C.Switch(
-        C.this.type,
-        {
-            type_char: C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // size, ctype)
-            )
-            for type_char, (ctype, size) in _type_mapping.items()
-        }
-        | {
-            # c	single byte 'c' style ASCII character string	char	Optionally NULL terminated - size/repeat sets the length
-            b"c": C.Array(
-                C.this.repeat, C.Bytes(C.this.structure_size)
-            ),  # overwrite the one in _type_mapping to make sure it returns bytes instead of a list of bytes
-            # null      Nested metadata uint32_t        The data within is GPMF structured KLV data
-            b"\x00": C.FixedSized(
-                (C.this.repeat * C.this.structure_size),
-                C.LazyBound(lambda: GPMFSampleData),
-            ),
-        },
-        C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
-    ),
+    "data" / _klv_data_switch,
     C.IfThenElse(
         (C.this.repeat * C.this.structure_size) % 4 == 0,
         C.Padding(0),
