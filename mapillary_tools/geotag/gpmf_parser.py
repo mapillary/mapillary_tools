@@ -257,7 +257,7 @@ def gps9_from_stream(
             lat=lat,
             lon=lon,
             alt=alt,
-            gps_fix=gps_fix,
+            gps_fix=geo.GPSFix(gps_fix),
             gps_precision=dop * 100,
             gps_ground_speed=speed_2d,
             angle=None,
