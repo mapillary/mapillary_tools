@@ -206,6 +206,64 @@ def gps5_from_stream(
         )
 
 
+def gps9_from_stream(
+    stream: T.Sequence[KLVDict],
+) -> T.Generator[geo.PointWithFix, None, None]:
+    indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
+        klv["key"]: klv["data"] for klv in stream
+    }
+
+    gps9 = indexed.get(b"GPS9")
+    if gps9 is None:
+        return
+
+    scal = indexed.get(b"SCAL")
+    if scal is None:
+        return
+    scal_values = [s[0] for s in scal]
+    if any(s == 0 for s in scal_values):
+        return
+
+    type = indexed.get(b"TYPE")
+    if type is None:
+        return
+    gps_value_types = type[0]
+
+    try:
+        sample_parser = C.Sequence(
+            *[_type_mapping[int.to_bytes(t)][0] for t in gps_value_types]
+        )
+    except Exception as ex:
+        raise ValueError(f"Error parsing the complex type {gps_value_types}: {ex}")
+
+    for sample_data_bytes in gps9:
+        sample_data = sample_parser.parse(sample_data_bytes)
+
+        (
+            lat,
+            lon,
+            alt,
+            speed_2d,
+            _speed_3d,
+            _days_since_2000,
+            _secs_since_midnight,
+            dop,
+            gps_fix,
+        ) = [v / s for v, s in zip(sample_data, scal_values)]
+
+        yield geo.PointWithFix(
+            # will figure out the actual timestamp later
+            time=0,
+            lat=lat,
+            lon=lon,
+            alt=alt,
+            gps_fix=gps_fix,
+            gps_precision=dop * 100,
+            gps_ground_speed=speed_2d,
+            angle=None,
+        )
+
+
 def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     device_id = None
 
@@ -227,6 +285,10 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithF
 
     for klv in stream:
         if klv["key"] == b"STRM":
+            sample_points = list(gps9_from_stream(klv["data"]))
+            if sample_points:
+                break
+
             sample_points = list(gps5_from_stream(klv["data"]))
             if sample_points:
                 break
