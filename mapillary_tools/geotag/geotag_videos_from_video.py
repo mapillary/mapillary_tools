@@ -12,7 +12,7 @@ from . import (
     camm_parser,
     gpmf_gps_filter,
     gpmf_parser,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
     utils as video_utils,
 )
 from .geotag_from_generic import GeotagVideosFromGeneric
@@ -77,7 +77,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             with video_path.open("rb") as fp:
                 try:
                     points = camm_parser.extract_points(fp)
-                except parser.ParsingError:
+                except sparser.ParsingError:
                     points = None
 
                 if points is not None:
@@ -100,7 +100,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             with video_path.open("rb") as fp:
                 try:
                     points_with_fix = gpmf_parser.extract_points(fp)
-                except parser.ParsingError:
+                except sparser.ParsingError:
                     points_with_fix = None
 
                 if points_with_fix is not None:
@@ -123,7 +123,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             with video_path.open("rb") as fp:
                 try:
                     points = blackvue_parser.extract_points(fp)
-                except parser.ParsingError:
+                except sparser.ParsingError:
                     points = None
 
                 if points is not None:

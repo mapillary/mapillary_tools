@@ -441,12 +441,6 @@ class Box64ConstructBuilder:
     def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
         return T.cast(T.List[BoxDict], self.BoxList.parse(data))
 
-    def build_box(self, box: BoxDict) -> bytes:
-        return self.Box.build(box)
-
-    def build_boxlist(self, boxes: T.Sequence[BoxDict]) -> bytes:
-        return self.BoxList.build(boxes)
-
 
 class Box32ConstructBuilder(Box64ConstructBuilder):
     """
@@ -466,6 +460,18 @@ class Box32ConstructBuilder(Box64ConstructBuilder):
             )
 
         return self._box
+
+    def parse_box(self, data: bytes) -> BoxDict:
+        raise NotImplementedError("Box32ConstructBuilder does not support parsing")
+
+    def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
+        raise NotImplementedError("Box32ConstructBuilder does not support parsing")
+
+    def build_box(self, box: BoxDict) -> bytes:
+        return self.Box.build(box)
+
+    def build_boxlist(self, boxes: T.Sequence[BoxDict]) -> bytes:
+        return self.BoxList.build(boxes)
 
 
 # pyre-ignore[9]: pyre does not support recursive type SwitchMapType
@@ -580,8 +586,17 @@ MOOVWithoutSTBLBuilderConstruct = Box32ConstructBuilder(
 def find_box_at_pathx(
     box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
 ) -> BoxDict:
-    if not path:
+    found = find_box_at_path(box, path)
+    if found is None:
         raise ValueError(f"box at path {path} not found")
+    return found
+
+
+def find_box_at_path(
+    box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
+) -> T.Optional[BoxDict]:
+    if not path:
+        return None
 
     boxes: T.Sequence[BoxDict]
     if isinstance(box, dict):
@@ -593,12 +608,13 @@ def find_box_at_pathx(
         if box["type"] == path[0]:
             if len(path) == 1:
                 return box
-            else:
-                box_data = T.cast(T.Sequence[BoxDict], box["data"])
-                # ListContainer from construct is not sequence
-                assert isinstance(
-                    box_data, T.Sequence
-                ), f"expect a list of boxes but got {type(box_data)} at path {path}"
-                return find_box_at_pathx(box_data, path[1:])
+            box_data = T.cast(T.Sequence[BoxDict], box["data"])
+            # ListContainer from construct is not sequence
+            assert isinstance(
+                box_data, T.Sequence
+            ), f"expect a list of boxes but got {type(box_data)} at path {path}"
+            found = find_box_at_path(box_data, path[1:])
+            if found is not None:
+                return found
 
-    raise ValueError(f"box at path {path} not found")
+    return None

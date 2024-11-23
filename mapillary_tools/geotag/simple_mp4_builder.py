@@ -6,10 +6,21 @@ from . import (
     construct_mp4_parser as cparser,
     io_utils,
     mp4_sample_parser as sample_parser,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 from .construct_mp4_parser import BoxDict
 from .mp4_sample_parser import RawSample
+
+"""
+Variable naming conventions:
+
+- *_box: a BoxDict
+- *_children: a list of child BoxDicts under the parent box
+- *_boxdata: BoxDict["data"]
+- *_data: the data in bytes of a box (without the header (type and size))
+- *_typed_data: the data in bytes of a box (with the header (type and size))
+"""
+
 
 UINT32_MAX = 2**32 - 1
 UINT64_MAX = 2**64 - 1
@@ -128,14 +139,15 @@ def _build_stts(sample_deltas: T.Iterable[int]) -> BoxDict:
 class _CompressedSampleCompositionOffset:
     __slots__ = ("sample_count", "sample_offset")
     # make sure dataclasses.asdict() produce the result as CompositionTimeToSampleBox expects
+    # SO DO NOT RENAME THE PROPERTIES BELOW
     sample_count: int
     sample_offset: int
 
 
-def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
+def _build_ctts(sample_composition_timedeltas: T.Iterable[int]) -> BoxDict:
     # compress offsets
     compressed: T.List[_CompressedSampleCompositionOffset] = []
-    for offset in sample_composition_offsets:
+    for offset in sample_composition_timedeltas:
         if compressed and offset == compressed[-1].sample_offset:
             compressed[-1].sample_count += 1
         else:
@@ -185,8 +197,8 @@ def build_stbl_from_raw_samples(
         # so we can calculate the moov box size in advance
         _build_co64(raw_samples),
     ]
-    if any(s.composition_offset for s in raw_samples):
-        boxes.append(_build_ctts((s.composition_offset for s in raw_samples)))
+    if any(s.composition_timedelta for s in raw_samples):
+        boxes.append(_build_ctts((s.composition_timedelta for s in raw_samples)))
     if any(not s.is_sync for s in raw_samples):
         boxes.append(_build_stss((s.is_sync for s in raw_samples)))
     return boxes
@@ -225,7 +237,7 @@ _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
 )
 
 
-def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
+def _update_sbtl_sample_offsets(trak: BoxDict, sample_offset: int) -> int:
     assert trak["type"] == b"trak"
 
     # new samples with offsets updated
@@ -237,20 +249,19 @@ def _update_sbtl(trak: BoxDict, sample_offset: int) -> int:
                 offset=sample_offset,
                 size=sample.size,
                 timedelta=sample.timedelta,
-                composition_offset=sample.composition_offset,
+                composition_timedelta=sample.composition_timedelta,
                 is_sync=sample.is_sync,
             )
         )
         sample_offset += sample.size
     stbl_box = cparser.find_box_at_pathx(trak, [b"trak", b"mdia", b"minf", b"stbl"])
-    descriptions, _ = sample_parser.parse_raw_samples_from_stbl(
-        io.BytesIO(T.cast(bytes, stbl_box["data"]))
+    descriptions, _ = sample_parser.extract_raw_samples_from_stbl_data(
+        T.cast(bytes, stbl_box["data"])
     )
     stbl_children_boxes = build_stbl_from_raw_samples(
         descriptions, repositioned_samples
     )
-    new_stbl_bytes = _STBLChildrenBuilderConstruct.build_boxlist(stbl_children_boxes)
-    stbl_box["data"] = new_stbl_bytes
+    stbl_box["data"] = _STBLChildrenBuilderConstruct.build_boxlist(stbl_children_boxes)
 
     return sample_offset
 
@@ -263,13 +274,13 @@ def iterate_samples(
             stbl_box = cparser.find_box_at_pathx(
                 box, [b"trak", b"mdia", b"minf", b"stbl"]
             )
-            _, raw_samples_iter = sample_parser.parse_raw_samples_from_stbl(
-                io.BytesIO(T.cast(bytes, stbl_box["data"]))
+            _, raw_samples_iter = sample_parser.extract_raw_samples_from_stbl_data(
+                T.cast(bytes, stbl_box["data"])
             )
             yield from raw_samples_iter
 
 
-def _build_mdat_header_bytes(mdat_size: int) -> bytes:
+def _build_mdat_header_data(mdat_size: int) -> bytes:
     if UINT32_MAX < mdat_size + 8:
         return cparser.BoxHeader64.build(
             {
@@ -302,7 +313,7 @@ def find_movie_timescale(moov_children: T.Sequence[BoxDict]) -> int:
     return T.cast(T.Dict, mvhd["data"])["timescale"]
 
 
-def _build_moov_bytes(moov_children: T.Sequence[BoxDict]) -> bytes:
+def _build_moov_typed_data(moov_children: T.Sequence[BoxDict]) -> bytes:
     return cparser.MP4WithoutSTBLBuilderConstruct.build_box(
         {
             "type": b"moov",
@@ -324,62 +335,77 @@ def transform_mp4(
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
-    source_ftyp_box_data = parser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
-    source_ftyp_data = cparser.MP4WithoutSTBLBuilderConstruct.build_box(
-        {"type": b"ftyp", "data": source_ftyp_box_data}
-    )
+    ftyp_data = sparser.parse_mp4_data_firstx(src_fp, [b"ftyp"])
 
     # extract moov
     src_fp.seek(0)
-    src_moov_data = parser.parse_mp4_data_firstx(src_fp, [b"moov"])
-    moov_children = _MOOVChildrenParserConstruct.parse_boxlist(src_moov_data)
+    moov_data = sparser.parse_mp4_data_firstx(src_fp, [b"moov"])
+    moov_children = _MOOVChildrenParserConstruct.parse_boxlist(moov_data)
 
     # filter tracks in moov
     moov_children = list(_filter_moov_children_boxes(moov_children))
 
     # extract video samples
     source_samples = list(iterate_samples(moov_children))
-    movie_sample_readers = [
+    sample_readers: T.List[io.IOBase] = [
         io_utils.SlicedIO(src_fp, sample.offset, sample.size)
         for sample in source_samples
     ]
     if sample_generator is not None:
-        sample_readers = list(sample_generator(src_fp, moov_children))
-    else:
-        sample_readers = []
+        sample_readers.extend(sample_generator(src_fp, moov_children))
 
     _update_all_trak_tkhd(moov_children)
 
-    # moov_boxes should be immutable since here
+    return build_mp4(ftyp_data, moov_children, sample_readers)
+
+
+def build_mp4(
+    ftyp_data: bytes,
+    moov_children: T.Sequence[BoxDict],
+    sample_readers: T.Iterable[io.IOBase],
+) -> io_utils.ChainedIO:
+    ftyp_typed_data = cparser.MP4WithoutSTBLBuilderConstruct.build_box(
+        {"type": b"ftyp", "data": ftyp_data}
+    )
     mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
+    # moov_children should be immutable since here
+    new_moov_typed_data = _rewrite_and_build_moov_typed_data(
+        len(ftyp_typed_data), moov_children
+    )
     return io_utils.ChainedIO(
         [
-            io.BytesIO(source_ftyp_data),
-            io.BytesIO(_rewrite_moov(len(source_ftyp_data), moov_children)),
-            io.BytesIO(_build_mdat_header_bytes(mdat_body_size)),
-            *movie_sample_readers,
+            # ftyp
+            io.BytesIO(ftyp_typed_data),
+            # moov
+            io.BytesIO(new_moov_typed_data),
+            # mdat
+            io.BytesIO(_build_mdat_header_data(mdat_body_size)),
             *sample_readers,
         ]
     )
 
 
-def _rewrite_moov(moov_offset: int, moov_boxes: T.Sequence[BoxDict]) -> bytes:
+def _rewrite_and_build_moov_typed_data(
+    moov_offset: int, moov_children: T.Sequence[BoxDict]
+) -> bytes:
     # build moov for calculating moov size
     sample_offset = 0
-    for box in _filter_trak_boxes(moov_boxes):
-        sample_offset = _update_sbtl(box, sample_offset)
-    moov_data = _build_moov_bytes(moov_boxes)
-    moov_data_size = len(moov_data)
+    for box in _filter_trak_boxes(moov_children):
+        sample_offset = _update_sbtl_sample_offsets(box, sample_offset)
+    moov_typed_data = _build_moov_typed_data(moov_children)
+    moov_typed_data_size = len(moov_typed_data)
 
     # mdat header size
-    mdat_body_size = sum(sample.size for sample in iterate_samples(moov_boxes))
-    mdat_header = _build_mdat_header_bytes(mdat_body_size)
+    mdat_body_size = sum(sample.size for sample in iterate_samples(moov_children))
+    mdat_header_data = _build_mdat_header_data(mdat_body_size)
 
     # build moov for real
-    sample_offset = moov_offset + len(moov_data) + len(mdat_header)
-    for box in _filter_trak_boxes(moov_boxes):
-        sample_offset = _update_sbtl(box, sample_offset)
-    moov_data = _build_moov_bytes(moov_boxes)
-    assert len(moov_data) == moov_data_size, f"{len(moov_data)} != {moov_data_size}"
+    sample_offset = moov_offset + len(moov_typed_data) + len(mdat_header_data)
+    for box in _filter_trak_boxes(moov_children):
+        sample_offset = _update_sbtl_sample_offsets(box, sample_offset)
+    moov_typed_data = _build_moov_typed_data(moov_children)
+    assert (
+        len(moov_typed_data) == moov_typed_data_size
+    ), f"{len(moov_typed_data)} != {moov_typed_data_size}"
 
-    return moov_data
+    return moov_typed_data
