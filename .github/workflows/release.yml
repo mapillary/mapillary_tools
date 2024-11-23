@@ -81,9 +81,6 @@ jobs:
         # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
         if: matrix.platform == 'macos-13'
         run: |
-          # see https://github.com/mapillary/mapillary_tools/issues/566
-          # TODO: move it to extras in setup.py
-          python3 -m pip install pysocks
           ./script/build_osx
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
@@ -94,9 +91,6 @@ jobs:
       - name: Build and test with Pyinstaller on Ubuntu
         if: matrix.platform == 'ubuntu-20.04'
         run: |
-          # see https://github.com/mapillary/mapillary_tools/issues/566
-          # TODO: move it to extras in setup.py
-          python3 -m pip install pysocks
           ./script/build_linux
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
@@ -107,9 +101,6 @@ jobs:
       - name: Build and test with Pyinstaller on Windows
         if: matrix.platform == 'windows-latest'
         run: |
-          # see https://github.com/mapillary/mapillary_tools/issues/566
-          # TODO: move it to extras in setup.py
-          python3 -m pip install pysocks
           ./script/build_bootloader.ps1
           ./script/build_win.ps1
           # Could run full integration tests with the binary (it might be slow)
