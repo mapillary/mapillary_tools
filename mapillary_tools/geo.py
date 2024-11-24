@@ -46,31 +46,6 @@ class PointWithFix(Point):
     gps_ground_speed: T.Optional[float]
 
 
-def _ecef_from_lla_DEPRECATED(
-    lat: float, lon: float, alt: float
-) -> T.Tuple[float, float, float]:
-    """
-    Deprecated because it is slow. Keep here for reference and comparison.
-    Use _ecef_from_lla2 instead.
-
-    Compute ECEF XYZ from latitude, longitude and altitude.
-
-    All using the WGS94 model.
-    Altitude is the distance to the WGS94 ellipsoid.
-    Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
-
-    """
-    a2 = WGS84_a**2
-    b2 = WGS84_b**2
-    lat = math.radians(lat)
-    lon = math.radians(lon)
-    L = 1.0 / math.sqrt(a2 * math.cos(lat) ** 2 + b2 * math.sin(lat) ** 2)
-    x = (a2 * L + alt) * math.cos(lat) * math.cos(lon)
-    y = (a2 * L + alt) * math.cos(lat) * math.sin(lon)
-    z = (b2 * L + alt) * math.sin(lat)
-    return x, y, z
-
-
 def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:
     """
     Compute ECEF XYZ from latitude, longitude and altitude.

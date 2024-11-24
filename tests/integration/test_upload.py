@@ -16,7 +16,7 @@ from .fixtures import (
 )
 
 
-PROCESS_FLAGS = "--add_import_date"
+PROCESS_FLAGS = ""
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 

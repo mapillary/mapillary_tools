@@ -29,13 +29,6 @@ class Command:
             required=False,
         )
         group.add_argument(
-            "--video_duration_ratio",
-            help="[DEPRECATED since v0.10.0] Real time video duration ratio of the under or oversampled video duration. [default: %(default)s]",
-            type=float,
-            default=constants.VIDEO_DURATION_RATIO,
-            required=False,
-        )
-        group.add_argument(
             "--video_start_time",
             help="Video start time specified in YYYY_MM_DD_HH_MM_SS_sss in UTC. For example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z.",
             default=None,

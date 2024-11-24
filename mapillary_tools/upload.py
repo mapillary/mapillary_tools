@@ -17,7 +17,6 @@ from . import (
     config,
     constants,
     exceptions,
-    geo,
     history,
     ipc,
     types,
@@ -27,11 +26,8 @@ from . import (
     VERSION,
 )
 from .geotag import (
-    blackvue_parser,
     camm_builder,
-    camm_parser,
     simple_mp4_builder,
-    utils as video_utils,
 )
 from .types import FileType
 
@@ -682,22 +678,6 @@ def upload(
                         raise UploadError(ex) from ex
                     LOG.debug("Uploaded to cluster: %s", cluster_id)
 
-        if DirectUploadFileType.RAW_BLACKVUE in filetypes:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_raw_blackvues_DEPRECATED(mly_uploader, video_paths)
-
-        if DirectUploadFileType.RAW_CAMM in filetypes:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_raw_camm_DEPRECATED(mly_uploader, video_paths)
-
         if DirectUploadFileType.ZIP in filetypes:
             zip_paths = utils.find_zipfiles(
                 import_paths,
@@ -741,111 +721,6 @@ def upload(
         _show_upload_summary(stats)
     else:
         LOG.info("Nothing uploaded. Bye.")
-
-
-def _check_blackvue_DEPRECATED(video_path: Path) -> None:
-    # Skip in tests only because we don't have valid sample blackvue for tests
-    if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
-        return
-
-    points = blackvue_parser.parse_gps_points(video_path)
-    if not points:
-        raise exceptions.MapillaryGPXEmptyError("No GPS found in the BlackVue video")
-
-    stationary = video_utils.is_video_stationary(
-        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-    )
-    if stationary:
-        raise exceptions.MapillaryStationaryVideoError("Stationary BlackVue video")
-
-
-def _upload_raw_blackvues_DEPRECATED(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-) -> None:
-    for idx, video_path in enumerate(video_paths):
-        event_payload: uploader.Progress = {
-            "total_sequence_count": len(video_paths),
-            "sequence_idx": idx,
-            "file_type": DirectUploadFileType.RAW_BLACKVUE.value,
-            "import_path": str(video_path),
-        }
-
-        try:
-            _check_blackvue_DEPRECATED(video_path)
-        except Exception as ex:
-            LOG.warning(
-                "Skipping %s %s due to: %s",
-                DirectUploadFileType.RAW_BLACKVUE.value.upper(),
-                video_path.name,
-                ex,
-            )
-            continue
-
-        with video_path.open("rb") as fp:
-            upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-            try:
-                cluster_id = mly_uploader.upload_stream(
-                    fp,
-                    upload_api_v4.ClusterFileType.BLACKVUE,
-                    upload_md5sum,
-                    event_payload=event_payload,
-                )
-            except Exception as ex:
-                raise UploadError(ex) from ex
-        LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-
-def _check_camm_DEPRECATED(video_path: Path) -> None:
-    # Skip in tests only because we don't have valid sample CAMM for tests
-    if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
-        return
-
-    points = camm_parser.parse_gpx(video_path)
-    if not points:
-        raise exceptions.MapillaryGPXEmptyError("No GPS found in the CAMM video")
-
-    stationary = video_utils.is_video_stationary(
-        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-    )
-    if stationary:
-        raise exceptions.MapillaryStationaryVideoError("Stationary CAMM video")
-
-
-def _upload_raw_camm_DEPRECATED(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-) -> None:
-    for idx, video_path in enumerate(video_paths):
-        event_payload: uploader.Progress = {
-            "total_sequence_count": len(video_paths),
-            "sequence_idx": idx,
-            "file_type": DirectUploadFileType.RAW_CAMM.value,
-            "import_path": str(video_path),
-        }
-        try:
-            _check_camm_DEPRECATED(video_path)
-        except Exception as ex:
-            LOG.warning(
-                "Skipping %s %s due to: %s",
-                DirectUploadFileType.RAW_CAMM.value.upper(),
-                video_path.name,
-                ex,
-            )
-            continue
-        try:
-            with video_path.open("rb") as fp:
-                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-                cluster_id = mly_uploader.upload_stream(
-                    fp,
-                    upload_api_v4.ClusterFileType.CAMM,
-                    upload_md5sum,
-                    event_payload=event_payload,
-                )
-        except Exception as ex:
-            raise UploadError(ex) from ex
-
-        LOG.debug("Uploaded to cluster: %s", cluster_id)
 
 
 def _upload_zipfiles(
