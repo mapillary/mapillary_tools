@@ -14,7 +14,7 @@ import mapillary_tools.utils as utils
 
 
 def _convert_points_to_gpx_track_segment(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[geo.GpsPoint],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gps_fix_map = {
