@@ -21,7 +21,7 @@ from .fixtures import (
 )
 
 
-PROCESS_FLAGS = "--add_import_date"
+PROCESS_FLAGS = ""
 
 _DEFAULT_EXPECTED_DESCS = {
     "DSC00001.JPG": {
