@@ -15,15 +15,16 @@ A GPS GPMF sample has the following structure:
     - DVID: Auto generated unique-ID for managing a large number of connect devices
     - STRM: Metadata streams are each nested with STRM
          - GPS5: latitude, longitude, altitude (WGS 84), 2D ground speed, and 3D speed
+         - GPS9: lat, long, alt, 2D speed, 3D speed, days since 2000, secs since midnight (ms precision), DOP, fix (0, 2D or 3D)
          - GPSA: not documented in the spec
          - GPSF: Within the GPS stream: 0 - no lock, 2 or 3 - 2D or 3D Lock.
          - GPSP: GPS Precision - Dilution of Precision (DOP x100). Under 500 is good.
          - GPSU: UTC time and data from GPS. The time is read from from another clock so it is not in use.
-         - SCAL: Scaling factor (divisor) for GPS5
+         - SCAL: Scaling factor (divisor) for GPS5 and GPS9
 
 NOTE:
 - There might be multiple DEVC streams.
-- Only GPS5 and SCAL are required. The others are optional.
+- Only GPS5, GPS9, and SCAL are required. The others are optional.
 - GPSU is not in use. We use the video clock to make sure frames and GPS are in sync.
 - We should skip samples with GPSF==0 or GPSP > 500
 """
@@ -40,6 +41,66 @@ class KLVDict(T.TypedDict):
 GPMFSampleData: C.GreedyRange
 
 
+# type char: (construct type, size in bytes)
+_type_mapping = {
+    # b	single byte signed integer	int8_t	-128 to 127
+    b"b": (C.Int8sb, 1),
+    # B	single byte unsigned integer	uint8_t	0 to 255
+    b"B": (C.Int8ub, 1),
+    # c	single byte 'c' style ASCII character string	char	Optionally NULL terminated - size/repeat sets the length
+    b"c": (C.Bytes(1), 1),
+    # d	64-bit double precision (IEEE 754)	double
+    b"d": (C.Float64b, 8),
+    # f	32-bit float (IEEE 754)	float
+    b"f": (C.Float32b, 4),
+    # F	32-bit four character key -- FourCC	char fourcc[4]
+    b"F": (C.Bytes(4), 4),
+    # G	128-bit ID (like UUID)	uint8_t guid[16]
+    b"G": (C.Bytes(16), 16),
+    # j	64-bit signed long number	int64_t
+    b"j": (C.Int64sb, 8),
+    # J	64-bit unsigned long number	uint64_t
+    b"J": (C.Int64ub, 8),
+    # l	32-bit signed integer	int32_t
+    b"l": (C.Int32sb, 4),
+    # L	32-bit unsigned integer	uint32_t
+    b"L": (C.Int32ub, 4),
+    # q	32-bit Q Number Q15.16	uint32_t	16-bit integer (A) with 16-bit fixed point (B) for A.B value (range -32768.0 to 32767.99998)
+    b"q": (C.Int32ub, 4),
+    # Q	64-bit Q Number Q31.32	uint64_t	32-bit integer (A) with 32-bit fixed point (B) for A.B value.
+    b"Q": (C.Int64ub, 8),
+    # s	16-bit signed integer	int16_t	-32768 to 32768
+    b"s": (C.Int16sb, 2),
+    # S	16-bit unsigned integer	uint16_t	0 to 65536
+    b"S": (C.Int16ub, 2),
+    # U	UTC Date and Time string	char utcdate[16]	Date + UTC Time format yymmddhhmmss.sss - (years 20xx covered)
+    b"U": (C.Bytes(16), 16),
+}
+
+
+_klv_data_switch = C.Switch(
+    C.this.type,
+    {
+        **{
+            type_char: C.Array(
+                C.this.repeat, C.Array(C.this.structure_size // size, ctype)
+            )
+            for type_char, (ctype, size) in _type_mapping.items()
+        },
+        # c	single byte 'c' style ASCII character string	char	Optionally NULL terminated - size/repeat sets the length
+        b"c": C.Array(
+            C.this.repeat, C.Bytes(C.this.structure_size)
+        ),  # overwrite the one in _type_mapping to make sure it returns bytes instead of a list of bytes
+        # null      Nested metadata uint32_t        The data within is GPMF structured KLV data
+        b"\x00": C.FixedSized(
+            (C.this.repeat * C.this.structure_size),
+            C.LazyBound(lambda: GPMFSampleData),
+        ),
+    },
+    C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
+)
+
+
 KLV = C.Struct(
     # FourCC
     "key" / C.Bytes(4),
@@ -52,77 +113,7 @@ KLV = C.Struct(
     # this is the Repeat field. Struct Size and the Repeat allow for up to
     # 16.7MB of data in a single KLV GPMF payload.
     "repeat" / C.Int16ub,
-    "data"
-    / C.Switch(
-        C.this.type,
-        {
-            # b	single byte signed integer	int8_t	-128 to 127
-            b"b": C.Array(C.this.repeat, C.Array(C.this.structure_size, C.Int8sb)),
-            # B	single byte unsigned integer	uint8_t	0 to 255
-            b"B": C.Array(C.this.repeat, C.Array(C.this.structure_size, C.Int8ub)),
-            # c	single byte 'c' style ASCII character string	char	Optionally NULL terminated - size/repeat sets the length
-            b"c": C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
-            # d	64-bit double precision (IEEE 754)	double
-            b"d": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 8, C.Float64b)
-            ),
-            # f	32-bit float (IEEE 754)	float
-            b"f": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 4, C.Float32b)
-            ),
-            # F	32-bit four character key -- FourCC	char fourcc[4]
-            b"F": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 4, C.Bytes(4))
-            ),
-            # G	128-bit ID (like UUID)	uint8_t guid[16]
-            b"G": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 16, C.Bytes(16))
-            ),
-            # j	64-bit signed unsigned number	int64_t
-            b"j": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 8, C.Int64sb)
-            ),
-            # J	64-bit unsigned unsigned number	uint64_t
-            b"J": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 8, C.Int64ub)
-            ),
-            # l	32-bit signed integer	int32_t
-            b"l": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 4, C.Int32sb)
-            ),
-            # L	32-bit unsigned integer	uint32_t
-            b"L": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 4, C.Int32ub)
-            ),
-            # q	32-bit Q Number Q15.16	uint32_t	16-bit integer (A) with 16-bit fixed point (B) for A.B value (range -32768.0 to 32767.99998)
-            b"q": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 4, C.Int32ub)
-            ),
-            # Q	64-bit Q Number Q31.32	uint64_t	32-bit integer (A) with 32-bit fixed point (B) for A.B value.
-            b"Q": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 8, C.Int64ub)
-            ),
-            # s	16-bit signed integer	int16_t	-32768 to 32768
-            b"s": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 2, C.Int16sb)
-            ),
-            # S	16-bit unsigned integer	uint16_t	0 to 65536
-            b"S": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 2, C.Int16ub)
-            ),
-            # U	UTC Date and Time string	char utcdate[16]	Date + UTC Time format yymmddhhmmss.sss - (years 20xx covered)
-            b"U": C.Array(
-                C.this.repeat, C.Array(C.this.structure_size // 16, C.Bytes(16))
-            ),
-            # ?	data structure is complex	TYPE	Structure is defined with a preceding TYPE
-            # null	Nested metadata	uint32_t	The data within is GPMF structured KLV data
-            b"\x00": C.FixedSized(
-                (C.this.repeat * C.this.structure_size),
-                C.LazyBound(lambda: GPMFSampleData),
-            ),
-        },
-        C.Array(C.this.repeat, C.Bytes(C.this.structure_size)),
-    ),
+    "data" / _klv_data_switch,
     C.IfThenElse(
         (C.this.repeat * C.this.structure_size) % 4 == 0,
         C.Padding(0),
@@ -170,7 +161,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 #                 [378081666, -1224280064, 9621, 1492, 138],
 #                 [378081662, -1224280049, 9592, 1476, 150],
 #             ]
-def gps_from_stream(
+def gps5_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[geo.PointWithFix, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
@@ -217,6 +208,64 @@ def gps_from_stream(
         )
 
 
+def gps9_from_stream(
+    stream: T.Sequence[KLVDict],
+) -> T.Generator[geo.PointWithFix, None, None]:
+    indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
+        klv["key"]: klv["data"] for klv in stream
+    }
+
+    gps9 = indexed.get(b"GPS9")
+    if gps9 is None:
+        return
+
+    scal = indexed.get(b"SCAL")
+    if scal is None:
+        return
+    scal_values = [s[0] for s in scal]
+    if any(s == 0 for s in scal_values):
+        return
+
+    type = indexed.get(b"TYPE")
+    if type is None:
+        return
+    gps_value_types = type[0]
+
+    try:
+        sample_parser = C.Sequence(
+            *[_type_mapping[t.to_bytes()][0] for t in gps_value_types]
+        )
+    except Exception as ex:
+        raise ValueError(f"Error parsing the complex type {gps_value_types}: {ex}")
+
+    for sample_data_bytes in gps9:
+        sample_data = sample_parser.parse(sample_data_bytes)
+
+        (
+            lat,
+            lon,
+            alt,
+            speed_2d,
+            _speed_3d,
+            _days_since_2000,
+            _secs_since_midnight,
+            dop,
+            gps_fix,
+        ) = [v / s for v, s in zip(sample_data, scal_values)]
+
+        yield geo.PointWithFix(
+            # will figure out the actual timestamp later
+            time=0,
+            lat=lat,
+            lon=lon,
+            alt=alt,
+            gps_fix=geo.GPSFix(gps_fix),
+            gps_precision=dop * 100,
+            gps_ground_speed=speed_2d,
+            angle=None,
+        )
+
+
 def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     device_id = None
 
@@ -238,7 +287,11 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithF
 
     for klv in stream:
         if klv["key"] == b"STRM":
-            sample_points = list(gps_from_stream(klv["data"]))
+            sample_points = list(gps9_from_stream(klv["data"]))
+            if sample_points:
+                break
+
+            sample_points = list(gps5_from_stream(klv["data"]))
             if sample_points:
                 break
 
