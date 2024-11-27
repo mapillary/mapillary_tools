@@ -35,7 +35,7 @@ class GenericVideoParser(BaseParser):
         blackvue_parser = BlackVueParser(video_path, options, parser_options)
         self.parsers = [camm_parser, gopro_parser, blackvue_parser]
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         for parser in self.parsers:
             points = parser.extract_points()
             if points:

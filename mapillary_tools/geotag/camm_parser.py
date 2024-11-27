@@ -3,6 +3,7 @@
 import dataclasses
 import io
 import logging
+import math
 import pathlib
 import typing as T
 from enum import Enum
@@ -81,12 +82,12 @@ CAMMSampleData = C.Struct(
 
 def _parse_point_from_sample(
     fp: T.BinaryIO, sample: sample_parser.Sample
-) -> T.Optional[geo.Point]:
+) -> T.Optional[geo.GpsPoint]:
     fp.seek(sample.offset, io.SEEK_SET)
     data = fp.read(sample.size)
     box = CAMMSampleData.parse(data)
     if box.type == CAMMType.MIN_GPS.value:
-        return geo.Point(
+        return geo.GpsPoint(
             time=sample.time_offset,
             lat=box.data[0],
             lon=box.data[1],
@@ -96,19 +97,37 @@ def _parse_point_from_sample(
     elif box.type == CAMMType.GPS.value:
         # Not using box.data.time_gps_epoch as the point timestamp
         # because it is from another clock
-        return geo.Point(
+        speed = math.sqrt(
+            math.pow(box.data.velocity_east, 2) + math.pow(box.data.velocity_north, 2)
+        )
+
+        return geo.GpsPoint(
             time=sample.time_offset,
             lat=box.data.latitude,
             lon=box.data.longitude,
             alt=box.data.altitude,
             angle=None,
+            unix_timestamp=int(_gps_timestamp_to_unix(box.data.time_gps_epoch)),
+            gps_fix=geo.GPSFix(box.data.gps_fix_type),
+            gps_ground_speed=speed,
+            gps_horizontal_accuracy=box.data.horizontal_accuracy,
         )
     return None
 
 
+def _gps_timestamp_to_unix(ts: float) -> float:
+    """
+    Convert a GPS timestamp to UNIX timestamp.
+    See https://stackoverflow.com/questions/20521750/ticks-between-unix-epoch-and-gps-epoch
+    for some info on GPS timestamp. Here we arbitrarily use the offset as of 2023, since we
+    are not interested in precision to the second.
+    """
+    return ts + 315964800 - 18
+
+
 def filter_points_by_elst(
-    points: T.Iterable[geo.Point], elst: T.Sequence[T.Tuple[float, float]]
-) -> T.Generator[geo.Point, None, None]:
+    points: T.Iterable[geo.GpsPoint], elst: T.Sequence[T.Tuple[float, float]]
+) -> T.Generator[geo.GpsPoint, None, None]:
     empty_elst = [entry for entry in elst if entry[0] == -1]
     if empty_elst:
         offset = empty_elst[-1][1]
@@ -159,7 +178,7 @@ def _extract_camm_samples(
     yield from camm_samples
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.GpsPoint]]:
     """
     Return a list of points (could be empty) if it is a valid CAMM video,
     otherwise None
@@ -223,7 +242,7 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     return points
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
+def parse_gpx(path: pathlib.Path) -> T.List[geo.GpsPoint]:
     with path.open("rb") as fp:
         points = extract_points(fp)
     if points is None:

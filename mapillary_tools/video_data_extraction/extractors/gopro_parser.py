@@ -12,7 +12,7 @@ class GoProParser(BaseParser):
 
     pointsFound: bool = False
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         source_path = self.geotag_source_path
         if not source_path:
             return []

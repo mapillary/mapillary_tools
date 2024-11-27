@@ -41,7 +41,7 @@ class ExiftoolXmlParser(BaseParser):
         element = next(etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES))
         self.exifToolReadVideo = ExifToolReadVideo(ET.ElementTree(element))
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def extract_points(self) -> T.Sequence[geo.GpsPoint]:
         return (
             self.exifToolReadVideo.extract_gps_track() if self.exifToolReadVideo else []
         )

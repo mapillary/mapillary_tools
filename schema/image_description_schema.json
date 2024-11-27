@@ -46,6 +46,10 @@
                     "type": "string",
                     "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan"
                 },
+                "MAPLastUnixTimestamp": {
+                    "type": "integer",
+                    "description": "UNIX timestamp of the last GPS point"
+                },
                 "filename": {
                     "type": "string",
                     "description": "Absolute path of the video"
