@@ -23,7 +23,7 @@ class RawSample(T.NamedTuple):
     # sample composition offset that decides when to present the sample,
     # i.e. CTTS(n) in the forumula CT(n) = DT(n) + CTTS(n).
     # NOTE: timescale is not applied yet (hence int)
-    composition_timedelta: int
+    composition_offset: int
 
     # if it is a sync sample
     is_sync: bool
@@ -50,7 +50,7 @@ def _extract_raw_samples(
     chunk_entries: T.Sequence[T.Dict],
     chunk_offsets: T.Sequence[int],
     timedeltas: T.Sequence[int],
-    composition_timedeltas: T.Optional[T.Sequence[int]],
+    composition_offsets: T.Optional[T.Sequence[int]],
     syncs: T.Optional[T.Set[int]],
 ) -> T.Generator[RawSample, None, None]:
     if not sizes:
@@ -81,9 +81,9 @@ def _extract_raw_samples(
             # iterate samples in this chunk
             for _ in range(entry["samples_per_chunk"]):
                 is_sync = syncs is None or (sample_idx + 1) in syncs
-                composition_timedelta = (
-                    composition_timedeltas[sample_idx]
-                    if composition_timedeltas is not None
+                composition_offset = (
+                    composition_offsets[sample_idx]
+                    if composition_offsets is not None
                     else 0
                 )
                 yield RawSample(
@@ -91,7 +91,7 @@ def _extract_raw_samples(
                     offset=sample_offset,
                     size=sizes[sample_idx],
                     timedelta=timedeltas[sample_idx],
-                    composition_timedelta=composition_timedelta,
+                    composition_offset=composition_offset,
                     is_sync=is_sync,
                 )
                 sample_offset += sizes[sample_idx]
@@ -108,9 +108,9 @@ def _extract_raw_samples(
         # iterate samples in this chunk
         for _ in range(chunk_entries[-1]["samples_per_chunk"]):
             is_sync = syncs is None or (sample_idx + 1) in syncs
-            composition_timedelta = (
-                composition_timedeltas[sample_idx]
-                if composition_timedeltas is not None
+            composition_offset = (
+                composition_offsets[sample_idx]
+                if composition_offsets is not None
                 else 0
             )
             yield RawSample(
@@ -118,7 +118,7 @@ def _extract_raw_samples(
                 offset=sample_offset,
                 size=sizes[sample_idx],
                 timedelta=timedeltas[sample_idx],
-                composition_timedelta=composition_timedelta,
+                composition_offset=composition_offset,
                 is_sync=is_sync,
             )
             sample_offset += sizes[sample_idx]
@@ -139,7 +139,7 @@ def _extract_samples(
             exact_time=acc_delta / timescale,
             exact_timedelta=raw_sample.timedelta / timescale,
             # CT(n) = DT(n) + CTTS(n)
-            exact_composition_time=(acc_delta + raw_sample.composition_timedelta)
+            exact_composition_time=(acc_delta + raw_sample.composition_offset)
             / timescale,
         )
         acc_delta += raw_sample.timedelta
@@ -158,7 +158,7 @@ def extract_raw_samples_from_stbl_data(
     chunk_offsets = []
     chunk_entries = []
     timedeltas: T.List[int] = []
-    composition_timedeltas: T.Optional[T.List[int]] = None
+    composition_offsets: T.Optional[T.List[int]] = None
     syncs: T.Optional[T.Set[int]] = None
 
     stbl_children = T.cast(
@@ -187,10 +187,10 @@ def extract_raw_samples_from_stbl_data(
                 for _ in range(entry["sample_count"]):
                     timedeltas.append(entry["sample_delta"])
         elif box["type"] == b"ctts":
-            composition_timedeltas = []
+            composition_offsets = []
             for entry in data["entries"]:
                 for _ in range(entry["sample_count"]):
-                    composition_timedeltas.append(entry["sample_offset"])
+                    composition_offsets.append(entry["sample_offset"])
         elif box["type"] == b"stss":
             syncs = set(data["entries"])
 
@@ -198,12 +198,12 @@ def extract_raw_samples_from_stbl_data(
     # in this case append 0's to timedeltas
     while len(timedeltas) < len(sizes):
         timedeltas.append(0)
-    if composition_timedeltas is not None:
-        while len(composition_timedeltas) < len(sizes):
-            composition_timedeltas.append(0)
+    if composition_offsets is not None:
+        while len(composition_offsets) < len(sizes):
+            composition_offsets.append(0)
 
     raw_samples = _extract_raw_samples(
-        sizes, chunk_entries, chunk_offsets, timedeltas, composition_timedeltas, syncs
+        sizes, chunk_entries, chunk_offsets, timedeltas, composition_offsets, syncs
     )
     return descriptions, raw_samples
 

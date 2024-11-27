@@ -144,10 +144,10 @@ class _CompressedSampleCompositionOffset:
     sample_offset: int
 
 
-def _build_ctts(sample_composition_timedeltas: T.Iterable[int]) -> BoxDict:
+def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
     # compress offsets
     compressed: T.List[_CompressedSampleCompositionOffset] = []
-    for offset in sample_composition_timedeltas:
+    for offset in sample_composition_offsets:
         if compressed and offset == compressed[-1].sample_offset:
             compressed[-1].sample_count += 1
         else:
@@ -197,8 +197,8 @@ def build_stbl_from_raw_samples(
         # so we can calculate the moov box size in advance
         _build_co64(raw_samples),
     ]
-    if any(s.composition_timedelta for s in raw_samples):
-        boxes.append(_build_ctts((s.composition_timedelta for s in raw_samples)))
+    if any(s.composition_offset for s in raw_samples):
+        boxes.append(_build_ctts((s.composition_offset for s in raw_samples)))
     if any(not s.is_sync for s in raw_samples):
         boxes.append(_build_stss((s.is_sync for s in raw_samples)))
     return boxes
@@ -249,7 +249,7 @@ def _update_sbtl_sample_offsets(trak: BoxDict, sample_offset: int) -> int:
                 offset=sample_offset,
                 size=sample.size,
                 timedelta=sample.timedelta,
-                composition_timedelta=sample.composition_timedelta,
+                composition_offset=sample.composition_offset,
                 is_sync=sample.is_sync,
             )
         )
