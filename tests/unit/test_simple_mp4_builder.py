@@ -2,9 +2,11 @@ import io
 import typing as T
 
 from mapillary_tools.geotag import (
+    simple_mp4_builder as builder,
+)
+from mapillary_tools.mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
-    simple_mp4_builder as builder,
     simple_mp4_parser as sparser,
 )
 

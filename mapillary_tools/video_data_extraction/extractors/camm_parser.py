@@ -1,9 +1,10 @@
 import functools
 import typing as T
 
-from mapillary_tools import geo
-from mapillary_tools.geotag import camm_parser, simple_mp4_parser
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from ... import geo
+from ...geotag import camm_parser
+from ...mp4 import simple_mp4_parser as sparser
+from .base_parser import BaseParser
 
 
 class CammParser(BaseParser):
@@ -23,7 +24,7 @@ class CammParser(BaseParser):
         with source_path.open("rb") as fp:
             try:
                 return camm_parser.extract_points(fp) or []
-            except simple_mp4_parser.ParsingError:
+            except sparser.ParsingError:
                 return []
 
     def extract_make(self) -> T.Optional[str]:

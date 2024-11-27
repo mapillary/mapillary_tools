@@ -9,7 +9,8 @@ from pathlib import Path
 
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
-from .geotag import geotag_videos_from_video, mp4_sample_parser
+from .geotag import geotag_videos_from_video
+from .mp4 import mp4_sample_parser
 from .process_geotag_properties import GeotagSource
 
 LOG = logging.getLogger(__name__)

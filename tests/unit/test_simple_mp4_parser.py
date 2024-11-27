@@ -1,7 +1,7 @@
 import io
 import typing
 
-from mapillary_tools.geotag import (
+from mapillary_tools.mp4 import (
     construct_mp4_parser as cparser,
     simple_mp4_parser as sparser,
 )

@@ -12,9 +12,9 @@ from . import (
     camm_parser,
     gpmf_gps_filter,
     gpmf_parser,
-    simple_mp4_parser as sparser,
     utils as video_utils,
 )
+from ..mp4 import simple_mp4_parser as sparser
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)

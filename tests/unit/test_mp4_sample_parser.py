@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mapillary_tools.geotag import mp4_sample_parser
+from mapillary_tools.mp4 import mp4_sample_parser
 
 
 def test_movie_box_parser():

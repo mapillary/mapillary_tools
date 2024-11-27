@@ -7,9 +7,9 @@ from mapillary_tools import geo, types
 from mapillary_tools.geotag import (
     camm_builder,
     camm_parser,
-    construct_mp4_parser as cparser,
     simple_mp4_builder,
 )
+from mapillary_tools.mp4 import construct_mp4_parser as cparser
 
 
 def test_filter_points_by_edit_list():
