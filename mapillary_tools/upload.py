@@ -51,12 +51,6 @@ class UploadHTTPError(Exception):
     pass
 
 
-class DirectUploadFileType(enum.Enum):
-    RAW_BLACKVUE = "raw_blackvue"
-    RAW_CAMM = "raw_camm"
-    ZIP = "zip"
-
-
 def wrap_http_exception(ex: requests.HTTPError):
     req = ex.request
     resp = ex.response
@@ -517,7 +511,6 @@ def _find_metadata_with_filename_existed_in(
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    filetypes: T.Set[T.Union[FileType, DirectUploadFileType]],
     desc_path: T.Optional[str] = None,
     _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]] = None,
     user_name: T.Optional[str] = None,
@@ -525,19 +518,6 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    if (
-        DirectUploadFileType.RAW_BLACKVUE in filetypes
-        and FileType.BLACKVUE in filetypes
-    ):
-        raise exceptions.MapillaryBadParameterError(
-            f"filetypes should contain either {DirectUploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
-        )
-
-    if DirectUploadFileType.RAW_CAMM in filetypes and FileType.CAMM in filetypes:
-        raise exceptions.MapillaryBadParameterError(
-            f"File types should contain either {DirectUploadFileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
-        )
-
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
@@ -556,14 +536,7 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
-    if {
-        DirectUploadFileType.RAW_CAMM,
-        DirectUploadFileType.RAW_BLACKVUE,
-        DirectUploadFileType.ZIP,
-    }.issuperset(filetypes):
-        metadatas = None
-    else:
-        metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
+    metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
     user_items = fetch_user_items(user_name, organization_key)
 
@@ -606,85 +579,75 @@ def upload(
         chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
     )
 
-    # if more than one filetypes speficied, check filename suffixes,
-    # i.e. files not ended with .jpg or .mp4 will be ignored
-    check_file_suffix = len(filetypes) > 1
-
     try:
-        if FileType.IMAGE in filetypes:
-            image_paths = utils.find_images(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            # find descs that match the image paths from the import paths
-            image_metadatas = [
-                metadata
-                for metadata in (metadatas or [])
-                if isinstance(metadata, types.ImageMetadata)
-            ]
-            specified_image_metadatas = _find_metadata_with_filename_existed_in(
-                image_metadatas, image_paths
-            )
-            if specified_image_metadatas:
+        image_paths = utils.find_images(
+            import_paths,
+            skip_subfolders=skip_subfolders,
+            check_file_suffix=False,
+        )
+        # find descs that match the image paths from the import paths
+        image_metadatas = [
+            metadata
+            for metadata in (metadatas or [])
+            if isinstance(metadata, types.ImageMetadata)
+        ]
+        specified_image_metadatas = _find_metadata_with_filename_existed_in(
+            image_metadatas, image_paths
+        )
+        if specified_image_metadatas:
+            try:
+                clusters = mly_uploader.upload_images(
+                    specified_image_metadatas,
+                    event_payload={"file_type": FileType.IMAGE.value},
+                )
+            except Exception as ex:
+                raise UploadError(ex) from ex
+
+            if clusters:
+                LOG.debug("Uploaded to cluster: %s", clusters)
+
+        video_paths = utils.find_videos(
+            import_paths,
+            skip_subfolders=skip_subfolders,
+            check_file_suffix=False,
+        )
+        video_metadatas = [
+            metadata
+            for metadata in (metadatas or [])
+            if isinstance(metadata, types.VideoMetadata)
+        ]
+        specified_video_metadatas = _find_metadata_with_filename_existed_in(
+            video_metadatas, video_paths
+        )
+        for idx, video_metadata in enumerate(specified_video_metadatas):
+            video_metadata.update_md5sum()
+            assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
+            generator = camm_builder.camm_sample_generator2(video_metadata)
+            with video_metadata.filename.open("rb") as src_fp:
+                camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
+                event_payload: uploader.Progress = {
+                    "total_sequence_count": len(specified_video_metadatas),
+                    "sequence_idx": idx,
+                    "file_type": video_metadata.filetype.value,
+                    "import_path": str(video_metadata.filename),
+                }
                 try:
-                    clusters = mly_uploader.upload_images(
-                        specified_image_metadatas,
-                        event_payload={"file_type": FileType.IMAGE.value},
+                    cluster_id = mly_uploader.upload_stream(
+                        T.cast(T.BinaryIO, camm_fp),
+                        upload_api_v4.ClusterFileType.CAMM,
+                        video_metadata.md5sum,
+                        event_payload=event_payload,
                     )
                 except Exception as ex:
                     raise UploadError(ex) from ex
+                LOG.debug("Uploaded to cluster: %s", cluster_id)
 
-                if clusters:
-                    LOG.debug("Uploaded to cluster: %s", clusters)
-
-        supported = CAMM_CONVERTABLES.intersection(filetypes)
-        if supported:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            video_metadatas = [
-                metadata
-                for metadata in (metadatas or [])
-                if isinstance(metadata, types.VideoMetadata)
-            ]
-            specified_video_metadatas = _find_metadata_with_filename_existed_in(
-                video_metadatas, video_paths
-            )
-            for idx, video_metadata in enumerate(specified_video_metadatas):
-                video_metadata.update_md5sum()
-                assert isinstance(
-                    video_metadata.md5sum, str
-                ), "md5sum should be updated"
-                generator = camm_builder.camm_sample_generator2(video_metadata)
-                with video_metadata.filename.open("rb") as src_fp:
-                    camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-                    event_payload: uploader.Progress = {
-                        "total_sequence_count": len(specified_video_metadatas),
-                        "sequence_idx": idx,
-                        "file_type": video_metadata.filetype.value,
-                        "import_path": str(video_metadata.filename),
-                    }
-                    try:
-                        cluster_id = mly_uploader.upload_stream(
-                            T.cast(T.BinaryIO, camm_fp),
-                            upload_api_v4.ClusterFileType.CAMM,
-                            video_metadata.md5sum,
-                            event_payload=event_payload,
-                        )
-                    except Exception as ex:
-                        raise UploadError(ex) from ex
-                    LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-        if DirectUploadFileType.ZIP in filetypes:
-            zip_paths = utils.find_zipfiles(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_zipfiles(mly_uploader, zip_paths)
+        zip_paths = utils.find_zipfiles(
+            import_paths,
+            skip_subfolders=skip_subfolders,
+            check_file_suffix=False,
+        )
+        _upload_zipfiles(mly_uploader, zip_paths)
 
     except UploadError as ex:
         inner_ex = ex.inner_ex
@@ -731,7 +694,7 @@ def _upload_zipfiles(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
-            "file_type": DirectUploadFileType.ZIP.value,
+            "file_type": FileType.ZIP.value,
             "import_path": str(zip_path),
         }
         try:

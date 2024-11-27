@@ -83,7 +83,7 @@ def test_upload_blackvue(
     video_dir = setup_data.join("videos")
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -93,7 +93,7 @@ def test_upload_blackvue(
     assert len(setup_upload.listdir()) == 0
 
     x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)}",
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

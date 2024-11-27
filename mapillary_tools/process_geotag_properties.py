@@ -170,7 +170,7 @@ def _process_videos(
 
 
 def _normalize_import_paths(
-    import_path: T.Union[Path, T.Sequence[Path]]
+    import_path: T.Union[Path, T.Sequence[Path]],
 ) -> T.Sequence[Path]:
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):

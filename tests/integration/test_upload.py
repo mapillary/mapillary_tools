@@ -37,8 +37,8 @@ def test_upload_multiple_mp4s_DEPRECATED(
     setup_upload: py.path.local,
 ):
     video_path = setup_data.join("videos").join("sample-5s.mp4")
-    x = subprocess.run(
-        f"{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {video_path} {video_path}",
+    _x = subprocess.run(
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} {video_path} {video_path}",
         shell=True,
     )
 
@@ -74,7 +74,7 @@ def test_upload_blackvue(
 
     video_dir = setup_data.join("videos")
     x = subprocess.run(
-        f'{EXECUTABLE} upload_blackvue {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
+        f'{EXECUTABLE} process_and_upload --file_types=blackvue {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -110,7 +110,7 @@ def test_upload_camm(
 
     video_dir = setup_data.join("videos")
     x = subprocess.run(
-        f'{EXECUTABLE} upload_camm {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
+        f'{EXECUTABLE} process_and_upload --file_types=camm {UPLOAD_FLAGS} {str(video_dir)} {str(another_path)} "{str(video_path2)}" "{str(video_path_hello2)}"',
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -133,7 +133,7 @@ def test_upload_image_dir(
     )
     assert x.returncode == 0, x.stderr
     x = subprocess.run(
-        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
     for file in setup_upload.listdir():
@@ -157,7 +157,7 @@ def test_upload_image_dir_twice(
 
     # first upload
     x = subprocess.run(
-        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -167,7 +167,7 @@ def test_upload_image_dir_twice(
 
     # expect the second upload to not produce new uploads
     x = subprocess.run(
-        f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
     )
     assert x.returncode == 0, x.stderr

@@ -36,6 +36,7 @@ class FileType(enum.Enum):
     GOPRO = "gopro"
     IMAGE = "image"
     VIDEO = "video"
+    ZIP = "zip"
 
 
 @dataclasses.dataclass
