@@ -170,7 +170,7 @@ def _process_videos(
 
 
 def _normalize_import_paths(
-    import_path: T.Union[Path, T.Sequence[Path]]
+    import_path: T.Union[Path, T.Sequence[Path]],
 ) -> T.Sequence[Path]:
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
@@ -283,7 +283,7 @@ def _process_videos_beta(vars_args: T.Dict):
 
     options: CliOptions = {
         "paths": vars_args["import_path"],
-        "recursive": vars_args["skip_subfolders"] == False,
+        "recursive": vars_args["skip_subfolders"] is False,
         "geotag_sources_options": geotag_sources_opts,
         "geotag_source_path": vars_args["geotag_source_path"],
         "num_processes": vars_args["num_processes"],
