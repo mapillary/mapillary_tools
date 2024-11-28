@@ -9,8 +9,9 @@ from enum import Enum
 
 import construct as C
 
+from ..mp4 import mp4_sample_parser as sample_parser, simple_mp4_parser as sparser
+
 from . import geo
-from ..mp4 import simple_mp4_parser as sparser, mp4_sample_parser as sample_parser
 
 
 LOG = logging.getLogger(__name__)

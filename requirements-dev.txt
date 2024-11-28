@@ -1,9 +1,7 @@
 Pillow; python_version>='3.8'
 pytest
-black
 mypy
 pyinstaller
-flake8
 types-requests
 types-appdirs
 usort

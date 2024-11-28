@@ -2,15 +2,9 @@ import io
 import typing as T
 
 from .. import geo, types
-from ..mp4 import (
-    construct_mp4_parser as cparser,
-    mp4_sample_parser as sample_parser,
-)
+from ..mp4 import construct_mp4_parser as cparser, mp4_sample_parser as sample_parser
 
-from . import (
-    camm_parser,
-    simple_mp4_builder as builder,
-)
+from . import camm_parser, simple_mp4_builder as builder
 from .simple_mp4_builder import BoxDict
 
 
