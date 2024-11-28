@@ -1,9 +1,9 @@
 import io
 import typing
 
-from mapillary_tools.geotag import (
+from mapillary_tools.mp4 import (
     construct_mp4_parser as cparser,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 
 
@@ -26,7 +26,7 @@ def _parse(data: bytes):
     }
     consumed_size = 0
     ret = []
-    for h, _d, s in parser.parse_boxes_recursive(
+    for h, _d, s in sparser.parse_boxes_recursive(
         io.BytesIO(data), box_list_types=box_list_types
     ):
         box_data = s.read(h.maxsize)
@@ -42,7 +42,7 @@ def _parse(data: bytes):
 
 def _assert_box_type(
     data: bytes,
-    parsed: typing.List[typing.Tuple[parser.Header, bytes]],
+    parsed: typing.List[typing.Tuple[sparser.Header, bytes]],
     box_type: bytes,
 ):
     assert 1 == len(parsed)
@@ -55,7 +55,7 @@ def _assert_box_type(
 
 def test_parse_box_header():
     s = io.BytesIO(b"hello")
-    header = parser.parse_box_header(s, maxsize=0)
+    header = sparser.parse_box_header(s, maxsize=0)
     assert header.header_size == 0
     assert header.box_size == 0
     assert header.type == b""

@@ -15,10 +15,6 @@ MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
 MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
     "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
 )
-# https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification
-MAPILLARY__DISABLE_VERIFYING_SSL = (
-    os.getenv("MAPILLARY__DISABLE_VERIFYING_SSL") == "TRUE"
-)
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
 # (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
@@ -101,7 +97,6 @@ class UploadService:
             url,
             headers=headers,
             timeout=REQUESTS_TIMEOUT,
-            verify=not MAPILLARY__DISABLE_VERIFYING_SSL,
         )
         LOG.debug("HTTP response %s: %s", resp.status_code, resp.content)
         resp.raise_for_status()
@@ -144,7 +139,6 @@ class UploadService:
                 headers=headers,
                 data=chunk,
                 timeout=UPLOAD_REQUESTS_TIMEOUT,
-                verify=not MAPILLARY__DISABLE_VERIFYING_SSL,
             )
             LOG.debug(
                 "HTTP response %s: %s", resp.status_code, _truncate_end(resp.content)
@@ -191,7 +185,6 @@ class UploadService:
             headers=headers,
             json=data,
             timeout=REQUESTS_TIMEOUT,
-            verify=not MAPILLARY__DISABLE_VERIFYING_SSL,
         )
         LOG.debug("HTTP response %s: %s", resp.status_code, _truncate_end(resp.content))
 

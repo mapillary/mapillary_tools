@@ -16,7 +16,7 @@ class GpxParser(BaseParser):
             return []
         try:
             tracks = geotag_images_from_gpx_file.parse_gpx(path)
-        except Exception as e:
+        except Exception:
             return []
 
         points: T.Sequence[geo.Point] = sum(tracks, [])
