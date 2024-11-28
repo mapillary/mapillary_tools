@@ -2,10 +2,12 @@ import io
 import typing as T
 
 from mapillary_tools.geotag import (
+    simple_mp4_builder as builder,
+)
+from mapillary_tools.mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
-    simple_mp4_builder as builder,
-    simple_mp4_parser as parser,
+    simple_mp4_parser as sparser,
 )
 
 
@@ -44,9 +46,9 @@ def _build_and_parse_stbl(
     d = cparser.Box32ConstructBuilder({b"stbl": cparser.CMAP[b"stbl"]}).Box.build(
         {"type": b"stbl", "data": s}
     )
-    ss = parser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
+    ss = sparser.parse_box_data_firstx(io.BytesIO(d), [b"stbl"])
     assert d[8:] == ss
-    _, parsed_samples = sample_parser.parse_raw_samples_from_stbl(io.BytesIO(ss))
+    _, parsed_samples = sample_parser.extract_raw_samples_from_stbl_data(ss)
     assert expected_samples == list(parsed_samples)
 
 
@@ -247,80 +249,82 @@ def test_parse_raw_samples_from_stbl():
             },
         ]
     )
-    descs, sample_iter = sample_parser.parse_raw_samples_from_stbl(
-        io.BytesIO(stbl_bytes)
-    )
+
+    def _verify_samples(descs, samples):
+        assert [
+            sample_parser.RawSample(
+                description_idx=1,
+                offset=1,
+                size=1,
+                timedelta=20,
+                composition_offset=0,
+                is_sync=True,
+            ),
+            sample_parser.RawSample(
+                description_idx=1,
+                offset=2,
+                size=2,
+                timedelta=30,
+                composition_offset=0,
+                is_sync=False,
+            ),
+            sample_parser.RawSample(
+                description_idx=1,
+                offset=5,
+                size=3,
+                timedelta=30,
+                composition_offset=0,
+                is_sync=True,
+            ),
+            sample_parser.RawSample(
+                description_idx=1,
+                offset=8,
+                size=3,
+                timedelta=50,
+                composition_offset=0,
+                is_sync=False,
+            ),
+        ] == samples
+        d = builder.build_stbl_from_raw_samples(descs, samples)
+        assert d[1:] == [
+            {
+                "data": {
+                    "entries": [
+                        {"sample_count": 1, "sample_delta": 20},
+                        {"sample_count": 2, "sample_delta": 30},
+                        {"sample_count": 1, "sample_delta": 50},
+                    ]
+                },
+                "type": b"stts",
+            },
+            {
+                "data": {
+                    "entries": [
+                        {
+                            "first_chunk": 1,
+                            "sample_description_index": 1,
+                            "samples_per_chunk": 2,
+                        },
+                        {
+                            "first_chunk": 2,
+                            "sample_description_index": 1,
+                            "samples_per_chunk": 2,
+                        },
+                    ]
+                },
+                "type": b"stsc",
+            },
+            {
+                "data": {"entries": [1, 2, 3, 3], "sample_count": 4, "sample_size": 0},
+                "type": b"stsz",
+            },
+            {"data": {"entries": [1, 5]}, "type": b"co64"},
+            {"data": {"entries": [1, 3]}, "type": b"stss"},
+        ]
+
+    descs, sample_iter = sample_parser.extract_raw_samples_from_stbl_data(stbl_bytes)
     samples = list(sample_iter)
-    assert [
-        sample_parser.RawSample(
-            description_idx=1,
-            offset=1,
-            size=1,
-            timedelta=20,
-            composition_offset=0,
-            is_sync=True,
-        ),
-        sample_parser.RawSample(
-            description_idx=1,
-            offset=2,
-            size=2,
-            timedelta=30,
-            composition_offset=0,
-            is_sync=False,
-        ),
-        sample_parser.RawSample(
-            description_idx=1,
-            offset=5,
-            size=3,
-            timedelta=30,
-            composition_offset=0,
-            is_sync=True,
-        ),
-        sample_parser.RawSample(
-            description_idx=1,
-            offset=8,
-            size=3,
-            timedelta=50,
-            composition_offset=0,
-            is_sync=False,
-        ),
-    ] == samples
-    d = builder.build_stbl_from_raw_samples(descs, samples)
-    assert d[1:] == [
-        {
-            "data": {
-                "entries": [
-                    {"sample_count": 1, "sample_delta": 20},
-                    {"sample_count": 2, "sample_delta": 30},
-                    {"sample_count": 1, "sample_delta": 50},
-                ]
-            },
-            "type": b"stts",
-        },
-        {
-            "data": {
-                "entries": [
-                    {
-                        "first_chunk": 1,
-                        "sample_description_index": 1,
-                        "samples_per_chunk": 2,
-                    },
-                    {
-                        "first_chunk": 2,
-                        "sample_description_index": 1,
-                        "samples_per_chunk": 2,
-                    },
-                ]
-            },
-            "type": b"stsc",
-        },
-        {
-            "data": {"entries": [1, 2, 3, 3], "sample_count": 4, "sample_size": 0},
-            "type": b"stsz",
-        },
-        {"data": {"entries": [1, 5]}, "type": b"co64"},
-        {"data": {"entries": [1, 3]}, "type": b"stss"},
-    ]
+    _verify_samples(descs, samples)
 
 
 def test_box_header_0_building():

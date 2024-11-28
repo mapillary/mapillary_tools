@@ -1,8 +1,9 @@
 import typing as T
 
-from mapillary_tools import geo
-from mapillary_tools.geotag import blackvue_parser, simple_mp4_parser
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from ... import geo
+from ...geotag import blackvue_parser
+from ...mp4 import simple_mp4_parser as sparser
+from .base_parser import BaseParser
 
 
 class BlackVueParser(BaseParser):
@@ -21,7 +22,7 @@ class BlackVueParser(BaseParser):
                 points = blackvue_parser.extract_points(fp) or []
                 self.pointsFound = len(points) > 0
                 return points
-            except simple_mp4_parser.ParsingError:
+            except sparser.ParsingError:
                 return []
 
     def extract_make(self) -> T.Optional[str]:
