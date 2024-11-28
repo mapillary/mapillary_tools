@@ -59,8 +59,8 @@ def _extract_raw_samples(
     if not chunk_entries:
         return
 
-    assert len(sizes) <= len(
-        timedeltas
+    assert (
+        len(sizes) <= len(timedeltas)
     ), f"got less ({len(timedeltas)}) sample time deltas (stts) than expected ({len(sizes)})"
 
     sample_idx = 0
