@@ -2,7 +2,6 @@ import abc
 import functools
 import logging
 import os
-import sys
 import typing as T
 from pathlib import Path
 

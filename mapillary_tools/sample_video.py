@@ -167,7 +167,7 @@ def wip_dir_context(wip_dir: Path, done_dir: Path, rename_timeout_sec: int = 10)
                 except Exception as e:
                     time.sleep(1)
                     error = e
-            if not renamed and not error is None:
+            if not renamed and error is not None:
                 raise error
         else:
             wip_dir.rename(done_dir)
