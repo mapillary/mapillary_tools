@@ -231,7 +231,8 @@ def test_duplication(tmpdir: py.path.local):
     error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
     assert len(error_metadatas) == 4
     assert set(d.filename for d in sequence[1:-2]) == set(
-        Path(d.error.desc["filename"]) for d in error_metadatas  # type: ignore
+        Path(d.error.desc["filename"])
+        for d in error_metadatas  # type: ignore
     )
 
 
