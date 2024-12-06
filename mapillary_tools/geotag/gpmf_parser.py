@@ -4,7 +4,7 @@ import typing as T
 
 import construct as C
 
-from .. import geo
+from .. import geo, imu
 from ..mp4 import mp4_sample_parser as sample_parser
 
 """
@@ -298,6 +298,74 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithF
     return sample_points
 
 
+_Float3 = T.Tuple[float, float, float]
+
+
+def _apply_orin(values: _Float3, orin: bytes) -> _Float3:
+    x, y, z = 0.0, 0.0, 0.0
+
+    for o, v in zip(orin, values):
+        axis = o.to_bytes()
+        if axis == b"X":
+            x = v
+        elif axis == b"Y":
+            y = v
+        elif axis == b"Z":
+            z = v
+        elif axis == b"x":
+            x = -v
+        elif axis == b"y":
+            y = -v
+        elif axis == b"z":
+            z = -v
+
+    return (x, y, z)
+
+
+def _extract_xyz_from_stream(
+    stream: T.Sequence[KLVDict], key: bytes
+) -> T.Generator[_Float3, None, None]:
+    indexed: T.Dict[bytes, KLVDict] = {klv["key"]: klv for klv in stream}
+
+    klv = indexed.get(key)
+    if klv is None:
+        return
+
+    scal_klv = indexed.get(b"SCAL")
+    if scal_klv is None:
+        return
+
+    try:
+        scal = scal_klv["data"][0][0]
+    except (TypeError, IndexError):
+        return
+
+    if scal == 0:
+        return
+
+    orin_klv = indexed.get(b"ORIN")
+    if orin_klv is None:
+        orin = b"ZXY"
+    else:
+        orin = orin_klv["data"][0]
+
+    for values in klv["data"]:
+        x, y, z = _apply_orin(values, orin)
+        yield (x / scal, y / scal, z / scal)
+
+
+def _find_first_xyz_stream(stream: T.Sequence[KLVDict], key: bytes):
+    sample_xyzs: T.List[T.Tuple[float, float, float]] = []
+
+    for klv in stream:
+        if klv["key"] == b"STRM":
+            sample_xyzs = list(_extract_xyz_from_stream(klv["data"], key))
+            if sample_xyzs:
+                break
+
+    return sample_xyzs
+
+
 def _extract_dvnm_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[sample_parser.Sample]
 ) -> T.Dict[int, bytes]:
@@ -326,6 +394,9 @@ def _extract_points_from_samples(
 ) -> T.List[geo.PointWithFix]:
     # To keep GPS points from different devices separated
     points_by_dvid: T.Dict[int, T.List[geo.PointWithFix]] = {}
+    accls_by_dvid: T.Dict[int, T.List[imu.AccelerationData]] = {}
+    gyros_by_dvid: T.Dict[int, T.List[imu.GyroscopeData]] = {}
+    magns_by_dvid: T.Dict[int, T.List[imu.MagnetometerData]] = {}
 
     for sample in samples:
         fp.seek(sample.raw_sample.offset, io.SEEK_SET)
@@ -335,6 +406,8 @@ def _extract_points_from_samples(
         # iterate devices
         devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
         for device in devices:
+            device_id = _find_first_device_id(device["data"])
+
             sample_points = _find_first_gps_stream(device["data"])
             if sample_points:
                 # interpolate timestamps in between
@@ -342,9 +415,50 @@ def _extract_points_from_samples(
                 for idx, point in enumerate(sample_points):
                     point.time = sample.exact_time + avg_timedelta * idx
 
-                device_id = _find_first_device_id(device["data"])
                 device_points = points_by_dvid.setdefault(device_id, [])
                 device_points.extend(sample_points)
+
+            sample_xyzs = _find_first_xyz_stream(device["data"], b"ACCL")
+            if sample_xyzs:
+                # interpolate timestamps in between
+                avg_delta = sample.exact_timedelta / len(sample_xyzs)
+                accls_by_dvid.setdefault(device_id, []).extend(
+                    imu.AccelerationData(
+                        time=sample.exact_time + avg_delta * idx,
+                        x=x,
+                        y=y,
+                        z=z,
+                    )
+                    for idx, (x, y, z) in enumerate(sample_xyzs)
+                )
+
+            sample_xyzs = _find_first_xyz_stream(device["data"], b"GYRO")
+            if sample_xyzs:
+                # interpolate timestamps in between
+                avg_delta = sample.exact_timedelta / len(sample_xyzs)
+                gyros_by_dvid.setdefault(device_id, []).extend(
+                    imu.GyroscopeData(
+                        time=sample.exact_time + avg_delta * idx,
+                        x=x,
+                        y=y,
+                        z=z,
+                    )
+                    for idx, (x, y, z) in enumerate(sample_xyzs)
+                )
+
+            sample_xyzs = _find_first_xyz_stream(device["data"], b"MAGN")
+            if sample_xyzs:
+                # interpolate timestamps in between
+                avg_delta = sample.exact_timedelta / len(sample_xyzs)
+                magns_by_dvid.setdefault(device_id, []).extend(
+                    imu.MagnetometerData(
+                        time=sample.exact_time + avg_delta * idx,
+                        x=x,
+                        y=y,
+                        z=z,
+                    )
+                    for idx, (x, y, z) in enumerate(sample_xyzs)
+                )
 
     values = list(points_by_dvid.values())
     return values[0] if values else []
