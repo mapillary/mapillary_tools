@@ -1,5 +1,6 @@
 import dataclasses
 import io
+import itertools
 import pathlib
 import typing as T
 
@@ -377,7 +378,7 @@ def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
 
 def _scale_and_calibrate(
     stream: T.Sequence[KLVDict], key: bytes
-) -> T.Generator[T.Tuple[float, ...], None, None]:
+) -> T.Generator[T.Sequence[float], None, None]:
     indexed: T.Dict[bytes, KLVDict] = {klv["key"]: klv for klv in stream}
 
     klv = indexed.get(key)
@@ -385,24 +386,30 @@ def _scale_and_calibrate(
         return
 
     scal_klv = indexed.get(b"SCAL")
-    if scal_klv is None:
-        return
 
-    try:
-        scal = scal_klv["data"][0][0]
-    except (TypeError, IndexError):
-        return
+    if scal_klv is not None:
+        # replace 0s with 1s to avoid division by zero
+        scals = [s or 1 for s in _flatten(scal_klv["data"])]
 
-    if scal == 0:
-        return
+    if not scals:
+        scals = [1]
+
+    if len(scals) == 1:
+        # infinite repeat
+        scales = itertools.repeat(scals[0])
+    else:
+        scales = scals
+
+    if klv["type"] == b"?":
+        complex_parser = C.Sequence(*[_type_mapping[t.to_bytes()][0] for t in gps_value_types])
 
     matrix = _get_matrix(indexed)
 
     for values in klv["data"]:
         if matrix is None:
-            yield tuple(v / scal for v in values)
+            yield tuple(v / s for v, s in zip(values, scales))
         else:
-            yield tuple(v / scal for v in _apply_matrix(matrix, values))
+            yield tuple(v / s for v, s in zip(_apply_matrix(matrix, values), scales))
 
 
 def _find_first_telemetry_stream(stream: T.Sequence[KLVDict], key: bytes):
@@ -528,7 +535,7 @@ def _contains_gpmd_description(track: TrackBoxParser) -> bool:
     return any(_is_gpmd_description(d) for d in descriptions)
 
 
-def _extract_gpmd_samples(track: TrackBoxParser) -> T.Generator[Sample, None, None]:
+def _filter_gpmd_samples(track: TrackBoxParser) -> T.Generator[Sample, None, None]:
     for sample in track.extract_samples():
         if _is_gpmd_description(sample.description):
             yield sample
@@ -542,7 +549,7 @@ def extract_points(fp: T.BinaryIO) -> T.List[geo.PointWithFix]:
     moov = MovieBoxParser.parse_stream(fp)
     for track in moov.extract_tracks():
         if _contains_gpmd_description(track):
-            gpmd_samples = _extract_gpmd_samples(track)
+            gpmd_samples = _filter_gpmd_samples(track)
             telemetry = _extract_points_from_samples(fp, gpmd_samples)
             # return the firstly found non-empty points
             if telemetry.gps:
@@ -560,7 +567,7 @@ def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[TelemetryData]:
 
     for track in moov.extract_tracks():
         if _contains_gpmd_description(track):
-            gpmd_samples = _extract_gpmd_samples(track)
+            gpmd_samples = _filter_gpmd_samples(track)
             telemetry = _extract_points_from_samples(fp, gpmd_samples)
             # return the firstly found non-empty points
             if telemetry.gps:
@@ -574,7 +581,7 @@ def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
     moov = MovieBoxParser.parse_stream(fp)
     for track in moov.extract_tracks():
         if _contains_gpmd_description(track):
-            gpmd_samples = _extract_gpmd_samples(track)
+            gpmd_samples = _filter_gpmd_samples(track)
             device_names = _extract_dvnm_from_samples(fp, gpmd_samples)
             if device_names:
                 return device_names
