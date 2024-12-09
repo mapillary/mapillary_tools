@@ -352,7 +352,7 @@ def _apply_matrix(
 
 
 def _flatten(nested: T.Sequence[T.Sequence[float]]) -> list[float]:
-    output = []
+    output: list[float] = []
     for row in nested:
         output.extend(row)
     return output
@@ -361,7 +361,7 @@ def _flatten(nested: T.Sequence[T.Sequence[float]]) -> list[float]:
 def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
     mtrx = klv.get(b"MTRX")
     if mtrx is not None:
-        matrix = _flatten(mtrx["data"])
+        matrix: T.Sequence[float] = _flatten(mtrx["data"])
         if _is_matrix_calibration(matrix):
             return matrix
 
@@ -369,8 +369,8 @@ def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
     orio = klv.get(b"ORIO")
 
     if orin is not None and orio is not None:
-        mtrx = _build_matrix(b"".join(orin["data"]), b"".join(orio["data"]))
-        return mtrx
+        matrix = _build_matrix(b"".join(orin["data"]), b"".join(orio["data"]))
+        return matrix
 
     return None
 
@@ -395,7 +395,7 @@ def _scale_and_calibrate(
 
     if len(scals) == 1:
         # infinite repeat
-        scales = itertools.repeat(scals[0])
+        scales: T.Iterable[float] = itertools.repeat(scals[0])
     else:
         scales = scals
 
