@@ -351,18 +351,17 @@ def _apply_matrix(
         yield sum(matrix[row_start + x] * values[x] for x in range(size))
 
 
-def _flatten(nested):
-    if isinstance(nested, T.Sequence):
-        for sublist in nested:
-            yield from _flatten(sublist)
-    else:
-        yield nested
+def _flatten(nested: T.Sequence[T.Sequence[float]]) -> list[float]:
+    output = []
+    for row in nested:
+        output.extend(row)
+    return output
 
 
 def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
     mtrx = klv.get(b"MTRX")
     if mtrx is not None:
-        matrix = tuple(_flatten(mtrx["data"]))
+        matrix = _flatten(mtrx["data"])
         if _is_matrix_calibration(matrix):
             return matrix
 
@@ -399,9 +398,6 @@ def _scale_and_calibrate(
         scales = itertools.repeat(scals[0])
     else:
         scales = scals
-
-    if klv["type"] == b"?":
-        complex_parser = C.Sequence(*[_type_mapping[t.to_bytes()][0] for t in gps_value_types])
 
     matrix = _get_matrix(indexed)
 
