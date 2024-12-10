@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import io
 import json
 import pathlib
 import typing as T
@@ -10,6 +11,7 @@ import mapillary_tools.geo as geo
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
+from mapillary_tools.mp4 import mp4_sample_parser
 import mapillary_tools.utils as utils
 
 
@@ -99,6 +101,17 @@ def _convert_geojson(path: pathlib.Path):
     return features
 
 
+def _parse_samples(path: pathlib.Path) -> T.Generator[T.Dict, None, None]:
+    with path.open("rb") as fp:
+        parser = mp4_sample_parser.MovieBoxParser.parse_stream(fp)
+        for t in parser.extract_tracks():
+            for sample in t.extract_samples():
+                if gpmf_parser._is_gpmd_description(sample.description):
+                    fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+                    data = fp.read(sample.raw_sample.size)
+                    yield T.cast(T.Dict, gpmf_parser.GPMFSampleData.parse(data))
+
+
 def _parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", nargs="+", help="Path to video file or directory")
@@ -113,13 +126,12 @@ def main():
     parsed_args = _parse_args()
 
     features = []
-    samples = []
+    parsed_samples = []
     gpx = gpxpy.gpx.GPX()
 
     def _process(path: pathlib.Path):
         if parsed_args.dump:
-            with path.open("rb") as fp:
-                samples.extend(gpmf_parser.iterate_gpmd_sample_data(fp))
+            parsed_samples.extend(_parse_samples(path))
         elif parsed_args.geojson:
             features.extend(_convert_geojson(path))
         else:
@@ -129,7 +141,7 @@ def main():
         _process(path)
 
     if parsed_args.dump:
-        for sample in samples:
+        for sample in parsed_samples:
             print(sample)
     else:
         if features:
