@@ -317,7 +317,7 @@ def _is_matrix_calibration(matrix: T.Sequence[float]) -> bool:
 
 
 def _build_matrix(
-    orin: bytes | T.Sequence[int], orio: bytes | T.Sequence[int]
+    orin: T.Union[bytes, T.Sequence[int]], orio: T.Union[bytes, T.Sequence[int]]
 ) -> T.Sequence[float]:
     matrix = []
 
@@ -351,14 +351,14 @@ def _apply_matrix(
         yield sum(matrix[row_start + x] * values[x] for x in range(size))
 
 
-def _flatten(nested: T.Sequence[T.Sequence[float]]) -> list[float]:
-    output: list[float] = []
+def _flatten(nested: T.Sequence[T.Sequence[float]]) -> T.List[float]:
+    output: T.List[float] = []
     for row in nested:
         output.extend(row)
     return output
 
 
-def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
+def _get_matrix(klv: T.Dict[bytes, KLVDict]) -> T.Optional[T.Sequence[float]]:
     mtrx = klv.get(b"MTRX")
     if mtrx is not None:
         matrix: T.Sequence[float] = _flatten(mtrx["data"])
