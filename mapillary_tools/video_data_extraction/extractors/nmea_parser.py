@@ -1,8 +1,8 @@
 import typing as T
 
-from mapillary_tools import geo
-from mapillary_tools.geotag import geotag_images_from_nmea_file
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from ... import geo
+from ...geotag import geotag_images_from_nmea_file
+from .base_parser import BaseParser
 
 
 class NmeaParser(BaseParser):

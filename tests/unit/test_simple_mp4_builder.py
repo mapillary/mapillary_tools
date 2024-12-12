@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from mapillary_tools.geotag import (
+from mapillary_tools.mp4 import (
     simple_mp4_builder as builder,
 )
 from mapillary_tools.mp4 import (

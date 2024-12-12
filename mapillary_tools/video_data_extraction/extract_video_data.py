@@ -7,18 +7,18 @@ import tqdm
 
 import mapillary_tools.geotag.utils as video_utils
 
-from mapillary_tools import exceptions, geo, utils
-from mapillary_tools.geotag import gpmf_gps_filter
-from mapillary_tools.types import (
+from .. import exceptions, geo, utils
+from ..geotag import gpmf_gps_filter
+from ..types import (
     ErrorMetadata,
     FileType,
     MetadataOrError,
     VideoMetadata,
     VideoMetadataOrError,
 )
-from mapillary_tools.video_data_extraction import video_data_parser_factory
-from mapillary_tools.video_data_extraction.cli_options import CliOptions
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from . import video_data_parser_factory
+from .cli_options import CliOptions
+from .extractors.base_parser import BaseParser
 
 
 LOG = logging.getLogger(__name__)

@@ -1,17 +1,12 @@
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import geo
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
-from mapillary_tools.video_data_extraction.extractors.blackvue_parser import (
-    BlackVueParser,
-)
-from mapillary_tools.video_data_extraction.extractors.camm_parser import CammParser
-from mapillary_tools.video_data_extraction.extractors.gopro_parser import GoProParser
+from ... import geo
+from ..cli_options import CliOptions, CliParserOptions
+from .base_parser import BaseParser
+from .blackvue_parser import BlackVueParser
+from .camm_parser import CammParser
+from .gopro_parser import GoProParser
 
 
 class GenericVideoParser(BaseParser):
