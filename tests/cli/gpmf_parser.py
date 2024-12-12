@@ -11,8 +11,8 @@ import mapillary_tools.geo as geo
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
-from mapillary_tools.mp4 import mp4_sample_parser
 import mapillary_tools.utils as utils
+from mapillary_tools.mp4 import mp4_sample_parser
 
 
 def _convert_points_to_gpx_track_segment(

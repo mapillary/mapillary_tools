@@ -5,11 +5,8 @@ import os
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import geo
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
+from ... import geo
+from ..cli_options import CliOptions, CliParserOptions
 
 LOG = logging.getLogger(__name__)
 

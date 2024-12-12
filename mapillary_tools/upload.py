@@ -26,13 +26,9 @@ from . import (
     utils,
     VERSION,
 )
-from .geotag import (
-    blackvue_parser,
-    camm_builder,
-    camm_parser,
-    simple_mp4_builder,
-    utils as video_utils,
-)
+from .camm import camm_builder, camm_parser
+from .geotag import blackvue_parser, utils as video_utils
+from .mp4 import simple_mp4_builder
 from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]

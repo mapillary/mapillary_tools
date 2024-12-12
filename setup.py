@@ -44,6 +44,7 @@ setup(
     python_requires=">=3.8",
     packages=[
         "mapillary_tools",
+        "mapillary_tools.camm",
         "mapillary_tools.commands",
         "mapillary_tools.geotag",
         "mapillary_tools.mp4",

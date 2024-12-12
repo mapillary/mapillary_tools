@@ -7,7 +7,7 @@ import typing as T
 import construct as C
 
 from .. import geo, imu
-from ..mp4.mp4_sample_parser import TrackBoxParser, MovieBoxParser, Sample
+from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser

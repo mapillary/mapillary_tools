@@ -3,15 +3,10 @@ import subprocess
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import constants, exceptions, geo
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
-from mapillary_tools.video_data_extraction.extractors.exiftool_xml_parser import (
-    ExiftoolXmlParser,
-)
+from ... import constants, exceptions, geo
+from ..cli_options import CliOptions, CliParserOptions
+from .base_parser import BaseParser
+from .exiftool_xml_parser import ExiftoolXmlParser
 
 
 class ExiftoolRuntimeParser(BaseParser):

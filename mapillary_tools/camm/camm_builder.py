@@ -5,13 +5,10 @@ from .. import geo, types
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
-)
-
-from . import (
-    camm_parser,
     simple_mp4_builder as builder,
 )
-from .simple_mp4_builder import BoxDict
+
+from . import camm_parser
 
 
 def build_camm_sample(point: geo.Point) -> bytes:
@@ -31,7 +28,7 @@ def _create_edit_list(
     point_segments: T.Sequence[T.Sequence[geo.Point]],
     movie_timescale: int,
     media_timescale: int,
-) -> BoxDict:
+) -> builder.BoxDict:
     entries: T.List[T.Dict] = []
 
     for idx, points in enumerate(point_segments):
@@ -116,7 +113,9 @@ _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
 )
 
 
-def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDict:
+def _create_camm_stbl(
+    raw_samples: T.Iterable[sample_parser.RawSample],
+) -> builder.BoxDict:
     descriptions = [
         {
             "format": b"camm",
@@ -137,10 +136,10 @@ def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDi
 def create_camm_trak(
     raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
-) -> BoxDict:
+) -> builder.BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
-    hdlr: BoxDict = {
+    hdlr: builder.BoxDict = {
         "type": b"hdlr",
         "data": {
             "handler_type": b"camm",
@@ -152,7 +151,7 @@ def create_camm_trak(
     assert media_timescale <= builder.UINT64_MAX
 
     # Media Header Box
-    mdhd: BoxDict = {
+    mdhd: builder.BoxDict = {
         "type": b"mdhd",
         "data": {
             # use 64-bit version
@@ -168,7 +167,7 @@ def create_camm_trak(
         },
     }
 
-    dinf: BoxDict = {
+    dinf: builder.BoxDict = {
         "type": b"dinf",
         "data": [
             # self reference dref box
@@ -189,7 +188,7 @@ def create_camm_trak(
         ],
     }
 
-    minf: BoxDict = {
+    minf: builder.BoxDict = {
         "type": b"minf",
         "data": [
             dinf,
@@ -197,7 +196,7 @@ def create_camm_trak(
         ],
     }
 
-    tkhd: BoxDict = {
+    tkhd: builder.BoxDict = {
         "type": b"tkhd",
         "data": {
             # use 32-bit version of the box
@@ -215,7 +214,7 @@ def create_camm_trak(
         },
     }
 
-    mdia: BoxDict = {
+    mdia: builder.BoxDict = {
         "type": b"mdia",
         "data": [
             mdhd,
@@ -236,7 +235,7 @@ def create_camm_trak(
 def camm_sample_generator2(video_metadata: types.VideoMetadata):
     def _f(
         fp: T.BinaryIO,
-        moov_children: T.List[BoxDict],
+        moov_children: T.List[builder.BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
@@ -249,7 +248,7 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             [video_metadata.points], movie_timescale, media_timescale
         )
         if T.cast(T.Dict, elst["data"])["entries"]:
-            T.cast(T.List[BoxDict], camm_trak["data"]).append(
+            T.cast(T.List[builder.BoxDict], camm_trak["data"]).append(
                 {
                     "type": b"edts",
                     "data": [elst],
@@ -257,7 +256,7 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             )
         moov_children.append(camm_trak)
 
-        udta_data: T.List[BoxDict] = []
+        udta_data: T.List[builder.BoxDict] = []
         if video_metadata.make:
             udta_data.append(
                 {

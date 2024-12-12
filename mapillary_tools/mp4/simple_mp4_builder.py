@@ -2,14 +2,14 @@ import dataclasses
 import io
 import typing as T
 
-from . import io_utils
-from ..mp4 import (
+from . import (
     construct_mp4_parser as cparser,
+    io_utils,
     mp4_sample_parser as sample_parser,
     simple_mp4_parser as sparser,
 )
-from ..mp4.construct_mp4_parser import BoxDict
-from ..mp4.mp4_sample_parser import RawSample
+from .construct_mp4_parser import BoxDict
+from .mp4_sample_parser import RawSample
 
 """
 Variable naming conventions:

@@ -4,12 +4,8 @@ import typing as T
 from pathlib import Path
 
 from mapillary_tools import geo, types
-from mapillary_tools.geotag import (
-    camm_builder,
-    camm_parser,
-    simple_mp4_builder,
-)
-from mapillary_tools.mp4 import construct_mp4_parser as cparser
+from mapillary_tools.camm import camm_builder, camm_parser
+from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 
 
 def test_filter_points_by_edit_list():

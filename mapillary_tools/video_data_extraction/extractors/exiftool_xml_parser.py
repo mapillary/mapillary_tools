@@ -3,15 +3,12 @@ import xml.etree.ElementTree as ET
 
 from pathlib import Path
 
-from mapillary_tools import geo
-from mapillary_tools.exiftool_read import EXIFTOOL_NAMESPACES
-from mapillary_tools.exiftool_read_video import ExifToolReadVideo
-from mapillary_tools.geotag.geotag_videos_from_exiftool_video import _DESCRIPTION_TAG
-from mapillary_tools.video_data_extraction.cli_options import (
-    CliOptions,
-    CliParserOptions,
-)
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from ... import geo
+from ...exiftool_read import EXIFTOOL_NAMESPACES
+from ...exiftool_read_video import ExifToolReadVideo
+from ...geotag.geotag_videos_from_exiftool_video import _DESCRIPTION_TAG
+from ..cli_options import CliOptions, CliParserOptions
+from .base_parser import BaseParser
 
 
 class ExiftoolXmlParser(BaseParser):
