@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from .. import geo, types
+from .. import geo, types, imu
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
@@ -11,7 +11,7 @@ from ..mp4 import (
 from . import camm_parser
 
 
-def build_camm_sample(point: geo.Point) -> bytes:
+def _build_camm_sample(point: geo.Point) -> bytes:
     return camm_parser.CAMMSampleData.build(
         {
             "type": camm_parser.CAMMType.MIN_GPS.value,
@@ -82,11 +82,15 @@ def _create_edit_list(
     }
 
 
-def convert_points_to_raw_samples(
-    points: T.Sequence[geo.Point], timescale: int
+def convert_telemetry_to_raw_samples(
+    points: T.Sequence[geo.Point],
+    timescale: int,
+    accl: T.Optional[T.List[imu.AccelerationData]] = None,
+    gyro: T.Optional[T.List[imu.GyroscopeData]] = None,
+    magn: T.Optional[T.List[imu.MagnetometerData]] = None,
 ) -> T.Generator[sample_parser.RawSample, None, None]:
     for idx, point in enumerate(points):
-        camm_sample_data = build_camm_sample(point)
+        camm_sample_data = _build_camm_sample(point)
 
         if idx + 1 < len(points):
             timedelta = int((points[idx + 1].time - point.time) * timescale)
@@ -232,7 +236,12 @@ def create_camm_trak(
     }
 
 
-def camm_sample_generator2(video_metadata: types.VideoMetadata):
+def camm_sample_generator2(
+    video_metadata: types.VideoMetadata,
+    accl: T.Optional[T.List[imu.AccelerationData]] = None,
+    gyro: T.Optional[T.List[imu.GyroscopeData]] = None,
+    magn: T.Optional[T.List[imu.MagnetometerData]] = None,
+):
     def _f(
         fp: T.BinaryIO,
         moov_children: T.List[builder.BoxDict],
@@ -241,7 +250,9 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
         camm_samples = list(
-            convert_points_to_raw_samples(video_metadata.points, media_timescale)
+            convert_telemetry_to_raw_samples(
+                video_metadata.points, media_timescale, accl=accl, gyro=gyro, magn=magn
+            )
         )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
         elst = _create_edit_list(
@@ -280,6 +291,8 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             )
 
         # if yield, the moov_children will not be modified
-        return (io.BytesIO(build_camm_sample(point)) for point in video_metadata.points)
+        return (
+            io.BytesIO(_build_camm_sample(point)) for point in video_metadata.points
+        )
 
     return _f
