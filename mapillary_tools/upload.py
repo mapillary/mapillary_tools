@@ -27,7 +27,7 @@ from . import (
     VERSION,
 )
 from .camm import camm_builder, camm_parser
-from .geotag import blackvue_parser, utils as video_utils
+from .geotag import blackvue_parser, utils as video_utils, gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
 
@@ -658,7 +658,21 @@ def upload(
                 assert isinstance(
                     video_metadata.md5sum, str
                 ), "md5sum should be updated"
-                generator = camm_builder.camm_sample_generator2(video_metadata)
+
+                accl = None
+                gyro = None
+                magn = None
+                if video_metadata.filetype is FileType.GOPRO:
+                    with video_metadata.filename.open("rb") as fp:
+                        telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+                        if telemetry_data:
+                            accl = telemetry_data.accl
+                            gyro = telemetry_data.gyro
+                            magn = telemetry_data.magn
+
+                generator = camm_builder.camm_sample_generator2(
+                    video_metadata, accl=accl, gyro=gyro, magn=magn
+                )
                 with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                     event_payload: uploader.Progress = {
