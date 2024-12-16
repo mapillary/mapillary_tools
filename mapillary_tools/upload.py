@@ -38,6 +38,7 @@ MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
 MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
     "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
 )
+MAPILLARY__EXPERIMENTAL_ENABLE_IMU = os.getenv("MAPILLARY__EXPERIMENTAL_ENABLE_IMU")
 CAMM_CONVERTABLES = {FileType.CAMM, FileType.BLACKVUE, FileType.GOPRO}
 
 
@@ -662,13 +663,14 @@ def upload(
                 accl = None
                 gyro = None
                 magn = None
-                if video_metadata.filetype is FileType.GOPRO:
-                    with video_metadata.filename.open("rb") as fp:
-                        telemetry_data = gpmf_parser.extract_telemetry_data(fp)
-                        if telemetry_data:
-                            accl = telemetry_data.accl
-                            gyro = telemetry_data.gyro
-                            magn = telemetry_data.magn
+                if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
+                    if video_metadata.filetype is FileType.GOPRO:
+                        with video_metadata.filename.open("rb") as fp:
+                            telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+                            if telemetry_data:
+                                accl = telemetry_data.accl
+                                gyro = telemetry_data.gyro
+                                magn = telemetry_data.magn
 
                 generator = camm_builder.camm_sample_generator2(
                     video_metadata, accl=accl, gyro=gyro, magn=magn
