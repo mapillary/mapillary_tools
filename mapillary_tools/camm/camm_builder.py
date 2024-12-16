@@ -11,17 +11,61 @@ from ..mp4 import (
 from . import camm_parser
 
 
-def _build_camm_sample(point: geo.Point) -> bytes:
-    return camm_parser.CAMMSampleData.build(
-        {
-            "type": camm_parser.CAMMType.MIN_GPS.value,
-            "data": [
-                point.lat,
-                point.lon,
-                -1.0 if point.alt is None else point.alt,
-            ],
-        }
-    )
+TelemetryMeasurement = T.Union[
+    geo.Point, imu.AccelerationData, imu.GyroscopeData, imu.MagnetometerData
+]
+
+
+def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
+    if isinstance(measurement, geo.Point):
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.MIN_GPS.value,
+                "data": [
+                    measurement.lat,
+                    measurement.lon,
+                    -1.0 if measurement.alt is None else measurement.alt,
+                ],
+            }
+        )
+    elif isinstance(measurement, imu.AccelerationData):
+        # Accelerometer reading in meters/second^2 along XYZ axes of the camera.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.ACCELERATION.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    elif isinstance(measurement, imu.GyroscopeData):
+        # Gyroscope signal in radians/seconds around XYZ axes of the camera. Rotation is positive in the counterclockwise direction.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.GYRO.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    elif isinstance(measurement, imu.MagnetometerData):
+        # Ambient magnetic field.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.MAGNETIC_FIELD.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    else:
+        raise ValueError(f"unexpected measurement type {type(measurement)}")
 
 
 def _create_edit_list(
@@ -82,23 +126,37 @@ def _create_edit_list(
     }
 
 
-def convert_telemetry_to_raw_samples(
+def _multiplex(
     points: T.Sequence[geo.Point],
-    timescale: int,
     accl: T.Optional[T.List[imu.AccelerationData]] = None,
     gyro: T.Optional[T.List[imu.GyroscopeData]] = None,
     magn: T.Optional[T.List[imu.MagnetometerData]] = None,
-) -> T.Generator[sample_parser.RawSample, None, None]:
-    for idx, point in enumerate(points):
-        camm_sample_data = _build_camm_sample(point)
+):
+    accl = accl or []
+    gyro = gyro or []
+    magn = magn or []
 
-        if idx + 1 < len(points):
-            timedelta = int((points[idx + 1].time - point.time) * timescale)
+    # multiplex multiple telemetry data
+    measurements = [*points, *accl, *gyro, *magn]
+    measurements.sort(key=lambda m: m.time)
+
+    return measurements
+
+
+def convert_telemetry_to_raw_samples(
+    measurements: T.Sequence[TelemetryMeasurement],
+    timescale: int,
+) -> T.Generator[sample_parser.RawSample, None, None]:
+    for idx, measurement in enumerate(measurements):
+        camm_sample_data = _build_camm_sample(measurement)
+
+        if idx + 1 < len(measurements):
+            timedelta = int((measurements[idx + 1].time - measurement.time) * timescale)
         else:
             timedelta = 0
         assert (
             0 <= timedelta <= builder.UINT32_MAX
-        ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+        ), f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
 
         yield sample_parser.RawSample(
             # will update later
@@ -249,10 +307,11 @@ def camm_sample_generator2(
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
+        measurements = _multiplex(
+            video_metadata.points, accl=accl, gyro=gyro, magn=magn
+        )
         camm_samples = list(
-            convert_telemetry_to_raw_samples(
-                video_metadata.points, media_timescale, accl=accl, gyro=gyro, magn=magn
-            )
+            convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
         elst = _create_edit_list(
@@ -292,7 +351,7 @@ def camm_sample_generator2(
 
         # if yield, the moov_children will not be modified
         return (
-            io.BytesIO(_build_camm_sample(point)) for point in video_metadata.points
+            io.BytesIO(_build_camm_sample(measurement)) for measurement in measurements
         )
 
     return _f
