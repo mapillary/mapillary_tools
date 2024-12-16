@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from .. import geo, types, imu
+from .. import geo, imu, types
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
