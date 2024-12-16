@@ -9,11 +9,25 @@ from enum import Enum
 
 import construct as C
 
-from .. import geo
-from ..mp4 import mp4_sample_parser as sample_parser, simple_mp4_parser as sparser
+from .. import geo, imu
+from ..mp4 import simple_mp4_parser as sparser
+from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 
 LOG = logging.getLogger(__name__)
+
+
+TelemetryMeasurement = T.Union[
+    geo.Point, imu.AccelerationData, imu.GyroscopeData, imu.MagnetometerData
+]
+
+
+@dataclasses.dataclass
+class TelemetryData:
+    gps: T.List[geo.PointWithFix]
+    accl: T.List[imu.AccelerationData]
+    gyro: T.List[imu.GyroscopeData]
+    magn: T.List[imu.MagnetometerData]
 
 
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
@@ -75,9 +89,9 @@ CAMMSampleData = C.Struct(
 )
 
 
-def _parse_point_from_sample(
-    fp: T.BinaryIO, sample: sample_parser.Sample
-) -> T.Optional[geo.Point]:
+def _parse_telemetry_from_sample(
+    fp: T.BinaryIO, sample: Sample
+) -> T.Optional[TelemetryMeasurement]:
     fp.seek(sample.raw_sample.offset, io.SEEK_SET)
     data = fp.read(sample.raw_sample.size)
     box = CAMMSampleData.parse(data)
@@ -99,12 +113,34 @@ def _parse_point_from_sample(
             alt=box.data.altitude,
             angle=None,
         )
+    elif box.type == CAMMType.ACCELERATION.value:
+        return imu.AccelerationData(
+            time=sample.exact_time,
+            x=box.data[0],
+            y=box.data[1],
+            z=box.data[2],
+        )
+    elif box.type == CAMMType.GYRO.value:
+        return imu.GyroscopeData(
+            time=sample.exact_time,
+            x=box.data[0],
+            y=box.data[1],
+            z=box.data[2],
+        )
+    elif box.type == CAMMType.MAGNETIC_FIELD.value:
+        return imu.MagnetometerData(
+            time=sample.exact_time,
+            x=box.data[0],
+            y=box.data[1],
+            z=box.data[2],
+        )
     return None
 
 
-def filter_points_by_elst(
-    points: T.Iterable[geo.Point], elst: T.Sequence[T.Tuple[float, float]]
-) -> T.Generator[geo.Point, None, None]:
+def _filter_telemetry_by_elst_segments(
+    measurements: T.Iterable[TelemetryMeasurement],
+    elst: T.Sequence[T.Tuple[float, float]],
+) -> T.Generator[TelemetryMeasurement, None, None]:
     empty_elst = [entry for entry in elst if entry[0] == -1]
     if empty_elst:
         offset = empty_elst[-1][1]
@@ -114,20 +150,26 @@ def filter_points_by_elst(
     elst = [entry for entry in elst if entry[0] != -1]
 
     if not elst:
-        for p in points:
-            yield dataclasses.replace(p, time=p.time + offset)
+        for m in measurements:
+            if dataclasses.is_dataclass(m):
+                yield dataclasses.replace(m, time=m.time + offset)
+            else:
+                m._replace(time=m.time + offset)
         return
 
     elst.sort(key=lambda entry: entry[0])
     elst_idx = 0
-    for p in points:
+    for m in measurements:
         if len(elst) <= elst_idx:
             break
         media_time, duration = elst[elst_idx]
-        if p.time < media_time:
+        if m.time < media_time:
             pass
-        elif p.time <= media_time + duration:
-            yield dataclasses.replace(p, time=p.time + offset)
+        elif m.time <= media_time + duration:
+            if dataclasses.is_dataclass(m):
+                yield dataclasses.replace(m, time=m.time + offset)
+            else:
+                m._replace(time=m.time + offset)
         else:
             elst_idx += 1
 
@@ -148,46 +190,84 @@ def _is_camm_description(description: T.Dict) -> bool:
     return description["format"] == b"camm"
 
 
+def _contains_camm_description(track: TrackBoxParser) -> bool:
+    descriptions = track.extract_sample_descriptions()
+    return any(_is_camm_description(d) for d in descriptions)
+
+
+def _filter_telemetry_by_track_elst(
+    moov: MovieBoxParser,
+    track: TrackBoxParser,
+    measurements: T.Iterable[TelemetryMeasurement],
+) -> T.List[TelemetryMeasurement]:
+    elst_boxdata = track.extract_elst_boxdata()
+
+    if elst_boxdata is not None:
+        elst_entries = elst_boxdata["entries"]
+        if elst_entries:
+            # media_timescale
+            mdhd_boxdata = track.extract_mdhd_boxdata()
+            media_timescale = mdhd_boxdata["timescale"]
+
+            # movie_timescale
+            mvhd_boxdata = moov.extract_mvhd_boxdata()
+            movie_timescale = mvhd_boxdata["timescale"]
+
+            segments = [
+                elst_entry_to_seconds(
+                    entry,
+                    movie_timescale=movie_timescale,
+                    media_timescale=media_timescale,
+                )
+                for entry in elst_entries
+            ]
+
+            return list(_filter_telemetry_by_elst_segments(measurements, segments))
+
+    return list(measurements)
+
+
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
     """
     Return a list of points (could be empty) if it is a valid CAMM video,
     otherwise None
     """
 
-    points = None
+    moov = MovieBoxParser.parse_stream(fp)
 
-    moov = sample_parser.MovieBoxParser.parse_stream(fp)
     for track in moov.extract_tracks():
-        descriptions = track.extract_sample_descriptions()
-        if any(_is_camm_description(d) for d in descriptions):
-            maybe_points = (
-                _parse_point_from_sample(fp, sample)
+        if _contains_camm_description(track):
+            maybe_measurements = (
+                _parse_telemetry_from_sample(fp, sample)
                 for sample in track.extract_samples()
                 if _is_camm_description(sample.description)
             )
-            points = [p for p in maybe_points if p is not None]
-            if points:
-                elst_boxdata = track.extract_elst_boxdata()
-                if elst_boxdata is not None:
-                    elst_entries = elst_boxdata["entries"]
-                    if elst_entries:
-                        # media_timescale
-                        mdhd_boxdata = track.extract_mdhd_boxdata()
-                        media_timescale = mdhd_boxdata["timescale"]
-                        # movie_timescale
-                        mvhd_boxdata = moov.extract_mvhd_boxdata()
-                        movie_timescale = mvhd_boxdata["timescale"]
-                        segments = [
-                            elst_entry_to_seconds(
-                                entry,
-                                movie_timescale=movie_timescale,
-                                media_timescale=media_timescale,
-                            )
-                            for entry in elst_entries
-                        ]
-                        points = list(filter_points_by_elst(points, segments))
+            points = [m for m in maybe_measurements if isinstance(m, geo.Point)]
 
-    return points
+            return T.cast(
+                T.List[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
+            )
+
+    return None
+
+
+def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasurement]]:
+    moov = MovieBoxParser.parse_stream(fp)
+
+    for track in moov.extract_tracks():
+        if _contains_camm_description(track):
+            maybe_measurements = (
+                _parse_telemetry_from_sample(fp, sample)
+                for sample in track.extract_samples()
+                if _is_camm_description(sample.description)
+            )
+            measurements = [m for m in maybe_measurements if m is not None]
+
+            measurements = _filter_telemetry_by_track_elst(moov, track, measurements)
+
+            return measurements
+
+    return None
 
 
 def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:

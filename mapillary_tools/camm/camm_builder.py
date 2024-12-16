@@ -137,7 +137,7 @@ def _multiplex(
     magn = magn or []
 
     # multiplex multiple telemetry data
-    measurements = [*points, *accl, *gyro, *magn]
+    measurements: T.List[TelemetryMeasurement] = [*points, *accl, *gyro, *magn]
     measurements.sort(key=lambda m: m.time)
 
     return measurements
