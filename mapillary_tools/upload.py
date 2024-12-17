@@ -661,15 +661,17 @@ def upload(
                     video_metadata.md5sum, str
                 ), "md5sum should be updated"
 
+                # extract telemetry measurements from GoPro videos
                 telemetry_measurements: T.List[imu.TelemetryMeasurement] = []
                 if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
                     if video_metadata.filetype is FileType.GOPRO:
                         with video_metadata.filename.open("rb") as fp:
                             telemetry_data = gpmf_parser.extract_telemetry_data(fp)
-                            if telemetry_data:
-                                telemetry_measurements.extend(telemetry_data.accl)
-                                telemetry_measurements.extend(telemetry_data.gyro)
-                                telemetry_measurements.extend(telemetry_data.magn)
+                        if telemetry_data:
+                            telemetry_measurements.extend(telemetry_data.accl)
+                            telemetry_measurements.extend(telemetry_data.gyro)
+                            telemetry_measurements.extend(telemetry_data.magn)
+                        telemetry_measurements.sort(key=lambda m: m.time)
 
                 generator = camm_builder.camm_sample_generator2(
                     video_metadata, telemetry_measurements=telemetry_measurements
