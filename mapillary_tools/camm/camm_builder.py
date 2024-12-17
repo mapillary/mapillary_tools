@@ -12,7 +12,8 @@ from . import camm_parser
 
 
 TelemetryMeasurement = T.Union[
-    geo.Point, imu.AccelerationData, imu.GyroscopeData, imu.MagnetometerData
+    geo.Point,
+    imu.TelemetryMeasurement,
 ]
 
 
@@ -68,7 +69,7 @@ def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
         raise ValueError(f"unexpected measurement type {type(measurement)}")
 
 
-def _create_edit_list(
+def _create_edit_list_from_points(
     point_segments: T.Sequence[T.Sequence[geo.Point]],
     movie_timescale: int,
     media_timescale: int,
@@ -128,19 +129,12 @@ def _create_edit_list(
 
 def _multiplex(
     points: T.Sequence[geo.Point],
-    accl: T.Optional[T.List[imu.AccelerationData]] = None,
-    gyro: T.Optional[T.List[imu.GyroscopeData]] = None,
-    magn: T.Optional[T.List[imu.MagnetometerData]] = None,
-):
-    accl = accl or []
-    gyro = gyro or []
-    magn = magn or []
+    measurements: T.Optional[T.List[imu.TelemetryMeasurement]] = None,
+) -> T.List[TelemetryMeasurement]:
+    mutiplexed: T.List[TelemetryMeasurement] = [*points, *(measurements or [])]
+    mutiplexed.sort(key=lambda m: m.time)
 
-    # multiplex multiple telemetry data
-    measurements: T.List[TelemetryMeasurement] = [*points, *accl, *gyro, *magn]
-    measurements.sort(key=lambda m: m.time)
-
-    return measurements
+    return mutiplexed
 
 
 def convert_telemetry_to_raw_samples(
@@ -296,9 +290,7 @@ def create_camm_trak(
 
 def camm_sample_generator2(
     video_metadata: types.VideoMetadata,
-    accl: T.Optional[T.List[imu.AccelerationData]] = None,
-    gyro: T.Optional[T.List[imu.GyroscopeData]] = None,
-    magn: T.Optional[T.List[imu.MagnetometerData]] = None,
+    telemetry_measurements: T.Optional[T.List[imu.TelemetryMeasurement]] = None,
 ):
     def _f(
         fp: T.BinaryIO,
@@ -307,14 +299,12 @@ def camm_sample_generator2(
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
-        measurements = _multiplex(
-            video_metadata.points, accl=accl, gyro=gyro, magn=magn
-        )
+        measurements = _multiplex(video_metadata.points, telemetry_measurements)
         camm_samples = list(
             convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list(
+        elst = _create_edit_list_from_points(
             [video_metadata.points], movie_timescale, media_timescale
         )
         if T.cast(T.Dict, elst["data"])["entries"]:

@@ -22,14 +22,6 @@ TelemetryMeasurement = T.Union[
 ]
 
 
-@dataclasses.dataclass
-class TelemetryData:
-    gps: T.List[geo.PointWithFix]
-    accl: T.List[imu.AccelerationData]
-    gyro: T.List[imu.GyroscopeData]
-    magn: T.List[imu.MagnetometerData]
-
-
 # Camera Motion Metadata Spec https://developers.google.com/streetview/publish/camm-spec
 class CAMMType(Enum):
     ANGLE_AXIS = 0
