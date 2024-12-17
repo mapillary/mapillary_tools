@@ -130,38 +130,29 @@ def main():
     video_paths = utils.find_videos([pathlib.Path(p) for p in parsed_args.path])
 
     if parsed_args.imu:
-        imu = parsed_args.imu.split(",")
+        imu_option = parsed_args.imu.split(",")
         for path in video_paths:
             with path.open("rb") as fp:
                 telemetry_data = gpmf_parser.extract_telemetry_data(fp)
-                if telemetry_data:
-                    if "accl" in imu:
-                        print(
-                            json.dumps(
-                                [
-                                    dataclasses.asdict(accl)
-                                    for accl in telemetry_data.accl
-                                ]
-                            )
+            if telemetry_data:
+                if "accl" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(accl) for accl in telemetry_data.accl]
                         )
-                    if "gyro" in imu:
-                        print(
-                            json.dumps(
-                                [
-                                    dataclasses.asdict(gyro)
-                                    for gyro in telemetry_data.gyro
-                                ]
-                            )
+                    )
+                if "gyro" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(gyro) for gyro in telemetry_data.gyro]
                         )
-                    if "magn" in imu:
-                        print(
-                            json.dumps(
-                                [
-                                    dataclasses.asdict(magn)
-                                    for magn in telemetry_data.magn
-                                ]
-                            )
+                    )
+                if "magn" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(magn) for magn in telemetry_data.magn]
                         )
+                    )
 
     elif parsed_args.geojson:
         features = []
