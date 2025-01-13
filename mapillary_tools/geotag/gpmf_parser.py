@@ -6,8 +6,10 @@ import typing as T
 
 import construct as C
 
-from .. import geo, imu
+from .. import imu
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
+
+from ..telemetry import GPSFix, GPSPoint
 
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser
@@ -129,7 +131,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 
 @dataclasses.dataclass
 class TelemetryData:
-    gps: T.List[geo.PointWithFix]
+    gps: T.List[GPSPoint]
     accl: T.List[imu.AccelerationData]
     gyro: T.List[imu.GyroscopeData]
     magn: T.List[imu.MagnetometerData]
@@ -173,7 +175,7 @@ class TelemetryData:
 #             ]
 def gps5_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[geo.PointWithFix, None, None]:
+) -> T.Generator[GPSPoint, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -191,7 +193,7 @@ def gps5_from_stream(
 
     gpsf = indexed.get(b"GPSF")
     if gpsf is not None:
-        gpsf_value = geo.GPSFix(gpsf[0][0])
+        gpsf_value = GPSFix(gpsf[0][0])
     else:
         gpsf_value = None
 
@@ -205,7 +207,7 @@ def gps5_from_stream(
         lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
-        yield geo.PointWithFix(
+        yield GPSPoint(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
@@ -220,7 +222,7 @@ def gps5_from_stream(
 
 def gps9_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[geo.PointWithFix, None, None]:
+) -> T.Generator[GPSPoint, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -263,13 +265,13 @@ def gps9_from_stream(
             gps_fix,
         ) = [v / s for v, s in zip(sample_data, scal_values)]
 
-        yield geo.PointWithFix(
+        yield GPSPoint(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
             lon=lon,
             alt=alt,
-            gps_fix=geo.GPSFix(gps_fix),
+            gps_fix=GPSFix(gps_fix),
             gps_precision=dop * 100,
             gps_ground_speed=speed_2d,
             angle=None,
@@ -292,8 +294,8 @@ def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     return device_id
 
 
-def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[geo.PointWithFix]:
-    sample_points: T.List[geo.PointWithFix] = []
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[GPSPoint]:
+    sample_points: T.List[GPSPoint] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -447,7 +449,7 @@ def _extract_points_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[Sample]
 ) -> TelemetryData:
     # To keep GPS points from different devices separated
-    points_by_dvid: T.Dict[int, T.List[geo.PointWithFix]] = {}
+    points_by_dvid: T.Dict[int, T.List[GPSPoint]] = {}
     accls_by_dvid: T.Dict[int, T.List[imu.AccelerationData]] = {}
     gyros_by_dvid: T.Dict[int, T.List[imu.GyroscopeData]] = {}
     magns_by_dvid: T.Dict[int, T.List[imu.MagnetometerData]] = {}
@@ -537,7 +539,7 @@ def _filter_gpmd_samples(track: TrackBoxParser) -> T.Generator[Sample, None, Non
             yield sample
 
 
-def extract_points(fp: T.BinaryIO) -> T.List[geo.PointWithFix]:
+def extract_points(fp: T.BinaryIO) -> T.List[GPSPoint]:
     """
     Return a list of points (could be empty) if it is a valid GoPro video,
     otherwise None
@@ -615,7 +617,7 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     return unicode_names[0].strip()
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[geo.PointWithFix]:
+def parse_gpx(path: pathlib.Path) -> T.List[GPSPoint]:
     with path.open("rb") as fp:
         points = extract_points(fp)
     if points is None:

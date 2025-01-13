@@ -5,6 +5,7 @@ import typing as T
 import xml.etree.ElementTree as ET
 
 from . import exif_read, exiftool_read, geo
+from .telemetry import GPSFix, GPSPoint
 
 
 MAX_TRACK_ID = 10
@@ -87,7 +88,7 @@ def _aggregate_gps_track(
     alt_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
     ground_speed_tag: T.Optional[str] = None,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[GPSPoint]:
     """
     Aggregate all GPS data by the tags.
     It requires lat, lon to be present, and their lengths must match.
@@ -173,7 +174,7 @@ def _aggregate_gps_track(
         if timestamp is None or lon is None or lat is None:
             continue
         track.append(
-            geo.PointWithFix(
+            GPSPoint(
                 time=timestamp,
                 lon=lon,
                 lat=lat,
@@ -230,8 +231,8 @@ def _aggregate_gps_track_by_sample_time(
     ground_speed_tag: T.Optional[str] = None,
     gps_fix_tag: T.Optional[str] = None,
     gps_precision_tag: T.Optional[str] = None,
-) -> T.List[geo.PointWithFix]:
-    track: T.List[geo.PointWithFix] = []
+) -> T.List[GPSPoint]:
+    track: T.List[GPSPoint] = []
 
     expanded_gps_fix_tag = None
     if gps_fix_tag is not None:
@@ -249,7 +250,7 @@ def _aggregate_gps_track_by_sample_time(
             gps_fix_texts = texts_by_tag.get(expanded_gps_fix_tag)
             if gps_fix_texts:
                 try:
-                    gps_fix = geo.GPSFix(int(gps_fix_texts[0]))
+                    gps_fix = GPSFix(int(gps_fix_texts[0]))
                 except ValueError:
                     gps_fix = None
 
@@ -355,7 +356,7 @@ class ExifToolReadVideo:
         _, model = self._extract_make_and_model()
         return model
 
-    def _extract_gps_track_from_track(self) -> T.List[geo.PointWithFix]:
+    def _extract_gps_track_from_track(self) -> T.List[GPSPoint]:
         for track_id in range(1, MAX_TRACK_ID + 1):
             track_ns = f"Track{track_id}"
             if self._all_tags_exists(
@@ -397,7 +398,7 @@ class ExifToolReadVideo:
 
     def _extract_gps_track_from_quicktime(
         self, namespace: str = "QuickTime"
-    ) -> T.List[geo.PointWithFix]:
+    ) -> T.List[GPSPoint]:
         if not self._all_tags_exists(
             {
                 expand_tag(f"{namespace}:GPSDateTime"),

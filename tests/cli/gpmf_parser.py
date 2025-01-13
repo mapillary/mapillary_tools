@@ -8,6 +8,7 @@ import typing as T
 import gpxpy
 import gpxpy.gpx
 import mapillary_tools.geo as geo
+import mapillary_tools.telemetry as telemetry
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
@@ -16,13 +17,13 @@ from mapillary_tools.mp4 import mp4_sample_parser
 
 
 def _convert_points_to_gpx_track_segment(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[telemetry.GPSPoint],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gps_fix_map = {
-        geo.GPSFix.NO_FIX: "none",
-        geo.GPSFix.FIX_2D: "2d",
-        geo.GPSFix.FIX_3D: "3d",
+        telemetry.GPSFix.NO_FIX: "none",
+        telemetry.GPSFix.FIX_2D: "2d",
+        telemetry.GPSFix.FIX_3D: "3d",
     }
     for idx, point in enumerate(points):
         if idx + 1 < len(points):

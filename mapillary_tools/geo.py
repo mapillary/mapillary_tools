@@ -39,13 +39,6 @@ class GPSFix(Enum):
     FIX_3D = 3
 
 
-@dataclasses.dataclass
-class PointWithFix(Point):
-    gps_fix: T.Optional[GPSFix]
-    gps_precision: T.Optional[float]
-    gps_ground_speed: T.Optional[float]
-
-
 def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:
     """
     Compute ECEF XYZ from latitude, longitude and altitude.
@@ -145,20 +138,6 @@ def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
-
-
-def group_every(
-    iterable: T.Iterable[_IT], n: int
-) -> T.Generator[T.Generator[_IT, None, None], None, None]:
-    """
-    Return a generator that divides the iterable into groups by N.
-    """
-
-    if not (0 < n):
-        raise ValueError("expect 0 < n but got {0}".format(n))
-
-    for _, group in itertools.groupby(enumerate(iterable), key=lambda t: t[0] // n):
-        yield (item for _, item in group)
 
 
 def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
