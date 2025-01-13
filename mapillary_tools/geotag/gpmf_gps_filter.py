@@ -38,9 +38,7 @@ def remove_outliers(
         "Split to %d sequences with max distance %f", len(sequences), max_distance
     )
 
-    ground_speeds = [
-        p.gps_ground_speed for p in sequence if p.gps_ground_speed is not None
-    ]
+    ground_speeds = [p.ground_speed for p in sequence if p.ground_speed is not None]
     if len(ground_speeds) < 2:
         return sequence
 
@@ -64,7 +62,7 @@ def remove_noisy_points(
         p
         for p in sequence
         # include points **without** GPS fix
-        if p.gps_fix is None or p.gps_fix.value in constants.GOPRO_GPS_FIXES
+        if p.fix is None or p.fix.value in constants.GOPRO_GPS_FIXES
     ]
     if len(sequence) < num_points:
         LOG.debug(
@@ -78,7 +76,7 @@ def remove_noisy_points(
         p
         for p in sequence
         # include points **without** precision
-        if p.gps_precision is None or p.gps_precision <= constants.GOPRO_MAX_DOP100
+        if p.precision is None or p.precision <= constants.GOPRO_MAX_DOP100
     ]
     if len(sequence) < num_points:
         LOG.debug(

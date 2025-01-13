@@ -180,9 +180,9 @@ def _aggregate_gps_track(
                 lat=lat,
                 alt=alt,
                 angle=direction,
-                gps_fix=None,
-                gps_precision=None,
-                gps_ground_speed=ground_speed,
+                fix=None,
+                precision=None,
+                ground_speed=ground_speed,
             )
         )
 
@@ -281,7 +281,7 @@ def _aggregate_gps_track_by_sample_time(
             for idx, point in enumerate(points):
                 point.time = sample_time + idx * avg_timedelta
             track.extend(
-                dataclasses.replace(point, gps_fix=gps_fix, gps_precision=gps_precision)
+                dataclasses.replace(point, fix=gps_fix, precision=gps_precision)
                 for point in points
             )
 

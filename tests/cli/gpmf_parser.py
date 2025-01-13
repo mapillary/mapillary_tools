@@ -8,10 +8,10 @@ import typing as T
 import gpxpy
 import gpxpy.gpx
 import mapillary_tools.geo as geo
-import mapillary_tools.telemetry as telemetry
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
+import mapillary_tools.telemetry as telemetry
 import mapillary_tools.utils as utils
 from mapillary_tools.mp4 import mp4_sample_parser
 

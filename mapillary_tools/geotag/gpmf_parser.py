@@ -213,9 +213,9 @@ def gps5_from_stream(
             lat=lat,
             lon=lon,
             alt=alt,
-            gps_fix=gpsf_value,
-            gps_precision=gpsp_value,
-            gps_ground_speed=ground_speed,
+            fix=gpsf_value,
+            precision=gpsp_value,
+            ground_speed=ground_speed,
             angle=None,
         )
 
@@ -271,9 +271,9 @@ def gps9_from_stream(
             lat=lat,
             lon=lon,
             alt=alt,
-            gps_fix=GPSFix(gps_fix),
-            gps_precision=dop * 100,
-            gps_ground_speed=speed_2d,
+            fix=GPSFix(gps_fix),
+            precision=dop * 100,
+            ground_speed=speed_2d,
             angle=None,
         )
 
