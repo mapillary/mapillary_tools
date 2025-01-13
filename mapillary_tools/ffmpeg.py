@@ -202,10 +202,10 @@ class FFMPEG:
             return "0"
 
         if length == 1:
-            return f"eq(n\\,{ sorted_frame_indices[0] })"
+            return f"eq(n\\,{sorted_frame_indices[0]})"
 
         middle = length // 2
-        return f"if(lt(n\\,{ sorted_frame_indices[middle] })\\,{ self.generate_binary_search(sorted_frame_indices[:middle]) }\\,{ self.generate_binary_search(sorted_frame_indices[middle:]) })"
+        return f"if(lt(n\\,{sorted_frame_indices[middle]})\\,{self.generate_binary_search(sorted_frame_indices[:middle])}\\,{self.generate_binary_search(sorted_frame_indices[middle:])})"
 
     def extract_specified_frames(
         self,

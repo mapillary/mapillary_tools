@@ -255,9 +255,9 @@ def process_geotag_properties(
                 metadatas.extend(video_metadata)
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
-    assert len(metadatas) == len(
-        set(metadata.filename for metadata in metadatas)
-    ), "duplicate filenames found"
+    assert len(metadatas) == len(set(metadata.filename for metadata in metadatas)), (
+        "duplicate filenames found"
+    )
 
     return metadatas
 

@@ -154,9 +154,9 @@ class UploadService:
             if not chunk:
                 break
 
-        assert (
-            offset == self.entity_size
-        ), f"Offset ends at {offset} but the entity size is {self.entity_size}"
+        assert offset == self.entity_size, (
+            f"Offset ends at {offset} but the entity size is {self.entity_size}"
+        )
 
         payload = resp.json()
         try:
