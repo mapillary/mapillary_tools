@@ -6,7 +6,6 @@ import datetime
 import itertools
 import math
 import typing as T
-from enum import Enum, unique
 
 WGS84_a = 6378137.0
 WGS84_a_SQ = WGS84_a**2
@@ -30,13 +29,6 @@ class Point:
     lon: float
     alt: T.Optional[float]
     angle: T.Optional[float]
-
-
-@unique
-class GPSFix(Enum):
-    NO_FIX = 0
-    FIX_2D = 2
-    FIX_3D = 3
 
 
 def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:

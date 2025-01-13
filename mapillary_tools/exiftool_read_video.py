@@ -180,6 +180,7 @@ def _aggregate_gps_track(
                 lat=lat,
                 alt=alt,
                 angle=direction,
+                epoch_time=None,
                 fix=None,
                 precision=None,
                 ground_speed=ground_speed,
