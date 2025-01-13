@@ -346,9 +346,9 @@ def _apply_matrix(
     matrix: T.Sequence[float], values: T.Sequence[float]
 ) -> T.Generator[float, None, None]:
     size = len(values)
-    assert (
-        len(matrix) == size * size
-    ), f"expecting a square matrix of size {size} x {size} but got {len(matrix)}"
+    assert len(matrix) == size * size, (
+        f"expecting a square matrix of size {size} x {size} but got {len(matrix)}"
+    )
 
     for y in range(size):
         row_start = y * size
