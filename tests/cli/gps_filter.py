@@ -38,9 +38,9 @@ def _gpx_track_segment_to_points(
     segment: gpxpy.gpx.GPXTrackSegment,
 ) -> T.List[telemetry.GPSPoint]:
     gps_fix_map = {
-        "none": geo.GPSFix.NO_FIX,
-        "2d": geo.GPSFix.FIX_2D,
-        "3d": geo.GPSFix.FIX_3D,
+        "none": telemetry.GPSFix.NO_FIX,
+        "2d": telemetry.GPSFix.FIX_2D,
+        "3d": telemetry.GPSFix.FIX_3D,
     }
     points = []
     for p in segment.points:
@@ -63,13 +63,14 @@ def _gpx_track_segment_to_points(
             lon=p.longitude,
             alt=p.elevation,
             angle=None,
-            gps_fix=(
+            epoch_time=None,
+            fix=(
                 gps_fix_map[p.type_of_gpx_fix]
                 if p.type_of_gpx_fix is not None
                 else None
             ),
-            gps_precision=p.position_dilution,
-            gps_ground_speed=ground_speed,
+            precision=p.position_dilution,
+            ground_speed=ground_speed,
         )
         points.append(point)
     return points
@@ -83,8 +84,8 @@ def _filter_noise(
     return [
         p
         for p in points
-        if (p.gps_fix is None or p.gps_fix.value in gps_fix)
-        and (p.gps_precision is None or p.gps_precision <= max_dop)
+        if (p.fix is None or p.fix.value in gps_fix)
+        and (p.precision is None or p.precision <= max_dop)
     ]
 
 
@@ -111,7 +112,7 @@ def _filter_outliers(
     )
 
     ground_speeds = [
-        point.gps_ground_speed for point in points if point.gps_ground_speed is not None
+        point.ground_speed for point in points if point.ground_speed is not None
     ]
     if len(ground_speeds) < 2:
         return points
