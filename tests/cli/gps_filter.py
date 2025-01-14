@@ -6,7 +6,7 @@ import typing as T
 
 import gpxpy
 
-from mapillary_tools import constants, geo
+from mapillary_tools import constants, geo, telemetry
 from mapillary_tools.geotag import gps_filter
 
 from .gpmf_parser import _convert_points_to_gpx_track_segment
@@ -36,11 +36,11 @@ def _parse_args():
 
 def _gpx_track_segment_to_points(
     segment: gpxpy.gpx.GPXTrackSegment,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[telemetry.GPSPoint]:
     gps_fix_map = {
-        "none": geo.GPSFix.NO_FIX,
-        "2d": geo.GPSFix.FIX_2D,
-        "3d": geo.GPSFix.FIX_3D,
+        "none": telemetry.GPSFix.NO_FIX,
+        "2d": telemetry.GPSFix.FIX_2D,
+        "3d": telemetry.GPSFix.FIX_3D,
     }
     points = []
     for p in segment.points:
@@ -57,41 +57,42 @@ def _gpx_track_segment_to_points(
         else:
             ground_speed = None
 
-        point = geo.PointWithFix(
+        point = telemetry.GPSPoint(
             time=geo.as_unix_time(T.cast(datetime.datetime, p.time)),
             lat=p.latitude,
             lon=p.longitude,
             alt=p.elevation,
             angle=None,
-            gps_fix=(
+            epoch_time=None,
+            fix=(
                 gps_fix_map[p.type_of_gpx_fix]
                 if p.type_of_gpx_fix is not None
                 else None
             ),
-            gps_precision=p.position_dilution,
-            gps_ground_speed=ground_speed,
+            precision=p.position_dilution,
+            ground_speed=ground_speed,
         )
         points.append(point)
     return points
 
 
 def _filter_noise(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[telemetry.GPSPoint],
     gps_fix: T.Set[int],
     max_dop: float,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[telemetry.GPSPoint]:
     return [
         p
         for p in points
-        if (p.gps_fix is None or p.gps_fix.value in gps_fix)
-        and (p.gps_precision is None or p.gps_precision <= max_dop)
+        if (p.fix is None or p.fix.value in gps_fix)
+        and (p.precision is None or p.precision <= max_dop)
     ]
 
 
 def _filter_outliers(
-    points: T.List[geo.PointWithFix],
+    points: T.List[telemetry.GPSPoint],
     gps_precision: float,
-) -> T.List[geo.PointWithFix]:
+) -> T.List[telemetry.GPSPoint]:
     if gps_precision == 0:
         return points
 
@@ -111,7 +112,7 @@ def _filter_outliers(
     )
 
     ground_speeds = [
-        point.gps_ground_speed for point in points if point.gps_ground_speed is not None
+        point.ground_speed for point in points if point.ground_speed is not None
     ]
     if len(ground_speeds) < 2:
         return points
@@ -120,7 +121,7 @@ def _filter_outliers(
     merged = gps_filter.dbscan(subseqs, gps_filter.speed_le(max_speed))
 
     return T.cast(
-        T.List[geo.PointWithFix],
+        T.List[telemetry.GPSPoint],
         gps_filter.find_majority(merged.values()),
     )
 

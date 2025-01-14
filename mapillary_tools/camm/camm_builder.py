@@ -43,12 +43,12 @@ def _create_edit_list(
             ]
             break
 
-        assert (
-            0 <= points[0].time
-        ), f"expect non-negative point time but got {points[0]}"
-        assert (
-            points[0].time <= points[-1].time
-        ), f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+        assert 0 <= points[0].time, (
+            f"expect non-negative point time but got {points[0]}"
+        )
+        assert points[0].time <= points[-1].time, (
+            f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+        )
 
         if idx == 0:
             if 0 < points[0].time:
@@ -92,9 +92,9 @@ def convert_points_to_raw_samples(
             timedelta = int((points[idx + 1].time - point.time) * timescale)
         else:
             timedelta = 0
-        assert (
-            0 <= timedelta <= builder.UINT32_MAX
-        ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+        assert 0 <= timedelta <= builder.UINT32_MAX, (
+            f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+        )
 
         yield sample_parser.RawSample(
             # will update later

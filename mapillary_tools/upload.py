@@ -655,9 +655,9 @@ def upload(
             )
             for idx, video_metadata in enumerate(specified_video_metadatas):
                 video_metadata.update_md5sum()
-                assert isinstance(
-                    video_metadata.md5sum, str
-                ), "md5sum should be updated"
+                assert isinstance(video_metadata.md5sum, str), (
+                    "md5sum should be updated"
+                )
                 generator = camm_builder.camm_sample_generator2(video_metadata)
                 with video_metadata.filename.open("rb") as src_fp:
                     camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
