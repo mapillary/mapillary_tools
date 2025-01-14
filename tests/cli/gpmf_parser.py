@@ -43,19 +43,23 @@ def _convert_points_to_gpx_track_segment(
             {
                 "distance_between": distance,
                 "speed_between": speed,
-                "ground_speed": point.gps_ground_speed,
+                "ground_speed": point.ground_speed,
             }
         )
+        if point.epoch_time is not None:
+            epoch_time = point.epoch_time
+        else:
+            epoch_time = point.time
         gpxp = gpxpy.gpx.GPXTrackPoint(
             point.lat,
             point.lon,
             elevation=point.alt,
-            time=datetime.datetime.utcfromtimestamp(point.time),
-            position_dilution=point.gps_precision,
+            time=datetime.datetime.utcfromtimestamp(epoch_time),
+            position_dilution=point.precision,
             comment=comment,
         )
-        if point.gps_fix is not None:
-            gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
+        if point.fix is not None:
+            gpxp.type_of_gpx_fix = gps_fix_map.get(point.fix)
         gpx_segment.points.append(gpxp)
 
     return gpx_segment
@@ -86,10 +90,10 @@ def _convert_geojson(path: pathlib.Path):
         geomtry = {"type": "Point", "coordinates": [p.lon, p.lat]}
         properties = {
             "alt": p.alt,
-            "fix": p.gps_fix.value if p.gps_fix is not None else None,
+            "fix": p.fix.value if p.fix is not None else None,
             "index": idx,
             "name": path.name,
-            "precision": p.gps_precision,
+            "precision": p.precision,
             "time": p.time,
         }
         features.append(

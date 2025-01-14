@@ -3,6 +3,8 @@ import io
 import itertools
 import pathlib
 import typing as T
+import datetime
+
 
 import construct as C
 
@@ -137,6 +139,14 @@ class TelemetryData:
     magn: T.List[imu.MagnetometerData]
 
 
+def _gps5_timestamp_to_epoch_time(dtstr: str):
+    # yymmddhhmmss.sss
+    dt = datetime.datetime.strptime(dtstr, "%y%m%d%H%M%S.%f").replace(
+        tzinfo=datetime.timezone.utc
+    )
+    return dt.timestamp()
+
+
 # A GPS5 stream example:
 #     key = b'STRM' type = b'\x00' structure_size =  1 repeat = 400
 #     data = ListContainer:
@@ -197,6 +207,12 @@ def gps5_from_stream(
     else:
         gpsf_value = None
 
+    gpsu = indexed.get(b"GPSU")
+    if gpsu is not None:
+        epoch_time = _gps5_timestamp_to_epoch_time(gpsu[0][0].decode("utf-8"))
+    else:
+        epoch_time = None
+
     gpsp = indexed.get(b"GPSP")
     if gpsp is not None:
         gpsp_value = gpsp[0][0]
@@ -213,12 +229,25 @@ def gps5_from_stream(
             lat=lat,
             lon=lon,
             alt=alt,
-            epoch_time=None,
+            epoch_time=epoch_time,
             fix=gpsf_value,
             precision=gpsp_value,
             ground_speed=ground_speed,
             angle=None,
         )
+
+
+_EPOCH_TIME_IN_2000 = datetime.datetime(
+    2000, 1, 1, tzinfo=datetime.timezone.utc
+).timestamp()
+
+
+def _gps9_timestamp_to_epoch_time(
+    days_since_2000: int, secs_since_midnight: float
+) -> float:
+    epoch_time = _EPOCH_TIME_IN_2000 + days_since_2000 * 24 * 60 * 60
+    epoch_time += secs_since_midnight
+    return epoch_time
 
 
 def gps9_from_stream(
@@ -260,11 +289,13 @@ def gps9_from_stream(
             alt,
             speed_2d,
             _speed_3d,
-            _days_since_2000,
-            _secs_since_midnight,
+            days_since_2000,
+            secs_since_midnight,
             dop,
             gps_fix,
         ) = [v / s for v, s in zip(sample_data, scal_values)]
+
+        epoch_time = _gps9_timestamp_to_epoch_time(days_since_2000, secs_since_midnight)
 
         yield GPSPoint(
             # will figure out the actual timestamp later
@@ -272,7 +303,7 @@ def gps9_from_stream(
             lat=lat,
             lon=lon,
             alt=alt,
-            epoch_time=None,
+            epoch_time=epoch_time,
             fix=GPSFix(gps_fix),
             precision=dop * 100,
             ground_speed=speed_2d,
