@@ -404,8 +404,8 @@ def _rewrite_and_build_moov_typed_data(
     for box in _filter_trak_boxes(moov_children):
         sample_offset = _update_sbtl_sample_offsets(box, sample_offset)
     moov_typed_data = _build_moov_typed_data(moov_children)
-    assert (
-        len(moov_typed_data) == moov_typed_data_size
-    ), f"{len(moov_typed_data)} != {moov_typed_data_size}"
+    assert len(moov_typed_data) == moov_typed_data_size, (
+        f"{len(moov_typed_data)} != {moov_typed_data_size}"
+    )
 
     return moov_typed_data

@@ -148,6 +148,7 @@ def convert_telemetry_to_raw_samples(
             timedelta = int((measurements[idx + 1].time - measurement.time) * timescale)
         else:
             timedelta = 0
+
         assert (
             0 <= timedelta <= builder.UINT32_MAX
         ), f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"

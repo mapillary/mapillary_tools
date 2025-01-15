@@ -12,18 +12,19 @@ import mapillary_tools.geo as geo
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
+import mapillary_tools.telemetry as telemetry
 import mapillary_tools.utils as utils
 from mapillary_tools.mp4 import mp4_sample_parser
 
 
 def _convert_points_to_gpx_track_segment(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[telemetry.GPSPoint],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gps_fix_map = {
-        geo.GPSFix.NO_FIX: "none",
-        geo.GPSFix.FIX_2D: "2d",
-        geo.GPSFix.FIX_3D: "3d",
+        telemetry.GPSFix.NO_FIX: "none",
+        telemetry.GPSFix.FIX_2D: "2d",
+        telemetry.GPSFix.FIX_3D: "3d",
     }
     for idx, point in enumerate(points):
         if idx + 1 < len(points):
@@ -43,19 +44,23 @@ def _convert_points_to_gpx_track_segment(
             {
                 "distance_between": distance,
                 "speed_between": speed,
-                "ground_speed": point.gps_ground_speed,
+                "ground_speed": point.ground_speed,
             }
         )
+        if point.epoch_time is not None:
+            epoch_time = point.epoch_time
+        else:
+            epoch_time = point.time
         gpxp = gpxpy.gpx.GPXTrackPoint(
             point.lat,
             point.lon,
             elevation=point.alt,
-            time=datetime.datetime.utcfromtimestamp(point.time),
-            position_dilution=point.gps_precision,
+            time=datetime.datetime.utcfromtimestamp(epoch_time),
+            position_dilution=point.precision,
             comment=comment,
         )
-        if point.gps_fix is not None:
-            gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
+        if point.fix is not None:
+            gpxp.type_of_gpx_fix = gps_fix_map.get(point.fix)
         gpx_segment.points.append(gpxp)
 
     return gpx_segment
@@ -86,10 +91,10 @@ def _convert_geojson(path: pathlib.Path):
         geomtry = {"type": "Point", "coordinates": [p.lon, p.lat]}
         properties = {
             "alt": p.alt,
-            "fix": p.gps_fix.value if p.gps_fix is not None else None,
+            "fix": p.fix.value if p.fix is not None else None,
             "index": idx,
             "name": path.name,
-            "precision": p.gps_precision,
+            "precision": p.precision,
             "time": p.time,
         }
         features.append(

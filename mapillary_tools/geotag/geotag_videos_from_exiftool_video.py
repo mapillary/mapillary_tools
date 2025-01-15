@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
+from ..telemetry import GPSPoint
 from . import gpmf_gps_filter, utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
@@ -45,11 +46,11 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             points = geo.extend_deduplicate_points(points)
             assert points, "must have at least one point"
 
-            if all(isinstance(p, geo.PointWithFix) for p in points):
+            if all(isinstance(p, GPSPoint) for p in points):
                 points = T.cast(
                     T.List[geo.Point],
                     gpmf_gps_filter.remove_noisy_points(
-                        T.cast(T.List[geo.PointWithFix], points)
+                        T.cast(T.List[GPSPoint], points)
                     ),
                 )
                 if not points:

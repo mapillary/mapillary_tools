@@ -69,9 +69,9 @@ def test_upload_images(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert (
-        len(setup_upload.listdir()) == 0
-    ), "should NOT upload because it is uploaded already"
+    assert len(setup_upload.listdir()) == 0, (
+        "should NOT upload because it is uploaded already"
+    )
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -97,6 +97,6 @@ def test_upload_blackvue(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert (
-        len(setup_upload.listdir()) == 0
-    ), "should NOT upload because it is uploaded already"
+    assert len(setup_upload.listdir()) == 0, (
+        "should NOT upload because it is uploaded already"
+    )
