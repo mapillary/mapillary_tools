@@ -209,7 +209,11 @@ def gps5_from_stream(
 
     gpsu = indexed.get(b"GPSU")
     if gpsu is not None:
-        epoch_time = _gps5_timestamp_to_epoch_time(gpsu[0][0].decode("utf-8"))
+        try:
+            yymmdd = gpsu[0][0].decode("utf-8")
+            epoch_time = _gps5_timestamp_to_epoch_time(yymmdd)
+        except Exception:
+            epoch_time = None
     else:
         epoch_time = None
 
