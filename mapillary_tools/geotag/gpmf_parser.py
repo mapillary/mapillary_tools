@@ -1,16 +1,14 @@
 import dataclasses
+import datetime
 import io
 import itertools
 import pathlib
 import typing as T
-import datetime
-
 
 import construct as C
 
 from .. import imu
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
-
 from ..telemetry import GPSFix, GPSPoint
 
 """
@@ -209,7 +207,11 @@ def gps5_from_stream(
 
     gpsu = indexed.get(b"GPSU")
     if gpsu is not None:
-        epoch_time = _gps5_timestamp_to_epoch_time(gpsu[0][0].decode("utf-8"))
+        try:
+            yymmdd = gpsu[0][0].decode("utf-8")
+            epoch_time = _gps5_timestamp_to_epoch_time(yymmdd)
+        except Exception:
+            epoch_time = None
     else:
         epoch_time = None
 
@@ -478,6 +480,28 @@ def _extract_dvnm_from_samples(
     return dvnm_by_dvid
 
 
+def _backfill_gps_timestamps(gps_points: T.Iterable[GPSPoint]) -> None:
+    it = iter(gps_points)
+
+    # find the first point with epoch time
+    last = None
+    for point in it:
+        if point.epoch_time is not None:
+            last = point
+            break
+
+    # if no point with epoch time found, return
+    if last is None:
+        return
+
+    # backfill points without epoch time
+    for point in it:
+        assert last.epoch_time is not None
+        if point.epoch_time is None:
+            point.epoch_time = last.epoch_time + (point.time - last.time)
+        last = point
+
+
 def _extract_points_from_samples(
     fp: T.BinaryIO, samples: T.Iterable[Sample]
 ) -> TelemetryData:
@@ -549,8 +573,16 @@ def _extract_points_from_samples(
                     for idx, (z, x, y, *_) in enumerate(sample_magns)
                 )
 
+    gps_points = list(points_by_dvid.values())[0] if points_by_dvid else []
+
+    # backfill forward from the first point with epoch time
+    _backfill_gps_timestamps(gps_points)
+
+    # backfill backward from the first point with epoch time in reversed order
+    _backfill_gps_timestamps(reversed(gps_points))
+
     return TelemetryData(
-        gps=list(points_by_dvid.values())[0] if points_by_dvid else [],
+        gps=gps_points,
         accl=list(accls_by_dvid.values())[0] if accls_by_dvid else [],
         gyro=list(gyros_by_dvid.values())[0] if gyros_by_dvid else [],
         magn=list(magns_by_dvid.values())[0] if magns_by_dvid else [],
