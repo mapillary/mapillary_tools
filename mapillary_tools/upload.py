@@ -657,9 +657,9 @@ def upload(
             )
             for idx, video_metadata in enumerate(specified_video_metadatas):
                 video_metadata.update_md5sum()
-                assert isinstance(
-                    video_metadata.md5sum, str
-                ), "md5sum should be updated"
+                assert isinstance(video_metadata.md5sum, str), (
+                    "md5sum should be updated"
+                )
 
                 # extract telemetry measurements from GoPro videos
                 telemetry_measurements: T.List[imu.TelemetryMeasurement] = []
