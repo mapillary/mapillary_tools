@@ -1,4 +1,5 @@
 import argparse
+import dataclasses
 import datetime
 import io
 import json
@@ -119,47 +120,70 @@ def _parse_samples(path: pathlib.Path) -> T.Generator[T.Dict, None, None]:
 
 def _parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", nargs="+", help="Path to video file or directory")
     parser.add_argument("--geojson", help="Print as GeoJSON", action="store_true")
+    parser.add_argument("--imu", help="Print IMU in JSON")
     parser.add_argument(
         "--dump", help="Print as Construct structures", action="store_true"
     )
+    parser.add_argument("path", nargs="+", help="Path to video file or directory")
     return parser.parse_args()
 
 
 def main():
     parsed_args = _parse_args()
 
-    features = []
-    parsed_samples = []
-    gpx = gpxpy.gpx.GPX()
+    video_paths = utils.find_videos([pathlib.Path(p) for p in parsed_args.path])
 
-    def _process(path: pathlib.Path):
-        if parsed_args.dump:
-            parsed_samples.extend(_parse_samples(path))
-        elif parsed_args.geojson:
+    if parsed_args.imu:
+        imu_option = parsed_args.imu.split(",")
+        for path in video_paths:
+            with path.open("rb") as fp:
+                telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+            if telemetry_data:
+                if "accl" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(accl) for accl in telemetry_data.accl]
+                        )
+                    )
+                if "gyro" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(gyro) for gyro in telemetry_data.gyro]
+                        )
+                    )
+                if "magn" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(magn) for magn in telemetry_data.magn]
+                        )
+                    )
+
+    elif parsed_args.geojson:
+        features = []
+        for path in video_paths:
             features.extend(_convert_geojson(path))
-        else:
-            _convert_gpx(gpx, path)
+        print(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": features,
+                }
+            )
+        )
 
-    for path in utils.find_videos([pathlib.Path(p) for p in parsed_args.path]):
-        _process(path)
-
-    if parsed_args.dump:
+    elif parsed_args.dump:
+        parsed_samples = []
+        for path in video_paths:
+            parsed_samples.extend(_parse_samples(path))
         for sample in parsed_samples:
             print(sample)
+
     else:
-        if features:
-            print(
-                json.dumps(
-                    {
-                        "type": "FeatureCollection",
-                        "features": features,
-                    }
-                )
-            )
-        else:
-            print(gpx.to_xml())
+        gpx = gpxpy.gpx.GPX()
+        for path in video_paths:
+            _convert_gpx(gpx, path)
+        print(gpx.to_xml())
 
 
 if __name__ == "__main__":
