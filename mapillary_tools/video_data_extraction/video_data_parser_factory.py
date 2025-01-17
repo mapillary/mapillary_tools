@@ -1,9 +1,7 @@
 import typing as T
 from pathlib import Path
 
-from mapillary_tools.video_data_extraction.extractors.exiftool_runtime_parser import (
-    ExiftoolRuntimeParser,
-)
+from .extractors.exiftool_runtime_parser import ExiftoolRuntimeParser
 
 from .cli_options import CliOptions
 
