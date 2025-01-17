@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from .. import geo, imu, types
+from .. import geo, telemetry, types
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
@@ -13,7 +13,7 @@ from . import camm_parser
 
 TelemetryMeasurement = T.Union[
     geo.Point,
-    imu.TelemetryMeasurement,
+    telemetry.TelemetryMeasurement,
 ]
 
 
@@ -29,7 +29,7 @@ def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
                 ],
             }
         )
-    elif isinstance(measurement, imu.AccelerationData):
+    elif isinstance(measurement, telemetry.AccelerationData):
         # Accelerometer reading in meters/second^2 along XYZ axes of the camera.
         return camm_parser.CAMMSampleData.build(
             {
@@ -41,7 +41,7 @@ def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
                 ],
             }
         )
-    elif isinstance(measurement, imu.GyroscopeData):
+    elif isinstance(measurement, telemetry.GyroscopeData):
         # Gyroscope signal in radians/seconds around XYZ axes of the camera. Rotation is positive in the counterclockwise direction.
         return camm_parser.CAMMSampleData.build(
             {
@@ -53,7 +53,7 @@ def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
                 ],
             }
         )
-    elif isinstance(measurement, imu.MagnetometerData):
+    elif isinstance(measurement, telemetry.MagnetometerData):
         # Ambient magnetic field.
         return camm_parser.CAMMSampleData.build(
             {
@@ -129,7 +129,7 @@ def _create_edit_list_from_points(
 
 def _multiplex(
     points: T.Sequence[geo.Point],
-    measurements: T.Optional[T.List[imu.TelemetryMeasurement]] = None,
+    measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
 ) -> T.List[TelemetryMeasurement]:
     mutiplexed: T.List[TelemetryMeasurement] = [*points, *(measurements or [])]
     mutiplexed.sort(key=lambda m: m.time)
@@ -291,7 +291,7 @@ def create_camm_trak(
 
 def camm_sample_generator2(
     video_metadata: types.VideoMetadata,
-    telemetry_measurements: T.Optional[T.List[imu.TelemetryMeasurement]] = None,
+    telemetry_measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
 ):
     def _f(
         fp: T.BinaryIO,

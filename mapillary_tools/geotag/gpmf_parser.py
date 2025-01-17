@@ -1,14 +1,13 @@
 import dataclasses
+import datetime
 import io
 import itertools
 import pathlib
 import typing as T
-import datetime
-
 
 import construct as C
 
-from .. import imu
+from .. import telemetry
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 from ..telemetry import GPSFix, GPSPoint
@@ -134,9 +133,9 @@ GPMFSampleData = C.GreedyRange(KLV)
 @dataclasses.dataclass
 class TelemetryData:
     gps: T.List[GPSPoint]
-    accl: T.List[imu.AccelerationData]
-    gyro: T.List[imu.GyroscopeData]
-    magn: T.List[imu.MagnetometerData]
+    accl: T.List[telemetry.AccelerationData]
+    gyro: T.List[telemetry.GyroscopeData]
+    magn: T.List[telemetry.MagnetometerData]
 
 
 def _gps5_timestamp_to_epoch_time(dtstr: str):
@@ -483,9 +482,9 @@ def _extract_points_from_samples(
 ) -> TelemetryData:
     # To keep GPS points from different devices separated
     points_by_dvid: T.Dict[int, T.List[GPSPoint]] = {}
-    accls_by_dvid: T.Dict[int, T.List[imu.AccelerationData]] = {}
-    gyros_by_dvid: T.Dict[int, T.List[imu.GyroscopeData]] = {}
-    magns_by_dvid: T.Dict[int, T.List[imu.MagnetometerData]] = {}
+    accls_by_dvid: T.Dict[int, T.List[telemetry.AccelerationData]] = {}
+    gyros_by_dvid: T.Dict[int, T.List[telemetry.GyroscopeData]] = {}
+    magns_by_dvid: T.Dict[int, T.List[telemetry.MagnetometerData]] = {}
 
     for sample in samples:
         fp.seek(sample.raw_sample.offset, io.SEEK_SET)
@@ -512,7 +511,7 @@ def _extract_points_from_samples(
                 # interpolate timestamps in between
                 avg_delta = sample.exact_timedelta / len(sample_accls)
                 accls_by_dvid.setdefault(device_id, []).extend(
-                    imu.AccelerationData(
+                    telemetry.AccelerationData(
                         time=sample.exact_time + avg_delta * idx,
                         x=x,
                         y=y,
@@ -526,7 +525,7 @@ def _extract_points_from_samples(
                 # interpolate timestamps in between
                 avg_delta = sample.exact_timedelta / len(sample_gyros)
                 gyros_by_dvid.setdefault(device_id, []).extend(
-                    imu.GyroscopeData(
+                    telemetry.GyroscopeData(
                         time=sample.exact_time + avg_delta * idx,
                         x=x,
                         y=y,
@@ -540,7 +539,7 @@ def _extract_points_from_samples(
                 # interpolate timestamps in between
                 avg_delta = sample.exact_timedelta / len(sample_magns)
                 magns_by_dvid.setdefault(device_id, []).extend(
-                    imu.MagnetometerData(
+                    telemetry.MagnetometerData(
                         time=sample.exact_time + avg_delta * idx,
                         x=x,
                         y=y,

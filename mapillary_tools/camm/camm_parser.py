@@ -9,7 +9,7 @@ from enum import Enum
 
 import construct as C
 
-from .. import geo, imu
+from .. import geo, telemetry
 from ..mp4 import simple_mp4_parser as sparser
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
@@ -18,7 +18,10 @@ LOG = logging.getLogger(__name__)
 
 
 TelemetryMeasurement = T.Union[
-    geo.Point, imu.AccelerationData, imu.GyroscopeData, imu.MagnetometerData
+    geo.Point,
+    telemetry.AccelerationData,
+    telemetry.GyroscopeData,
+    telemetry.MagnetometerData,
 ]
 
 
@@ -106,21 +109,21 @@ def _parse_telemetry_from_sample(
             angle=None,
         )
     elif box.type == CAMMType.ACCELERATION.value:
-        return imu.AccelerationData(
+        return telemetry.AccelerationData(
             time=sample.exact_time,
             x=box.data[0],
             y=box.data[1],
             z=box.data[2],
         )
     elif box.type == CAMMType.GYRO.value:
-        return imu.GyroscopeData(
+        return telemetry.GyroscopeData(
             time=sample.exact_time,
             x=box.data[0],
             y=box.data[1],
             z=box.data[2],
         )
     elif box.type == CAMMType.MAGNETIC_FIELD.value:
-        return imu.MagnetometerData(
+        return telemetry.MagnetometerData(
             time=sample.exact_time,
             x=box.data[0],
             y=box.data[1],

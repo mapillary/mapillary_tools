@@ -19,8 +19,8 @@ from . import (
     exceptions,
     geo,
     history,
-    imu,
     ipc,
+    telemetry,
     types,
     upload_api_v4,
     uploader,
@@ -662,7 +662,7 @@ def upload(
                 )
 
                 # extract telemetry measurements from GoPro videos
-                telemetry_measurements: T.List[imu.TelemetryMeasurement] = []
+                telemetry_measurements: T.List[telemetry.TelemetryMeasurement] = []
                 if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
                     if video_metadata.filetype is FileType.GOPRO:
                         with video_metadata.filename.open("rb") as fp:
