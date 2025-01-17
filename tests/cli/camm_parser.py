@@ -6,7 +6,7 @@ import pathlib
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import imu, utils
+from mapillary_tools import telemetry, utils
 from mapillary_tools.camm import camm_parser
 from mapillary_tools.geotag import utils as geotag_utils
 
@@ -49,11 +49,11 @@ def main():
             magns = []
             if telemetry_measurements:
                 for m in telemetry_measurements:
-                    if isinstance(m, imu.AccelerationData):
+                    if isinstance(m, telemetry.AccelerationData):
                         accls.append(m)
-                    elif isinstance(m, imu.GyroscopeData):
+                    elif isinstance(m, telemetry.GyroscopeData):
                         gyros.append(m)
-                    elif isinstance(m, imu.MagnetometerData):
+                    elif isinstance(m, telemetry.MagnetometerData):
                         magns.append(m)
 
             if "accl" in imu_option:
