@@ -48,7 +48,7 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
 
 def request_post(
     url: str,
-    data: T.Optional[dict] = None,
+    data: T.Optional[T.Any] = None,
     json: T.Optional[dict] = None,
     **kwargs,
 ) -> requests.Response:
@@ -63,10 +63,13 @@ def request_post(
         try:
             return requests.post(url, data=data, json=json, **kwargs)
         except requests.exceptions.SSLError as ex:
+            if "SSLCertVerificationError" not in str(ex):
+                raise ex
+            USE_SYSTEM_CERTS = True
+            # HTTPSConnectionPool(host='graph.mapillary.com', port=443): Max retries exceeded with url: /login (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1018)')))
             LOG.warning(
                 "SSL error occurred, falling back to system SSL certificates: %s", ex
             )
-            USE_SYSTEM_CERTS = True
             with requests.Session() as session:
                 session.mount("https://", HTTPSystemCertsAdapter())
                 return session.post(url, data=data, json=json, **kwargs)
@@ -87,10 +90,13 @@ def request_get(
         try:
             return requests.get(url, params=params, **kwargs)
         except requests.exceptions.SSLError as ex:
+            if "SSLCertVerificationError" not in str(ex):
+                raise ex
+            USE_SYSTEM_CERTS = True
+            # HTTPSConnectionPool(host='graph.mapillary.com', port=443): Max retries exceeded with url: /login (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1018)')))
             LOG.warning(
                 "SSL error occurred, falling back to system SSL certificates: %s", ex
             )
-            USE_SYSTEM_CERTS = True
             with requests.Session() as session:
                 session.mount("https://", HTTPSystemCertsAdapter())
                 return session.get(url, params=params, **kwargs)
