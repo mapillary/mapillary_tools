@@ -1,4 +1,3 @@
-Pillow; python_version>='3.8'
 pytest
 mypy
 ruff
