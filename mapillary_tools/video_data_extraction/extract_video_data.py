@@ -5,20 +5,19 @@ from pathlib import Path
 
 import tqdm
 
-import mapillary_tools.geotag.utils as video_utils
-
-from mapillary_tools import exceptions, geo, utils
-from mapillary_tools.geotag import gpmf_gps_filter
-from mapillary_tools.types import (
+from .. import exceptions, geo, utils
+from ..geotag import gpmf_gps_filter, utils as video_utils
+from ..telemetry import GPSPoint
+from ..types import (
     ErrorMetadata,
     FileType,
     MetadataOrError,
     VideoMetadata,
     VideoMetadataOrError,
 )
-from mapillary_tools.video_data_extraction import video_data_parser_factory
-from mapillary_tools.video_data_extraction.cli_options import CliOptions
-from mapillary_tools.video_data_extraction.extractors.base_parser import BaseParser
+from . import video_data_parser_factory
+from .cli_options import CliOptions
+from .extractors.base_parser import BaseParser
 
 
 LOG = logging.getLogger(__name__)
@@ -81,7 +80,7 @@ class VideoDataExtractor:
                     make = parser.extract_make()
             except Exception as e:
                 ex = e
-                LOG.warn(
+                LOG.warning(
                     '%(filename)s: Exception for parser %(parser)s while processing source %(source)s: "%(e)s"',
                     {**log_vars, "e": e},
                 )
@@ -163,11 +162,11 @@ class VideoDataExtractor:
 
         points = geo.extend_deduplicate_points(points)
 
-        if all(isinstance(p, geo.PointWithFix) for p in points):
+        if all(isinstance(p, GPSPoint) for p in points):
             points = T.cast(
                 T.Sequence[geo.Point],
                 gpmf_gps_filter.remove_noisy_points(
-                    T.cast(T.Sequence[geo.PointWithFix], points)
+                    T.cast(T.Sequence[GPSPoint], points)
                 ),
             )
             if not points:

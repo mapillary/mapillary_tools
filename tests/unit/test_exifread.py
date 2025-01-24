@@ -2,7 +2,6 @@ import datetime
 import os
 
 import typing as T
-import unittest
 from pathlib import Path
 
 import py.path
@@ -16,7 +15,6 @@ from mapillary_tools.exif_read import (
     parse_datetimestr_with_subsec_and_offset,
 )
 from mapillary_tools.exif_write import ExifEdit
-from PIL import ExifTags, Image
 
 """Initialize all the neccessary data"""
 
@@ -25,11 +23,6 @@ this_file_dir = os.path.dirname(this_file)
 data_dir = os.path.join(this_file_dir, "data")
 
 TEST_EXIF_FILE = Path(os.path.join(data_dir, "test_exif.jpg"))
-
-# more info on the standard exif tags
-# https://sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
-EXIF_PRIMARY_TAGS_DICT = {y: x for x, y in ExifTags.TAGS.items()}
-EXIF_GPS_TAGS_DICT = {y: x for x, y in ExifTags.GPSTAGS.items()}
 
 
 @pytest.fixture
@@ -48,23 +41,14 @@ def gps_to_decimal(value, ref):
     return sign * (float(degrees) + float(minutes) / 60 + float(seconds) / 3600)
 
 
-def load_exif_PIL(filename=TEST_EXIF_FILE):
-    test_image = Image.open(filename)
-    return test_image.getexif()
-
-
-def read_orientation_general(test_obj, filename: Path):
-    exif_data_PIL = load_exif_PIL()
-    orientation_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Orientation"]]
-
-    exif_data_ExifRead = ExifRead(filename)
+def test_read_orientation_general():
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     orientation_ExifRead = exif_data_ExifRead.extract_orientation()
+    assert 2 == orientation_ExifRead
 
-    test_obj.assertEqual(orientation_PIL, orientation_ExifRead)
 
-
-def read_date_time_original_general(test_obj, filename: Path):
-    exif_data_ExifRead = ExifRead(filename)
+def test_read_date_time_original_general():
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     capture_time_ExifRead = exif_data_ExifRead.extract_capture_time()
     # exiftool -time:all tests/unit/data/test_exif.jpg
     # Date/Time Original              : 2018:06:26 17:46:33.847
@@ -81,92 +65,53 @@ def read_date_time_original_general(test_obj, filename: Path):
     # because "Sub Sec Time" is not subsec for "Date/Time Original"
 
 
-def read_lat_lon_general(test_obj, filename: Path):
-    exif_data_PIL = load_exif_PIL()
-    latitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSLatitude"]
-    ]
-    longitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSLongitude"]
-    ]
-    latitudeRef_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSLatitudeRef"]
-    ]
-    longitudeRef_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSLongitudeRef"]
-    ]
+def test_read_lat_lon_general():
+    latitude_PIL, latitudeRef_PIL = (35.0, 54.0, 45.06), "N"
+    longitude_PIL, longitudeRef_PIL = (14.0, 29.0, 55.7), "E"
 
     latitude_PIL = gps_to_decimal(latitude_PIL, latitudeRef_PIL)
     longitude_PIL = gps_to_decimal(longitude_PIL, longitudeRef_PIL)
 
-    exif_data_ExifRead = ExifRead(filename)
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     lonlat = exif_data_ExifRead.extract_lon_lat()
     assert lonlat
     longitude_ExifRead, latitude_ExifRead = lonlat
 
-    test_obj.assertEqual(
-        (latitude_PIL, longitude_PIL), (latitude_ExifRead, longitude_ExifRead)
-    )
+    assert (latitude_PIL, longitude_PIL) == (latitude_ExifRead, longitude_ExifRead)
 
 
-def read_camera_make_model_general(test_obj, filename: Path):
-    exif_data_PIL = load_exif_PIL()
-    make_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Make"]]
-    model_PIL = exif_data_PIL[EXIF_PRIMARY_TAGS_DICT["Model"]]
+def test_read_camera_make_model_general():
+    make_PIL = "HTC"
+    model_PIL = "Legend"
 
-    exif_data_ExifRead = ExifRead(filename)
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     make_ExifRead = exif_data_ExifRead.extract_make()
     model_ExifRead = exif_data_ExifRead.extract_model()
 
-    test_obj.assertEqual((make_PIL, model_PIL), (make_ExifRead, model_ExifRead))
+    assert (make_PIL, model_PIL) == (make_ExifRead, model_ExifRead)
 
 
-def read_altitude_general(test_obj, filename: Path):
-    exif_data_PIL = load_exif_PIL()
-    altitude_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSAltitude"]
-    ]
-    altitude_value_PIL = altitude_PIL.numerator / altitude_PIL.denominator
+def test_read_altitude_general():
+    numerator = 69
+    denominator = 1
 
-    exif_data_ExifRead = ExifRead(filename)
+    altitude_value_PIL = numerator / denominator
+
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     altitude_ExifRead = exif_data_ExifRead.extract_altitude()
 
-    test_obj.assertEqual(altitude_value_PIL, altitude_ExifRead)
+    assert altitude_value_PIL == altitude_ExifRead
 
 
-def read_direction_general(test_obj, filename: Path):
-    exif_data_PIL = load_exif_PIL()
-    direction_PIL = exif_data_PIL.get_ifd(EXIF_PRIMARY_TAGS_DICT["GPSInfo"])[
-        EXIF_GPS_TAGS_DICT["GPSImgDirection"]
-    ]
-    direction_value_PIL = direction_PIL.numerator / direction_PIL.denominator
+def test_read_direction_general():
+    numerator = 100
+    denominator = 100
+    direction_value_PIL = numerator / denominator
 
-    exif_data_ExifRead = ExifRead(filename)
+    exif_data_ExifRead = ExifRead(TEST_EXIF_FILE)
     direction_ExifRead = exif_data_ExifRead.extract_direction()
 
-    test_obj.assertEqual(direction_value_PIL, direction_ExifRead)
-
-
-class ExifReadTests(unittest.TestCase):
-    """tests for main functions."""
-
-    def test_read_orientation(self):
-        read_orientation_general(self, TEST_EXIF_FILE)
-
-    def test_read_date_time_original(self):
-        read_date_time_original_general(self, TEST_EXIF_FILE)
-
-    def test_read_lat_lon(self):
-        read_lat_lon_general(self, TEST_EXIF_FILE)
-
-    def test_read_camera_make_model(self):
-        read_camera_make_model_general(self, TEST_EXIF_FILE)
-
-    def test_read_altitude(self):
-        read_altitude_general(self, TEST_EXIF_FILE)
-
-    def test_read_direction(self):
-        read_direction_general(self, TEST_EXIF_FILE)
+    assert direction_value_PIL == direction_ExifRead
 
 
 def test_parse():
@@ -286,14 +231,14 @@ def test_read_and_write(setup_data: py.path.local):
     image_path = Path(setup_data, "test_exif.jpg")
     dts = [
         datetime.datetime.now(),
-        datetime.datetime.utcnow(),
+        datetime.datetime.now(datetime.timezone.utc),
         # 86400 is total seconds of one day (24 * 3600)
         # to avoid "OSError: [Errno 22] Invalid argument" in WINDOWS https://bugs.python.org/issue36759
         datetime.datetime.fromtimestamp(86400),
-        datetime.datetime.utcfromtimestamp(86400),
-        datetime.datetime.utcfromtimestamp(86400.0000001),
-        datetime.datetime.utcfromtimestamp(86400.123456),
-        datetime.datetime.utcfromtimestamp(86400.0123),
+        datetime.datetime.fromtimestamp(86400, tz=datetime.timezone.utc),
+        datetime.datetime.fromtimestamp(86400.0000001, tz=datetime.timezone.utc),
+        datetime.datetime.fromtimestamp(86400.123456, tz=datetime.timezone.utc),
+        datetime.datetime.fromtimestamp(86400.0123, tz=datetime.timezone.utc),
     ]
     dts = dts[:] + [dt.astimezone() for dt in dts]
     dts = dts[:] + [dt.astimezone(datetime.timezone.utc) for dt in dts]

@@ -1,7 +1,7 @@
 import io
 import random
 
-from mapillary_tools.geotag.io_utils import ChainedIO, SlicedIO
+from mapillary_tools.mp4.io_utils import ChainedIO, SlicedIO
 
 
 def test_chained():
@@ -76,9 +76,9 @@ def test_chained():
             thrown_x is None and thrown_y is None
         ), (thrown_x, thrown_y, whence, offset)
         if not thrown_x:
-            assert (
-                x == y
-            ), f"whence={whence} offset={offset} x={x} y={y} {s.tell()} {c.tell()}"
+            assert x == y, (
+                f"whence={whence} offset={offset} x={x} y={y} {s.tell()} {c.tell()}"
+            )
 
         n = random.randint(-1, 20)
         assert s.read(n) == c.read(n), f"n={n}"

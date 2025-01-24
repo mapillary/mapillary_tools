@@ -1,5 +1,7 @@
 import argparse
+import dataclasses
 import datetime
+import io
 import json
 import pathlib
 import typing as T
@@ -10,17 +12,19 @@ import mapillary_tools.geo as geo
 
 import mapillary_tools.geotag.gpmf_parser as gpmf_parser
 import mapillary_tools.geotag.gps_filter as gps_filter
+import mapillary_tools.telemetry as telemetry
 import mapillary_tools.utils as utils
+from mapillary_tools.mp4 import mp4_sample_parser
 
 
 def _convert_points_to_gpx_track_segment(
-    points: T.Sequence[geo.PointWithFix],
+    points: T.Sequence[telemetry.GPSPoint],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     gps_fix_map = {
-        geo.GPSFix.NO_FIX: "none",
-        geo.GPSFix.FIX_2D: "2d",
-        geo.GPSFix.FIX_3D: "3d",
+        telemetry.GPSFix.NO_FIX: "none",
+        telemetry.GPSFix.FIX_2D: "2d",
+        telemetry.GPSFix.FIX_3D: "3d",
     }
     for idx, point in enumerate(points):
         if idx + 1 < len(points):
@@ -40,19 +44,23 @@ def _convert_points_to_gpx_track_segment(
             {
                 "distance_between": distance,
                 "speed_between": speed,
-                "ground_speed": point.gps_ground_speed,
+                "ground_speed": point.ground_speed,
             }
         )
+        if point.epoch_time is not None:
+            epoch_time = point.epoch_time
+        else:
+            epoch_time = point.time
         gpxp = gpxpy.gpx.GPXTrackPoint(
             point.lat,
             point.lon,
             elevation=point.alt,
-            time=datetime.datetime.utcfromtimestamp(point.time),
-            position_dilution=point.gps_precision,
+            time=datetime.datetime.utcfromtimestamp(epoch_time),
+            position_dilution=point.precision,
             comment=comment,
         )
-        if point.gps_fix is not None:
-            gpxp.type_of_gpx_fix = gps_fix_map.get(point.gps_fix)
+        if point.fix is not None:
+            gpxp.type_of_gpx_fix = gps_fix_map.get(point.fix)
         gpx_segment.points.append(gpxp)
 
     return gpx_segment
@@ -83,10 +91,10 @@ def _convert_geojson(path: pathlib.Path):
         geomtry = {"type": "Point", "coordinates": [p.lon, p.lat]}
         properties = {
             "alt": p.alt,
-            "fix": p.gps_fix.value if p.gps_fix is not None else None,
+            "fix": p.fix.value if p.fix is not None else None,
             "index": idx,
             "name": path.name,
-            "precision": p.gps_precision,
+            "precision": p.precision,
             "time": p.time,
         }
         features.append(
@@ -99,50 +107,83 @@ def _convert_geojson(path: pathlib.Path):
     return features
 
 
+def _parse_samples(path: pathlib.Path) -> T.Generator[T.Dict, None, None]:
+    with path.open("rb") as fp:
+        parser = mp4_sample_parser.MovieBoxParser.parse_stream(fp)
+        for t in parser.extract_tracks():
+            for sample in t.extract_samples():
+                if gpmf_parser._is_gpmd_description(sample.description):
+                    fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+                    data = fp.read(sample.raw_sample.size)
+                    yield T.cast(T.Dict, gpmf_parser.GPMFSampleData.parse(data))
+
+
 def _parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("path", nargs="+", help="Path to video file or directory")
     parser.add_argument("--geojson", help="Print as GeoJSON", action="store_true")
+    parser.add_argument("--imu", help="Print IMU in JSON")
     parser.add_argument(
         "--dump", help="Print as Construct structures", action="store_true"
     )
+    parser.add_argument("path", nargs="+", help="Path to video file or directory")
     return parser.parse_args()
 
 
 def main():
     parsed_args = _parse_args()
 
-    features = []
-    samples = []
-    gpx = gpxpy.gpx.GPX()
+    video_paths = utils.find_videos([pathlib.Path(p) for p in parsed_args.path])
 
-    def _process(path: pathlib.Path):
-        if parsed_args.dump:
+    if parsed_args.imu:
+        imu_option = parsed_args.imu.split(",")
+        for path in video_paths:
             with path.open("rb") as fp:
-                samples.extend(gpmf_parser.iterate_gpmd_sample_data(fp))
-        elif parsed_args.geojson:
+                telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+            if telemetry_data:
+                if "accl" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(accl) for accl in telemetry_data.accl]
+                        )
+                    )
+                if "gyro" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(gyro) for gyro in telemetry_data.gyro]
+                        )
+                    )
+                if "magn" in imu_option:
+                    print(
+                        json.dumps(
+                            [dataclasses.asdict(magn) for magn in telemetry_data.magn]
+                        )
+                    )
+
+    elif parsed_args.geojson:
+        features = []
+        for path in video_paths:
             features.extend(_convert_geojson(path))
-        else:
-            _convert_gpx(gpx, path)
-
-    for path in utils.find_videos([pathlib.Path(p) for p in parsed_args.path]):
-        _process(path)
-
-    if parsed_args.dump:
-        for sample in samples:
-            print(sample)
-    else:
-        if features:
-            print(
-                json.dumps(
-                    {
-                        "type": "FeatureCollection",
-                        "features": features,
-                    }
-                )
+        print(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": features,
+                }
             )
-        else:
-            print(gpx.to_xml())
+        )
+
+    elif parsed_args.dump:
+        parsed_samples = []
+        for path in video_paths:
+            parsed_samples.extend(_parse_samples(path))
+        for sample in parsed_samples:
+            print(sample)
+
+    else:
+        gpx = gpxpy.gpx.GPX()
+        for path in video_paths:
+            _convert_gpx(gpx, path)
+        print(gpx.to_xml())
 
 
 if __name__ == "__main__":

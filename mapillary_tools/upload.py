@@ -19,16 +19,16 @@ from . import (
     exceptions,
     history,
     ipc,
+    telemetry,
     types,
     upload_api_v4,
     uploader,
     utils,
     VERSION,
 )
-from .geotag import (
-    camm_builder,
-    simple_mp4_builder,
-)
+from .geotag import gpmf_parser
+from .camm import camm_builder
+from .mp4 import simple_mp4_builder
 from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
@@ -38,6 +38,7 @@ MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
 MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
     "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
 )
+MAPILLARY__EXPERIMENTAL_ENABLE_IMU = os.getenv("MAPILLARY__EXPERIMENTAL_ENABLE_IMU")
 CAMM_CONVERTABLES = {FileType.CAMM, FileType.BLACKVUE, FileType.GOPRO}
 
 
@@ -430,7 +431,7 @@ def _api_logging_finished(summary: T.Dict):
     action: api_v4.ActionType = "upload_finished_upload"
     LOG.debug("API Logging for action %s: %s", action, summary)
     try:
-        api_v4.logging(
+        api_v4.log_event(
             action,
             summary,
         )
@@ -452,7 +453,7 @@ def _api_logging_failed(payload: T.Dict, exc: Exception):
     action: api_v4.ActionType = "upload_failed_upload"
     LOG.debug("API Logging for action %s: %s", action, payload)
     try:
-        api_v4.logging(
+        api_v4.log_event(
             action,
             payload_with_reason,
         )
@@ -622,7 +623,23 @@ def upload(
         for idx, video_metadata in enumerate(specified_video_metadatas):
             video_metadata.update_md5sum()
             assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
-            generator = camm_builder.camm_sample_generator2(video_metadata)
+
+            # extract telemetry measurements from GoPro videos
+            telemetry_measurements: T.List[telemetry.TelemetryMeasurement] = []
+            if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
+                if video_metadata.filetype is FileType.GOPRO:
+                    with video_metadata.filename.open("rb") as fp:
+                        telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+                    if telemetry_data:
+                        telemetry_measurements.extend(telemetry_data.accl)
+                        telemetry_measurements.extend(telemetry_data.gyro)
+                        telemetry_measurements.extend(telemetry_data.magn)
+                    telemetry_measurements.sort(key=lambda m: m.time)
+
+            generator = camm_builder.camm_sample_generator2(
+                video_metadata, telemetry_measurements=telemetry_measurements
+            )
+
             with video_metadata.filename.open("rb") as src_fp:
                 camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
                 event_payload: uploader.Progress = {

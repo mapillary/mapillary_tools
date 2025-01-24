@@ -1,37 +1,79 @@
 import io
 import typing as T
 
-from .. import geo, types
+from .. import geo, telemetry, types
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
-)
-
-from . import (
-    camm_parser,
     simple_mp4_builder as builder,
 )
-from .simple_mp4_builder import BoxDict
+
+from . import camm_parser
 
 
-def build_camm_sample(point: geo.Point) -> bytes:
-    return camm_parser.CAMMSampleData.build(
-        {
-            "type": camm_parser.CAMMType.MIN_GPS.value,
-            "data": [
-                point.lat,
-                point.lon,
-                -1.0 if point.alt is None else point.alt,
-            ],
-        }
-    )
+TelemetryMeasurement = T.Union[
+    geo.Point,
+    telemetry.TelemetryMeasurement,
+]
 
 
-def _create_edit_list(
+def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
+    if isinstance(measurement, geo.Point):
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.MIN_GPS.value,
+                "data": [
+                    measurement.lat,
+                    measurement.lon,
+                    -1.0 if measurement.alt is None else measurement.alt,
+                ],
+            }
+        )
+    elif isinstance(measurement, telemetry.AccelerationData):
+        # Accelerometer reading in meters/second^2 along XYZ axes of the camera.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.ACCELERATION.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    elif isinstance(measurement, telemetry.GyroscopeData):
+        # Gyroscope signal in radians/seconds around XYZ axes of the camera. Rotation is positive in the counterclockwise direction.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.GYRO.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    elif isinstance(measurement, telemetry.MagnetometerData):
+        # Ambient magnetic field.
+        return camm_parser.CAMMSampleData.build(
+            {
+                "type": camm_parser.CAMMType.MAGNETIC_FIELD.value,
+                "data": [
+                    measurement.x,
+                    measurement.y,
+                    measurement.z,
+                ],
+            }
+        )
+    else:
+        raise ValueError(f"unexpected measurement type {type(measurement)}")
+
+
+def _create_edit_list_from_points(
     point_segments: T.Sequence[T.Sequence[geo.Point]],
     movie_timescale: int,
     media_timescale: int,
-) -> BoxDict:
+) -> builder.BoxDict:
     entries: T.List[T.Dict] = []
 
     for idx, points in enumerate(point_segments):
@@ -46,12 +88,12 @@ def _create_edit_list(
             ]
             break
 
-        assert (
-            0 <= points[0].time
-        ), f"expect non-negative point time but got {points[0]}"
-        assert (
-            points[0].time <= points[-1].time
-        ), f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+        assert 0 <= points[0].time, (
+            f"expect non-negative point time but got {points[0]}"
+        )
+        assert points[0].time <= points[-1].time, (
+            f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+        )
 
         if idx == 0:
             if 0 < points[0].time:
@@ -85,19 +127,31 @@ def _create_edit_list(
     }
 
 
-def convert_points_to_raw_samples(
-    points: T.Sequence[geo.Point], timescale: int
-) -> T.Generator[sample_parser.RawSample, None, None]:
-    for idx, point in enumerate(points):
-        camm_sample_data = build_camm_sample(point)
+def _multiplex(
+    points: T.Sequence[geo.Point],
+    measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
+) -> T.List[TelemetryMeasurement]:
+    mutiplexed: T.List[TelemetryMeasurement] = [*points, *(measurements or [])]
+    mutiplexed.sort(key=lambda m: m.time)
 
-        if idx + 1 < len(points):
-            timedelta = int((points[idx + 1].time - point.time) * timescale)
+    return mutiplexed
+
+
+def convert_telemetry_to_raw_samples(
+    measurements: T.Sequence[TelemetryMeasurement],
+    timescale: int,
+) -> T.Generator[sample_parser.RawSample, None, None]:
+    for idx, measurement in enumerate(measurements):
+        camm_sample_data = _build_camm_sample(measurement)
+
+        if idx + 1 < len(measurements):
+            timedelta = int((measurements[idx + 1].time - measurement.time) * timescale)
         else:
             timedelta = 0
-        assert (
-            0 <= timedelta <= builder.UINT32_MAX
-        ), f"expected timedelta {timedelta} between {points[idx]} and {points[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+
+        assert 0 <= timedelta <= builder.UINT32_MAX, (
+            f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+        )
 
         yield sample_parser.RawSample(
             # will update later
@@ -116,7 +170,9 @@ _STBLChildrenBuilderConstruct = cparser.Box32ConstructBuilder(
 )
 
 
-def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDict:
+def _create_camm_stbl(
+    raw_samples: T.Iterable[sample_parser.RawSample],
+) -> builder.BoxDict:
     descriptions = [
         {
             "format": b"camm",
@@ -137,10 +193,10 @@ def _create_camm_stbl(raw_samples: T.Iterable[sample_parser.RawSample]) -> BoxDi
 def create_camm_trak(
     raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
-) -> BoxDict:
+) -> builder.BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
-    hdlr: BoxDict = {
+    hdlr: builder.BoxDict = {
         "type": b"hdlr",
         "data": {
             "handler_type": b"camm",
@@ -152,7 +208,7 @@ def create_camm_trak(
     assert media_timescale <= builder.UINT64_MAX
 
     # Media Header Box
-    mdhd: BoxDict = {
+    mdhd: builder.BoxDict = {
         "type": b"mdhd",
         "data": {
             # use 64-bit version
@@ -168,7 +224,7 @@ def create_camm_trak(
         },
     }
 
-    dinf: BoxDict = {
+    dinf: builder.BoxDict = {
         "type": b"dinf",
         "data": [
             # self reference dref box
@@ -189,7 +245,7 @@ def create_camm_trak(
         ],
     }
 
-    minf: BoxDict = {
+    minf: builder.BoxDict = {
         "type": b"minf",
         "data": [
             dinf,
@@ -197,7 +253,7 @@ def create_camm_trak(
         ],
     }
 
-    tkhd: BoxDict = {
+    tkhd: builder.BoxDict = {
         "type": b"tkhd",
         "data": {
             # use 32-bit version of the box
@@ -215,7 +271,7 @@ def create_camm_trak(
         },
     }
 
-    mdia: BoxDict = {
+    mdia: builder.BoxDict = {
         "type": b"mdia",
         "data": [
             mdhd,
@@ -233,23 +289,27 @@ def create_camm_trak(
     }
 
 
-def camm_sample_generator2(video_metadata: types.VideoMetadata):
+def camm_sample_generator2(
+    video_metadata: types.VideoMetadata,
+    telemetry_measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
+):
     def _f(
         fp: T.BinaryIO,
-        moov_children: T.List[BoxDict],
+        moov_children: T.List[builder.BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
+        measurements = _multiplex(video_metadata.points, telemetry_measurements)
         camm_samples = list(
-            convert_points_to_raw_samples(video_metadata.points, media_timescale)
+            convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list(
+        elst = _create_edit_list_from_points(
             [video_metadata.points], movie_timescale, media_timescale
         )
         if T.cast(T.Dict, elst["data"])["entries"]:
-            T.cast(T.List[BoxDict], camm_trak["data"]).append(
+            T.cast(T.List[builder.BoxDict], camm_trak["data"]).append(
                 {
                     "type": b"edts",
                     "data": [elst],
@@ -257,7 +317,7 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             )
         moov_children.append(camm_trak)
 
-        udta_data: T.List[BoxDict] = []
+        udta_data: T.List[builder.BoxDict] = []
         if video_metadata.make:
             udta_data.append(
                 {
@@ -281,6 +341,8 @@ def camm_sample_generator2(video_metadata: types.VideoMetadata):
             )
 
         # if yield, the moov_children will not be modified
-        return (io.BytesIO(build_camm_sample(point)) for point in video_metadata.points)
+        return (
+            io.BytesIO(_build_camm_sample(measurement)) for measurement in measurements
+        )
 
     return _f

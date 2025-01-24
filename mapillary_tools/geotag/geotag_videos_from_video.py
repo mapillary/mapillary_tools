@@ -7,14 +7,10 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, geo, types
-from . import (
-    blackvue_parser,
-    camm_parser,
-    gpmf_gps_filter,
-    gpmf_parser,
-    utils as video_utils,
-)
+from ..camm import camm_parser
 from ..mp4 import simple_mp4_parser as sparser
+from ..telemetry import GPSPoint
+from . import blackvue_parser, gpmf_gps_filter, gpmf_parser, utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -160,11 +156,11 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             video_metadata.points = geo.extend_deduplicate_points(video_metadata.points)
             assert video_metadata.points, "must have at least one point"
 
-            if all(isinstance(p, geo.PointWithFix) for p in video_metadata.points):
+            if all(isinstance(p, GPSPoint) for p in video_metadata.points):
                 video_metadata.points = T.cast(
                     T.List[geo.Point],
                     gpmf_gps_filter.remove_noisy_points(
-                        T.cast(T.List[geo.PointWithFix], video_metadata.points)
+                        T.cast(T.List[GPSPoint], video_metadata.points)
                     ),
                 )
                 if not video_metadata.points:

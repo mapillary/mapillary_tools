@@ -2,14 +2,14 @@ import dataclasses
 import io
 import typing as T
 
-from . import io_utils
-from ..mp4 import (
+from . import (
     construct_mp4_parser as cparser,
+    io_utils,
     mp4_sample_parser as sample_parser,
     simple_mp4_parser as sparser,
 )
-from ..mp4.construct_mp4_parser import BoxDict
-from ..mp4.mp4_sample_parser import RawSample
+from .construct_mp4_parser import BoxDict
+from .mp4_sample_parser import RawSample
 
 """
 Variable naming conventions:
@@ -404,8 +404,8 @@ def _rewrite_and_build_moov_typed_data(
     for box in _filter_trak_boxes(moov_children):
         sample_offset = _update_sbtl_sample_offsets(box, sample_offset)
     moov_typed_data = _build_moov_typed_data(moov_children)
-    assert (
-        len(moov_typed_data) == moov_typed_data_size
-    ), f"{len(moov_typed_data)} != {moov_typed_data_size}"
+    assert len(moov_typed_data) == moov_typed_data_size, (
+        f"{len(moov_typed_data)} != {moov_typed_data_size}"
+    )
 
     return moov_typed_data

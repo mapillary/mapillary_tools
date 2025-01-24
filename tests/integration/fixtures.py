@@ -235,33 +235,39 @@ def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]
             e = expected_desc["MAPCompassHeading"]
             assert "MAPCompassHeading" in actual_desc, actual_desc
             a = actual_desc["MAPCompassHeading"]
-            assert (
-                abs(e["TrueHeading"] - a["TrueHeading"]) < 0.001
-            ), f'got {a["TrueHeading"]} but expect {e["TrueHeading"]} in {filename}'
-            assert (
-                abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.001
-            ), f'got {a["MagneticHeading"]} but expect {e["MagneticHeading"]} in {filename}'
+            assert abs(e["TrueHeading"] - a["TrueHeading"]) < 0.001, (
+                f"got {a['TrueHeading']} but expect {e['TrueHeading']} in {filename}"
+            )
+            assert abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.001, (
+                f"got {a['MagneticHeading']} but expect {e['MagneticHeading']} in {filename}"
+            )
 
         if "MAPCaptureTime" in expected_desc:
-            assert (
-                expected_desc["MAPCaptureTime"] == actual_desc["MAPCaptureTime"]
-            ), f'expect {expected_desc["MAPCaptureTime"]} but got {actual_desc["MAPCaptureTime"]} in {filename}'
+            assert expected_desc["MAPCaptureTime"] == actual_desc["MAPCaptureTime"], (
+                f"expect {expected_desc['MAPCaptureTime']} but got {actual_desc['MAPCaptureTime']} in {filename}"
+            )
 
         if "MAPLongitude" in expected_desc:
             assert (
                 abs(expected_desc["MAPLongitude"] - actual_desc["MAPLongitude"])
                 < 0.00001
-            ), f'expect {expected_desc["MAPLongitude"]} but got {actual_desc["MAPLongitude"]} in {filename}'
+            ), (
+                f"expect {expected_desc['MAPLongitude']} but got {actual_desc['MAPLongitude']} in {filename}"
+            )
 
         if "MAPLatitude" in expected_desc:
             assert (
                 abs(expected_desc["MAPLatitude"] - actual_desc["MAPLatitude"]) < 0.00001
-            ), f'expect {expected_desc["MAPLatitude"]} but got {actual_desc["MAPLatitude"]} in {filename}'
+            ), (
+                f"expect {expected_desc['MAPLatitude']} but got {actual_desc['MAPLatitude']} in {filename}"
+            )
 
         if "MAPAltitude" in expected_desc:
             assert (
                 abs(expected_desc["MAPAltitude"] - actual_desc["MAPAltitude"]) < 0.001
-            ), f'expect {expected_desc["MAPAltitude"]} but got {actual_desc["MAPAltitude"]} in {filename}'
+            ), (
+                f"expect {expected_desc['MAPAltitude']} but got {actual_desc['MAPAltitude']} in {filename}"
+            )
 
         if "MAPDeviceMake" in expected_desc:
             assert expected_desc["MAPDeviceMake"] == actual_desc["MAPDeviceMake"]

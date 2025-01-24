@@ -8,12 +8,11 @@ import typing as T
 
 import requests
 
+from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT, request_get, request_post
+
 LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
-)
-MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
-    "MAPILLARY_GRAPH_API_ENDPOINT", "https://graph.mapillary.com"
 )
 DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
@@ -93,7 +92,7 @@ class UploadService:
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         LOG.debug("GET %s", url)
-        resp = requests.get(
+        resp = request_get(
             url,
             headers=headers,
             timeout=REQUESTS_TIMEOUT,
@@ -134,7 +133,7 @@ class UploadService:
             }
             url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
             LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
-            resp = requests.post(
+            resp = request_post(
                 url,
                 headers=headers,
                 data=chunk,
@@ -154,9 +153,9 @@ class UploadService:
             if not chunk:
                 break
 
-        assert (
-            offset == self.entity_size
-        ), f"Offset ends at {offset} but the entity size is {self.entity_size}"
+        assert offset == self.entity_size, (
+            f"Offset ends at {offset} but the entity size is {self.entity_size}"
+        )
 
         payload = resp.json()
         try:
@@ -180,7 +179,7 @@ class UploadService:
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
 
         LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
-        resp = requests.post(
+        resp = request_post(
             url,
             headers=headers,
             json=data,

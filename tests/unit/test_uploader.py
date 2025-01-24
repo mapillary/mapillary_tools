@@ -31,9 +31,9 @@ def _validate_zip_dir(zip_dir: py.path.local):
     for zip_path in zip_dir.listdir():
         with zipfile.ZipFile(zip_path) as ziph:
             upload_md5sum = json.loads(ziph.comment).get("upload_md5sum")
-        assert (
-            str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip"
-        ), zip_path
+        assert str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip", (
+            zip_path
+        )
         descs.extend(validate_and_extract_zip(str(zip_path)))
     return descs
 
