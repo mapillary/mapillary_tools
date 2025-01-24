@@ -1,14 +1,14 @@
 import typing as T
 from pathlib import Path
 
-from .extractors.exiftool_runtime_parser import ExiftoolRuntimeParser
-
 from .cli_options import CliOptions
 
 from .extractors.base_parser import BaseParser
 
 from .extractors.blackvue_parser import BlackVueParser
 from .extractors.camm_parser import CammParser
+
+from .extractors.exiftool_runtime_parser import ExiftoolRuntimeParser
 from .extractors.exiftool_xml_parser import ExiftoolXmlParser
 from .extractors.generic_video_parser import GenericVideoParser
 from .extractors.gopro_parser import GoProParser
