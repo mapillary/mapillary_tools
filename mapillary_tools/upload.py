@@ -438,7 +438,7 @@ def _api_logging_finished(summary: T.Dict):
     action: api_v4.ActionType = "upload_finished_upload"
     LOG.debug("API Logging for action %s: %s", action, summary)
     try:
-        api_v4.logging(
+        api_v4.log_event(
             action,
             summary,
         )
@@ -460,7 +460,7 @@ def _api_logging_failed(payload: T.Dict, exc: Exception):
     action: api_v4.ActionType = "upload_failed_upload"
     LOG.debug("API Logging for action %s: %s", action, payload)
     try:
-        api_v4.logging(
+        api_v4.log_event(
             action,
             payload_with_reason,
         )
