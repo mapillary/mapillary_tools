@@ -1,7 +1,7 @@
-import os
-import typing as T
 import logging
+import os
 import ssl
+import typing as T
 
 import requests
 from requests.adapters import HTTPAdapter
