@@ -554,6 +554,8 @@ def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
     metadatas: T.List[types.MetadataOrError],
     skip_process_errors: bool = False,
+    device_make: T.Optional[str] = None,
+    device_model: T.Optional[str] = None,
     overwrite_all_EXIF_tags: bool = False,
     overwrite_EXIF_time_tag: bool = False,
     overwrite_EXIF_gps_tag: bool = False,
@@ -564,6 +566,18 @@ def process_finalize(
     desc_path: T.Optional[str] = None,
     num_processes: T.Optional[int] = None,
 ) -> T.List[types.MetadataOrError]:
+    for metadata in metadatas:
+        if isinstance(metadata, types.VideoMetadata):
+            if device_make is not None:
+                metadata.make = device_make
+            if device_model is not None:
+                metadata.model = device_model
+        elif isinstance(metadata, types.ImageMetadata):
+            if device_make is not None:
+                metadata.MAPDeviceMake = device_make
+            if device_model is not None:
+                metadata.MAPDeviceModel = device_model
+
     # modified in place
     _apply_offsets(
         [

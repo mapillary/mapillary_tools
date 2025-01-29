@@ -10,7 +10,6 @@ from ..process_geotag_properties import (
     process_finalize,
     process_geotag_properties,
 )
-from ..process_import_meta_properties import process_import_meta_properties
 from ..process_sequence_properties import process_sequence_properties
 
 
@@ -104,26 +103,6 @@ class Command:
         group_metadata.add_argument(
             "--device_model",
             help="Specify device model. Note this input has precedence over the input read from the import source file.",
-            default=None,
-            required=False,
-        )
-        group_metadata.add_argument(
-            "--orientation",
-            help="Specify the image orientation in degrees. Note this might result in image rotation. Note this input has precedence over the input read from the import source file.",
-            choices=[0, 90, 180, 270],
-            type=int,
-            default=None,
-            required=False,
-        )
-        group_metadata.add_argument(
-            "--GPS_accuracy",
-            help="GPS accuracy in meters. Note this input has precedence over the input read from the import source file.",
-            default=None,
-            required=False,
-        )
-        group_metadata.add_argument(
-            "--camera_uuid",
-            help="Custom string used to differentiate different captures taken with the same camera make and model.",
             default=None,
             required=False,
         )
@@ -256,17 +235,6 @@ class Command:
                     k: v
                     for k, v in vars_args.items()
                     if k in inspect.getfullargspec(process_geotag_properties).args
-                }
-            ),
-        )
-
-        metadatas = process_import_meta_properties(
-            metadatas=metadatas,
-            **(
-                {
-                    k: v
-                    for k, v in vars_args.items()
-                    if k in inspect.getfullargspec(process_import_meta_properties).args
                 }
             ),
         )
