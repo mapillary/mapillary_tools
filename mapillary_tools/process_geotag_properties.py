@@ -206,16 +206,8 @@ def process_geotag_properties(
 
     metadatas: T.List[types.MetadataOrError] = []
 
-    # if more than one filetypes speficied, check filename suffixes,
-    # i.e. files not ended with .jpg or .mp4 will be ignored
-    check_file_suffix = len(filetypes) > 1
-
     if FileType.IMAGE in filetypes:
-        image_paths = utils.find_images(
-            import_paths,
-            skip_subfolders=skip_subfolders,
-            check_file_suffix=check_file_suffix,
-        )
+        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
         if image_paths:
             image_metadatas = _process_images(
                 image_paths,
@@ -240,9 +232,7 @@ def process_geotag_properties(
             or FileType.VIDEO in filetypes
         ):
             video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
+                import_paths, skip_subfolders=skip_subfolders
             )
             if video_paths:
                 video_metadata = _process_videos(
@@ -289,7 +279,6 @@ def _process_videos_beta(vars_args: T.Dict):
         "num_processes": vars_args["num_processes"],
         "device_make": vars_args["device_make"],
         "device_model": vars_args["device_model"],
-        "check_file_suffix": len(vars_args["filetypes"]) > 1,
     }
     extractor = VideoDataExtractor(options)
     return extractor.process()

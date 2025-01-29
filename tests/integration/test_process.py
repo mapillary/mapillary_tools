@@ -21,7 +21,7 @@ from .fixtures import (
 )
 
 
-PROCESS_FLAGS = "--add_import_date"
+PROCESS_FLAGS = ""
 
 _DEFAULT_EXPECTED_DESCS = {
     "DSC00001.JPG": {
@@ -311,8 +311,6 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
 @pytest.mark.usefixtures("setup_config")
 def test_process_boolean_options(setup_data: py.path.local):
     boolean_options = [
-        "--add_file_name",
-        "--add_import_date",
         "--interpolate_directions",
         "--overwrite_EXIF_direction_tag",
         "--overwrite_EXIF_gps_tag",

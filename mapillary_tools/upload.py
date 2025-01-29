@@ -1,4 +1,3 @@
-import enum
 import json
 import logging
 import os
@@ -17,7 +16,6 @@ from . import (
     config,
     constants,
     exceptions,
-    geo,
     history,
     ipc,
     telemetry,
@@ -27,8 +25,8 @@ from . import (
     utils,
     VERSION,
 )
-from .camm import camm_builder, camm_parser
-from .geotag import blackvue_parser, gpmf_parser, utils as video_utils
+from .camm import camm_builder
+from .geotag import gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
 
@@ -51,12 +49,6 @@ class UploadError(Exception):
 
 class UploadHTTPError(Exception):
     pass
-
-
-class DirectUploadFileType(enum.Enum):
-    RAW_BLACKVUE = "raw_blackvue"
-    RAW_CAMM = "raw_camm"
-    ZIP = "zip"
 
 
 def wrap_http_exception(ex: requests.HTTPError):
@@ -519,7 +511,6 @@ def _find_metadata_with_filename_existed_in(
 
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
-    filetypes: T.Set[T.Union[FileType, DirectUploadFileType]],
     desc_path: T.Optional[str] = None,
     _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]] = None,
     user_name: T.Optional[str] = None,
@@ -527,19 +518,6 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    if (
-        DirectUploadFileType.RAW_BLACKVUE in filetypes
-        and FileType.BLACKVUE in filetypes
-    ):
-        raise exceptions.MapillaryBadParameterError(
-            f"filetypes should contain either {DirectUploadFileType.RAW_BLACKVUE.value} or {FileType.BLACKVUE.value}, not both",
-        )
-
-    if DirectUploadFileType.RAW_CAMM in filetypes and FileType.CAMM in filetypes:
-        raise exceptions.MapillaryBadParameterError(
-            f"File types should contain either {DirectUploadFileType.RAW_CAMM.value} or {FileType.CAMM.value}, not both",
-        )
-
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
@@ -558,14 +536,7 @@ def upload(
                 f"Import file or directory not found: {path}"
             )
 
-    if {
-        DirectUploadFileType.RAW_CAMM,
-        DirectUploadFileType.RAW_BLACKVUE,
-        DirectUploadFileType.ZIP,
-    }.issuperset(filetypes):
-        metadatas = None
-    else:
-        metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
+    metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
     user_items = fetch_user_items(user_name, organization_key)
 
@@ -608,116 +579,79 @@ def upload(
         chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
     )
 
-    # if more than one filetypes speficied, check filename suffixes,
-    # i.e. files not ended with .jpg or .mp4 will be ignored
-    check_file_suffix = len(filetypes) > 1
-
     try:
-        if FileType.IMAGE in filetypes:
-            image_paths = utils.find_images(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
+        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
+        # find descs that match the image paths from the import paths
+        image_metadatas = [
+            metadata
+            for metadata in (metadatas or [])
+            if isinstance(metadata, types.ImageMetadata)
+        ]
+        specified_image_metadatas = _find_metadata_with_filename_existed_in(
+            image_metadatas, image_paths
+        )
+        if specified_image_metadatas:
+            try:
+                clusters = mly_uploader.upload_images(
+                    specified_image_metadatas,
+                    event_payload={"file_type": FileType.IMAGE.value},
+                )
+            except Exception as ex:
+                raise UploadError(ex) from ex
+
+            if clusters:
+                LOG.debug("Uploaded to cluster: %s", clusters)
+
+        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+        video_metadatas = [
+            metadata
+            for metadata in (metadatas or [])
+            if isinstance(metadata, types.VideoMetadata)
+        ]
+        specified_video_metadatas = _find_metadata_with_filename_existed_in(
+            video_metadatas, video_paths
+        )
+        for idx, video_metadata in enumerate(specified_video_metadatas):
+            video_metadata.update_md5sum()
+            assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
+
+            # extract telemetry measurements from GoPro videos
+            telemetry_measurements: T.List[telemetry.TelemetryMeasurement] = []
+            if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
+                if video_metadata.filetype is FileType.GOPRO:
+                    with video_metadata.filename.open("rb") as fp:
+                        telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+                    if telemetry_data:
+                        telemetry_measurements.extend(telemetry_data.accl)
+                        telemetry_measurements.extend(telemetry_data.gyro)
+                        telemetry_measurements.extend(telemetry_data.magn)
+                    telemetry_measurements.sort(key=lambda m: m.time)
+
+            generator = camm_builder.camm_sample_generator2(
+                video_metadata, telemetry_measurements=telemetry_measurements
             )
-            # find descs that match the image paths from the import paths
-            image_metadatas = [
-                metadata
-                for metadata in (metadatas or [])
-                if isinstance(metadata, types.ImageMetadata)
-            ]
-            specified_image_metadatas = _find_metadata_with_filename_existed_in(
-                image_metadatas, image_paths
-            )
-            if specified_image_metadatas:
+
+            with video_metadata.filename.open("rb") as src_fp:
+                camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
+                event_payload: uploader.Progress = {
+                    "total_sequence_count": len(specified_video_metadatas),
+                    "sequence_idx": idx,
+                    "file_type": video_metadata.filetype.value,
+                    "import_path": str(video_metadata.filename),
+                }
                 try:
-                    clusters = mly_uploader.upload_images(
-                        specified_image_metadatas,
-                        event_payload={"file_type": FileType.IMAGE.value},
+                    cluster_id = mly_uploader.upload_stream(
+                        T.cast(T.BinaryIO, camm_fp),
+                        upload_api_v4.ClusterFileType.CAMM,
+                        video_metadata.md5sum,
+                        event_payload=event_payload,
                     )
                 except Exception as ex:
                     raise UploadError(ex) from ex
+                LOG.debug("Uploaded to cluster: %s", cluster_id)
 
-                if clusters:
-                    LOG.debug("Uploaded to cluster: %s", clusters)
-
-        supported = CAMM_CONVERTABLES.intersection(filetypes)
-        if supported:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            video_metadatas = [
-                metadata
-                for metadata in (metadatas or [])
-                if isinstance(metadata, types.VideoMetadata)
-            ]
-            specified_video_metadatas = _find_metadata_with_filename_existed_in(
-                video_metadatas, video_paths
-            )
-            for idx, video_metadata in enumerate(specified_video_metadatas):
-                video_metadata.update_md5sum()
-                assert isinstance(video_metadata.md5sum, str), (
-                    "md5sum should be updated"
-                )
-
-                # extract telemetry measurements from GoPro videos
-                telemetry_measurements: T.List[telemetry.TelemetryMeasurement] = []
-                if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
-                    if video_metadata.filetype is FileType.GOPRO:
-                        with video_metadata.filename.open("rb") as fp:
-                            telemetry_data = gpmf_parser.extract_telemetry_data(fp)
-                        if telemetry_data:
-                            telemetry_measurements.extend(telemetry_data.accl)
-                            telemetry_measurements.extend(telemetry_data.gyro)
-                            telemetry_measurements.extend(telemetry_data.magn)
-                        telemetry_measurements.sort(key=lambda m: m.time)
-
-                generator = camm_builder.camm_sample_generator2(
-                    video_metadata, telemetry_measurements=telemetry_measurements
-                )
-                with video_metadata.filename.open("rb") as src_fp:
-                    camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-                    event_payload: uploader.Progress = {
-                        "total_sequence_count": len(specified_video_metadatas),
-                        "sequence_idx": idx,
-                        "file_type": video_metadata.filetype.value,
-                        "import_path": str(video_metadata.filename),
-                    }
-                    try:
-                        cluster_id = mly_uploader.upload_stream(
-                            T.cast(T.BinaryIO, camm_fp),
-                            upload_api_v4.ClusterFileType.CAMM,
-                            video_metadata.md5sum,
-                            event_payload=event_payload,
-                        )
-                    except Exception as ex:
-                        raise UploadError(ex) from ex
-                    LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-        if DirectUploadFileType.RAW_BLACKVUE in filetypes:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_raw_blackvues_DEPRECATED(mly_uploader, video_paths)
-
-        if DirectUploadFileType.RAW_CAMM in filetypes:
-            video_paths = utils.find_videos(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_raw_camm_DEPRECATED(mly_uploader, video_paths)
-
-        if DirectUploadFileType.ZIP in filetypes:
-            zip_paths = utils.find_zipfiles(
-                import_paths,
-                skip_subfolders=skip_subfolders,
-                check_file_suffix=check_file_suffix,
-            )
-            _upload_zipfiles(mly_uploader, zip_paths)
+        zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+        _upload_zipfiles(mly_uploader, zip_paths)
 
     except UploadError as ex:
         inner_ex = ex.inner_ex
@@ -756,111 +690,6 @@ def upload(
         LOG.info("Nothing uploaded. Bye.")
 
 
-def _check_blackvue_DEPRECATED(video_path: Path) -> None:
-    # Skip in tests only because we don't have valid sample blackvue for tests
-    if os.getenv("MAPILLARY__DISABLE_BLACKVUE_CHECK") == "YES":
-        return
-
-    points = blackvue_parser.parse_gps_points(video_path)
-    if not points:
-        raise exceptions.MapillaryGPXEmptyError("No GPS found in the BlackVue video")
-
-    stationary = video_utils.is_video_stationary(
-        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-    )
-    if stationary:
-        raise exceptions.MapillaryStationaryVideoError("Stationary BlackVue video")
-
-
-def _upload_raw_blackvues_DEPRECATED(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-) -> None:
-    for idx, video_path in enumerate(video_paths):
-        event_payload: uploader.Progress = {
-            "total_sequence_count": len(video_paths),
-            "sequence_idx": idx,
-            "file_type": DirectUploadFileType.RAW_BLACKVUE.value,
-            "import_path": str(video_path),
-        }
-
-        try:
-            _check_blackvue_DEPRECATED(video_path)
-        except Exception as ex:
-            LOG.warning(
-                "Skipping %s %s due to: %s",
-                DirectUploadFileType.RAW_BLACKVUE.value.upper(),
-                video_path.name,
-                ex,
-            )
-            continue
-
-        with video_path.open("rb") as fp:
-            upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-            try:
-                cluster_id = mly_uploader.upload_stream(
-                    fp,
-                    upload_api_v4.ClusterFileType.BLACKVUE,
-                    upload_md5sum,
-                    event_payload=event_payload,
-                )
-            except Exception as ex:
-                raise UploadError(ex) from ex
-        LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-
-def _check_camm_DEPRECATED(video_path: Path) -> None:
-    # Skip in tests only because we don't have valid sample CAMM for tests
-    if os.getenv("MAPILLARY__DISABLE_CAMM_CHECK") == "YES":
-        return
-
-    points = camm_parser.parse_gpx(video_path)
-    if not points:
-        raise exceptions.MapillaryGPXEmptyError("No GPS found in the CAMM video")
-
-    stationary = video_utils.is_video_stationary(
-        geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
-    )
-    if stationary:
-        raise exceptions.MapillaryStationaryVideoError("Stationary CAMM video")
-
-
-def _upload_raw_camm_DEPRECATED(
-    mly_uploader: uploader.Uploader,
-    video_paths: T.Sequence[Path],
-) -> None:
-    for idx, video_path in enumerate(video_paths):
-        event_payload: uploader.Progress = {
-            "total_sequence_count": len(video_paths),
-            "sequence_idx": idx,
-            "file_type": DirectUploadFileType.RAW_CAMM.value,
-            "import_path": str(video_path),
-        }
-        try:
-            _check_camm_DEPRECATED(video_path)
-        except Exception as ex:
-            LOG.warning(
-                "Skipping %s %s due to: %s",
-                DirectUploadFileType.RAW_CAMM.value.upper(),
-                video_path.name,
-                ex,
-            )
-            continue
-        try:
-            with video_path.open("rb") as fp:
-                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-                cluster_id = mly_uploader.upload_stream(
-                    fp,
-                    upload_api_v4.ClusterFileType.CAMM,
-                    upload_md5sum,
-                    event_payload=event_payload,
-                )
-        except Exception as ex:
-            raise UploadError(ex) from ex
-
-        LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-
 def _upload_zipfiles(
     mly_uploader: uploader.Uploader,
     zip_paths: T.Sequence[Path],
@@ -869,7 +698,7 @@ def _upload_zipfiles(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
-            "file_type": DirectUploadFileType.ZIP.value,
+            "file_type": FileType.ZIP.value,
             "import_path": str(zip_path),
         }
         try:

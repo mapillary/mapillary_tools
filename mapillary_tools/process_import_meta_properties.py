@@ -31,22 +31,8 @@ def process_import_meta_properties(
     device_make=None,
     device_model=None,
     GPS_accuracy=None,
-    add_file_name=False,
-    add_import_date=False,
-    custom_meta_data=None,
     camera_uuid=None,
 ) -> T.List[types.MetadataOrError]:
-    if add_file_name:
-        LOG.warning("The option --add_file_name is not needed any more since v0.10.0")
-
-    if add_import_date:
-        LOG.warning("The option --add_import_date is not needed any more since v0.10.0")
-
-    if custom_meta_data:
-        LOG.warning(
-            "The option --custom_meta_data is not needed any more since v0.10.0"
-        )
-
     for metadata in metadatas:
         if isinstance(metadata, types.ErrorMetadata):
             continue

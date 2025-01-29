@@ -53,8 +53,6 @@ def setup_data(tmpdir: py.path.local):
 def setup_upload(tmpdir: py.path.local):
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
-    os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"] = "YES"
-    os.environ["MAPILLARY__DISABLE_CAMM_CHECK"] = "YES"
     os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
     history_path = tmpdir.join("history")
     os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
@@ -62,7 +60,6 @@ def setup_upload(tmpdir: py.path.local):
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
     del os.environ["MAPILLARY_UPLOAD_PATH"]
-    del os.environ["MAPILLARY__DISABLE_BLACKVUE_CHECK"]
     del os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"]
     del os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"]
 
