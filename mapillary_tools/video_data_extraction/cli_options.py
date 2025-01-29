@@ -20,4 +20,3 @@ class CliOptions(T.TypedDict, total=False):
     num_processes: int
     device_make: T.Optional[str]
     device_model: T.Optional[str]
-    check_file_suffix: bool

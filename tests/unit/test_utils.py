@@ -80,7 +80,7 @@ def test_filter_all(tmpdir: py.path.local):
     tmpdir.join("foo").mkdir(".git")
     # TODO: life too short to test for windows
     if not sys.platform.startswith("win"):
-        assert {"foo/world.TIFF", "foo/hello.jpg", "foo/.foo", "foo/hello.jpe"} == set(
+        assert {"foo/world.TIFF", "foo/hello.jpg", "foo/hello.jpe"} == set(
             str(p.relative_to(tmpdir))
             for p in utils.find_images(
                 [
@@ -91,7 +91,7 @@ def test_filter_all(tmpdir: py.path.local):
                 ]
             )
         )
-        assert {"foo/world.zip", "foo/.foo", "foo/world.ZIP"} == set(
+        assert {"foo/world.zip", "foo/world.ZIP"} == set(
             str(p.relative_to(tmpdir))
             for p in utils.find_zipfiles(
                 [
@@ -116,7 +116,7 @@ def test_filter_all(tmpdir: py.path.local):
         )
         # some platform filenames are case sensitive?
         assert (
-            {"foo/world.MP4", "foo/.foo", "foo/world.ts"} == actual
-            or {"foo/world.mp4", "foo/world.MP4", "foo/.foo", "foo/world.ts"} == actual
-            or {"foo/world.mp4", "foo/.foo", "foo/world.ts"} == actual
+            {"foo/world.MP4", "foo/world.ts"} == actual
+            or {"foo/world.mp4", "foo/world.MP4", "foo/world.ts"} == actual
+            or {"foo/world.mp4", "foo/world.ts"} == actual
         )

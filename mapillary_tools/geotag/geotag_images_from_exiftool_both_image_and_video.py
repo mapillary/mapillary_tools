@@ -48,7 +48,6 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         video_paths = utils.find_videos(
             [Path(pathstr) for pathstr in rdf_description_by_path.keys()],
             skip_subfolders=True,
-            check_file_suffix=True,
         )
 
         # will try to geotag these error metadatas from video later

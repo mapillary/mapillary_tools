@@ -581,11 +581,7 @@ def upload(
     )
 
     try:
-        image_paths = utils.find_images(
-            import_paths,
-            skip_subfolders=skip_subfolders,
-            check_file_suffix=True,
-        )
+        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
         # find descs that match the image paths from the import paths
         image_metadatas = [
             metadata
@@ -607,11 +603,7 @@ def upload(
             if clusters:
                 LOG.debug("Uploaded to cluster: %s", clusters)
 
-        video_paths = utils.find_videos(
-            import_paths,
-            skip_subfolders=skip_subfolders,
-            check_file_suffix=True,
-        )
+        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
         video_metadatas = [
             metadata
             for metadata in (metadatas or [])
@@ -659,11 +651,7 @@ def upload(
                     raise UploadError(ex) from ex
                 LOG.debug("Uploaded to cluster: %s", cluster_id)
 
-        zip_paths = utils.find_zipfiles(
-            import_paths,
-            skip_subfolders=skip_subfolders,
-            check_file_suffix=True,
-        )
+        zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
         _upload_zipfiles(mly_uploader, zip_paths)
 
     except UploadError as ex:
