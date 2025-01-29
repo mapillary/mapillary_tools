@@ -150,10 +150,7 @@ def _validate_output(upload_dir: py.path.local, expected):
 
 
 @pytest.mark.usefixtures("setup_config")
-def test_process_and_upload(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_process_and_upload(setup_data: py.path.local, setup_upload: py.path.local):
     input_paths = [
         setup_data.join("videos"),
         setup_data.join("gopro_data"),

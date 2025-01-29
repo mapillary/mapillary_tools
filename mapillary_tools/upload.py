@@ -584,7 +584,7 @@ def upload(
         image_paths = utils.find_images(
             import_paths,
             skip_subfolders=skip_subfolders,
-            check_file_suffix=False,
+            check_file_suffix=True,
         )
         # find descs that match the image paths from the import paths
         image_metadatas = [
@@ -610,7 +610,7 @@ def upload(
         video_paths = utils.find_videos(
             import_paths,
             skip_subfolders=skip_subfolders,
-            check_file_suffix=False,
+            check_file_suffix=True,
         )
         video_metadatas = [
             metadata
@@ -662,7 +662,7 @@ def upload(
         zip_paths = utils.find_zipfiles(
             import_paths,
             skip_subfolders=skip_subfolders,
-            check_file_suffix=False,
+            check_file_suffix=True,
         )
         _upload_zipfiles(mly_uploader, zip_paths)
 
