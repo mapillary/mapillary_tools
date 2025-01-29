@@ -187,5 +187,6 @@ def find_xml_files(import_paths: T.Sequence[Path]) -> T.List[Path]:
                 if file.suffix.lower() in [".xml"]
             )
         else:
-            xml_paths.append(path)
+            if path.suffix.lower() in [".xml"]:
+                xml_paths.append(path)
     return list(deduplicate_paths(xml_paths))
