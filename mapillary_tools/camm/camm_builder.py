@@ -88,12 +88,12 @@ def _create_edit_list_from_points(
             ]
             break
 
-        assert 0 <= points[0].time, (
-            f"expect non-negative point time but got {points[0]}"
-        )
-        assert points[0].time <= points[-1].time, (
-            f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
-        )
+        assert (
+            0 <= points[0].time
+        ), f"expect non-negative point time but got {points[0]}"
+        assert (
+            points[0].time <= points[-1].time
+        ), f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
 
         if idx == 0:
             if 0 < points[0].time:
@@ -149,9 +149,9 @@ def convert_telemetry_to_raw_samples(
         else:
             timedelta = 0
 
-        assert 0 <= timedelta <= builder.UINT32_MAX, (
-            f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
-        )
+        assert (
+            0 <= timedelta <= builder.UINT32_MAX
+        ), f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
 
         yield sample_parser.RawSample(
             # will update later
