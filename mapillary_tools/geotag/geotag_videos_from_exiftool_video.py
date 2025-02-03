@@ -6,6 +6,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from mapillary_tools import utils
 from .. import exceptions, exiftool_read, geo, types
 from ..exiftool_read_video import ExifToolReadVideo
 from ..telemetry import GPSPoint
@@ -66,6 +67,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             video_metadata = types.VideoMetadata(
                 video_path,
                 md5sum=None,
+                size=utils.get_file_size(video_path),
                 filetype=types.FileType.VIDEO,
                 points=points,
                 make=exif.extract_make(),

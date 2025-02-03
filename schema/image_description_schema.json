@@ -66,6 +66,10 @@
                         "video"
                     ],
                     "description": "The video file type"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "File size"
                 }
             },
             "required": [
@@ -160,6 +164,10 @@
                         "image"
                     ],
                     "description": "The image file type"
+                },
+                "size": {
+                    "type": "number",
+                    "description": "File size"
                 }
             },
             "required": [
