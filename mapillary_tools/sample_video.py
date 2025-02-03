@@ -118,9 +118,9 @@ def sample_video(
                     start_time=video_start_time_dt,
                 )
             else:
-                assert 0 < video_sample_interval, (
-                    "expect positive video_sample_interval but got {video_sample_interval}"
-                )
+                assert (
+                    0 < video_sample_interval
+                ), "expect positive video_sample_interval but got {video_sample_interval}"
                 _sample_single_video_by_interval(
                     video_path,
                     sample_dir,
@@ -339,9 +339,9 @@ def _sample_single_video_by_distance(
                 f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
             )
         for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
-            assert len(sample_paths) == 1, (
-                "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
-            )
+            assert (
+                len(sample_paths) == 1
+            ), "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
             if idx + 1 != frame_idx_1based:
                 raise exceptions.MapillaryVideoError(
                     f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
@@ -352,9 +352,9 @@ def _sample_single_video_by_distance(
                 continue
 
             video_sample, interp = sample_points_by_frame_idx[sample_idx]
-            assert interp.time == video_sample.exact_composition_time, (
-                f"interpolated time {interp.time} should match the video sample time {video_sample.exact_composition_time}"
-            )
+            assert (
+                interp.time == video_sample.exact_composition_time
+            ), f"interpolated time {interp.time} should match the video sample time {video_sample.exact_composition_time}"
 
             timestamp = start_time + datetime.timedelta(seconds=interp.time)
             exif_edit = ExifEdit(sample_paths[0])

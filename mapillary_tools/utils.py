@@ -202,5 +202,6 @@ def find_xml_files(import_paths: T.Sequence[Path]) -> T.List[Path]:
             xml_paths.append(path)
     return list(deduplicate_paths(xml_paths))
 
+
 def get_file_size(path: Path) -> int:
-    return os.path.getsize(path) 
+    return os.path.getsize(path)
