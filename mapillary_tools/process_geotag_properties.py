@@ -255,9 +255,9 @@ def process_geotag_properties(
                 metadatas.extend(video_metadata)
 
     # filenames should be deduplicated in utils.find_images/utils.find_videos
-    assert len(metadatas) == len(set(metadata.filename for metadata in metadatas)), (
-        "duplicate filenames found"
-    )
+    assert len(metadatas) == len(
+        set(metadata.filename for metadata in metadatas)
+    ), "duplicate filenames found"
 
     return metadatas
 
@@ -424,14 +424,14 @@ def _show_stats_per_filetype(
     skipped_process_errors: T.Set[T.Type[Exception]],
 ):
     good_metadatas: T.List[T.Union[types.VideoMetadata, types.ImageMetadata]] = []
-    size_to_upload = 0
+    filesize_to_upload = 0
     error_metadatas: T.List[types.ErrorMetadata] = []
     for metadata in metadatas:
         if isinstance(metadata, types.ErrorMetadata):
             error_metadatas.append(metadata)
         else:
             good_metadatas.append(metadata)
-            size_to_upload += metadata.size
+            filesize_to_upload += metadata.filesize
 
     LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
     if good_metadatas:
@@ -439,7 +439,7 @@ def _show_stats_per_filetype(
             "\t %8d %s(s) (%s MB) are ready to be uploaded",
             len(good_metadatas),
             filetype.value,
-            round(size_to_upload / 1024 / 1024, 1),
+            round(filesize_to_upload / 1024 / 1024, 1),
         )
 
     error_counter = collections.Counter(
