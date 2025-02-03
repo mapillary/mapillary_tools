@@ -67,7 +67,7 @@
                     ],
                     "description": "The video file type"
                 },
-                "size": {
+                "filesize": {
                     "type": "number",
                     "description": "File size"
                 }
@@ -165,7 +165,7 @@
                     ],
                     "description": "The image file type"
                 },
-                "size": {
+                "filesize": {
                     "type": "number",
                     "description": "File size"
                 }

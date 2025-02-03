@@ -84,7 +84,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                     return types.VideoMetadata(
                         filename=video_path,
                         md5sum=None,
-                        size=utils.get_file_size(video_path),
+                        filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.CAMM,
                         points=points,
                         make=make,
@@ -108,7 +108,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                     return types.VideoMetadata(
                         filename=video_path,
                         md5sum=None,
-                        size=utils.get_file_size(video_path),
+                        filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.GOPRO,
                         points=T.cast(T.List[geo.Point], points_with_fix),
                         make=make,
@@ -132,7 +132,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                     return types.VideoMetadata(
                         filename=video_path,
                         md5sum=None,
-                        size=utils.get_file_size(video_path),
+                        filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.BLACKVUE,
                         points=points,
                         make=make,

@@ -92,7 +92,7 @@ class VideoDataExtractor:
                 filename=file,
                 filetype=FileType.VIDEO,
                 md5sum=None,
-                size=utils.get_file_size(file),
+                filesize=utils.get_file_size(file),
                 points=points,
                 make=make,
                 model=model,
