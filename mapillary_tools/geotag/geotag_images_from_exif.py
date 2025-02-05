@@ -4,11 +4,9 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
-from mapillary_tools import utils
-
 from tqdm import tqdm
 
-from .. import exceptions, exif_write, geo, types
+from .. import exceptions, exif_write, geo, types, utils
 from ..exif_read import ExifRead, ExifReadABC
 from .geotag_from_generic import GeotagImagesFromGeneric
 
