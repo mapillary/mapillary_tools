@@ -209,9 +209,9 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         gidx = gidx + len(group)
 
     for cur, nxt in geo.pairwise(sequence):
-        assert (
-            cur.time <= nxt.time
-        ), f"sequence must be sorted but got {cur.time} > {nxt.time}"
+        assert cur.time <= nxt.time, (
+            f"sequence must be sorted but got {cur.time} > {nxt.time}"
+        )
 
 
 def _parse_filesize_in_bytes(filesize_str: str) -> int:
@@ -335,9 +335,9 @@ def process_sequence_properties(
 
     results = error_metadatas + image_metadatas + video_metadatas
 
-    assert len(metadatas) == len(
-        results
-    ), f"expected {len(metadatas)} results but got {len(results)}"
+    assert len(metadatas) == len(results), (
+        f"expected {len(metadatas)} results but got {len(results)}"
+    )
     assert sequence_idx == len(
         set(metadata.MAPSequenceUUID for metadata in image_metadatas)
     )
