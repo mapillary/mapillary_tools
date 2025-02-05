@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, exif_write, geo, types
+from .. import exceptions, exif_write, geo, types, utils
 from ..exif_read import ExifRead, ExifReadABC
 from .geotag_from_generic import GeotagImagesFromGeneric
 
@@ -64,6 +64,7 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
         image_metadata = types.ImageMetadata(
             filename=image_path,
             md5sum=None,
+            filesize=utils.get_file_size(image_path),
             time=geo.as_unix_time(capture_time),
             lat=lat,
             lon=lon,

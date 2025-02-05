@@ -57,6 +57,13 @@
                     ],
                     "description": "MD5 checksum of the video content. If not provided, the uploader will compute it"
                 },
+                "filesize": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "description": "File size"
+                },
                 "filetype": {
                     "type": "string",
                     "enum": [
@@ -153,6 +160,13 @@
                         "null"
                     ],
                     "description": "MD5 checksum of the image content. If not provided, the uploader will compute it"
+                },
+                "filesize": {
+                    "type": [
+                        "number",
+                        "null"
+                    ],
+                    "description": "File size"
                 },
                 "filetype": {
                     "type": "string",

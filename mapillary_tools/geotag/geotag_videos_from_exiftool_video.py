@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 from pathlib import Path
 
+from mapillary_tools import utils
+
 from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, geo, types
@@ -66,6 +68,7 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             video_metadata = types.VideoMetadata(
                 video_path,
                 md5sum=None,
+                filesize=utils.get_file_size(video_path),
                 filetype=types.FileType.VIDEO,
                 points=points,
                 make=exif.extract_make(),

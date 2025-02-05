@@ -156,13 +156,14 @@ with open("schema/image_description_schema.json") as fp:
 def validate_and_extract_image(image_path: str):
     with open(image_path, "rb") as fp:
         tags = exifread.process_file(fp)
-        desc_tag = tags.get("Image ImageDescription")
-        assert desc_tag is not None, (tags, image_path)
-        desc = json.loads(str(desc_tag.values))
-        desc["filename"] = image_path
-        desc["filetype"] = "image"
-        jsonschema.validate(desc, image_description_schema)
-        return desc
+
+    desc_tag = tags.get("Image ImageDescription")
+    assert desc_tag is not None, (tags, image_path)
+    desc = json.loads(str(desc_tag.values))
+    desc["filename"] = image_path
+    desc["filetype"] = "image"
+    jsonschema.validate(desc, image_description_schema)
+    return desc
 
 
 def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
