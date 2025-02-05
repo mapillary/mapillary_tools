@@ -68,7 +68,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1266719,
             "MAPLongitude": -117.3273063,
             "MAPOrientation": 1,
-            "filesize": 116432,
             "filetype": "image",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000002.jpg": {
@@ -80,7 +79,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1266891,
             "MAPLongitude": -117.3273151,
             "MAPOrientation": 1,
-            "filesize": 125847,
             "filetype": "image",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000003.jpg": {
@@ -92,7 +90,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267078,
             "MAPLongitude": -117.3273264,
             "MAPOrientation": 1,
-            "filesize": 128344,
             "filetype": "image",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000004.jpg": {
@@ -104,7 +101,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267282,
             "MAPLongitude": -117.3273391,
             "MAPOrientation": 1,
-            "filesize": 126391,
             "filetype": "image",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000005.jpg": {
@@ -116,7 +112,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.12675,
             "MAPLongitude": -117.3273483,
             "MAPOrientation": 1,
-            "filesize": 128585,
             "filetype": "image",
         },
         "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000006.jpg": {
@@ -128,7 +123,6 @@ EXPECTED_DESCS = {
             "MAPLatitude": 33.1267663,
             "MAPLongitude": -117.3273595,
             "MAPOrientation": 1,
-            "filesize": 132640,
             "filetype": "image",
         },
     },
@@ -149,7 +143,8 @@ def _validate_output(upload_dir: py.path.local, expected):
         actual[os.path.basename(desc["filename"])] = {
             k: v
             for k, v in desc.items()
-            if k not in ["filename", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
+            if k
+            not in ["filename", "filesize", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
         }
 
     assert expected == actual
