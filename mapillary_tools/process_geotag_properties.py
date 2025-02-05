@@ -420,7 +420,7 @@ def _show_stats_per_filetype(
             error_metadatas.append(metadata)
         else:
             good_metadatas.append(metadata)
-            filesize_to_upload += metadata.filesize
+            filesize_to_upload += metadata.filesize or 0
 
     LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
     if good_metadatas:
