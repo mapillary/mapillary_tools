@@ -374,6 +374,7 @@ def test_process_finalize(setup_data):
         {
             "filename": str(test_exif),
             "filetype": "image",
+            "filesize": None,
             "MAPLatitude": 1,
             "MAPLongitude": 1,
             "MAPCaptureTime": "1970_01_01_00_00_02_000",
