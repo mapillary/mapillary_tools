@@ -26,6 +26,12 @@ class GoProParser(BaseParser):
                 return []
 
     def extract_make(self) -> T.Optional[str]:
+        model = self.extract_model()
+        if model:
+            return "GoPro"
+
+        # make sure self.pointsFound is updated
+        _ = self.extract_points()
         # If no points were found, assume this is not a GoPro
         return "GoPro" if self.pointsFound else None
 

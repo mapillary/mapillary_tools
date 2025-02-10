@@ -3,6 +3,7 @@ import typing as T
 from ... import geo
 from ...geotag import geotag_images_from_gpx_file
 from .base_parser import BaseParser
+from .generic_video_parser import GenericVideoParser
 
 
 class GpxParser(BaseParser):
@@ -23,7 +24,9 @@ class GpxParser(BaseParser):
         return points
 
     def extract_make(self) -> T.Optional[str]:
-        return None
+        parser = GenericVideoParser(self.videoPath, self.options, self.parserOptions)
+        return parser.extract_make()
 
     def extract_model(self) -> T.Optional[str]:
-        return None
+        parser = GenericVideoParser(self.videoPath, self.options, self.parserOptions)
+        return parser.extract_model()
