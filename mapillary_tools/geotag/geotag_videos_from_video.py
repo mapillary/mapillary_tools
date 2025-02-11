@@ -4,11 +4,9 @@ import typing as T
 from multiprocessing import Pool
 from pathlib import Path
 
-from mapillary_tools import utils
-
 from tqdm import tqdm
 
-from .. import exceptions, geo, types
+from .. import exceptions, geo, types, utils
 from ..camm import camm_parser
 from ..mp4 import simple_mp4_parser as sparser
 from ..telemetry import GPSPoint

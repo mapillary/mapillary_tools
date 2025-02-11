@@ -122,12 +122,7 @@ class VideoDataExtractor:
                 {**log_vars, "points": len(points)},
             )
 
-        points = self._sanitize_points(points)
-
-        if parser.must_rebase_times_to_zero:
-            points = self._rebase_times(points)
-
-        return points
+        return self._sanitize_points(points)
 
     @staticmethod
     def _check_paths(import_paths: T.Sequence[Path]):
@@ -178,15 +173,4 @@ class VideoDataExtractor:
         if stationary:
             raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
-        return points
-
-    @staticmethod
-    def _rebase_times(points: T.Sequence[geo.Point]):
-        """
-        Make point times start from 0
-        """
-        if points:
-            first_timestamp = points[0].time
-            for p in points:
-                p.time = p.time - first_timestamp
         return points

@@ -13,7 +13,6 @@ from .base_parser import BaseParser
 
 class ExiftoolXmlParser(BaseParser):
     default_source_pattern = "%g.xml"
-    must_rebase_times_to_zero = True
     parser_label = "exiftool_xml"
 
     exifToolReadVideo: T.Optional[ExifToolReadVideo] = None
@@ -39,9 +38,11 @@ class ExiftoolXmlParser(BaseParser):
         self.exifToolReadVideo = ExifToolReadVideo(ET.ElementTree(element))
 
     def extract_points(self) -> T.Sequence[geo.Point]:
-        return (
+        gps_points = (
             self.exifToolReadVideo.extract_gps_track() if self.exifToolReadVideo else []
         )
+        self._rebase_times(gps_points)
+        return gps_points
 
     def extract_make(self) -> T.Optional[str]:
         return self.exifToolReadVideo.extract_make() if self.exifToolReadVideo else None
