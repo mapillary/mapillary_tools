@@ -76,18 +76,9 @@ def _create_edit_list_from_points(
 ) -> builder.BoxDict:
     entries: T.List[T.Dict] = []
 
-    for idx, points in enumerate(point_segments):
-        if not points:
-            entries = [
-                {
-                    "media_time": 0,
-                    "segment_duration": 0,
-                    "media_rate_integer": 1,
-                    "media_rate_fraction": 0,
-                }
-            ]
-            break
+    non_empty_point_segments = [points for points in point_segments if points]
 
+    for idx, points in enumerate(non_empty_point_segments):
         assert 0 <= points[0].time, (
             f"expect non-negative point time but got {points[0]}"
         )
@@ -98,8 +89,10 @@ def _create_edit_list_from_points(
         if idx == 0:
             if 0 < points[0].time:
                 segment_duration = int(points[0].time * movie_timescale)
+                # put an empty edit list entry to skip the initial gap
                 entries.append(
                     {
+                        # If this field is set to –1, it is an empty edit
                         "media_time": -1,
                         "segment_duration": segment_duration,
                         "media_rate_integer": 1,
@@ -107,7 +100,6 @@ def _create_edit_list_from_points(
                     }
                 )
         else:
-            assert point_segments[-1][-1].time <= points[0].time
             media_time = int(points[0].time * media_timescale)
             segment_duration = int((points[-1].time - points[0].time) * movie_timescale)
             entries.append(
@@ -300,14 +292,18 @@ def camm_sample_generator2(
         movie_timescale = builder.find_movie_timescale(moov_children)
         # make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
-        measurements = _multiplex(video_metadata.points, telemetry_measurements)
+
+        # points with negative time are skipped
+        # TODO: interpolate first point at time == 0
+        # TODO: measurements with negative times should be skipped too
+        points = [point for point in video_metadata.points if point.time >= 0]
+
+        measurements = _multiplex(points, telemetry_measurements)
         camm_samples = list(
             convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list_from_points(
-            [video_metadata.points], movie_timescale, media_timescale
-        )
+        elst = _create_edit_list_from_points([points], movie_timescale, media_timescale)
         if T.cast(T.Dict, elst["data"])["entries"]:
             T.cast(T.List[builder.BoxDict], camm_trak["data"]).append(
                 {

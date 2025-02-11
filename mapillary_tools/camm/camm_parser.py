@@ -146,10 +146,7 @@ def _filter_telemetry_by_elst_segments(
 
     if not elst:
         for m in measurements:
-            if dataclasses.is_dataclass(m):
-                yield dataclasses.replace(m, time=m.time + offset)
-            else:
-                m._replace(time=m.time + offset)
+            yield dataclasses.replace(m, time=m.time + offset)
         return
 
     elst.sort(key=lambda entry: entry[0])
@@ -161,10 +158,7 @@ def _filter_telemetry_by_elst_segments(
         if m.time < media_time:
             pass
         elif m.time <= media_time + duration:
-            if dataclasses.is_dataclass(m):
-                yield dataclasses.replace(m, time=m.time + offset)
-            else:
-                m._replace(time=m.time + offset)
+            yield dataclasses.replace(m, time=m.time + offset)
         else:
             elst_idx += 1
 
