@@ -4,11 +4,9 @@ import xml.etree.ElementTree as ET
 from multiprocessing import Pool
 from pathlib import Path
 
-from mapillary_tools import utils
-
 from tqdm import tqdm
 
-from .. import exceptions, exiftool_read, geo, types
+from .. import exceptions, exiftool_read, geo, types, utils
 from ..exiftool_read_video import ExifToolReadVideo
 from ..telemetry import GPSPoint
 from . import gpmf_gps_filter, utils as video_utils

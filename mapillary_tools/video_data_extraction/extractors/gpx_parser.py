@@ -1,5 +1,6 @@
-import typing as T
+import datetime
 import logging
+import typing as T
 
 from ... import geo, telemetry
 from ...geotag import geotag_images_from_gpx_file
@@ -39,7 +40,19 @@ class GpxParser(BaseParser):
             first_gps_point = gps_points[0]
             if isinstance(first_gps_point, telemetry.GPSPoint):
                 if first_gps_point.epoch_time is not None:
+                    first_gpx_dt = datetime.datetime.fromtimestamp(
+                        gpx_points[0].time, tz=datetime.timezone.utc
+                    )
+                    first_gps_dt = datetime.datetime.fromtimestamp(
+                        first_gps_point.epoch_time, tz=datetime.timezone.utc
+                    )
                     offset = gpx_points[0].time - first_gps_point.epoch_time
+                    LOG.warning(
+                        "Found offset between GPX %s and video GPS timestamps %s: %s",
+                        first_gpx_dt,
+                        first_gps_dt,
+                        offset,
+                    )
 
         self._rebase_times(gpx_points, offset=offset)
 
