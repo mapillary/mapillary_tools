@@ -20,6 +20,7 @@ dist\win\mapillary_tools.exe --version
 $VERSION_OUTPUT=dist\win\mapillary_tools.exe --version
 $VERSION=$VERSION_OUTPUT.split(' ')[2]
 $TARGET="dist\releases\mapillary_tools-$VERSION-$OS-$ARCH.exe"
+pyi-archive_viewer --list "$SOURCE"
 
 # package
 mkdir -Force dist\releases

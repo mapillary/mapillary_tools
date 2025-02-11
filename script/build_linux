@@ -15,6 +15,7 @@ $SOURCE --version
 VERSION=$($SOURCE --version | awk '{print $3}')
 ARCH=$(uname -m)
 TARGET=dist/releases/mapillary_tools-${VERSION}-${OS}-${ARCH}
+pyi-archive_viewer --list "$SOURCE"
 
 # package
 mkdir -p dist/releases
