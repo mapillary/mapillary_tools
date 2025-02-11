@@ -33,11 +33,6 @@ class BaseParser(metaclass=abc.ABCMeta):
     def parser_label(self) -> str:
         raise NotImplementedError
 
-    @property
-    @abc.abstractmethod
-    def must_rebase_times_to_zero(self) -> bool:
-        raise NotImplementedError
-
     @abc.abstractmethod
     def extract_points(self) -> T.Sequence[geo.Point]:
         raise NotImplementedError
@@ -67,3 +62,14 @@ class BaseParser(metaclass=abc.ABCMeta):
         ).resolve()
 
         return abs_path if abs_path.is_file() else None
+
+    @staticmethod
+    def _rebase_times(points: T.Sequence[geo.Point], offset: float = 0.0):
+        """
+        Make point times start from 0
+        """
+        if points:
+            first_timestamp = points[0].time
+            for p in points:
+                p.time = (p.time - first_timestamp) + offset
+        return points
