@@ -277,7 +277,10 @@ def gps9_from_stream(
 
     try:
         sample_parser = C.Sequence(
-            *[_type_mapping[t.to_bytes()][0] for t in gps_value_types]
+            *[
+                _type_mapping[t.to_bytes(length=1, byteorder="big")][0]
+                for t in gps_value_types
+            ]
         )
     except Exception as ex:
         raise ValueError(f"Error parsing the complex type {gps_value_types}: {ex}")
