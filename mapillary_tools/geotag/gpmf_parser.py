@@ -252,9 +252,24 @@ def _gps9_timestamp_to_epoch_time(
     return epoch_time
 
 
+def _get_gps_type(input) -> bytes:
+    final = b""
+    for val in input or []:
+        if isinstance(val, bytes):
+            final += val
+        elif isinstance(val, list):
+            final += _get_gps_type(val)
+        else:
+            raise ValueError(f"Unexpected type {type(val)} in {input}")
+
+    return final
+
+
 def gps9_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[GPSPoint, None, None]:
+    NUM_VALUES = 9
+
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -270,17 +285,21 @@ def gps9_from_stream(
     if any(s == 0 for s in scal_values):
         return
 
-    type = indexed.get(b"TYPE")
-    if type is None:
+    gps_value_types = _get_gps_type(indexed.get(b"TYPE"))
+    if not gps_value_types:
         return
-    gps_value_types = type[0]
+
+    if len(gps_value_types) != NUM_VALUES:
+        raise ValueError(
+            f"Error parsing the complex type {gps_value_types!r}: expect {NUM_VALUES} types but got {len(gps_value_types)}"
+        )
 
     try:
         sample_parser = C.Sequence(
             *[_type_mapping[t.to_bytes()][0] for t in gps_value_types]
         )
     except Exception as ex:
-        raise ValueError(f"Error parsing the complex type {gps_value_types}: {ex}")
+        raise ValueError(f"Error parsing the complex type {gps_value_types!r}: {ex}")
 
     for sample_data_bytes in gps9:
         sample_data = sample_parser.parse(sample_data_bytes)
