@@ -297,6 +297,7 @@ def gps9_from_stream(
     try:
         sample_parser = C.Sequence(
             *[
+                # Changed in version 3.11: Added default argument values for length and byteorder
                 _type_mapping[t.to_bytes(length=1, byteorder="big")][0]
                 for t in gps_value_types
             ]
