@@ -25,7 +25,7 @@ from . import (
     utils,
     VERSION,
 )
-from .camm import camm_builder
+from .camm import camm_builder, camm_parser
 from .geotag import gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
@@ -584,7 +584,7 @@ def upload(
             assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
             # extract telemetry measurements from GoPro videos
-            telemetry_measurements: T.List[telemetry.TelemetryMeasurement] = []
+            telemetry_measurements: T.List[camm_parser.TelemetryMeasurement] = []
             if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
                 if video_metadata.filetype is FileType.GOPRO:
                     with video_metadata.filename.open("rb") as fp:
