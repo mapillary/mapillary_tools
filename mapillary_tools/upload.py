@@ -18,7 +18,6 @@ from . import (
     exceptions,
     history,
     ipc,
-    telemetry,
     types,
     upload_api_v4,
     uploader,
