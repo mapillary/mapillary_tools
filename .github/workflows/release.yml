@@ -13,13 +13,35 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.11"]
-        platform: ["ubuntu-20.04", "macos-13", "windows-latest"]
-        architecture: ["x64"]
         include:
-          - architecture: "x86"
-            platform: "windows-latest"
-            python-version: "3.11"
+          # macOS builds
+          - platform: macos-latest # M1/M2
+            os: macos
+            architecture: arm64
+          - platform: macos-13 # Intel
+            os: macos
+            architecture: x64
+
+          # Windows builds
+          - platform: windows-latest
+            os: windows
+            architecture: x64
+          - platform: windows-latest
+            os: windows
+            architecture: x86 # 32-bit
+          # NOT SUPPORTED YET
+          # - platform: windows-2025
+          #   os: windows
+          #   architecture: arm64 # Windows ARM
+
+          # Linux builds
+          - platform: ubuntu-latest
+            os: linux
+            architecture: x64
+          - platform: 2-core-ubuntu-arm # or ubuntu-latest-arm
+            # Check other options in https://github.com/mapillary/mapillary_tools/actions/runners
+            os: linux
+            architecture: arm64 # Linux ARM
 
     runs-on: ${{ matrix.platform }}
 
@@ -53,13 +75,12 @@ jobs:
         uses: FedericoCarboni/setup-ffmpeg@v3
         # ffmpeg is not supported in the latest macOS arch:
         # Error: setup-ffmpeg can only be run on 64-bit systems
-        if: matrix.platform != 'macos-13'
+        if: matrix.architecture == 'x64'
 
-      - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          # optional x64 or x86. Defaults to x64 if not specified
+          python-version: "3.11"
           architecture: ${{ matrix.architecture }}
 
       - name: Install dependencies
@@ -79,7 +100,7 @@ jobs:
 
       - name: Build and test with Pyinstaller on MacOS
         # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
-        if: matrix.platform == 'macos-13'
+        if: startsWith(matrix.platform, 'macos')
         run: |
           ./script/build_osx
           # Could run full integration tests with the binary (it might be slow)
@@ -89,7 +110,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Ubuntu
-        if: matrix.platform == 'ubuntu-20.04'
+        if: contains(matrix.platform, 'ubuntu')
         run: |
           ./script/build_linux
           # Could run full integration tests with the binary (it might be slow)
@@ -99,7 +120,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Windows
-        if: matrix.platform == 'windows-latest'
+        if: startsWith(matrix.platform, 'windows')
         run: |
           ./script/build_bootloader.ps1
           ./script/build_win.ps1
@@ -123,7 +144,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     name: Upload release to PyPI
     needs: ["build_and_release"]
-    runs-on: "ubuntu-20.04"
+    runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v4
 
