@@ -13,7 +13,6 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.11"]
         include:
           # macOS builds
           - platform: macos-latest # M1/M2
@@ -79,10 +78,10 @@ jobs:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.architecture == 'x64'
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
           architecture: ${{ matrix.architecture }}
 
       - name: Install dependencies
@@ -112,7 +111,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Ubuntu
-        if: startsWith(matrix.platform, 'ubuntu')
+        if: contains(matrix.platform, 'ubuntu')
         run: |
           ./script/build_linux
           # Could run full integration tests with the binary (it might be slow)
