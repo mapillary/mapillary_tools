@@ -13,19 +13,39 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.12"]
-        platform: ["macos-latest", "ubuntu-latest", "windows-latest"]
         include:
-          - platform: "macos-13"
-            architecture: "x64"
-          - platform: "windows-latest"
-            architecture: "x86"
-          - platform: "windows-latest"
-            architecture: "arm64"
-          - platform: "ubuntu-latest"
-            architecture: "x86"
-          - platform: "ubuntu-latest"
-            architecture: "arm64"
+          # macOS builds
+          - platform: macos-latest # M1/M2
+            os: macos
+            arch: arm64
+          - platform: macos-13 # Intel
+            os: macos
+            arch: x64
+            supports_ffmpeg: true
+
+          # Windows builds
+          - platform: windows-latest
+            os: windows
+            arch: x64
+            supports_ffmpeg: true
+          - platform: windows-latest
+            os: windows
+            arch: x86 # 32-bit
+          - platform: windows-latest
+            os: windows
+            arch: arm64 # Windows ARM
+
+          # Linux builds
+          - platform: ubuntu-latest
+            os: linux
+            arch: x64
+            supports_ffmpeg: true
+          - platform: ubuntu-latest
+            os: linux
+            arch: arm64 # Linux ARM
+          - platform: ubuntu-latest
+            os: linux
+            arch: x86 # 32-bit Linux
 
     runs-on: ${{ matrix.platform }}
 
@@ -64,7 +84,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
