@@ -19,7 +19,9 @@ jobs:
           - platform: "windows-latest"
             architecture: "x86"
           - platform: "macos-13"
+            architecture: "x64"
           - platform: "ubuntu-20.04"
+            architecture: "x64"
 
     runs-on: ${{ matrix.platform }}
 
@@ -55,12 +57,10 @@ jobs:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.architecture == 'x64'
 
-      - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
+      - name: Set up ${{ runner.architecture }} Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          # optional x64 or x86. Defaults to x64 if not specified
-          architecture: ${{ matrix.architecture }}
 
       - name: Install dependencies
         run: |
@@ -79,7 +79,7 @@ jobs:
 
       - name: Build and test with Pyinstaller on MacOS
         # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
-        if: matrix.platform == 'macos-13'
+        if: startsWith(matrix.platform, 'macos')
         run: |
           ./script/build_osx
           # Could run full integration tests with the binary (it might be slow)
@@ -89,7 +89,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Ubuntu
-        if: matrix.platform == 'ubuntu-20.04'
+        if: startsWith(matrix.platform, 'ubuntu-latest')
         run: |
           ./script/build_linux
           # Could run full integration tests with the binary (it might be slow)
@@ -99,7 +99,7 @@ jobs:
           MAPILLARY_TOOLS__TESTS_EXIFTOOL_EXECUTABLE: perl ${{ github.workspace }}/exiftool/exiftool.pl
 
       - name: Build and test with Pyinstaller on Windows
-        if: matrix.platform == 'windows-latest'
+        if: startsWith(matrix.platform, 'windows')
         run: |
           ./script/build_bootloader.ps1
           ./script/build_win.ps1
