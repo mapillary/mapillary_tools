@@ -21,25 +21,23 @@ jobs:
           - platform: macos-13 # Intel
             os: macos
             architecture: x64
-            supports_ffmpeg: true
 
           # Windows builds
           - platform: windows-latest
             os: windows
             architecture: x64
-            supports_ffmpeg: true
           - platform: windows-latest
             os: windows
             architecture: x86 # 32-bit
-          - platform: windows-2025
-            os: windows
-            architecture: arm64 # Windows ARM
+          # NOT SUPPORTED YET
+          # - platform: windows-2025
+          #   os: windows
+          #   architecture: arm64 # Windows ARM
 
           # Linux builds
           - platform: ubuntu-latest
             os: linux
             architecture: x64
-            supports_ffmpeg: true
           - platform: ubuntu-latest-arm
             os: linux
             architecture: arm64 # Linux ARM
