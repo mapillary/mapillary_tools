@@ -44,9 +44,6 @@ jobs:
           - platform: 2-core-ubuntu-arm
             os: linux
             architecture: arm64 # Linux ARM
-          - platform: ubuntu-latest
-            os: linux
-            architecture: x86 # 32-bit Linux
 
     runs-on: ${{ matrix.platform }}
 
