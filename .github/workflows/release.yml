@@ -19,9 +19,13 @@ jobs:
           - platform: "macos-13"
             architecture: "x64"
           - platform: "windows-latest"
-            architecture: ["x86", "arm64"]
+            architecture: "x86"
+          - platform: "windows-latest"
+            architecture: "arm64"
           - platform: "ubuntu-latest"
-            architecture: ["x86", "arm64"]
+            architecture: "x86"
+          - platform: "ubuntu-latest"
+            architecture: "arm64"
 
     runs-on: ${{ matrix.platform }}
 
