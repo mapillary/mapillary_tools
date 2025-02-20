@@ -53,7 +53,7 @@ jobs:
         uses: FedericoCarboni/setup-ffmpeg@v3
         # ffmpeg is not supported in the latest macOS arch:
         # Error: setup-ffmpeg can only be run on 64-bit systems
-        if: matrix.platform != 'macos-13'
+        if: matrix.architecture == 'x64'
 
       - name: Set up ${{ matrix.architecture }} Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
