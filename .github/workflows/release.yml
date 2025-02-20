@@ -40,7 +40,7 @@ jobs:
             os: linux
             arch: x64
             supports_ffmpeg: true
-          - platform: ubuntu-latest
+          - platform: 2-core-ubuntu-arm
             os: linux
             arch: arm64 # Linux ARM
           - platform: ubuntu-latest
