@@ -14,15 +14,14 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.12"]
+        platform: ["macos-latest", "ubuntu-latest", "windows-latest"]
         include:
-          - platform: "macos-latest"
-            architecture: "arm64"
           - platform: "macos-13"
             architecture: "x64"
           - platform: "windows-latest"
-            architecture: ["x86", "x64", "arm64"]
+            architecture: ["x86", "arm64"]
           - platform: "ubuntu-latest"
-            architecture: ["x86", "x64", "arm64"]
+            architecture: ["x86", "arm64"]
 
     runs-on: ${{ matrix.platform }}
 
