@@ -38,7 +38,8 @@ jobs:
           - platform: ubuntu-latest
             os: linux
             architecture: x64
-          - platform: ubuntu-latest-arm
+          - platform: 2-core-ubuntu-arm # or ubuntu-latest-arm
+            # Check other options in https://github.com/mapillary/mapillary_tools/actions/runners
             os: linux
             architecture: arm64 # Linux ARM
 
