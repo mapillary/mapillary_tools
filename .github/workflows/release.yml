@@ -16,6 +16,12 @@ jobs:
         python-version: ["3.12"]
         platform: ["ubuntu-latest", "macos-latest", "windows-latest"]
         architecture: ["x86", "x64", "arm64"]
+        exclude:
+          - platform: "macos-latest"
+            architecture: ["x86", "x64"]
+        include:
+          - platform: "macos-13"
+            architecture: "x64"
 
     runs-on: ${{ matrix.platform }}
 
@@ -51,7 +57,7 @@ jobs:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.architecture == 'x64'
 
-      - name: Set up ${{ runner.architecture }} Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
