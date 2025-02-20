@@ -31,7 +31,7 @@ jobs:
           - platform: windows-latest
             os: windows
             architecture: x86 # 32-bit
-          - platform: windows-latest
+          - platform: windows-2025
             os: windows
             architecture: arm64 # Windows ARM
 
@@ -40,7 +40,7 @@ jobs:
             os: linux
             architecture: x64
             supports_ffmpeg: true
-          - platform: 2-core-ubuntu-arm
+          - platform: ubuntu-latest-arm
             os: linux
             architecture: arm64 # Linux ARM
 
