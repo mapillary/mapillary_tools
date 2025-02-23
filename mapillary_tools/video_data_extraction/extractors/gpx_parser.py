@@ -69,9 +69,11 @@ class GpxParser(BaseParser):
         return gpx_points
 
     def extract_make(self) -> T.Optional[str]:
-        parser = GenericVideoParser(self.videoPath, self.options, self.parserOptions)
+        # Use an empty dictionary to force video parsers to extract make/model from the video metadata itself
+        parser = GenericVideoParser(self.videoPath, self.options, {})
         return parser.extract_make()
 
     def extract_model(self) -> T.Optional[str]:
-        parser = GenericVideoParser(self.videoPath, self.options, self.parserOptions)
+        # Use an empty dictionary to force video parsers to extract make/model from the video metadata itself
+        parser = GenericVideoParser(self.videoPath, self.options, {})
         return parser.extract_model()
