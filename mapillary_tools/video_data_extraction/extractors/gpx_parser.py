@@ -38,46 +38,62 @@ class GpxParser(BaseParser):
         if not gpx_points:
             return gpx_points
 
-        offset = self._synx_gpx_by_first_timestamp(gpx_points)
+        offset = self._synx_gpx_by_first_gps_timestamp(gpx_points)
 
         self._rebase_times(gpx_points, offset=offset)
 
         return gpx_points
 
-    def _synx_gpx_by_first_timestamp(self, gpx_points: T.Sequence[geo.Point]) -> float:
+    def _synx_gpx_by_first_gps_timestamp(
+        self, gpx_points: T.Sequence[geo.Point]
+    ) -> float:
+        offset: float = 0.0
+
+        if not gpx_points:
+            return offset
+
         first_gpx_dt = datetime.datetime.fromtimestamp(
             gpx_points[0].time, tz=datetime.timezone.utc
         )
         LOG.info("First GPX timestamp: %s", first_gpx_dt)
 
         # Extract first GPS timestamp (if found) for synchronization
-        offset: float = 0.0
-
         # Use an empty dictionary to force video parsers to extract make/model from the video metadata itself
         parser = GenericVideoParser(self.videoPath, self.options, {})
         gps_points = parser.extract_points()
 
-        if gps_points:
-            first_gps_point = gps_points[0]
-            if isinstance(first_gps_point, telemetry.GPSPoint):
-                if first_gps_point.epoch_time is not None:
-                    first_gps_dt = datetime.datetime.fromtimestamp(
-                        first_gps_point.epoch_time, tz=datetime.timezone.utc
-                    )
-                    LOG.info("First GPS timestamp: %s", first_gps_dt)
-                    offset = gpx_points[0].time - first_gps_point.epoch_time
-                    if offset:
-                        LOG.warning(
-                            "Found offset between GPX %s and video GPS timestamps %s: %s seconds",
-                            first_gpx_dt,
-                            first_gps_dt,
-                            offset,
-                        )
-        else:
+        if not gps_points:
             LOG.warning(
-                "Skip GPX sync because no GPS found in video %s",
+                "Skip GPX synchronization because no GPS found in video %s",
                 self.videoPath,
             )
+            return offset
+
+        first_gps_point = gps_points[0]
+        if isinstance(first_gps_point, telemetry.GPSPoint):
+            if first_gps_point.epoch_time is not None:
+                first_gps_dt = datetime.datetime.fromtimestamp(
+                    first_gps_point.epoch_time, tz=datetime.timezone.utc
+                )
+                LOG.info("First GPS timestamp: %s", first_gps_dt)
+                offset = gpx_points[0].time - first_gps_point.epoch_time
+                if offset:
+                    LOG.warning(
+                        "Found offset between GPX %s and video GPS timestamps %s: %s seconds",
+                        first_gpx_dt,
+                        first_gps_dt,
+                        offset,
+                    )
+                else:
+                    LOG.info(
+                        "GPX and GPS are perfectly synchronized (all starts from %s)",
+                        first_gpx_dt,
+                    )
+            else:
+                LOG.warning(
+                    "Skip GPX synchronization because no GPS epoch time found in video %s",
+                    self.videoPath,
+                )
 
         return offset
 
