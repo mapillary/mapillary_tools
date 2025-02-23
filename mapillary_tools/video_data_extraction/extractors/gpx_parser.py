@@ -38,6 +38,13 @@ class GpxParser(BaseParser):
         if not gpx_points:
             return gpx_points
 
+        offset = self._synx_gpx_by_first_timestamp(gpx_points)
+
+        self._rebase_times(gpx_points, offset=offset)
+
+        return gpx_points
+
+    def _synx_gpx_by_first_timestamp(self, gpx_points: T.Sequence[geo.Point]) -> float:
         first_gpx_dt = datetime.datetime.fromtimestamp(
             gpx_points[0].time, tz=datetime.timezone.utc
         )
@@ -45,8 +52,11 @@ class GpxParser(BaseParser):
 
         # Extract first GPS timestamp (if found) for synchronization
         offset: float = 0.0
-        parser = GenericVideoParser(self.videoPath, self.options, self.parserOptions)
+
+        # Use an empty dictionary to force video parsers to extract make/model from the video metadata itself
+        parser = GenericVideoParser(self.videoPath, self.options, {})
         gps_points = parser.extract_points()
+
         if gps_points:
             first_gps_point = gps_points[0]
             if isinstance(first_gps_point, telemetry.GPSPoint):
@@ -63,10 +73,13 @@ class GpxParser(BaseParser):
                             first_gps_dt,
                             offset,
                         )
+        else:
+            LOG.warning(
+                "Skip GPX sync because no GPS found in video %s",
+                self.videoPath,
+            )
 
-        self._rebase_times(gpx_points, offset=offset)
-
-        return gpx_points
+        return offset
 
     def extract_make(self) -> T.Optional[str]:
         # Use an empty dictionary to force video parsers to extract make/model from the video metadata itself
