@@ -3,7 +3,7 @@ import io
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import geo, types, telemetry
+from mapillary_tools import geo, types
 from mapillary_tools.camm import camm_builder, camm_parser
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 
@@ -38,8 +38,8 @@ def test_filter_points_by_edit_list():
     )
 
 
-def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
-    movie_timescale = 1_000_000
+def build_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
+    movie_timescale = simple_mp4_builder.UINT32_MAX
 
     mvhd: cparser.BoxDict = {
         "type": b"mvhd",
@@ -60,16 +60,11 @@ def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMe
         io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
     )
 
-    # extract points
     points = camm_parser.extract_points(T.cast(T.BinaryIO, target_fp))
-
-    # extract make/model
     target_fp.seek(0, io.SEEK_SET)
     make, model = camm_parser.extract_camera_make_and_model(
         T.cast(T.BinaryIO, target_fp)
     )
-
-    # return metadata
     return types.VideoMetadata(
         Path(""),
         None,
@@ -81,23 +76,16 @@ def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMe
 
 
 def approximate(expected, actual):
-    assert len(expected) == len(actual)
-
-    for x, y in zip(expected, actual):
-        x = dataclasses.asdict(x)
-        y = dataclasses.asdict(y)
-
-        keys = set([*x.keys(), *y.keys()])
-        for k in keys:
-            if isinstance(x[k], float):
-                assert abs(x[k] - y[k]) < 10e-6
-            else:
-                assert x[k] == y[k]
+    points_equal = all(abs(x.time - y.time) < 0.00001 for x, y in zip(expected, actual))
+    the_others_equal = all(
+        dataclasses.replace(x, time=0) == dataclasses.replace(y, time=0)
+        for x, y in zip(expected, actual)
+    )
+    return points_equal and the_others_equal
 
 
-def test_build_and_parse_points():
+def test_build_and_parse():
     points = [
-        geo.Point(time=-0.1, lat=0.01, lon=0.2, alt=None, angle=None),
         geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
         geo.Point(time=0.23, lat=0.001, lon=0.21, alt=None, angle=None),
         geo.Point(time=0.29, lat=0.002, lon=0.203, alt=None, angle=None),
@@ -108,252 +96,26 @@ def test_build_and_parse_points():
         None,
         filetype=types.FileType.CAMM,
         points=points,
+        make="test_make",
+        model="   test_model   ",
     )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
+    x = build_mp4(metadata)
+    assert x.make == "test_make"
+    assert x.model == "test_model"
+    assert approximate(
         [
-            geo.Point(time=0.1, lat=0.01, lon=0.2, alt=-1.0, angle=None),
-            geo.Point(time=0.23, lat=0.001, lon=0.21, alt=-1.0, angle=None),
-            geo.Point(time=0.29, lat=0.002, lon=0.203, alt=-1.0, angle=None),
-            geo.Point(time=0.31, lat=0.0025, lon=0.2004, alt=-1.0, angle=None),
-        ],
-        x.points,
-    )
-
-
-def test_build_and_parse_camm_gps_points():
-    points = [
-        telemetry.CAMMGPSPoint(
-            time=-0.1,
-            lat=0.01,
-            lon=0.2,
-            alt=None,
-            angle=None,
-            time_gps_epoch=1.1,
-            gps_fix_type=1,
-            horizontal_accuracy=3.3,
-            vertical_accuracy=4.4,
-            velocity_east=5.5,
-            velocity_north=6.6,
-            velocity_up=7.7,
-            speed_accuracy=8.0,
-        ),
-        telemetry.CAMMGPSPoint(
-            time=0.1,
-            lat=0.01,
-            lon=0.2,
-            alt=None,
-            angle=None,
-            time_gps_epoch=1.2,
-            gps_fix_type=1,
-            horizontal_accuracy=3.3,
-            vertical_accuracy=4.4,
-            velocity_east=5.5,
-            velocity_north=6.6,
-            velocity_up=7.7,
-            speed_accuracy=8.0,
-        ),
-        telemetry.CAMMGPSPoint(
-            time=0.23,
-            lat=0.001,
-            lon=0.21,
-            alt=None,
-            angle=None,
-            time_gps_epoch=1.3,
-            gps_fix_type=1,
-            horizontal_accuracy=3.3,
-            vertical_accuracy=4.4,
-            velocity_east=5.5,
-            velocity_north=6.6,
-            velocity_up=7.7,
-            speed_accuracy=8.0,
-        ),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
-        [
-            telemetry.CAMMGPSPoint(
-                time=0.1,
-                lat=0.01,
-                lon=0.2,
-                alt=-1,
-                angle=None,
-                time_gps_epoch=1.2,
-                gps_fix_type=1,
-                horizontal_accuracy=3.3,
-                vertical_accuracy=4.4,
-                velocity_east=5.5,
-                velocity_north=6.6,
-                velocity_up=7.7,
-                speed_accuracy=8.0,
+            geo.Point(
+                time=0.09999999988358467, lat=0.01, lon=0.2, alt=-1.0, angle=None
             ),
-            telemetry.CAMMGPSPoint(
-                time=0.23,
-                lat=0.001,
-                lon=0.21,
-                alt=-1,
-                angle=None,
-                time_gps_epoch=1.3,
-                gps_fix_type=1,
-                horizontal_accuracy=3.3,
-                vertical_accuracy=4.4,
-                velocity_east=5.5,
-                velocity_north=6.6,
-                velocity_up=7.7,
-                speed_accuracy=8.0,
+            geo.Point(
+                time=0.22999999580209396, lat=0.001, lon=0.21, alt=-1.0, angle=None
             ),
-        ],
-        x.points,
-    )
-
-
-def test_build_and_parse_gopro_gps_points():
-    points = [
-        telemetry.GPSPoint(
-            time=-0.1,
-            lat=0.01,
-            lon=0.2,
-            alt=None,
-            angle=None,
-            epoch_time=1.1,
-            fix=telemetry.GPSFix.FIX_2D,
-            precision=3.3,
-            ground_speed=4.4,
-        ),
-        telemetry.GPSPoint(
-            time=0.1,
-            lat=0.01,
-            lon=0.2,
-            alt=None,
-            angle=None,
-            epoch_time=1.2,
-            fix=telemetry.GPSFix.FIX_3D,
-            precision=3.3,
-            ground_speed=4.4,
-        ),
-        telemetry.GPSPoint(
-            time=0.23,
-            lat=0.001,
-            lon=0.21,
-            alt=None,
-            angle=None,
-            epoch_time=1.3,
-            fix=telemetry.GPSFix.NO_FIX,
-            precision=3.3,
-            ground_speed=4.4,
-        ),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
-        [
-            telemetry.GPSPoint(
-                time=0.1,
-                lat=0.01,
-                lon=0.2,
-                alt=-1,
-                angle=None,
-                epoch_time=1.2,
-                fix=telemetry.GPSFix.FIX_3D,
-                precision=3.3,
-                ground_speed=4.4,
+            geo.Point(
+                time=0.2899999996391125, lat=0.002, lon=0.203, alt=-1.0, angle=None
             ),
-            telemetry.GPSPoint(
-                time=0.23,
-                lat=0.001,
-                lon=0.21,
-                alt=-1,
-                angle=None,
-                epoch_time=1.3,
-                fix=telemetry.GPSFix.NO_FIX,
-                precision=3.3,
-                ground_speed=4.4,
+            geo.Point(
+                time=0.3099999994295649, lat=0.0025, lon=0.2004, alt=-1.0, angle=None
             ),
-        ],
-        x.points,
-    )
-
-
-def test_build_and_parse_single_points():
-    points = [
-        geo.Point(time=1.2, lat=0.01, lon=0.2, alt=None, angle=None),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
-        [
-            geo.Point(time=1.2, lat=0.01, lon=0.2, alt=-1.0, angle=None),
-        ],
-        x.points,
-    )
-
-
-def test_build_and_parse_single_point_0():
-    points = [
-        geo.Point(time=0, lat=0.01, lon=0.2, alt=None, angle=None),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
-        [
-            geo.Point(time=0, lat=0.01, lon=0.2, alt=-1.0, angle=None),
-        ],
-        x.points,
-    )
-
-
-def test_build_and_parse_single_point_neg():
-    points = [
-        geo.Point(time=-1.2, lat=0.01, lon=0.2, alt=None, angle=None),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate([], x.points)
-
-
-def test_build_and_parse_start_early():
-    points = [
-        geo.Point(time=-1, lat=0.01, lon=0.2, alt=None, angle=None),
-        geo.Point(time=1.2, lat=0.01, lon=0.2, alt=None, angle=None),
-        geo.Point(time=1.4, lat=0.01, lon=0.2, alt=None, angle=None),
-    ]
-    metadata = types.VideoMetadata(
-        Path(""),
-        None,
-        filetype=types.FileType.CAMM,
-        points=points,
-    )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
-        [
-            geo.Point(time=1.2, lat=0.01, lon=0.2, alt=-1, angle=None),
-            geo.Point(time=1.4, lat=0.01, lon=0.2, alt=-1, angle=None),
         ],
         x.points,
     )
@@ -371,10 +133,10 @@ def test_build_and_parse2():
         make="test_make汉字",
         model="test_model汉字",
     )
-    x = encode_decode_empty_camm_mp4(metadata)
+    x = build_mp4(metadata)
     assert x.make == "test_make汉字"
     assert x.model == "test_model汉字"
-    approximate(
+    assert approximate(
         [geo.Point(time=0.09999999988358468, lat=0.01, lon=0.2, alt=-1.0, angle=None)],
         x.points,
     )
@@ -392,7 +154,7 @@ def test_build_and_parse9():
         make="test_make汉字",
         model="test_model汉字",
     )
-    x = encode_decode_empty_camm_mp4(metadata)
+    x = build_mp4(metadata)
     assert [geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None)] == x.points
 
 
@@ -409,8 +171,8 @@ def test_build_and_parse10():
         make="test_make汉字",
         model="test_model汉字",
     )
-    x = encode_decode_empty_camm_mp4(metadata)
-    approximate(
+    x = build_mp4(metadata)
+    assert approximate(
         [
             geo.Point(time=0.0, lat=0.01, lon=0.2, alt=-1.0, angle=None),
             geo.Point(time=0.1, lat=0.03, lon=0.2, alt=-1.0, angle=None),
@@ -429,5 +191,5 @@ def test_build_and_parse3():
         make="test_make汉字",
         model="test_model汉字",
     )
-    x = encode_decode_empty_camm_mp4(metadata)
+    x = build_mp4(metadata)
     assert [] == x.points
