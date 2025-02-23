@@ -20,7 +20,13 @@ class GpxParser(BaseParser):
         if not path:
             return []
 
-        gpx_tracks = geotag_images_from_gpx_file.parse_gpx(path)
+        try:
+            gpx_tracks = geotag_images_from_gpx_file.parse_gpx(path)
+        except Exception as ex:
+            raise RuntimeError(
+                f"Error parsing GPX {path}: {ex.__class__.__name__}: {ex}"
+            )
+
         if 1 < len(gpx_tracks):
             LOG.warning(
                 "Found %s tracks in the GPX file %s. Will merge points in all the tracks as a single track for interpolation",
