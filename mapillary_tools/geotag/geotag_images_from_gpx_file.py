@@ -25,7 +25,13 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGeneric):
         num_processes: T.Optional[int] = None,
     ):
         super().__init__()
-        tracks = parse_gpx(source_path)
+        try:
+            tracks = parse_gpx(source_path)
+        except Exception as ex:
+            raise RuntimeError(
+                f"Error parsing GPX {source_path}: {ex.__class__.__name__}: {ex}"
+            )
+
         if 1 < len(tracks):
             LOG.warning(
                 "Found %s tracks in the GPX file %s. Will merge points in all the tracks as a single track for interpolation",
