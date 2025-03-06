@@ -195,7 +195,6 @@ class Uploader:
                 upload_api_v4.FakeUploadService(
                     user_access_token=self.user_items["user_upload_token"],
                     session_key=session_key,
-                    entity_size=entity_size,
                     organization_id=self.user_items.get("MAPOrganizationKey"),
                     cluster_filetype=cluster_filetype,
                     chunk_size=self.chunk_size,
@@ -205,7 +204,6 @@ class Uploader:
             upload_service = upload_api_v4.UploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
-                entity_size=entity_size,
                 organization_id=self.user_items.get("MAPOrganizationKey"),
                 cluster_filetype=cluster_filetype,
                 chunk_size=self.chunk_size,
