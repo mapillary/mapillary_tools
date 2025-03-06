@@ -48,20 +48,24 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
 
 
 @T.overload
-def _truncate_end(s: bytes, limit=512) -> bytes: ...
+def _truncate_end(s: bytes, limit: int = 512) -> bytes: ...
 
 
 @T.overload
-def _truncate_end(s: str, limit=512) -> str: ...
+def _truncate_end(s: str, limit: int = 512) -> str: ...
 
 
 def _truncate_end(s, limit=512):
     if limit < len(s):
         remaining = len(s) - limit
         if isinstance(s, bytes):
-            return s[:limit] + b"..." + f"({remaining} more bytes)".encode("utf-8")
+            return (
+                s[:limit]
+                + b"..."
+                + f"({remaining} more bytes truncated)".encode("utf-8")
+            )
         else:
-            return str(s[:limit]) + f"...({remaining} more chars)"
+            return str(s[:limit]) + f"...({remaining} more chars truncated)"
     else:
         return s
 
@@ -115,13 +119,25 @@ def _log_debug_request(
 
 def _log_debug_response(resp: requests.Response):
     data: T.Union[str, bytes]
-
     try:
-        data = json.dumps(_sanitize(resp.json()))
+        data = _truncate_end(json.dumps(_sanitize(resp.json())))
     except Exception:
-        data = resp.content
+        data = _truncate_end(resp.content)
 
-    LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", _truncate_end(data))
+    LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", data)
+
+
+def readable_http_error(ex: requests.HTTPError) -> str:
+    req = ex.request
+    resp = ex.response
+
+    data: T.Union[str, bytes]
+    try:
+        data = _truncate_end(json.dumps(_sanitize(resp.json())))
+    except Exception:
+        data = _truncate_end(resp.content)
+
+    return f"{req.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
 
 
 def request_post(

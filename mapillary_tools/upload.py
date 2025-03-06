@@ -47,25 +47,6 @@ class UploadError(Exception):
         super().__init__(str(inner_ex))
 
 
-class UploadHTTPError(Exception):
-    pass
-
-
-def wrap_http_exception(ex: requests.HTTPError):
-    req = ex.request
-    resp = ex.response
-    if isinstance(resp, requests.Response) and isinstance(req, requests.Request):
-        lines = [
-            f"{req.method} {resp.url}",
-            f"> HTTP Status: {resp.status_code}",
-            str(resp.content),
-        ]
-    else:
-        lines = []
-
-    return UploadHTTPError("\n".join(lines))
-
-
 def _load_validate_metadatas_from_desc_path(
     desc_path: T.Optional[str], import_paths: T.Sequence[Path]
 ) -> T.List[types.Metadata]:
@@ -175,18 +156,12 @@ def fetch_user_items(
                 "Found multiple Mapillary accounts. Please specify one with --user_name"
             )
     else:
-        try:
-            user_items = authenticate.authenticate_user(user_name)
-        except requests.HTTPError as exc:
-            raise wrap_http_exception(exc) from exc
+        user_items = authenticate.authenticate_user(user_name)
 
     if organization_key is not None:
-        try:
-            resp = api_v4.fetch_organization(
-                user_items["user_upload_token"], organization_key
-            )
-        except requests.HTTPError as ex:
-            raise wrap_http_exception(ex) from ex
+        resp = api_v4.fetch_organization(
+            user_items["user_upload_token"], organization_key
+        )
         org = resp.json()
         LOG.info("Uploading to organization: %s", json.dumps(org))
         user_items = T.cast(
@@ -430,15 +405,12 @@ def _api_logging_finished(summary: T.Dict):
     action: api_v4.ActionType = "upload_finished_upload"
     LOG.debug("API Logging for action %s: %s", action, summary)
     try:
-        api_v4.log_event(
-            action,
-            summary,
-        )
+        api_v4.log_event(action, summary)
     except requests.HTTPError as exc:
         LOG.warning(
-            "Error from API Logging for action %s",
+            "HTTPError from API Logging for action %s: %s",
             action,
-            exc_info=wrap_http_exception(exc),
+            api_v4.readable_http_error(exc),
         )
     except Exception:
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
@@ -452,16 +424,12 @@ def _api_logging_failed(payload: T.Dict, exc: Exception):
     action: api_v4.ActionType = "upload_failed_upload"
     LOG.debug("API Logging for action %s: %s", action, payload)
     try:
-        api_v4.log_event(
-            action,
-            payload_with_reason,
-        )
+        api_v4.log_event(action, payload_with_reason)
     except requests.HTTPError as exc:
-        wrapped_exc = wrap_http_exception(exc)
         LOG.warning(
-            "Error from API Logging for action %s",
+            "HTTPError from API Logging for action %s: %s",
             action,
-            exc_info=wrapped_exc,
+            api_v4.readable_http_error(exc),
         )
     except Exception:
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
@@ -678,7 +646,7 @@ def upload(
                     raise exceptions.MapillaryUploadUnauthorizedError(
                         debug_info.get("message")
                     ) from inner_ex
-            raise wrap_http_exception(inner_ex) from inner_ex
+            raise inner_ex
 
         raise inner_ex
 
