@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import ssl
@@ -46,6 +47,83 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
         conn.ca_certs = None
 
 
+@T.overload
+def _truncate_end(s: bytes, limit=512) -> bytes: ...
+
+
+@T.overload
+def _truncate_end(s: str, limit=512) -> str: ...
+
+
+def _truncate_end(s, limit=512):
+    if limit < len(s):
+        remaining = len(s) - limit
+        if isinstance(s, bytes):
+            return s[:limit] + b"..." + f"({remaining} more bytes)".encode("utf-8")
+        else:
+            return str(s[:limit]) + f"...({remaining} more chars)"
+    else:
+        return s
+
+
+def _sanitize(headers: T.Dict):
+    new_headers = {}
+
+    for k, v in headers.items():
+        if k.lower() in [
+            "authorization",
+            "cookie",
+            "x-fb-access-token",
+            "access-token",
+            "access_token",
+            "password",
+        ]:
+            new_headers[k] = "[REDACTED]"
+        else:
+            new_headers[k] = _truncate_end(v)
+
+    return new_headers
+
+
+def _log_debug_request(
+    method: str,
+    url: str,
+    json: T.Optional[T.Dict] = None,
+    params: T.Optional[T.Dict] = None,
+    headers: T.Optional[T.Dict] = None,
+    timeout: T.Any = None,
+):
+    msg = f"HTTP {method} {url}"
+
+    if USE_SYSTEM_CERTS:
+        msg += " (w/sys_certs)"
+
+    if json:
+        msg += f" JSON={_sanitize(json)}"
+
+    if params:
+        msg += f" PARAMS={_sanitize(params)}"
+
+    if headers:
+        msg += f" HEADERS={_sanitize(headers)}"
+
+    if timeout is not None:
+        msg += f" TIMEOUT={timeout}"
+
+    LOG.debug(msg)
+
+
+def _log_debug_response(resp: requests.Response):
+    data: T.Union[str, bytes]
+
+    try:
+        data = json.dumps(_sanitize(resp.json()))
+    except Exception:
+        data = resp.content
+
+    LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", _truncate_end(data))
+
+
 def request_post(
     url: str,
     data: T.Optional[T.Any] = None,
@@ -54,14 +132,23 @@ def request_post(
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
 
+    _log_debug_request(
+        "POST",
+        url,
+        json=json,
+        params=kwargs.get("params"),
+        headers=kwargs.get("headers"),
+        timeout=kwargs.get("timeout"),
+    )
+
     if USE_SYSTEM_CERTS:
         with requests.Session() as session:
             session.mount("https://", HTTPSystemCertsAdapter())
-            return session.post(url, data=data, json=json, **kwargs)
+            resp = session.post(url, data=data, json=json, **kwargs)
 
     else:
         try:
-            return requests.post(url, data=data, json=json, **kwargs)
+            resp = requests.post(url, data=data, json=json, **kwargs)
         except requests.exceptions.SSLError as ex:
             if "SSLCertVerificationError" not in str(ex):
                 raise ex
@@ -70,9 +157,11 @@ def request_post(
             LOG.warning(
                 "SSL error occurred, falling back to system SSL certificates: %s", ex
             )
-            with requests.Session() as session:
-                session.mount("https://", HTTPSystemCertsAdapter())
-                return session.post(url, data=data, json=json, **kwargs)
+            return request_post(url, data=data, json=json, **kwargs)
+
+    _log_debug_response(resp)
+
+    return resp
 
 
 def request_get(
@@ -82,13 +171,21 @@ def request_get(
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
 
+    _log_debug_request(
+        "GET",
+        url,
+        params=kwargs.get("params"),
+        headers=kwargs.get("headers"),
+        timeout=kwargs.get("timeout"),
+    )
+
     if USE_SYSTEM_CERTS:
         with requests.Session() as session:
             session.mount("https://", HTTPSystemCertsAdapter())
-            return session.get(url, params=params, **kwargs)
+            resp = session.get(url, params=params, **kwargs)
     else:
         try:
-            return requests.get(url, params=params, **kwargs)
+            resp = requests.get(url, params=params, **kwargs)
         except requests.exceptions.SSLError as ex:
             if "SSLCertVerificationError" not in str(ex):
                 raise ex
@@ -97,15 +194,17 @@ def request_get(
             LOG.warning(
                 "SSL error occurred, falling back to system SSL certificates: %s", ex
             )
-            with requests.Session() as session:
-                session.mount("https://", HTTPSystemCertsAdapter())
-                return session.get(url, params=params, **kwargs)
+            resp = request_get(url, params=params, **kwargs)
+
+    _log_debug_response(resp)
+
+    return resp
 
 
 def get_upload_token(email: str, password: str) -> requests.Response:
     resp = request_post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
-        params={"access_token": MAPILLARY_CLIENT_TOKEN},
+        headers={"Authorization": f"OAuth {MAPILLARY_CLIENT_TOKEN}"},
         json={"email": email, "password": password, "locale": "en_US"},
         timeout=REQUESTS_TIMEOUT,
     )

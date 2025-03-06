@@ -1,4 +1,5 @@
 import io
+
 import py
 
 from mapillary_tools import upload_api_v4
