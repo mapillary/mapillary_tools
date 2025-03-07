@@ -55,3 +55,9 @@ MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 1000))
 MAX_SEQUENCE_FILESIZE: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "110G")
 # Max number of pixels per sequence (sum of image pixels in the sequence)
 MAX_SEQUENCE_PIXELS: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
+
+PROMPT_DISABLED: bool = os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO").upper() in [
+    "1",
+    "TRUE",
+    "YES",
+]
