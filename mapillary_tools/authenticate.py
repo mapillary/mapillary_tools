@@ -19,17 +19,29 @@ def authenticate(
     user_password: T.Optional[str] = None,
     jwt: T.Optional[str] = None,
 ):
-    # we still accept --user_name for the back compatibility
+    # we still have to accept --user_name for the back compatibility
     profile_name = user_name
+
+    all_user_items = config.list_all_users()
+    if all_user_items:
+        echo("Existing Mapillary profiles:")
+        _list_all_profiles(all_user_items)
+    else:
+        welcome()
 
     if profile_name:
         profile_name = profile_name.strip()
 
     while not profile_name:
         profile_name = input(
-            "Enter the Mapillary username you would like to (re)authenticate: "
+            "Enter the Mapillary profile you would like to (re)authenticate: "
+        ).strip()
+
+    if profile_name in all_user_items:
+        LOG.warning(
+            'The profile "%s" already exists and will be overridden.',
+            profile_name,
         )
-        profile_name = profile_name.strip()
 
     if jwt:
         user_items: types.UserItem = {
@@ -43,33 +55,43 @@ def authenticate(
             "user_upload_token": data["access_token"],
         }
     else:
+        if user_email or user_password:
+            LOG.warning(
+                "Both user_email and user_password must be provided to authenticate"
+            )
         profile_name, user_items = prompt_user_for_user_items(profile_name)
 
+    LOG.info('Authenticated as "%s"', profile_name)
     config.update_config(profile_name, user_items)
 
 
+def echo(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
+def _list_all_profiles(profiles: T.Dict[str, types.UserItem]) -> None:
+    for idx, name in enumerate(profiles, 1):
+        echo(f"{idx:>5}. {name:<32} {profiles[name].get('MAPSettingsUserKey')}")
+
+
 def prompt_user_for_user_items(
-    profile_name: str | None,
+    profile_name: T.Optional[str],
 ) -> T.Tuple[str, types.UserItem]:
-    print(
-        """
-================================================================================
-                            Welcome to Mapillary!
-================================================================================
-If you haven't registered yet, please visit the following link to sign up first:
-https://www.mapillary.com/signup
-After the registration, proceed here to sign in.
-================================================================================
-""".strip(),
-        file=sys.stderr,
-    )
-
     if profile_name is None:
-        profile_name = input("Enter the profile name you would like to create: ")
+        while not profile_name:
+            profile_name = input(
+                "Enter the profile name you would like to authenticate: "
+            ).strip()
 
-    print(f"Sign in for user {profile_name}", file=sys.stderr)
-    user_email = input("Enter your Mapillary user email: ")
-    user_password = getpass.getpass("Enter Mapillary user password: ")
+    user_email = ""
+    while not user_email:
+        user_email = input(
+            f'Enter your Mapillary user email for "{profile_name}": '
+        ).strip()
+
+    user_password = getpass.getpass(
+        f'Enter Mapillary user password for "{profile_name}": '
+    )
 
     try:
         resp = api_v4.get_upload_token(user_email, user_password)
@@ -108,19 +130,25 @@ After the registration, proceed here to sign in.
     }
 
 
-def authenticate_user(profile_name: str | None) -> types.UserItem:
+def authenticate_user(profile_name: T.Optional[str]) -> types.UserItem:
     if profile_name is not None:
         user_items = config.load_user(profile_name)
-        if user_items is not None:
+        if user_items is None:
+            LOG.info('Profile "%s" not found in config', profile_name)
+        else:
             try:
                 jsonschema.validate(user_items, types.UserItemSchema)
             except jsonschema.ValidationError:
-                pass
+                # If the user_items in config are invalid, proceed with the user input
+                LOG.warning("Invalid user items for profile: %s", profile_name)
             else:
                 return user_items
 
     profile_name, user_items = prompt_user_for_user_items(profile_name)
     jsonschema.validate(user_items, types.UserItemSchema)
+
+    # Update the config with the new user items
+    LOG.info('Authenticated as "%s"', profile_name)
     config.update_config(profile_name, user_items)
 
     return user_items
@@ -129,37 +157,54 @@ def authenticate_user(profile_name: str | None) -> types.UserItem:
 def prompt_choose_user_profile(
     all_user_items: T.Dict[str, types.UserItem],
 ) -> types.UserItem:
-    print("Found multiple Mapillary profiles:", file=sys.stderr)
+    echo("Found multiple Mapillary profiles:")
     profiles = list(all_user_items.keys())
 
-    for i, name in enumerate(profiles, 1):
-        print(f"{i:5}. {name}", file=sys.stderr)
+    _list_all_profiles(all_user_items)
 
     while True:
+        c = input(
+            "Which user profile would you like to use? Enter the number: "
+        ).strip()
+
         try:
-            choice = int(
-                input("Which user profile would you like to use? Enter the number: ")
-            )
+            choice = int(c)
         except ValueError:
-            print("Invalid input. Please enter a number.", file=sys.stderr)
+            echo("Invalid input. Please enter a number.")
         else:
             if 1 <= choice <= len(all_user_items):
                 user_items = all_user_items[profiles[choice - 1]]
                 break
 
-            print(
-                f"Please enter a number between 1 and {len(profiles)}.", file=sys.stderr
-            )
+            echo(f"Please enter a number between 1 and {len(profiles)}.")
 
     return user_items
 
 
+def welcome():
+    echo(
+        """
+================================================================================
+                            Welcome to Mapillary!
+================================================================================
+If you haven't registered yet, please visit the following link to sign up first:
+https://www.mapillary.com/signup
+After the registration, proceed here to sign in.
+================================================================================
+    """.strip()
+    )
+
+
 def fetch_user_items(
-    profile_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
+    user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
 ) -> types.UserItem:
+    # we still have to accept --user_name for the back compatibility
+    profile_name = user_name
+
     if profile_name is None:
         all_user_items = config.list_all_users()
         if not all_user_items:
+            welcome()
             user_items = authenticate_user(None)
             # raise exceptions.MapillaryBadParameterError(
             #     "No Mapillary profile found. Add one with --user_name"
