@@ -1,7 +1,5 @@
 import enum
 import io
-import json
-import logging
 import os
 import random
 import typing as T
@@ -9,9 +7,13 @@ import uuid
 
 import requests
 
-from .api_v4 import MAPILLARY_GRAPH_API_ENDPOINT, request_get, request_post
+from .api_v4 import (
+    MAPILLARY_GRAPH_API_ENDPOINT,
+    request_get,
+    request_post,
+    REQUESTS_TIMEOUT,
+)
 
-LOG = logging.getLogger(__name__)
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
@@ -22,7 +24,6 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # i.e. if your the server does not respond within this timeout, it will throw:
 # ConnectionError: ('Connection aborted.', timeout('The write operation timed out'))
 # So let us make sure the largest possible chunks can be uploaded before this timeout for now,
-REQUESTS_TIMEOUT = (20, 20)  # 20 seconds
 UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
@@ -30,28 +31,6 @@ class ClusterFileType(enum.Enum):
     ZIP = "zip"
     BLACKVUE = "mly_blackvue_video"
     CAMM = "mly_camm_video"
-
-
-def _sanitize_headers(headers: T.Dict):
-    return {
-        k: v
-        for k, v in headers.items()
-        if k.lower() not in ["authorization", "cookie", "x-fb-access-token"]
-    }
-
-
-_S = T.TypeVar("_S", str, bytes)
-
-
-def _truncate_end(s: _S) -> _S:
-    MAX_LENGTH = 512
-    if MAX_LENGTH < len(s):
-        if isinstance(s, bytes):
-            return s[:MAX_LENGTH] + b"..."
-        else:
-            return str(s[:MAX_LENGTH]) + "..."
-    else:
-        return s
 
 
 class UploadService:
@@ -92,13 +71,11 @@ class UploadService:
             "Authorization": f"OAuth {self.user_access_token}",
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        LOG.debug("GET %s", url)
         resp = request_get(
             url,
             headers=headers,
             timeout=REQUESTS_TIMEOUT,
         )
-        LOG.debug("HTTP response %s: %s", resp.status_code, resp.content)
         resp.raise_for_status()
         data = resp.json()
         return data["offset"]
@@ -160,14 +137,12 @@ class UploadService:
             "X-Entity-Type": self.MIME_BY_CLUSTER_TYPE[self.cluster_filetype],
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
         resp = request_post(
             url,
             headers=headers,
             data=chunks,
             timeout=UPLOAD_REQUESTS_TIMEOUT,
         )
-        LOG.debug("HTTP response %s: %s", resp.status_code, _truncate_end(resp.content))
 
         payload = resp.json()
         try:
@@ -190,14 +165,12 @@ class UploadService:
 
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
 
-        LOG.debug("POST %s HEADERS %s", url, json.dumps(_sanitize_headers(headers)))
         resp = request_post(
             url,
             headers=headers,
             json=data,
             timeout=REQUESTS_TIMEOUT,
         )
-        LOG.debug("HTTP response %s: %s", resp.status_code, _truncate_end(resp.content))
 
         resp.raise_for_status()
 

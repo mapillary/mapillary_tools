@@ -5,7 +5,9 @@ import sys
 import typing as T
 from pathlib import Path
 
-from .. import constants, exceptions, VERSION
+import requests
+
+from .. import api_v4, constants, exceptions, VERSION
 from . import (
     authenticate,
     process,
@@ -160,11 +162,14 @@ def main():
 
     try:
         args.func(argvars)
-    except exceptions.MapillaryUserError as exc:
+    except requests.HTTPError as ex:
+        LOG.error("%s: %s", ex.__class__.__name__, api_v4.readable_http_error(ex))
+
+    except exceptions.MapillaryUserError as ex:
         LOG.error(
-            "%s: %s", exc.__class__.__name__, exc, exc_info=log_level == logging.DEBUG
+            "%s: %s", ex.__class__.__name__, ex, exc_info=log_level == logging.DEBUG
         )
-        sys.exit(exc.exit_code)
+        sys.exit(ex.exit_code)
 
 
 if __name__ == "__main__":
