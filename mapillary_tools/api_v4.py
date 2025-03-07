@@ -1,8 +1,8 @@
-import json
 import logging
 import os
 import ssl
 import typing as T
+from json import dumps
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -48,14 +48,14 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
 
 
 @T.overload
-def _truncate_end(s: bytes, limit: int = 512) -> bytes: ...
+def _truncate(s: bytes, limit: int = 512) -> bytes: ...
 
 
 @T.overload
-def _truncate_end(s: str, limit: int = 512) -> str: ...
+def _truncate(s: str, limit: int = 512) -> str: ...
 
 
-def _truncate_end(s, limit=512):
+def _truncate(s, limit=512):
     if limit < len(s):
         remaining = len(s) - limit
         if isinstance(s, bytes):
@@ -84,7 +84,7 @@ def _sanitize(headers: T.Dict):
         ]:
             new_headers[k] = "[REDACTED]"
         else:
-            new_headers[k] = _truncate_end(v)
+            new_headers[k] = _truncate(v)
 
     return new_headers
 
@@ -106,7 +106,8 @@ def _log_debug_request(
         msg += " (w/sys_certs)"
 
     if json:
-        msg += f" JSON={_sanitize(json)}"
+        t = _truncate(dumps(_sanitize(json)))
+        msg += f" JSON={t}"
 
     if params:
         msg += f" PARAMS={_sanitize(params)}"
@@ -126,9 +127,9 @@ def _log_debug_response(resp: requests.Response):
 
     data: T.Union[str, bytes]
     try:
-        data = _truncate_end(json.dumps(_sanitize(resp.json())))
+        data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
-        data = _truncate_end(resp.content)
+        data = _truncate(resp.content)
 
     LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", data)
 
@@ -139,9 +140,9 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
     data: T.Union[str, bytes]
     try:
-        data = _truncate_end(json.dumps(_sanitize(resp.json())))
+        data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
-        data = _truncate_end(resp.content)
+        data = _truncate(resp.content)
 
     return f"{req.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
 
