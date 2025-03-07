@@ -1,6 +1,7 @@
 import getpass
 import json
 import logging
+import re
 import sys
 import typing as T
 
@@ -23,6 +24,37 @@ def prompt(message: str) -> str:
     return input()
 
 
+def prompt_profile_name() -> str:
+    profile_name = ""
+
+    while not profile_name:
+        profile_name = prompt(
+            "Enter the Mapillary profile you would like to (re)authenticate: "
+        ).strip()
+
+        if profile_name:
+            try:
+                validate_profile_name(profile_name)
+            except ValueError as ex:
+                echo(ex)
+                profile_name = ""
+            else:
+                break
+
+    return profile_name
+
+
+def validate_profile_name(profile_name: str):
+    if not (2 <= len(profile_name) <= 32):
+        raise ValueError("Profile name must be between 2 and 32 characters long")
+
+    pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
+    if not bool(pattern.match(profile_name)):
+        raise ValueError(
+            "Invalid profile name. Use only letters, numbers, hyphens and underscores"
+        )
+
+
 def authenticate(
     user_name: T.Optional[str] = None,
     user_email: T.Optional[str] = None,
@@ -32,6 +64,10 @@ def authenticate(
     # we still have to accept --user_name for the back compatibility
     profile_name = user_name
 
+    if profile_name:
+        profile_name = profile_name.strip()
+        validate_profile_name(profile_name)
+
     all_user_items = config.list_all_users()
     if all_user_items:
         echo("Existing Mapillary profiles:")
@@ -39,13 +75,8 @@ def authenticate(
     else:
         welcome()
 
-    if profile_name:
-        profile_name = profile_name.strip()
-
-    while not profile_name:
-        profile_name = prompt(
-            "Enter the Mapillary profile you would like to (re)authenticate: "
-        ).strip()
+    if not profile_name:
+        profile_name = prompt_profile_name()
 
     if profile_name in all_user_items:
         LOG.warning(
@@ -84,20 +115,18 @@ def prompt_user_for_user_items(
     profile_name: T.Optional[str],
 ) -> T.Tuple[str, types.UserItem]:
     if profile_name is None:
-        while not profile_name:
-            profile_name = prompt(
-                "Enter the profile name you would like to authenticate: "
-            ).strip()
+        profile_name = prompt_profile_name()
+
+    echo(f'Authenticating as "{profile_name}"')
 
     user_email = ""
     while not user_email:
-        user_email = prompt(
-            f'Enter Mapillary user email for "{profile_name}": '
-        ).strip()
+        user_email = prompt("Enter Mapillary user email: ").strip()
 
-    user_password = getpass.getpass(
-        f'Enter Mapillary user password for "{profile_name}": '
-    )
+    while True:
+        user_password = getpass.getpass("Enter Mapillary user password: ")
+        if user_password:
+            break
 
     try:
         resp = api_v4.get_upload_token(user_email, user_password)
@@ -164,26 +193,10 @@ def prompt_choose_user_profile(
     all_user_items: T.Dict[str, types.UserItem],
 ) -> types.UserItem:
     echo("Found multiple Mapillary profiles:")
-    profiles = list(all_user_items.keys())
-
     _list_all_profiles(all_user_items)
-
-    while True:
-        c = prompt(
-            "Which user profile would you like to use? Enter the number: "
-        ).strip()
-
-        try:
-            choice = int(c)
-        except ValueError:
-            echo("Invalid input. Please enter a number.")
-        else:
-            if 1 <= choice <= len(all_user_items):
-                user_items = all_user_items[profiles[choice - 1]]
-                break
-
-            echo(f"Please enter a number between 1 and {len(profiles)}.")
-
+    profile_name = prompt_profile_name()
+    # TODO: fix KeyError here
+    user_items = all_user_items[profile_name]
     return user_items
 
 
@@ -207,14 +220,13 @@ def fetch_user_items(
     # we still have to accept --user_name for the back compatibility
     profile_name = user_name
 
+    all_user_items = config.list_all_users()
+    if not all_user_items:
+        welcome()
+
     if profile_name is None:
-        all_user_items = config.list_all_users()
-        if not all_user_items:
-            welcome()
+        if len(all_user_items) == 0:
             user_items = authenticate_user(None)
-            # raise exceptions.MapillaryBadParameterError(
-            #     "No Mapillary profile found. Add one with --user_name"
-            # )
         elif len(all_user_items) == 1:
             user_items = list(all_user_items.values())[0]
         else:
