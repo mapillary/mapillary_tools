@@ -1,6 +1,7 @@
 import getpass
 import json
 import logging
+import sys
 import typing as T
 
 import jsonschema
@@ -60,12 +61,13 @@ https://www.mapillary.com/signup
 After the registration, proceed here to sign in.
 ================================================================================
 """.strip(),
+        file=sys.stderr,
     )
 
     if profile_name is None:
         profile_name = input("Enter the profile name you would like to create: ")
 
-    print(f"Sign in for user {profile_name}")
+    print(f"Sign in for user {profile_name}", file=sys.stderr)
     user_email = input("Enter your Mapillary user email: ")
     user_password = getpass.getpass("Enter Mapillary user password: ")
 
@@ -127,11 +129,11 @@ def authenticate_user(profile_name: str | None) -> types.UserItem:
 def prompt_choose_user_profile(
     all_user_items: T.Dict[str, types.UserItem],
 ) -> types.UserItem:
-    print("Found multiple Mapillary profiles:")
+    print("Found multiple Mapillary profiles:", file=sys.stderr)
     profiles = list(all_user_items.keys())
 
     for i, name in enumerate(profiles, 1):
-        print(f"{i:5}. {name}")
+        print(f"{i:5}. {name}", file=sys.stderr)
 
     while True:
         try:
@@ -139,13 +141,15 @@ def prompt_choose_user_profile(
                 input("Which user profile would you like to use? Enter the number: ")
             )
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a number.", file=sys.stderr)
         else:
             if 1 <= choice <= len(all_user_items):
                 user_items = all_user_items[profiles[choice - 1]]
                 break
 
-            print(f"Please enter a number between 1 and {len(profiles)}.")
+            print(
+                f"Please enter a number between 1 and {len(profiles)}.", file=sys.stderr
+            )
 
     return user_items
 
