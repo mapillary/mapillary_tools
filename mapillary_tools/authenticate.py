@@ -6,7 +6,7 @@ import typing as T
 import jsonschema
 import requests
 
-from . import api_v4, config, exceptions, types
+from . import api_v4, config, types
 
 
 LOG = logging.getLogger(__name__)
@@ -18,14 +18,17 @@ def authenticate(
     user_password: T.Optional[str] = None,
     jwt: T.Optional[str] = None,
 ):
-    if user_name:
-        user_name = user_name.strip()
+    # we still accept --user_name for the back compatibility
+    profile_name = user_name
 
-    while not user_name:
-        user_name = input(
+    if profile_name:
+        profile_name = profile_name.strip()
+
+    while not profile_name:
+        profile_name = input(
             "Enter the Mapillary username you would like to (re)authenticate: "
         )
-        user_name = user_name.strip()
+        profile_name = profile_name.strip()
 
     if jwt:
         user_items: types.UserItem = {
@@ -39,13 +42,30 @@ def authenticate(
             "user_upload_token": data["access_token"],
         }
     else:
-        user_items = prompt_user_for_user_items(user_name)
+        profile_name, user_items = prompt_user_for_user_items(profile_name)
 
-    config.update_config(user_name, user_items)
+    config.update_config(profile_name, user_items)
 
 
-def prompt_user_for_user_items(user_name: str) -> types.UserItem:
-    print(f"Sign in for user {user_name}")
+def prompt_user_for_user_items(
+    profile_name: str | None,
+) -> T.Tuple[str, types.UserItem]:
+    print(
+        """
+================================================================================
+                            Welcome to Mapillary!
+================================================================================
+If you haven't registered yet, please visit the following link to sign up first:
+https://www.mapillary.com/signup
+After the registration, proceed here to sign in.
+================================================================================
+""".strip(),
+    )
+
+    if profile_name is None:
+        profile_name = input("Enter the profile name you would like to create: ")
+
+    print(f"Sign in for user {profile_name}")
     user_email = input("Enter your Mapillary user email: ")
     user_password = getpass.getpass("Enter Mapillary user password: ")
 
@@ -63,7 +83,7 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
                 title = r.get("error", {}).get("error_user_title")
                 message = r.get("error", {}).get("error_user_msg")
                 LOG.error("%s: %s", title, message)
-                return prompt_user_for_user_items(user_name)
+                return prompt_user_for_user_items(profile_name)
             else:
                 raise ex
         else:
@@ -80,25 +100,26 @@ def prompt_user_for_user_items(user_name: str) -> types.UserItem:
     if isinstance(user_key, int):
         user_key = str(user_key)
 
-    return {
+    return profile_name, {
         "MAPSettingsUserKey": user_key,
         "user_upload_token": upload_token,
     }
 
 
-def authenticate_user(user_name: str) -> types.UserItem:
-    user_items = config.load_user(user_name)
-    if user_items is not None:
-        try:
-            jsonschema.validate(user_items, types.UserItemSchema)
-        except jsonschema.ValidationError:
-            pass
-        else:
-            return user_items
+def authenticate_user(profile_name: str | None) -> types.UserItem:
+    if profile_name is not None:
+        user_items = config.load_user(profile_name)
+        if user_items is not None:
+            try:
+                jsonschema.validate(user_items, types.UserItemSchema)
+            except jsonschema.ValidationError:
+                pass
+            else:
+                return user_items
 
-    user_items = prompt_user_for_user_items(user_name)
+    profile_name, user_items = prompt_user_for_user_items(profile_name)
     jsonschema.validate(user_items, types.UserItemSchema)
-    config.update_config(user_name, user_items)
+    config.update_config(profile_name, user_items)
 
     return user_items
 
@@ -130,20 +151,21 @@ def prompt_choose_user_profile(
 
 
 def fetch_user_items(
-    user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
+    profile_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
 ) -> types.UserItem:
-    if user_name is None:
+    if profile_name is None:
         all_user_items = config.list_all_users()
         if not all_user_items:
-            raise exceptions.MapillaryBadParameterError(
-                "No Mapillary profile found. Add one with --user_name"
-            )
+            user_items = authenticate_user(None)
+            # raise exceptions.MapillaryBadParameterError(
+            #     "No Mapillary profile found. Add one with --user_name"
+            # )
         elif len(all_user_items) == 1:
             user_items = list(all_user_items.values())[0]
         else:
             user_items = prompt_choose_user_profile(all_user_items)
     else:
-        user_items = authenticate_user(user_name)
+        user_items = authenticate_user(profile_name)
 
     if organization_key is not None:
         resp = api_v4.fetch_organization(

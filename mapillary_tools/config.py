@@ -35,14 +35,14 @@ def _load_config(config_path: str) -> configparser.ConfigParser:
 
 
 def load_user(
-    user_name: str, config_path: T.Optional[str] = None
+    profile_name: str, config_path: T.Optional[str] = None
 ) -> T.Optional[types.UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     config = _load_config(config_path)
-    if not config.has_section(user_name):
+    if not config.has_section(profile_name):
         return None
-    user_items = dict(config.items(user_name))
+    user_items = dict(config.items(profile_name))
     return T.cast(types.UserItem, user_items)
 
 
@@ -51,22 +51,22 @@ def list_all_users(config_path: T.Optional[str] = None) -> T.Dict[str, types.Use
         config_path = MAPILLARY_CONFIG_PATH
     cp = _load_config(config_path)
     users = {
-        user_name: load_user(user_name, config_path=config_path)
-        for user_name in cp.sections()
+        profile_name: load_user(profile_name, config_path=config_path)
+        for profile_name in cp.sections()
     }
     return {profile: item for profile, item in users.items() if item is not None}
 
 
 def update_config(
-    user_name: str, user_items: types.UserItem, config_path: T.Optional[str] = None
+    profile_name: str, user_items: types.UserItem, config_path: T.Optional[str] = None
 ) -> None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     config = _load_config(config_path)
-    if not config.has_section(user_name):
-        config.add_section(user_name)
+    if not config.has_section(profile_name):
+        config.add_section(profile_name)
     for key, val in user_items.items():
-        config.set(user_name, key, T.cast(str, val))
+        config.set(profile_name, key, T.cast(str, val))
     os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
     with open(config_path, "w") as fp:
         config.write(fp)
