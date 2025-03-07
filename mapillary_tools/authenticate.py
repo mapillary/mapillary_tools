@@ -13,6 +13,16 @@ from . import api_v4, config, types
 LOG = logging.getLogger(__name__)
 
 
+def echo(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
+def prompt(message: str) -> str:
+    """Display prompt on stderr and get input from stdin"""
+    print(message, end="", file=sys.stderr, flush=True)
+    return input()
+
+
 def authenticate(
     user_name: T.Optional[str] = None,
     user_email: T.Optional[str] = None,
@@ -33,7 +43,7 @@ def authenticate(
         profile_name = profile_name.strip()
 
     while not profile_name:
-        profile_name = input(
+        profile_name = prompt(
             "Enter the Mapillary profile you would like to (re)authenticate: "
         ).strip()
 
@@ -65,10 +75,6 @@ def authenticate(
     config.update_config(profile_name, user_items)
 
 
-def echo(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
-
-
 def _list_all_profiles(profiles: T.Dict[str, types.UserItem]) -> None:
     for idx, name in enumerate(profiles, 1):
         echo(f"{idx:>5}. {name:<32} {profiles[name].get('MAPSettingsUserKey')}")
@@ -79,14 +85,14 @@ def prompt_user_for_user_items(
 ) -> T.Tuple[str, types.UserItem]:
     if profile_name is None:
         while not profile_name:
-            profile_name = input(
+            profile_name = prompt(
                 "Enter the profile name you would like to authenticate: "
             ).strip()
 
     user_email = ""
     while not user_email:
-        user_email = input(
-            f'Enter your Mapillary user email for "{profile_name}": '
+        user_email = prompt(
+            f'Enter Mapillary user email for "{profile_name}": '
         ).strip()
 
     user_password = getpass.getpass(
@@ -163,7 +169,7 @@ def prompt_choose_user_profile(
     _list_all_profiles(all_user_items)
 
     while True:
-        c = input(
+        c = prompt(
             "Which user profile would you like to use? Enter the number: "
         ).strip()
 
