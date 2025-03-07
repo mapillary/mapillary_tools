@@ -97,6 +97,9 @@ def _log_debug_request(
     headers: T.Optional[T.Dict] = None,
     timeout: T.Any = None,
 ):
+    if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+        return
+
     msg = f"HTTP {method} {url}"
 
     if USE_SYSTEM_CERTS:
@@ -118,6 +121,9 @@ def _log_debug_request(
 
 
 def _log_debug_response(resp: requests.Response):
+    if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+        return
+
     data: T.Union[str, bytes]
     try:
         data = _truncate_end(json.dumps(_sanitize(resp.json())))
