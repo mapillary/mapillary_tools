@@ -103,6 +103,32 @@ def authenticate_user(user_name: str) -> types.UserItem:
     return user_items
 
 
+def prompt_choose_user_profile(
+    all_user_items: T.Dict[str, types.UserItem],
+) -> types.UserItem:
+    print("Found multiple Mapillary profiles:")
+    profiles = list(all_user_items.keys())
+
+    for i, name in enumerate(profiles, 1):
+        print(f"{i:5}. {name}")
+
+    while True:
+        try:
+            choice = int(
+                input("Which user profile would you like to use? Enter the number: ")
+            )
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+        else:
+            if 1 <= choice <= len(all_user_items):
+                user_items = all_user_items[profiles[choice - 1]]
+                break
+
+            print(f"Please enter a number between 1 and {len(profiles)}.")
+
+    return user_items
+
+
 def fetch_user_items(
     user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
 ) -> types.UserItem:
@@ -110,14 +136,12 @@ def fetch_user_items(
         all_user_items = config.list_all_users()
         if not all_user_items:
             raise exceptions.MapillaryBadParameterError(
-                "No Mapillary account found. Add one with --user_name"
+                "No Mapillary profile found. Add one with --user_name"
             )
-        if len(all_user_items) == 1:
-            user_items = all_user_items[0]
+        elif len(all_user_items) == 1:
+            user_items = list(all_user_items.values())[0]
         else:
-            raise exceptions.MapillaryBadParameterError(
-                "Found multiple Mapillary accounts. Please specify one with --user_name"
-            )
+            user_items = prompt_choose_user_profile(all_user_items)
     else:
         user_items = authenticate_user(user_name)
 

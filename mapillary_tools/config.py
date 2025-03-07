@@ -46,14 +46,15 @@ def load_user(
     return T.cast(types.UserItem, user_items)
 
 
-def list_all_users(config_path: T.Optional[str] = None) -> T.List[types.UserItem]:
+def list_all_users(config_path: T.Optional[str] = None) -> T.Dict[str, types.UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     cp = _load_config(config_path)
-    users = [
-        load_user(user_name, config_path=config_path) for user_name in cp.sections()
-    ]
-    return [item for item in users if item is not None]
+    users = {
+        user_name: load_user(user_name, config_path=config_path)
+        for user_name in cp.sections()
+    }
+    return {profile: item for profile, item in users.items() if item is not None}
 
 
 def update_config(
