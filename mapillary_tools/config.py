@@ -70,3 +70,18 @@ def update_config(
     os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
     with open(config_path, "w") as fp:
         config.write(fp)
+
+
+def remove_config(profile_name: str, config_path: T.Optional[str] = None) -> None:
+    if config_path is None:
+        config_path = MAPILLARY_CONFIG_PATH
+
+    config = _load_config(config_path)
+    if not config.has_section(profile_name):
+        return
+
+    config.remove_section(profile_name)
+
+    os.makedirs(os.path.dirname(os.path.abspath(config_path)), exist_ok=True)
+    with open(config_path, "w") as fp:
+        config.write(fp)

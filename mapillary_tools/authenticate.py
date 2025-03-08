@@ -20,6 +20,10 @@ def authenticate(
     user_password: T.Optional[str] = None,
     jwt: T.Optional[str] = None,
 ):
+    """
+    Prompt for authentication information and save it to the config file
+    """
+
     # we still have to accept --user_name for the back compatibility
     profile_name = user_name
 
@@ -75,6 +79,81 @@ def authenticate(
     config.update_config(profile_name, user_items)
 
 
+def fetch_user_items(
+    user_name: T.Optional[str] = None,
+    organization_key: T.Optional[str] = None,
+    let_user_choose: bool = False,
+) -> types.UserItem:
+    """
+    Read user information from the config file,
+    or prompt the user to authenticate if the specified profile does not exist
+    """
+
+    # we still have to accept --user_name for the back compatibility
+    profile_name = user_name
+
+    all_user_items = config.list_all_users()
+    if not all_user_items:
+        _welcome()
+
+    if profile_name is None:
+        if len(all_user_items) == 0:
+            profile_name, user_items = _load_or_authenticate_user()
+        else:
+            if let_user_choose or len(all_user_items) > 1:
+                profile_name, user_items = _prompt_choose_user_profile(all_user_items)
+            else:
+                profile_name, user_items = list(all_user_items.items())[0]
+    else:
+        profile_name, user_items = _load_or_authenticate_user(profile_name)
+
+    try:
+        user_json = _test_auth_and_update_user(user_items)
+    except exceptions.MapillaryUploadUnauthorizedError as ex:
+        if not _prompt_enabled():
+            raise ex
+
+        LOG.error(
+            'The access token for profile "%s" is invalid or expired: %s',
+            profile_name,
+            ex,
+        )
+
+        answer = _prompt(
+            f'Delete the profile "{profile_name}", and try again with another profile? [y/N] '
+        ).strip()
+
+        if answer.lower() == "y":
+            config.remove_config(profile_name)
+            return fetch_user_items(
+                user_name=None, organization_key=organization_key, let_user_choose=True
+            )
+        else:
+            raise ex
+
+    if user_json is not None:
+        LOG.info("Uploading to Mapillary user: %s", json.dumps(user_json))
+
+    if organization_key is not None:
+        resp = api_v4.fetch_organization(
+            user_items["user_upload_token"], organization_key
+        )
+        LOG.info("Uploading to Mapillary organization: %s", json.dumps(resp.json()))
+        user_items["MAPOrganizationKey"] = organization_key
+
+    return user_items
+
+
+def _echo(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
+def _prompt(message: str) -> str:
+    """Display prompt on stderr and get input from stdin"""
+    print(message, end="", file=sys.stderr, flush=True)
+    return input()
+
+
 def _test_auth_and_update_user(
     user_items: types.UserItem,
 ) -> T.Optional[T.Dict[str, str]]:
@@ -102,56 +181,6 @@ def _test_auth_and_update_user(
             user_items["MAPSettingsUserKey"] = user_id
 
     return user_json
-
-
-def fetch_user_items(
-    user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
-) -> types.UserItem:
-    # we still have to accept --user_name for the back compatibility
-    profile_name = user_name
-
-    all_user_items = config.list_all_users()
-    if not all_user_items:
-        _welcome()
-
-    if profile_name is None:
-        if len(all_user_items) == 0:
-            user_items = _load_or_authenticate_user()
-        elif len(all_user_items) == 1:
-            user_items = list(all_user_items.values())[0]
-        else:
-            if not _prompt_enabled():
-                raise exceptions.MapillaryBadParameterError(
-                    "Multiple user profiles found, please choose one with --user_name"
-                )
-            user_items = _prompt_choose_user_profile(all_user_items)
-    else:
-        user_items = _load_or_authenticate_user(profile_name)
-
-    user_json = _test_auth_and_update_user(user_items)
-    if user_json is not None:
-        LOG.info("Uploading to Mapillary user: %s", json.dumps(user_json))
-
-    if organization_key is not None:
-        resp = api_v4.fetch_organization(
-            user_items["user_upload_token"], organization_key
-        )
-        LOG.info("Uploading to Mapillary organization: %s", json.dumps(resp.json()))
-        user_items = T.cast(
-            types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
-        )
-
-    return user_items
-
-
-def _echo(*args, **kwargs):
-    print(*args, **kwargs, file=sys.stderr)
-
-
-def _prompt(message: str) -> str:
-    """Display prompt on stderr and get input from stdin"""
-    print(message, end="", file=sys.stderr, flush=True)
-    return input()
 
 
 def _prompt_profile_name(skip_validation: bool = False) -> str:
@@ -195,7 +224,10 @@ def _validate_profile_name(profile_name: str):
 def _list_all_profiles(profiles: T.Dict[str, types.UserItem]) -> None:
     _echo("Existing Mapillary profiles:")
     for idx, name in enumerate(profiles, 1):
-        _echo(f"{idx:>5}. {name:<32} {profiles[name].get('MAPSettingsUserKey')}")
+        items = profiles[name]
+        user_id = items.get("MAPSettingsUserKey", "N/A")
+        username = items.get("MAPSettingsUsername", "N/A")
+        _echo(f"{idx:>5}. {name:<32} {user_id:>16} {username:>32}")
 
 
 def _is_interactive():
@@ -283,11 +315,13 @@ def _prompt_user_for_user_items(
     }
 
 
-def _load_or_authenticate_user(profile_name: T.Optional[str] = None) -> types.UserItem:
+def _load_or_authenticate_user(
+    profile_name: T.Optional[str] = None,
+) -> T.Tuple[str, types.UserItem]:
     if profile_name is not None:
         user_items = config.load_user(profile_name)
         if user_items is None:
-            LOG.info('Profile "%s" not found in config', profile_name)
+            LOG.info('Profile "%s" not found', profile_name)
             # validate here since we are going to create this profile
             _validate_profile_name(profile_name)
         else:
@@ -297,11 +331,11 @@ def _load_or_authenticate_user(profile_name: T.Optional[str] = None) -> types.Us
                 # If the user_items in config are invalid, proceed with the user input
                 LOG.warning("Invalid user items for profile: %s", profile_name)
             else:
-                return user_items
+                return profile_name, user_items
 
     if not _prompt_enabled():
         raise exceptions.MapillaryBadParameterError(
-            f'Profile "{profile_name}" not found (and prompting disabled)'
+            f'Profile "{profile_name}" not found'
         )
 
     profile_name, user_items = _prompt_user_for_user_items(profile_name)
@@ -313,22 +347,25 @@ def _load_or_authenticate_user(profile_name: T.Optional[str] = None) -> types.Us
     LOG.info('Authenticated as "%s"', profile_name)
     config.update_config(profile_name, user_items)
 
-    return user_items
+    return profile_name, user_items
 
 
 def _prompt_choose_user_profile(
     all_user_items: T.Dict[str, types.UserItem],
-) -> types.UserItem:
-    assert _prompt_enabled(), "should not get here if prompting is disabled"
+) -> T.Tuple[str, types.UserItem]:
+    if not _prompt_enabled():
+        raise exceptions.MapillaryBadParameterError(
+            "Multiple user profiles found, please choose one with --user_name"
+        )
 
     _list_all_profiles(all_user_items)
     while True:
-        profile_name = _prompt_profile_name()
+        profile_name = _prompt_profile_name(skip_validation=True)
         if profile_name in all_user_items:
             break
         _echo(f'Profile "{profile_name}" not found')
 
-    return all_user_items[profile_name]
+    return profile_name, all_user_items[profile_name]
 
 
 def _welcome():
