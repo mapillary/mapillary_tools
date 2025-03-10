@@ -26,7 +26,11 @@ SAMPLED_VIDEO_FRAMES_FILENAME = os.getenv(
     _ENV_PREFIX + "SAMPLED_VIDEO_FRAMES_FILENAME", "mapillary_sampled_video_frames"
 )
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
-UPLOAD_CHUNK_SIZE_MB = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 16))
+# The chunk size in MB (see chunked transfer encoding https://en.wikipedia.org/wiki/Chunked_transfer_encoding)
+# for uploading data to MLY upload service.
+# Changing this size does not change the number of requests nor affect upload performance,
+# but it affects the responsiveness of the upload progress bar
+UPLOAD_CHUNK_SIZE_MB = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 1))
 
 # DoP value, the lower the better
 # See https://github.com/gopro/gpmf-parser#hero5-black-with-gps-enabled-adds
