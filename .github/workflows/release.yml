@@ -35,7 +35,9 @@ jobs:
           #   architecture: arm64 # Windows ARM
 
           # Linux builds
-          - platform: ubuntu-latest
+          # When building with ubunutu-latest (24.04), we still see the following runtime error:
+          # [PYI-4568:ERROR] Failed to load Python shared library '/tmp/_MEI3FR8Jx/libpython3.11.so.1.0': dlopen: /lib64/libm.so.6: version `GLIBC_2.38' not found (required by /tmp/_MEI3FR8Jx/libpython3.11.so.1.0)
+          - platform: ubuntu-20.04
             os: linux
             architecture: x64
           - platform: 2-core-ubuntu-arm # or ubuntu-latest-arm
