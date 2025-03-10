@@ -46,8 +46,8 @@ def cut_sequence_by_time_distance(
 
 def duplication_check(
     sequence: PointSequence,
-    duplicate_distance: float,
-    duplicate_angle: float,
+    max_duplicate_distance: float,
+    max_duplicate_angle: float,
 ) -> T.Tuple[PointSequence, T.List[types.ErrorMetadata]]:
     dedups: PointSequence = []
     dups: T.List[types.ErrorMetadata] = []
@@ -70,13 +70,14 @@ def duplication_check(
         else:
             angle_diff = None
 
-        if distance <= duplicate_distance and (
-            angle_diff is not None and angle_diff <= duplicate_angle
+        if distance <= max_duplicate_distance and (
+            angle_diff is None or angle_diff <= max_duplicate_angle
         ):
+            msg = f"Duplicate of its previous image in terms of distance <= {max_duplicate_distance} and angle <= {max_duplicate_angle}"
             dups.append(
                 types.describe_error_metadata(
                     MapillaryDuplicationError(
-                        f"Duplicate of its previous image in terms of distance <= {duplicate_distance} and angle <= {duplicate_angle}",
+                        msg,
                         types.as_desc(cur),
                         distance=distance,
                         angle_diff=angle_diff,
@@ -305,8 +306,8 @@ def process_sequence_properties(
         # duplication check
         dedups, dups = duplication_check(
             sequence,
-            duplicate_distance=duplicate_distance,
-            duplicate_angle=duplicate_angle,
+            max_duplicate_distance=duplicate_distance,
+            max_duplicate_angle=duplicate_angle,
         )
         assert len(sequence) == len(dedups) + len(dups)
         error_metadatas.extend(dups)
