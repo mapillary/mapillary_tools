@@ -51,21 +51,30 @@ def test_find_sequences_by_folder(tmpdir: py.path.local):
             error=Exception("an error"),
         ),
         # s1
-        _make_image_metadata(Path(curdir) / Path("hello/foo.jpg"), 1.00001, 1.00001, 2),
+        _make_image_metadata(
+            Path(curdir) / Path("hello/foo.jpg"), 1.00001, 1.00001, 2, 11
+        ),
         _make_image_metadata(
             Path(curdir) / Path("./hello/bar.jpg"),
             1.00002,
             1.00002,
             8,
+            22,
         ),
-        _make_image_metadata(Path(curdir) / Path("hello/a.jpg"), 1.00002, 1.00002, 9),
+        _make_image_metadata(
+            Path(curdir) / Path("hello/a.jpg"), 1.00002, 1.00002, 9, 33
+        ),
         # s2
-        _make_image_metadata(Path(curdir) / Path("hello.jpg"), 1.00002, 1.00002, 2),
-        _make_image_metadata(Path(curdir) / Path("./foo.jpg"), 1.00001, 1.00001, 3),
-        _make_image_metadata(Path(curdir) / Path("a.jpg"), 1.00001, 1.00001, 1),
+        _make_image_metadata(Path(curdir) / Path("hello.jpg"), 1.00002, 1.00002, 2, 11),
+        _make_image_metadata(Path(curdir) / Path("./foo.jpg"), 1.00001, 1.00001, 3, 22),
+        _make_image_metadata(Path(curdir) / Path("a.jpg"), 1.00001, 1.00001, 1, 33),
         # s3
-        _make_image_metadata(Path(curdir) / Path("./../foo.jpg"), 1.00001, 1.00001, 19),
-        _make_image_metadata(Path(curdir) / Path("../bar.jpg"), 1.00002, 1.00002, 28),
+        _make_image_metadata(
+            Path(curdir) / Path("./../foo.jpg"), 1.00001, 1.00001, 19, 11
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("../bar.jpg"), 1.00002, 1.00002, 28, 22
+        ),
     ]
     metadatas = psp.process_sequence_properties(
         sequence,
@@ -277,11 +286,11 @@ def test_subsec_interpolation(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello222").mkdir("world333")
     sequence: T.List[types.Metadata] = [
         # s1
-        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 1, 1, 0.0),
-        _make_image_metadata(Path(curdir) / Path("./b.jpg"), 0, 1, 1.0),
-        _make_image_metadata(Path(curdir) / Path("./c.jpg"), 0, 0, 1.0),
-        _make_image_metadata(Path(curdir) / Path("./d.jpg"), 0, 0, 1.0),
-        _make_image_metadata(Path(curdir) / Path("./e.jpg"), 1, 0, 2.0),
+        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 1, 1, 0.0, 1),
+        _make_image_metadata(Path(curdir) / Path("./b.jpg"), 0, 1, 1.0, 11),
+        _make_image_metadata(Path(curdir) / Path("./c.jpg"), 0, 0, 1.0, 22),
+        _make_image_metadata(Path(curdir) / Path("./d.jpg"), 0, 0, 1.0, 33),
+        _make_image_metadata(Path(curdir) / Path("./e.jpg"), 1, 0, 2.0, 44),
     ]
     metadatas = psp.process_sequence_properties(
         sequence,
