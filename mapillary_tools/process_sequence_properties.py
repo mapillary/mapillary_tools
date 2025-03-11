@@ -13,10 +13,10 @@ PointLike = T.TypeVar("PointLike", bound=geo.Point)
 PointSequence = T.List[PointLike]
 
 
-def cut_sequence_by_time_distance(
+def cut_sequence_by_time_or_distance(
     sequence: PointSequence,
-    cutoff_distance: float,
-    cutoff_time: float,
+    cutoff_distance: T.Optional[float] = None,
+    cutoff_time: T.Optional[float] = None,
 ) -> T.List[PointSequence]:
     sequences: T.List[PointSequence] = []
 
@@ -25,18 +25,25 @@ def cut_sequence_by_time_distance(
 
     for prev, cur in geo.pairwise(sequence):
         # invariant: prev is processed
+
+        # Cut by distance
         distance = geo.gps_distance(
             (prev.lat, prev.lon),
             (cur.lat, cur.lon),
         )
-        if cutoff_distance <= distance:
-            sequences.append([cur])
-            continue
+        if cutoff_distance is not None:
+            if cutoff_distance <= distance:
+                sequences.append([cur])
+                continue
+
+        # Cut by time
         time_diff = cur.time - prev.time
         assert 0 <= time_diff, "sequence must be sorted by capture times"
-        if cutoff_time <= time_diff:
-            sequences.append([cur])
-            continue
+        if cutoff_time is not None:
+            if cutoff_time <= time_diff:
+                sequences.append([cur])
+                continue
+
         sequences[-1].append(cur)
         # invariant: cur is processed
 
@@ -271,7 +278,7 @@ def _avg_speed(sequence: T.Sequence[PointLike]) -> float:
     return total_distance / time_diff
 
 
-def _process_videos(
+def _process_videos_with_limits(
     video_metadatas: T.Sequence[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
@@ -324,7 +331,7 @@ def _process_videos(
     return output_video_metadatas, error_metadatas
 
 
-def _process_sequences(
+def _process_sequences_with_limits(
     sequences: T.Sequence[PointSequence],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
@@ -407,7 +414,7 @@ def process_sequence_properties(
         else:
             raise RuntimeError(f"invalid metadata type: {metadata}")
 
-    video_metadatas, video_error_metadatas = _process_videos(
+    video_metadatas, video_error_metadatas = _process_videos_with_limits(
         video_metadatas,
         max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
         max_avg_speed=max_avg_speed,
@@ -430,7 +437,7 @@ def process_sequence_properties(
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
-            cut_sequence_by_time_distance(sequence, cutoff_distance, cutoff_time)
+            cut_sequence_by_time_or_distance(sequence, cutoff_time=cutoff_time)
         )
     assert len(image_metadatas) == sum(len(s) for s in output_sequences)
 
@@ -469,7 +476,7 @@ def process_sequence_properties(
             )
         )
 
-    output_sequences, errors = _process_sequences(
+    output_sequences, errors = _process_sequences_with_limits(
         input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
     )
     error_metadatas.extend(errors)
