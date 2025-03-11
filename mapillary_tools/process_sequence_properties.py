@@ -4,8 +4,7 @@ import math
 import os
 import typing as T
 
-from . import constants, geo, types
-from .exceptions import MapillaryBadParameterError, MapillaryDuplicationError
+from . import constants, exceptions, geo, types, utils
 
 LOG = logging.getLogger(__name__)
 
@@ -75,7 +74,7 @@ def duplication_check(
         ):
             dups.append(
                 types.describe_error_metadata(
-                    MapillaryDuplicationError(
+                    exceptions.MapillaryDuplicationError(
                         f"Duplicate of its previous image in terms of distance <= {duplicate_distance} and angle <= {duplicate_angle}",
                         types.as_desc(cur),
                         distance=distance,
@@ -217,54 +216,126 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
 def _parse_filesize_in_bytes(filesize_str: str) -> int:
     filesize_str = filesize_str.strip().upper()
 
-    if filesize_str.endswith("B"):
-        return int(filesize_str[:-1])
-    elif filesize_str.endswith("K"):
-        return int(filesize_str[:-1]) * 1024
-    elif filesize_str.endswith("M"):
-        return int(filesize_str[:-1]) * 1024 * 1024
-    elif filesize_str.endswith("G"):
-        return int(filesize_str[:-1]) * 1024 * 1024 * 1024
-    else:
-        return int(filesize_str)
+    try:
+        if filesize_str.endswith("B"):
+            return int(filesize_str[:-1])
+        elif filesize_str.endswith("K"):
+            return int(filesize_str[:-1]) * 1024
+        elif filesize_str.endswith("M"):
+            return int(filesize_str[:-1]) * 1024 * 1024
+        elif filesize_str.endswith("G"):
+            return int(filesize_str[:-1]) * 1024 * 1024 * 1024
+        else:
+            return int(filesize_str)
+    except ValueError:
+        raise exceptions.MapillaryBadParameterError(
+            f"Expect valid file size that ends with B, K, M, or G, but got {filesize_str}"
+        )
 
 
 def _parse_pixels(pixels_str: str) -> int:
     pixels_str = pixels_str.strip().upper()
 
-    if pixels_str.endswith("K"):
-        return int(pixels_str[:-1]) * 1000
-    elif pixels_str.endswith("M"):
-        return int(pixels_str[:-1]) * 1000 * 1000
-    elif pixels_str.endswith("G"):
-        return int(pixels_str[:-1]) * 1000 * 1000 * 1000
+    try:
+        if pixels_str.endswith("K"):
+            return int(pixels_str[:-1]) * 1000
+        elif pixels_str.endswith("M"):
+            return int(pixels_str[:-1]) * 1000 * 1000
+        elif pixels_str.endswith("G"):
+            return int(pixels_str[:-1]) * 1000 * 1000 * 1000
+        else:
+            return int(pixels_str)
+    except ValueError:
+        raise exceptions.MapillaryBadParameterError(
+            f"Expect valid number of pixels that ends with K, M, or G, but got {pixels_str}"
+        )
+
+
+def _avg_speed(points: T.Sequence[geo.Point]) -> float:
+    total_distance = 0.0
+    for cur, nxt in geo.pairwise(points):
+        total_distance += geo.gps_distance(
+            (cur.lat, cur.lon),
+            (nxt.lat, nxt.lon),
+        )
+
+    if points:
+        time_diff = points[-1].time - points[0].time
     else:
-        return int(pixels_str)
+        time_diff = 0.0
+
+    if time_diff == 0.0:
+        return float("inf")
+
+    return total_distance / time_diff
+
+
+def _process_videos(
+    video_metadatas: T.Sequence[types.VideoMetadata],
+    max_sequence_filesize_in_bytes: int,
+    max_avg_speed: float,
+) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
+    error_metadatas: T.List[types.ErrorMetadata] = []
+    new_video_metadata: T.List[types.VideoMetadata] = []
+
+    for video_metadata in video_metadatas:
+        if video_metadata.filesize is None:
+            filesize = utils.get_file_size(video_metadata.filename)
+        else:
+            filesize = video_metadata.filesize
+
+        if filesize > max_sequence_filesize_in_bytes:
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryFileTooLargeError(
+                        f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        elif any(p.lat == 0 and p.lon == 0 for p in video_metadata.points):
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryNullIslandError(
+                        "Found GPS coordinates in Null Island (0, 0)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        elif (
+            len(video_metadata.points) >= 2
+            and _avg_speed(video_metadata.points) > max_avg_speed
+        ):
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryCaptureSpeedTooFastError(
+                        f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        else:
+            new_video_metadata.append(video_metadata)
+
+    return new_video_metadata, error_metadatas
 
 
 def process_sequence_properties(
     metadatas: T.Sequence[types.MetadataOrError],
-    cutoff_distance=constants.CUTOFF_DISTANCE,
-    cutoff_time=constants.CUTOFF_TIME,
-    interpolate_directions=False,
-    duplicate_distance=constants.DUPLICATE_DISTANCE,
-    duplicate_angle=constants.DUPLICATE_ANGLE,
+    cutoff_distance: float = constants.CUTOFF_DISTANCE,
+    cutoff_time: float = constants.CUTOFF_TIME,
+    interpolate_directions: bool = False,
+    duplicate_distance: float = constants.DUPLICATE_DISTANCE,
+    duplicate_angle: float = constants.DUPLICATE_ANGLE,
+    max_avg_speed: float = constants.MAX_AVG_SPEED,
 ) -> T.List[types.MetadataOrError]:
-    try:
-        max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
-            constants.MAX_SEQUENCE_FILESIZE
-        )
-    except ValueError:
-        raise MapillaryBadParameterError(
-            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, K, M, or G, but got {constants.MAX_SEQUENCE_FILESIZE}"
-        )
-
-    try:
-        max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
-    except ValueError:
-        raise MapillaryBadParameterError(
-            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_PIXELS to be a valid number of pixels that ends with K, M, or G, but got {constants.MAX_SEQUENCE_PIXELS}"
-        )
+    max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
+        constants.MAX_SEQUENCE_FILESIZE
+    )
+    max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
 
     error_metadatas: T.List[types.ErrorMetadata] = []
     image_metadatas: T.List[types.ImageMetadata] = []
@@ -279,6 +350,13 @@ def process_sequence_properties(
             video_metadatas.append(metadata)
         else:
             raise RuntimeError(f"invalid metadata type: {metadata}")
+
+    video_metadatas, video_error_metadatas = _process_videos(
+        video_metadatas,
+        max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
+        max_avg_speed=max_avg_speed,
+    )
+    error_metadatas.extend(video_error_metadatas)
 
     sequences_by_folder = _group_sort_images_by_folder(image_metadatas)
     # make sure they are sorted
@@ -296,7 +374,7 @@ def process_sequence_properties(
         sequences_after_cut.extend(cut)
     assert len(image_metadatas) == sum(len(s) for s in sequences_after_cut)
 
-    # reuse imaeg_metadatas to store processed image metadatas
+    # reuse image_metadatas to store processed image metadatas
     image_metadatas = []
 
     sequence_idx = 0

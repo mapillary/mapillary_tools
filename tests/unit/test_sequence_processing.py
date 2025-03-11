@@ -3,7 +3,6 @@ import typing as T
 from pathlib import Path
 
 import py.path
-
 import pytest
 
 from mapillary_tools import (
@@ -252,6 +251,7 @@ def test_interpolation(tmpdir: py.path.local):
             points=[],
             make="hello",
             model="world",
+            filesize=123,
         ),
     ]
     metadatas = psp.process_sequence_properties(
@@ -453,4 +453,62 @@ def test_cut_by_pixels(tmpdir: py.path.local):
             )
         )
         == 2
+    )
+
+
+def test_video_error():
+    # curdir = tmpdir.mkdir("hello222").mkdir("world333")
+    sequence: T.List[types.Metadata] = [
+        types.VideoMetadata(
+            Path("test_video_null_island.mp4"),
+            None,
+            types.FileType.VIDEO,
+            points=[
+                geo.Point(1, -0.00001, -0.00001, 1, angle=None),
+                geo.Point(1, 0, 0, 1, angle=None),
+                geo.Point(1, 0.00001, 0.00001, 1, angle=None),
+            ],
+            make="hello",
+            model="world",
+            filesize=123,
+        ),
+        types.VideoMetadata(
+            Path("test_video_too_fast.mp4"),
+            None,
+            types.FileType.VIDEO,
+            points=[
+                geo.Point(1, 1, 1, 1, angle=None),
+                geo.Point(1.1, 1.00001, 1.00001, 1, angle=None),
+                geo.Point(10, 1, 3, 1, angle=None),
+            ],
+            make="hello",
+            model="world",
+            filesize=123,
+        ),
+        types.VideoMetadata(
+            Path("test_video_file_too_large.mp4"),
+            None,
+            types.FileType.VIDEO,
+            points=[geo.Point(1, 1, 1, 1, angle=None)],
+            make="hello",
+            model="world",
+            filesize=1024 * 1024 * 1024 * 200,
+        ),
+        types.VideoMetadata(
+            Path("test_good.mp4"),
+            None,
+            types.FileType.VIDEO,
+            points=[geo.Point(1, 1, 1, 1, angle=None)],
+            make="hello",
+            model="world",
+            filesize=123,
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=1000000000,
+        cutoff_time=100,
+        interpolate_directions=True,
+        duplicate_distance=100,
+        duplicate_angle=5,
     )
