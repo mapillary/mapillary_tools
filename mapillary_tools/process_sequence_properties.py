@@ -276,7 +276,7 @@ def _process_videos(
     max_avg_speed: float,
 ) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
     error_metadatas: T.List[types.ErrorMetadata] = []
-    new_video_metadata: T.List[types.VideoMetadata] = []
+    output_video_metadatas: T.List[types.VideoMetadata] = []
 
     for video_metadata in video_metadatas:
         if video_metadata.filesize is None:
@@ -318,9 +318,9 @@ def _process_videos(
                 )
             )
         else:
-            new_video_metadata.append(video_metadata)
+            output_video_metadatas.append(video_metadata)
 
-    return new_video_metadata, error_metadatas
+    return output_video_metadatas, error_metadatas
 
 
 def process_sequence_properties(
@@ -358,58 +358,71 @@ def process_sequence_properties(
     )
     error_metadatas.extend(video_error_metadatas)
 
-    sequences_by_folder = _group_sort_images_by_folder(image_metadatas)
+    input_sequences: T.List[PointSequence]
+    output_sequences: T.List[PointSequence]
+
+    input_sequences = _group_sort_images_by_folder(image_metadatas)
     # make sure they are sorted
-    for sequence in sequences_by_folder:
+    for sequence in input_sequences:
         for cur, nxt in geo.pairwise(sequence):
             assert cur.time <= nxt.time, "sequence must be sorted"
 
-    for s in sequences_by_folder:
-        _interpolate_subsecs_for_sorting(s)
+    for sequence in input_sequences:
+        _interpolate_subsecs_for_sorting(sequence)
 
-    # cut sequences
-    sequences_after_cut: T.List[PointSequence] = []
-    for sequence in sequences_by_folder:
-        cut = cut_sequence_by_time_distance(sequence, cutoff_distance, cutoff_time)
-        sequences_after_cut.extend(cut)
-    assert len(image_metadatas) == sum(len(s) for s in sequences_after_cut)
+    # Cut sequences by time or distance
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence_by_time_distance(sequence, cutoff_distance, cutoff_time)
+        )
+    assert len(image_metadatas) == sum(len(s) for s in output_sequences)
 
-    # reuse image_metadatas to store processed image metadatas
-    image_metadatas = []
-
-    sequence_idx = 0
-
-    for sequence in sequences_after_cut:
-        # duplication check
-        dedups, dups = duplication_check(
+    # Duplication check
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequence, dups = duplication_check(
             sequence,
             duplicate_distance=duplicate_distance,
             duplicate_angle=duplicate_angle,
         )
-        assert len(sequence) == len(dedups) + len(dups)
+        assert len(sequence) == len(output_sequence) + len(dups)
+        output_sequences.append(output_sequence)
         error_metadatas.extend(dups)
 
-        # interpolate angles
+    # Interpolate angles
+    input_sequences = output_sequences
+    for sequence in input_sequences:
         if interpolate_directions:
-            for p in dedups:
-                p.angle = None
-        geo.interpolate_directions_if_none(dedups)
+            for image in sequence:
+                image.angle = None
+        geo.interpolate_directions_if_none(sequence)
 
-        # cut sequence per MAX_SEQUENCE_LENGTH images
-        cut = cut_sequence(
-            dedups,
-            constants.MAX_SEQUENCE_LENGTH,
-            max_sequence_filesize_in_bytes,
-            max_sequence_pixels,
+    # Cut sequences by max number of images, max filesize, and max pixels
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence(
+                sequence,
+                constants.MAX_SEQUENCE_LENGTH,
+                max_sequence_filesize_in_bytes,
+                max_sequence_pixels,
+            )
         )
 
+    # Assign sequence UUIDs
+    sequence_idx = 0
+    image_metadatas = []
+    input_sequences = output_sequences
+    for sequence in input_sequences:
         # assign sequence UUIDs
-        for c in cut:
-            for p in c:
-                # using incremental id as shorter "uuid", so we can save some space for the desc file
-                p.MAPSequenceUUID = str(sequence_idx)
-                image_metadatas.append(p)
-            sequence_idx += 1
+        for image in sequence:
+            # using incremental id as shorter "uuid", so we can save some space for the desc file
+            image.MAPSequenceUUID = str(sequence_idx)
+            image_metadatas.append(image)
+        sequence_idx += 1
 
     results = error_metadatas + image_metadatas + video_metadatas
 
