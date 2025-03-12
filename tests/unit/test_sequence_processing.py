@@ -248,11 +248,21 @@ def test_interpolation(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello222").mkdir("world333")
     sequence: T.List[types.Metadata] = [
         # s1
-        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 1, 1, 3, angle=344),
-        _make_image_metadata(Path(curdir) / Path("./b.jpg"), 0, 1, 4, angle=22),
-        _make_image_metadata(Path(curdir) / Path("./c.jpg"), 0, 0, 5, angle=-123),
-        _make_image_metadata(Path(curdir) / Path("./d.jpg"), 0, 0, 1, angle=2),
-        _make_image_metadata(Path(curdir) / Path("./e.jpg"), 1, 0, 2, angle=123),
+        _make_image_metadata(
+            Path(curdir) / Path("./a.jpg"), 0.00002, 0.00001, 3, angle=344
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./b.jpg"), 0.00001, 0.00001, 4, angle=22
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./c.jpg"), 0.00001, 0.00000, 5, angle=-123
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./d.jpg"), 0.00001, 0.00000, 1, angle=2
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./e.jpg"), 0.00002, 0.00000, 2, angle=123
+        ),
         types.VideoMetadata(
             Path("test_video.mp4"),
             None,
@@ -433,16 +443,22 @@ def test_cut_by_pixels(tmpdir: py.path.local):
         ),
         _make_image_metadata(
             Path(curdir) / Path("./b.jpg"),
-            9,
-            9,
-            2,
+            2.00001,
+            2.00001,
+            20,
             angle=344,
             width=2,
             height=2,
         ),
         # s1
         _make_image_metadata(
-            Path(curdir) / Path("./c.jpg"), 1, 1, 3, angle=344, width=int(6e9), height=2
+            Path(curdir) / Path("./c.jpg"),
+            2.00002,
+            2.00002,
+            30,
+            angle=344,
+            width=int(6e9),
+            height=2,
         ),
     ]
     metadatas = psp.process_sequence_properties(
@@ -450,7 +466,7 @@ def test_cut_by_pixels(tmpdir: py.path.local):
         cutoff_distance=1000000000,
         cutoff_time=100,
         interpolate_directions=True,
-        duplicate_distance=100,
+        duplicate_distance=1,
         duplicate_angle=5,
     )
     assert (

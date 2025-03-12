@@ -278,7 +278,7 @@ def _avg_speed(sequence: T.Sequence[PointLike]) -> float:
     return total_distance / time_diff
 
 
-def _process_videos_with_limits(
+def _check_video_limits(
     video_metadatas: T.Sequence[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
@@ -331,7 +331,7 @@ def _process_videos_with_limits(
     return output_video_metadatas, error_metadatas
 
 
-def _process_sequences_with_limits(
+def _check_sequence_limits(
     sequences: T.Sequence[PointSequence],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
@@ -381,7 +381,7 @@ def _process_sequences_with_limits(
                     )
                 )
         else:
-            output_sequences.extend(sequence)
+            output_sequences.append(sequence)
 
     return output_sequences, error_metadatas
 
@@ -414,7 +414,8 @@ def process_sequence_properties(
         else:
             raise RuntimeError(f"invalid metadata type: {metadata}")
 
-    video_metadatas, video_error_metadatas = _process_videos_with_limits(
+    # Check limits for videos
+    video_metadatas, video_error_metadatas = _check_video_limits(
         video_metadatas,
         max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
         max_avg_speed=max_avg_speed,
@@ -425,6 +426,9 @@ def process_sequence_properties(
     output_sequences: T.List[PointSequence]
 
     input_sequences = _group_sort_images_by_folder(image_metadatas)
+    if input_sequences:
+        assert isinstance(input_sequences[0], list)
+
     # make sure they are sorted
     for sequence in input_sequences:
         for cur, nxt in geo.pairwise(sequence):
@@ -434,6 +438,7 @@ def process_sequence_properties(
         _interpolate_subsecs_for_sorting(sequence)
 
     # Cut sequences by time or distance
+    # NOTE: do not cut by distance here because it affects the speed limit check
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
@@ -443,6 +448,8 @@ def process_sequence_properties(
 
     # Duplication check
     input_sequences = output_sequences
+    if input_sequences:
+        assert isinstance(input_sequences[0], list)
     output_sequences = []
     for sequence in input_sequences:
         output_sequence, errors = duplication_check(
@@ -456,6 +463,8 @@ def process_sequence_properties(
 
     # Interpolate angles
     input_sequences = output_sequences
+    if input_sequences:
+        assert isinstance(input_sequences[0], list)
     for sequence in input_sequences:
         if interpolate_directions:
             for image in sequence:
@@ -465,6 +474,8 @@ def process_sequence_properties(
 
     # Cut sequences by max number of images, max filesize, and max pixels
     input_sequences = output_sequences
+    if input_sequences:
+        assert isinstance(input_sequences[0], list)
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
@@ -476,10 +487,13 @@ def process_sequence_properties(
             )
         )
 
-    output_sequences, errors = _process_sequences_with_limits(
+    # Check limits for sequences
+    output_sequences, errors = _check_sequence_limits(
         input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
     )
     error_metadatas.extend(errors)
+    if output_sequences:
+        assert isinstance(output_sequences[0], list)
 
     # Assign sequence UUIDs
     sequence_idx = 0
