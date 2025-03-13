@@ -452,21 +452,23 @@ def process_sequence_properties(
             len(grouped[key]),
         )
     output_sequences = list(grouped.values())
-    LOG.info("Found %s sequences from different cameras", len(output_sequences))
+    LOG.info(
+        "Found %s sequences from different folders and cameras", len(output_sequences)
+    )
 
     # Make sure each sequence is sorted (in-place update)
     input_sequences = output_sequences
-    output_sequences = input_sequences
     for sequence in input_sequences:
         sequence.sort(
             key=lambda metadata: metadata.sort_key(),
         )
+    output_sequences = input_sequences
 
     # Interpolate subseconds for same timestamps (in-place update)
     input_sequences = output_sequences
-    output_sequences = input_sequences
     for sequence in input_sequences:
         _interpolate_subsecs_for_sorting(sequence)
+    output_sequences = input_sequences
 
     # Cut sequences by time or distance
     # NOTE: do not cut by distance here because it affects the speed limit check
@@ -498,12 +500,12 @@ def process_sequence_properties(
 
     # Interpolate angles (in-place update)
     input_sequences = output_sequences
-    output_sequences = input_sequences
     for sequence in input_sequences:
         if interpolate_directions:
             for image in sequence:
                 image.angle = None
         geo.interpolate_directions_if_none(sequence)
+    output_sequences = input_sequences
 
     # Cut sequences by max number of images, max filesize, and max pixels
     input_sequences = output_sequences
@@ -531,7 +533,6 @@ def process_sequence_properties(
     sequence_idx = 0
     image_metadatas = []
     input_sequences = output_sequences
-    output_sequences = input_sequences
     for sequence in input_sequences:
         # assign sequence UUIDs
         for image in sequence:
