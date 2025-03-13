@@ -445,12 +445,7 @@ def process_sequence_properties(
         ),
     )
     for key in grouped:
-        LOG.debug(
-            "Group sequences by %s, %s: %s images",
-            grouped[key][0].filename.parent,
-            key,
-            len(grouped[key]),
-        )
+        LOG.debug("Group sequences by %s: %s images", key, len(grouped[key]))
     output_sequences = list(grouped.values())
     LOG.info(
         "Found %s sequences from different folders and cameras", len(output_sequences)
@@ -470,7 +465,7 @@ def process_sequence_properties(
         _interpolate_subsecs_for_sorting(sequence)
     output_sequences = input_sequences
 
-    # Cut sequences by time or distance
+    # Cut sequences by cutoff time
     # NOTE: do not cut by distance here because it affects the speed limit check
     input_sequences = output_sequences
     output_sequences = []
@@ -531,15 +526,17 @@ def process_sequence_properties(
 
     # Assign sequence UUIDs (in-place update)
     sequence_idx = 0
-    image_metadatas = []
     input_sequences = output_sequences
     for sequence in input_sequences:
         for image in sequence:
             # using incremental id as shorter "uuid", so we can save some space for the desc file
             image.MAPSequenceUUID = str(sequence_idx)
-            image_metadatas.append(image)
         sequence_idx += 1
     output_sequences = input_sequences
+
+    image_metadatas = []
+    for sequence in input_sequences:
+        image_metadatas.extend(sequence)
 
     results = error_metadatas + image_metadatas + video_metadatas
 
