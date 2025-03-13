@@ -169,12 +169,20 @@ def _group_sort_images_by_folder(
     image_metadatas: T.List[types.ImageMetadata],
 ) -> T.List[T.List[types.ImageMetadata]]:
     # group images by parent directory
-    sequences_by_parent: T.Dict[str, T.List[types.ImageMetadata]] = {}
+    sequences_by_group_key: T.Dict[T.Tuple, T.List[types.ImageMetadata]] = {}
     for image_metadata in image_metadatas:
         filename = image_metadata.filename.resolve()
-        sequences_by_parent.setdefault(str(filename.parent), []).append(image_metadata)
+        # Make sure a sequence comes from the same folder and the same camera
+        group_key = (
+            str(filename.parent),
+            image_metadata.MAPDeviceMake,
+            image_metadata.MAPDeviceModel,
+            image_metadata.width,
+            image_metadata.height,
+        )
+        sequences_by_group_key.setdefault(group_key, []).append(image_metadata)
 
-    sequences = list(sequences_by_parent.values())
+    sequences = list(sequences_by_group_key.values())
     for sequence in sequences:
         sequence.sort(
             key=lambda metadata: metadata.sort_key(),
