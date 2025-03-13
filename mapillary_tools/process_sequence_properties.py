@@ -534,7 +534,6 @@ def process_sequence_properties(
     image_metadatas = []
     input_sequences = output_sequences
     for sequence in input_sequences:
-        # assign sequence UUIDs
         for image in sequence:
             # using incremental id as shorter "uuid", so we can save some space for the desc file
             image.MAPSequenceUUID = str(sequence_idx)
