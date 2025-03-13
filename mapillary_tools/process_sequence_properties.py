@@ -33,6 +33,14 @@ def cut_sequence_by_time_or_distance(
         )
         if cutoff_distance is not None:
             if cutoff_distance <= distance:
+                LOG.debug(
+                    "Cut the sequence because the distance gap between two images (%s meters) exceeds the cutoff distance (%s meters): %s: %s -> %s",
+                    round(distance, 2),
+                    round(cutoff_distance, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
                 sequences.append([cur])
                 continue
 
@@ -41,6 +49,14 @@ def cut_sequence_by_time_or_distance(
         assert 0 <= time_diff, "sequence must be sorted by capture times"
         if cutoff_time is not None:
             if cutoff_time <= time_diff:
+                LOG.debug(
+                    "Cut the sequence because the time gap between two images (%s seconds) exceeds the cutoff time (%s seconds): %s: %s -> %s",
+                    round(time_diff, 2),
+                    round(cutoff_time, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
                 sequences.append([cur])
                 continue
 
@@ -165,30 +181,14 @@ def cut_sequence(
     return sequences
 
 
-def _group_sort_images_by_folder(
+def _group_by(
     image_metadatas: T.List[types.ImageMetadata],
-) -> T.List[T.List[types.ImageMetadata]]:
-    # group images by parent directory
-    sequences_by_group_key: T.Dict[T.Tuple, T.List[types.ImageMetadata]] = {}
-    for image_metadata in image_metadatas:
-        filename = image_metadata.filename.resolve()
-        # Make sure a sequence comes from the same folder and the same camera
-        group_key = (
-            str(filename.parent),
-            image_metadata.MAPDeviceMake,
-            image_metadata.MAPDeviceModel,
-            image_metadata.width,
-            image_metadata.height,
-        )
-        sequences_by_group_key.setdefault(group_key, []).append(image_metadata)
-
-    sequences = list(sequences_by_group_key.values())
-    for sequence in sequences:
-        sequence.sort(
-            key=lambda metadata: metadata.sort_key(),
-        )
-
-    return sequences
+    group_key_func=T.Callable[[types.ImageMetadata], T.Hashable],
+) -> T.Dict[T.Hashable, T.List[types.ImageMetadata]]:
+    grouped: T.Dict[T.Hashable, T.List[types.ImageMetadata]] = {}
+    for metadata in image_metadatas:
+        grouped.setdefault(group_key_func(metadata), []).append(metadata)
+    return grouped
 
 
 def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
@@ -433,31 +433,58 @@ def process_sequence_properties(
     input_sequences: T.List[PointSequence]
     output_sequences: T.List[PointSequence]
 
-    input_sequences = _group_sort_images_by_folder(image_metadatas)
-    if input_sequences:
-        assert isinstance(input_sequences[0], list)
+    # Group by folder and camera
+    grouped = _group_by(
+        image_metadatas,
+        lambda image_metadata: (
+            str(metadata.filename.parent),
+            image_metadata.MAPDeviceMake,
+            image_metadata.MAPDeviceModel,
+            image_metadata.width,
+            image_metadata.height,
+        ),
+    )
+    for key in grouped:
+        LOG.debug(
+            "Group sequences by %s, %s: %s images",
+            grouped[key][0].filename.parent,
+            key,
+            len(grouped[key]),
+        )
+    output_sequences = list(grouped.values())
+    LOG.info("Found %s sequences from different cameras", len(output_sequences))
 
-    # make sure they are sorted
+    # Make sure each sequence is sorted (in-place update)
+    input_sequences = output_sequences
+    output_sequences = input_sequences
     for sequence in input_sequences:
-        for cur, nxt in geo.pairwise(sequence):
-            assert cur.time <= nxt.time, "sequence must be sorted"
+        sequence.sort(
+            key=lambda metadata: metadata.sort_key(),
+        )
 
+    # Interpolate subseconds for same timestamps (in-place update)
+    input_sequences = output_sequences
+    output_sequences = input_sequences
     for sequence in input_sequences:
         _interpolate_subsecs_for_sorting(sequence)
 
     # Cut sequences by time or distance
     # NOTE: do not cut by distance here because it affects the speed limit check
+    input_sequences = output_sequences
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
             cut_sequence_by_time_or_distance(sequence, cutoff_time=cutoff_time)
         )
     assert len(image_metadatas) == sum(len(s) for s in output_sequences)
+    LOG.info(
+        "Found %s sequences after cut by cutoff time %d",
+        len(output_sequences),
+        cutoff_time,
+    )
 
     # Duplication check
     input_sequences = output_sequences
-    if input_sequences:
-        assert isinstance(input_sequences[0], list)
     output_sequences = []
     for sequence in input_sequences:
         output_sequence, errors = duplication_check(
@@ -469,21 +496,17 @@ def process_sequence_properties(
         output_sequences.append(output_sequence)
         error_metadatas.extend(errors)
 
-    # Interpolate angles
+    # Interpolate angles (in-place update)
     input_sequences = output_sequences
-    if input_sequences:
-        assert isinstance(input_sequences[0], list)
+    output_sequences = input_sequences
     for sequence in input_sequences:
         if interpolate_directions:
             for image in sequence:
                 image.angle = None
         geo.interpolate_directions_if_none(sequence)
-    output_sequences = input_sequences
 
     # Cut sequences by max number of images, max filesize, and max pixels
     input_sequences = output_sequences
-    if input_sequences:
-        assert isinstance(input_sequences[0], list)
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
@@ -494,19 +517,21 @@ def process_sequence_properties(
                 max_sequence_pixels,
             )
         )
+    LOG.info("Found %s sequences after cut by sequence limits", len(output_sequences))
 
     # Check limits for sequences
+    input_sequences = output_sequences
     output_sequences, errors = _check_sequence_limits(
         input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
     )
     error_metadatas.extend(errors)
-    if output_sequences:
-        assert isinstance(output_sequences[0], list)
+    LOG.info("Found %s sequences after sequence limit checks", len(output_sequences))
 
-    # Assign sequence UUIDs
+    # Assign sequence UUIDs (in-place update)
     sequence_idx = 0
     image_metadatas = []
     input_sequences = output_sequences
+    output_sequences = input_sequences
     for sequence in input_sequences:
         # assign sequence UUIDs
         for image in sequence:
