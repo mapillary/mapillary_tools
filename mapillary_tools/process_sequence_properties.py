@@ -436,12 +436,12 @@ def process_sequence_properties(
     # Group by folder and camera
     grouped = _group_by(
         image_metadatas,
-        lambda image_metadata: (
+        lambda metadata: (
             str(metadata.filename.parent),
-            image_metadata.MAPDeviceMake,
-            image_metadata.MAPDeviceModel,
-            image_metadata.width,
-            image_metadata.height,
+            metadata.MAPDeviceMake,
+            metadata.MAPDeviceModel,
+            metadata.width,
+            metadata.height,
         ),
     )
     for key in grouped:
@@ -466,16 +466,15 @@ def process_sequence_properties(
     output_sequences = input_sequences
 
     # Cut sequences by cutoff time
-    # NOTE: do not cut by distance here because it affects the speed limit check
+    # NOTE: Do not cut by distance here because it affects the speed limit check
     input_sequences = output_sequences
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
             cut_sequence_by_time_or_distance(sequence, cutoff_time=cutoff_time)
         )
-    assert len(image_metadatas) == sum(len(s) for s in output_sequences)
     LOG.info(
-        "Found %s sequences after cut by cutoff time %d",
+        "Found %s sequences after cut by cutoff time %d seconds",
         len(output_sequences),
         cutoff_time,
     )
@@ -523,6 +522,20 @@ def process_sequence_properties(
     )
     error_metadatas.extend(errors)
     LOG.info("Found %s sequences after sequence limit checks", len(output_sequences))
+
+    # Cut sequences by cutoff distance
+    # NOTE: The speed limit check probably rejects most of anomalies
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence_by_time_or_distance(sequence, cutoff_distance=cutoff_distance)
+        )
+    LOG.info(
+        "Found %s sequences after cut by cutoff distance %d meters",
+        len(output_sequences),
+        cutoff_distance,
+    )
 
     # Assign sequence UUIDs (in-place update)
     sequence_idx = 0
