@@ -21,8 +21,7 @@ def _make_image_metadata(
     lat: float,
     time: float,
     angle: T.Optional[float] = None,
-    width: int = 0,
-    height: int = 0,
+    **kwargs,
 ) -> types.ImageMetadata:
     filename = filename.resolve()
     if not filename.exists():
@@ -36,9 +35,8 @@ def _make_image_metadata(
         lat=lat,
         time=time,
         alt=None,
+        **kwargs,
         angle=angle,
-        width=width,
-        height=height,
     )
 
 
@@ -114,6 +112,66 @@ def test_find_sequences_by_folder(tmpdir: py.path.local):
         Path(curdir) / Path("hello/bar.jpg"),
         Path(curdir) / Path("hello/a.jpg"),
     ] == [d.filename for d in actual_sequences[2]]
+
+
+def test_find_sequences_by_camera(tmpdir: py.path.local):
+    curdir = tmpdir.mkdir("hello1").mkdir("world2")
+    sequence: T.List[types.MetadataOrError] = [
+        # s1
+        _make_image_metadata(
+            Path(curdir) / Path("hello.jpg"),
+            1.00002,
+            1.00002,
+            2,
+            11,
+            MAPDeviceMake="foo",
+            MAPDeviceModel="bar",
+            width=1,
+            height=1,
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("foo.jpg"),
+            1.00001,
+            1.00001,
+            3,
+            22,
+            MAPDeviceMake="foo",
+            MAPDeviceModel="bar",
+            width=1,
+            height=1,
+        ),
+        # s2
+        _make_image_metadata(
+            Path(curdir) / Path("a.jpg"),
+            1.00002,
+            1.00002,
+            1,
+            33,
+            MAPDeviceMake="foo",
+            MAPDeviceModel="bar2",
+            width=1,
+            height=1,
+        ),
+        # s3
+        _make_image_metadata(
+            Path(curdir) / Path("b.jpg"),
+            1.00001,
+            1.00001,
+            1,
+            33,
+            MAPDeviceMake="foo",
+            MAPDeviceModel="bar2",
+            width=1,
+            height=2,
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+    )
+    uuids = set(
+        d.MAPSequenceUUID for d in metadatas if isinstance(d, types.ImageMetadata)
+    )
+    assert len(uuids) == 3
 
 
 def test_sequences_sorted(tmpdir: py.path.local):
@@ -481,11 +539,11 @@ def test_cut_by_pixels(tmpdir: py.path.local):
     )
 
 
-def test_video_error():
-    # curdir = tmpdir.mkdir("hello222").mkdir("world333")
+def test_video_error(tmpdir: py.path.local):
+    curdir = tmpdir.mkdir("hello222").mkdir("videos")
     sequence: T.List[types.Metadata] = [
         types.VideoMetadata(
-            Path("test_video_null_island.mp4"),
+            Path(curdir) / Path("test_video_null_island.mp4"),
             None,
             types.FileType.VIDEO,
             points=[
@@ -498,7 +556,7 @@ def test_video_error():
             filesize=123,
         ),
         types.VideoMetadata(
-            Path("test_video_too_fast.mp4"),
+            Path(curdir) / Path("test_video_too_fast.mp4"),
             None,
             types.FileType.VIDEO,
             points=[
@@ -511,7 +569,7 @@ def test_video_error():
             filesize=123,
         ),
         types.VideoMetadata(
-            Path("test_video_file_too_large.mp4"),
+            Path(curdir) / Path("test_video_file_too_large.mp4"),
             None,
             types.FileType.VIDEO,
             points=[geo.Point(1, 1, 1, 1, angle=None)],
@@ -520,7 +578,7 @@ def test_video_error():
             filesize=1024 * 1024 * 1024 * 200,
         ),
         types.VideoMetadata(
-            Path("test_good.mp4"),
+            Path(curdir) / Path("test_good.mp4"),
             None,
             types.FileType.VIDEO,
             points=[geo.Point(1, 1, 1, 1, angle=None)],
