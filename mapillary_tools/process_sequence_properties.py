@@ -4,20 +4,19 @@ import math
 import os
 import typing as T
 
-from . import constants, geo, types
-from .exceptions import MapillaryBadParameterError, MapillaryDuplicationError
+from . import constants, exceptions, geo, types, utils
 
 LOG = logging.getLogger(__name__)
 
 
-Point = T.TypeVar("Point", bound=geo.Point)
-PointSequence = T.List[Point]
+PointLike = T.TypeVar("PointLike", bound=geo.Point)
+PointSequence = T.List[PointLike]
 
 
-def cut_sequence_by_time_distance(
+def cut_sequence_by_time_or_distance(
     sequence: PointSequence,
-    cutoff_distance: float,
-    cutoff_time: float,
+    cutoff_distance: T.Optional[float] = None,
+    cutoff_time: T.Optional[float] = None,
 ) -> T.List[PointSequence]:
     sequences: T.List[PointSequence] = []
 
@@ -26,18 +25,41 @@ def cut_sequence_by_time_distance(
 
     for prev, cur in geo.pairwise(sequence):
         # invariant: prev is processed
+
+        # Cut by distance
         distance = geo.gps_distance(
             (prev.lat, prev.lon),
             (cur.lat, cur.lon),
         )
-        if cutoff_distance <= distance:
-            sequences.append([cur])
-            continue
+        if cutoff_distance is not None:
+            if cutoff_distance <= distance:
+                LOG.debug(
+                    "Cut the sequence because the distance gap between two images (%s meters) exceeds the cutoff distance (%s meters): %s: %s -> %s",
+                    round(distance, 2),
+                    round(cutoff_distance, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
+                sequences.append([cur])
+                continue
+
+        # Cut by time
         time_diff = cur.time - prev.time
         assert 0 <= time_diff, "sequence must be sorted by capture times"
-        if cutoff_time <= time_diff:
-            sequences.append([cur])
-            continue
+        if cutoff_time is not None:
+            if cutoff_time <= time_diff:
+                LOG.debug(
+                    "Cut the sequence because the time gap between two images (%s seconds) exceeds the cutoff time (%s seconds): %s: %s -> %s",
+                    round(time_diff, 2),
+                    round(cutoff_time, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
+                sequences.append([cur])
+                continue
+
         sequences[-1].append(cur)
         # invariant: cur is processed
 
@@ -76,7 +98,7 @@ def duplication_check(
             msg = f"Duplicate of its previous image in terms of distance <= {max_duplicate_distance} and angle <= {max_duplicate_angle}"
             dups.append(
                 types.describe_error_metadata(
-                    MapillaryDuplicationError(
+                    exceptions.MapillaryDuplicationError(
                         msg,
                         types.as_desc(cur),
                         distance=distance,
@@ -159,22 +181,14 @@ def cut_sequence(
     return sequences
 
 
-def _group_sort_images_by_folder(
+def _group_by(
     image_metadatas: T.List[types.ImageMetadata],
-) -> T.List[T.List[types.ImageMetadata]]:
-    # group images by parent directory
-    sequences_by_parent: T.Dict[str, T.List[types.ImageMetadata]] = {}
-    for image_metadata in image_metadatas:
-        filename = image_metadata.filename.resolve()
-        sequences_by_parent.setdefault(str(filename.parent), []).append(image_metadata)
-
-    sequences = list(sequences_by_parent.values())
-    for sequence in sequences:
-        sequence.sort(
-            key=lambda metadata: metadata.sort_key(),
-        )
-
-    return sequences
+    group_key_func=T.Callable[[types.ImageMetadata], T.Hashable],
+) -> T.Dict[T.Hashable, T.List[types.ImageMetadata]]:
+    grouped: T.Dict[T.Hashable, T.List[types.ImageMetadata]] = {}
+    for metadata in image_metadatas:
+        grouped.setdefault(group_key_func(metadata), []).append(metadata)
+    return grouped
 
 
 def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
@@ -218,54 +232,181 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
 def _parse_filesize_in_bytes(filesize_str: str) -> int:
     filesize_str = filesize_str.strip().upper()
 
-    if filesize_str.endswith("B"):
-        return int(filesize_str[:-1])
-    elif filesize_str.endswith("K"):
-        return int(filesize_str[:-1]) * 1024
-    elif filesize_str.endswith("M"):
-        return int(filesize_str[:-1]) * 1024 * 1024
-    elif filesize_str.endswith("G"):
-        return int(filesize_str[:-1]) * 1024 * 1024 * 1024
-    else:
-        return int(filesize_str)
+    try:
+        if filesize_str.endswith("B"):
+            return int(filesize_str[:-1])
+        elif filesize_str.endswith("K"):
+            return int(filesize_str[:-1]) * 1024
+        elif filesize_str.endswith("M"):
+            return int(filesize_str[:-1]) * 1024 * 1024
+        elif filesize_str.endswith("G"):
+            return int(filesize_str[:-1]) * 1024 * 1024 * 1024
+        else:
+            return int(filesize_str)
+    except ValueError:
+        raise exceptions.MapillaryBadParameterError(
+            f"Expect valid file size that ends with B, K, M, or G, but got {filesize_str}"
+        )
 
 
 def _parse_pixels(pixels_str: str) -> int:
     pixels_str = pixels_str.strip().upper()
 
-    if pixels_str.endswith("K"):
-        return int(pixels_str[:-1]) * 1000
-    elif pixels_str.endswith("M"):
-        return int(pixels_str[:-1]) * 1000 * 1000
-    elif pixels_str.endswith("G"):
-        return int(pixels_str[:-1]) * 1000 * 1000 * 1000
+    try:
+        if pixels_str.endswith("K"):
+            return int(pixels_str[:-1]) * 1000
+        elif pixels_str.endswith("M"):
+            return int(pixels_str[:-1]) * 1000 * 1000
+        elif pixels_str.endswith("G"):
+            return int(pixels_str[:-1]) * 1000 * 1000 * 1000
+        else:
+            return int(pixels_str)
+    except ValueError:
+        raise exceptions.MapillaryBadParameterError(
+            f"Expect valid number of pixels that ends with K, M, or G, but got {pixels_str}"
+        )
+
+
+def _avg_speed(sequence: T.Sequence[PointLike]) -> float:
+    total_distance = 0.0
+    for cur, nxt in geo.pairwise(sequence):
+        total_distance += geo.gps_distance(
+            (cur.lat, cur.lon),
+            (nxt.lat, nxt.lon),
+        )
+
+    if sequence:
+        time_diff = sequence[-1].time - sequence[0].time
     else:
-        return int(pixels_str)
+        time_diff = 0.0
+
+    if time_diff == 0.0:
+        return float("inf")
+
+    return total_distance / time_diff
+
+
+def _check_video_limits(
+    video_metadatas: T.Sequence[types.VideoMetadata],
+    max_sequence_filesize_in_bytes: int,
+    max_avg_speed: float,
+) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
+    error_metadatas: T.List[types.ErrorMetadata] = []
+    output_video_metadatas: T.List[types.VideoMetadata] = []
+
+    for video_metadata in video_metadatas:
+        if video_metadata.filesize is None:
+            filesize = utils.get_file_size(video_metadata.filename)
+        else:
+            filesize = video_metadata.filesize
+
+        if filesize > max_sequence_filesize_in_bytes:
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryFileTooLargeError(
+                        f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        elif any(p.lat == 0 and p.lon == 0 for p in video_metadata.points):
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryNullIslandError(
+                        "Found GPS coordinates in Null Island (0, 0)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        elif (
+            len(video_metadata.points) >= 2
+            and _avg_speed(video_metadata.points) > max_avg_speed
+        ):
+            error_metadatas.append(
+                types.describe_error_metadata(
+                    exc=exceptions.MapillaryCaptureSpeedTooFastError(
+                        f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                    ),
+                    filename=video_metadata.filename,
+                    filetype=video_metadata.filetype,
+                )
+            )
+        else:
+            output_video_metadatas.append(video_metadata)
+
+    return output_video_metadatas, error_metadatas
+
+
+def _check_sequence_limits(
+    sequences: T.Sequence[PointSequence],
+    max_sequence_filesize_in_bytes: int,
+    max_avg_speed: float,
+) -> T.Tuple[T.List[PointSequence], T.List[types.ErrorMetadata]]:
+    error_metadatas: T.List[types.ErrorMetadata] = []
+    output_sequences: T.List[PointSequence] = []
+
+    for sequence in sequences:
+        filesize = 0
+        for image in sequence:
+            if image.filesize is None:
+                filesize += utils.get_file_size(image.filename)
+            else:
+                filesize += image.filesize
+
+        if filesize > max_sequence_filesize_in_bytes:
+            for image in sequence:
+                error_metadatas.append(
+                    types.describe_error_metadata(
+                        exc=exceptions.MapillaryFileTooLargeError(
+                            f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                        ),
+                        filename=image.filename,
+                        filetype=types.FileType.IMAGE,
+                    )
+                )
+        elif any(image.lat == 0 and image.lon == 0 for image in sequence):
+            for image in sequence:
+                error_metadatas.append(
+                    types.describe_error_metadata(
+                        exc=exceptions.MapillaryNullIslandError(
+                            "Found GPS coordinates in Null Island (0, 0)",
+                        ),
+                        filename=image.filename,
+                        filetype=types.FileType.IMAGE,
+                    )
+                )
+        elif len(sequence) >= 2 and _avg_speed(sequence) > max_avg_speed:
+            for image in sequence:
+                error_metadatas.append(
+                    types.describe_error_metadata(
+                        exc=exceptions.MapillaryCaptureSpeedTooFastError(
+                            f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                        ),
+                        filename=image.filename,
+                        filetype=types.FileType.IMAGE,
+                    )
+                )
+        else:
+            output_sequences.append(sequence)
+
+    return output_sequences, error_metadatas
 
 
 def process_sequence_properties(
     metadatas: T.Sequence[types.MetadataOrError],
-    cutoff_distance=constants.CUTOFF_DISTANCE,
-    cutoff_time=constants.CUTOFF_TIME,
-    interpolate_directions=False,
-    duplicate_distance=constants.DUPLICATE_DISTANCE,
-    duplicate_angle=constants.DUPLICATE_ANGLE,
+    cutoff_distance: float = constants.CUTOFF_DISTANCE,
+    cutoff_time: float = constants.CUTOFF_TIME,
+    interpolate_directions: bool = False,
+    duplicate_distance: float = constants.DUPLICATE_DISTANCE,
+    duplicate_angle: float = constants.DUPLICATE_ANGLE,
+    max_avg_speed: float = constants.MAX_AVG_SPEED,
 ) -> T.List[types.MetadataOrError]:
-    try:
-        max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
-            constants.MAX_SEQUENCE_FILESIZE
-        )
-    except ValueError:
-        raise MapillaryBadParameterError(
-            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_FILESIZE to be a valid filesize that ends with B, K, M, or G, but got {constants.MAX_SEQUENCE_FILESIZE}"
-        )
-
-    try:
-        max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
-    except ValueError:
-        raise MapillaryBadParameterError(
-            f"Expect the envvar {constants._ENV_PREFIX}MAX_SEQUENCE_PIXELS to be a valid number of pixels that ends with K, M, or G, but got {constants.MAX_SEQUENCE_PIXELS}"
-        )
+    max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
+        constants.MAX_SEQUENCE_FILESIZE
+    )
+    max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
 
     error_metadatas: T.List[types.ErrorMetadata] = []
     image_metadatas: T.List[types.ImageMetadata] = []
@@ -281,58 +422,134 @@ def process_sequence_properties(
         else:
             raise RuntimeError(f"invalid metadata type: {metadata}")
 
-    sequences_by_folder = _group_sort_images_by_folder(image_metadatas)
-    # make sure they are sorted
-    for sequence in sequences_by_folder:
-        for cur, nxt in geo.pairwise(sequence):
-            assert cur.time <= nxt.time, "sequence must be sorted"
+    # Check limits for videos
+    video_metadatas, video_error_metadatas = _check_video_limits(
+        video_metadatas,
+        max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
+        max_avg_speed=max_avg_speed,
+    )
+    error_metadatas.extend(video_error_metadatas)
 
-    for s in sequences_by_folder:
-        _interpolate_subsecs_for_sorting(s)
+    input_sequences: T.List[PointSequence]
+    output_sequences: T.List[PointSequence]
 
-    # cut sequences
-    sequences_after_cut: T.List[PointSequence] = []
-    for sequence in sequences_by_folder:
-        cut = cut_sequence_by_time_distance(sequence, cutoff_distance, cutoff_time)
-        sequences_after_cut.extend(cut)
-    assert len(image_metadatas) == sum(len(s) for s in sequences_after_cut)
+    # Group by folder and camera
+    grouped = _group_by(
+        image_metadatas,
+        lambda metadata: (
+            str(metadata.filename.parent),
+            metadata.MAPDeviceMake,
+            metadata.MAPDeviceModel,
+            metadata.width,
+            metadata.height,
+        ),
+    )
+    for key in grouped:
+        LOG.debug("Group sequences by %s: %s images", key, len(grouped[key]))
+    output_sequences = list(grouped.values())
+    LOG.info(
+        "Found %s sequences from different folders and cameras", len(output_sequences)
+    )
 
-    # reuse imaeg_metadatas to store processed image metadatas
-    image_metadatas = []
+    # Make sure each sequence is sorted (in-place update)
+    input_sequences = output_sequences
+    for sequence in input_sequences:
+        sequence.sort(
+            key=lambda metadata: metadata.sort_key(),
+        )
+    output_sequences = input_sequences
 
-    sequence_idx = 0
+    # Interpolate subseconds for same timestamps (in-place update)
+    input_sequences = output_sequences
+    for sequence in input_sequences:
+        _interpolate_subsecs_for_sorting(sequence)
+    output_sequences = input_sequences
 
-    for sequence in sequences_after_cut:
-        # duplication check
-        dedups, dups = duplication_check(
+    # Cut sequences by cutoff time
+    # NOTE: Do not cut by distance here because it affects the speed limit check
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence_by_time_or_distance(sequence, cutoff_time=cutoff_time)
+        )
+    LOG.info(
+        "Found %s sequences after cut by cutoff time %d seconds",
+        len(output_sequences),
+        cutoff_time,
+    )
+
+    # Duplication check
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequence, errors = duplication_check(
             sequence,
             max_duplicate_distance=duplicate_distance,
             max_duplicate_angle=duplicate_angle,
         )
-        assert len(sequence) == len(dedups) + len(dups)
-        error_metadatas.extend(dups)
+        assert len(sequence) == len(output_sequence) + len(errors)
+        output_sequences.append(output_sequence)
+        error_metadatas.extend(errors)
 
-        # interpolate angles
+    # Interpolate angles (in-place update)
+    input_sequences = output_sequences
+    for sequence in input_sequences:
         if interpolate_directions:
-            for p in dedups:
-                p.angle = None
-        geo.interpolate_directions_if_none(dedups)
+            for image in sequence:
+                image.angle = None
+        geo.interpolate_directions_if_none(sequence)
+    output_sequences = input_sequences
 
-        # cut sequence per MAX_SEQUENCE_LENGTH images
-        cut = cut_sequence(
-            dedups,
-            constants.MAX_SEQUENCE_LENGTH,
-            max_sequence_filesize_in_bytes,
-            max_sequence_pixels,
+    # Cut sequences by max number of images, max filesize, and max pixels
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence(
+                sequence,
+                constants.MAX_SEQUENCE_LENGTH,
+                max_sequence_filesize_in_bytes,
+                max_sequence_pixels,
+            )
         )
+    LOG.info("Found %s sequences after cut by sequence limits", len(output_sequences))
 
-        # assign sequence UUIDs
-        for c in cut:
-            for p in c:
-                # using incremental id as shorter "uuid", so we can save some space for the desc file
-                p.MAPSequenceUUID = str(sequence_idx)
-                image_metadatas.append(p)
-            sequence_idx += 1
+    # Check limits for sequences
+    input_sequences = output_sequences
+    output_sequences, errors = _check_sequence_limits(
+        input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
+    )
+    error_metadatas.extend(errors)
+    LOG.info("Found %s sequences after sequence limit checks", len(output_sequences))
+
+    # Cut sequences by cutoff distance
+    # NOTE: The speed limit check probably rejects most of anomalies
+    input_sequences = output_sequences
+    output_sequences = []
+    for sequence in input_sequences:
+        output_sequences.extend(
+            cut_sequence_by_time_or_distance(sequence, cutoff_distance=cutoff_distance)
+        )
+    LOG.info(
+        "Found %s sequences after cut by cutoff distance %d meters",
+        len(output_sequences),
+        cutoff_distance,
+    )
+
+    # Assign sequence UUIDs (in-place update)
+    sequence_idx = 0
+    input_sequences = output_sequences
+    for sequence in input_sequences:
+        for image in sequence:
+            # using incremental id as shorter "uuid", so we can save some space for the desc file
+            image.MAPSequenceUUID = str(sequence_idx)
+        sequence_idx += 1
+    output_sequences = input_sequences
+
+    image_metadatas = []
+    for sequence in input_sequences:
+        image_metadatas.extend(sequence)
 
     results = error_metadatas + image_metadatas + video_metadatas
 
