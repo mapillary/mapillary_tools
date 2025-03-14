@@ -296,11 +296,11 @@ def test_subsec_interpolation(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello222").mkdir("world333")
     sequence: T.List[types.Metadata] = [
         # s1
-        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 1, 1, 0.0, 1),
-        _make_image_metadata(Path(curdir) / Path("./b.jpg"), 0, 1, 1.0, 11),
-        _make_image_metadata(Path(curdir) / Path("./c.jpg"), 0, 0, 1.0, 22),
-        _make_image_metadata(Path(curdir) / Path("./d.jpg"), 0, 0, 1.0, 33),
-        _make_image_metadata(Path(curdir) / Path("./e.jpg"), 1, 0, 2.0, 44),
+        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 0.00001, 0.00001, 0.0, 1),
+        _make_image_metadata(Path(curdir) / Path("./b.jpg"), 0.00000, 0.00001, 1.0, 11),
+        _make_image_metadata(Path(curdir) / Path("./c.jpg"), 0.00001, 0.00001, 1.0, 22),
+        _make_image_metadata(Path(curdir) / Path("./d.jpg"), 0.00001, 0.00001, 1.0, 33),
+        _make_image_metadata(Path(curdir) / Path("./e.jpg"), 0.00001, 0.00000, 2.0, 44),
     ]
     metadatas = psp.process_sequence_properties(
         sequence,
@@ -324,7 +324,7 @@ def test_interpolation_single(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello77").mkdir("world88")
     sequence = [
         # s1
-        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 0, 0, 1, angle=123),
+        _make_image_metadata(Path(curdir) / Path("./a.jpg"), 0.2, 0.3, 1, angle=123),
     ]
     metadatas = psp.process_sequence_properties(
         sequence,
