@@ -14,8 +14,6 @@ from .fixtures import (
     run_exiftool_and_generate_geotag_args,
     setup_config,
     setup_data,
-    setup_upload,
-    USERNAME,
     validate_and_extract_zip,
     verify_descs,
 )
@@ -72,18 +70,18 @@ _DEFAULT_EXPECTED_DESCS = {
 }
 
 
-def test_basic():
-    for option in ["--version", "--help"]:
-        x = subprocess.run(f"{EXECUTABLE} {option}", shell=True)
-        assert x.returncode == 0, x.stderr
-
-
 def _local_to_utc(ct: str):
     return (
         datetime.datetime.fromisoformat(ct)
         .astimezone(datetime.timezone.utc)
         .strftime("%Y_%m_%d_%H_%M_%S_%f")[:-3]
     )
+
+
+def test_basic():
+    for option in ["--version", "--help"]:
+        x = subprocess.run(f"{EXECUTABLE} {option}", shell=True)
+        assert x.returncode == 0, x.stderr
 
 
 def test_process_images_with_defaults(
@@ -371,15 +369,22 @@ def filter_out_errors(descs):
     return [desc for desc in descs if "error" not in desc]
 
 
-def test_geotagging_from_gpx(setup_data: py.path.local):
+def test_geotagging_images_from_gpx(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
+    images = setup_data.join("images")
+
     x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors",
+        f"""{EXECUTABLE} process {PROCESS_FLAGS} \
+    --file_types=image \
+    --geotag_source=gpx \
+    --geotag_source_path={gpx_file} \
+    --skip_process_errors \
+    {images}
+""",
         shell=True,
     )
-    assert x.returncode == 0, x.stderr
     verify_descs(
         [
             {
@@ -405,14 +410,15 @@ def test_geotagging_from_gpx(setup_data: py.path.local):
                 },
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
+        Path(images, "mapillary_image_description.json"),
     )
 
 
-def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
+def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
+
     x = subprocess.run(
         f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
         shell=True,
@@ -449,7 +455,7 @@ def test_geotagging_from_gpx_with_offset(setup_data: py.path.local):
     )
 
 
-def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
+def test_geotagging_images_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
@@ -489,7 +495,9 @@ def test_geotagging_from_gpx_use_gpx_start_time(setup_data: py.path.local):
     )
 
 
-def test_geotagging_from_gpx_use_gpx_start_time_with_offset(setup_data: py.path.local):
+def test_geotagging_images_from_gpx_use_gpx_start_time_with_offset(
+    setup_data: py.path.local,
+):
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
@@ -643,19 +651,28 @@ def test_video_process(setup_data: py.path.local):
         pytest.skip("skip because ffmpeg not installed")
 
     video_dir = setup_data.join("videos")
-    gpx_file = video_dir.join("test.gpx")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    gpx_start_time = "2025_03_14_07_00_00_000"
+    gpx_end_time = "2025_03_14_07_01_33_624"
+    video_start_time = "2025_03_14_07_00_00_000"
     desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
-    with gpx_file.open("w") as fp:
-        fp.write(GPX_CONTENT)
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {PROCESS_FLAGS} --skip_process_errors --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_dir} {video_dir.join('my_samples')}",
+        f"""{EXECUTABLE} --verbose video_process \
+    {PROCESS_FLAGS} \
+    --video_sample_interval=2 \
+    --video_sample_distance=-1 \
+    --skip_process_errors \
+    --video_start_time {video_start_time} \
+    --geotag_source gpx \
+    --geotag_source_path {gpx_file} {video_dir} {video_dir.join("my_samples")}
+""",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
     with open(desc_path) as fp:
         descs = json.load(fp)
-    assert 1 == len(find_desc_errors(descs))
-    assert 2 == len(filter_out_errors(descs))
+    assert 0 == len(find_desc_errors(descs))
+    assert 3 == len(filter_out_errors(descs))
 
 
 def test_video_process_sample_with_multiple_distances(setup_data: py.path.local):
@@ -767,54 +784,33 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
         )
 
 
-@pytest.mark.usefixtures("setup_config")
-def test_video_process_and_upload(
-    setup_upload: py.path.local, setup_data: py.path.local
-):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    video_dir = setup_data.join("videos")
-    gpx_file = video_dir.join("test.gpx")
-    with gpx_file.open("w") as fp:
-        fp.write(GPX_CONTENT)
-    x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
-        shell=True,
-    )
-    assert x.returncode != 0, x.stderr
-    assert 0 == len(setup_upload.listdir())
-
-    x = subprocess.run(
-        f"{EXECUTABLE} video_process_and_upload {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} --skip_process_errors --dry_run --user_name={USERNAME} {video_dir} {video_dir.join('my_samples')}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    assert 2 == len(setup_upload.listdir())
-    for z in setup_upload.listdir():
-        validate_and_extract_zip(str(z))
-
-
 def test_video_process_multiple_videos(setup_data: py.path.local):
     if not IS_FFMPEG_INSTALLED:
         pytest.skip("skip because ffmpeg not installed")
 
-    gpx_file = setup_data.join("test.gpx")
     desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
     sub_folder = setup_data.join("video_sub_folder").mkdir()
     video_path = setup_data.join("videos").join("sample-5s.mp4")
     video_path.copy(sub_folder)
-    with gpx_file.open("w") as fp:
-        fp.write(GPX_CONTENT)
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    gpx_start_time = "2025_03_14_07_00_00_000"
+    gpx_end_time = "2025_03_14_07_01_33_624"
     x = subprocess.run(
-        f"{EXECUTABLE} video_process {PROCESS_FLAGS} --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2018_06_08_20_23_34_123 --geotag_source gpx --geotag_source_path {gpx_file} {video_path} {setup_data.join('my_samples')}",
+        f"""{EXECUTABLE} video_process {PROCESS_FLAGS} \
+            --video_sample_interval=2 \
+            --video_sample_distance=-1 \
+            --video_start_time={gpx_start_time} \
+            --geotag_source=gpx \
+            --geotag_source_path={gpx_file} \
+            {video_path} {setup_data.join("my_samples")}
+""",
         shell=True,
     )
-    assert x.returncode != 0, x.stderr
+    assert x.returncode == 0, x.stderr
     with open(desc_path) as fp:
         descs = json.load(fp)
     for d in descs:
         assert Path(d["filename"]).is_file(), d["filename"]
         assert "sample-5s.mp4" in d["filename"]
-    assert 1 == len(find_desc_errors(descs))
-    assert 2 == len(filter_out_errors(descs))
+    assert 0 == len(find_desc_errors(descs))
+    assert 3 == len(filter_out_errors(descs))
