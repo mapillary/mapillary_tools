@@ -14,8 +14,8 @@ CUTOFF_TIME = float(os.getenv(_ENV_PREFIX + "CUTOFF_TIME", 60))
 DUPLICATE_DISTANCE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_DISTANCE", 0.1))
 DUPLICATE_ANGLE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_ANGLE", 5))
 MAX_AVG_SPEED = float(
-    os.getenv(_ENV_PREFIX + "MAX_AVG_SPEED", 200_000 / 3600)
-)  # 200 KM/h
+    os.getenv(_ENV_PREFIX + "MAX_AVG_SPEED", 400_000 / 3600)
+)  # 400 KM/h
 # in seconds
 VIDEO_SAMPLE_INTERVAL = float(os.getenv(_ENV_PREFIX + "VIDEO_SAMPLE_INTERVAL", -1))
 # in meters
