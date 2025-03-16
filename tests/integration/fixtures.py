@@ -27,16 +27,20 @@ USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
 @pytest.fixture
 def setup_config(tmpdir: py.path.local):
     config_path = tmpdir.mkdir("configs").join("CLIENT_ID")
-    os.environ["MAPILLARY_CONFIG_PATH"] = str(config_path)
+    TEST_ENV = {
+        "MAPILLARY_CONFIG_PATH": str(config_path),
+    }
+    env = os.environ.copy()
+    env.update(TEST_ENV)
     x = subprocess.run(
         f"{EXECUTABLE} authenticate --user_name {USERNAME} --jwt test_user_token",
         shell=True,
+        env=env,
     )
     assert x.returncode == 0, x.stderr
     yield config_path
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
-    del os.environ["MAPILLARY_CONFIG_PATH"]
 
 
 @pytest.fixture
