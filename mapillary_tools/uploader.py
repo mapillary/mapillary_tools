@@ -1,3 +1,4 @@
+from collections.abc import Buffer
 import io
 import json
 import logging
@@ -88,6 +89,144 @@ class EventEmitter:
             callback(*args, **kwargs)
 
 
+class MyBytesIO(io.BufferedIOBase):
+    def __init__(self) -> None:
+        self._tell = 0
+        self._buffer = io.BytesIO()
+
+    def write(self, data: bytes | Buffer) -> int:
+        n = self._buffer.write(data)
+        self._tell += n
+        return n
+
+    def pop(self) -> bytes:
+        data = self._buffer.getvalue()
+        self._buffer = io.BytesIO()
+        return data
+
+    def flush(self):
+        self._buffer = io.BytesIO()
+
+    def tell(self) -> int:
+        return self._tell
+
+
+class ZipFileSequence:
+    @classmethod
+    def generate_zip_chunks(
+        cls,
+        sequence: T.Sequence[types.ImageMetadata],
+        upload_md5sum: str,
+    ) -> T.Generator[bytes, None, None]:
+        _sequences = types.group_and_sort_images(sequence)
+        assert len(_sequences) == 1, (
+            f"Only one sequence is allowed but got {len(_sequences)}: {list(_sequences.keys())}"
+        )
+
+        zip_fp = MyBytesIO()
+        with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
+            arcnames: T.Set[str] = set()
+            for metadata in sequence:
+                cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
+                yield zip_fp.pop()
+            zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
+            yield zip_fp.pop()
+        yield zip_fp.pop()
+
+    @classmethod
+    def zip_images(
+        cls, metadatas: T.Sequence[types.ImageMetadata], zip_dir: Path
+    ) -> None:
+        """
+        Group images into sequences and zip each sequence into a zipfile.
+        """
+        _validate_metadatas(metadatas)
+        sequences = types.group_and_sort_images(metadatas)
+        os.makedirs(zip_dir, exist_ok=True)
+        for sequence_uuid, sequence in sequences.items():
+            # md5sum
+            for metadata in sequence:
+                metadata.update_md5sum()
+            upload_md5sum = types.sequence_md5sum(sequence)
+
+            # For atomicity we write into a WIP file and then rename to the final file
+            wip_zip_filename = zip_dir.joinpath(
+                f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{int(time.time())}"
+            )
+            zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
+            with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
+                with wip_path.open("wb") as wip_fp:
+                    cls.zip_sequence_fp(sequence, wip_fp, upload_md5sum)
+
+    @classmethod
+    def zip_sequence_fp(
+        cls,
+        sequence: T.Sequence[types.ImageMetadata],
+        zip_fp: T.IO[bytes],
+        upload_md5sum: str,
+    ) -> None:
+        _sequences = types.group_and_sort_images(sequence)
+        assert len(_sequences) == 1, (
+            f"Only one sequence is allowed but got {len(_sequences)}: {list(_sequences.keys())}"
+        )
+
+        with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
+            arcnames: T.Set[str] = set()
+            for metadata in sequence:
+                cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
+            assert len(sequence) == len(set(zipf.namelist()))
+            zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
+
+    @classmethod
+    def _uniq_arcname(cls, filename: Path, arcnames: T.Set[str]):
+        arcname: str = filename.name
+
+        # make sure the arcname is unique, otherwise zipfile.extractAll will eliminate duplicated ones
+        arcname_idx = 0
+        while arcname in arcnames:
+            arcname_idx += 1
+            arcname = f"{filename.stem}_{arcname_idx}{filename.suffix}"
+
+        return arcname
+
+    @classmethod
+    def _write_imagebytes_in_zip(
+        cls,
+        zipf: zipfile.ZipFile,
+        metadata: types.ImageMetadata,
+        arcnames: T.Optional[T.Set[str]] = None,
+    ):
+        if arcnames is None:
+            arcnames = set()
+
+        edit = exif_write.ExifEdit(metadata.filename)
+        # The cast is to fix the type checker error
+        edit.add_image_description(
+            T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
+        )
+        image_bytes = edit.dump_image_bytes()
+
+        arcname = cls._uniq_arcname(metadata.filename, arcnames)
+        arcnames.add(arcname)
+
+        zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+        zipf.writestr(zipinfo, image_bytes)
+
+    @classmethod
+    def _extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> T.Optional[str]:
+        with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
+            comment = ziph.comment
+        if not comment:
+            return None
+        try:
+            upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
+        except Exception:
+            return None
+        if not upload_md5sum:
+            return None
+        return str(upload_md5sum)
+
+
 class Uploader:
     def __init__(
         self,
@@ -121,16 +260,16 @@ class Uploader:
             "sequence_image_count": len(namelist),
         }
 
-        with zip_path.open("rb") as fp:
-            upload_md5sum = _extract_upload_md5sum(fp)
+        with zip_path.open("rb") as zip_fp:
+            upload_md5sum = ZipFileSequence._extract_upload_md5sum(zip_fp)
 
         if upload_md5sum is None:
-            with zip_path.open("rb") as fp:
-                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+            with zip_path.open("rb") as zip_fp:
+                upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
-        with zip_path.open("rb") as fp:
+        with zip_path.open("rb") as zip_fp:
             return self.upload_stream(
-                fp,
+                zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
                 upload_md5sum,
                 event_payload=final_event_payload,
@@ -159,7 +298,7 @@ class Uploader:
                 metadata.update_md5sum()
             upload_md5sum = types.sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
-                _zip_sequence_fp(sequence, fp, upload_md5sum)
+                ZipFileSequence.zip_sequence_fp(sequence, fp, upload_md5sum)
                 cluster_id = self.upload_stream(
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
@@ -216,7 +355,7 @@ class Uploader:
         }
 
         try:
-            return _upload_stream(
+            return _upload_stream_with_retries(
                 upload_service,
                 fp,
                 event_payload=final_event_payload,
@@ -252,70 +391,6 @@ def wip_file_context(wip_path: Path, done_path: Path):
             os.remove(wip_path)
         except FileNotFoundError:
             pass
-
-
-def zip_images(
-    metadatas: T.List[types.ImageMetadata],
-    zip_dir: Path,
-) -> None:
-    _validate_metadatas(metadatas)
-    sequences = types.group_and_sort_images(metadatas)
-    os.makedirs(zip_dir, exist_ok=True)
-    for sequence_uuid, sequence in sequences.items():
-        for metadata in sequence:
-            metadata.update_md5sum()
-        upload_md5sum = types.sequence_md5sum(sequence)
-        timestamp = int(time.time())
-        wip_zip_filename = zip_dir.joinpath(
-            f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{timestamp}"
-        )
-        zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
-        with wip_file_context(wip_zip_filename, zip_filename) as wip_dir:
-            with wip_dir.open("wb") as fp:
-                _zip_sequence_fp(sequence, fp, upload_md5sum)
-
-
-def _zip_sequence_fp(
-    sequence: T.Sequence[types.ImageMetadata],
-    fp: T.IO[bytes],
-    upload_md5sum: str,
-) -> None:
-    arcname_idx = 0
-    arcnames = set()
-    with zipfile.ZipFile(fp, "w", zipfile.ZIP_DEFLATED) as ziph:
-        for metadata in sequence:
-            edit = exif_write.ExifEdit(metadata.filename)
-            # The cast is to fix the type checker error
-            edit.add_image_description(
-                T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
-            )
-            image_bytes = edit.dump_image_bytes()
-            arcname: str = metadata.filename.name
-            # make sure the arcname is unique, otherwise zipfile.extractAll will eliminate duplicated ones
-            while arcname in arcnames:
-                arcname_idx += 1
-                arcname = (
-                    f"{metadata.filename.stem}_{arcname_idx}{metadata.filename.suffix}"
-                )
-            arcnames.add(arcname)
-            zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-            ziph.writestr(zipinfo, image_bytes)
-            ziph.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
-        assert len(sequence) == len(set(ziph.namelist()))
-
-
-def _extract_upload_md5sum(fp: T.IO[bytes]) -> T.Optional[str]:
-    with zipfile.ZipFile(fp, "r", zipfile.ZIP_DEFLATED) as ziph:
-        comment = ziph.comment
-    if not comment:
-        return None
-    try:
-        upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
-    except Exception:
-        return None
-    if not upload_md5sum:
-        return None
-    return str(upload_md5sum)
 
 
 def _is_immediate_retry(ex: Exception):
@@ -361,7 +436,7 @@ def _setup_callback(emitter: EventEmitter, mutable_payload: Progress):
     return _callback
 
 
-def _upload_stream(
+def _upload_stream_with_retries(
     upload_service: upload_api_v4.UploadService,
     fp: T.IO[bytes],
     event_payload: T.Optional[Progress] = None,

@@ -136,7 +136,7 @@ def zip_images(
         metadata for metadata in metadatas if isinstance(metadata, types.ImageMetadata)
     ]
 
-    uploader.zip_images(image_metadatas, zip_dir)
+    uploader.ZipFileSequence.zip_sequence(image_metadatas, zip_dir)
 
 
 def fetch_user_items(
