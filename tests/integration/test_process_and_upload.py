@@ -129,7 +129,7 @@ EXPECTED_DESCS = {
 }
 
 
-def _validate_output(upload_dir: py.path.local, expected):
+def _validate_uploads(upload_dir: py.path.local, expected):
     descs = []
     for file in upload_dir.listdir():
         if str(file).endswith(".mp4"):
@@ -138,13 +138,13 @@ def _validate_output(upload_dir: py.path.local, expected):
             descs.extend(validate_and_extract_zip(str(file)))
         else:
             raise Exception(f"invalid file {file}")
+
+    excludes = ["filename", "filesize", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
+
     actual = {}
     for desc in descs:
         actual[os.path.basename(desc["filename"])] = {
-            k: v
-            for k, v in desc.items()
-            if k
-            not in ["filename", "filesize", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
+            k: v for k, v in desc.items() if k not in excludes
         }
 
     assert expected == actual
@@ -166,11 +166,11 @@ def test_process_and_upload(setup_data: py.path.local, setup_upload: py.path.loc
     )
     assert x.returncode == 0, x.stderr
     if IS_FFMPEG_INSTALLED:
-        _validate_output(
+        _validate_uploads(
             setup_upload, {**EXPECTED_DESCS["gopro"], **EXPECTED_DESCS["image"]}
         )
     else:
-        _validate_output(setup_upload, {**EXPECTED_DESCS["image"]})
+        _validate_uploads(setup_upload, {**EXPECTED_DESCS["image"]})
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -179,8 +179,111 @@ def test_process_and_upload_images_only(
     setup_upload: py.path.local,
 ):
     x = subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload --filetypes=image {UPLOAD_FLAGS} {PROCESS_FLAGS} {setup_data}/images {setup_data}/images {setup_data}/images/DSC00001.JPG --desc_path=-",
+        f"""{EXECUTABLE} --verbose process_and_upload \
+    {UPLOAD_FLAGS} {PROCESS_FLAGS} \
+    --filetypes=image \
+    --desc_path=- \
+    {setup_data}/images {setup_data}/images {setup_data}/images/DSC00001.JPG
+""",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    _validate_output(setup_upload, EXPECTED_DESCS["image"])
+    _validate_uploads(setup_upload, EXPECTED_DESCS["image"])
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_video_process_and_upload(
+    setup_upload: py.path.local, setup_data: py.path.local
+):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("skip because ffmpeg not installed")
+
+    video_dir = setup_data.join("videos")
+    gpx_start_time = "2025_03_14_07_00_00_000"
+    gpx_end_time = "2025_03_14_07_01_33_624"
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    x = subprocess.run(
+        f"""{EXECUTABLE} video_process_and_upload \
+    {PROCESS_FLAGS} {UPLOAD_FLAGS} \
+    --video_sample_interval=2 \
+    --video_sample_distance=-1 \
+    --video_start_time {gpx_start_time} \
+    --geotag_source gpx \
+    --geotag_source_path {gpx_file} \
+    --desc_path - \
+    {video_dir} {video_dir.join("my_samples")}
+""",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert 1 == len(setup_upload.listdir())
+    expected = {
+        "sample-5s_NA_000001.jpg": {
+            "MAPAltitude": 94.75,
+            "MAPCaptureTime": "2025_03_14_07_00_00_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 0.484,
+                "TrueHeading": 0.484,
+            },
+            "MAPLatitude": 37.793585,
+            "MAPLongitude": -122.461396,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
+        "sample-5s_NA_000002.jpg": {
+            "MAPAltitude": 93.347,
+            "MAPCaptureTime": "2025_03_14_07_00_02_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 0.484,
+                "TrueHeading": 0.484,
+            },
+            "MAPLatitude": 37.7937349,
+            "MAPLongitude": -122.4613944,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
+        "sample-5s_NA_000003.jpg": {
+            "MAPAltitude": 92.492,
+            "MAPCaptureTime": "2025_03_14_07_00_04_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 343.286,
+                "TrueHeading": 343.286,
+            },
+            "MAPLatitude": 37.7938825,
+            "MAPLongitude": -122.4614226,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
+    }
+    _validate_uploads(setup_upload, expected)
+
+
+@pytest.mark.usefixtures("setup_config")
+def xtest_video_process_and_upload_after_gpx(
+    setup_upload: py.path.local, setup_data: py.path.local
+):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("skip because ffmpeg not installed")
+
+    video_dir = setup_data.join("videos")
+    gpx_start_time = "2025_03_14_07_00_00_000"
+    gpx_end_time = "2025_03_14_07_01_33_624"
+    video_start_time = "2025_03_14_07_01_34_624"
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    x = subprocess.run(
+        f"""{EXECUTABLE} video_process_and_upload \
+    {PROCESS_FLAGS} {UPLOAD_FLAGS} \
+    --video_sample_interval=2 \
+    --video_sample_distance=-1 \
+    --video_start_time {video_start_time} \
+    --geotag_source gpx \
+    --geotag_source_path {gpx_file} \
+    --skip_process_errors \
+    --desc_path - \
+    {video_dir} {video_dir.join("my_samples")}
+""",
+        shell=True,
+    )
+    assert x.returncode == 0, x.stderr
+    assert 0 == len(setup_upload.listdir())
+    _validate_uploads(setup_upload, {})

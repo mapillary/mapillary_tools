@@ -118,3 +118,15 @@ class MapillaryUploadUnauthorizedError(MapillaryUserError):
 
 class MapillaryMetadataValidationError(MapillaryUserError, MapillaryDescriptionError):
     exit_code = 15
+
+
+class MapillaryFileTooLargeError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryCaptureSpeedTooFastError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryNullIslandError(MapillaryDescriptionError):
+    pass

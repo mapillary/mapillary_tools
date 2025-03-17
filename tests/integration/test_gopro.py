@@ -18,7 +18,12 @@ from .fixtures import (
 
 
 IMPORT_PATH = "tests/data/gopro_data"
-
+TEST_ENVS = {
+    "MAPILLARY_TOOLS_GOPRO_GPS_FIXES": "0,2,3",
+    "MAPILLARY_TOOLS_GOPRO_MAX_DOP100": "100000",
+    "MAPILLARY_TOOLS_GOPRO_GPS_PRECISION": "10000000",
+    "MAPILLARY_TOOLS_MAX_AVG_SPEED": "200000",  # km/h
+}
 EXPECTED_DESCS: T.List[T.Any] = [
     {
         "MAPAltitude": 9540.24,
@@ -111,22 +116,8 @@ def setup_data(tmpdir: py.path.local):
         tmpdir.remove(ignore_errors=True)
 
 
-@pytest.fixture
-def setup_envvars():
-    # this sample hero8.mp4 doesn't have any good GPS points,
-    # so we do not filter out bad GPS points
-    os.environ["MAPILLARY_TOOLS_GOPRO_GPS_FIXES"] = "0,2,3"
-    os.environ["MAPILLARY_TOOLS_GOPRO_MAX_DOP100"] = "100000"
-    os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"] = "10000000"
-    yield
-    del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_FIXES"]
-    del os.environ["MAPILLARY_TOOLS_GOPRO_MAX_DOP100"]
-    del os.environ["MAPILLARY_TOOLS_GOPRO_GPS_PRECISION"]
-
-
 @pytest.mark.usefixtures("setup_config")
 @pytest.mark.usefixtures("setup_upload")
-@pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8(
     setup_data: py.path.local,
     use_exiftool: bool = False,
@@ -137,7 +128,9 @@ def test_process_gopro_hero8(
     args = f"{EXECUTABLE} video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}"
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
+    env = os.environ.copy()
+    env.update(TEST_ENVS)
+    x = subprocess.run(args, shell=True, env=env)
     assert x.returncode == 0, x.stderr
     sample_dir = setup_data.join("mapillary_sampled_video_frames")
     desc_path = sample_dir.join("mapillary_image_description.json")
@@ -150,14 +143,12 @@ def test_process_gopro_hero8(
 
 @pytest.mark.usefixtures("setup_config")
 @pytest.mark.usefixtures("setup_upload")
-@pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8_with_exiftool(setup_data: py.path.local):
     return test_process_gopro_hero8(setup_data, use_exiftool=True)
 
 
 @pytest.mark.usefixtures("setup_config")
 @pytest.mark.usefixtures("setup_upload")
-@pytest.mark.usefixtures("setup_envvars")
 def test_process_gopro_hero8_with_exiftool_multiple_videos_with_the_same_name(
     setup_data: py.path.local,
 ):

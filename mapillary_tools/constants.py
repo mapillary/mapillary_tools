@@ -7,10 +7,15 @@ _ENV_PREFIX = "MAPILLARY_TOOLS_"
 
 ANSI_BOLD = "\033[1m"
 ANSI_RESET_ALL = "\033[0m"
+# In meters
 CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
+# In seconds
 CUTOFF_TIME = float(os.getenv(_ENV_PREFIX + "CUTOFF_TIME", 60))
 DUPLICATE_DISTANCE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_DISTANCE", 0.1))
 DUPLICATE_ANGLE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_ANGLE", 5))
+MAX_AVG_SPEED = float(
+    os.getenv(_ENV_PREFIX + "MAX_AVG_SPEED", 400_000 / 3600)
+)  # 400 KM/h
 # in seconds
 VIDEO_SAMPLE_INTERVAL = float(os.getenv(_ENV_PREFIX + "VIDEO_SAMPLE_INTERVAL", -1))
 # in meters
