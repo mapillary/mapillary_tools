@@ -10,7 +10,7 @@ class Command:
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
         parser.add_argument(
-            "--user_name", help="Mapillary user name", default=None, required=False
+            "--user_name", help="Mapillary user profile", default=None, required=False
         )
         parser.add_argument(
             "--user_email",
@@ -26,6 +26,13 @@ class Command:
         )
         parser.add_argument(
             "--jwt", help="Mapillary user access token", default=None, required=False
+        )
+        parser.add_argument(
+            "--delete",
+            help="Delete the specified user profile",
+            default=False,
+            required=False,
+            action="store_true",
         )
 
     def run(self, vars_args: dict):

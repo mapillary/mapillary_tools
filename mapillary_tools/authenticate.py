@@ -6,6 +6,7 @@ import sys
 import typing as T
 
 import requests
+import jsonschema
 
 from . import api_v4, config, constants, exceptions, types
 
@@ -18,6 +19,7 @@ def authenticate(
     user_email: T.Optional[str] = None,
     user_password: T.Optional[str] = None,
     jwt: T.Optional[str] = None,
+    delete: bool = False,
 ):
     """
     Prompt for authentication information and save it to the config file
@@ -33,42 +35,56 @@ def authenticate(
         _welcome()
 
     # Make sure profile name either validated or existed
-    if profile_name:
+    if profile_name is not None:
         profile_name = profile_name.strip()
     else:
         if not _prompt_enabled():
             raise exceptions.MapillaryBadParameterError(
                 "Profile name is required, please specify one with --user_name"
             )
-        profile_name = _prompt_profile_name()
+        profile_name = _prompt_choose_profile_name(
+            list(all_user_items.keys()), must_exist=delete
+        )
 
     assert profile_name is not None, "profile_name should be set"
 
-    if profile_name in all_user_items:
-        LOG.warning(
-            'The profile "%s" already exists and will be overridden',
-            profile_name,
-        )
+    if delete:
+        if profile_name not in all_user_items:
+            raise exceptions.MapillaryBadParameterError(
+                f'Profile "{profile_name}" not found'
+            )
+        config.remove_config(profile_name)
+        LOG.info('Profile "%s" deleted', profile_name)
     else:
-        # validate only new profile names
-        _validate_profile_name(profile_name)
-        LOG.info('Creating new profile: "%s"', profile_name)
+        if profile_name in all_user_items:
+            LOG.warning(
+                'The profile "%s" already exists and will be overridden',
+                profile_name,
+            )
+        else:
+            LOG.info('Creating new profile: "%s"', profile_name)
 
-    if jwt:
-        user_items: types.UserItem = {"user_upload_token": jwt}
-    else:
-        user_items = _prompt_login(user_email=user_email, user_password=user_password)
+        if jwt:
+            user_items: types.UserItem = {"user_upload_token": jwt}
+        else:
+            user_items = _prompt_login(
+                user_email=user_email, user_password=user_password
+            )
 
-    _test_auth_and_update_user(user_items)
+        user_items = _validate_and_update_profile(profile_name, user_items)
 
-    # Update the config with the new user items
-    config.update_config(profile_name, user_items)
+        # Update the config with the new user items
+        config.update_config(profile_name, user_items)
 
-    # TODO: print more user information
-    if profile_name in all_user_items:
-        LOG.info('Profile "%s" updated', profile_name)
-    else:
-        LOG.info('Profile "%s" created', profile_name)
+        # TODO: print more user information
+        if profile_name in all_user_items:
+            LOG.info(
+                'Profile "%s" updated: %s', profile_name, api_v4._sanitize(user_items)
+            )
+        else:
+            LOG.info(
+                'Profile "%s" created: %s', profile_name, api_v4._sanitize(user_items)
+            )
 
 
 def fetch_user_items(
@@ -92,7 +108,15 @@ def fetch_user_items(
     assert len(all_user_items) >= 1, "should have at least 1 profile"
     if profile_name is None:
         if len(all_user_items) > 1:
-            profile_name, user_items = _prompt_choose_user_profile(all_user_items)
+            if not _prompt_enabled():
+                raise exceptions.MapillaryBadParameterError(
+                    "Multiple user profiles found, please choose one with --user_name"
+                )
+            _list_all_profiles(all_user_items)
+            profile_name = _prompt_choose_profile_name(
+                list(all_user_items.keys()), must_exist=True
+            )
+            user_items = all_user_items[profile_name]
         else:
             profile_name, user_items = list(all_user_items.items())[0]
     else:
@@ -106,9 +130,10 @@ def fetch_user_items(
 
     assert profile_name is not None, "profile_name should be set"
 
-    user_json = _test_auth_and_update_user(user_items)
-    if user_json is not None:
-        LOG.info("Uploading to Mapillary user: %s", json.dumps(user_json))
+    user_items = _validate_and_update_profile(profile_name, user_items)
+    LOG.info(
+        'Uploading to profile "%s": %s', profile_name, api_v4._sanitize(user_items)
+    )
 
     if organization_key is not None:
         resp = api_v4.fetch_organization(
@@ -130,9 +155,16 @@ def _prompt(message: str) -> str:
     return input()
 
 
-def _test_auth_and_update_user(
-    user_items: types.UserItem,
-) -> T.Optional[T.Dict[str, str]]:
+def _validate_and_update_profile(
+    profile_name: str, user_items: types.UserItem
+) -> types.UserItem:
+    try:
+        jsonschema.validate(user_items, types.UserItemSchema)
+    except jsonschema.ValidationError as ex:
+        raise exceptions.MapillaryBadParameterError(
+            f'Invalid profile "{profile_name}": {ex.message}'
+        )
+
     try:
         resp = api_v4.fetch_user_or_me(
             user_access_token=user_items["user_upload_token"]
@@ -142,46 +174,15 @@ def _test_auth_and_update_user(
             message = api_v4.extract_auth_error_message(ex.response)
             raise exceptions.MapillaryUploadUnauthorizedError(message)
         else:
-            # The point of this function is to test if the auth works, so we don't throw any non-auth errors
-            LOG.warning("Error testing the auth: %s", api_v4.readable_http_error(ex))
-            return None
+            raise ex
 
     user_json = resp.json()
-    if user_json is not None:
-        username = user_json.get("username")
-        if username is not None:
-            user_items["MAPSettingsUsername"] = username
 
-        user_id = user_json.get("id")
-        if user_id is not None:
-            user_items["MAPSettingsUserKey"] = user_id
-
-    return user_json
-
-
-def _prompt_profile_name(skip_validation: bool = False) -> str:
-    assert _prompt_enabled(), "should not get here if prompting is disabled"
-
-    profile_name = ""
-
-    while not profile_name:
-        profile_name = _prompt(
-            "Enter the Mapillary profile you would like to (re)authenticate: "
-        ).strip()
-
-        if profile_name:
-            if skip_validation:
-                break
-
-            try:
-                _validate_profile_name(profile_name)
-            except ValueError as ex:
-                LOG.error("Error validating profile name: %s", ex)
-                profile_name = ""
-            else:
-                break
-
-    return profile_name
+    return {
+        **user_items,
+        "MAPSettingsUsername": user_json.get("username"),
+        "MAPSettingsUserKey": user_json.get("id"),
+    }
 
 
 def _validate_profile_name(profile_name: str):
@@ -190,7 +191,7 @@ def _validate_profile_name(profile_name: str):
             "Profile name must be between 2 and 32 characters long"
         )
 
-    pattern = re.compile(r"^[a-zA-Z0-9_-]+$")
+    pattern = re.compile(r"^[a-zA-Z]+[a-zA-Z0-9_-]*$")
     if not bool(pattern.match(profile_name)):
         raise exceptions.MapillaryBadParameterError(
             "Invalid profile name. Use only letters, numbers, hyphens and underscores"
@@ -233,7 +234,7 @@ def _prompt_enabled() -> bool:
     return True
 
 
-def _retryable_login(ex: requests.HTTPError) -> bool:
+def _is_login_retryable(ex: requests.HTTPError) -> bool:
     if 400 <= ex.response.status_code < 500:
         r = ex.response.json()
         subcode = r.get("error", {}).get("error_subcode")
@@ -273,7 +274,7 @@ def _prompt_login(
         if not _enabled:
             raise ex
 
-        if _retryable_login(ex):
+        if _is_login_retryable(ex):
             return _prompt_login()
 
         raise ex
@@ -288,22 +289,56 @@ def _prompt_login(
     return user_items
 
 
-def _prompt_choose_user_profile(
-    all_user_items: T.Dict[str, types.UserItem],
-) -> T.Tuple[str, types.UserItem]:
-    if not _prompt_enabled():
-        raise exceptions.MapillaryBadParameterError(
-            "Multiple user profiles found, please choose one with --user_name"
+def _prompt_choose_profile_name(
+    existing_profile_names: T.Sequence[str], must_exist: bool = False
+) -> str:
+    assert _prompt_enabled(), "should not get here if prompting is disabled"
+
+    existed = set(existing_profile_names)
+
+    while True:
+        if must_exist:
+            prompt = "Enter an existing profile: "
+        else:
+            prompt = "Enter an existing profile or create a new one: "
+
+        profile_name = _prompt(prompt).strip()
+
+        if not profile_name:
+            continue
+
+        # Exit if it's found
+        if profile_name in existed:
+            break
+
+        # Try to find by index
+        try:
+            profile_name = existing_profile_names[int(profile_name) - 1]
+        except (ValueError, IndexError):
+            pass
+        else:
+            # Exit if it's found
+            break
+
+        assert profile_name not in existed, (
+            f"Profile {profile_name} must not exist here"
         )
 
-    _list_all_profiles(all_user_items)
-    while True:
-        profile_name = _prompt_profile_name(skip_validation=True)
-        if profile_name in all_user_items:
-            break
-        _echo(f'Profile "{profile_name}" not found')
+        if must_exist:
+            LOG.error('Profile "%s" not found', profile_name)
+        else:
+            try:
+                _validate_profile_name(profile_name)
+            except exceptions.MapillaryBadParameterError as ex:
+                LOG.error("Error validating profile name: %s", ex)
+                profile_name = ""
+            else:
+                break
 
-    return profile_name, all_user_items[profile_name]
+    if must_exist:
+        assert profile_name in existed, f"Profile {profile_name} must exist"
+
+    return profile_name
 
 
 def _welcome():

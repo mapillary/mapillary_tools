@@ -70,7 +70,7 @@ def _truncate(s, limit=512):
         return s
 
 
-def _sanitize(headers: T.Dict):
+def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
     new_headers = {}
 
     for k, v in headers.items():
@@ -81,6 +81,7 @@ def _sanitize(headers: T.Dict):
             "access-token",
             "access_token",
             "password",
+            "user_upload_token",
         ]:
             new_headers[k] = "[REDACTED]"
         else:
