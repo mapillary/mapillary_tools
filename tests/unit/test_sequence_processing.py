@@ -595,3 +595,56 @@ def test_video_error(tmpdir: py.path.local):
         duplicate_distance=100,
         duplicate_angle=5,
     )
+
+
+def test_split_sequence_by():
+    """Test split_sequence_by function."""
+    # Create test points
+    p1 = geo.Point(1, 1.00000, 1.00000, 1, angle=0)
+    p2 = geo.Point(2, 1.00001, 1.00001, 2, angle=0)
+    p3 = geo.Point(3, 1.00002, 1.00002, 3, angle=0)
+    p4 = geo.Point(10, 1.00003, 1.00003, 4, angle=0)  # Large time gap
+    p5 = geo.Point(11, 1.00004, 1.00004, 5, angle=0)
+    p6 = geo.Point(12, 1.10000, 1.10000, 6, angle=0)  # Large distance gap
+    p7 = geo.Point(13, 1.10001, 1.10001, 7, angle=0)
+
+    # Create a sequence of points
+    sequence = [p1, p2, p3, p4, p5, p6, p7]
+
+    # Test split by time gaps (> 5 seconds)
+    split_by_time = lambda prev, cur: cur.time - prev.time > 5
+    sequences = psp.split_sequence_by(sequence, split_by_time)
+
+    # Should be split into two sequences [p1,p2,p3], [p4,p5,p6,p7]
+    assert len(sequences) == 2
+    assert sequences[0] == [p1, p2, p3]
+    assert sequences[1] == [p4, p5, p6, p7]
+
+    # Test split by large distance gaps
+    def split_by_distance(prev, cur):
+        distance = geo.gps_distance(
+            (prev.lat, prev.lon),
+            (cur.lat, cur.lon),
+        )
+        should = distance > 1000  # Split if distance > 1000 meters
+        return should
+
+    sequences = psp.split_sequence_by(sequence, split_by_distance)
+
+    # Should be split into two sequences [p1,p2,p3,p4,p5], [p6,p7]
+    assert len(sequences) == 2
+    assert sequences[0] == [p1, p2, p3, p4, p5]
+    assert sequences[1] == [p6, p7]
+
+    # Test empty sequence
+    empty_sequences = psp.split_sequence_by([], split_by_time)
+    assert len(empty_sequences) == 0
+
+    # Test single point sequence
+    single_point = [p1]
+    single_sequences = psp.split_sequence_by(single_point, split_by_time)
+    assert len(single_sequences) == 1
+    assert single_sequences[0] == [p1]
+
+    sequences = psp.split_sequence_by([], split_by_time)
+    assert len(sequences) == 0

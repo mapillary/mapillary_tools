@@ -9,59 +9,38 @@ from . import constants, exceptions, geo, types, utils
 LOG = logging.getLogger(__name__)
 
 
+SeqItem = T.TypeVar("SeqItem")
 PointLike = T.TypeVar("PointLike", bound=geo.Point)
 PointSequence = T.List[PointLike]
 
 
-def cut_sequence_by_time_or_distance(
-    sequence: PointSequence,
-    cutoff_distance: T.Optional[float] = None,
-    cutoff_time: T.Optional[float] = None,
-) -> T.List[PointSequence]:
-    sequences: T.List[PointSequence] = []
+def split_sequence_by(
+    sequence: T.List[SeqItem],
+    should_split: T.Callable[[SeqItem, SeqItem], bool],
+) -> T.List[T.List[SeqItem]]:
+    """
+    Split a sequence into multiple sequences by should_split(prev, cur) => True
+    """
+    sequences: T.List[T.List[SeqItem]] = []
 
-    if sequence:
-        sequences.append([sequence[0]])
+    seq = iter(sequence)
 
-    for prev, cur in geo.pairwise(sequence):
+    prev = next(seq, None)
+    if prev is None:
+        return sequences
+
+    sequences.append([prev])
+
+    for cur in seq:
         # invariant: prev is processed
-
-        # Cut by distance
-        distance = geo.gps_distance(
-            (prev.lat, prev.lon),
-            (cur.lat, cur.lon),
-        )
-        if cutoff_distance is not None:
-            if cutoff_distance <= distance:
-                LOG.debug(
-                    "Cut the sequence because the distance gap between two images (%s meters) exceeds the cutoff distance (%s meters): %s: %s -> %s",
-                    round(distance, 2),
-                    round(cutoff_distance, 2),
-                    prev.filename.parent,
-                    prev.filename.name,
-                    cur.filename.name,
-                )
-                sequences.append([cur])
-                continue
-
-        # Cut by time
-        time_diff = cur.time - prev.time
-        assert 0 <= time_diff, "sequence must be sorted by capture times"
-        if cutoff_time is not None:
-            if cutoff_time <= time_diff:
-                LOG.debug(
-                    "Cut the sequence because the time gap between two images (%s seconds) exceeds the cutoff time (%s seconds): %s: %s -> %s",
-                    round(time_diff, 2),
-                    round(cutoff_time, 2),
-                    prev.filename.parent,
-                    prev.filename.name,
-                    cur.filename.name,
-                )
-                sequences.append([cur])
-                continue
-
-        sequences[-1].append(cur)
+        if should_split(prev, cur):
+            sequences.append([cur])
+        else:
+            sequences[-1].append(cur)
+        prev = cur
         # invariant: cur is processed
+
+    assert sum(len(s) for s in sequences) == len(sequence)
 
     return sequences
 
@@ -74,13 +53,14 @@ def duplication_check(
     dedups: PointSequence = []
     dups: T.List[types.ErrorMetadata] = []
 
-    sequence_iter = iter(sequence)
-    prev = next(sequence_iter)
+    it = iter(sequence)
+    prev = next(it)
     if prev is None:
         return dedups, dups
+
     dedups.append(prev)
 
-    for cur in sequence_iter:
+    for cur in it:
         # invariant: prev is processed
         distance = geo.gps_distance(
             (prev.lat, prev.lon),
@@ -96,18 +76,17 @@ def duplication_check(
             angle_diff is None or angle_diff <= max_duplicate_angle
         ):
             msg = f"Duplicate of its previous image in terms of distance <= {max_duplicate_distance} and angle <= {max_duplicate_angle}"
-            dups.append(
-                types.describe_error_metadata(
-                    exceptions.MapillaryDuplicationError(
-                        msg,
-                        types.as_desc(cur),
-                        distance=distance,
-                        angle_diff=angle_diff,
-                    ),
-                    cur.filename,
-                    filetype=types.FileType.IMAGE,
+            dup = types.describe_error_metadata(
+                exceptions.MapillaryDuplicationError(
+                    msg,
+                    types.as_desc(cur),
+                    distance=distance,
+                    angle_diff=angle_diff,
                 ),
+                cur.filename,
+                filetype=types.FileType.IMAGE,
             )
+            dups.append(dup)
             # prev does not change
         else:
             dedups.append(cur)
@@ -117,68 +96,93 @@ def duplication_check(
     return dedups, dups
 
 
-def cut_sequence(
-    sequence: T.List[types.ImageMetadata],
-    max_images: int,
-    max_sequence_filesize: int,
-    max_sequence_pixels: int,
-) -> T.List[T.List[types.ImageMetadata]]:
+def split_sequence_by_agg(
+    sequence: T.List[SeqItem],
+    should_split_with_sequence_state: T.Callable[[SeqItem, T.Dict], bool],
+) -> T.List[T.List[SeqItem]]:
     """
-    Cut a sequence into multiple sequences by max_images or max filesize
+    Split a sequence by should_split_with_sequence_state(image, sequence_state) => True
     """
-    sequences: T.List[T.List[types.ImageMetadata]] = []
-    last_sequence_file_size = 0
-    last_sequence_pixels = 0
+    sequences: T.List[T.List[SeqItem]] = []
+    sequence_state: T.Dict = {}
 
-    for image in sequence:
-        # decent default values if width/height not available
-        width = 1024 if image.width is None else image.width
-        height = 1024 if image.height is None else image.height
+    for cur in sequence:
+        start_new_sequence = should_split_with_sequence_state(cur, sequence_state)
 
-        filesize = os.path.getsize(image.filename)
-
-        if len(sequences) == 0:
-            start_new_sequence = True
-        else:
-            if sequences[-1]:
-                if max_images < len(sequences[-1]):
-                    LOG.debug(
-                        "Cut the sequence because the current sequence (%s) reaches the max number of images (%s)",
-                        len(sequences[-1]),
-                        max_images,
-                    )
-                    start_new_sequence = True
-                elif max_sequence_filesize < last_sequence_file_size + filesize:
-                    LOG.debug(
-                        "Cut the sequence because the current sequence (%s) reaches the max filesize (%s)",
-                        last_sequence_file_size + filesize,
-                        max_sequence_filesize,
-                    )
-                    start_new_sequence = True
-                elif max_sequence_pixels < last_sequence_pixels + width * height:
-                    LOG.debug(
-                        "Cut the sequence because the current sequence (%s) reaches the max pixels (%s)",
-                        last_sequence_pixels + width * height,
-                        max_sequence_pixels,
-                    )
-                    start_new_sequence = True
-                else:
-                    start_new_sequence = False
-            else:
-                start_new_sequence = False
+        if not sequences:
+            sequences.append([])
 
         if start_new_sequence:
-            sequences.append([])
-            last_sequence_file_size = 0
-            last_sequence_pixels = 0
+            # DO NOT reset the state because it contains the information of current item
+            # sequence_state = {}
+            if sequences[-1]:
+                sequences.append([])
 
-        sequences[-1].append(image)
-        last_sequence_file_size += filesize
-        last_sequence_pixels += width * height
+        sequences[-1].append(cur)
 
     assert sum(len(s) for s in sequences) == len(sequence)
 
     return sequences
+
+
+def _should_spilt_by_limits(
+    max_sequence_images: int, max_sequence_filesize: float, max_sequence_pixels: float
+) -> T.Callable[[types.ImageMetadata, T.Dict], bool]:
+    def _should_split(image: types.ImageMetadata, sequence_state: T.Dict) -> bool:
+        last_sequence_images = sequence_state.get("last_sequence_images", 0)
+        last_sequence_file_size = sequence_state.get("last_sequence_file_size", 0)
+        last_sequence_pixels = sequence_state.get("last_sequence_pixels", 0)
+
+        # decent default values if width/height not available
+        width = 1024 if image.width is None else image.width
+        height = 1024 if image.height is None else image.height
+        pixels = width * height
+
+        if image.filesize is None:
+            filesize = os.path.getsize(image.filename)
+        else:
+            filesize = image.filesize
+
+        new_sequence_images = last_sequence_images + 1
+        new_sequence_file_size = last_sequence_file_size + filesize
+        new_sequence_pixels = last_sequence_pixels + pixels
+
+        if max_sequence_images < new_sequence_images:
+            LOG.debug(
+                "Split the sequence because the current sequence (%s) reaches the max number of images per sequence (%s)",
+                new_sequence_images,
+                max_sequence_images,
+            )
+            start_new_sequence = True
+        elif max_sequence_filesize < new_sequence_file_size:
+            LOG.debug(
+                "Split the sequence because the current sequence (%s) reaches the max filesize per sequence (%s)",
+                new_sequence_file_size,
+                max_sequence_filesize,
+            )
+            start_new_sequence = True
+        elif max_sequence_pixels < new_sequence_pixels:
+            LOG.debug(
+                "Split the sequence because the current sequence (%s) reaches the max pixels per sequence (%s)",
+                new_sequence_pixels,
+                max_sequence_pixels,
+            )
+            start_new_sequence = True
+        else:
+            start_new_sequence = False
+
+        if not start_new_sequence:
+            sequence_state["last_sequence_images"] = new_sequence_images
+            sequence_state["last_sequence_file_size"] = new_sequence_file_size
+            sequence_state["last_sequence_pixels"] = new_sequence_pixels
+        else:
+            sequence_state["last_sequence_images"] = 1
+            sequence_state["last_sequence_file_size"] = filesize
+            sequence_state["last_sequence_pixels"] = pixels
+
+        return start_new_sequence
+
+    return _should_split
 
 
 def _group_by(
@@ -422,142 +426,189 @@ def process_sequence_properties(
         else:
             raise RuntimeError(f"invalid metadata type: {metadata}")
 
-    # Check limits for videos
-    video_metadatas, video_error_metadatas = _check_video_limits(
-        video_metadatas,
-        max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
-        max_avg_speed=max_avg_speed,
-    )
-    error_metadatas.extend(video_error_metadatas)
-
-    input_sequences: T.List[PointSequence]
-    output_sequences: T.List[PointSequence]
-
-    # Group by folder and camera
-    grouped = _group_by(
-        image_metadatas,
-        lambda metadata: (
-            str(metadata.filename.parent),
-            metadata.MAPDeviceMake,
-            metadata.MAPDeviceModel,
-            metadata.width,
-            metadata.height,
-        ),
-    )
-    for key in grouped:
-        LOG.debug("Group sequences by %s: %s images", key, len(grouped[key]))
-    output_sequences = list(grouped.values())
-    LOG.info(
-        "Found %s sequences from different folders and cameras", len(output_sequences)
-    )
-
-    # Make sure each sequence is sorted (in-place update)
-    input_sequences = output_sequences
-    for sequence in input_sequences:
-        sequence.sort(
-            key=lambda metadata: metadata.sort_key(),
+    if video_metadatas:
+        # Check limits for videos
+        video_metadatas, video_error_metadatas = _check_video_limits(
+            video_metadatas,
+            max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
+            max_avg_speed=max_avg_speed,
         )
-    output_sequences = input_sequences
+        error_metadatas.extend(video_error_metadatas)
 
-    # Interpolate subseconds for same timestamps (in-place update)
-    input_sequences = output_sequences
-    for sequence in input_sequences:
-        _interpolate_subsecs_for_sorting(sequence)
-    output_sequences = input_sequences
+    if image_metadatas:
+        input_sequences: T.List[PointSequence]
+        output_sequences: T.List[PointSequence]
 
-    # Cut sequences by cutoff time
-    # NOTE: Do not cut by distance here because it affects the speed limit check
-    input_sequences = output_sequences
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequences.extend(
-            cut_sequence_by_time_or_distance(sequence, cutoff_time=cutoff_time)
+        # Group by folder and camera
+        grouped = _group_by(
+            image_metadatas,
+            lambda metadata: (
+                str(metadata.filename.parent),
+                metadata.MAPDeviceMake,
+                metadata.MAPDeviceModel,
+                metadata.width,
+                metadata.height,
+            ),
         )
-    LOG.info(
-        "Found %s sequences after cut by cutoff time %d seconds",
-        len(output_sequences),
-        cutoff_time,
-    )
-
-    # Duplication check
-    input_sequences = output_sequences
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequence, errors = duplication_check(
-            sequence,
-            max_duplicate_distance=duplicate_distance,
-            max_duplicate_angle=duplicate_angle,
+        for key in grouped:
+            LOG.debug("Group sequences by %s: %s images", key, len(grouped[key]))
+        output_sequences = list(grouped.values())
+        LOG.info(
+            "Found %s sequences from different folders and cameras",
+            len(output_sequences),
         )
-        assert len(sequence) == len(output_sequence) + len(errors)
-        output_sequences.append(output_sequence)
-        error_metadatas.extend(errors)
 
-    # Interpolate angles (in-place update)
-    input_sequences = output_sequences
-    for sequence in input_sequences:
-        if interpolate_directions:
-            for image in sequence:
-                image.angle = None
-        geo.interpolate_directions_if_none(sequence)
-    output_sequences = input_sequences
-
-    # Cut sequences by max number of images, max filesize, and max pixels
-    input_sequences = output_sequences
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequences.extend(
-            cut_sequence(
-                sequence,
-                constants.MAX_SEQUENCE_LENGTH,
-                max_sequence_filesize_in_bytes,
-                max_sequence_pixels,
+        # Make sure each sequence is sorted (in-place update)
+        input_sequences = output_sequences
+        for sequence in input_sequences:
+            sequence.sort(
+                key=lambda metadata: metadata.sort_key(),
             )
+        output_sequences = input_sequences
+
+        # Interpolate subseconds for same timestamps (in-place update)
+        input_sequences = output_sequences
+        for sequence in input_sequences:
+            _interpolate_subsecs_for_sorting(sequence)
+        output_sequences = input_sequences
+
+        # Cut sequences by cutoff time
+        # NOTE: Do not cut by distance here because it affects the speed limit check
+
+        def _should_split_by_cutoff_time(
+            prev: types.ImageMetadata, cur: types.ImageMetadata
+        ) -> bool:
+            time_diff = cur.time - prev.time
+            assert 0 <= time_diff, "sequence must be sorted by capture times"
+            should = cutoff_time < time_diff
+            if should:
+                LOG.debug(
+                    "Split the sequence because the time gap between two images (%s seconds) exceeds the cutoff time (%s seconds): %s: %s -> %s",
+                    round(time_diff, 2),
+                    round(cutoff_time, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
+            return should
+
+        input_sequences = output_sequences
+        output_sequences = []
+        for sequence in input_sequences:
+            output_sequences.extend(
+                split_sequence_by(sequence, should_split=_should_split_by_cutoff_time)
+            )
+        LOG.info(
+            "Found %s sequences after cut by cutoff time %d seconds",
+            len(output_sequences),
+            cutoff_time,
         )
-    LOG.info("Found %s sequences after cut by sequence limits", len(output_sequences))
 
-    # Check limits for sequences
-    input_sequences = output_sequences
-    output_sequences, errors = _check_sequence_limits(
-        input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
-    )
-    error_metadatas.extend(errors)
-    LOG.info("Found %s sequences after sequence limit checks", len(output_sequences))
+        # Duplication check
+        input_sequences = output_sequences
+        output_sequences = []
+        for sequence in input_sequences:
+            output_sequence, errors = duplication_check(
+                sequence,
+                max_duplicate_distance=duplicate_distance,
+                max_duplicate_angle=duplicate_angle,
+            )
+            assert len(sequence) == len(output_sequence) + len(errors)
+            output_sequences.append(output_sequence)
+            error_metadatas.extend(errors)
 
-    # Cut sequences by cutoff distance
-    # NOTE: The speed limit check probably rejects most of anomalies
-    input_sequences = output_sequences
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequences.extend(
-            cut_sequence_by_time_or_distance(sequence, cutoff_distance=cutoff_distance)
+        # Interpolate angles (in-place update)
+        input_sequences = output_sequences
+        for sequence in input_sequences:
+            if interpolate_directions:
+                for image in sequence:
+                    image.angle = None
+            geo.interpolate_directions_if_none(sequence)
+        output_sequences = input_sequences
+
+        # Cut sequences by max number of images, max filesize, and max pixels
+        should_split = _should_spilt_by_limits(
+            max_sequence_images=constants.MAX_SEQUENCE_LENGTH,
+            max_sequence_filesize=max_sequence_filesize_in_bytes,
+            max_sequence_pixels=max_sequence_pixels,
         )
-    LOG.info(
-        "Found %s sequences after cut by cutoff distance %d meters",
-        len(output_sequences),
-        cutoff_distance,
-    )
+        input_sequences = output_sequences
+        output_sequences = []
+        for sequence in input_sequences:
+            output_sequences.extend(
+                split_sequence_by_agg(
+                    sequence, should_split_with_sequence_state=should_split
+                )
+            )
+        LOG.info(
+            "Found %s sequences after cut by sequence limits", len(output_sequences)
+        )
 
-    # Assign sequence UUIDs (in-place update)
-    sequence_idx = 0
-    input_sequences = output_sequences
-    for sequence in input_sequences:
-        for image in sequence:
-            # using incremental id as shorter "uuid", so we can save some space for the desc file
-            image.MAPSequenceUUID = str(sequence_idx)
-        sequence_idx += 1
-    output_sequences = input_sequences
+        # Check limits for sequences
+        input_sequences = output_sequences
+        output_sequences, errors = _check_sequence_limits(
+            input_sequences, max_sequence_filesize_in_bytes, max_avg_speed
+        )
+        error_metadatas.extend(errors)
+        LOG.info(
+            "Found %s sequences after sequence limit checks", len(output_sequences)
+        )
 
-    image_metadatas = []
-    for sequence in input_sequences:
-        image_metadatas.extend(sequence)
+        # Cut sequences by cutoff distance
+        # NOTE: The speed limit check probably rejects most of anomalies
+        def _should_split_by_cutoff_distance(
+            prev: types.ImageMetadata, cur: types.ImageMetadata
+        ) -> bool:
+            distance = geo.gps_distance(
+                (prev.lat, prev.lon),
+                (cur.lat, cur.lon),
+            )
+            should = cutoff_distance < distance
+            if should:
+                LOG.debug(
+                    "Split the sequence because the distance gap between two images (%s meters) exceeds the cutoff distance (%s meters): %s: %s -> %s",
+                    round(distance, 2),
+                    round(cutoff_distance, 2),
+                    prev.filename.parent,
+                    prev.filename.name,
+                    cur.filename.name,
+                )
+            return should
+
+        input_sequences = output_sequences
+        output_sequences = []
+        for sequence in input_sequences:
+            output_sequences.extend(
+                split_sequence_by(sequence, _should_split_by_cutoff_distance)
+            )
+        LOG.info(
+            "Found %s sequences after cut by cutoff distance %d meters",
+            len(output_sequences),
+            cutoff_distance,
+        )
+
+        # Assign sequence UUIDs (in-place update)
+        sequence_idx = 0
+        input_sequences = output_sequences
+        for sequence in input_sequences:
+            for image in sequence:
+                # using incremental id as shorter "uuid", so we can save some space for the desc file
+                image.MAPSequenceUUID = str(sequence_idx)
+            sequence_idx += 1
+        output_sequences = input_sequences
+
+        image_metadatas = []
+        for sequence in input_sequences:
+            image_metadatas.extend(sequence)
+
+        assert sequence_idx == len(
+            set(metadata.MAPSequenceUUID for metadata in image_metadatas)
+        )
 
     results = error_metadatas + image_metadatas + video_metadatas
 
     assert len(metadatas) == len(results), (
         f"expected {len(metadatas)} results but got {len(results)}"
-    )
-    assert sequence_idx == len(
-        set(metadata.MAPSequenceUUID for metadata in image_metadatas)
     )
 
     return results
