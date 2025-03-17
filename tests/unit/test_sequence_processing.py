@@ -668,3 +668,50 @@ def test_split_sequence_by():
 
     sequences = psp.split_sequence_by([], split_by_time)
     assert len(sequences) == 0
+
+
+def test_split_sequence_by_agg(tmpdir):
+    curdir = tmpdir.mkdir("hello77").mkdir("world88")
+    sequence: T.List[types.Metadata] = [
+        # s1
+        _make_image_metadata(
+            Path(curdir) / Path("./a.jpg"),
+            2,
+            2,
+            1,
+            filesize=110 * 1024 * 1024 * 1024,
+        ),
+        # s2
+        _make_image_metadata(
+            Path(curdir) / Path("./b.jpg"),
+            2.00001,
+            2.00001,
+            2,
+            filesize=1,
+        ),
+        # s3
+        _make_image_metadata(
+            Path(curdir) / Path("./c.jpg"),
+            2.00002,
+            2.00002,
+            3,
+            filesize=110 * 1024 * 1024 * 1024 - 1,
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("./c.jpg"),
+            2.00003,
+            2.00003,
+            4,
+            filesize=1,
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=1000000000,
+        cutoff_time=100,
+        interpolate_directions=True,
+        duplicate_distance=0.1,
+        duplicate_angle=0.1,
+    )
+    assert 3 == len({m.MAPSequenceUUID for m in metadatas})  # type: ignore
