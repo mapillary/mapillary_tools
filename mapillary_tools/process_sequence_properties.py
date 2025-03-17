@@ -235,8 +235,8 @@ def _check_video_limits(
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
 ) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
-    error_metadatas: T.List[types.ErrorMetadata] = []
     output_video_metadatas: T.List[types.VideoMetadata] = []
+    error_metadatas: T.List[types.ErrorMetadata] = []
 
     for video_metadata in video_metadatas:
         if video_metadata.filesize is None:
@@ -390,7 +390,7 @@ def _split_sequences_by_cutoff_time(
         should = cutoff_time < time_diff
         if should:
             LOG.debug(
-                "Split because the time gap %s seconds exceeds the cutoff time (%s seconds): %s: %s -> %s",
+                "Split because the capture time gap %s seconds exceeds cutoff_time (%s seconds): %s: %s -> %s",
                 round(time_diff, 2),
                 round(cutoff_time, 2),
                 prev.filename.parent,
@@ -408,7 +408,7 @@ def _split_sequences_by_cutoff_time(
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
     LOG.info(
-        "Found %s sequences after split by cutoff time %d seconds",
+        "Found %s sequences after split by cutoff_time %d seconds",
         len(output_sequences),
         cutoff_time,
     )
@@ -429,7 +429,7 @@ def _split_sequences_by_cutoff_distance(
         should = cutoff_distance < distance
         if should:
             LOG.debug(
-                "Split because the distance gap %s meters exceeds the cutoff distance (%s meters): %s: %s -> %s",
+                "Split because the distance gap %s meters exceeds cutoff_distance (%s meters): %s: %s -> %s",
                 round(distance, 2),
                 round(cutoff_distance, 2),
                 prev.filename.parent,
@@ -447,7 +447,7 @@ def _split_sequences_by_cutoff_distance(
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
     LOG.info(
-        "Found %s sequences after split by cutoff distance %d meters",
+        "Found %s sequences after split by cutoff_distance %d meters",
         len(output_sequences),
         cutoff_distance,
     )
@@ -616,7 +616,7 @@ def process_sequence_properties(
         for sequence in sequences:
             _interpolate_subsecs_for_sorting(sequence)
 
-        # Cut sequences by cutoff time
+        # Split sequences by cutoff time
         # NOTE: Do not split by distance here because it affects the speed limit check
         sequences = _split_sequences_by_cutoff_time(sequences, cutoff_time=cutoff_time)
 
@@ -635,7 +635,7 @@ def process_sequence_properties(
                     image.angle = None
             geo.interpolate_directions_if_none(sequence)
 
-        # Cut sequences by max number of images, max filesize, and max pixels
+        # Split sequences by max number of images, max filesize, and max pixels
         sequences = _split_sequences_by_limits(
             sequences,
             max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
@@ -650,7 +650,7 @@ def process_sequence_properties(
         )
         error_metadatas.extend(errors)
 
-        # Cut sequences by cutoff distance
+        # Split sequences by cutoff distance
         # NOTE: The speed limit check probably rejects most of anomalies
         sequences = _split_sequences_by_cutoff_distance(
             sequences, cutoff_distance=cutoff_distance
