@@ -595,6 +595,26 @@ def test_video_error(tmpdir: py.path.local):
         duplicate_distance=100,
         duplicate_angle=5,
     )
+    metadata_by_filename = {m.filename.name: m for m in metadatas}
+    assert isinstance(metadata_by_filename["test_good.mp4"], types.VideoMetadata)
+    assert isinstance(
+        metadata_by_filename["test_video_null_island.mp4"], types.ErrorMetadata
+    ) and isinstance(
+        metadata_by_filename["test_video_null_island.mp4"].error,
+        exceptions.MapillaryNullIslandError,
+    )
+    assert isinstance(
+        metadata_by_filename["test_video_file_too_large.mp4"], types.ErrorMetadata
+    ) and isinstance(
+        metadata_by_filename["test_video_file_too_large.mp4"].error,
+        exceptions.MapillaryFileTooLargeError,
+    )
+    assert isinstance(
+        metadata_by_filename["test_video_too_fast.mp4"], types.ErrorMetadata
+    ) and isinstance(
+        metadata_by_filename["test_video_too_fast.mp4"].error,
+        exceptions.MapillaryCaptureSpeedTooFastError,
+    )
 
 
 def test_split_sequence_by():
