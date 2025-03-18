@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from .. import exceptions, exiftool_read, types
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_exif import GeotagImagesFromEXIF, verify_image_exif_write
+from .geotag_images_from_exif import GeotagImagesFromEXIF
 
 LOG = logging.getLogger(__name__)
 
@@ -40,10 +40,6 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             with image_path.open("rb") as fp:
                 image_bytesio = io.BytesIO(fp.read())
             image_bytesio.seek(0, io.SEEK_SET)
-            verify_image_exif_write(
-                image_metadata,
-                image_bytes=image_bytesio.read(),
-            )
         except Exception as ex:
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
