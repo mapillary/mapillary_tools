@@ -64,9 +64,9 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
         try:
             with image_path.open("rb") as fp:
                 exif = ExifRead(fp)
-            image_metadata = GeotagImagesFromEXIF.build_image_metadata(
-                image_path, exif, skip_lonlat_error=skip_lonlat_error
-            )
+                image_metadata = GeotagImagesFromEXIF.build_image_metadata(
+                    image_path, exif, skip_lonlat_error=skip_lonlat_error
+                )
         except Exception as ex:
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
