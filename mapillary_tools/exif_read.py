@@ -520,14 +520,15 @@ class ExifReadFromEXIF(ExifReadABC):
         if isinstance(path_or_stream, Path):
             with path_or_stream.open("rb") as fp:
                 try:
-                    self.tags = exifread.process_file(fp, details=True, debug=True)
+                    # Turn off details and debug for performance reasons
+                    self.tags = exifread.process_file(fp, details=False, debug=False)
                 except Exception:
                     self.tags = {}
 
         else:
             try:
                 self.tags = exifread.process_file(
-                    path_or_stream, details=True, debug=True
+                    path_or_stream, details=False, debug=False
                 )
             except Exception:
                 self.tags = {}
