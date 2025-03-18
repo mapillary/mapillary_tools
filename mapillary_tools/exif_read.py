@@ -961,3 +961,27 @@ class ExifRead(ExifReadFromEXIF):
         if val is not None:
             return val
         return None
+
+    def extract_width(self) -> T.Optional[int]:
+        val = super().extract_width()
+        if val is not None:
+            return val
+        xmp = self._xmp_with_reason("width")
+        if xmp is None:
+            return None
+        val = xmp.extract_width()
+        if val is not None:
+            return val
+        return None
+
+    def extract_height(self) -> T.Optional[int]:
+        val = super().extract_height()
+        if val is not None:
+            return val
+        xmp = self._xmp_with_reason("width")
+        if xmp is None:
+            return None
+        val = xmp.extract_height()
+        if val is not None:
+            return val
+        return None
