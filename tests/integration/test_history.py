@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 import py.path
 import pytest
@@ -10,7 +9,6 @@ from .fixtures import (
     setup_data,
     setup_upload,
     USERNAME,
-    verify_descs,
 )
 
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
