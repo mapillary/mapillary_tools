@@ -224,7 +224,9 @@ def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]
         actual_desc = actual_map.get(filename)
         assert actual_desc is not None, expected_desc
         if "error" in expected_desc:
-            assert expected_desc["error"]["type"] == actual_desc["error"]["type"]
+            assert expected_desc["error"]["type"] == actual_desc.get("error", {}).get(
+                "type"
+            ), f"{expected_desc=} != {actual_desc=}"
             if "message" in expected_desc["error"]:
                 assert (
                     expected_desc["error"]["message"] == actual_desc["error"]["message"]
