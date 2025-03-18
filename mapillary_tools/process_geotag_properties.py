@@ -1,8 +1,10 @@
 import collections
 import datetime
+import itertools
 import json
 import logging
 import typing as T
+from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -444,6 +446,57 @@ def _show_stats_per_filetype(
             )
 
 
+_IT = T.TypeVar("_IT")
+
+
+def split_if(
+    it: T.Iterable[_IT], sep: T.Callable[[_IT], bool]
+) -> T.Tuple[T.List[_IT], T.List[_IT]]:
+    yes, no = [], []
+    for e in it:
+        if sep(e):
+            yes.append(e)
+        else:
+            no.append(e)
+    return yes, no
+
+
+def _validate_metadatas(
+    metadatas: T.Sequence[types.MetadataOrError], num_processes: T.Optional[int]
+) -> T.List[types.MetadataOrError]:
+    # validating metadatas is slow, hence multiprocessing
+    if num_processes is None:
+        pool_num_processes = None
+        disable_multiprocessing = False
+    else:
+        pool_num_processes = max(num_processes, 1)
+        disable_multiprocessing = num_processes <= 0
+    with Pool(processes=pool_num_processes) as pool:
+        validated_metadatas_iter: T.Iterator[types.MetadataOrError]
+        if disable_multiprocessing:
+            validated_metadatas_iter = map(types.validate_and_fail_metadata, metadatas)
+        else:
+            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+            # Otherwise we get:
+            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+            # See https://stackoverflow.com/a/61432070
+            yes, no = split_if(metadatas, lambda m: isinstance(m, types.ErrorMetadata))
+            no_iter = pool.imap(
+                types.validate_and_fail_metadata,
+                no,
+            )
+            validated_metadatas_iter = itertools.chain(yes, no_iter)
+        return list(
+            tqdm(
+                validated_metadatas_iter,
+                desc="Validating metadatas",
+                unit="metadata",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(metadatas),
+            )
+        )
+
+
 def process_finalize(
     import_path: T.Union[T.Sequence[Path], Path],
     metadatas: T.List[types.MetadataOrError],
@@ -458,6 +511,7 @@ def process_finalize(
     offset_time: float = 0.0,
     offset_angle: float = 0.0,
     desc_path: T.Optional[str] = None,
+    num_processes: T.Optional[int] = None,
 ) -> T.List[types.MetadataOrError]:
     for metadata in metadatas:
         if isinstance(metadata, types.VideoMetadata):
@@ -481,6 +535,9 @@ def process_finalize(
         offset_time=offset_time,
         offset_angle=offset_angle,
     )
+
+    LOG.debug("Validating %d metadatas", len(metadatas))
+    metadatas = _validate_metadatas(metadatas, num_processes=num_processes)
 
     _overwrite_exif_tags(
         # search image metadatas again because some of them might have been failed
