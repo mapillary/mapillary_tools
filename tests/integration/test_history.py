@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 import py.path
 import pytest
@@ -10,7 +9,6 @@ from .fixtures import (
     setup_data,
     setup_upload,
     USERNAME,
-    verify_descs,
 )
 
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
@@ -31,38 +29,6 @@ def test_upload_images(
     assert 0 < len(setup_upload.listdir()), "should be uploaded for the first time"
     for upload in setup_upload.listdir():
         upload.remove()
-
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {str(setup_data)}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    verify_descs(
-        [
-            {
-                "error": {
-                    "message": "The image was already uploaded",
-                    "type": "MapillaryUploadedAlreadyError",
-                },
-                "filename": str(Path(setup_data.join("images").join("DSC00001.JPG"))),
-            },
-            {
-                "error": {
-                    "message": "The image was already uploaded",
-                    "type": "MapillaryUploadedAlreadyError",
-                },
-                "filename": str(Path(setup_data.join("images").join("DSC00497.JPG"))),
-            },
-            {
-                "error": {
-                    "message": "The image was already uploaded",
-                    "type": "MapillaryUploadedAlreadyError",
-                },
-                "filename": str(Path(setup_data.join("images").join("V0370574.JPG"))),
-            },
-        ],
-        Path(setup_data, "mapillary_image_description.json"),
-    )
 
     x = subprocess.run(
         f"{EXECUTABLE} process_and_upload --file_types=image {UPLOAD_FLAGS} {str(setup_data)}",
