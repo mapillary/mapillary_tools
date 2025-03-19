@@ -11,33 +11,46 @@ class GoProParser(BaseParser):
     must_rebase_times_to_zero = False
     parser_label = "gopro"
 
-    pointsFound: bool = False
+    _extracted: bool = False
+    _cached_gopro_info: T.Optional[gpmf_parser.GoProInfo] = None
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+    def _extract_gopro_info(self) -> gpmf_parser.GoProInfo | None:
+        if self._extracted:
+            return self._cached_gopro_info
+
+        self._extracted = True
+
         source_path = self.geotag_source_path
-        if not source_path:
-            return []
+
+        if source_path is None:
+            # source_path not found
+            return None
+
         with source_path.open("rb") as fp:
             try:
-                points = gpmf_parser.extract_points(fp) or []
-                self.pointsFound = len(points) > 0
-                return points
+                self._cached_gopro_info = gpmf_parser.extract_gopro_info(fp)
             except sparser.ParsingError:
-                return []
+                self._cached_gopro_info = None
+
+        return self._cached_gopro_info
+
+    def extract_points(self) -> T.Sequence[geo.Point]:
+        gopro_info = self._extract_gopro_info()
+        if gopro_info is None:
+            return []
+
+        return T.cast(T.Sequence[geo.Point], gopro_info.gps)
 
     def extract_make(self) -> T.Optional[str]:
-        model = self.extract_model()
-        if model:
-            return "GoPro"
+        gopro_info = self._extract_gopro_info()
+        if gopro_info is None:
+            return None
 
-        # make sure self.pointsFound is updated
-        _ = self.extract_points()
-        # If no points were found, assume this is not a GoPro
-        return "GoPro" if self.pointsFound else None
+        return gopro_info.make
 
     def extract_model(self) -> T.Optional[str]:
-        source_path = self.geotag_source_path
-        if not source_path:
+        gopro_info = self._extract_gopro_info()
+        if gopro_info is None:
             return None
-        with source_path.open("rb") as fp:
-            return gpmf_parser.extract_camera_model(fp) or None
+
+        return gopro_info.model

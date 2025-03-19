@@ -588,11 +588,12 @@ def upload(
             if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
                 if video_metadata.filetype is FileType.GOPRO:
                     with video_metadata.filename.open("rb") as fp:
-                        telemetry_data = gpmf_parser.extract_telemetry_data(fp)
-                    if telemetry_data:
-                        telemetry_measurements.extend(telemetry_data.accl)
-                        telemetry_measurements.extend(telemetry_data.gyro)
-                        telemetry_measurements.extend(telemetry_data.magn)
+                        # TODO: extract_gopro_info does not extract telemetry data by default
+                        gopro_info = gpmf_parser.extract_gopro_info(fp)
+                    if gopro_info is not None:
+                        telemetry_measurements.extend(gopro_info.accl or [])
+                        telemetry_measurements.extend(gopro_info.gyro or [])
+                        telemetry_measurements.extend(gopro_info.magn or [])
                     telemetry_measurements.sort(key=lambda m: m.time)
 
             generator = camm_builder.camm_sample_generator2(
