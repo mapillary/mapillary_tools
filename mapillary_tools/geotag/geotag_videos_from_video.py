@@ -176,9 +176,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             )
             if stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
-
-            LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-            video_metadata.update_md5sum()
         except Exception as ex:
             if not isinstance(ex, exceptions.MapillaryDescriptionError):
                 LOG.warning(
