@@ -13,7 +13,7 @@ class GoProParser(BaseParser):
     parser_label = "gopro"
 
     _extracted: bool = False
-    _cached_gopro_info: T.Optional[gpmf_parser.GoProInfo] = None
+    _cached_gopro_info: gpmf_parser.GoProInfo | None = None
 
     def _extract_gopro_info(self) -> gpmf_parser.GoProInfo | None:
         if self._extracted:
@@ -42,14 +42,14 @@ class GoProParser(BaseParser):
 
         return T.cast(T.Sequence[geo.Point], gopro_info.gps)
 
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         gopro_info = self._extract_gopro_info()
         if gopro_info is None:
             return None
 
         return gopro_info.make
 
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         gopro_info = self._extract_gopro_info()
         if gopro_info is None:
             return None
