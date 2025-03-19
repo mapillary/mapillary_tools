@@ -588,8 +588,9 @@ def upload(
             if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
                 if video_metadata.filetype is FileType.GOPRO:
                     with video_metadata.filename.open("rb") as fp:
-                        # TODO: extract_gopro_info does not extract telemetry data by default
-                        gopro_info = gpmf_parser.extract_gopro_info(fp)
+                        gopro_info = gpmf_parser.extract_gopro_info(
+                            fp, telemetry_only=True
+                        )
                     if gopro_info is not None:
                         telemetry_measurements.extend(gopro_info.accl or [])
                         telemetry_measurements.extend(gopro_info.gyro or [])

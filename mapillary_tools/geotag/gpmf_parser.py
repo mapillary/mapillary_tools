@@ -131,6 +131,8 @@ GPMFSampleData = C.GreedyRange(KLV)
 
 @dataclasses.dataclass
 class GoProInfo:
+    # None indicates the data has been extracted,
+    # while [] indicates extracetd but no data point found
     gps: list[GPSPoint] | None = None
     accl: list[telemetry.AccelerationData] | None = None
     gyro: list[telemetry.GyroscopeData] | None = None
@@ -139,7 +141,9 @@ class GoProInfo:
     model: str = ""
 
 
-def extract_gopro_info(fp: T.BinaryIO) -> T.Optional[GoProInfo]:
+def extract_gopro_info(
+    fp: T.BinaryIO, telemetry_only: bool = False
+) -> T.Optional[GoProInfo]:
     """
     Return the GoProInfo object if found. None indicates it's not a valid GoPro video.
     """
@@ -149,27 +153,55 @@ def extract_gopro_info(fp: T.BinaryIO) -> T.Optional[GoProInfo]:
         if _contains_gpmd_description(track):
             gpmd_samples = _filter_gpmd_samples(track)
 
-            points_by_dvid: dict[int, list[GPSPoint]] = {}
-            dvnm_by_dvid: dict[int, bytes] = {}
+            if telemetry_only:
+                points_by_dvid: dict[int, list[GPSPoint]] | None = None
+                dvnm_by_dvid: dict[int, bytes] | None = None
+                accls_by_dvid: dict[int, list[telemetry.AccelerationData]] | None = {}
+                gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = {}
+                magns_by_dvid: dict[int, list[telemetry.MagnetometerData]] | None = {}
+            else:
+                points_by_dvid = {}
+                dvnm_by_dvid = {}
+                accls_by_dvid = None
+                gyros_by_dvid = None
+                magns_by_dvid = None
 
             _load_telemetry_from_samples(
                 fp,
                 gpmd_samples,
                 points_by_dvid=points_by_dvid,
+                accls_by_dvid=accls_by_dvid,
+                gyros_by_dvid=gyros_by_dvid,
+                magns_by_dvid=magns_by_dvid,
                 dvnm_by_dvid=dvnm_by_dvid,
             )
 
             gopro_info = GoProInfo()
 
-            if points_by_dvid:
-                gps_points = list(points_by_dvid.values())[0]
+            if points_by_dvid is not None:
+                gps_points = list(points_by_dvid.values())[0] if points_by_dvid else []
                 # backfill forward from the first point with epoch time
                 _backfill_gps_timestamps(gps_points)
                 # backfill backward from the first point with epoch time in reversed order
                 _backfill_gps_timestamps(reversed(gps_points))
                 gopro_info.gps = gps_points
 
-            if dvnm_by_dvid:
+            if accls_by_dvid is not None:
+                gopro_info.accl = (
+                    list(accls_by_dvid.values())[0] if accls_by_dvid else []
+                )
+
+            if gyros_by_dvid is not None:
+                gopro_info.gyro = (
+                    list(gyros_by_dvid.values())[0] if gyros_by_dvid else []
+                )
+
+            if magns_by_dvid is not None:
+                gopro_info.magn = (
+                    list(magns_by_dvid.values())[0] if magns_by_dvid else []
+                )
+
+            if dvnm_by_dvid is not None:
                 gopro_info.model = _extract_camera_model_from_devices(dvnm_by_dvid)
 
             return gopro_info
