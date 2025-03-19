@@ -68,6 +68,28 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
         if (
             filetypes is None
             or types.FileType.VIDEO in filetypes
+            or types.FileType.GOPRO in filetypes
+        ):
+            with video_path.open("rb") as fp:
+                try:
+                    gopro_info = gpmf_parser.extract_gopro_info(fp)
+                except sparser.ParsingError:
+                    gopro_info = None
+
+            if gopro_info is not None:
+                return types.VideoMetadata(
+                    filename=video_path,
+                    md5sum=None,
+                    filesize=utils.get_file_size(video_path),
+                    filetype=types.FileType.GOPRO,
+                    points=T.cast(T.List[geo.Point], gopro_info.gps),
+                    make=gopro_info.make,
+                    model=gopro_info.model,
+                )
+
+        if (
+            filetypes is None
+            or types.FileType.VIDEO in filetypes
             or types.FileType.CAMM in filetypes
         ):
             with video_path.open("rb") as fp:
@@ -85,30 +107,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                         filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.CAMM,
                         points=points,
-                        make=make,
-                        model=model,
-                    )
-
-        if (
-            filetypes is None
-            or types.FileType.VIDEO in filetypes
-            or types.FileType.GOPRO in filetypes
-        ):
-            with video_path.open("rb") as fp:
-                try:
-                    points_with_fix = gpmf_parser.extract_points(fp)
-                except sparser.ParsingError:
-                    points_with_fix = None
-
-                if points_with_fix is not None:
-                    fp.seek(0, io.SEEK_SET)
-                    make, model = "GoPro", gpmf_parser.extract_camera_model(fp)
-                    return types.VideoMetadata(
-                        filename=video_path,
-                        md5sum=None,
-                        filesize=utils.get_file_size(video_path),
-                        filetype=types.FileType.GOPRO,
-                        points=T.cast(T.List[geo.Point], points_with_fix),
                         make=make,
                         model=model,
                     )
@@ -176,9 +174,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             )
             if stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
-
-            LOG.debug("Calculating MD5 checksum for %s", str(video_metadata.filename))
-            video_metadata.update_md5sum()
         except Exception as ex:
             if not isinstance(ex, exceptions.MapillaryDescriptionError):
                 LOG.warning(

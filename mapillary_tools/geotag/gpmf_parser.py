@@ -1,8 +1,8 @@
+from __future__ import annotations
 import dataclasses
 import datetime
 import io
 import itertools
-import pathlib
 import typing as T
 
 import construct as C
@@ -130,11 +130,95 @@ GPMFSampleData = C.GreedyRange(KLV)
 
 
 @dataclasses.dataclass
-class TelemetryData:
-    gps: T.List[GPSPoint]
-    accl: T.List[telemetry.AccelerationData]
-    gyro: T.List[telemetry.GyroscopeData]
-    magn: T.List[telemetry.MagnetometerData]
+class GoProInfo:
+    # None indicates the data has been extracted,
+    # while [] indicates extracetd but no data point found
+    gps: list[GPSPoint] | None = None
+    accl: list[telemetry.AccelerationData] | None = None
+    gyro: list[telemetry.GyroscopeData] | None = None
+    magn: list[telemetry.MagnetometerData] | None = None
+    make: str = "GoPro"
+    model: str = ""
+
+
+def extract_gopro_info(
+    fp: T.BinaryIO, telemetry_only: bool = False
+) -> T.Optional[GoProInfo]:
+    """
+    Return the GoProInfo object if found. None indicates it's not a valid GoPro video.
+    """
+
+    moov = MovieBoxParser.parse_stream(fp)
+    for track in moov.extract_tracks():
+        if _contains_gpmd_description(track):
+            gpmd_samples = _filter_gpmd_samples(track)
+
+            if telemetry_only:
+                points_by_dvid: dict[int, list[GPSPoint]] | None = None
+                dvnm_by_dvid: dict[int, bytes] | None = None
+                accls_by_dvid: dict[int, list[telemetry.AccelerationData]] | None = {}
+                gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = {}
+                magns_by_dvid: dict[int, list[telemetry.MagnetometerData]] | None = {}
+            else:
+                points_by_dvid = {}
+                dvnm_by_dvid = {}
+                accls_by_dvid = None
+                gyros_by_dvid = None
+                magns_by_dvid = None
+
+            _load_telemetry_from_samples(
+                fp,
+                gpmd_samples,
+                points_by_dvid=points_by_dvid,
+                accls_by_dvid=accls_by_dvid,
+                gyros_by_dvid=gyros_by_dvid,
+                magns_by_dvid=magns_by_dvid,
+                dvnm_by_dvid=dvnm_by_dvid,
+            )
+
+            gopro_info = GoProInfo()
+
+            if points_by_dvid is not None:
+                gps_points = list(points_by_dvid.values())[0] if points_by_dvid else []
+                # backfill forward from the first point with epoch time
+                _backfill_gps_timestamps(gps_points)
+                # backfill backward from the first point with epoch time in reversed order
+                _backfill_gps_timestamps(reversed(gps_points))
+                gopro_info.gps = gps_points
+
+            if accls_by_dvid is not None:
+                gopro_info.accl = (
+                    list(accls_by_dvid.values())[0] if accls_by_dvid else []
+                )
+
+            if gyros_by_dvid is not None:
+                gopro_info.gyro = (
+                    list(gyros_by_dvid.values())[0] if gyros_by_dvid else []
+                )
+
+            if magns_by_dvid is not None:
+                gopro_info.magn = (
+                    list(magns_by_dvid.values())[0] if magns_by_dvid else []
+                )
+
+            if dvnm_by_dvid is not None:
+                gopro_info.model = _extract_camera_model_from_devices(dvnm_by_dvid)
+
+            return gopro_info
+
+    return None
+
+
+def extract_camera_model(fp: T.BinaryIO) -> str:
+    moov = MovieBoxParser.parse_stream(fp)
+    for track in moov.extract_tracks():
+        if _contains_gpmd_description(track):
+            gpmd_samples = _filter_gpmd_samples(track)
+            dvnm_by_dvid: dict[int, bytes] = {}
+            _load_telemetry_from_samples(fp, gpmd_samples, dvnm_by_dvid=dvnm_by_dvid)
+            return _extract_camera_model_from_devices(dvnm_by_dvid)
+
+    return ""
 
 
 def _gps5_timestamp_to_epoch_time(dtstr: str):
@@ -181,7 +265,7 @@ def _gps5_timestamp_to_epoch_time(dtstr: str):
 #                 [378081666, -1224280064, 9621, 1492, 138],
 #                 [378081662, -1224280049, 9592, 1476, 150],
 #             ]
-def gps5_from_stream(
+def _gps5_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[GPSPoint, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
@@ -265,7 +349,7 @@ def _get_gps_type(input) -> bytes:
     return final
 
 
-def gps9_from_stream(
+def _gps9_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[GPSPoint, None, None]:
     NUM_VALUES = 9
@@ -357,11 +441,11 @@ def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[GPSPoint]:
 
     for klv in stream:
         if klv["key"] == b"STRM":
-            sample_points = list(gps9_from_stream(klv["data"]))
+            sample_points = list(_gps9_from_stream(klv["data"]))
             if sample_points:
                 break
 
-            sample_points = list(gps5_from_stream(klv["data"]))
+            sample_points = list(_gps5_from_stream(klv["data"]))
             if sample_points:
                 break
 
@@ -480,29 +564,6 @@ def _find_first_telemetry_stream(stream: T.Sequence[KLVDict], key: bytes):
     return values
 
 
-def _extract_dvnm_from_samples(
-    fp: T.BinaryIO, samples: T.Iterable[Sample]
-) -> T.Dict[int, bytes]:
-    dvnm_by_dvid: T.Dict[int, bytes] = {}
-
-    for sample in samples:
-        fp.seek(sample.raw_sample.offset, io.SEEK_SET)
-        data = fp.read(sample.raw_sample.size)
-        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
-
-        # iterate devices
-        devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
-        for device in devices:
-            device_id = _find_first_device_id(device["data"])
-            for klv in device["data"]:
-                if klv["key"] == b"DVNM" and klv["data"]:
-                    # klv["data"] could be [b"H", b"e", b"r", b"o", b"8", b" ", b"B", b"l", b"a", b"c", b"k"]
-                    # or [b"Hero8 Black"]
-                    dvnm_by_dvid[device_id] = b"".join(klv["data"])
-
-    return dvnm_by_dvid
-
-
 def _backfill_gps_timestamps(gps_points: T.Iterable[GPSPoint]) -> None:
     it = iter(gps_points)
 
@@ -525,91 +586,86 @@ def _backfill_gps_timestamps(gps_points: T.Iterable[GPSPoint]) -> None:
         last = point
 
 
-def _extract_points_from_samples(
-    fp: T.BinaryIO, samples: T.Iterable[Sample]
-) -> TelemetryData:
-    # To keep GPS points from different devices separated
-    points_by_dvid: T.Dict[int, T.List[GPSPoint]] = {}
-    accls_by_dvid: T.Dict[int, T.List[telemetry.AccelerationData]] = {}
-    gyros_by_dvid: T.Dict[int, T.List[telemetry.GyroscopeData]] = {}
-    magns_by_dvid: T.Dict[int, T.List[telemetry.MagnetometerData]] = {}
-
-    for sample in samples:
-        fp.seek(sample.raw_sample.offset, io.SEEK_SET)
-        data = fp.read(sample.raw_sample.size)
-        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(data))
+# This API is designed for performance
+def _load_telemetry_from_samples(
+    fp: T.BinaryIO,
+    samples: T.Iterable[Sample],
+    points_by_dvid: dict[int, list[GPSPoint]] | None = None,
+    accls_by_dvid: dict[int, list[telemetry.AccelerationData]] | None = None,
+    gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = None,
+    magns_by_dvid: dict[int, list[telemetry.MagnetometerData]] | None = None,
+    dvnm_by_dvid: dict[int, bytes] | None = None,
+) -> None:
+    for sample, sample_data in _iterate_read_sample_data(fp, samples):
+        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(sample_data))
 
         # iterate devices
         devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
         for device in devices:
             device_id = _find_first_device_id(device["data"])
 
-            sample_points = _find_first_gps_stream(device["data"])
-            if sample_points:
-                # interpolate timestamps in between
-                avg_timedelta = sample.exact_timedelta / len(sample_points)
-                for idx, point in enumerate(sample_points):
-                    point.time = sample.exact_time + avg_timedelta * idx
+            if dvnm_by_dvid is not None:
+                for klv in device["data"]:
+                    if klv["key"] == b"DVNM" and klv["data"]:
+                        # klv["data"] could be [b"H", b"e", b"r", b"o", b"8", b" ", b"B", b"l", b"a", b"c", b"k"]
+                        # or [b"Hero8 Black"]
+                        dvnm_by_dvid[device_id] = b"".join(klv["data"])
 
-                device_points = points_by_dvid.setdefault(device_id, [])
-                device_points.extend(sample_points)
+            if points_by_dvid is not None:
+                sample_points = _find_first_gps_stream(device["data"])
+                if sample_points:
+                    # interpolate timestamps in between
+                    avg_timedelta = sample.exact_timedelta / len(sample_points)
+                    for idx, point in enumerate(sample_points):
+                        point.time = sample.exact_time + avg_timedelta * idx
 
-            sample_accls = _find_first_telemetry_stream(device["data"], b"ACCL")
-            if sample_accls:
-                # interpolate timestamps in between
-                avg_delta = sample.exact_timedelta / len(sample_accls)
-                accls_by_dvid.setdefault(device_id, []).extend(
-                    telemetry.AccelerationData(
-                        time=sample.exact_time + avg_delta * idx,
-                        x=x,
-                        y=y,
-                        z=z,
+                    device_points = points_by_dvid.setdefault(device_id, [])
+                    device_points.extend(sample_points)
+
+            if accls_by_dvid is not None:
+                sample_accls = _find_first_telemetry_stream(device["data"], b"ACCL")
+                if sample_accls:
+                    # interpolate timestamps in between
+                    avg_delta = sample.exact_timedelta / len(sample_accls)
+                    accls_by_dvid.setdefault(device_id, []).extend(
+                        telemetry.AccelerationData(
+                            time=sample.exact_time + avg_delta * idx,
+                            x=x,
+                            y=y,
+                            z=z,
+                        )
+                        for idx, (z, x, y, *_) in enumerate(sample_accls)
                     )
-                    for idx, (z, x, y, *_) in enumerate(sample_accls)
-                )
 
-            sample_gyros = _find_first_telemetry_stream(device["data"], b"GYRO")
-            if sample_gyros:
-                # interpolate timestamps in between
-                avg_delta = sample.exact_timedelta / len(sample_gyros)
-                gyros_by_dvid.setdefault(device_id, []).extend(
-                    telemetry.GyroscopeData(
-                        time=sample.exact_time + avg_delta * idx,
-                        x=x,
-                        y=y,
-                        z=z,
+            if gyros_by_dvid is not None:
+                sample_gyros = _find_first_telemetry_stream(device["data"], b"GYRO")
+                if sample_gyros:
+                    # interpolate timestamps in between
+                    avg_delta = sample.exact_timedelta / len(sample_gyros)
+                    gyros_by_dvid.setdefault(device_id, []).extend(
+                        telemetry.GyroscopeData(
+                            time=sample.exact_time + avg_delta * idx,
+                            x=x,
+                            y=y,
+                            z=z,
+                        )
+                        for idx, (z, x, y, *_) in enumerate(sample_gyros)
                     )
-                    for idx, (z, x, y, *_) in enumerate(sample_gyros)
-                )
 
-            sample_magns = _find_first_telemetry_stream(device["data"], b"MAGN")
-            if sample_magns:
-                # interpolate timestamps in between
-                avg_delta = sample.exact_timedelta / len(sample_magns)
-                magns_by_dvid.setdefault(device_id, []).extend(
-                    telemetry.MagnetometerData(
-                        time=sample.exact_time + avg_delta * idx,
-                        x=x,
-                        y=y,
-                        z=z,
+            if magns_by_dvid is not None:
+                sample_magns = _find_first_telemetry_stream(device["data"], b"MAGN")
+                if sample_magns:
+                    # interpolate timestamps in between
+                    avg_delta = sample.exact_timedelta / len(sample_magns)
+                    magns_by_dvid.setdefault(device_id, []).extend(
+                        telemetry.MagnetometerData(
+                            time=sample.exact_time + avg_delta * idx,
+                            x=x,
+                            y=y,
+                            z=z,
+                        )
+                        for idx, (z, x, y, *_) in enumerate(sample_magns)
                     )
-                    for idx, (z, x, y, *_) in enumerate(sample_magns)
-                )
-
-    gps_points = list(points_by_dvid.values())[0] if points_by_dvid else []
-
-    # backfill forward from the first point with epoch time
-    _backfill_gps_timestamps(gps_points)
-
-    # backfill backward from the first point with epoch time in reversed order
-    _backfill_gps_timestamps(reversed(gps_points))
-
-    return TelemetryData(
-        gps=gps_points,
-        accl=list(accls_by_dvid.values())[0] if accls_by_dvid else [],
-        gyro=list(gyros_by_dvid.values())[0] if gyros_by_dvid else [],
-        magn=list(magns_by_dvid.values())[0] if magns_by_dvid else [],
-    )
 
 
 def _is_gpmd_description(description: T.Dict) -> bool:
@@ -627,56 +683,7 @@ def _filter_gpmd_samples(track: TrackBoxParser) -> T.Generator[Sample, None, Non
             yield sample
 
 
-def extract_points(fp: T.BinaryIO) -> T.List[GPSPoint]:
-    """
-    Return a list of points (could be empty) if it is a valid GoPro video,
-    otherwise None
-    """
-    moov = MovieBoxParser.parse_stream(fp)
-    for track in moov.extract_tracks():
-        if _contains_gpmd_description(track):
-            gpmd_samples = _filter_gpmd_samples(track)
-            telemetry = _extract_points_from_samples(fp, gpmd_samples)
-            # return the firstly found non-empty points
-            if telemetry.gps:
-                return telemetry.gps
-
-    # points could be empty list or None here
-    return []
-
-
-def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[TelemetryData]:
-    """
-    Return the telemetry data from the first found GoPro GPMF track
-    """
-    moov = MovieBoxParser.parse_stream(fp)
-
-    for track in moov.extract_tracks():
-        if _contains_gpmd_description(track):
-            gpmd_samples = _filter_gpmd_samples(track)
-            telemetry = _extract_points_from_samples(fp, gpmd_samples)
-            # return the firstly found non-empty points
-            if telemetry.gps:
-                return telemetry
-
-    # points could be empty list or None here
-    return None
-
-
-def extract_all_device_names(fp: T.BinaryIO) -> T.Dict[int, bytes]:
-    moov = MovieBoxParser.parse_stream(fp)
-    for track in moov.extract_tracks():
-        if _contains_gpmd_description(track):
-            gpmd_samples = _filter_gpmd_samples(track)
-            device_names = _extract_dvnm_from_samples(fp, gpmd_samples)
-            if device_names:
-                return device_names
-    return {}
-
-
-def extract_camera_model(fp: T.BinaryIO) -> str:
-    device_names = extract_all_device_names(fp)
-
+def _extract_camera_model_from_devices(device_names: T.Dict[int, bytes]) -> str:
     if not device_names:
         return ""
 
@@ -705,9 +712,9 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     return unicode_names[0].strip()
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[GPSPoint]:
-    with path.open("rb") as fp:
-        points = extract_points(fp)
-    if points is None:
-        return []
-    return points
+def _iterate_read_sample_data(
+    fp: T.BinaryIO, samples: T.Iterable[Sample]
+) -> T.Generator[T.Tuple[Sample, bytes], None, None]:
+    for sample in samples:
+        fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+        yield (sample, fp.read(sample.raw_sample.size))
