@@ -1,10 +1,9 @@
 # pyre-ignore-all-errors[5, 11, 16, 21, 24, 58]
-
+from __future__ import annotations
 import abc
 import dataclasses
 import io
 import logging
-import pathlib
 import typing as T
 from enum import Enum
 
@@ -34,11 +33,6 @@ class CAMMType(Enum):
     MIN_GPS = 5
     GPS = 6
     MAGNETIC_FIELD = 7
-
-    # Mapillary extensions are offset by 1024
-    # GoPro GPS is not compatible with CAMMType.GPS,
-    # so we use a new type to represent it
-    MLY_GOPRO_GPS = 1024 + 6
 
 
 # All fields are little-endian
@@ -168,60 +162,6 @@ class GPSSampleEntry(CAMMSampleEntry):
                     "velocity_north": data.velocity_north,
                     "velocity_up": data.velocity_up,
                     "speed_accuracy": data.speed_accuracy,
-                },
-            }
-        )
-
-
-class GoProGPSSampleEntry(CAMMSampleEntry):
-    camm_type: CAMMType = CAMMType.MLY_GOPRO_GPS
-
-    construct = C.Struct(
-        "latitude" / Double,  # type: ignore
-        "longitude" / Double,  # type: ignore
-        "altitude" / Float,  # type: ignore
-        "epoch_time" / Double,  # type: ignore
-        "fix" / C.Int32sl,  # type: ignore
-        "precision" / Float,  # type: ignore
-        "ground_speed" / Float,  # type: ignore
-    )
-
-    telemetry_cls = telemetry.GPSPoint
-
-    @classmethod
-    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.GPSPoint:
-        return telemetry.GPSPoint(
-            time=sample.exact_time,
-            lat=data.latitude,
-            lon=data.longitude,
-            alt=data.altitude,
-            angle=None,
-            epoch_time=data.epoch_time,
-            fix=telemetry.GPSFix(data.fix),
-            precision=data.precision,
-            ground_speed=data.ground_speed,
-        )
-
-    @classmethod
-    def serialize(cls, data: telemetry.GPSPoint) -> bytes:
-        cls.serializable(data, throw=True)
-
-        if data.fix is None:
-            gps_fix = telemetry.GPSFix.NO_FIX.value
-        else:
-            gps_fix = data.fix.value
-
-        return CAMMSampleData.build(
-            {
-                "type": cls.camm_type.value,
-                "data": {
-                    "latitude": data.lat,
-                    "longitude": data.lon,
-                    "altitude": -1.0 if data.alt is None else data.alt,
-                    "epoch_time": data.epoch_time,
-                    "fix": gps_fix,
-                    "precision": data.precision,
-                    "ground_speed": data.ground_speed,
                 },
             }
         )
@@ -476,14 +416,6 @@ def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasure
             return measurements
 
     return None
-
-
-def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
-    with path.open("rb") as fp:
-        points = extract_points(fp)
-    if points is None:
-        return []
-    return points
 
 
 MakeOrModel = C.Struct(
