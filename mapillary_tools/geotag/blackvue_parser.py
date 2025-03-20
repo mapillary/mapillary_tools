@@ -106,13 +106,3 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
         p.time = (p.time - first_point_time) / 1000
 
     return points
-
-
-def parse_gps_points(path: pathlib.Path) -> T.List[geo.Point]:
-    with path.open("rb") as fp:
-        points = extract_points(fp)
-
-    if points is None:
-        return []
-
-    return points

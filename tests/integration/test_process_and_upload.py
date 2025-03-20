@@ -259,7 +259,7 @@ def test_video_process_and_upload(
 
 
 @pytest.mark.usefixtures("setup_config")
-def xtest_video_process_and_upload_after_gpx(
+def test_video_process_and_upload_after_gpx(
     setup_upload: py.path.local, setup_data: py.path.local
 ):
     if not IS_FFMPEG_INSTALLED:
