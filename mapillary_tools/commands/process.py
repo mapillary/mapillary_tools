@@ -12,6 +12,8 @@ from ..process_geotag_properties import (
 )
 from ..process_sequence_properties import process_sequence_properties
 
+from . import ANSI_BOLD, ANSI_RESET_ALL
+
 
 class Command:
     name = "process"
@@ -53,7 +55,7 @@ class Command:
             required=False,
         )
         group = parser.add_argument_group(
-            f"{constants.ANSI_BOLD}PROCESS EXIF OPTIONS{constants.ANSI_RESET_ALL}"
+            f"{ANSI_BOLD}PROCESS EXIF OPTIONS{ANSI_RESET_ALL}"
         )
         group.add_argument(
             "--overwrite_all_EXIF_tags",
@@ -92,7 +94,7 @@ class Command:
         )
 
         group_metadata = parser.add_argument_group(
-            f"{constants.ANSI_BOLD}PROCESS METADATA OPTIONS{constants.ANSI_RESET_ALL}"
+            f"{ANSI_BOLD}PROCESS METADATA OPTIONS{ANSI_RESET_ALL}"
         )
         group_metadata.add_argument(
             "--device_make",
@@ -108,7 +110,7 @@ class Command:
         )
 
         group_geotagging = parser.add_argument_group(
-            f"{constants.ANSI_BOLD}PROCESS GEOTAGGING OPTIONS{constants.ANSI_RESET_ALL}"
+            f"{ANSI_BOLD}PROCESS GEOTAGGING OPTIONS{ANSI_RESET_ALL}"
         )
         group_geotagging.add_argument(
             "--desc_path",
@@ -174,7 +176,7 @@ class Command:
         )
 
         group_sequence = parser.add_argument_group(
-            f"{constants.ANSI_BOLD}PROCESS SEQUENCE OPTIONS{constants.ANSI_RESET_ALL}"
+            f"{ANSI_BOLD}PROCESS SEQUENCE OPTIONS{ANSI_RESET_ALL}"
         )
         group_sequence.add_argument(
             "--cutoff_distance",

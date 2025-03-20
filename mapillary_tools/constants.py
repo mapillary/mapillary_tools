@@ -5,8 +5,6 @@ import appdirs
 
 _ENV_PREFIX = "MAPILLARY_TOOLS_"
 
-ANSI_BOLD = "\033[1m"
-ANSI_RESET_ALL = "\033[0m"
 # In meters
 CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
 # In seconds
