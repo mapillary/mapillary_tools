@@ -754,7 +754,3 @@ class TestInterpolator(unittest.TestCase):
         self.assertAlmostEqual(point.lat, 3.05)
         self.assertAlmostEqual(point.lon, 3.05)
         self.assertAlmostEqual(point.alt, 305)
-
-
-if __name__ == "__main__":
-    unittest.main()
