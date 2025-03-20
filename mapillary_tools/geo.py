@@ -1,6 +1,5 @@
 # pyre-ignore-all-errors[4]
 from __future__ import annotations
-
 import bisect
 import dataclasses
 import datetime
@@ -30,6 +29,9 @@ class Point:
     lon: float
     alt: float | None
     angle: float | None
+
+
+PointLike = T.TypeVar("PointLike", bound=Point)
 
 
 def _ecef_from_lla2(lat: float, lon: float) -> tuple[float, float, float]:
@@ -66,17 +68,6 @@ def gps_distance(latlon_1: tuple[float, float], latlon_2: tuple[float, float]) -
     x2, y2, z2 = _ecef_from_lla2(latlon_2[0], latlon_2[1])
 
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
-
-
-def get_max_distance_from_start(latlons: list[tuple[float, float]]) -> float:
-    """
-    Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
-    Takes a sequence of points as input
-    """
-    if not latlons:
-        return 0
-    start = latlons[0]
-    return max(gps_distance(start, latlon) for latlon in latlons)
 
 
 def compute_bearing(
@@ -287,7 +278,7 @@ def sample_points_by_distance(
                 prevp = p
 
 
-def interpolate_directions_if_none(sequence: T.Sequence[Point]) -> None:
+def interpolate_directions_if_none(sequence: T.Sequence[PointLike]) -> None:
     for cur, nex in pairwise(sequence):
         if cur.angle is None:
             cur.angle = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
@@ -300,13 +291,10 @@ def interpolate_directions_if_none(sequence: T.Sequence[Point]) -> None:
             sequence[-1].angle = sequence[-2].angle
 
 
-_PointLike = T.TypeVar("_PointLike", bound=Point)
-
-
 def extend_deduplicate_points(
-    sequence: T.Iterable[_PointLike],
-    to_extend: list[_PointLike] | None = None,
-) -> list[_PointLike]:
+    sequence: T.Iterable[PointLike],
+    to_extend: list[PointLike] | None = None,
+) -> list[PointLike]:
     if to_extend is None:
         to_extend = []
     for point in sequence:

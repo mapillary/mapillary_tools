@@ -168,7 +168,7 @@ class VideoDataExtractor:
                 raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
         stationary = video_utils.is_video_stationary(
-            geo.get_max_distance_from_start([(p.lat, p.lon) for p in points])
+            video_utils.get_max_distance_from_start([(p.lat, p.lon) for p in points])
         )
 
         if stationary:
