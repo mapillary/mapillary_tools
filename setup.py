@@ -47,6 +47,7 @@ setup(
         "mapillary_tools.camm",
         "mapillary_tools.commands",
         "mapillary_tools.geotag",
+        "mapillary_tools.gpmf",
         "mapillary_tools.mp4",
         "mapillary_tools.video_data_extraction",
         "mapillary_tools.video_data_extraction.extractors",

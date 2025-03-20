@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import dataclasses
 import datetime
 import io
@@ -9,7 +10,6 @@ import construct as C
 
 from .. import telemetry
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
-from ..telemetry import GPSFix, GPSPoint
 
 """
 Parsing GPS from GPMF data format stored in GoPros. See the GPMF spec: https://github.com/gopro/gpmf-parser
@@ -133,7 +133,7 @@ GPMFSampleData = C.GreedyRange(KLV)
 class GoProInfo:
     # None indicates the data has been extracted,
     # while [] indicates extracetd but no data point found
-    gps: list[GPSPoint] | None = None
+    gps: list[telemetry.GPSPoint] | None = None
     accl: list[telemetry.AccelerationData] | None = None
     gyro: list[telemetry.GyroscopeData] | None = None
     magn: list[telemetry.MagnetometerData] | None = None
@@ -154,7 +154,7 @@ def extract_gopro_info(
             gpmd_samples = _filter_gpmd_samples(track)
 
             if telemetry_only:
-                points_by_dvid: dict[int, list[GPSPoint]] | None = None
+                points_by_dvid: dict[int, list[telemetry.GPSPoint]] | None = None
                 dvnm_by_dvid: dict[int, bytes] | None = None
                 accls_by_dvid: dict[int, list[telemetry.AccelerationData]] | None = {}
                 gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = {}
@@ -267,7 +267,7 @@ def _gps5_timestamp_to_epoch_time(dtstr: str):
 #             ]
 def _gps5_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[GPSPoint, None, None]:
+) -> T.Generator[telemetry.GPSPoint, None, None]:
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
@@ -285,7 +285,7 @@ def _gps5_from_stream(
 
     gpsf = indexed.get(b"GPSF")
     if gpsf is not None:
-        gpsf_value = GPSFix(gpsf[0][0])
+        gpsf_value = telemetry.GPSFix(gpsf[0][0])
     else:
         gpsf_value = None
 
@@ -309,7 +309,7 @@ def _gps5_from_stream(
         lat, lon, alt, ground_speed, _speed_3d = [
             v / s for v, s in zip(point, scal_values)
         ]
-        yield GPSPoint(
+        yield telemetry.GPSPoint(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
@@ -351,7 +351,7 @@ def _get_gps_type(input) -> bytes:
 
 def _gps9_from_stream(
     stream: T.Sequence[KLVDict],
-) -> T.Generator[GPSPoint, None, None]:
+) -> T.Generator[telemetry.GPSPoint, None, None]:
     NUM_VALUES = 9
 
     indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
@@ -406,14 +406,14 @@ def _gps9_from_stream(
 
         epoch_time = _gps9_timestamp_to_epoch_time(days_since_2000, secs_since_midnight)
 
-        yield GPSPoint(
+        yield telemetry.GPSPoint(
             # will figure out the actual timestamp later
             time=0,
             lat=lat,
             lon=lon,
             alt=alt,
             epoch_time=epoch_time,
-            fix=GPSFix(gps_fix),
+            fix=telemetry.GPSFix(gps_fix),
             precision=dop * 100,
             ground_speed=speed_2d,
             angle=None,
@@ -436,8 +436,8 @@ def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     return device_id
 
 
-def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[GPSPoint]:
-    sample_points: T.List[GPSPoint] = []
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[telemetry.GPSPoint]:
+    sample_points: T.List[telemetry.GPSPoint] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -564,7 +564,7 @@ def _find_first_telemetry_stream(stream: T.Sequence[KLVDict], key: bytes):
     return values
 
 
-def _backfill_gps_timestamps(gps_points: T.Iterable[GPSPoint]) -> None:
+def _backfill_gps_timestamps(gps_points: T.Iterable[telemetry.GPSPoint]) -> None:
     it = iter(gps_points)
 
     # find the first point with epoch time
@@ -590,7 +590,7 @@ def _backfill_gps_timestamps(gps_points: T.Iterable[GPSPoint]) -> None:
 def _load_telemetry_from_samples(
     fp: T.BinaryIO,
     samples: T.Iterable[Sample],
-    points_by_dvid: dict[int, list[GPSPoint]] | None = None,
+    points_by_dvid: dict[int, list[telemetry.GPSPoint]] | None = None,
     accls_by_dvid: dict[int, list[telemetry.AccelerationData]] | None = None,
     gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = None,
     magns_by_dvid: dict[int, list[telemetry.MagnetometerData]] | None = None,

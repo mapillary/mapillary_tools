@@ -3,13 +3,7 @@ import subprocess
 import py.path
 import pytest
 
-from .fixtures import (
-    EXECUTABLE,
-    setup_config,
-    setup_data,
-    setup_upload,
-    USERNAME,
-)
+from .fixtures import EXECUTABLE, setup_config, setup_data, setup_upload, USERNAME
 
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 

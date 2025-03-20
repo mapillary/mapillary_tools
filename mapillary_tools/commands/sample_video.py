@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .. import constants
 from ..sample_video import sample_video
+from .process import bold_text
 
 
 class Command:
@@ -11,9 +12,7 @@ class Command:
     help = "sample video into images"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
-        group = parser.add_argument_group(
-            f"{constants.ANSI_BOLD}VIDEO PROCESS OPTIONS{constants.ANSI_RESET_ALL}"
-        )
+        group = parser.add_argument_group(bold_text("VIDEO PROCESS OPTIONS"))
         group.add_argument(
             "--video_sample_distance",
             help="The minimal distance interval, in meters, for sampling video frames. [default: %(default)s]",

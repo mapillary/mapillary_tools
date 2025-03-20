@@ -10,8 +10,7 @@ LOG = logging.getLogger(__name__)
 
 
 SeqItem = T.TypeVar("SeqItem")
-PointLike = T.TypeVar("PointLike", bound=geo.Point)
-PointSequence = T.List[PointLike]
+PointSequence = T.List[geo.PointLike]
 
 
 def split_sequence_by(
@@ -211,7 +210,7 @@ def _parse_pixels(pixels_str: str) -> int:
         )
 
 
-def _avg_speed(sequence: T.Sequence[PointLike]) -> float:
+def _avg_speed(sequence: T.Sequence[geo.PointLike]) -> float:
     total_distance = 0.0
     for cur, nxt in geo.pairwise(sequence):
         total_distance += geo.gps_distance(

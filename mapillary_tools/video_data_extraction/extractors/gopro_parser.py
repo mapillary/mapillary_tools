@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 import typing as T
 
 from ... import geo
-from ...geotag import gpmf_parser
+from ...gpmf import gpmf_parser
 from ...mp4 import simple_mp4_parser as sparser
 from .base_parser import BaseParser
 

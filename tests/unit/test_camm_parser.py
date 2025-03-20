@@ -3,7 +3,7 @@ import io
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import geo, types, telemetry
+from mapillary_tools import geo, telemetry, types
 from mapillary_tools.camm import camm_builder, camm_parser
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 

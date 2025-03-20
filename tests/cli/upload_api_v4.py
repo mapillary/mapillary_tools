@@ -19,7 +19,7 @@ def wrap_http_exception(ex: requests.HTTPError):
     lines = [
         f"{ex.request.method} {resp.url}",
         f"> HTTP Status: {ex.response.status_code}",
-        f"{resp.content}",
+        f"{resp.content!r}",
     ]
     return Exception("\n".join(lines))
 
