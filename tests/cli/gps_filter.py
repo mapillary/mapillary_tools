@@ -7,7 +7,7 @@ import typing as T
 import gpxpy
 
 from mapillary_tools import constants, geo, telemetry
-from mapillary_tools.geotag import gps_filter
+from mapillary_tools.gpmf import gps_filter
 
 from .gpmf_parser import _convert_points_to_gpx_track_segment
 
