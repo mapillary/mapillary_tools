@@ -29,6 +29,15 @@ def test_interpolate_compare():
     )
 
 
+def test_interpolate_empty_list():
+    try:
+        geo.interpolate([], 1.5)
+    except ValueError:
+        pass
+    else:
+        assert False, "should raise ValueError"
+
+
 def test_interpolate():
     points = [
         Point(lon=1, lat=1, time=1, alt=1, angle=None),
@@ -263,11 +272,12 @@ def test_distance():
 
 
 def test_compute_bearing():
-    assert 0 == geo.compute_bearing(0, 0, 0, 0)
-    assert 0 == geo.compute_bearing(0, 0, 1, 0)
-    assert 90 == geo.compute_bearing(0, 0, 0, 1)
-    assert 180 == geo.compute_bearing(0, 0, -1, 0)
-    assert 270 == geo.compute_bearing(0, 0, 0, -1)
+    assert 0 == geo.compute_bearing((1, 1), (1, 1))
+    assert 0 == geo.compute_bearing((0, 0), (0, 0))
+    assert 0 == geo.compute_bearing((0, 0), (1, 0))
+    assert 90 == geo.compute_bearing((0, 0), (0, 1))
+    assert 180 == geo.compute_bearing((0, 0), (-1, 0))
+    assert 270 == geo.compute_bearing((0, 0), (0, -1))
 
 
 def test_interpolate_directions_if_none():

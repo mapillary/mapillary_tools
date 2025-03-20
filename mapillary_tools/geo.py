@@ -1,10 +1,12 @@
 # pyre-ignore-all-errors[4]
 from __future__ import annotations
+
 import bisect
 import dataclasses
 import datetime
 import itertools
 import math
+import sys
 import typing as T
 
 WGS84_a = 6378137.0
@@ -50,7 +52,8 @@ def gps_distance(latlon_1: tuple[float, float], latlon_2: tuple[float, float]) -
 
 
 def compute_bearing(
-    start_lat: float, start_lon: float, end_lat: float, end_lon: float
+    latlon_1: tuple[float, float],
+    latlon_2: tuple[float, float],
 ) -> float:
     """
     Get the compass bearing from start to end.
@@ -59,6 +62,9 @@ def compute_bearing(
     http://www.movable-type.co.uk/scripts/latlong.html
     """
     # make sure everything is in radians
+    start_lat, start_lon = latlon_1
+    end_lat, end_lon = latlon_2
+
     start_lat = math.radians(start_lat)
     start_lon = math.radians(start_lon)
     end_lat = math.radians(end_lat)
@@ -117,20 +123,37 @@ def as_unix_time(dt: datetime.datetime | int | float) -> float:
                 return 0.0
 
 
-def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
-    """
-    Interpolate or extrapolate the point at time t along the sequence of points (sorted by time).
-    """
-    if not points:
-        raise ValueError("Expect non-empty points")
+if sys.version_info < (3, 10):
 
-    # Make sure that points are sorted (disabled because the check costs O(N)):
-    # for cur, nex in pairwise(points):
-    #     assert cur.time <= nex.time, "Points not sorted"
+    def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
+        """
+        Interpolate or extrapolate the point at time t along the sequence of points (sorted by time).
+        """
+        if not points:
+            raise ValueError("Expect non-empty points")
 
-    p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
-    idx = bisect.bisect_left(points, p, lo=lo)
-    return _interpolate_at_index(points, t, idx)
+        # Make sure that points are sorted (disabled because the check costs O(N)):
+        # for cur, nex in pairwise(points):
+        #     assert cur.time <= nex.time, "Points not sorted"
+
+        p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
+        idx = bisect.bisect_left(points, p, lo=lo)
+        return _interpolate_at_index(points, t, idx)
+else:
+
+    def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
+        """
+        Interpolate or extrapolate the point at time t along the sequence of points (sorted by time).
+        """
+        if not points:
+            raise ValueError("Expect non-empty points")
+
+        # Make sure that points are sorted (disabled because the check costs O(N)):
+        # for cur, nex in pairwise(points):
+        #     assert cur.time <= nex.time, "Points not sorted"
+
+        idx = bisect.bisect_left(points, t, lo=lo, key=lambda x: x.time)
+        return _interpolate_at_index(points, t, idx)
 
 
 class Interpolator:
@@ -145,9 +168,10 @@ class Interpolator:
     prev_time: float | None
 
     def __init__(self, tracks: T.Sequence[T.Sequence[Point]]):
+        # Remove empty tracks
         self.tracks = [track for track in tracks if track]
         if not self.tracks:
-            raise ValueError("Expect non-empty tracks")
+            raise ValueError("Expect at least one non-empty track")
         self.tracks.sort(key=lambda track: track[0].time)
         self.track_idx = 0
         self.lo = 0
@@ -174,12 +198,21 @@ class Interpolator:
 
     def interpolate(self, t: float) -> Point:
         if self.prev_time is not None:
-            assert self.prev_time <= t, "requires time to be monotonically increasing"
+            if not (self.prev_time <= t):
+                raise ValueError(
+                    f"Require times to be monotonically increasing, but got {self.prev_time} then {t}"
+                )
+
+        interpolated: Point | None = None
 
         while self.track_idx < len(self.tracks):
             track = self.tracks[self.track_idx]
+            assert track, "expect non-empty track"
+
             if t < track[0].time:
-                return _interpolate_at_index(track, t, 0)
+                interpolated = _interpolate_at_index(track, t, 0)
+                break
+
             elif track[0].time <= t <= track[-1].time:
                 # similar to bisect.bisect_left(points, p, lo=lo) but faster in this case
                 idx = Interpolator._lsearch_left(track, t, lo=self.lo)
@@ -187,11 +220,16 @@ class Interpolator:
                 # set the lower bound to idx - 1
                 # because the next t can still be interpolated anywhere between (track[idx - 1], track[idx]]
                 self.lo = max(idx - 1, 0)
-                return _interpolate_at_index(track, t, idx)
+                interpolated = _interpolate_at_index(track, t, idx)
+                break
+
             self.track_idx += 1
             self.lo = 0
 
-        interpolated = _interpolate_at_index(self.tracks[-1], t, len(self.tracks[-1]))
+        if interpolated is None:
+            interpolated = _interpolate_at_index(
+                self.tracks[-1], t, len(self.tracks[-1])
+            )
 
         self.prev_time = t
 
@@ -221,14 +259,18 @@ def sample_points_by_distance(
 def interpolate_directions_if_none(sequence: T.Sequence[PointLike]) -> None:
     for cur, nex in pairwise(sequence):
         if cur.angle is None:
-            cur.angle = compute_bearing(cur.lat, cur.lon, nex.lat, nex.lon)
+            cur.angle = compute_bearing((cur.lat, cur.lon), (nex.lat, nex.lon))
 
     if len(sequence) == 1:
         if sequence[-1].angle is None:
             sequence[-1].angle = 0
     elif 2 <= len(sequence):
         if sequence[-1].angle is None:
-            sequence[-1].angle = sequence[-2].angle
+            prev_angle = sequence[-2].angle
+            assert prev_angle is not None, (
+                "expect the last second point to have an interpolated angle"
+            )
+            sequence[-1].angle = prev_angle
 
 
 def extend_deduplicate_points(
@@ -270,14 +312,14 @@ def _ecef_from_lla2(lat: float, lon: float) -> tuple[float, float, float]:
 
 
 def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
-    if start.time == end.time:
-        weight = 0.0
-    else:
+    try:
         weight = (t - start.time) / (end.time - start.time)
+    except ZeroDivisionError:
+        weight = 0.0
 
     lat = start.lat + (end.lat - start.lat) * weight
     lon = start.lon + (end.lon - start.lon) * weight
-    angle = compute_bearing(start.lat, start.lon, end.lat, end.lon)
+    angle = compute_bearing((start.lat, start.lon), (end.lat, end.lon))
     alt: float | None
     if start.alt is not None and end.alt is not None:
         alt = start.alt + (end.alt - start.alt) * weight
@@ -287,13 +329,14 @@ def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
     return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
 
 
-def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int):
+def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int) -> Point:
     assert points, "expect non-empty points"
 
     # find the segment (start point, end point)
     if len(points) == 1:
         start, end = points[0], points[0]
     else:
+        assert 2 <= len(points), "expect at least two points here"
         if 0 < idx < len(points):
             # interpolating within the range
             start, end = points[idx - 1], points[idx]
