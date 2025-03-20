@@ -55,7 +55,7 @@ def _convert_points_to_gpx_track_segment(
             point.lat,
             point.lon,
             elevation=point.alt,
-            time=datetime.datetime.utcfromtimestamp(epoch_time),
+            time=datetime.datetime.fromtimestamp(epoch_time, datetime.timezone.utc),
             position_dilution=point.precision,
             comment=comment,
         )

@@ -201,7 +201,7 @@ def test_point_sorting():
 
 
 def test_timestamp():
-    t = datetime.datetime.utcfromtimestamp(123)
+    t = datetime.datetime.fromtimestamp(123, datetime.timezone.utc)
     t = t.replace(tzinfo=datetime.timezone.utc)
     assert geo.as_unix_time(t) == 123
 

@@ -20,7 +20,7 @@ def convert_points_to_gpx_segment(points: T.Sequence[geo.Point]):
                 point.lat,
                 point.lon,
                 elevation=point.alt,
-                time=datetime.datetime.utcfromtimestamp(point.time),
+                time=datetime.datetime.fromtimestamp(point.time, datetime.timezone.utc),
             )
         )
     return gpx_segment

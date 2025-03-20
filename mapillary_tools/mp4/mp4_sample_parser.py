@@ -312,7 +312,7 @@ class MovieBoxParser:
         return TrackBoxParser(trak_children)
 
 
-_DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)
+_DT_1904 = datetime.datetime.fromtimestamp(0, datetime.timezone.utc).replace(year=1904)
 
 
 def to_datetime(seconds_since_1904: int) -> datetime.datetime:
