@@ -61,10 +61,10 @@ def compute_bearing(
     Formula from
     http://www.movable-type.co.uk/scripts/latlong.html
     """
-    # make sure everything is in radians
     start_lat, start_lon = latlon_1
     end_lat, end_lon = latlon_2
 
+    # Make sure everything is in radians
     start_lat = math.radians(start_lat)
     start_lon = math.radians(start_lon)
     end_lat = math.radians(end_lat)
@@ -138,7 +138,7 @@ if sys.version_info < (3, 10):
 
         p = Point(time=t, lat=float("-inf"), lon=float("-inf"), alt=None, angle=None)
         idx = bisect.bisect_left(points, p, lo=lo)
-        return _interpolate_at_index(points, t, idx)
+        return _interpolate_at_segment_idx(points, t, idx)
 else:
 
     def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
@@ -153,7 +153,7 @@ else:
         #     assert cur.time <= nex.time, "Points not sorted"
 
         idx = bisect.bisect_left(points, t, lo=lo, key=lambda x: x.time)
-        return _interpolate_at_index(points, t, idx)
+        return _interpolate_at_segment_idx(points, t, idx)
 
 
 class Interpolator:
@@ -170,8 +170,17 @@ class Interpolator:
     def __init__(self, tracks: T.Sequence[T.Sequence[Point]]):
         # Remove empty tracks
         self.tracks = [track for track in tracks if track]
+
         if not self.tracks:
             raise ValueError("Expect at least one non-empty track")
+
+        for track in self.tracks:
+            for left, right in pairwise(track):
+                if not (left.time <= right.time):
+                    raise ValueError(
+                        "Expect points to be sorted by time, but got {left.time} then {right.time}"
+                    )
+
         self.tracks.sort(key=lambda track: track[0].time)
         self.track_idx = 0
         self.lo = 0
@@ -210,24 +219,23 @@ class Interpolator:
             assert track, "expect non-empty track"
 
             if t < track[0].time:
-                interpolated = _interpolate_at_index(track, t, 0)
+                interpolated = _interpolate_at_segment_idx(track, t, 0)
                 break
 
             elif track[0].time <= t <= track[-1].time:
-                # similar to bisect.bisect_left(points, p, lo=lo) but faster in this case
+                # Similar to bisect.bisect_left(points, p, lo=lo) but faster in this case
                 idx = Interpolator._lsearch_left(track, t, lo=self.lo)
-                # t must sit between (track[idx - 1], track[idx]]
-                # set the lower bound to idx - 1
-                # because the next t can still be interpolated anywhere between (track[idx - 1], track[idx]]
+                # Time t must be between (track[idx - 1], track[idx]], so set the lower bound to idx - 1
+                # Because the next t can still be interpolated anywhere between (track[idx - 1], track[idx]]
                 self.lo = max(idx - 1, 0)
-                interpolated = _interpolate_at_index(track, t, idx)
+                interpolated = _interpolate_at_segment_idx(track, t, idx)
                 break
 
             self.track_idx += 1
             self.lo = 0
 
         if interpolated is None:
-            interpolated = _interpolate_at_index(
+            interpolated = _interpolate_at_segment_idx(
                 self.tracks[-1], t, len(self.tracks[-1])
             )
 
@@ -329,23 +337,26 @@ def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
     return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
 
 
-def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int) -> Point:
-    assert points, "expect non-empty points"
+def _interpolate_at_segment_idx(points: T.Sequence[Point], t: float, idx: int) -> Point:
+    """
+    Interpolate time t along the segment between idx - 1 and idx.
+    If idx is out of range, extrapolate it to the nearest segment (first or last).
+    """
 
-    # find the segment (start point, end point)
     if len(points) == 1:
         start, end = points[0], points[0]
-    else:
-        assert 2 <= len(points), "expect at least two points here"
+    elif 2 <= len(points):
         if 0 < idx < len(points):
-            # interpolating within the range
+            # Normal interpolation within the range
             start, end = points[idx - 1], points[idx]
         elif idx <= 0:
-            # extrapolating behind the range
+            # Extrapolating before the first point
             start, end = points[0], points[1]
         else:
-            # extrapolating beyond the range
+            # Extrapolating after the last point
             assert len(points) <= idx
             start, end = points[-2], points[-1]
+    else:
+        assert False, "expect non-empty points"
 
     return _interpolate_segment(start, end, t)
