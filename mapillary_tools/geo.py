@@ -1,4 +1,5 @@
 # pyre-ignore-all-errors[4]
+from __future__ import annotations
 
 import bisect
 import dataclasses
@@ -27,13 +28,13 @@ class Point:
     time: float
     lat: float
     lon: float
-    alt: T.Optional[float]
-    angle: T.Optional[float]
+    alt: float | None
+    angle: float | None
 
 
-def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:
+def _ecef_from_lla2(lat: float, lon: float) -> tuple[float, float, float]:
     """
-    Compute ECEF XYZ from latitude, longitude and altitude.
+    Compute ECEF XYZ from latitude and longitude.
 
     All using the WGS94 model.
     Altitude is the distance to the WGS94 ellipsoid.
@@ -52,9 +53,7 @@ def _ecef_from_lla2(lat: float, lon: float) -> T.Tuple[float, float, float]:
     return x, y, z
 
 
-def gps_distance(
-    latlon_1: T.Tuple[float, float], latlon_2: T.Tuple[float, float]
-) -> float:
+def gps_distance(latlon_1: tuple[float, float], latlon_2: tuple[float, float]) -> float:
     """
     Distance between two (lat,lon) pairs.
 
@@ -69,7 +68,7 @@ def gps_distance(
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
 
-def get_max_distance_from_start(latlons: T.List[T.Tuple[float, float]]) -> float:
+def get_max_distance_from_start(latlons: list[tuple[float, float]]) -> float:
     """
     Returns the radius of an entire GPS track. Used to calculate whether or not the entire sequence was just stationary video
     Takes a sequence of points as input
@@ -125,14 +124,14 @@ _IT = T.TypeVar("_IT")
 
 
 # http://stackoverflow.com/a/5434936
-def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[T.Tuple[_IT, _IT]]:
+def pairwise(iterable: T.Iterable[_IT]) -> T.Iterable[tuple[_IT, _IT]]:
     """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
 
 
-def as_unix_time(dt: T.Union[datetime.datetime, int, float]) -> float:
+def as_unix_time(dt: datetime.datetime | int | float) -> float:
     if isinstance(dt, (int, float)):
         return dt
     else:
@@ -157,7 +156,7 @@ def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
     lat = start.lat + (end.lat - start.lat) * weight
     lon = start.lon + (end.lon - start.lon) * weight
     angle = compute_bearing(start.lat, start.lon, end.lat, end.lon)
-    alt: T.Optional[float]
+    alt: float | None
     if start.alt is not None and end.alt is not None:
         alt = start.alt + (end.alt - start.alt) * weight
     else:
@@ -212,7 +211,7 @@ class Interpolator:
     track_idx: int
     # interpolation starts from the lower bound point index in the current track
     lo: int
-    prev_time: T.Optional[float]
+    prev_time: float | None
 
     def __init__(self, tracks: T.Sequence[T.Sequence[Point]]):
         self.tracks = [track for track in tracks if track]
@@ -225,7 +224,7 @@ class Interpolator:
 
     @staticmethod
     def _lsearch_left(
-        track: T.Sequence[Point], t: float, lo: int = 0, hi: T.Optional[int] = None
+        track: T.Sequence[Point], t: float, lo: int = 0, hi: int | None = None
     ) -> int:
         """
         similar to bisect.bisect_left, but faster in the incremental search case
@@ -276,7 +275,7 @@ def sample_points_by_distance(
     min_distance: float,
     point_func: T.Callable[[_PointAbstract], Point],
 ) -> T.Generator[_PointAbstract, None, None]:
-    prevp: T.Optional[Point] = None
+    prevp: Point | None = None
     for sample in samples:
         if prevp is None:
             yield sample
@@ -306,8 +305,8 @@ _PointLike = T.TypeVar("_PointLike", bound=Point)
 
 def extend_deduplicate_points(
     sequence: T.Iterable[_PointLike],
-    to_extend: T.Optional[T.List[_PointLike]] = None,
-) -> T.List[_PointLike]:
+    to_extend: list[_PointLike] | None = None,
+) -> list[_PointLike]:
     if to_extend is None:
         to_extend = []
     for point in sequence:
