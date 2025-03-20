@@ -453,7 +453,7 @@ def validate_video_desc(desc: T.Any) -> None:
 
 def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
     if isinstance(time, (float, int)):
-        dt = datetime.datetime.utcfromtimestamp(time)
+        dt = datetime.datetime.fromtimestamp(time, datetime.timezone.utc)
         # otherwise it will be assumed to be in local time
         dt = dt.replace(tzinfo=datetime.timezone.utc)
     else:

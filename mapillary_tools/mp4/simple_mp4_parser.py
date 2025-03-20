@@ -187,16 +187,6 @@ def _parse_path_first(
     return None
 
 
-def parse_box_path_firstx(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
-) -> T.Tuple[Header, T.BinaryIO]:
-    # depth=1 will disable EoF extension
-    parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=1)
-    if parsed is None:
-        raise BoxNotFoundError(f"unable find box at path {path}")
-    return parsed
-
-
 def parse_mp4_data_first(
     stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
 ) -> T.Optional[bytes]:

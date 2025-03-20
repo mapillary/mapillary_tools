@@ -278,12 +278,12 @@ class MovieBoxParser:
     def parse_file(cls, video_path: Path) -> "MovieBoxParser":
         with video_path.open("rb") as fp:
             moov = sparser.parse_box_data_firstx(fp, [b"moov"])
-        return MovieBoxParser(moov)
+        return cls(moov)
 
     @classmethod
     def parse_stream(cls, stream: T.BinaryIO) -> "MovieBoxParser":
         moov = sparser.parse_box_data_firstx(stream, [b"moov"])
-        return MovieBoxParser(moov)
+        return cls(moov)
 
     def extract_mvhd_boxdata(self) -> T.Dict:
         mvhd = cparser.find_box_at_pathx(self.moov_children, [b"mvhd"])
@@ -312,7 +312,7 @@ class MovieBoxParser:
         return TrackBoxParser(trak_children)
 
 
-_DT_1904 = datetime.datetime.utcfromtimestamp(0).replace(year=1904)
+_DT_1904 = datetime.datetime.fromtimestamp(0, datetime.timezone.utc).replace(year=1904)
 
 
 def to_datetime(seconds_since_1904: int) -> datetime.datetime:

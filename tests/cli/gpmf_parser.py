@@ -10,8 +10,8 @@ import gpxpy
 import gpxpy.gpx
 import mapillary_tools.geo as geo
 
-import mapillary_tools.geotag.gpmf_parser as gpmf_parser
-import mapillary_tools.geotag.gps_filter as gps_filter
+import mapillary_tools.gpmf.gpmf_parser as gpmf_parser
+import mapillary_tools.gpmf.gps_filter as gps_filter
 import mapillary_tools.telemetry as telemetry
 import mapillary_tools.utils as utils
 from mapillary_tools.mp4 import mp4_sample_parser
@@ -55,7 +55,7 @@ def _convert_points_to_gpx_track_segment(
             point.lat,
             point.lon,
             elevation=point.alt,
-            time=datetime.datetime.utcfromtimestamp(epoch_time),
+            time=datetime.datetime.fromtimestamp(epoch_time, datetime.timezone.utc),
             position_dilution=point.precision,
             comment=comment,
         )
