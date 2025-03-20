@@ -2,8 +2,7 @@ import inspect
 
 from .. import constants
 from ..upload import upload
-
-from . import ANSI_BOLD, ANSI_RESET_ALL
+from .process import ANSI_BOLD, ANSI_RESET_ALL
 
 
 class Command:

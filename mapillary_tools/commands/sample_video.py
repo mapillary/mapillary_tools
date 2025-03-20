@@ -4,8 +4,7 @@ from pathlib import Path
 
 from .. import constants
 from ..sample_video import sample_video
-
-from . import ANSI_BOLD, ANSI_RESET_ALL
+from .process import ANSI_BOLD, ANSI_RESET_ALL
 
 
 class Command:

@@ -8,6 +8,3 @@ from . import (
     video_process,
     video_process_and_upload,
 )
-
-ANSI_BOLD = "\033[1m"
-ANSI_RESET_ALL = "\033[0m"

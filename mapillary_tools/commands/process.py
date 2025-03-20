@@ -12,7 +12,9 @@ from ..process_geotag_properties import (
 )
 from ..process_sequence_properties import process_sequence_properties
 
-from . import ANSI_BOLD, ANSI_RESET_ALL
+
+ANSI_BOLD = "\033[1m"
+ANSI_RESET_ALL = "\033[0m"
 
 
 class Command:
