@@ -34,27 +34,6 @@ class Point:
 PointLike = T.TypeVar("PointLike", bound=Point)
 
 
-def _ecef_from_lla2(lat: float, lon: float) -> tuple[float, float, float]:
-    """
-    Compute ECEF XYZ from latitude and longitude.
-
-    All using the WGS94 model.
-    Altitude is the distance to the WGS94 ellipsoid.
-    Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
-
-    """
-    lat = math.radians(lat)
-    lon = math.radians(lon)
-    cos_lat = math.cos(lat)
-    sin_lat = math.sin(lat)
-    L = 1.0 / math.sqrt(WGS84_a_SQ * cos_lat**2 + WGS84_b_SQ * sin_lat**2)
-    K = WGS84_a_SQ * L * cos_lat
-    x = K * math.cos(lon)
-    y = K * math.sin(lon)
-    z = WGS84_b_SQ * L * sin_lat
-    return x, y, z
-
-
 def gps_distance(latlon_1: tuple[float, float], latlon_2: tuple[float, float]) -> float:
     """
     Distance between two (lat,lon) pairs.
@@ -136,45 +115,6 @@ def as_unix_time(dt: datetime.datetime | int | float) -> float:
                 return dt.replace(year=1970).timestamp()
             except ValueError:
                 return 0.0
-
-
-def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
-    if start.time == end.time:
-        weight = 0.0
-    else:
-        weight = (t - start.time) / (end.time - start.time)
-
-    lat = start.lat + (end.lat - start.lat) * weight
-    lon = start.lon + (end.lon - start.lon) * weight
-    angle = compute_bearing(start.lat, start.lon, end.lat, end.lon)
-    alt: float | None
-    if start.alt is not None and end.alt is not None:
-        alt = start.alt + (end.alt - start.alt) * weight
-    else:
-        alt = None
-
-    return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
-
-
-def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int):
-    assert points, "expect non-empty points"
-
-    # find the segment (start point, end point)
-    if len(points) == 1:
-        start, end = points[0], points[0]
-    else:
-        if 0 < idx < len(points):
-            # interpolating within the range
-            start, end = points[idx - 1], points[idx]
-        elif idx <= 0:
-            # extrapolating behind the range
-            start, end = points[0], points[1]
-        else:
-            # extrapolating beyond the range
-            assert len(points) <= idx
-            start, end = points[-2], points[-1]
-
-    return _interpolate_segment(start, end, t)
 
 
 def interpolate(points: T.Sequence[Point], t: float, lo: int = 0) -> Point:
@@ -306,3 +246,63 @@ def extend_deduplicate_points(
         else:
             to_extend.append(point)
     return to_extend
+
+
+def _ecef_from_lla2(lat: float, lon: float) -> tuple[float, float, float]:
+    """
+    Compute ECEF XYZ from latitude and longitude.
+
+    All using the WGS94 model.
+    Altitude is the distance to the WGS94 ellipsoid.
+    Check results here http://www.oc.nps.edu/oc2902w/coord/llhxyz.htm
+
+    """
+    lat = math.radians(lat)
+    lon = math.radians(lon)
+    cos_lat = math.cos(lat)
+    sin_lat = math.sin(lat)
+    L = 1.0 / math.sqrt(WGS84_a_SQ * cos_lat**2 + WGS84_b_SQ * sin_lat**2)
+    K = WGS84_a_SQ * L * cos_lat
+    x = K * math.cos(lon)
+    y = K * math.sin(lon)
+    z = WGS84_b_SQ * L * sin_lat
+    return x, y, z
+
+
+def _interpolate_segment(start: Point, end: Point, t: float) -> Point:
+    if start.time == end.time:
+        weight = 0.0
+    else:
+        weight = (t - start.time) / (end.time - start.time)
+
+    lat = start.lat + (end.lat - start.lat) * weight
+    lon = start.lon + (end.lon - start.lon) * weight
+    angle = compute_bearing(start.lat, start.lon, end.lat, end.lon)
+    alt: float | None
+    if start.alt is not None and end.alt is not None:
+        alt = start.alt + (end.alt - start.alt) * weight
+    else:
+        alt = None
+
+    return Point(time=t, lat=lat, lon=lon, alt=alt, angle=angle)
+
+
+def _interpolate_at_index(points: T.Sequence[Point], t: float, idx: int):
+    assert points, "expect non-empty points"
+
+    # find the segment (start point, end point)
+    if len(points) == 1:
+        start, end = points[0], points[0]
+    else:
+        if 0 < idx < len(points):
+            # interpolating within the range
+            start, end = points[idx - 1], points[idx]
+        elif idx <= 0:
+            # extrapolating behind the range
+            start, end = points[0], points[1]
+        else:
+            # extrapolating beyond the range
+            assert len(points) <= idx
+            start, end = points[-2], points[-1]
+
+    return _interpolate_segment(start, end, t)
