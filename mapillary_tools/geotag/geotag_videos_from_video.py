@@ -8,9 +8,10 @@ from tqdm import tqdm
 
 from .. import exceptions, geo, types, utils
 from ..camm import camm_parser
+from ..gpmf import gpmf_gps_filter, gpmf_parser
 from ..mp4 import simple_mp4_parser as sparser
 from ..telemetry import GPSPoint
-from . import blackvue_parser, gpmf_gps_filter, gpmf_parser, utils as video_utils
+from . import blackvue_parser, utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)

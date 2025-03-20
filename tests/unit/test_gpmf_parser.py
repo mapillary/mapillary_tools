@@ -1,4 +1,4 @@
-from mapillary_tools.geotag import gpmf_parser
+from mapillary_tools.gpmf import gpmf_parser
 
 
 def test_simple():

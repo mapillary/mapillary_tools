@@ -6,7 +6,8 @@ from pathlib import Path
 import tqdm
 
 from .. import exceptions, geo, utils
-from ..geotag import gpmf_gps_filter, utils as video_utils
+from ..geotag import utils as video_utils
+from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
 from ..types import (
     ErrorMetadata,

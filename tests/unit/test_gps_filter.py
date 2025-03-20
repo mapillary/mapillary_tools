@@ -1,5 +1,5 @@
 import mapillary_tools.geo as geo
-import mapillary_tools.geotag.gps_filter as gps_filter
+import mapillary_tools.gpmf.gps_filter as gps_filter
 
 
 def test_upper_whisker():

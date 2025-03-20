@@ -26,7 +26,7 @@ from . import (
     VERSION,
 )
 from .camm import camm_builder
-from .geotag import gpmf_parser
+from .gpmf import gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
 
