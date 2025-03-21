@@ -262,11 +262,12 @@ def _check_video_limits(
             if is_stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
-            if video_metadata.filesize is None:
-                filesize = utils.get_file_size(video_metadata.filename)
-            else:
-                filesize = video_metadata.filesize
-            if filesize > max_sequence_filesize_in_bytes:
+            video_filesize = (
+                utils.get_file_size(video_metadata.filename)
+                if video_metadata.filesize is None
+                else video_metadata.filesize
+            )
+            if video_filesize > max_sequence_filesize_in_bytes:
                 raise exceptions.MapillaryFileTooLargeError(
                     f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
                 )
@@ -316,15 +317,15 @@ def _check_sequences_by_limits(
     output_errors: T.List[types.ErrorMetadata] = []
 
     for sequence in input_sequences:
-        filesize = 0
-        for image in sequence:
-            if image.filesize is None:
-                filesize += utils.get_file_size(image.filename)
-            else:
-                filesize += image.filesize
+        sequence_filesize = sum(
+            utils.get_file_size(image.filename)
+            if image.filesize is None
+            else image.filesize
+            for image in sequence
+        )
 
         try:
-            if filesize > max_sequence_filesize_in_bytes:
+            if sequence_filesize > max_sequence_filesize_in_bytes:
                 raise exceptions.MapillaryFileTooLargeError(
                     f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
                 )
