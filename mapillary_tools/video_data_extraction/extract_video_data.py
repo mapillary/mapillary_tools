@@ -92,13 +92,11 @@ class VideoDataExtractor:
             video_metadata = VideoMetadata(
                 filename=file,
                 filetype=FileType.VIDEO,
-                md5sum=None,
                 filesize=utils.get_file_size(file),
                 points=points,
                 make=make,
                 model=model,
             )
-            video_metadata.update_md5sum()
             return video_metadata
         else:
             return ErrorMetadata(

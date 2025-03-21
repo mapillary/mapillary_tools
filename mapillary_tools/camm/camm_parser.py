@@ -7,9 +7,9 @@ import io
 import logging
 import typing as T
 from enum import Enum
-from typing_extensions import TypeIs
 
 import construct as C
+from typing_extensions import TypeIs
 
 from .. import geo, telemetry
 from ..mp4 import simple_mp4_parser as sparser

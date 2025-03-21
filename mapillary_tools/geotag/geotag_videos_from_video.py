@@ -80,7 +80,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
             if gopro_info is not None:
                 return types.VideoMetadata(
                     filename=video_path,
-                    md5sum=None,
                     filesize=utils.get_file_size(video_path),
                     filetype=types.FileType.GOPRO,
                     points=T.cast(T.List[geo.Point], gopro_info.gps),
@@ -104,7 +103,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                     make, model = camm_parser.extract_camera_make_and_model(fp)
                     return types.VideoMetadata(
                         filename=video_path,
-                        md5sum=None,
                         filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.CAMM,
                         points=points,
@@ -128,7 +126,6 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
                     make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
                     return types.VideoMetadata(
                         filename=video_path,
-                        md5sum=None,
                         filesize=utils.get_file_size(video_path),
                         filetype=types.FileType.BLACKVUE,
                         points=points,
