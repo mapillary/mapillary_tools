@@ -545,7 +545,7 @@ def test_video_error(tmpdir: py.path.local):
             points=[
                 geo.Point(1, -0.00001, -0.00001, 1, angle=None),
                 geo.Point(1, 0, 0, 1, angle=None),
-                geo.Point(1, 0.00001, 0.00001, 1, angle=None),
+                geo.Point(1, 0.00010, 0.00010, 1, angle=None),
             ],
             make="hello",
             model="world",
@@ -566,7 +566,10 @@ def test_video_error(tmpdir: py.path.local):
         types.VideoMetadata(
             Path(curdir) / Path("test_video_file_too_large.mp4"),
             types.FileType.VIDEO,
-            points=[geo.Point(1, 1, 1, 1, angle=None)],
+            points=[
+                geo.Point(1, 1, 1, 1, angle=None),
+                geo.Point(2, 1.0002, 1.0002, 1, angle=None),
+            ],
             make="hello",
             model="world",
             filesize=1024 * 1024 * 1024 * 200,
@@ -574,7 +577,10 @@ def test_video_error(tmpdir: py.path.local):
         types.VideoMetadata(
             Path(curdir) / Path("test_good.mp4"),
             types.FileType.VIDEO,
-            points=[geo.Point(1, 1, 1, 1, angle=None)],
+            points=[
+                geo.Point(1, 1, 1, 1, angle=None),
+                geo.Point(2, 1.0002, 1.0002, 1, angle=None),
+            ],
             make="hello",
             model="world",
             filesize=123,
