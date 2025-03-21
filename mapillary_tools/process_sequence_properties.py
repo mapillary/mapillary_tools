@@ -229,6 +229,21 @@ def _avg_speed(sequence: T.Sequence[geo.PointLike]) -> float:
     return total_distance / time_diff
 
 
+def _is_video_stationary(
+    sequence: T.Sequence[geo.PointLike], max_radius_in_meters: float
+) -> bool:
+    if not sequence:
+        return 0.0 <= max_radius_in_meters
+
+    start = (sequence[0].lat, sequence[0].lon)
+    for p in sequence:
+        distance = geo.gps_distance(start, (p.lat, p.lon))
+        if distance > max_radius_in_meters:
+            return False
+
+    return True
+
+
 def _check_video_limits(
     video_metadatas: T.Sequence[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int,
@@ -239,33 +254,38 @@ def _check_video_limits(
     error_metadatas: T.List[types.ErrorMetadata] = []
 
     for video_metadata in video_metadatas:
-        is_stationary = _is_video_stationary(
-            video_metadata.points,
-            max_radius_in_meters=max_radius_for_stationary_check,
-        )
-
-        if video_metadata.filesize is None:
-            filesize = utils.get_file_size(video_metadata.filename)
-        else:
-            filesize = video_metadata.filesize
-
         try:
+            is_stationary = _is_video_stationary(
+                video_metadata.points,
+                max_radius_in_meters=max_radius_for_stationary_check,
+            )
             if is_stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
-            elif filesize > max_sequence_filesize_in_bytes:
+
+            if video_metadata.filesize is None:
+                filesize = utils.get_file_size(video_metadata.filename)
+            else:
+                filesize = video_metadata.filesize
+            if filesize > max_sequence_filesize_in_bytes:
                 raise exceptions.MapillaryFileTooLargeError(
                     f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
                 )
-            elif any(p.lat == 0 and p.lon == 0 for p in video_metadata.points):
+
+            contains_null_island = any(
+                p.lat == 0 and p.lon == 0 for p in video_metadata.points
+            )
+            if contains_null_island:
                 raise exceptions.MapillaryNullIslandError(
                     "Found GPS coordinates in Null Island (0, 0)",
                 )
-            elif (
+
+            too_fast = (
                 len(video_metadata.points) >= 2
                 and _avg_speed(video_metadata.points) > max_avg_speed
-            ):
+            )
+            if too_fast:
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
-                    f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                    f"Capture speed too fast (exceeds {round(max_avg_speed, 3)} m/s)",
                 )
         except exceptions.MapillaryDescriptionError as ex:
             error_metadatas.append(
@@ -303,39 +323,35 @@ def _check_sequences_by_limits(
             else:
                 filesize += image.filesize
 
-        if filesize > max_sequence_filesize_in_bytes:
+        try:
+            if filesize > max_sequence_filesize_in_bytes:
+                raise exceptions.MapillaryFileTooLargeError(
+                    f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                )
+
+            contains_null_island = any(
+                image.lat == 0 and image.lon == 0 for image in sequence
+            )
+            if contains_null_island:
+                raise exceptions.MapillaryNullIslandError(
+                    "Found GPS coordinates in Null Island (0, 0)",
+                )
+
+            too_fast = len(sequence) >= 2 and _avg_speed(sequence) > max_avg_speed
+            if too_fast:
+                raise exceptions.MapillaryCaptureSpeedTooFastError(
+                    f"Capture speed too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                )
+        except exceptions.MapillaryDescriptionError as ex:
             for image in sequence:
                 output_errors.append(
                     types.describe_error_metadata(
-                        exc=exceptions.MapillaryFileTooLargeError(
-                            f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
-                        ),
+                        exc=ex,
                         filename=image.filename,
                         filetype=types.FileType.IMAGE,
                     )
                 )
-        elif any(image.lat == 0 and image.lon == 0 for image in sequence):
-            for image in sequence:
-                output_errors.append(
-                    types.describe_error_metadata(
-                        exc=exceptions.MapillaryNullIslandError(
-                            "Found GPS coordinates in Null Island (0, 0)",
-                        ),
-                        filename=image.filename,
-                        filetype=types.FileType.IMAGE,
-                    )
-                )
-        elif len(sequence) >= 2 and _avg_speed(sequence) > max_avg_speed:
-            for image in sequence:
-                output_errors.append(
-                    types.describe_error_metadata(
-                        exc=exceptions.MapillaryCaptureSpeedTooFastError(
-                            f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
-                        ),
-                        filename=image.filename,
-                        filetype=types.FileType.IMAGE,
-                    )
-                )
+
         else:
             output_sequences.append(sequence)
 
@@ -559,21 +575,6 @@ def _split_sequences_by_limits(
     LOG.info("Found %s sequences after split by sequence limits", len(output_sequences))
 
     return output_sequences
-
-
-def _is_video_stationary(
-    sequence: T.Sequence[geo.PointLike], max_radius_in_meters: float
-) -> bool:
-    if not sequence:
-        return 0.0 <= max_radius_in_meters
-
-    start = (sequence[0].lat, sequence[0].lon)
-    for p in sequence:
-        distance = geo.gps_distance(start, (p.lat, p.lon))
-        if distance > max_radius_in_meters:
-            return False
-
-    return True
 
 
 def process_sequence_properties(
