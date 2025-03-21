@@ -10,7 +10,6 @@ from .. import exceptions, exiftool_read, geo, types, utils
 from ..exiftool_read_video import ExifToolReadVideo
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
-from . import utils as video_utils
 from .geotag_from_generic import GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
@@ -56,15 +55,6 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
                 )
                 if not points:
                     raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
-
-            stationary = video_utils.is_video_stationary(
-                video_utils.get_max_distance_from_start(
-                    [(p.lat, p.lon) for p in points]
-                )
-            )
-
-            if stationary:
-                raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
             video_metadata = types.VideoMetadata(
                 video_path,

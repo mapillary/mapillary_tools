@@ -233,45 +233,44 @@ def _check_video_limits(
     video_metadatas: T.Sequence[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
+    max_radius_for_stationary_check: float,
 ) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
     output_video_metadatas: T.List[types.VideoMetadata] = []
     error_metadatas: T.List[types.ErrorMetadata] = []
 
     for video_metadata in video_metadatas:
+        is_stationary = _is_video_stationary(
+            video_metadata.points,
+            max_radius_in_meters=max_radius_for_stationary_check,
+        )
+
         if video_metadata.filesize is None:
             filesize = utils.get_file_size(video_metadata.filename)
         else:
             filesize = video_metadata.filesize
 
-        if filesize > max_sequence_filesize_in_bytes:
-            error_metadatas.append(
-                types.describe_error_metadata(
-                    exc=exceptions.MapillaryFileTooLargeError(
-                        f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
-                    ),
-                    filename=video_metadata.filename,
-                    filetype=video_metadata.filetype,
+        try:
+            if is_stationary:
+                raise exceptions.MapillaryStationaryVideoError("Stationary video")
+            elif filesize > max_sequence_filesize_in_bytes:
+                raise exceptions.MapillaryFileTooLargeError(
+                    f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
                 )
-            )
-        elif any(p.lat == 0 and p.lon == 0 for p in video_metadata.points):
-            error_metadatas.append(
-                types.describe_error_metadata(
-                    exc=exceptions.MapillaryNullIslandError(
-                        "Found GPS coordinates in Null Island (0, 0)",
-                    ),
-                    filename=video_metadata.filename,
-                    filetype=video_metadata.filetype,
+            elif any(p.lat == 0 and p.lon == 0 for p in video_metadata.points):
+                raise exceptions.MapillaryNullIslandError(
+                    "Found GPS coordinates in Null Island (0, 0)",
                 )
-            )
-        elif (
-            len(video_metadata.points) >= 2
-            and _avg_speed(video_metadata.points) > max_avg_speed
-        ):
+            elif (
+                len(video_metadata.points) >= 2
+                and _avg_speed(video_metadata.points) > max_avg_speed
+            ):
+                raise exceptions.MapillaryCaptureSpeedTooFastError(
+                    f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                )
+        except exceptions.MapillaryDescriptionError as ex:
             error_metadatas.append(
                 types.describe_error_metadata(
-                    exc=exceptions.MapillaryCaptureSpeedTooFastError(
-                        f"Capture speed is too fast (exceeds {round(max_avg_speed, 3)} m/s)",
-                    ),
+                    exc=ex,
                     filename=video_metadata.filename,
                     filetype=video_metadata.filetype,
                 )
@@ -562,6 +561,21 @@ def _split_sequences_by_limits(
     return output_sequences
 
 
+def _is_video_stationary(
+    sequence: T.Sequence[geo.PointLike], max_radius_in_meters: float
+) -> bool:
+    if not sequence:
+        return 0.0 <= max_radius_in_meters
+
+    start = (sequence[0].lat, sequence[0].lon)
+    for p in sequence:
+        distance = geo.gps_distance(start, (p.lat, p.lon))
+        if distance > max_radius_in_meters:
+            return False
+
+    return True
+
+
 def process_sequence_properties(
     metadatas: T.Sequence[types.MetadataOrError],
     cutoff_distance: float = constants.CUTOFF_DISTANCE,
@@ -596,6 +610,7 @@ def process_sequence_properties(
             video_metadatas,
             max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
             max_avg_speed=max_avg_speed,
+            max_radius_for_stationary_check=10.0,
         )
         error_metadatas.extend(video_error_metadatas)
 
