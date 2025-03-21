@@ -41,7 +41,6 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
 
         image_metadata = types.ImageMetadata(
             filename=image_path,
-            md5sum=None,
             filesize=utils.get_file_size(image_path),
             time=geo.as_unix_time(capture_time),
             lat=lat,

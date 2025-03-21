@@ -1,4 +1,3 @@
-import io
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
@@ -36,17 +35,10 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             image_metadata = GeotagImagesFromEXIF.build_image_metadata(
                 image_path, exif, skip_lonlat_error=False
             )
-            # load the image bytes into memory to avoid reading it multiple times
-            with image_path.open("rb") as fp:
-                image_bytesio = io.BytesIO(fp.read())
-            image_bytesio.seek(0, io.SEEK_SET)
         except Exception as ex:
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
             )
-
-        image_bytesio.seek(0, io.SEEK_SET)
-        image_metadata.update_md5sum(image_bytesio)
 
         return image_metadata
 

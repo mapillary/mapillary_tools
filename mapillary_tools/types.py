@@ -43,7 +43,7 @@ class FileType(enum.Enum):
 class ImageMetadata(geo.Point):
     filename: Path
     # if None or absent, it will be calculated
-    md5sum: T.Optional[str]
+    md5sum: T.Optional[str] = None
     # filetype: is always FileType.IMAGE
     width: T.Optional[int] = None
     height: T.Optional[int] = None
@@ -78,9 +78,9 @@ class ImageMetadata(geo.Point):
 class VideoMetadata:
     filename: Path
     # if None or absent, it will be calculated
-    md5sum: T.Optional[str]
     filetype: FileType
     points: T.Sequence[geo.Point]
+    md5sum: T.Optional[str] = None
     make: T.Optional[str] = None
     model: T.Optional[str] = None
     filesize: T.Optional[int] = None

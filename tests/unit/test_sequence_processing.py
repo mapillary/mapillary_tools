@@ -30,7 +30,6 @@ def _make_image_metadata(
             pass
     return types.ImageMetadata(
         filename=filename,
-        md5sum=None,
         lon=lng,
         lat=lat,
         time=time,
@@ -323,7 +322,6 @@ def test_interpolation(tmpdir: py.path.local):
         ),
         types.VideoMetadata(
             Path("test_video.mp4"),
-            None,
             types.FileType.IMAGE,
             points=[],
             make="hello",
@@ -423,7 +421,6 @@ def test_process_finalize(setup_data):
         _make_image_metadata(Path(corrupt_exif), 1000, 1, 4, angle=22),
         types.VideoMetadata(
             Path(setup_data.join("test_video.mp4")),
-            None,
             types.FileType.IMAGE,
             points=[],
             make="hello",
@@ -544,7 +541,6 @@ def test_video_error(tmpdir: py.path.local):
     sequence: T.List[types.Metadata] = [
         types.VideoMetadata(
             Path(curdir) / Path("test_video_null_island.mp4"),
-            None,
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, -0.00001, -0.00001, 1, angle=None),
@@ -557,7 +553,6 @@ def test_video_error(tmpdir: py.path.local):
         ),
         types.VideoMetadata(
             Path(curdir) / Path("test_video_too_fast.mp4"),
-            None,
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, 1, 1, 1, angle=None),
@@ -570,7 +565,6 @@ def test_video_error(tmpdir: py.path.local):
         ),
         types.VideoMetadata(
             Path(curdir) / Path("test_video_file_too_large.mp4"),
-            None,
             types.FileType.VIDEO,
             points=[geo.Point(1, 1, 1, 1, angle=None)],
             make="hello",
@@ -579,7 +573,6 @@ def test_video_error(tmpdir: py.path.local):
         ),
         types.VideoMetadata(
             Path(curdir) / Path("test_good.mp4"),
-            None,
             types.FileType.VIDEO,
             points=[geo.Point(1, 1, 1, 1, angle=None)],
             make="hello",
