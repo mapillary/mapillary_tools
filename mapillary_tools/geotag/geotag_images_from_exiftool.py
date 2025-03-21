@@ -1,4 +1,3 @@
-import io
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
