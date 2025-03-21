@@ -17,6 +17,9 @@ from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 
 LOG = logging.getLogger(__name__)
+# All fields are little-endian
+_Float = C.Float32l
+_Double = C.Float64l
 
 
 TelemetryMeasurement = T.Union[
@@ -37,12 +40,102 @@ class CAMMType(Enum):
     MAGNETIC_FIELD = 7
 
 
-# All fields are little-endian
-Float = C.Float32l
-Double = C.Float64l
-
-
 TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
+
+
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    """
+    Return a list of points (could be empty) if it is a valid CAMM video,
+    otherwise None
+    """
+
+    moov = MovieBoxParser.parse_stream(fp)
+
+    for track in moov.extract_tracks():
+        if _contains_camm_description(track):
+            maybe_measurements = (
+                _parse_telemetry_from_sample(fp, sample)
+                for sample in track.extract_samples()
+                if _is_camm_description(sample.description)
+            )
+            points = [m for m in maybe_measurements if isinstance(m, geo.Point)]
+
+            return T.cast(
+                T.List[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
+            )
+
+    return None
+
+
+def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasurement]]:
+    moov = MovieBoxParser.parse_stream(fp)
+
+    for track in moov.extract_tracks():
+        if _contains_camm_description(track):
+            maybe_measurements = (
+                _parse_telemetry_from_sample(fp, sample)
+                for sample in track.extract_samples()
+                if _is_camm_description(sample.description)
+            )
+            measurements = [m for m in maybe_measurements if m is not None]
+
+            measurements = _filter_telemetry_by_track_elst(moov, track, measurements)
+
+            return measurements
+
+    return None
+
+
+def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
+    header_and_stream = sparser.parse_path(
+        fp,
+        [
+            b"moov",
+            b"udta",
+            [
+                # Insta360 Titan
+                b"\xa9mak",
+                b"\xa9mod",
+                # RICHO THETA V
+                b"@mod",
+                b"@mak",
+                # RICHO THETA V
+                b"manu",
+                b"modl",
+            ],
+        ],
+    )
+
+    make: str = ""
+    model: str = ""
+
+    try:
+        for h, s in header_and_stream:
+            data = s.read(h.maxsize)
+            if h.type == b"\xa9mak":
+                make_data = _parse_quietly(data, h)
+                make_data = make_data.rstrip(b"\x00")
+                make = _decode_quietly(make_data, h)
+            elif h.type == b"\xa9mod":
+                model_data = _parse_quietly(data, h)
+                model_data = model_data.rstrip(b"\x00")
+                model = _decode_quietly(model_data, h)
+            elif h.type in [b"@mak", b"manu"]:
+                make = _decode_quietly(data, h)
+            elif h.type in [b"@mod", b"modl"]:
+                model = _decode_quietly(data, h)
+            # quit when both found
+            if make and model:
+                break
+    except sparser.ParsingError:
+        pass
+
+    if make:
+        make = make.strip()
+    if model:
+        model = model.strip()
+
+    return make, model
 
 
 class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
@@ -81,7 +174,7 @@ class MinGPSSampleEntry(CAMMSampleEntry):
 
     telemetry_cls_type = geo.Point
 
-    construct = Double[3]  # type: ignore
+    construct = _Double[3]  # type: ignore
 
     @classmethod
     def deserialize(cls, sample: Sample, data: T.Any) -> geo.Point:
@@ -115,17 +208,17 @@ class GPSSampleEntry(CAMMSampleEntry):
     telemetry_cls_type = telemetry.CAMMGPSPoint
 
     construct = C.Struct(
-        "time_gps_epoch" / Double,  # type: ignore
+        "time_gps_epoch" / _Double,  # type: ignore
         "gps_fix_type" / C.Int32sl,  # type: ignore
-        "latitude" / Double,  # type: ignore
-        "longitude" / Double,  # type: ignore
-        "altitude" / Float,  # type: ignore
-        "horizontal_accuracy" / Float,  # type: ignore
-        "vertical_accuracy" / Float,  # type: ignore
-        "velocity_east" / Float,  # type: ignore
-        "velocity_north" / Float,  # type: ignore
-        "velocity_up" / Float,  # type: ignore
-        "speed_accuracy" / Float,  # type: ignore
+        "latitude" / _Double,  # type: ignore
+        "longitude" / _Double,  # type: ignore
+        "altitude" / _Float,  # type: ignore
+        "horizontal_accuracy" / _Float,  # type: ignore
+        "vertical_accuracy" / _Float,  # type: ignore
+        "velocity_east" / _Float,  # type: ignore
+        "velocity_north" / _Float,  # type: ignore
+        "velocity_up" / _Float,  # type: ignore
+        "speed_accuracy" / _Float,  # type: ignore
     )
 
     @classmethod
@@ -175,7 +268,7 @@ class GoProGPSSampleEntry(CAMMSampleEntry):
 
     telemetry_cls_type = telemetry.GPSPoint
 
-    construct = Double[3]  # type: ignore
+    construct = _Double[3]  # type: ignore
 
     @classmethod
     def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.GPSPoint:
@@ -202,7 +295,7 @@ class AccelerationSampleEntry(CAMMSampleEntry):
 
     telemetry_cls_type = telemetry.AccelerationData
 
-    construct: C.Struct = Float[3]  # type: ignore
+    construct: C.Struct = _Float[3]  # type: ignore
 
     @classmethod
     def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.AccelerationData:
@@ -230,7 +323,7 @@ class GyroscopeSampleEntry(CAMMSampleEntry):
 
     telemetry_cls_type = telemetry.GyroscopeData
 
-    construct: C.Struct = Float[3]  # type: ignore
+    construct: C.Struct = _Float[3]  # type: ignore
 
     @classmethod
     def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.GyroscopeData:
@@ -258,7 +351,7 @@ class MagnetometerSampleEntry(CAMMSampleEntry):
 
     telemetry_cls_type = telemetry.MagnetometerData
 
-    construct: C.Struct = Float[3]  # type: ignore
+    construct: C.Struct = _Float[3]  # type: ignore
 
     @classmethod
     def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.MagnetometerData:
@@ -291,13 +384,13 @@ assert len(SAMPLE_ENTRY_CLS_BY_CAMM_TYPE) == 5, SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.ke
 
 _SWITCH: T.Dict[int, C.Struct] = {
     # angle_axis
-    CAMMType.ANGLE_AXIS.value: Float[3],  # type: ignore
+    CAMMType.ANGLE_AXIS.value: _Float[3],  # type: ignore
     CAMMType.EXPOSURE_TIME.value: C.Struct(
         "pixel_exposure_time" / C.Int32sl,  # type: ignore
         "rolling_shutter_skew_time" / C.Int32sl,  # type: ignore
     ),
     # position
-    CAMMType.POSITION.value: Float[3],  # type: ignore
+    CAMMType.POSITION.value: _Float[3],  # type: ignore
     **{t.value: cls.construct for t, cls in SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.items()},
 }
 
@@ -406,50 +499,7 @@ def _filter_telemetry_by_track_elst(
     return list(measurements)
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
-    """
-    Return a list of points (could be empty) if it is a valid CAMM video,
-    otherwise None
-    """
-
-    moov = MovieBoxParser.parse_stream(fp)
-
-    for track in moov.extract_tracks():
-        if _contains_camm_description(track):
-            maybe_measurements = (
-                _parse_telemetry_from_sample(fp, sample)
-                for sample in track.extract_samples()
-                if _is_camm_description(sample.description)
-            )
-            points = [m for m in maybe_measurements if isinstance(m, geo.Point)]
-
-            return T.cast(
-                T.List[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
-            )
-
-    return None
-
-
-def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasurement]]:
-    moov = MovieBoxParser.parse_stream(fp)
-
-    for track in moov.extract_tracks():
-        if _contains_camm_description(track):
-            maybe_measurements = (
-                _parse_telemetry_from_sample(fp, sample)
-                for sample in track.extract_samples()
-                if _is_camm_description(sample.description)
-            )
-            measurements = [m for m in maybe_measurements if m is not None]
-
-            measurements = _filter_telemetry_by_track_elst(moov, track, measurements)
-
-            return measurements
-
-    return None
-
-
-MakeOrModel = C.Struct(
+_MakeOrModel = C.Struct(
     "size" / C.Int16ub,
     C.Padding(2),
     "data" / C.FixedSized(C.this.size, C.GreedyBytes),
@@ -466,7 +516,7 @@ def _decode_quietly(data: bytes, h: sparser.Header) -> str:
 
 def _parse_quietly(data: bytes, h: sparser.Header) -> bytes:
     try:
-        parsed = MakeOrModel.parse(data)
+        parsed = _MakeOrModel.parse(data)
     except C.ConstructError:
         LOG.warning("Failed to parse %s: %s", h, data[:512])
         return b""
@@ -475,55 +525,3 @@ def _parse_quietly(data: bytes, h: sparser.Header) -> bytes:
         return b""
 
     return parsed["data"]
-
-
-def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
-    header_and_stream = sparser.parse_path(
-        fp,
-        [
-            b"moov",
-            b"udta",
-            [
-                # Insta360 Titan
-                b"\xa9mak",
-                b"\xa9mod",
-                # RICHO THETA V
-                b"@mod",
-                b"@mak",
-                # RICHO THETA V
-                b"manu",
-                b"modl",
-            ],
-        ],
-    )
-
-    make: str = ""
-    model: str = ""
-
-    try:
-        for h, s in header_and_stream:
-            data = s.read(h.maxsize)
-            if h.type == b"\xa9mak":
-                make_data = _parse_quietly(data, h)
-                make_data = make_data.rstrip(b"\x00")
-                make = _decode_quietly(make_data, h)
-            elif h.type == b"\xa9mod":
-                model_data = _parse_quietly(data, h)
-                model_data = model_data.rstrip(b"\x00")
-                model = _decode_quietly(model_data, h)
-            elif h.type in [b"@mak", b"manu"]:
-                make = _decode_quietly(data, h)
-            elif h.type in [b"@mod", b"modl"]:
-                model = _decode_quietly(data, h)
-            # quit when both found
-            if make and model:
-                break
-    except sparser.ParsingError:
-        pass
-
-    if make:
-        make = make.strip()
-    if model:
-        model = model.strip()
-
-    return make, model
