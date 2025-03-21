@@ -7,6 +7,7 @@ import io
 import logging
 import typing as T
 from enum import Enum
+from typing_extensions import TypeIs
 
 import construct as C
 
@@ -52,7 +53,7 @@ class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
     construct: C.Struct
 
     @classmethod
-    def serializable(cls, data: T.Any, throw: bool = False) -> T.TypeIs[TTelemetry]:
+    def serializable(cls, data: T.Any, throw: bool = False) -> TypeIs[TTelemetry]:
         # Use "is" for exact type match, instead of isinstance
         if type(data) is cls.telemetry_cls_type:
             return True
