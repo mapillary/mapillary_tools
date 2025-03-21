@@ -52,7 +52,7 @@ class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
     construct: C.Struct
 
     @classmethod
-    def serializable(cls, data: T.Any, throw: bool = False) -> bool:
+    def serializable(cls, data: T.Any, throw: bool = False) -> T.TypeGuard[TTelemetry]:
         # Use "is" for exact type match, instead of isinstance
         if type(data) is cls.telemetry_cls_type:
             return True
@@ -61,6 +61,7 @@ class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
             raise TypeError(
                 f"{cls} can not serialize {type(data)}: expect {cls.telemetry_cls_type}"
             )
+
         return False
 
     @classmethod
