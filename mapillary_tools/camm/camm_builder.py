@@ -12,9 +12,13 @@ from . import camm_parser
 
 
 def _build_camm_sample(measurement: camm_parser.TelemetryMeasurement) -> bytes:
+    if camm_parser.GoProGPSSampleEntry.serializable(measurement):
+        return camm_parser.GoProGPSSampleEntry.serialize(measurement)
+
     for sample_entry_cls in camm_parser.SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.values():
         if sample_entry_cls.serializable(measurement):
             return sample_entry_cls.serialize(measurement)
+
     raise ValueError(f"Unsupported measurement type {type(measurement)}")
 
 
