@@ -1,7 +1,7 @@
 import io
 import typing as T
 
-from .. import geo, telemetry, types
+from .. import geo, types
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
@@ -11,62 +11,15 @@ from ..mp4 import (
 from . import camm_parser
 
 
-TelemetryMeasurement = T.Union[
-    geo.Point,
-    telemetry.TelemetryMeasurement,
-]
+def _build_camm_sample(measurement: camm_parser.TelemetryMeasurement) -> bytes:
+    if camm_parser.GoProGPSSampleEntry.serializable(measurement):
+        return camm_parser.GoProGPSSampleEntry.serialize(measurement)
 
+    for sample_entry_cls in camm_parser.SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.values():
+        if sample_entry_cls.serializable(measurement):
+            return sample_entry_cls.serialize(measurement)
 
-def _build_camm_sample(measurement: TelemetryMeasurement) -> bytes:
-    if isinstance(measurement, geo.Point):
-        return camm_parser.CAMMSampleData.build(
-            {
-                "type": camm_parser.CAMMType.MIN_GPS.value,
-                "data": [
-                    measurement.lat,
-                    measurement.lon,
-                    -1.0 if measurement.alt is None else measurement.alt,
-                ],
-            }
-        )
-    elif isinstance(measurement, telemetry.AccelerationData):
-        # Accelerometer reading in meters/second^2 along XYZ axes of the camera.
-        return camm_parser.CAMMSampleData.build(
-            {
-                "type": camm_parser.CAMMType.ACCELERATION.value,
-                "data": [
-                    measurement.x,
-                    measurement.y,
-                    measurement.z,
-                ],
-            }
-        )
-    elif isinstance(measurement, telemetry.GyroscopeData):
-        # Gyroscope signal in radians/seconds around XYZ axes of the camera. Rotation is positive in the counterclockwise direction.
-        return camm_parser.CAMMSampleData.build(
-            {
-                "type": camm_parser.CAMMType.GYRO.value,
-                "data": [
-                    measurement.x,
-                    measurement.y,
-                    measurement.z,
-                ],
-            }
-        )
-    elif isinstance(measurement, telemetry.MagnetometerData):
-        # Ambient magnetic field.
-        return camm_parser.CAMMSampleData.build(
-            {
-                "type": camm_parser.CAMMType.MAGNETIC_FIELD.value,
-                "data": [
-                    measurement.x,
-                    measurement.y,
-                    measurement.z,
-                ],
-            }
-        )
-    else:
-        raise ValueError(f"unexpected measurement type {type(measurement)}")
+    raise ValueError(f"Unsupported measurement type {type(measurement)}")
 
 
 def _create_edit_list_from_points(
@@ -121,16 +74,19 @@ def _create_edit_list_from_points(
 
 def _multiplex(
     points: T.Sequence[geo.Point],
-    measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
-) -> T.List[TelemetryMeasurement]:
-    mutiplexed: T.List[TelemetryMeasurement] = [*points, *(measurements or [])]
+    measurements: T.Optional[T.List[camm_parser.TelemetryMeasurement]] = None,
+) -> T.List[camm_parser.TelemetryMeasurement]:
+    mutiplexed: T.List[camm_parser.TelemetryMeasurement] = [
+        *points,
+        *(measurements or []),
+    ]
     mutiplexed.sort(key=lambda m: m.time)
 
     return mutiplexed
 
 
 def convert_telemetry_to_raw_samples(
-    measurements: T.Sequence[TelemetryMeasurement],
+    measurements: T.Sequence[camm_parser.TelemetryMeasurement],
     timescale: int,
 ) -> T.Generator[sample_parser.RawSample, None, None]:
     for idx, measurement in enumerate(measurements):
@@ -283,7 +239,7 @@ def create_camm_trak(
 
 def camm_sample_generator2(
     video_metadata: types.VideoMetadata,
-    telemetry_measurements: T.Optional[T.List[telemetry.TelemetryMeasurement]] = None,
+    telemetry_measurements: T.Optional[T.List[camm_parser.TelemetryMeasurement]] = None,
 ):
     def _f(
         fp: T.BinaryIO,

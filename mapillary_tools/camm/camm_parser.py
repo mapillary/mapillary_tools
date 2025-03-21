@@ -1,11 +1,13 @@
 # pyre-ignore-all-errors[5, 11, 16, 21, 24, 58]
+from __future__ import annotations
 
+import abc
 import dataclasses
 import io
 import logging
-import pathlib
 import typing as T
 from enum import Enum
+from typing_extensions import TypeIs
 
 import construct as C
 
@@ -19,9 +21,7 @@ LOG = logging.getLogger(__name__)
 
 TelemetryMeasurement = T.Union[
     geo.Point,
-    telemetry.AccelerationData,
-    telemetry.GyroscopeData,
-    telemetry.MagnetometerData,
+    telemetry.TelemetryMeasurement,
 ]
 
 
@@ -41,46 +41,270 @@ class CAMMType(Enum):
 Float = C.Float32l
 Double = C.Float64l
 
+
+TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
+
+
+class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
+    serialized_camm_type: CAMMType
+
+    telemetry_cls_type: T.Type[TTelemetry]
+
+    construct: C.Struct
+
+    @classmethod
+    def serializable(cls, data: T.Any, throw: bool = False) -> TypeIs[TTelemetry]:
+        # Use "is" for exact type match, instead of isinstance
+        if type(data) is cls.telemetry_cls_type:
+            return True
+
+        if throw:
+            raise TypeError(
+                f"{cls} can not serialize {type(data)}: expect {cls.telemetry_cls_type}"
+            )
+
+        return False
+
+    @classmethod
+    @abc.abstractmethod
+    def serialize(cls, data: TTelemetry) -> bytes:
+        raise NotImplementedError
+
+    @classmethod
+    @abc.abstractmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> TTelemetry:
+        raise NotImplementedError
+
+
+class MinGPSSampleEntry(CAMMSampleEntry):
+    serialized_camm_type = CAMMType.MIN_GPS
+
+    telemetry_cls_type = geo.Point
+
+    construct = Double[3]  # type: ignore
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> geo.Point:
+        return geo.Point(
+            time=sample.exact_time,
+            lat=data[0],
+            lon=data[1],
+            alt=data[2],
+            angle=None,
+        )
+
+    @classmethod
+    def serialize(cls, data: geo.Point) -> bytes:
+        cls.serializable(data, throw=True)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": [
+                    data.lat,
+                    data.lon,
+                    -1.0 if data.alt is None else data.alt,
+                ],
+            }
+        )
+
+
+class GPSSampleEntry(CAMMSampleEntry):
+    serialized_camm_type: CAMMType = CAMMType.GPS
+
+    telemetry_cls_type = telemetry.CAMMGPSPoint
+
+    construct = C.Struct(
+        "time_gps_epoch" / Double,  # type: ignore
+        "gps_fix_type" / C.Int32sl,  # type: ignore
+        "latitude" / Double,  # type: ignore
+        "longitude" / Double,  # type: ignore
+        "altitude" / Float,  # type: ignore
+        "horizontal_accuracy" / Float,  # type: ignore
+        "vertical_accuracy" / Float,  # type: ignore
+        "velocity_east" / Float,  # type: ignore
+        "velocity_north" / Float,  # type: ignore
+        "velocity_up" / Float,  # type: ignore
+        "speed_accuracy" / Float,  # type: ignore
+    )
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.CAMMGPSPoint:
+        return telemetry.CAMMGPSPoint(
+            time=sample.exact_time,
+            lat=data.latitude,
+            lon=data.longitude,
+            alt=data.altitude,
+            angle=None,
+            time_gps_epoch=data.time_gps_epoch,
+            gps_fix_type=data.gps_fix_type,
+            horizontal_accuracy=data.horizontal_accuracy,
+            vertical_accuracy=data.vertical_accuracy,
+            velocity_east=data.velocity_east,
+            velocity_north=data.velocity_north,
+            velocity_up=data.velocity_up,
+            speed_accuracy=data.speed_accuracy,
+        )
+
+    @classmethod
+    def serialize(cls, data: telemetry.CAMMGPSPoint) -> bytes:
+        cls.serializable(data, throw=True)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": {
+                    "time_gps_epoch": data.time_gps_epoch,
+                    "gps_fix_type": data.gps_fix_type,
+                    "latitude": data.lat,
+                    "longitude": data.lon,
+                    "altitude": -1.0 if data.alt is None else data.alt,
+                    "horizontal_accuracy": data.horizontal_accuracy,
+                    "vertical_accuracy": data.vertical_accuracy,
+                    "velocity_east": data.velocity_east,
+                    "velocity_north": data.velocity_north,
+                    "velocity_up": data.velocity_up,
+                    "speed_accuracy": data.speed_accuracy,
+                },
+            }
+        )
+
+
+class GoProGPSSampleEntry(CAMMSampleEntry):
+    serialized_camm_type: CAMMType = CAMMType.MIN_GPS
+
+    telemetry_cls_type = telemetry.GPSPoint
+
+    construct = Double[3]  # type: ignore
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.GPSPoint:
+        raise NotImplementedError("Deserializing GoPro GPS Point is not supported")
+
+    @classmethod
+    def serialize(cls, data: telemetry.GPSPoint) -> bytes:
+        cls.serializable(data, throw=True)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": [
+                    data.lat,
+                    data.lon,
+                    -1.0 if data.alt is None else data.alt,
+                ],
+            }
+        )
+
+
+class AccelerationSampleEntry(CAMMSampleEntry):
+    serialized_camm_type: CAMMType = CAMMType.ACCELERATION
+
+    telemetry_cls_type = telemetry.AccelerationData
+
+    construct: C.Struct = Float[3]  # type: ignore
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.AccelerationData:
+        return telemetry.AccelerationData(
+            time=sample.exact_time,
+            x=data[0],
+            y=data[1],
+            z=data[2],
+        )
+
+    @classmethod
+    def serialize(cls, data: telemetry.AccelerationData) -> bytes:
+        cls.serializable(data, throw=True)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": [data.x, data.y, data.z],
+            }
+        )
+
+
+class GyroscopeSampleEntry(CAMMSampleEntry):
+    serialized_camm_type: CAMMType = CAMMType.GYRO
+
+    telemetry_cls_type = telemetry.GyroscopeData
+
+    construct: C.Struct = Float[3]  # type: ignore
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.GyroscopeData:
+        return telemetry.GyroscopeData(
+            time=sample.exact_time,
+            x=data[0],
+            y=data[1],
+            z=data[2],
+        )
+
+    @classmethod
+    def serialize(cls, data: telemetry.GyroscopeData) -> bytes:
+        cls.serializable(data)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": [data.x, data.y, data.z],
+            }
+        )
+
+
+class MagnetometerSampleEntry(CAMMSampleEntry):
+    serialized_camm_type: CAMMType = CAMMType.MAGNETIC_FIELD
+
+    telemetry_cls_type = telemetry.MagnetometerData
+
+    construct: C.Struct = Float[3]  # type: ignore
+
+    @classmethod
+    def deserialize(cls, sample: Sample, data: T.Any) -> telemetry.MagnetometerData:
+        return telemetry.MagnetometerData(
+            time=sample.exact_time,
+            x=data[0],
+            y=data[1],
+            z=data[2],
+        )
+
+    @classmethod
+    def serialize(cls, data: telemetry.MagnetometerData) -> bytes:
+        cls.serializable(data)
+
+        return CAMMSampleData.build(
+            {
+                "type": cls.serialized_camm_type.value,
+                "data": [data.x, data.y, data.z],
+            }
+        )
+
+
+SAMPLE_ENTRY_CLS_BY_CAMM_TYPE = {
+    sample_entry_cls.serialized_camm_type: sample_entry_cls
+    for sample_entry_cls in CAMMSampleEntry.__subclasses__()
+    if sample_entry_cls not in [GoProGPSSampleEntry]
+}
+assert len(SAMPLE_ENTRY_CLS_BY_CAMM_TYPE) == 5, SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.keys()
+
+
 _SWITCH: T.Dict[int, C.Struct] = {
     # angle_axis
-    CAMMType.ANGLE_AXIS.value: Float[3],
+    CAMMType.ANGLE_AXIS.value: Float[3],  # type: ignore
     CAMMType.EXPOSURE_TIME.value: C.Struct(
-        "pixel_exposure_time" / C.Int32sl,
-        "rolling_shutter_skew_time" / C.Int32sl,
+        "pixel_exposure_time" / C.Int32sl,  # type: ignore
+        "rolling_shutter_skew_time" / C.Int32sl,  # type: ignore
     ),
-    # gyro
-    CAMMType.GYRO.value: Float[3],
-    # acceleration
-    CAMMType.ACCELERATION.value: Float[3],
     # position
-    CAMMType.POSITION.value: Float[3],
-    # lat, lon, alt
-    CAMMType.MIN_GPS.value: Double[3],
-    CAMMType.GPS.value: C.Struct(
-        "time_gps_epoch" / Double,
-        "gps_fix_type" / C.Int32sl,
-        "latitude" / Double,
-        "longitude" / Double,
-        "altitude" / Float,
-        "horizontal_accuracy" / Float,
-        "vertical_accuracy" / Float,
-        "velocity_east" / Float,
-        "velocity_north" / Float,
-        "velocity_up" / Float,
-        "speed_accuracy" / Float,
-    ),
-    # magnetic_field
-    CAMMType.MAGNETIC_FIELD.value: Float[3],
+    CAMMType.POSITION.value: Float[3],  # type: ignore
+    **{t.value: cls.construct for t, cls in SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.items()},
 }
 
 CAMMSampleData = C.Struct(
     C.Padding(2),
     "type" / C.Int16ul,
-    "data"
-    / C.Switch(
-        C.this.type,
-        _SWITCH,
-    ),
+    "data" / C.Switch(C.this.type, _SWITCH),
 )
 
 
@@ -90,46 +314,12 @@ def _parse_telemetry_from_sample(
     fp.seek(sample.raw_sample.offset, io.SEEK_SET)
     data = fp.read(sample.raw_sample.size)
     box = CAMMSampleData.parse(data)
-    if box.type == CAMMType.MIN_GPS.value:
-        return geo.Point(
-            time=sample.exact_time,
-            lat=box.data[0],
-            lon=box.data[1],
-            alt=box.data[2],
-            angle=None,
-        )
-    elif box.type == CAMMType.GPS.value:
-        # Not using box.data.time_gps_epoch as the point timestamp
-        # because it is from another clock
-        return geo.Point(
-            time=sample.exact_time,
-            lat=box.data.latitude,
-            lon=box.data.longitude,
-            alt=box.data.altitude,
-            angle=None,
-        )
-    elif box.type == CAMMType.ACCELERATION.value:
-        return telemetry.AccelerationData(
-            time=sample.exact_time,
-            x=box.data[0],
-            y=box.data[1],
-            z=box.data[2],
-        )
-    elif box.type == CAMMType.GYRO.value:
-        return telemetry.GyroscopeData(
-            time=sample.exact_time,
-            x=box.data[0],
-            y=box.data[1],
-            z=box.data[2],
-        )
-    elif box.type == CAMMType.MAGNETIC_FIELD.value:
-        return telemetry.MagnetometerData(
-            time=sample.exact_time,
-            x=box.data[0],
-            y=box.data[1],
-            z=box.data[2],
-        )
-    return None
+
+    camm_type = CAMMType(box.type)  # type: ignore
+    SampleKlass = SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.get(camm_type)
+    if SampleKlass is None:
+        return None
+    return SampleKlass.deserialize(sample, box.data)
 
 
 def _filter_telemetry_by_elst_segments(
@@ -259,14 +449,6 @@ def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasure
     return None
 
 
-def parse_gpx(path: pathlib.Path) -> T.List[geo.Point]:
-    with path.open("rb") as fp:
-        points = extract_points(fp)
-    if points is None:
-        return []
-    return points
-
-
 MakeOrModel = C.Struct(
     "size" / C.Int16ub,
     C.Padding(2),
@@ -288,10 +470,14 @@ def _parse_quietly(data: bytes, h: sparser.Header) -> bytes:
     except C.ConstructError:
         LOG.warning("Failed to parse %s: %s", h, data[:512])
         return b""
+
+    if parsed is None:
+        return b""
+
     return parsed["data"]
 
 
-def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
+def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
     header_and_stream = sparser.parse_path(
         fp,
         [
@@ -311,8 +497,8 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
         ],
     )
 
-    make: T.Optional[str] = None
-    model: T.Optional[str] = None
+    make: str = ""
+    model: str = ""
 
     try:
         for h, s in header_and_stream:
@@ -339,4 +525,5 @@ def extract_camera_make_and_model(fp: T.BinaryIO) -> T.Tuple[str, str]:
         make = make.strip()
     if model:
         model = model.strip()
-    return make or "", model or ""
+
+    return make, model
