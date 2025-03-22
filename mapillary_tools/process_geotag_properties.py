@@ -444,41 +444,20 @@ def _show_stats_per_filetype(
             )
 
 
-_IT = T.TypeVar("_IT")
-
-
-def split_if(
-    it: T.Iterable[_IT], sep: T.Callable[[_IT], bool]
-) -> T.Tuple[T.List[_IT], T.List[_IT]]:
-    yes, no = [], []
-    for e in it:
-        if sep(e):
-            yes.append(e)
-        else:
-            no.append(e)
-    return yes, no
-
-
 def _validate_metadatas(
-    metadatas: T.Sequence[types.MetadataOrError], num_processes: T.Optional[int]
+    metadatas: T.Sequence[types.MetadataOrError], num_processes: int | None
 ) -> T.List[types.MetadataOrError]:
     # validating metadatas is slow, hence multiprocessing
-
-    good_metadatas: list[types.Metadata] = []
-    error_metadatas: list[types.ErrorMetadata] = []
-
-    for metadata in metadatas:
-        if isinstance(metadata, types.ErrorMetadata):
-            error_metadatas.append(metadata)
-        else:
-            good_metadatas.append(metadata)
 
     # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
     # Otherwise we get:
     # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
     # See https://stackoverflow.com/a/61432070
+    good_metadatas, error_metadatas = types.separate_errors(metadatas)
     map_results = utils.mp_map_maybe(
-        types.validate_and_fail_metadata, good_metadatas, num_processes=num_processes
+        types.validate_and_fail_metadata,
+        T.cast(T.Iterable[types.Metadata], good_metadatas),
+        num_processes=num_processes,
     )
 
     validated_metadatas = list(

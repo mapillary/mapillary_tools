@@ -7,12 +7,7 @@ import tqdm
 from .. import exceptions, geo, utils
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
-from ..types import (
-    ErrorMetadata,
-    FileType,
-    VideoMetadata,
-    VideoMetadataOrError,
-)
+from ..types import ErrorMetadata, FileType, VideoMetadata, VideoMetadataOrError
 from . import video_data_parser_factory
 from .cli_options import CliOptions
 from .extractors.base_parser import BaseParser
