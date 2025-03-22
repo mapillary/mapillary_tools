@@ -7,7 +7,7 @@ from tqdm import tqdm
 from .. import types, utils
 
 from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_gpx import GeotagImagesFromGPXWithProgress
+from .geotag_images_from_gpx import GeotagImagesFromGPX
 
 
 LOG = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 unit="images",
                 disable=LOG.getEffectiveLevel() <= logging.DEBUG,
             ) as pbar:
-                image_metadatas = GeotagImagesFromGPXWithProgress(
+                image_metadatas = GeotagImagesFromGPX(
                     sample_image_paths,
                     video_metadata.points,
                     use_gpx_start_time=False,

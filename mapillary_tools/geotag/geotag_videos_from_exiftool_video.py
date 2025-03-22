@@ -1,7 +1,6 @@
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
-from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -102,32 +101,20 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             else:
                 rdf_descriptions.append(rdf_description)
 
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
+        map_results = utils.mp_map_maybe(
+            GeotagVideosFromExifToolVideo.geotag_video,
+            rdf_descriptions,
+            num_processes=self.num_processes,
+        )
 
-        with Pool(processes=num_processes) as pool:
-            video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
-            if disable_multiprocessing:
-                video_metadatas_iter = map(
-                    GeotagVideosFromExifToolVideo.geotag_video, rdf_descriptions
-                )
-            else:
-                video_metadatas_iter = pool.imap(
-                    GeotagVideosFromExifToolVideo.geotag_video,
-                    rdf_descriptions,
-                )
-            video_metadata_or_errors = list(
-                tqdm(
-                    video_metadatas_iter,
-                    desc="Extracting GPS tracks from ExifTool XML",
-                    unit="videos",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(self.video_paths),
-                )
+        video_metadata_or_errors = list(
+            tqdm(
+                map_results,
+                desc="Extracting GPS tracks from ExifTool XML",
+                unit="videos",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(rdf_descriptions),
             )
+        )
 
         return error_metadatas + video_metadata_or_errors

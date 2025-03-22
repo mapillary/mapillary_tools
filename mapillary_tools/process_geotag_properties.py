@@ -1,10 +1,8 @@
 import collections
 import datetime
-import itertools
 import json
 import logging
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -465,36 +463,35 @@ def _validate_metadatas(
     metadatas: T.Sequence[types.MetadataOrError], num_processes: T.Optional[int]
 ) -> T.List[types.MetadataOrError]:
     # validating metadatas is slow, hence multiprocessing
-    if num_processes is None:
-        pool_num_processes = None
-        disable_multiprocessing = False
-    else:
-        pool_num_processes = max(num_processes, 1)
-        disable_multiprocessing = num_processes <= 0
-    with Pool(processes=pool_num_processes) as pool:
-        validated_metadatas_iter: T.Iterator[types.MetadataOrError]
-        if disable_multiprocessing:
-            validated_metadatas_iter = map(types.validate_and_fail_metadata, metadatas)
+
+    good_metadatas: list[types.Metadata] = []
+    error_metadatas: list[types.ErrorMetadata] = []
+
+    for metadata in metadatas:
+        if isinstance(metadata, types.ErrorMetadata):
+            error_metadatas.append(metadata)
         else:
-            # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
-            # Otherwise we get:
-            # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
-            # See https://stackoverflow.com/a/61432070
-            yes, no = split_if(metadatas, lambda m: isinstance(m, types.ErrorMetadata))
-            no_iter = pool.imap(
-                types.validate_and_fail_metadata,
-                no,
-            )
-            validated_metadatas_iter = itertools.chain(yes, no_iter)
-        return list(
-            tqdm(
-                validated_metadatas_iter,
-                desc="Validating metadatas",
-                unit="metadata",
-                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                total=len(metadatas),
-            )
+            good_metadatas.append(metadata)
+
+    # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
+    # Otherwise we get:
+    # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
+    # See https://stackoverflow.com/a/61432070
+    map_results = utils.mp_map_maybe(
+        types.validate_and_fail_metadata, good_metadatas, num_processes=num_processes
+    )
+
+    validated_metadatas = list(
+        tqdm(
+            map_results,
+            desc="Validating metadatas",
+            unit="metadata",
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+            total=len(good_metadatas),
         )
+    )
+
+    return validated_metadatas + error_metadatas
 
 
 def process_finalize(

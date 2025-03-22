@@ -1,7 +1,6 @@
 import io
 import logging
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -29,31 +28,21 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
         self.num_processes = num_processes
 
     def to_description(self) -> T.List[types.VideoMetadataOrError]:
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
+        map_results = utils.mp_map_maybe(
+            self._geotag_video,
+            self.video_paths,
+            num_processes=self.num_processes,
+        )
 
-        with Pool(processes=num_processes) as pool:
-            video_metadatas_iter: T.Iterator[types.VideoMetadataOrError]
-            if disable_multiprocessing:
-                video_metadatas_iter = map(self._geotag_video, self.video_paths)
-            else:
-                video_metadatas_iter = pool.imap(
-                    self._geotag_video,
-                    self.video_paths,
-                )
-            return list(
-                tqdm(
-                    video_metadatas_iter,
-                    desc="Extracting GPS tracks from videos",
-                    unit="videos",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(self.video_paths),
-                )
+        return list(
+            tqdm(
+                map_results,
+                desc="Extracting GPS tracks from videos",
+                unit="videos",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(self.video_paths),
             )
+        )
 
     def _geotag_video(
         self,

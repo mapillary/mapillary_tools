@@ -1,6 +1,5 @@
 import logging
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
@@ -74,31 +73,18 @@ class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
         return image_metadata
 
     def to_description(self) -> T.List[types.ImageMetadataOrError]:
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
+        map_results = utils.mp_map_maybe(
+            GeotagImagesFromEXIF.geotag_image,
+            self.image_paths,
+            num_processes=self.num_processes,
+        )
 
-        with Pool(processes=num_processes) as pool:
-            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
-            if disable_multiprocessing:
-                image_metadatas_iter = map(
-                    GeotagImagesFromEXIF.geotag_image,
-                    self.image_paths,
-                )
-            else:
-                image_metadatas_iter = pool.imap(
-                    GeotagImagesFromEXIF.geotag_image,
-                    self.image_paths,
-                )
-            return list(
-                tqdm(
-                    image_metadatas_iter,
-                    desc="Extracting geotags from images",
-                    unit="images",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(self.image_paths),
-                )
+        return list(
+            tqdm(
+                map_results,
+                desc="Extracting geotags from images",
+                unit="images",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(self.image_paths),
             )
+        )
