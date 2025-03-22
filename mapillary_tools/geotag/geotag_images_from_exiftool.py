@@ -1,12 +1,11 @@
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
-from multiprocessing import Pool
 from pathlib import Path
 
 from tqdm import tqdm
 
-from .. import exceptions, exiftool_read, types
+from .. import exceptions, exiftool_read, types, utils
 from .geotag_from_generic import GeotagImagesFromGeneric
 from .geotag_images_from_exif import GeotagImagesFromEXIF
 
@@ -65,33 +64,20 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             else:
                 rdf_descriptions.append(rdf_description)
 
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
+        map_results = utils.mp_map_maybe(
+            GeotagImagesFromExifTool.geotag_image,
+            rdf_descriptions,
+            num_processes=self.num_processes,
+        )
 
-        with Pool(processes=num_processes) as pool:
-            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
-            if disable_multiprocessing:
-                image_metadatas_iter = map(
-                    GeotagImagesFromExifTool.geotag_image,
-                    rdf_descriptions,
-                )
-            else:
-                image_metadatas_iter = pool.imap(
-                    GeotagImagesFromExifTool.geotag_image,
-                    rdf_descriptions,
-                )
-            image_metadata_or_errors = list(
-                tqdm(
-                    image_metadatas_iter,
-                    desc="Extracting geotags from ExifTool XML",
-                    unit="images",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(self.image_paths),
-                )
+        image_metadata_or_errors = list(
+            tqdm(
+                map_results,
+                desc="Extracting geotags from ExifTool XML",
+                unit="images",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(self.image_paths),
             )
+        )
 
         return error_metadatas + image_metadata_or_errors

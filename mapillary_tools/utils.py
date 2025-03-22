@@ -1,4 +1,5 @@
 import hashlib
+from multiprocessing import Pool
 import os
 import typing as T
 from pathlib import Path
@@ -194,3 +195,26 @@ def find_xml_files(import_paths: T.Sequence[Path]) -> T.List[Path]:
 
 def get_file_size(path: Path) -> int:
     return os.path.getsize(path)
+
+
+TMapIn = T.TypeVar("TMapIn")
+TMapOut = T.TypeVar("TMapOut")
+
+
+def mp_map_maybe(
+    func: T.Callable[[TMapIn], TMapOut],
+    iterable: T.Iterable[TMapIn],
+    num_processes: int | None = None,
+) -> T.Generator[TMapOut, None, None]:
+    if num_processes is None:
+        pool_num_processes = None
+        disable_multiprocessing = False
+    else:
+        pool_num_processes = max(num_processes, 1)
+        disable_multiprocessing = num_processes <= 0
+
+    if disable_multiprocessing:
+        yield from map(func, iterable)
+    else:
+        with Pool(processes=pool_num_processes) as pool:
+            yield from pool.imap(func, iterable)

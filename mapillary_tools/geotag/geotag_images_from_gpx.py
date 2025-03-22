@@ -1,10 +1,9 @@
 import dataclasses
 import logging
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
-from .. import exceptions, geo, types
+from .. import exceptions, geo, types, utils
 from .geotag_from_generic import GeotagImagesFromGeneric
 from .geotag_images_from_exif import GeotagImagesFromEXIF
 
@@ -21,6 +20,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
         num_processes: T.Optional[int] = None,
+        progress_bar=None,
     ):
         super().__init__()
         self.image_paths = image_paths
@@ -29,26 +29,11 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
         self.num_processes = num_processes
+        self._progress_bar = progress_bar
 
     @staticmethod
     def geotag_image(image_path: Path) -> types.ImageMetadataOrError:
         return GeotagImagesFromEXIF.geotag_image(image_path, skip_lonlat_error=True)
-
-    def geotag_multiple_images(
-        self, image_paths: T.Sequence[Path]
-    ) -> T.List[types.ImageMetadataOrError]:
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
-
-        if disable_multiprocessing:
-            return list(map(GeotagImagesFromGPX.geotag_image, image_paths))
-        else:
-            with Pool(processes=num_processes) as pool:
-                return pool.map(GeotagImagesFromGPX.geotag_image, image_paths)
 
     def _interpolate_image_metadata_along(
         self,
@@ -116,10 +101,18 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
             assert len(self.image_paths) == len(metadatas)
             return metadatas
 
-        image_metadata_or_errors = self.geotag_multiple_images(self.image_paths)
+        map_results = utils.mp_map_maybe(
+            GeotagImagesFromGPX.geotag_image,
+            self.image_paths,
+            num_processes=self.num_processes,
+        )
+
+        if self._progress_bar is not None:
+            for _ in map_results:
+                self._progress_bar.update(1)
 
         image_metadatas = []
-        for metadata_or_error in image_metadata_or_errors:
+        for metadata_or_error in map_results:
             if isinstance(metadata_or_error, types.ErrorMetadata):
                 metadatas.append(metadata_or_error)
             else:
@@ -172,54 +165,3 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
 
         assert len(self.image_paths) == len(metadatas)
         return metadatas
-
-
-class GeotagImagesFromGPXWithProgress(GeotagImagesFromGPX):
-    def __init__(
-        self,
-        image_paths: T.Sequence[Path],
-        points: T.Sequence[geo.Point],
-        use_gpx_start_time: bool = False,
-        use_image_start_time: bool = False,
-        offset_time: float = 0.0,
-        num_processes: T.Optional[int] = None,
-        progress_bar=None,
-    ) -> None:
-        super().__init__(
-            image_paths,
-            points,
-            use_gpx_start_time=use_gpx_start_time,
-            use_image_start_time=use_image_start_time,
-            offset_time=offset_time,
-            num_processes=num_processes,
-        )
-        self._progress_bar = progress_bar
-
-    def geotag_multiple_images(
-        self, image_paths: T.Sequence[Path]
-    ) -> T.List[types.ImageMetadataOrError]:
-        if self._progress_bar is None:
-            return super().geotag_multiple_images(image_paths)
-
-        if self.num_processes is None:
-            num_processes = self.num_processes
-            disable_multiprocessing = False
-        else:
-            num_processes = max(self.num_processes, 1)
-            disable_multiprocessing = self.num_processes <= 0
-
-        output = []
-        with Pool(processes=num_processes) as pool:
-            image_metadatas_iter: T.Iterator[types.ImageMetadataOrError]
-            if disable_multiprocessing:
-                image_metadatas_iter = map(
-                    GeotagImagesFromGPX.geotag_image, image_paths
-                )
-            else:
-                image_metadatas_iter = pool.imap(
-                    GeotagImagesFromGPX.geotag_image, image_paths
-                )
-            for image_metadata_or_error in image_metadatas_iter:
-                self._progress_bar.update(1)
-                output.append(image_metadata_or_error)
-        return output
