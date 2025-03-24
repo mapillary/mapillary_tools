@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import io
 import typing as T
 from pathlib import Path
 
-from .. import exceptions, geo, utils, types
-from ..types import FileType
+from .. import exceptions, geo, telemetry, types, utils
 from ..camm import camm_parser
 from ..gpmf import gpmf_gps_filter, gpmf_parser
+from ..types import FileType
 from . import blackvue_parser
-from .geotag_from_generic import GeotagVideosFromGeneric, GenericVideoExtractor
+from .geotag_from_generic import GenericVideoExtractor, GeotagVideosFromGeneric
 
 
 class GoProVideoExtractor(GenericVideoExtractor):
@@ -26,7 +27,9 @@ class GoProVideoExtractor(GenericVideoExtractor):
         if not gps_points:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
-        gps_points = gpmf_gps_filter.remove_noisy_points(gps_points)
+        gps_points = T.cast(
+            list[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
+        )
         if not gps_points:
             raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 

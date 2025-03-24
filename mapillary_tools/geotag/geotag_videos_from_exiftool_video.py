@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
@@ -8,7 +9,7 @@ from .. import exceptions, exiftool_read, geo, types, utils
 from ..exiftool_read_video import ExifToolReadVideo
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
-from .geotag_from_generic import GeotagVideosFromGeneric, GenericVideoExtractor
+from .geotag_from_generic import GenericVideoExtractor, GeotagVideosFromGeneric
 
 LOG = logging.getLogger(__name__)
 
