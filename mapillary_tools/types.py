@@ -100,10 +100,10 @@ class ErrorMetadata:
     error: Exception
 
 
-ImageMetadataOrError = ImageMetadata | ErrorMetadata
-VideoMetadataOrError = VideoMetadata | ErrorMetadata
-Metadata = ImageMetadata | VideoMetadata
-MetadataOrError = Metadata | ErrorMetadata
+ImageMetadataOrError = T.Union[ImageMetadata, ErrorMetadata]
+VideoMetadataOrError = T.Union[VideoMetadata, ErrorMetadata]
+Metadata = T.Union[ImageMetadata, VideoMetadata]
+MetadataOrError = T.Union[Metadata, ErrorMetadata]
 
 
 class UserItem(TypedDict, total=False):
