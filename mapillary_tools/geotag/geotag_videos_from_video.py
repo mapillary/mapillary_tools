@@ -28,7 +28,7 @@ class GoProVideoExtractor(GenericVideoExtractor):
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         gps_points = T.cast(
-            list[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
+            T.List[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
         )
         if not gps_points:
             raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
@@ -37,7 +37,7 @@ class GoProVideoExtractor(GenericVideoExtractor):
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=FileType.GOPRO,
-            points=T.cast(list[geo.Point], gps_points),
+            points=T.cast(T.List[geo.Point], gps_points),
             make=gopro_info.make,
             model=gopro_info.model,
         )
