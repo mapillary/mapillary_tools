@@ -25,9 +25,9 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         self.video_metadatas = video_metadatas
         self.offset_time = offset_time
 
-    def to_description(self) -> T.List[types.ImageMetadataOrError]:
+    def to_description(self) -> list[types.ImageMetadataOrError]:
         # Will return this list
-        final_image_metadatas: T.List[types.ImageMetadataOrError] = []
+        final_image_metadatas: list[types.ImageMetadataOrError] = []
 
         video_metadatas, video_error_metadatas = types.separate_errors(
             self.video_metadatas
@@ -35,18 +35,19 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
 
         for video_error_metadata in video_error_metadatas:
             video_path = video_error_metadata.filename
-            sample_image_paths = list(
+            sample_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
             )
             LOG.debug(
-                "Found %d sample images from video %s",
-                len(sample_image_paths),
+                "Found %d sample images from video %s with error: %s",
+                len(sample_paths),
                 video_path,
+                video_error_metadata.error,
             )
-            for sample_image_path in sample_image_paths:
+            for sample_path in sample_paths:
                 image_error_metadata = types.describe_error_metadata(
                     video_error_metadata.error,
-                    sample_image_path,
+                    sample_path,
                     filetype=types.FileType.IMAGE,
                 )
                 final_image_metadatas.append(image_error_metadata)
@@ -54,17 +55,17 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         for video_metadata in video_metadatas:
             video_path = video_metadata.filename
 
-            sample_image_paths = list(
+            sample_paths = list(
                 utils.filter_video_samples(self.image_paths, video_path)
             )
             LOG.debug(
                 "Found %d sample images from video %s",
-                len(sample_image_paths),
+                len(sample_paths),
                 video_path,
             )
 
             geotag = GeotagImagesFromGPX(
-                sample_image_paths,
+                sample_paths,
                 video_metadata.points,
                 use_gpx_start_time=False,
                 use_image_start_time=True,

@@ -126,11 +126,11 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
                 LOG.debug("GPX start time delta: %s", time_delta)
                 image_time_offset += time_delta
 
-        LOG.debug("Final time offset for interpolation: %s", image_time_offset)
-
-        for image_metadata in sorted_image_metadatas:
-            # TODO: this time modification seems to affect final capture time as well
-            image_metadata.time += image_time_offset
+        if image_time_offset:
+            LOG.debug("Final time offset for interpolation: %s", image_time_offset)
+            for image_metadata in sorted_image_metadatas:
+                # TODO: this time modification seems to affect final capture times
+                image_metadata.time += image_time_offset
 
         for image_metadata in sorted_image_metadatas:
             try:

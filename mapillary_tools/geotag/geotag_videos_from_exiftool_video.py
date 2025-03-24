@@ -1,18 +1,66 @@
+from __future__ import annotations
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from tqdm import tqdm
-
 from .. import exceptions, exiftool_read, geo, types, utils
 from ..exiftool_read_video import ExifToolReadVideo
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
-from .geotag_from_generic import GeotagVideosFromGeneric
+from .geotag_from_generic import GeotagVideosFromGeneric, GenericVideoExtractor
 
 LOG = logging.getLogger(__name__)
-_DESCRIPTION_TAG = "rdf:Description"
+
+
+class VideoExifToolExtractor(GenericVideoExtractor):
+    def __init__(self, video_path: Path, element: ET.Element):
+        super().__init__(video_path)
+        self.element = element
+
+    def extract(self) -> types.VideoMetadataOrError:
+        exif = ExifToolReadVideo(ET.ElementTree(self.element))
+
+        make = exif.extract_make()
+        model = exif.extract_model()
+
+        is_gopro = make is not None and make.upper() in ["GOPRO"]
+
+        points = exif.extract_gps_track()
+
+        # ExifTool has no idea if GPS is not found or found but empty
+        if is_gopro:
+            if not points:
+                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+
+            # ExifTool (since 13.04) converts GPSSpeed for GoPro to km/h, so here we convert it back to m/s
+            for p in points:
+                if isinstance(p, GPSPoint) and p.ground_speed is not None:
+                    p.ground_speed = p.ground_speed / 3.6
+
+            if isinstance(points[0], GPSPoint):
+                points = T.cast(
+                    list[geo.Point],
+                    gpmf_gps_filter.remove_noisy_points(T.cast(list[GPSPoint], points)),
+                )
+                if not points:
+                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+
+        if not points:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
+
+        video_metadata = types.VideoMetadata(
+            self.video_path,
+            filesize=utils.get_file_size(self.video_path),
+            filetype=types.FileType.VIDEO,
+            points=points,
+            make=make,
+            model=model,
+        )
+
+        return video_metadata
 
 
 class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
@@ -20,101 +68,34 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
         self,
         video_paths: T.Sequence[Path],
         xml_path: Path,
-        num_processes: T.Optional[int] = None,
+        num_processes: int | None = None,
     ):
-        self.video_paths = video_paths
+        super().__init__(video_paths, num_processes=num_processes)
         self.xml_path = xml_path
-        self.num_processes = num_processes
-        super().__init__()
 
-    @staticmethod
-    def geotag_video(element: ET.Element) -> types.VideoMetadataOrError:
-        video_path = exiftool_read.find_rdf_description_path(element)
-        assert video_path is not None, "must find the path from the element"
-
-        try:
-            exif = ExifToolReadVideo(ET.ElementTree(element))
-
-            points = exif.extract_gps_track()
-
-            if not points:
-                raise exceptions.MapillaryVideoGPSNotFoundError(
-                    "No GPS data found from the video"
-                )
-
-            points = geo.extend_deduplicate_points(points)
-            assert points, "must have at least one point"
-
-            if all(isinstance(p, GPSPoint) for p in points):
-                points = T.cast(
-                    T.List[geo.Point],
-                    gpmf_gps_filter.remove_noisy_points(
-                        T.cast(T.List[GPSPoint], points)
-                    ),
-                )
-                if not points:
-                    raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
-
-            video_metadata = types.VideoMetadata(
-                video_path,
-                filesize=utils.get_file_size(video_path),
-                filetype=types.FileType.VIDEO,
-                points=points,
-                make=exif.extract_make(),
-                model=exif.extract_model(),
-            )
-
-        except Exception as ex:
-            if not isinstance(ex, exceptions.MapillaryDescriptionError):
-                LOG.warning(
-                    "Failed to geotag video %s: %s",
-                    video_path,
-                    str(ex),
-                    exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
-                )
-            return types.describe_error_metadata(
-                ex, video_path, filetype=types.FileType.VIDEO
-            )
-
-        return video_metadata
-
-    def to_description(self) -> T.List[types.VideoMetadataOrError]:
+    def _generate_video_extractors(
+        self,
+    ) -> T.Sequence[GenericVideoExtractor | types.ErrorMetadata]:
         rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
             [self.xml_path]
         )
 
-        error_metadatas: T.List[types.ErrorMetadata] = []
-        rdf_descriptions: T.List[ET.Element] = []
+        results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
+
         for path in self.video_paths:
             rdf_description = rdf_description_by_path.get(
                 exiftool_read.canonical_path(path)
             )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(
-                    f"The {_DESCRIPTION_TAG} XML element for the video not found"
+                    f"The {exiftool_read._DESCRIPTION_TAG} XML element for the image not found"
                 )
-                error_metadatas.append(
+                results.append(
                     types.describe_error_metadata(
-                        exc, path, filetype=types.FileType.VIDEO
+                        exc, path, filetype=types.FileType.IMAGE
                     )
                 )
             else:
-                rdf_descriptions.append(rdf_description)
+                results.append(VideoExifToolExtractor(path, rdf_description))
 
-        map_results = utils.mp_map_maybe(
-            GeotagVideosFromExifToolVideo.geotag_video,
-            rdf_descriptions,
-            num_processes=self.num_processes,
-        )
-
-        video_metadata_or_errors = list(
-            tqdm(
-                map_results,
-                desc="Extracting GPS tracks from ExifTool XML",
-                unit="videos",
-                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                total=len(rdf_descriptions),
-            )
-        )
-
-        return error_metadatas + video_metadata_or_errors
+        return results
