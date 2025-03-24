@@ -4,9 +4,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from ... import geo
-from ...exiftool_read import EXIFTOOL_NAMESPACES
+from ...exiftool_read import _DESCRIPTION_TAG, EXIFTOOL_NAMESPACES
 from ...exiftool_read_video import ExifToolReadVideo
-from ...geotag.geotag_videos_from_exiftool_video import _DESCRIPTION_TAG
 from ..cli_options import CliOptions, CliParserOptions
 from .base_parser import BaseParser
 

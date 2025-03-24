@@ -299,9 +299,12 @@ def _sample_single_video_by_distance(
             )
 
     LOG.info("Extracting video metdata")
-    video_metadata = geotag_videos_from_video.GeotagVideosFromVideo.geotag_video(
-        video_path
-    )
+
+    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
+        [video_path]
+    ).to_description()
+    assert video_metadatas, "expect non-empty video metadatas"
+    video_metadata = video_metadatas[0]
     if isinstance(video_metadata, types.ErrorMetadata):
         LOG.warning(str(video_metadata.error))
         return

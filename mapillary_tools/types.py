@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import datetime
 import enum
@@ -178,6 +180,24 @@ class _ImageDescriptionErrorRequired(TypedDict, total=True):
 
 class ImageDescriptionError(_ImageDescriptionErrorRequired, total=False):
     filetype: str
+
+
+M = T.TypeVar("M")
+
+
+def separate_errors(
+    metadatas: T.Iterable[M | ErrorMetadata],
+) -> tuple[list[M], list[ErrorMetadata]]:
+    good: list[M] = []
+    bad: list[ErrorMetadata] = []
+
+    for metadata in metadatas:
+        if isinstance(metadata, ErrorMetadata):
+            bad.append(metadata)
+        else:
+            good.append(metadata)
+
+    return good, bad
 
 
 def _describe_error_desc(

@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import logging
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
 import tqdm
@@ -8,13 +9,7 @@ import tqdm
 from .. import exceptions, geo, utils
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
-from ..types import (
-    ErrorMetadata,
-    FileType,
-    MetadataOrError,
-    VideoMetadata,
-    VideoMetadataOrError,
-)
+from ..types import ErrorMetadata, FileType, VideoMetadata, VideoMetadataOrError
 from . import video_data_parser_factory
 from .cli_options import CliOptions
 from .extractors.base_parser import BaseParser
@@ -29,30 +24,25 @@ class VideoDataExtractor:
     def __init__(self, options: CliOptions) -> None:
         self.options = options
 
-    def process(self) -> T.List[MetadataOrError]:
+    def process(self) -> T.List[VideoMetadataOrError]:
         paths = self.options["paths"]
         self._check_paths(paths)
         video_files = utils.find_videos(paths)
         self._check_sources_cardinality(video_files)
 
-        num_processes = self.options["num_processes"] or None
-        with Pool(processes=num_processes) as pool:
-            if num_processes == 1:
-                iter: T.Iterator[VideoMetadataOrError] = map(
-                    self.process_file, video_files
-                )
-            else:
-                iter = pool.imap(self.process_file, video_files)
+        map_results = utils.mp_map_maybe(
+            self.process_file, video_files, num_processes=self.options["num_processes"]
+        )
 
-            video_metadata_or_errors = list(
-                tqdm.tqdm(
-                    iter,
-                    desc="Extracting GPS tracks",
-                    unit="videos",
-                    disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-                    total=len(video_files),
-                )
+        video_metadata_or_errors: list[VideoMetadataOrError] = list(
+            tqdm.tqdm(
+                map_results,
+                desc="Extracting GPS tracks",
+                unit="videos",
+                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                total=len(video_files),
             )
+        )
 
         return video_metadata_or_errors
 
