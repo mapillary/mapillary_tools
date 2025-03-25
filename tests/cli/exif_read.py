@@ -25,12 +25,19 @@ def extract_and_show_exif(image_path):
 
 
 def as_dict(exif: ExifReadABC):
+    if isinstance(exif, (ExifToolRead, ExifRead)):
+        gps_datetime = exif.extract_gps_datetime()
+        exif_time = exif.extract_exif_datetime()
+    else:
+        gps_datetime = None
+        exif_time = None
+
     return {
         "altitude": exif.extract_altitude(),
         "capture_time": exif.extract_capture_time(),
         "direction": exif.extract_direction(),
-        "exif_time": exif.extract_exif_datetime(),
-        "gps_time": exif.extract_gps_datetime(),
+        "exif_time": exif_time,
+        "gps_time": gps_datetime,
         "lon_lat": exif.extract_lon_lat(),
         "make": exif.extract_make(),
         "model": exif.extract_model(),
