@@ -6,8 +6,8 @@ import pathlib
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import geo, utils
-from mapillary_tools.geotag import blackvue_parser, utils as geotag_utils
+from mapillary_tools import blackvue_parser, geo, utils
+from mapillary_tools.geotag import utils as geotag_utils
 
 
 def _parse_gpx(path: pathlib.Path) -> list[geo.Point] | None:
