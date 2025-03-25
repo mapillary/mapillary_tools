@@ -81,7 +81,7 @@ jobs:
 
       - name: Type check with mypy
         run: |
-          mypy mapillary_tools
+          mypy mapillary_tools tests/cli
 
       - name: Test with pytest
         run: |

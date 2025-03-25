@@ -25,12 +25,19 @@ def extract_and_show_exif(image_path):
 
 
 def as_dict(exif: ExifReadABC):
+    if isinstance(exif, (ExifToolRead, ExifRead)):
+        gps_datetime = exif.extract_gps_datetime()
+        exif_time = exif.extract_exif_datetime()
+    else:
+        gps_datetime = None
+        exif_time = None
+
     return {
         "altitude": exif.extract_altitude(),
         "capture_time": exif.extract_capture_time(),
         "direction": exif.extract_direction(),
-        "exif_time": exif.extract_exif_datetime(),
-        "gps_time": exif.extract_gps_datetime(),
+        "exif_time": exif_time,
+        "gps_time": gps_datetime,
         "lon_lat": exif.extract_lon_lat(),
         "make": exif.extract_make(),
         "model": exif.extract_model(),
@@ -40,32 +47,28 @@ def as_dict(exif: ExifReadABC):
     }
 
 
-def _round(v):
-    if isinstance(v, float):
-        return round(v, 6)
-    elif isinstance(v, tuple):
-        return tuple(round(x, 6) for x in v)
-    else:
-        return v
+def _approximate(left, right):
+    if isinstance(left, float) and isinstance(right, float):
+        return abs(left - right) < 0.000001
+    if isinstance(left, tuple) and isinstance(right, tuple):
+        return all(abs(l - r) < 0.000001 for l, r in zip(left, right))
+    return left == right
 
 
-def compare_exif(left: dict, right: dict) -> bool:
+def compare_exif(left: dict, right: dict) -> str:
     RED_COLOR = "\x1b[31;20m"
     RESET_COLOR = "\x1b[0m"
-    diff = False
+    diff = []
     for key in left:
         if key in ["width", "height"]:
             continue
         if key in ["lon_lat", "altitude", "direction"]:
-            left_value = _round(left[key])
-            right_value = _round(right[key])
+            same = _approximate(left[key], right[key])
         else:
-            left_value = left[key]
-            right_value = right[key]
-        if left_value != right_value:
-            print(f"{RED_COLOR}{key}: {left_value} != {right_value}{RESET_COLOR}")
-            diff = True
-    return diff
+            same = left[key] == right[key]
+        if not same:
+            diff.append(f"{RED_COLOR}{key}: {left[key]} != {right[key]}{RESET_COLOR}")
+    return "\n".join(diff)
 
 
 def extract_and_show_from_exiftool(fp, compare: bool = False):
@@ -82,10 +85,19 @@ def extract_and_show_from_exiftool(fp, compare: bool = False):
             native_exif = ExifRead(image_path)
             diff = compare_exif(as_dict(exif), as_dict(native_exif))
             if diff:
-                print(f"======== ExifTool Outuput {image_path} ========")
+                print(f"======== {image_path} ========")
+
+                print("ExifTool Outuput:")
                 pprint.pprint(as_dict(exif))
-                print(f"======== ExifRead Output {image_path} ========")
+                print()
+
+                print("ExifRead Output:")
                 pprint.pprint(as_dict(native_exif))
+                print()
+
+                print("DIFF:")
+                print(diff)
+                print()
         else:
             print(f"======== ExifTool Outuput {image_path} ========")
             pprint.pprint(as_dict(exif))
