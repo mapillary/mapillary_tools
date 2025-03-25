@@ -4,11 +4,10 @@ import io
 import typing as T
 from pathlib import Path
 
-from .. import exceptions, geo, telemetry, types, utils
+from .. import blackvue_parser, exceptions, geo, telemetry, types, utils
 from ..camm import camm_parser
 from ..gpmf import gpmf_gps_filter, gpmf_parser
 from ..types import FileType
-from . import blackvue_parser
 from .geotag_from_generic import GenericVideoExtractor, GeotagVideosFromGeneric
 
 

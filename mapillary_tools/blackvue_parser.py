@@ -5,8 +5,8 @@ import typing as T
 
 import pynmea2
 
-from .. import geo
-from ..mp4 import simple_mp4_parser as sparser
+from . import geo
+from .mp4 import simple_mp4_parser as sparser
 
 
 LOG = logging.getLogger(__name__)
