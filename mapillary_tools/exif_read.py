@@ -766,7 +766,9 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         Extract camera make
         """
-        make = self._extract_alternative_fields(["Image Make", "EXIF LensMake"], str)
+        make = self._extract_alternative_fields(
+            ["Image Make", "EXIF Make", "EXIF LensMake"], str
+        )
         if make is None:
             return None
         return make.strip()
@@ -775,7 +777,9 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         Extract camera model
         """
-        model = self._extract_alternative_fields(["Image Model", "EXIF LensModel"], str)
+        model = self._extract_alternative_fields(
+            ["Image Model", "EXIF Model", "EXIF LensModel"], str
+        )
         if model is None:
             return None
         return model.strip()
