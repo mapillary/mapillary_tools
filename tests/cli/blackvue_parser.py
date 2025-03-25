@@ -1,16 +1,27 @@
+from __future__ import annotations
+
 import argparse
 import pathlib
 
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import utils
+from mapillary_tools import geo, utils
 from mapillary_tools.geotag import blackvue_parser, utils as geotag_utils
+
+
+def _parse_gpx(path: pathlib.Path) -> list[geo.Point] | None:
+    with path.open("rb") as fp:
+        points = blackvue_parser.extract_points(fp)
+    return points
 
 
 def _convert_to_track(path: pathlib.Path):
     track = gpxpy.gpx.GPXTrack()
-    points = blackvue_parser.parse_gps_points(path)
+    points = _parse_gpx(path)
+    if points is None:
+        raise RuntimeError(f"Invalid BlackVue video {path}")
+
     segment = geotag_utils.convert_points_to_gpx_segment(points)
     track.segments.append(segment)
     with path.open("rb") as fp:

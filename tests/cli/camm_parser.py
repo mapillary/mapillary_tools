@@ -11,8 +11,16 @@ from mapillary_tools.camm import camm_parser
 from mapillary_tools.geotag import utils as geotag_utils
 
 
+def _parse_gpx(path: pathlib.Path):
+    with path.open("rb") as fp:
+        return camm_parser.extract_points(fp)
+
+
 def _convert(path: pathlib.Path):
-    points = camm_parser.parse_gpx(path)
+    points = _parse_gpx(path)
+    if points is None:
+        raise RuntimeError(f"Invalid CAMM video {path}")
+
     track = gpxpy.gpx.GPXTrack()
     track.name = path.name
     track.segments.append(geotag_utils.convert_points_to_gpx_segment(points))

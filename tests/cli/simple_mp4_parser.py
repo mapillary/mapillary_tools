@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import io
 import logging
@@ -31,40 +33,29 @@ box_list_types = {
 }
 
 
-def _validate_samples(
-    path: pathlib.Path, filters: T.Optional[T.Container[bytes]] = None
-):
-    samples: T.List[sample_parser.RawSample] = []
+def _validate_samples(path: pathlib.Path, filters: T.Container[bytes] | None = None):
+    raw_samples: list[sample_parser.RawSample] = []
 
-    with open(path, "rb") as fp:
-        for h, s in sparser.parse_path(
-            fp, [b"moov", b"trak", b"mdia", b"minf", b"stbl"]
-        ):
-            (
-                descriptions,
-                raw_samples,
-            ) = sample_parser.parse_raw_samples_from_stbl_DEPRECATED(
-                s, maxsize=h.maxsize
-            )
-            samples.extend(
-                sample
-                for sample in raw_samples
-                if filters is None
-                or descriptions[sample.description_idx]["format"] in filters
-            )
-    samples.sort(key=lambda s: s.offset)
-    if not samples:
+    parser = sample_parser.MovieBoxParser.parse_file(path)
+    for track in parser.extract_tracks():
+        for sample in track.extract_samples():
+            if filters is None or sample.description["format"] in filters:
+                raw_samples.append(sample.raw_sample)
+
+    raw_samples.sort(key=lambda s: s.offset)
+    if not raw_samples:
         return
+
     last_sample = None
-    last_read = samples[0].offset
-    for sample in samples:
-        if sample.offset < last_read:
+    last_read = raw_samples[0].offset
+    for raw_sample in raw_samples:
+        if raw_sample.offset < last_read:
             LOG.warning(f"overlap found:\n{last_sample}\n{sample}")
-        elif sample.offset == last_read:
+        elif raw_sample.offset == last_read:
             pass
         else:
             LOG.warning(f"gap found:\n{last_sample}\n{sample}")
-        last_read = sample.offset + sample.size
+        last_read = raw_sample.offset + raw_sample.size
         last_sample = sample
 
 
@@ -87,7 +78,7 @@ def _parse_structs(fp: T.BinaryIO):
             print(margin, header, data)
 
 
-def _dump_box_data_at(fp: T.BinaryIO, box_type_path: T.List[bytes]):
+def _dump_box_data_at(fp: T.BinaryIO, box_type_path: list[bytes]):
     for h, s in sparser.parse_path(fp, box_type_path):
         max_chunk_size = 1024
         read = 0
@@ -104,30 +95,26 @@ def _dump_box_data_at(fp: T.BinaryIO, box_type_path: T.List[bytes]):
         break
 
 
-def _parse_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
-    for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        offset = s.tell()
-        for h1, s1 in sparser.parse_path(s, [b"mdia", b"mdhd"], maxsize=h.maxsize):
-            box = cparser.MediaHeaderBox.parse(s1.read(h.maxsize))
-            LOG.info(box)
-            LOG.info(sample_parser.to_datetime(box.creation_time))
-            LOG.info(box.duration / box.timescale)
-        s.seek(offset, io.SEEK_SET)
-        for sample in sample_parser.parse_samples_from_trak_DEPRECATED(
-            s, maxsize=h.maxsize
-        ):
+def _parse_samples(fp: T.BinaryIO, filters: T.Container[bytes] | None = None):
+    parser = sample_parser.MovieBoxParser.parse_stream(fp)
+    for track in parser.extract_tracks():
+        box = track.extract_mdhd_boxdata()
+        LOG.info(box)
+        LOG.info(sample_parser.to_datetime(box["creation_time"]))
+        LOG.info(box["duration"] / box["timescale"])
+
+        for sample in track.extract_samples():
             if filters is None or sample.description["format"] in filters:
                 print(sample)
 
 
-def _dump_samples(fp: T.BinaryIO, filters: T.Optional[T.Container[bytes]] = None):
-    for h, s in sparser.parse_path(fp, [b"moov", b"trak"]):
-        for sample in sample_parser.parse_samples_from_trak_DEPRECATED(
-            s, maxsize=h.maxsize
-        ):
+def _dump_samples(fp: T.BinaryIO, filters: T.Container[bytes] | None = None):
+    parser = sample_parser.MovieBoxParser.parse_stream(fp)
+    for track in parser.extract_tracks():
+        for sample in track.extract_samples():
             if filters is None or sample.description["format"] in filters:
-                fp.seek(sample.offset, io.SEEK_SET)
-                data = fp.read(sample.size)
+                fp.seek(sample.raw_sample.offset, io.SEEK_SET)
+                data = fp.read(sample.raw_sample.size)
                 sys.stdout.buffer.write(data)
 
 
