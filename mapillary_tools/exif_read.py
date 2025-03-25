@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import datetime
 import io
@@ -477,9 +479,9 @@ class ExifReadFromXMP(ExifReadABC):
 
     def _extract_alternative_fields(
         self,
-        fields: T.Sequence[str],
-        field_type: T.Type[_FIELD_TYPE],
-    ) -> T.Optional[_FIELD_TYPE]:
+        fields: T.Iterable[str],
+        field_type: type[_FIELD_TYPE],
+    ) -> _FIELD_TYPE | None:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -818,8 +820,8 @@ class ExifReadFromEXIF(ExifReadABC):
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
-        field_type: T.Type[_FIELD_TYPE],
-    ) -> T.Optional[_FIELD_TYPE]:
+        field_type: type[_FIELD_TYPE],
+    ) -> _FIELD_TYPE | None:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
