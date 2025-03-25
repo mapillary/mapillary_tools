@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import pathlib
 
@@ -18,7 +19,7 @@ def _convert_to_track(path: pathlib.Path):
     track = gpxpy.gpx.GPXTrack()
     points = _parse_gpx(path)
     if points is None:
-        raise ValueError("Not a valid BlackVue video")
+        raise RuntimeError(f"Invalid BlackVue video {path}")
 
     segment = geotag_utils.convert_points_to_gpx_segment(points)
     track.segments.append(segment)

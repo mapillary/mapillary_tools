@@ -1,3 +1,4 @@
+from __future__ import annotations
 import argparse
 import dataclasses
 import datetime
@@ -66,16 +67,18 @@ def _convert_points_to_gpx_track_segment(
     return gpx_segment
 
 
-def _parse_gpx(path: pathlib.Path) -> list[telemetry.GPSPoint]:
+def _parse_gpx(path: pathlib.Path) -> list[telemetry.GPSPoint] | None:
     with path.open("rb") as fp:
         info = gpmf_parser.extract_gopro_info(fp)
     if info is None:
-        return []
+        return None
     return info.gps or []
 
 
 def _convert_gpx(gpx: gpxpy.gpx.GPX, path: pathlib.Path):
     points = _parse_gpx(path)
+    if points is None:
+        raise RuntimeError(f"Invalid GoPro video {path}")
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx_track_segment = _convert_points_to_gpx_track_segment(points)
     gpx_track.segments.append(gpx_track_segment)
@@ -92,9 +95,11 @@ def _convert_gpx(gpx: gpxpy.gpx.GPX, path: pathlib.Path):
 
 
 def _convert_geojson(path: pathlib.Path):
-    features = []
     points = _parse_gpx(path)
+    if points is None:
+        raise RuntimeError(f"Invalid GoPro video {path}")
 
+    features = []
     for idx, p in enumerate(points):
         geomtry = {"type": "Point", "coordinates": [p.lon, p.lat]}
         properties = {
