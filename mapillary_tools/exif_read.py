@@ -738,17 +738,7 @@ class ExifReadFromEXIF(ExifReadABC):
             "GPS GPSImgDirection",
             "GPS GPSTrack",
         ]
-        direction = self._extract_alternative_fields(fields, float)
-        if direction is not None:
-            if direction > 360:
-                # fix negative value wrongly parsed in exifread
-                # -360 degree -> 4294966935 when converting from hex
-                bearing1 = bin(int(direction))[2:]
-                bearing2 = "".join([str(int(int(a) == 0)) for a in bearing1])
-                direction = -float(int(bearing2, 2))
-            direction %= 360
-
-        return direction
+        return self._extract_alternative_fields(fields, float)
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
         lat_tag = self.tags.get("GPS GPSLatitude")
