@@ -66,26 +66,34 @@ def _convert_points_to_gpx_track_segment(
     return gpx_segment
 
 
+def _parse_gpx(path: pathlib.Path) -> list[telemetry.GPSPoint]:
+    with path.open("rb") as fp:
+        info = gpmf_parser.extract_gopro_info(fp)
+    if info is None:
+        return []
+    return info.gps or []
+
+
 def _convert_gpx(gpx: gpxpy.gpx.GPX, path: pathlib.Path):
-    points = gpmf_parser.parse_gpx(path)
+    points = _parse_gpx(path)
     gpx_track = gpxpy.gpx.GPXTrack()
     gpx_track_segment = _convert_points_to_gpx_track_segment(points)
     gpx_track.segments.append(gpx_track_segment)
     gpx_track.name = path.name
     gpx_track.comment = f"#points: {len(points)}"
     with path.open("rb") as fp:
-        device_names = gpmf_parser.extract_all_device_names(fp)
-    with path.open("rb") as fp:
-        model = gpmf_parser.extract_camera_model(fp)
+        info = gpmf_parser.extract_gopro_info(fp)
+    if info is None:
+        return
     gpx_track.description = (
-        f'Extracted from model "{model}" among these devices {device_names}'
+        f'Extracted from model "{info.model}" and make "{info.make}"'
     )
     gpx.tracks.append(gpx_track)
 
 
 def _convert_geojson(path: pathlib.Path):
     features = []
-    points = gpmf_parser.parse_gpx(path)
+    points = _parse_gpx(path)
 
     for idx, p in enumerate(points):
         geomtry = {"type": "Point", "coordinates": [p.lon, p.lat]}
@@ -138,24 +146,33 @@ def main():
         imu_option = parsed_args.imu.split(",")
         for path in video_paths:
             with path.open("rb") as fp:
-                telemetry_data = gpmf_parser.extract_telemetry_data(fp)
+                telemetry_data = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
             if telemetry_data:
                 if "accl" in imu_option:
                     print(
                         json.dumps(
-                            [dataclasses.asdict(accl) for accl in telemetry_data.accl]
+                            [
+                                dataclasses.asdict(accl)
+                                for accl in telemetry_data.accl or []
+                            ]
                         )
                     )
                 if "gyro" in imu_option:
                     print(
                         json.dumps(
-                            [dataclasses.asdict(gyro) for gyro in telemetry_data.gyro]
+                            [
+                                dataclasses.asdict(gyro)
+                                for gyro in telemetry_data.gyro or []
+                            ]
                         )
                     )
                 if "magn" in imu_option:
                     print(
                         json.dumps(
-                            [dataclasses.asdict(magn) for magn in telemetry_data.magn]
+                            [
+                                dataclasses.asdict(magn)
+                                for magn in telemetry_data.magn or []
+                            ]
                         )
                     )
 
