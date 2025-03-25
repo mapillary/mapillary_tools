@@ -144,6 +144,8 @@ class UploadService:
             timeout=UPLOAD_REQUESTS_TIMEOUT,
         )
 
+        resp.raise_for_status()
+
         payload = resp.json()
         try:
             return payload["h"]
