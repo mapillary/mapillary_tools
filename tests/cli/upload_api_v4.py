@@ -83,10 +83,10 @@ def main():
     )
     initial_offset = service.fetch_offset()
 
-    LOG.info(f"Session key: %s", session_key)
-    LOG.info(f"Entity size: %d", entity_size)
-    LOG.info(f"Initial offset: %s", initial_offset)
-    LOG.info(f"Chunk size: %s MB", service.chunk_size / (1024 * 1024))
+    LOG.info("Session key: %s", session_key)
+    LOG.info("Entity size: %d", entity_size)
+    LOG.info("Initial offset: %s", initial_offset)
+    LOG.info("Chunk size: %s MB", service.chunk_size / (1024 * 1024))
 
     with open(parsed.filename, "rb") as fp:
         with tqdm.tqdm(
