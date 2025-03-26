@@ -120,6 +120,10 @@ class ZipImageSequence:
         sequence: T.Sequence[types.ImageMetadata],
         zip_fp: T.IO[bytes],
     ) -> str:
+        """
+        Write a sequence of ImageMetadata into the zipfile handle.
+        The sequence has to be one sequence and sorted.
+        """
         sequence_groups = types.group_and_sort_images(sequence)
         assert len(sequence_groups) == 1, (
             f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
