@@ -165,7 +165,7 @@ def test_upload_zip(
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
     sequence = [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
-    uploader.ZipFileSequence.zip_images(sequence, Path(zip_dir))
+    uploader.ZipImageSequence.zip_images(sequence, Path(zip_dir))
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
     descs = _validate_zip_dir(zip_dir)
     assert 3 == len(descs)

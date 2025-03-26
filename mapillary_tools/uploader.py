@@ -90,7 +90,7 @@ class EventEmitter:
             callback(*args, **kwargs)
 
 
-class ZipFileSequence:
+class ZipImageSequence:
     @classmethod
     def zip_images(
         cls, metadatas: T.Sequence[types.ImageMetadata], zip_dir: Path
@@ -111,11 +111,11 @@ class ZipFileSequence:
             zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
             with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
-                    actual_md5sum = cls._zip_sequence_fp(sequence, wip_fp)
+                    actual_md5sum = cls.zip_sequence_fp(sequence, wip_fp)
                     assert actual_md5sum == upload_md5sum
 
     @classmethod
-    def _zip_sequence_fp(
+    def zip_sequence_fp(
         cls,
         sequence: T.Sequence[types.ImageMetadata],
         zip_fp: T.IO[bytes],
@@ -135,6 +135,20 @@ class ZipFileSequence:
             zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
 
         return upload_md5sum
+
+    @classmethod
+    def extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str | None:
+        with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
+            comment = ziph.comment
+        if not comment:
+            return None
+        try:
+            upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
+        except Exception:
+            return None
+        if not upload_md5sum:
+            return None
+        return str(upload_md5sum)
 
     @classmethod
     def _uniq_arcname(cls, filename: Path, arcnames: set[str]):
@@ -171,20 +185,6 @@ class ZipFileSequence:
         zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
         zipf.writestr(zipinfo, image_bytes)
 
-    @classmethod
-    def _extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str | None:
-        with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
-            comment = ziph.comment
-        if not comment:
-            return None
-        try:
-            upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
-        except Exception:
-            return None
-        if not upload_md5sum:
-            return None
-        return str(upload_md5sum)
-
 
 class Uploader:
     def __init__(
@@ -220,7 +220,7 @@ class Uploader:
         }
 
         with zip_path.open("rb") as zip_fp:
-            upload_md5sum = ZipFileSequence._extract_upload_md5sum(zip_fp)
+            upload_md5sum = ZipImageSequence.extract_upload_md5sum(zip_fp)
 
         if upload_md5sum is None:
             with zip_path.open("rb") as zip_fp:
@@ -254,7 +254,7 @@ class Uploader:
                 "sequence_uuid": sequence_uuid,
             }
             with tempfile.NamedTemporaryFile() as fp:
-                upload_md5sum = ZipFileSequence._zip_sequence_fp(sequence, fp)
+                upload_md5sum = ZipImageSequence.zip_sequence_fp(sequence, fp)
                 cluster_id = self.upload_stream(
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
