@@ -24,7 +24,7 @@ _Double = C.Float64l
 
 TelemetryMeasurement = T.Union[
     geo.Point,
-    telemetry.TelemetryMeasurement,
+    telemetry.TimestampedMeasurement,
 ]
 
 
