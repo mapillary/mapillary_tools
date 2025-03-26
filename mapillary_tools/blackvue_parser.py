@@ -26,7 +26,11 @@ NMEA_LINE_REGEX = re.compile(
 
 
 def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
-    gps_data = sparser.parse_mp4_data_first(fp, [b"free", b"gps "])
+    try:
+        gps_data = sparser.parse_mp4_data_first(fp, [b"free", b"gps "])
+    except sparser.ParsingError:
+        gps_data = None
+
     if gps_data is None:
         return None
 
