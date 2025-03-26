@@ -25,31 +25,22 @@ NMEA_LINE_REGEX = re.compile(
 )
 
 
-def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
-    for line_bytes in gps_data.splitlines():
-        match = NMEA_LINE_REGEX.match(line_bytes)
-        if match is None:
-            continue
-        nmea_line_bytes = match.group(2)
-        if nmea_line_bytes.startswith(b"$GPGGA"):
-            try:
-                nmea_line = nmea_line_bytes.decode("utf8")
-            except UnicodeDecodeError:
-                continue
-            try:
-                nmea = pynmea2.parse(nmea_line)
-            except pynmea2.nmea.ParseError:
-                continue
-            if not nmea.is_valid:
-                continue
-            epoch_ms = int(match.group(1))
-            yield geo.Point(
-                time=epoch_ms,
-                lat=nmea.latitude,
-                lon=nmea.longitude,
-                alt=nmea.altitude,
-                angle=None,
-            )
+def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+    gps_data = sparser.parse_mp4_data_first(fp, [b"free", b"gps "])
+    if gps_data is None:
+        return None
+
+    points = list(_parse_gps_box(gps_data))
+    if not points:
+        return points
+
+    points.sort(key=lambda p: p.time)
+
+    first_point_time = points[0].time
+    for p in points:
+        p.time = (p.time - first_point_time) / 1000
+
+    return points
 
 
 def extract_camera_model(fp: T.BinaryIO) -> str:
@@ -89,19 +80,28 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
         return ""
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
-    gps_data = sparser.parse_mp4_data_first(fp, [b"free", b"gps "])
-    if gps_data is None:
-        return None
-
-    points = list(_parse_gps_box(gps_data))
-    if not points:
-        return points
-
-    points.sort(key=lambda p: p.time)
-
-    first_point_time = points[0].time
-    for p in points:
-        p.time = (p.time - first_point_time) / 1000
-
-    return points
+def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
+    for line_bytes in gps_data.splitlines():
+        match = NMEA_LINE_REGEX.match(line_bytes)
+        if match is None:
+            continue
+        nmea_line_bytes = match.group(2)
+        if nmea_line_bytes.startswith(b"$GPGGA"):
+            try:
+                nmea_line = nmea_line_bytes.decode("utf8")
+            except UnicodeDecodeError:
+                continue
+            try:
+                nmea = pynmea2.parse(nmea_line)
+            except pynmea2.nmea.ParseError:
+                continue
+            if not nmea.is_valid:
+                continue
+            epoch_ms = int(match.group(1))
+            yield geo.Point(
+                time=epoch_ms,
+                lat=nmea.latitude,
+                lon=nmea.longitude,
+                alt=nmea.altitude,
+                angle=None,
+            )
