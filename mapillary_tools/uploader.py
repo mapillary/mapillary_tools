@@ -1,4 +1,5 @@
-from collections.abc import Buffer
+from __future__ import annotations
+
 import io
 import json
 import logging
@@ -73,7 +74,7 @@ EventName = T.Literal[
 
 
 class EventEmitter:
-    events: T.Dict[EventName, T.List]
+    events: dict[EventName, T.List]
 
     def __init__(self):
         self.events = {}
@@ -128,14 +129,14 @@ class ZipFileSequence:
         )
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
-            arcnames: T.Set[str] = set()
+            arcnames: set[str] = set()
             for metadata in sequence:
                 cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
 
     @classmethod
-    def _uniq_arcname(cls, filename: Path, arcnames: T.Set[str]):
+    def _uniq_arcname(cls, filename: Path, arcnames: set[str]):
         arcname: str = filename.name
 
         # make sure the arcname is unique, otherwise zipfile.extractAll will eliminate duplicated ones
@@ -151,7 +152,7 @@ class ZipFileSequence:
         cls,
         zipf: zipfile.ZipFile,
         metadata: types.ImageMetadata,
-        arcnames: T.Optional[T.Set[str]] = None,
+        arcnames: set[str] | None = None,
     ):
         if arcnames is None:
             arcnames = set()
@@ -170,7 +171,7 @@ class ZipFileSequence:
         zipf.writestr(zipinfo, image_bytes)
 
     @classmethod
-    def _extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> T.Optional[str]:
+    def _extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str | None:
         with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
             comment = ziph.comment
         if not comment:
@@ -188,7 +189,7 @@ class Uploader:
     def __init__(
         self,
         user_items: types.UserItem,
-        emitter: T.Optional[EventEmitter] = None,
+        emitter: EventEmitter | None = None,
         chunk_size: int = upload_api_v4.DEFAULT_CHUNK_SIZE,
         dry_run=False,
     ):
@@ -201,8 +202,8 @@ class Uploader:
     def upload_zipfile(
         self,
         zip_path: Path,
-        event_payload: T.Optional[Progress] = None,
-    ) -> T.Optional[str]:
+        event_payload: Progress | None = None,
+    ) -> str | None:
         if event_payload is None:
             event_payload = {}
 
@@ -235,14 +236,14 @@ class Uploader:
     def upload_images(
         self,
         image_metadatas: T.Sequence[types.ImageMetadata],
-        event_payload: T.Optional[Progress] = None,
-    ) -> T.Dict[str, str]:
+        event_payload: Progress | None = None,
+    ) -> dict[str, str]:
         if event_payload is None:
             event_payload = {}
 
         _validate_metadatas(image_metadatas)
         sequences = types.group_and_sort_images(image_metadatas)
-        ret: T.Dict[str, str] = {}
+        ret: dict[str, str] = {}
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
             final_event_payload: Progress = {
                 **event_payload,  # type: ignore
@@ -271,15 +272,15 @@ class Uploader:
         fp: T.IO[bytes],
         cluster_filetype: upload_api_v4.ClusterFileType,
         upload_md5sum: str,
-        event_payload: T.Optional[Progress] = None,
-    ) -> T.Optional[str]:
+        event_payload: Progress | None = None,
+    ) -> str | None:
         if event_payload is None:
             event_payload = {}
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
-        SUFFIX_MAP: T.Dict[upload_api_v4.ClusterFileType, str] = {
+        SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
             upload_api_v4.ClusterFileType.ZIP: ".zip",
             upload_api_v4.ClusterFileType.CAMM: ".mp4",
             upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
@@ -396,8 +397,8 @@ def _setup_callback(emitter: EventEmitter, mutable_payload: Progress):
 def _upload_stream_with_retries(
     upload_service: upload_api_v4.UploadService,
     fp: T.IO[bytes],
-    event_payload: T.Optional[Progress] = None,
-    emitter: T.Optional[EventEmitter] = None,
+    event_payload: Progress | None = None,
+    emitter: EventEmitter | None = None,
 ) -> str:
     retries = 0
 
@@ -416,7 +417,7 @@ def _upload_stream_with_retries(
 
     while True:
         fp.seek(0, io.SEEK_SET)
-        begin_offset: T.Optional[int] = None
+        begin_offset: int | None = None
         try:
             begin_offset = upload_service.fetch_offset()
             upload_service.callbacks = [_reset_retries]
