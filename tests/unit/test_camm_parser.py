@@ -61,21 +61,17 @@ def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMe
     )
 
     # extract points
-    points = camm_parser.extract_points(T.cast(T.BinaryIO, target_fp))
+    camm_info = camm_parser.extract_camm_info(T.cast(T.BinaryIO, target_fp))
 
-    # extract make/model
-    target_fp.seek(0, io.SEEK_SET)
-    make, model = camm_parser.extract_camera_make_and_model(
-        T.cast(T.BinaryIO, target_fp)
-    )
+    assert camm_info is not None
 
     # return metadata
     return types.VideoMetadata(
         Path(""),
         filetype=types.FileType.CAMM,
-        points=points or [],
-        make=make,
-        model=model,
+        points=T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps),
+        make=camm_info.make,
+        model=camm_info.model,
     )
 
 
