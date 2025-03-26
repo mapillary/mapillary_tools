@@ -13,7 +13,7 @@ class GPSFix(Enum):
 
 
 @dataclasses.dataclass(order=True)
-class TelemetryMeasurement:
+class TimestampedMeasurement:
     """Base class for all telemetry measurements.
 
     All telemetry measurements must have a timestamp in seconds.
@@ -25,7 +25,7 @@ class TelemetryMeasurement:
 
 
 @dataclasses.dataclass
-class GPSPoint(TelemetryMeasurement, Point):
+class GPSPoint(TimestampedMeasurement, Point):
     epoch_time: T.Optional[float]
     fix: T.Optional[GPSFix]
     precision: T.Optional[float]
@@ -33,7 +33,7 @@ class GPSPoint(TelemetryMeasurement, Point):
 
 
 @dataclasses.dataclass
-class CAMMGPSPoint(TelemetryMeasurement, Point):
+class CAMMGPSPoint(TimestampedMeasurement, Point):
     time_gps_epoch: float
     gps_fix_type: int
     horizontal_accuracy: float
@@ -45,7 +45,7 @@ class CAMMGPSPoint(TelemetryMeasurement, Point):
 
 
 @dataclasses.dataclass(order=True)
-class GyroscopeData(TelemetryMeasurement):
+class GyroscopeData(TimestampedMeasurement):
     """Gyroscope signal in radians/seconds around XYZ axes of the camera."""
 
     x: float
@@ -54,7 +54,7 @@ class GyroscopeData(TelemetryMeasurement):
 
 
 @dataclasses.dataclass(order=True)
-class AccelerationData(TelemetryMeasurement):
+class AccelerationData(TimestampedMeasurement):
     """Accelerometer reading in meters/second^2 along XYZ axes of the camera."""
 
     x: float
@@ -63,7 +63,7 @@ class AccelerationData(TelemetryMeasurement):
 
 
 @dataclasses.dataclass(order=True)
-class MagnetometerData(TelemetryMeasurement):
+class MagnetometerData(TimestampedMeasurement):
     """Ambient magnetic field."""
 
     x: float
