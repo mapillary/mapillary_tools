@@ -48,23 +48,23 @@ class GoProVideoExtractor(GenericVideoExtractor):
 class CAMMVideoExtractor(GenericVideoExtractor):
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
-            info = camm_parser.extract_camm_info(fp)
+            camm_info = camm_parser.extract_camm_info(fp)
 
-        if info is None:
+        if camm_info is None:
             raise exceptions.MapillaryVideoGPSNotFoundError(
                 "No GPS data found from the video"
             )
 
-        if not info.gps or not info.mini_gps:
+        if not camm_info.gps and not camm_info.mini_gps:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         return types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=FileType.CAMM,
-            points=T.cast(T.List[geo.Point], info.gps or info.mini_gps),
-            make=info.make,
-            model=info.model,
+            points=T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps),
+            make=camm_info.make,
+            model=camm_info.model,
         )
 
 
