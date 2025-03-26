@@ -89,50 +89,7 @@ class EventEmitter:
             callback(*args, **kwargs)
 
 
-class MyBytesIO(io.BufferedIOBase):
-    def __init__(self) -> None:
-        self._tell = 0
-        self._buffer = io.BytesIO()
-
-    def write(self, data: bytes | Buffer) -> int:
-        n = self._buffer.write(data)
-        self._tell += n
-        return n
-
-    def pop(self) -> bytes:
-        data = self._buffer.getvalue()
-        self._buffer = io.BytesIO()
-        return data
-
-    def flush(self):
-        self._buffer = io.BytesIO()
-
-    def tell(self) -> int:
-        return self._tell
-
-
 class ZipFileSequence:
-    @classmethod
-    def generate_zip_chunks(
-        cls,
-        sequence: T.Sequence[types.ImageMetadata],
-        upload_md5sum: str,
-    ) -> T.Generator[bytes, None, None]:
-        _sequences = types.group_and_sort_images(sequence)
-        assert len(_sequences) == 1, (
-            f"Only one sequence is allowed but got {len(_sequences)}: {list(_sequences.keys())}"
-        )
-
-        zip_fp = MyBytesIO()
-        with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
-            arcnames: T.Set[str] = set()
-            for metadata in sequence:
-                cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
-                yield zip_fp.pop()
-            zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
-            yield zip_fp.pop()
-        yield zip_fp.pop()
-
     @classmethod
     def zip_images(
         cls, metadatas: T.Sequence[types.ImageMetadata], zip_dir: Path

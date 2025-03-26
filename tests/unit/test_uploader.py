@@ -186,62 +186,6 @@ def test_upload_zip(
     assert 3 == len(descs)
 
 
-def test_upload_zip_chunks(
-    setup_unittest_data: py.path.local,
-    setup_upload: py.path.local,
-    emitter=None,
-):
-    test_exif = setup_unittest_data.join("test_exif.jpg")
-    setup_unittest_data.join("another_directory").mkdir()
-    test_exif2 = setup_unittest_data.join("another_directory").join("test_exif.jpg")
-    test_exif.copy(test_exif2)
-
-    descs: T.List[types.DescriptionOrError] = [
-        {
-            "MAPLatitude": 58.5927694,
-            "MAPLongitude": 16.1840944,
-            "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(test_exif),
-            "md5sum": None,
-            "filetype": "image",
-            "MAPSequenceUUID": "sequence_1",
-        },
-        {
-            "MAPLatitude": 54.5927694,
-            "MAPLongitude": 16.1840944,
-            "MAPCaptureTime": "2021_02_13_13_24_41_140",
-            "filename": str(test_exif2),
-            "md5sum": None,
-            "filetype": "image",
-            "MAPSequenceUUID": "sequence_1",
-        },
-    ]
-    zip_dir = setup_unittest_data.mkdir("zip_dir")
-    sequence = [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
-    uploader.ZipFileSequence.zip_images(sequence, Path(zip_dir))
-    assert len(zip_dir.listdir()) == 1, list(zip_dir.listdir())
-    with zip_dir.listdir()[0].open("rb") as fp:
-        zip_data = fp.read()
-    descs = _validate_zip_dir(zip_dir)
-    assert 2 == len(descs)
-
-    upload_md5sum = types.sequence_md5sum(sequence)
-
-    chunks = uploader.ZipFileSequence.generate_zip_chunks(sequence, upload_md5sum)
-
-    zip_bytes = b""
-    for chunk in chunks:
-        # print("len(chunk)", len(chunk))
-        zip_bytes += chunk
-
-    # print("chunks", len(zip_bytes), len(zip_data))
-    # assert zip_bytes == zip_data
-    import zipfile
-    import io
-
-    x = zipfile.ZipFile(io.BytesIO(zip_data)).testzip()
-
-
 def test_upload_blackvue(
     tmpdir: py.path.local,
     setup_upload: py.path.local,
