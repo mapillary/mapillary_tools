@@ -28,7 +28,8 @@ USERNAME = "test_username_MAKE_SURE_IT_IS_UNIQUE_AND_LONG_AND_BORING"
 def setup_config(tmpdir: py.path.local):
     config_path = tmpdir.mkdir("configs").join("CLIENT_ID")
     os.environ["MAPILLARY_CONFIG_PATH"] = str(config_path)
-    os.environ["MAPILLARY_TOOLS__DISABLE_AUTH_VERIFICATION"] = "YES"
+    os.environ["MAPILLARY_TOOLS_PROMPT_DISABLED"] = "YES"
+    os.environ["MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED"] = "YES"
     x = subprocess.run(
         f"{EXECUTABLE} authenticate --user_name {USERNAME} --jwt test_user_token",
         shell=True,
@@ -38,7 +39,8 @@ def setup_config(tmpdir: py.path.local):
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
     os.environ.pop("MAPILLARY_CONFIG_PATH", None)
-    os.environ.pop("MAPILLARY_TOOLS__DISABLE_AUTH_VERIFICATION", None)
+    os.environ.pop("MAPILLARY_TOOLS_PROMPT_DISABLED", None)
+    os.environ.pop("MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED", None)
 
 
 @pytest.fixture
@@ -55,7 +57,8 @@ def setup_data(tmpdir: py.path.local):
 def setup_upload(tmpdir: py.path.local):
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
     os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
-    os.environ["MAPILLARY_TOOLS__DISABLE_AUTH_VERIFICATION"] = "YES"
+    os.environ["MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED"] = "YES"
+    os.environ["MAPILLARY_TOOLS_PROMPT_DISABLED"] = "YES"
     os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
     history_path = tmpdir.join("history")
     os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
@@ -64,7 +67,8 @@ def setup_upload(tmpdir: py.path.local):
         tmpdir.remove(ignore_errors=True)
     os.environ.pop("MAPILLARY_UPLOAD_PATH", None)
     os.environ.pop("MAPILLARY_UPLOAD_HISTORY_PATH", None)
-    os.environ.pop("MAPILLARY_TOOLS__DISABLE_AUTH_VERIFICATION", None)
+    os.environ.pop("MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED", None)
+    os.environ.pop("MAPILLARY_TOOLS_PROMPT_DISABLED", None)
     os.environ.pop("MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN", None)
 
 

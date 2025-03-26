@@ -5,6 +5,15 @@ import appdirs
 
 _ENV_PREFIX = "MAPILLARY_TOOLS_"
 
+
+def _yes_or_no(val: str) -> bool:
+    return val.strip().upper() in [
+        "1",
+        "TRUE",
+        "YES",
+    ]
+
+
 # In meters
 CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
 # In seconds
@@ -56,16 +65,8 @@ MAX_SEQUENCE_FILESIZE: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "1
 # Max number of pixels per sequence (sum of image pixels in the sequence)
 MAX_SEQUENCE_PIXELS: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
 
-PROMPT_DISABLED: bool = os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO").upper() in [
-    "1",
-    "TRUE",
-    "YES",
-]
+PROMPT_DISABLED: bool = _yes_or_no(os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO"))
 
-_DISABLE_AUTH_VERIFICATION = os.getenv(
-    _ENV_PREFIX + "_DISABLE_AUTH_VERIFICATION", "NO"
-).upper() in [
-    "1",
-    "TRUE",
-    "YES",
-]
+_AUTH_VERIFICATION_DISABLED: bool = _yes_or_no(
+    os.getenv(_ENV_PREFIX + "_AUTH_VERIFICATION_DISABLED", "NO")
+)

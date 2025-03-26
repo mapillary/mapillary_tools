@@ -168,7 +168,7 @@ def _verify_user_auth(user_items: types.UserItem) -> types.UserItem:
     """
     Verify that the user access token is valid
     """
-    if constants._DISABLE_AUTH_VERIFICATION:
+    if constants._AUTH_VERIFICATION_DISABLED:
         return user_items
 
     try:
@@ -351,11 +351,12 @@ def _welcome():
     _echo(
         """
 ================================================================================
-                            Welcome to Mapillary!
+                             Welcome to Mapillary!
 ================================================================================
-If you haven't registered yet, please visit the following link to sign up first:
-https://www.mapillary.com/signup
-After the registration, proceed here to sign in.
+  If you haven't registered yet, please visit https://www.mapillary.com/signup
+  to create your account first.
+
+  Once registered, proceed here to sign in.
 ================================================================================
-    """.strip()
+    """
     )
