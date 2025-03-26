@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import dataclasses
+
 import json
 import logging
 import re
@@ -25,7 +29,16 @@ NMEA_LINE_REGEX = re.compile(
 )
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+@dataclasses.dataclass
+class BlackVueInfo:
+    # None and [] are equivalent here. Use None as default because:
+    # ValueError: mutable default <class 'list'> for field gps is not allowed: use default_factory
+    gps: list[geo.Point] | None = None
+    make: str = "BlackVue"
+    model: str = ""
+
+
+def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
     try:
         gps_data = sparser.parse_mp4_data_first(fp, [b"free", b"gps "])
     except sparser.ParsingError:
@@ -35,16 +48,26 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
         return None
 
     points = list(_parse_gps_box(gps_data))
-    if not points:
-        return points
-
     points.sort(key=lambda p: p.time)
 
-    first_point_time = points[0].time
-    for p in points:
-        p.time = (p.time - first_point_time) / 1000
+    if points:
+        first_point_time = points[0].time
+        for p in points:
+            p.time = (p.time - first_point_time) / 1000
 
-    return points
+    # Camera model
+    try:
+        cprt_bytes = sparser.parse_mp4_data_first(fp, [b"free", b"cprt"])
+    except sparser.ParsingError:
+        cprt_bytes = None
+        model = ""
+
+    if cprt_bytes is None:
+        model = ""
+    else:
+        model = _extract_camera_model_from_cprt(cprt_bytes)
+
+    return BlackVueInfo(model=model, gps=points)
 
 
 def extract_camera_model(fp: T.BinaryIO) -> str:
@@ -56,6 +79,10 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
     if cprt_bytes is None:
         return ""
 
+    return _extract_camera_model_from_cprt(cprt_bytes)
+
+
+def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
     # examples: b' {"model":"DR900X Plus","ver":0.918,"lang":"English","direct":1,"psn":"","temp":34,"GPS":1}\x00'
     #           b' Pittasoft Co., Ltd.;DR900S-1CH;1.008;English;1;D90SS1HAE00661;T69;\x00'
     cprt_bytes = cprt_bytes.strip().strip(b"\x00")

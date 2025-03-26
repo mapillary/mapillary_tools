@@ -8,7 +8,7 @@ import typing as T
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import geo, utils, blackvue_parser
+from mapillary_tools import blackvue_parser, geo, utils
 
 
 def _convert_points_to_gpx_segment(
@@ -32,13 +32,13 @@ def _convert_to_track(path: pathlib.Path):
     track.name = str(path)
 
     with path.open("rb") as fp:
-        points = blackvue_parser.extract_points(fp)
+        blackvue_info = blackvue_parser.extract_blackvue_info(fp)
 
-    if points is None:
+    if blackvue_info is None:
         track.description = "Invalid BlackVue video"
         return track
 
-    segment = _convert_points_to_gpx_segment(points)
+    segment = _convert_points_to_gpx_segment(blackvue_info.gps or [])
     track.segments.append(segment)
     with path.open("rb") as fp:
         model = blackvue_parser.extract_camera_model(fp)

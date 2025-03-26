@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import typing as T
 from pathlib import Path
 
@@ -70,26 +69,23 @@ class CAMMVideoExtractor(GenericVideoExtractor):
 class BlackVueVideoExtractor(GenericVideoExtractor):
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
-            points = blackvue_parser.extract_points(fp)
+            blackvue_info = blackvue_parser.extract_blackvue_info(fp)
 
-            if points is None:
-                raise exceptions.MapillaryVideoGPSNotFoundError(
-                    "No GPS data found from the video"
-                )
+        if blackvue_info is None:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
 
-            if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-
-            fp.seek(0, io.SEEK_SET)
-            make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
+        if not blackvue_info.gps:
+            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=FileType.BLACKVUE,
-            points=points,
-            make=make,
-            model=model,
+            points=blackvue_info.gps or [],
+            make=blackvue_info.make,
+            model=blackvue_info.model,
         )
 
         return video_metadata
