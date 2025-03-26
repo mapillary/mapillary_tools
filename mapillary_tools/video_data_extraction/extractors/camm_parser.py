@@ -1,4 +1,5 @@
-import functools
+from __future__ import annotations
+
 import typing as T
 
 from ... import geo
@@ -12,27 +13,50 @@ class CammParser(BaseParser):
     must_rebase_times_to_zero = False
     parser_label = "camm"
 
-    @functools.cached_property
-    def _camera_info(self) -> T.Tuple[str, str]:
-        source_path = self.geotag_source_path
-        if not source_path:
-            return "", ""
+    _extracted: bool = False
+    _cached_camm_info: camm_parser.CAMMInfo | None = None
 
-        with source_path.open("rb") as fp:
-            return camm_parser.extract_camera_make_and_model(fp)
+    # TODO: use @functools.cached_property
+    def _extract_camm_info(self) -> camm_parser.CAMMInfo | None:
+        if self._extracted:
+            return self._cached_camm_info
 
-    def extract_points(self) -> T.Sequence[geo.Point]:
+        self._extracted = True
+
         source_path = self.geotag_source_path
-        if not source_path:
-            return []
+
+        if source_path is None:
+            # source_path not found
+            return None
+
         with source_path.open("rb") as fp:
             try:
-                return camm_parser.extract_points(fp) or []
+                self._cached_camm_info = camm_parser.extract_camm_info(fp)
             except sparser.ParsingError:
-                return []
+                self._cached_camm_info = None
 
-    def extract_make(self) -> T.Optional[str]:
-        return self._camera_info[0] or None
+        return self._cached_camm_info
 
-    def extract_model(self) -> T.Optional[str]:
-        return self._camera_info[1] or None
+    def extract_points(self) -> T.Sequence[geo.Point]:
+        camm_info = self._extract_camm_info()
+
+        if camm_info is None:
+            return []
+
+        return T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps)
+
+    def extract_make(self) -> str | None:
+        camm_info = self._extract_camm_info()
+
+        if camm_info is None:
+            return None
+
+        return camm_info.make
+
+    def extract_model(self) -> str | None:
+        camm_info = self._extract_camm_info()
+
+        if camm_info is None:
+            return None
+
+        return camm_info.model

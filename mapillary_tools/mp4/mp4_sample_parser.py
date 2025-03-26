@@ -291,6 +291,12 @@ class MovieBoxParser:
         mvhd = cparser.find_box_at_pathx(self.moov_children, [b"mvhd"])
         return T.cast(T.Dict, mvhd["data"])
 
+    def extract_udta_boxdata(self) -> T.Dict | None:
+        box = cparser.find_box_at_path(self.moov_children, [b"udta"])
+        if box is None:
+            return None
+        return T.cast(T.Dict, box["data"])
+
     def extract_tracks(self) -> T.Generator[TrackBoxParser, None, None]:
         for box in self.moov_children:
             if box["type"] == b"trak":

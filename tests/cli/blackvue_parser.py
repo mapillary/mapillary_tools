@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import pathlib
+import typing as T
 
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import blackvue_parser, geo, utils
-from mapillary_tools.geotag import utils as geotag_utils
+from mapillary_tools import geo, utils, blackvue_parser
+
+
+def _convert_points_to_gpx_segment(
+    points: T.Sequence[geo.Point],
+) -> gpxpy.gpx.GPXTrackSegment:
+    gpx_segment = gpxpy.gpx.GPXTrackSegment()
+    for point in points:
+        gpx_segment.points.append(
+            gpxpy.gpx.GPXTrackPoint(
+                point.lat,
+                point.lon,
+                elevation=point.alt,
+                time=datetime.datetime.fromtimestamp(point.time, datetime.timezone.utc),
+            )
+        )
+    return gpx_segment
 
 
 def _parse_gpx(path: pathlib.Path) -> list[geo.Point] | None:
@@ -22,7 +39,7 @@ def _convert_to_track(path: pathlib.Path):
     if points is None:
         raise RuntimeError(f"Invalid BlackVue video {path}")
 
-    segment = geotag_utils.convert_points_to_gpx_segment(points)
+    segment = _convert_points_to_gpx_segment(points)
     track.segments.append(segment)
     with path.open("rb") as fp:
         model = blackvue_parser.extract_camera_model(fp)
