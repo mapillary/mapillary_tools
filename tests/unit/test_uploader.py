@@ -30,6 +30,9 @@ def _validate_zip_dir(zip_dir: py.path.local):
     descs = []
     for zip_path in zip_dir.listdir():
         with zipfile.ZipFile(zip_path) as ziph:
+            filename = ziph.testzip()
+            assert filename is None, f"Corrupted zip {zip_path}: {filename}"
+
             upload_md5sum = json.loads(ziph.comment).get("upload_md5sum")
         assert str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip", (
             zip_path
@@ -161,9 +164,8 @@ def test_upload_zip(
         },
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
-    uploader.zip_images(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
-    )
+    sequence = [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
+    uploader.ZipImageSequence.zip_images(sequence, Path(zip_dir))
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
     descs = _validate_zip_dir(zip_dir)
     assert 3 == len(descs)
