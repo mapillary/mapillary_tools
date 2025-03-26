@@ -44,52 +44,89 @@ TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
 
 @dataclasses.dataclass
 class CAMMInfo:
+    # None indicates the data has been extracted,
+    # while [] indicates extracetd but no data point found
     mini_gps: list[geo.Point] | None = None
     gps: list[telemetry.CAMMGPSPoint] | None = None
+    accl: list[telemetry.AccelerationData] | None = None
+    gyro: list[telemetry.GyroscopeData] | None = None
+    magn: list[telemetry.MagnetometerData] | None = None
     make: str = ""
     model: str = ""
 
 
-def extract_camm_info(fp: T.BinaryIO) -> CAMMInfo | None:
+def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo | None:
     moov = MovieBoxParser.parse_stream(fp)
 
-    make, model = _extract_camera_make_and_model_from_utda_boxdata(
-        moov.extract_udta_boxdata()
-    )
+    make, model = "", ""
+    if not telemetry_only:
+        udta_boxdata = moov.extract_udta_boxdata()
+        if udta_boxdata is not None:
+            make, model = _extract_camera_make_and_model_from_utda_boxdata(udta_boxdata)
 
-    construct = _construct_with_selected_camm_types([CAMMType.MIN_GPS, CAMMType.GPS])
+    gps_only_construct = _construct_with_selected_camm_types(
+        [CAMMType.MIN_GPS, CAMMType.GPS]
+    )
+    # Optimization: skip parsing sample data smaller than 16 bytes
+    # because we are only interested in MIN_GPS and GPS which are larger than 16 bytes
+    MIN_GPS_SAMPLE_SIZE = 17
 
     for track in moov.extract_tracks():
         if _contains_camm_description(track):
-            maybe_measurements = (
-                # This optimization
-                _parse_telemetry_from_sample(fp, sample, construct)
-                if sample.raw_sample.size > 16
-                else None
-                for sample in track.extract_samples()
-                if _is_camm_description(sample.description)
-            )
-            measurements = [m for m in maybe_measurements if m is not None]
+            if telemetry_only:
+                maybe_measurements = (
+                    _parse_telemetry_from_sample(fp, sample)
+                    for sample in track.extract_samples()
+                    if _is_camm_description(sample.description)
+                )
+                measurements = _filter_telemetry_by_track_elst(
+                    moov, track, (m for m in maybe_measurements if m is not None)
+                )
 
-            measurements = _filter_telemetry_by_track_elst(moov, track, measurements)
+                accl: list[telemetry.AccelerationData] = []
+                gyro: list[telemetry.GyroscopeData] = []
+                magn: list[telemetry.MagnetometerData] = []
 
-            mini_gps: list[geo.Point] = []
-            gps: list[telemetry.CAMMGPSPoint] = []
+                for measurement in measurements:
+                    if isinstance(measurement, telemetry.AccelerationData):
+                        accl.append(measurement)
+                    elif isinstance(measurement, telemetry.GyroscopeData):
+                        gyro.append(measurement)
+                    elif isinstance(measurement, telemetry.MagnetometerData):
+                        magn.append(measurement)
 
-            for measurement in measurements:
-                if isinstance(measurement, geo.Point):
-                    mini_gps.append(measurement)
-                elif isinstance(measurement, telemetry.CAMMGPSPoint):
-                    gps.append(measurement)
+                return CAMMInfo(accl=accl, gyro=gyro, magn=magn)
+            else:
+                maybe_measurements = (
+                    _parse_telemetry_from_sample(fp, sample, gps_only_construct)
+                    for sample in track.extract_samples()
+                    if _is_camm_description(sample.description)
+                    and sample.raw_sample.size >= MIN_GPS_SAMPLE_SIZE
+                )
+                measurements = _filter_telemetry_by_track_elst(
+                    moov, track, (m for m in maybe_measurements if m is not None)
+                )
 
-            return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
+                mini_gps: list[geo.Point] = []
+                gps: list[telemetry.CAMMGPSPoint] = []
+
+                for measurement in measurements:
+                    if isinstance(measurement, geo.Point):
+                        mini_gps.append(measurement)
+                    elif isinstance(measurement, telemetry.CAMMGPSPoint):
+                        gps.append(measurement)
+
+                return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
 
     return None
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
     moov = MovieBoxParser.parse_stream(fp)
-    return _extract_camera_make_and_model_from_utda_boxdata(moov.extract_udta_boxdata())
+    udta_boxdata = moov.extract_udta_boxdata()
+    if udta_boxdata is None:
+        return "", ""
+    return _extract_camera_make_and_model_from_utda_boxdata(udta_boxdata)
 
 
 class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
