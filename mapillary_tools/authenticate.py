@@ -64,7 +64,7 @@ def authenticate(
 
         if jwt:
             user_items: types.UserItem = {"user_upload_token": jwt}
-            user_items = _authenticate_profile(_validate_profile(user_items))
+            user_items = _verify_user_auth(_validate_profile(user_items))
         else:
             user_items = _prompt_login(
                 user_email=user_email, user_password=user_password
@@ -128,7 +128,7 @@ def fetch_user_items(
 
     assert profile_name is not None, "profile_name should be set"
 
-    user_items = _authenticate_profile(_validate_profile(user_items))
+    user_items = _verify_user_auth(_validate_profile(user_items))
 
     LOG.info(
         'Uploading to profile "%s": %s', profile_name, api_v4._sanitize(user_items)
@@ -164,7 +164,13 @@ def _validate_profile(user_items: types.UserItem) -> types.UserItem:
     return user_items
 
 
-def _authenticate_profile(user_items: types.UserItem) -> types.UserItem:
+def _verify_user_auth(user_items: types.UserItem) -> types.UserItem:
+    """
+    Verify that the user access token is valid
+    """
+    if constants._DISABLE_AUTH_VERIFICATION:
+        return user_items
+
     try:
         resp = api_v4.fetch_user_or_me(
             user_access_token=user_items["user_upload_token"]

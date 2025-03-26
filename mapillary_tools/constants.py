@@ -61,3 +61,11 @@ PROMPT_DISABLED: bool = os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO").upper()
     "TRUE",
     "YES",
 ]
+
+_DISABLE_AUTH_VERIFICATION = os.getenv(
+    _ENV_PREFIX + "_DISABLE_AUTH_VERIFICATION", "NO"
+).upper() in [
+    "1",
+    "TRUE",
+    "YES",
+]
