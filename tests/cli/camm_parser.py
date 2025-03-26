@@ -2,24 +2,44 @@ import argparse
 import dataclasses
 import json
 import pathlib
+import datetime
+import typing as T
 
 import gpxpy
 import gpxpy.gpx
 
-from mapillary_tools import telemetry, utils
+from mapillary_tools import telemetry, utils, geo
 from mapillary_tools.camm import camm_parser
 from mapillary_tools.geotag import utils as geotag_utils
 
 
+def convert_points_to_gpx_segment(
+    points: T.Sequence[geo.Point],
+) -> gpxpy.gpx.GPXTrackSegment:
+    gpx_segment = gpxpy.gpx.GPXTrackSegment()
+    for point in points:
+        gpx_segment.points.append(
+            gpxpy.gpx.GPXTrackPoint(
+                point.lat,
+                point.lon,
+                elevation=point.alt,
+                time=datetime.datetime.fromtimestamp(point.time, datetime.timezone.utc),
+            )
+        )
+    return gpx_segment
+
+
 def _parse_gpx(path: pathlib.Path):
     with path.open("rb") as fp:
-        return camm_parser.extract_points(fp)
+        return camm_parser.extract_camm_info(fp)
 
 
 def _convert(path: pathlib.Path):
-    points = _parse_gpx(path)
-    if points is None:
+    info = _parse_gpx(path)
+    if info is None:
         raise RuntimeError(f"Invalid CAMM video {path}")
+
+    points = info.mini_gps or info.gps
 
     track = gpxpy.gpx.GPXTrack()
     track.name = path.name
@@ -50,13 +70,13 @@ def main():
 
         for path in video_paths:
             with path.open("rb") as fp:
-                telemetry_measurements = camm_parser.extract_telemetry_data(fp)
+                info = camm_parser.extract_camm_info(fp)
 
             accls = []
             gyros = []
             magns = []
-            if telemetry_measurements:
-                for m in telemetry_measurements:
+            if info:
+                for m in info:
                     if isinstance(m, telemetry.AccelerationData):
                         accls.append(m)
                     elif isinstance(m, telemetry.GyroscopeData):

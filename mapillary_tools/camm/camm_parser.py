@@ -12,7 +12,6 @@ import construct as C
 from typing_extensions import TypeIs
 
 from .. import geo, telemetry
-from ..mp4 import simple_mp4_parser as sparser
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 
@@ -43,37 +42,30 @@ class CAMMType(Enum):
 TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
 
 
-def extract_points(fp: T.BinaryIO) -> list[geo.Point] | None:
-    """
-    Return a list of points (could be empty) if it is a valid CAMM video,
-    otherwise None
-    """
+@dataclasses.dataclass
+class CAMMInfo:
+    mini_gps: list[geo.Point] | None = None
+    gps: list[telemetry.CAMMGPSPoint] | None = None
+    make: str = ""
+    model: str = ""
 
+
+def extract_camm_info(fp: T.BinaryIO) -> CAMMInfo | None:
     moov = MovieBoxParser.parse_stream(fp)
+
+    make, model = _extract_camera_make_and_model_from_utda_boxdata(
+        moov.extract_udta_boxdata()
+    )
+
+    construct = _construct_with_selected_camm_types([CAMMType.MIN_GPS, CAMMType.GPS])
 
     for track in moov.extract_tracks():
         if _contains_camm_description(track):
             maybe_measurements = (
-                _parse_telemetry_from_sample(fp, sample)
-                for sample in track.extract_samples()
-                if _is_camm_description(sample.description)
-            )
-            points = [m for m in maybe_measurements if isinstance(m, geo.Point)]
-
-            return T.cast(
-                list[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
-            )
-
-    return None
-
-
-def extract_telemetry_data(fp: T.BinaryIO) -> list[TelemetryMeasurement] | None:
-    moov = MovieBoxParser.parse_stream(fp)
-
-    for track in moov.extract_tracks():
-        if _contains_camm_description(track):
-            maybe_measurements = (
-                _parse_telemetry_from_sample(fp, sample)
+                # This optimization
+                _parse_telemetry_from_sample(fp, sample, construct)
+                if sample.raw_sample.size > 16
+                else None
                 for sample in track.extract_samples()
                 if _is_camm_description(sample.description)
             )
@@ -81,61 +73,23 @@ def extract_telemetry_data(fp: T.BinaryIO) -> list[TelemetryMeasurement] | None:
 
             measurements = _filter_telemetry_by_track_elst(moov, track, measurements)
 
-            return measurements
+            mini_gps: list[geo.Point] = []
+            gps: list[telemetry.CAMMGPSPoint] = []
+
+            for measurement in measurements:
+                if isinstance(measurement, geo.Point):
+                    mini_gps.append(measurement)
+                elif isinstance(measurement, telemetry.CAMMGPSPoint):
+                    gps.append(measurement)
+
+            return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
 
     return None
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
-    header_and_stream = sparser.parse_path(
-        fp,
-        [
-            b"moov",
-            b"udta",
-            [
-                # Insta360 Titan
-                b"\xa9mak",
-                b"\xa9mod",
-                # RICHO THETA V
-                b"@mod",
-                b"@mak",
-                # RICHO THETA V
-                b"manu",
-                b"modl",
-            ],
-        ],
-    )
-
-    make: str = ""
-    model: str = ""
-
-    try:
-        for h, s in header_and_stream:
-            data = s.read(h.maxsize)
-            if h.type == b"\xa9mak":
-                make_data = _parse_quietly(data, h)
-                make_data = make_data.rstrip(b"\x00")
-                make = _decode_quietly(make_data, h)
-            elif h.type == b"\xa9mod":
-                model_data = _parse_quietly(data, h)
-                model_data = model_data.rstrip(b"\x00")
-                model = _decode_quietly(model_data, h)
-            elif h.type in [b"@mak", b"manu"]:
-                make = _decode_quietly(data, h)
-            elif h.type in [b"@mod", b"modl"]:
-                model = _decode_quietly(data, h)
-            # quit when both found
-            if make and model:
-                break
-    except sparser.ParsingError:
-        pass
-
-    if make:
-        make = make.strip()
-    if model:
-        model = model.strip()
-
-    return make, model
+    moov = MovieBoxParser.parse_stream(fp)
+    return _extract_camera_make_and_model_from_utda_boxdata(moov.extract_udta_boxdata())
 
 
 class CAMMSampleEntry(abc.ABC, T.Generic[TTelemetry]):
@@ -383,35 +337,63 @@ assert len(SAMPLE_ENTRY_CLS_BY_CAMM_TYPE) == 5, SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.ke
 
 
 _SWITCH: T.Dict[int, C.Struct] = {
-    # angle_axis
+    # Angle_axis
     CAMMType.ANGLE_AXIS.value: _Float[3],  # type: ignore
+    # Exposure time
     CAMMType.EXPOSURE_TIME.value: C.Struct(
         "pixel_exposure_time" / C.Int32sl,  # type: ignore
         "rolling_shutter_skew_time" / C.Int32sl,  # type: ignore
     ),
-    # position
+    # Position
     CAMMType.POSITION.value: _Float[3],  # type: ignore
+    # Serializable types
     **{t.value: cls.construct for t, cls in SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.items()},
 }
 
-CAMMSampleData = C.Struct(
-    C.Padding(2),
-    "type" / C.Int16ul,
-    "data" / C.Switch(C.this.type, _SWITCH),
-)
+
+def _construct_with_selected_camm_types(
+    selected_camm_types: T.Container[CAMMType] | None = None,
+) -> C.Struct:
+    if selected_camm_types is None:
+        switch = _SWITCH
+    else:
+        switch = {
+            k: v for k, v in _SWITCH.items() if CAMMType(k) in selected_camm_types
+        }
+
+    return C.Struct(
+        C.Padding(2),
+        "type" / C.Int16ul,
+        "data" / C.Switch(C.this.type, switch),
+    )
+
+
+CAMMSampleData = _construct_with_selected_camm_types()
 
 
 def _parse_telemetry_from_sample(
-    fp: T.BinaryIO, sample: Sample
+    fp: T.BinaryIO,
+    sample: Sample,
+    construct: C.Struct | None = None,
 ) -> TelemetryMeasurement | None:
+    if construct is None:
+        construct = CAMMSampleData
+
     fp.seek(sample.raw_sample.offset, io.SEEK_SET)
     data = fp.read(sample.raw_sample.size)
-    box = CAMMSampleData.parse(data)
+
+    box = construct.parse(data)
+
+    # boxdata=None when the construct is unable to parse the data
+    # (CAMM type not in the switch)
+    if box.data is None:
+        return None
 
     camm_type = CAMMType(box.type)  # type: ignore
     SampleKlass = SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.get(camm_type)
     if SampleKlass is None:
         return None
+
     return SampleKlass.deserialize(sample, box.data)
 
 
@@ -506,22 +488,66 @@ _MakeOrModel = C.Struct(
 )
 
 
-def _decode_quietly(data: bytes, h: sparser.Header) -> str:
+def _decode_quietly(data: bytes, type: bytes) -> str:
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:
-        LOG.warning("Failed to decode %s: %s", h, data[:512])
+        LOG.warning("Failed to decode %s: %s", type, data[:512])
         return ""
 
 
-def _parse_quietly(data: bytes, h: sparser.Header) -> bytes:
+def _parse_quietly(data: bytes, type: bytes) -> bytes:
     try:
         parsed = _MakeOrModel.parse(data)
     except C.ConstructError:
-        LOG.warning("Failed to parse %s: %s", h, data[:512])
+        LOG.warning("Failed to parse %s: %s", type, data[:512])
         return b""
 
     if parsed is None:
         return b""
 
     return parsed["data"]
+
+
+def _extract_camera_make_and_model_from_utda_boxdata(
+    utda_boxdata: dict,
+) -> tuple[str, str]:
+    make: str = ""
+    model: str = ""
+
+    for box in utda_boxdata:
+        # Insta360 Titan
+        if box.type == b"\xa9mak":
+            if not make:
+                make_data = _parse_quietly(box.data, box.type)
+                make_data = make_data.rstrip(b"\x00")
+                make = _decode_quietly(make_data, box.type)
+
+        # Insta360 Titan
+        elif box.type == b"\xa9mod":
+            if not model:
+                model_data = _parse_quietly(box.data, box.type)
+                model_data = model_data.rstrip(b"\x00")
+                model = _decode_quietly(model_data, box.type)
+
+        # RICHO THETA V
+        elif box.type in [b"@mak", b"manu"]:
+            if not make:
+                make = _decode_quietly(box.data, box.type)
+
+        # RICHO THETA V
+        elif box.type in [b"@mod", b"modl"]:
+            if not model:
+                model = _decode_quietly(box.data, box.type)
+
+        # quit when both found
+        if make and model:
+            break
+
+    if make:
+        make = make.strip()
+
+    if model:
+        model = model.strip()
+
+    return make, model
