@@ -43,7 +43,7 @@ class CAMMType(Enum):
 TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
 
 
-def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
+def extract_points(fp: T.BinaryIO) -> list[geo.Point] | None:
     """
     Return a list of points (could be empty) if it is a valid CAMM video,
     otherwise None
@@ -61,13 +61,13 @@ def extract_points(fp: T.BinaryIO) -> T.Optional[T.List[geo.Point]]:
             points = [m for m in maybe_measurements if isinstance(m, geo.Point)]
 
             return T.cast(
-                T.List[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
+                list[geo.Point], _filter_telemetry_by_track_elst(moov, track, points)
             )
 
     return None
 
 
-def extract_telemetry_data(fp: T.BinaryIO) -> T.Optional[T.List[TelemetryMeasurement]]:
+def extract_telemetry_data(fp: T.BinaryIO) -> list[TelemetryMeasurement] | None:
     moov = MovieBoxParser.parse_stream(fp)
 
     for track in moov.extract_tracks():
@@ -403,7 +403,7 @@ CAMMSampleData = C.Struct(
 
 def _parse_telemetry_from_sample(
     fp: T.BinaryIO, sample: Sample
-) -> T.Optional[TelemetryMeasurement]:
+) -> TelemetryMeasurement | None:
     fp.seek(sample.raw_sample.offset, io.SEEK_SET)
     data = fp.read(sample.raw_sample.size)
     box = CAMMSampleData.parse(data)
@@ -471,7 +471,7 @@ def _filter_telemetry_by_track_elst(
     moov: MovieBoxParser,
     track: TrackBoxParser,
     measurements: T.Iterable[TelemetryMeasurement],
-) -> T.List[TelemetryMeasurement]:
+) -> list[TelemetryMeasurement]:
     elst_boxdata = track.extract_elst_boxdata()
 
     if elst_boxdata is not None:
