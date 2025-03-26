@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import getpass
 import json
 import logging
@@ -15,17 +17,17 @@ LOG = logging.getLogger(__name__)
 
 
 def authenticate(
-    user_name: T.Optional[str] = None,
-    user_email: T.Optional[str] = None,
-    user_password: T.Optional[str] = None,
-    jwt: T.Optional[str] = None,
+    user_name: str | None = None,
+    user_email: str | None = None,
+    user_password: str | None = None,
+    jwt: str | None = None,
     delete: bool = False,
 ):
     """
     Prompt for authentication information and save it to the config file
     """
 
-    # we still have to accept --user_name for the back compatibility
+    # We still have to accept --user_name for the back compatibility
     profile_name = user_name
 
     all_user_items = config.list_all_users()
@@ -49,10 +51,6 @@ def authenticate(
     assert profile_name is not None, "profile_name should be set"
 
     if delete:
-        if profile_name not in all_user_items:
-            raise exceptions.MapillaryBadParameterError(
-                f'Profile "{profile_name}" not found'
-            )
         config.remove_config(profile_name)
         LOG.info('Profile "%s" deleted', profile_name)
     else:
@@ -66,12 +64,12 @@ def authenticate(
 
         if jwt:
             user_items: types.UserItem = {"user_upload_token": jwt}
+            user_items = _authenticate_profile(_validate_profile(user_items))
         else:
             user_items = _prompt_login(
                 user_email=user_email, user_password=user_password
             )
-
-        user_items = _validate_and_update_profile(profile_name, user_items)
+            _validate_profile(user_items)
 
         # Update the config with the new user items
         config.update_config(profile_name, user_items)
@@ -88,8 +86,8 @@ def authenticate(
 
 
 def fetch_user_items(
-    user_name: T.Optional[str] = None,
-    organization_key: T.Optional[str] = None,
+    user_name: str | None = None,
+    organization_key: str | None = None,
 ) -> types.UserItem:
     """
     Read user information from the config file,
@@ -130,7 +128,8 @@ def fetch_user_items(
 
     assert profile_name is not None, "profile_name should be set"
 
-    user_items = _validate_and_update_profile(profile_name, user_items)
+    user_items = _authenticate_profile(_validate_profile(user_items))
+
     LOG.info(
         'Uploading to profile "%s": %s', profile_name, api_v4._sanitize(user_items)
     )
@@ -155,16 +154,17 @@ def _prompt(message: str) -> str:
     return input()
 
 
-def _validate_and_update_profile(
-    profile_name: str, user_items: types.UserItem
-) -> types.UserItem:
+def _validate_profile(user_items: types.UserItem) -> types.UserItem:
     try:
         jsonschema.validate(user_items, types.UserItemSchema)
     except jsonschema.ValidationError as ex:
         raise exceptions.MapillaryBadParameterError(
-            f'Invalid profile "{profile_name}": {ex.message}'
+            f"Invalid profile format: {ex.message}"
         )
+    return user_items
 
+
+def _authenticate_profile(user_items: types.UserItem) -> types.UserItem:
     try:
         resp = api_v4.fetch_user_or_me(
             user_access_token=user_items["user_upload_token"]
@@ -198,7 +198,7 @@ def _validate_profile_name(profile_name: str):
         )
 
 
-def _list_all_profiles(profiles: T.Dict[str, types.UserItem]) -> None:
+def _list_all_profiles(profiles: dict[str, types.UserItem]) -> None:
     _echo("Existing Mapillary profiles:")
 
     # Header
@@ -247,8 +247,8 @@ def _is_login_retryable(ex: requests.HTTPError) -> bool:
 
 
 def _prompt_login(
-    user_email: T.Optional[str] = None,
-    user_password: T.Optional[str] = None,
+    user_email: str | None = None,
+    user_password: str | None = None,
 ) -> types.UserItem:
     _enabled = _prompt_enabled()
 
