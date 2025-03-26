@@ -23,18 +23,21 @@ def authenticate(
     # we still have to accept --user_name for the back compatibility
     profile_name = user_name
 
-    if profile_name:
-        profile_name = profile_name.strip()
-
     all_user_items = config.list_all_users()
     if all_user_items:
         _list_all_profiles(all_user_items)
     else:
         _welcome()
 
-    if not profile_name:
+    # Make sure profile name either validated or existed
+    if profile_name:
+        profile_name = profile_name.strip()
+    else:
+        if not _prompt_enabled():
+            raise exceptions.MapillaryBadParameterError(
+                "Profile name is required, please specify one with --user_name"
+            )
         profile_name = _prompt_profile_name(skip_validation=True)
-
     if profile_name in all_user_items:
         LOG.warning(
             'The profile "%s" already exists and will be overridden',
@@ -66,8 +69,39 @@ def authenticate(
 
         profile_name, user_items = _prompt_user_for_user_items(profile_name)
 
+    _test_auth_and_update_user(user_items)
+
     LOG.info('Authenticated as "%s"', profile_name)
     config.update_config(profile_name, user_items)
+
+
+def _test_auth_and_update_user(
+    user_items: types.UserItem,
+) -> T.Optional[T.Dict[str, str]]:
+    try:
+        resp = api_v4.fetch_user_or_me(
+            user_access_token=user_items["user_upload_token"]
+        )
+    except requests.HTTPError as ex:
+        if api_v4.is_auth_error(ex.response):
+            message = api_v4.extract_auth_error_message(ex.response)
+            raise exceptions.MapillaryUploadUnauthorizedError(message)
+        else:
+            # The point of this function is to test if the auth works, so we don't throw any non-auth errors
+            LOG.warning("Error testing the auth: %s", api_v4.readable_http_error(ex))
+            return None
+
+    user_json = resp.json()
+    if user_json is not None:
+        username = user_json.get("username")
+        if username is not None:
+            user_items["MAPSettingsUsername"] = username
+
+        user_id = user_json.get("id")
+        if user_id is not None:
+            user_items["MAPSettingsUserKey"] = user_id
+
+    return user_json
 
 
 def fetch_user_items(
@@ -94,15 +128,19 @@ def fetch_user_items(
     else:
         user_items = _load_or_authenticate_user(profile_name)
 
+    user_json = _test_auth_and_update_user(user_items)
+    if user_json is not None:
+        LOG.info("Uploading to Mapillary user: %s", json.dumps(user_json))
+
     if organization_key is not None:
         resp = api_v4.fetch_organization(
             user_items["user_upload_token"], organization_key
         )
-        org = resp.json()
-        LOG.info("Uploading to organization: %s", json.dumps(org))
+        LOG.info("Uploading to Mapillary organization: %s", json.dumps(resp.json()))
         user_items = T.cast(
             types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
         )
+
     return user_items
 
 
@@ -268,6 +306,8 @@ def _load_or_authenticate_user(profile_name: T.Optional[str] = None) -> types.Us
 
     profile_name, user_items = _prompt_user_for_user_items(profile_name)
     jsonschema.validate(user_items, types.UserItemSchema)
+
+    _test_auth_and_update_user(user_items)
 
     # Update the config with the new user items
     LOG.info('Authenticated as "%s"', profile_name)

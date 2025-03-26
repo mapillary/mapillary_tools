@@ -611,16 +611,10 @@ def upload(
         if isinstance(inner_ex, requests.HTTPError) and isinstance(
             inner_ex.response, requests.Response
         ):
-            if inner_ex.response.status_code in [400, 401]:
-                try:
-                    error_body = inner_ex.response.json()
-                except Exception:
-                    error_body = {}
-                debug_info = error_body.get("debug_info", {})
-                if debug_info.get("type") in ["NotAuthorizedError"]:
-                    raise exceptions.MapillaryUploadUnauthorizedError(
-                        debug_info.get("message")
-                    ) from inner_ex
+            if api_v4.is_auth_error(inner_ex.response):
+                raise exceptions.MapillaryUploadUnauthorizedError(
+                    api_v4.extract_auth_error_message(inner_ex.response)
+                ) from inner_ex
             raise inner_ex
 
         raise inner_ex
