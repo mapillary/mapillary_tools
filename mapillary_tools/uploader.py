@@ -101,32 +101,31 @@ class ZipFileSequence:
         _validate_metadatas(metadatas)
         sequences = types.group_and_sort_images(metadatas)
         os.makedirs(zip_dir, exist_ok=True)
-        for sequence_uuid, sequence in sequences.items():
-            # md5sum
-            for metadata in sequence:
-                metadata.update_md5sum()
-            upload_md5sum = types.sequence_md5sum(sequence)
 
+        for sequence_uuid, sequence in sequences.items():
             # For atomicity we write into a WIP file and then rename to the final file
             wip_zip_filename = zip_dir.joinpath(
                 f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{int(time.time())}"
             )
+            upload_md5sum = types.update_sequence_md5sum(sequence)
             zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
             with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
-                    cls.zip_sequence_fp(sequence, wip_fp, upload_md5sum)
+                    actual_md5sum = cls._zip_sequence_fp(sequence, wip_fp)
+                    assert actual_md5sum == upload_md5sum
 
     @classmethod
-    def zip_sequence_fp(
+    def _zip_sequence_fp(
         cls,
         sequence: T.Sequence[types.ImageMetadata],
         zip_fp: T.IO[bytes],
-        upload_md5sum: str,
-    ) -> None:
-        _sequences = types.group_and_sort_images(sequence)
-        assert len(_sequences) == 1, (
-            f"Only one sequence is allowed but got {len(_sequences)}: {list(_sequences.keys())}"
+    ) -> str:
+        sequence_groups = types.group_and_sort_images(sequence)
+        assert len(sequence_groups) == 1, (
+            f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
         )
+
+        upload_md5sum = types.update_sequence_md5sum(sequence)
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
             arcnames: set[str] = set()
@@ -134,6 +133,8 @@ class ZipFileSequence:
                 cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
+
+        return upload_md5sum
 
     @classmethod
     def _uniq_arcname(cls, filename: Path, arcnames: set[str]):
@@ -252,11 +253,8 @@ class Uploader:
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
             }
-            for metadata in sequence:
-                metadata.update_md5sum()
-            upload_md5sum = types.sequence_md5sum(sequence)
             with tempfile.NamedTemporaryFile() as fp:
-                ZipFileSequence.zip_sequence_fp(sequence, fp, upload_md5sum)
+                upload_md5sum = ZipFileSequence._zip_sequence_fp(sequence, fp)
                 cluster_id = self.upload_stream(
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,

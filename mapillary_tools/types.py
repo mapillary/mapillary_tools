@@ -729,9 +729,10 @@ def group_and_sort_images(
     return sorted_sequences_by_uuid
 
 
-def sequence_md5sum(sequence: T.Iterable[ImageMetadata]) -> str:
+def update_sequence_md5sum(sequence: T.Iterable[ImageMetadata]) -> str:
     md5 = hashlib.md5()
     for metadata in sequence:
+        metadata.update_md5sum()
         assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
         md5.update(metadata.md5sum.encode("utf-8"))
     return md5.hexdigest()
