@@ -12,8 +12,6 @@ from tqdm import tqdm
 
 from . import (
     api_v4,
-    authenticate,
-    config,
     constants,
     exceptions,
     history,
@@ -137,36 +135,6 @@ def zip_images(
     ]
 
     uploader.ZipImageSequence.zip_images(image_metadatas, zip_dir)
-
-
-def fetch_user_items(
-    user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
-) -> types.UserItem:
-    if user_name is None:
-        all_user_items = config.list_all_users()
-        if not all_user_items:
-            raise exceptions.MapillaryBadParameterError(
-                "No Mapillary account found. Add one with --user_name"
-            )
-        if len(all_user_items) == 1:
-            user_items = all_user_items[0]
-        else:
-            raise exceptions.MapillaryBadParameterError(
-                "Found multiple Mapillary accounts. Please specify one with --user_name"
-            )
-    else:
-        user_items = authenticate.authenticate_user(user_name)
-
-    if organization_key is not None:
-        resp = api_v4.fetch_organization(
-            user_items["user_upload_token"], organization_key
-        )
-        org = resp.json()
-        LOG.info("Uploading to organization: %s", json.dumps(org))
-        user_items = T.cast(
-            types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
-        )
-    return user_items
 
 
 def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
@@ -476,12 +444,94 @@ def _find_metadata_with_filename_existed_in(
     return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
 
 
+def _upload_everything(
+    mly_uploader: uploader.Uploader,
+    import_paths: T.Sequence[Path],
+    metadatas: T.Sequence[types.Metadata],
+    skip_subfolders: bool,
+):
+    # upload images
+    image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
+    # find descs that match the image paths from the import paths
+    image_metadatas = [
+        metadata
+        for metadata in (metadatas or [])
+        if isinstance(metadata, types.ImageMetadata)
+    ]
+    specified_image_metadatas = _find_metadata_with_filename_existed_in(
+        image_metadatas, image_paths
+    )
+    if specified_image_metadatas:
+        try:
+            clusters = mly_uploader.upload_images(
+                specified_image_metadatas,
+                event_payload={"file_type": FileType.IMAGE.value},
+            )
+        except Exception as ex:
+            raise UploadError(ex) from ex
+
+        if clusters:
+            LOG.debug("Uploaded to cluster: %s", clusters)
+
+    # upload videos
+    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
+    video_metadatas = [
+        metadata
+        for metadata in (metadatas or [])
+        if isinstance(metadata, types.VideoMetadata)
+    ]
+    specified_video_metadatas = _find_metadata_with_filename_existed_in(
+        video_metadatas, video_paths
+    )
+    for idx, video_metadata in enumerate(specified_video_metadatas):
+        video_metadata.update_md5sum()
+        assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
+
+        # extract telemetry measurements from GoPro videos
+        telemetry_measurements: T.List[camm_parser.TelemetryMeasurement] = []
+        if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
+            if video_metadata.filetype is FileType.GOPRO:
+                with video_metadata.filename.open("rb") as fp:
+                    gopro_info = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
+                if gopro_info is not None:
+                    telemetry_measurements.extend(gopro_info.accl or [])
+                    telemetry_measurements.extend(gopro_info.gyro or [])
+                    telemetry_measurements.extend(gopro_info.magn or [])
+                telemetry_measurements.sort(key=lambda m: m.time)
+
+        generator = camm_builder.camm_sample_generator2(
+            video_metadata, telemetry_measurements=telemetry_measurements
+        )
+
+        with video_metadata.filename.open("rb") as src_fp:
+            camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
+            event_payload: uploader.Progress = {
+                "total_sequence_count": len(specified_video_metadatas),
+                "sequence_idx": idx,
+                "file_type": video_metadata.filetype.value,
+                "import_path": str(video_metadata.filename),
+            }
+            try:
+                cluster_id = mly_uploader.upload_stream(
+                    T.cast(T.BinaryIO, camm_fp),
+                    upload_api_v4.ClusterFileType.CAMM,
+                    video_metadata.md5sum,
+                    event_payload=event_payload,
+                )
+            except Exception as ex:
+                raise UploadError(ex) from ex
+            LOG.debug("Uploaded to cluster: %s", cluster_id)
+
+    # upload zip files
+    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+    _upload_zipfiles(mly_uploader, zip_paths)
+
+
 def upload(
     import_path: T.Union[Path, T.Sequence[Path]],
+    user_items: types.UserItem,
     desc_path: T.Optional[str] = None,
     _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]] = None,
-    user_name: T.Optional[str] = None,
-    organization_key: T.Optional[str] = None,
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
@@ -504,8 +554,6 @@ def upload(
             )
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
-
-    user_items = fetch_user_items(user_name, organization_key)
 
     # Setup the emitter -- the order matters here
 
@@ -547,81 +595,7 @@ def upload(
     )
 
     try:
-        image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-        # find descs that match the image paths from the import paths
-        image_metadatas = [
-            metadata
-            for metadata in (metadatas or [])
-            if isinstance(metadata, types.ImageMetadata)
-        ]
-        specified_image_metadatas = _find_metadata_with_filename_existed_in(
-            image_metadatas, image_paths
-        )
-        if specified_image_metadatas:
-            try:
-                clusters = mly_uploader.upload_images(
-                    specified_image_metadatas,
-                    event_payload={"file_type": FileType.IMAGE.value},
-                )
-            except Exception as ex:
-                raise UploadError(ex) from ex
-
-            if clusters:
-                LOG.debug("Uploaded to cluster: %s", clusters)
-
-        video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-        video_metadatas = [
-            metadata
-            for metadata in (metadatas or [])
-            if isinstance(metadata, types.VideoMetadata)
-        ]
-        specified_video_metadatas = _find_metadata_with_filename_existed_in(
-            video_metadatas, video_paths
-        )
-        for idx, video_metadata in enumerate(specified_video_metadatas):
-            video_metadata.update_md5sum()
-            assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
-
-            # extract telemetry measurements from GoPro videos
-            telemetry_measurements: T.List[camm_parser.TelemetryMeasurement] = []
-            if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
-                if video_metadata.filetype is FileType.GOPRO:
-                    with video_metadata.filename.open("rb") as fp:
-                        gopro_info = gpmf_parser.extract_gopro_info(
-                            fp, telemetry_only=True
-                        )
-                    if gopro_info is not None:
-                        telemetry_measurements.extend(gopro_info.accl or [])
-                        telemetry_measurements.extend(gopro_info.gyro or [])
-                        telemetry_measurements.extend(gopro_info.magn or [])
-                    telemetry_measurements.sort(key=lambda m: m.time)
-
-            generator = camm_builder.camm_sample_generator2(
-                video_metadata, telemetry_measurements=telemetry_measurements
-            )
-
-            with video_metadata.filename.open("rb") as src_fp:
-                camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-                event_payload: uploader.Progress = {
-                    "total_sequence_count": len(specified_video_metadatas),
-                    "sequence_idx": idx,
-                    "file_type": video_metadata.filetype.value,
-                    "import_path": str(video_metadata.filename),
-                }
-                try:
-                    cluster_id = mly_uploader.upload_stream(
-                        T.cast(T.BinaryIO, camm_fp),
-                        upload_api_v4.ClusterFileType.CAMM,
-                        video_metadata.md5sum,
-                        event_payload=event_payload,
-                    )
-                except Exception as ex:
-                    raise UploadError(ex) from ex
-                LOG.debug("Uploaded to cluster: %s", cluster_id)
-
-        zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-        _upload_zipfiles(mly_uploader, zip_paths)
-
+        _upload_everything(mly_uploader, import_paths, metadatas, skip_subfolders)
     except UploadError as ex:
         inner_ex = ex.inner_ex
 

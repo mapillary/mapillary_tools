@@ -1,11 +1,12 @@
 import getpass
+import json
 import logging
 import typing as T
 
 import jsonschema
 import requests
 
-from . import api_v4, config, types
+from . import api_v4, config, exceptions, types
 
 
 LOG = logging.getLogger(__name__)
@@ -99,4 +100,34 @@ def authenticate_user(user_name: str) -> types.UserItem:
     jsonschema.validate(user_items, types.UserItemSchema)
     config.update_config(user_name, user_items)
 
+    return user_items
+
+
+def fetch_user_items(
+    user_name: T.Optional[str] = None, organization_key: T.Optional[str] = None
+) -> types.UserItem:
+    if user_name is None:
+        all_user_items = config.list_all_users()
+        if not all_user_items:
+            raise exceptions.MapillaryBadParameterError(
+                "No Mapillary account found. Add one with --user_name"
+            )
+        if len(all_user_items) == 1:
+            user_items = all_user_items[0]
+        else:
+            raise exceptions.MapillaryBadParameterError(
+                "Found multiple Mapillary accounts. Please specify one with --user_name"
+            )
+    else:
+        user_items = authenticate_user(user_name)
+
+    if organization_key is not None:
+        resp = api_v4.fetch_organization(
+            user_items["user_upload_token"], organization_key
+        )
+        org = resp.json()
+        LOG.info("Uploading to organization: %s", json.dumps(org))
+        user_items = T.cast(
+            types.UserItem, {**user_items, "MAPOrganizationKey": organization_key}
+        )
     return user_items
