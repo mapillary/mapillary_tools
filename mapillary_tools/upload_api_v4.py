@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 import io
 import os
@@ -36,12 +38,12 @@ class ClusterFileType(enum.Enum):
 class UploadService:
     user_access_token: str
     session_key: str
-    callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
+    callbacks: list[T.Callable[[bytes, requests.Response | None], None]]
     cluster_filetype: ClusterFileType
-    organization_id: T.Optional[T.Union[str, int]]
+    organization_id: str | int | None
     chunk_size: int
 
-    MIME_BY_CLUSTER_TYPE: T.Dict[ClusterFileType, str] = {
+    MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
         ClusterFileType.ZIP: "application/zip",
         ClusterFileType.BLACKVUE: "video/mp4",
         ClusterFileType.CAMM: "video/mp4",
@@ -51,7 +53,7 @@ class UploadService:
         self,
         user_access_token: str,
         session_key: str,
-        organization_id: T.Optional[T.Union[str, int]] = None,
+        organization_id: str | int | None = None,
         cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
     ):
@@ -83,7 +85,7 @@ class UploadService:
     def upload(
         self,
         data: T.IO[bytes],
-        offset: T.Optional[int] = None,
+        offset: int | None = None,
     ) -> str:
         chunks = self._chunkize_byte_stream(data)
         return self.upload_chunks(chunks, offset=offset)
@@ -123,7 +125,7 @@ class UploadService:
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
-        offset: T.Optional[int] = None,
+        offset: int | None = None,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
@@ -158,7 +160,7 @@ class UploadService:
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
         }
-        data: T.Dict[str, T.Union[str, int]] = {
+        data: dict[str, str | int] = {
             "file_handle": file_handle,
             "file_type": self.cluster_filetype.value,
         }
@@ -199,7 +201,7 @@ class FakeUploadService(UploadService):
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
-        offset: T.Optional[int] = None,
+        offset: int | None = None,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
