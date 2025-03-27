@@ -518,7 +518,7 @@ def _upload_everything(
                     T.cast(T.BinaryIO, camm_fp),
                     upload_api_v4.ClusterFileType.CAMM,
                     video_metadata.md5sum,
-                    progress=T.cast(dict[str, T.Any], progress),
+                    progress=T.cast(T.Dict[str, T.Any], progress),
                 )
             except Exception as ex:
                 raise UploadError(ex) from ex

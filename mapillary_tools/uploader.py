@@ -268,7 +268,7 @@ class ZipImageSequence:
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
                     upload_md5sum,
-                    progress=T.cast(dict[str, T.Any], final_progress),
+                    progress=T.cast(T.Dict[str, T.Any], final_progress),
                 )
             if cluster_id is not None:
                 ret[sequence_uuid] = cluster_id
