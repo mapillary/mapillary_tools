@@ -64,8 +64,9 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
             "filetype": "image",
         },
     ]
-    resp = mly_uploader.upload_images(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
+    resp = uploader.ZipImageSequence.prepare_images_and_upload(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+        mly_uploader,
     )
     assert len(resp) == 1
     assert len(setup_upload.listdir()) == 1
@@ -115,8 +116,9 @@ def test_upload_images_multiple_sequences(
         },
         dry_run=True,
     )
-    resp = mly_uploader.upload_images(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
+    resp = uploader.ZipImageSequence.prepare_images_and_upload(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+        mly_uploader,
     )
     assert len(resp) == 2
     assert len(setup_upload.listdir()) == 2
@@ -180,8 +182,10 @@ def test_upload_zip(
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
-        resp = mly_uploader.upload_zipfile(Path(zip_path))
-        assert resp == "0"
+        cluster = uploader.ZipImageSequence.prepare_zipfile_and_upload(
+            Path(zip_path), mly_uploader
+        )
+        assert cluster == "0"
     descs = _validate_zip_dir(setup_upload)
     assert 3 == len(descs)
 
@@ -205,11 +209,11 @@ def test_upload_blackvue(
         resp = mly_uploader.upload_stream(
             fp,
             upload_api_v4.ClusterFileType.BLACKVUE,
-            "this_is_a_blackvue_checksum",
+            "this_is_a_blackvue.mp4",
         )
     assert resp == "0"
     for mp4_path in setup_upload.listdir():
-        assert os.path.basename(mp4_path) == "mly_tools_this_is_a_blackvue_checksum.mp4"
+        assert os.path.basename(mp4_path) == "this_is_a_blackvue.mp4"
         with open(mp4_path, "rb") as fp:
             assert fp.read() == b"this is a fake video"
 

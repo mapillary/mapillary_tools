@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import enum
 import logging
 import os
 import ssl
@@ -16,6 +19,12 @@ MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
 )
 REQUESTS_TIMEOUT = 60  # 1 minutes
 USE_SYSTEM_CERTS: bool = False
+
+
+class ClusterFileType(enum.Enum):
+    ZIP = "zip"
+    BLACKVUE = "mly_blackvue_video"
+    CAMM = "mly_camm_video"
 
 
 class HTTPSystemCertsAdapter(HTTPAdapter):
@@ -93,9 +102,9 @@ def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
 def _log_debug_request(
     method: str,
     url: str,
-    json: T.Optional[T.Dict] = None,
-    params: T.Optional[T.Dict] = None,
-    headers: T.Optional[T.Dict] = None,
+    json: dict | None = None,
+    params: dict | None = None,
+    headers: dict | None = None,
     timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
@@ -150,8 +159,8 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
 def request_post(
     url: str,
-    data: T.Optional[T.Any] = None,
-    json: T.Optional[dict] = None,
+    data: T.Any | None = None,
+    json: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -190,7 +199,7 @@ def request_post(
 
 def request_get(
     url: str,
-    params: T.Optional[dict] = None,
+    params: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -293,7 +302,7 @@ def fetch_organization(
 
 def fetch_user_or_me(
     user_access_token: str,
-    user_id: T.Optional[T.Union[int, str]] = None,
+    user_id: int | str | None = None,
 ) -> requests.Response:
     if user_id is None:
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/me"
@@ -333,4 +342,31 @@ def log_event(action_type: ActionType, properties: T.Dict) -> requests.Response:
         timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
+    return resp
+
+
+def finish_upload(
+    user_access_token: str,
+    file_handle: str,
+    cluster_filetype: ClusterFileType,
+    organization_id: int | str | None = None,
+) -> requests.Response:
+    data: dict[str, str | int] = {
+        "file_handle": file_handle,
+        "file_type": cluster_filetype.value,
+    }
+    if organization_id is not None:
+        data["organization_id"] = organization_id
+
+    resp = request_post(
+        f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+        headers={
+            "Authorization": f"OAuth {user_access_token}",
+        },
+        json=data,
+        timeout=REQUESTS_TIMEOUT,
+    )
+
+    resp.raise_for_status()
+
     return resp
