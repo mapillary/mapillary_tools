@@ -40,15 +40,15 @@ class UploaderProgress(T.TypedDict, total=True):
     # An "upload_interrupted" will increase it. Reset to 0 if the chunk is uploaded
     retries: int
 
-    # md5sum of the zipfile/BlackVue/CAMM in uploading
-    md5sum: str
-
     # Cluster ID after finishing the upload
     cluster_id: str
 
 
 class SequenceProgress(T.TypedDict, total=False):
     """Progress data at sequence level"""
+
+    # md5sum of the zipfile/BlackVue/CAMM in uploading
+    md5sum: str
 
     # File type
     file_type: str
@@ -122,11 +122,12 @@ class ZipImageSequence:
                 f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{int(time.time())}"
             )
             upload_md5sum = types.update_sequence_md5sum(sequence)
-            zip_filename = zip_dir.joinpath(f"mly_tools_{upload_md5sum}.zip")
+            filename = _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+            zip_filename = zip_dir.joinpath(filename)
             with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
                     actual_md5sum = cls.zip_sequence_fp(sequence, wip_fp)
-                    assert actual_md5sum == upload_md5sum
+                    assert actual_md5sum == upload_md5sum, "md5sum mismatch"
 
     @classmethod
     def zip_sequence_fp(
@@ -219,12 +220,6 @@ class ZipImageSequence:
                 LOG.warning("Skipping empty zipfile: %s", zip_path)
                 return None
 
-        final_progress: SequenceProgress = {
-            **progress,
-            "sequence_image_count": len(namelist),
-            "file_type": types.FileType.ZIP.value,
-        }
-
         with zip_path.open("rb") as zip_fp:
             upload_md5sum = cls.extract_upload_md5sum(zip_fp)
 
@@ -232,11 +227,20 @@ class ZipImageSequence:
             with zip_path.open("rb") as zip_fp:
                 upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
+        final_progress: SequenceProgress = {
+            **progress,
+            "sequence_image_count": len(namelist),
+            "file_type": types.FileType.ZIP.value,
+            "md5sum": upload_md5sum,
+        }
+
+        session_key = _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+
         with zip_path.open("rb") as zip_fp:
             return uploader.upload_stream(
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
-                upload_md5sum,
+                session_key,
                 progress=T.cast(T.Dict[str, T.Any], final_progress),
             )
 
@@ -262,12 +266,20 @@ class ZipImageSequence:
                 "sequence_uuid": sequence_uuid,
                 "file_type": types.FileType.IMAGE.value,
             }
+
             with tempfile.NamedTemporaryFile() as fp:
                 upload_md5sum = cls.zip_sequence_fp(sequence, fp)
+
+                final_progress["md5sum"] = upload_md5sum
+
+                session_key = _session_key(
+                    upload_md5sum, upload_api_v4.ClusterFileType.ZIP
+                )
+
                 cluster_id = uploader.upload_stream(
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
-                    upload_md5sum,
+                    session_key,
                     progress=T.cast(T.Dict[str, T.Any], final_progress),
                 )
             if cluster_id is not None:
@@ -293,7 +305,7 @@ class Uploader:
         self,
         fp: T.IO[bytes],
         cluster_filetype: upload_api_v4.ClusterFileType,
-        upload_md5sum: str,
+        session_key: str,
         progress: dict[str, T.Any] | None = None,
     ) -> str | None:
         if progress is None:
@@ -302,17 +314,9 @@ class Uploader:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
-        SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
-            upload_api_v4.ClusterFileType.ZIP: ".zip",
-            upload_api_v4.ClusterFileType.CAMM: ".mp4",
-            upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
-        }
-        session_key = f"mly_tools_{upload_md5sum}{SUFFIX_MAP[cluster_filetype]}"
-
         upload_service = self._create_upload_service(session_key, cluster_filetype)
 
         progress["entity_size"] = entity_size
-        progress["md5sum"] = upload_md5sum
         progress["chunk_size"] = self.chunk_size
         progress["retries"] = 0
         progress["begin_offset"] = None
@@ -321,7 +325,7 @@ class Uploader:
             try:
                 self.emitter.emit("upload_start", progress)
             except UploadCancelled:
-                # throw in upload_start only
+                # TODO: Right now it is thrown in upload_start only
                 return None
 
         while True:
@@ -412,6 +416,7 @@ class Uploader:
             stream, self.chunk_size
         ):
             yield chunk
+
             progress["offset"] += len(chunk)
             progress["chunk_size"] = len(chunk)
             if self.emitter:
@@ -423,6 +428,8 @@ class Uploader:
         fp: T.IO[bytes],
         progress: UploaderProgress,
     ) -> str:
+        """Upload the stream with safe retries guraranteed"""
+
         begin_offset = upload_service.fetch_offset()
 
         progress["begin_offset"] = begin_offset
@@ -435,13 +442,13 @@ class Uploader:
 
         shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
 
-        file_handle = upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
-
-        return file_handle
+        return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
 
     def _finish_upload_retryable(
         self, upload_service: upload_api_v4.UploadService, file_handle: str
     ) -> str:
+        """Finish upload with safe retries guraranteed"""
+
         if self.dry_run:
             cluster_id = "0"
         else:
@@ -519,3 +526,15 @@ def _is_retriable_exception(ex: Exception):
             return True
 
     return False
+
+
+def _session_key(
+    upload_md5sum: str, cluster_filetype: upload_api_v4.ClusterFileType
+) -> str:
+    SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
+        upload_api_v4.ClusterFileType.ZIP: ".zip",
+        upload_api_v4.ClusterFileType.CAMM: ".mp4",
+        upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
+    }
+
+    return f"mly_tools_{upload_md5sum}{SUFFIX_MAP[cluster_filetype]}"

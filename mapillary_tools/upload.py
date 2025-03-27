@@ -512,12 +512,18 @@ def _upload_everything(
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
                 "import_path": str(video_metadata.filename),
+                "md5sum": video_metadata.md5sum,
             }
+
+            session_key = uploader._session_key(
+                video_metadata.md5sum, upload_api_v4.ClusterFileType.CAMM
+            )
+
             try:
                 cluster_id = mly_uploader.upload_stream(
                     T.cast(T.BinaryIO, camm_fp),
                     upload_api_v4.ClusterFileType.CAMM,
-                    video_metadata.md5sum,
+                    session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),
                 )
             except Exception as ex:

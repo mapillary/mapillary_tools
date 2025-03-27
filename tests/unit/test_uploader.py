@@ -209,11 +209,11 @@ def test_upload_blackvue(
         resp = mly_uploader.upload_stream(
             fp,
             upload_api_v4.ClusterFileType.BLACKVUE,
-            "this_is_a_blackvue_checksum",
+            "this_is_a_blackvue.mp4",
         )
     assert resp == "0"
     for mp4_path in setup_upload.listdir():
-        assert os.path.basename(mp4_path) == "mly_tools_this_is_a_blackvue_checksum.mp4"
+        assert os.path.basename(mp4_path) == "this_is_a_blackvue.mp4"
         with open(mp4_path, "rb") as fp:
             assert fp.read() == b"this is a fake video"
 
