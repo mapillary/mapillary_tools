@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 import logging
 import os
@@ -100,9 +102,9 @@ def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
 def _log_debug_request(
     method: str,
     url: str,
-    json: T.Optional[T.Dict] = None,
-    params: T.Optional[T.Dict] = None,
-    headers: T.Optional[T.Dict] = None,
+    json: dict | None = None,
+    params: dict | None = None,
+    headers: dict | None = None,
     timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
@@ -157,8 +159,8 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
 def request_post(
     url: str,
-    data: T.Optional[T.Any] = None,
-    json: T.Optional[dict] = None,
+    data: T.Any | None = None,
+    json: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -197,7 +199,7 @@ def request_post(
 
 def request_get(
     url: str,
-    params: T.Optional[dict] = None,
+    params: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -300,7 +302,7 @@ def fetch_organization(
 
 def fetch_user_or_me(
     user_access_token: str,
-    user_id: T.Optional[T.Union[int, str]] = None,
+    user_id: int | str | None = None,
 ) -> requests.Response:
     if user_id is None:
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/me"

@@ -3,8 +3,14 @@ from __future__ import annotations
 import io
 import os
 import random
+import sys
 import typing as T
 import uuid
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 import requests
 
@@ -149,7 +155,7 @@ class FakeUploadService(UploadService):
         )
         self._error_ratio = 0.02
 
-    @T.override
+    @override
     def upload_shifted_chunks(
         self,
         shifted_chunks: T.Iterable[bytes],
@@ -176,7 +182,7 @@ class FakeUploadService(UploadService):
                     )
         return uuid.uuid4().hex
 
-    @T.override
+    @override
     def fetch_offset(self) -> int:
         if random.random() <= self._error_ratio:
             raise requests.ConnectionError(
