@@ -8,7 +8,7 @@ import requests
 import tqdm
 from mapillary_tools import api_v4, authenticate
 
-from mapillary_tools.upload_api_v4 import DEFAULT_CHUNK_SIZE, UploadService
+from mapillary_tools.upload_api_v4 import UploadService, FakeUploadService
 
 
 LOG = logging.getLogger("mapillary_tools")
@@ -39,9 +39,10 @@ def _parse_args():
     parser.add_argument(
         "--chunk_size",
         type=float,
-        default=DEFAULT_CHUNK_SIZE / (1024 * 1024),
+        default=2,
         help="chunk size in megabytes",
     )
+    parser.add_argument("--dry_run", action="store_true", default=False)
     parser.add_argument("filename")
     parser.add_argument("session_key")
     return parser.parse_args()
@@ -60,17 +61,13 @@ def main():
     user_items = authenticate.fetch_user_items(parsed.user_name)
 
     session_key = parsed.session_key
+    chunk_size = int(parsed.chunk_size * 1024 * 1024)
     user_access_token = user_items.get("user_upload_token", "")
-    service = UploadService(
-        user_access_token,
-        session_key,
-        entity_size,
-        chunk_size=(
-            int(parsed.chunk_size * 1024 * 1024)
-            if parsed.chunk_size is not None
-            else DEFAULT_CHUNK_SIZE
-        ),
-    )
+
+    if parsed.dry_run:
+        service = FakeUploadService(user_access_token, session_key)
+    else:
+        service = UploadService(user_access_token, session_key)
 
     try:
         initial_offset = service.fetch_offset()
@@ -80,9 +77,18 @@ def main():
     LOG.info("Session key: %s", session_key)
     LOG.info("Initial offset: %s", initial_offset)
     LOG.info("Entity size: %d", entity_size)
-    LOG.info("Chunk size: %s MB", service.chunk_size / (1024 * 1024))
+    LOG.info("Chunk size: %s MB", chunk_size / (1024 * 1024))
+
+    def _update_pbar(chunks, pbar):
+        for chunk in chunks:
+            yield chunk
+            pbar.update(len(chunk))
 
     with open(parsed.filename, "rb") as fp:
+        fp.seek(initial_offset, io.SEEK_SET)
+
+        shifted_chunks = service.chunkize_byte_stream(fp, chunk_size)
+
         with tqdm.tqdm(
             total=entity_size,
             initial=initial_offset,
@@ -91,9 +97,10 @@ def main():
             unit_divisor=1024,
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         ) as pbar:
-            service.callbacks.append(lambda chunk, resp: pbar.update(len(chunk)))
             try:
-                file_handle = service.upload(fp, initial_offset)
+                file_handle = service.upload_shifted_chunks(
+                    _update_pbar(shifted_chunks, pbar), initial_offset
+                )
             except requests.HTTPError as ex:
                 raise RuntimeError(api_v4.readable_http_error(ex))
             except KeyboardInterrupt:
@@ -107,7 +114,6 @@ def main():
 
     LOG.info("Final offset: %s", final_offset)
     LOG.info("Entity size: %d", entity_size)
-
     LOG.info("File handle: %s", file_handle)
 
 

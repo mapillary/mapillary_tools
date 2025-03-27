@@ -19,7 +19,6 @@ from .api_v4 import (
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
 # (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
 # In my test, however, the connection_timeout rules both connection timeout and read timeout.
@@ -38,7 +37,6 @@ class ClusterFileType(enum.Enum):
 class UploadService:
     user_access_token: str
     session_key: str
-    callbacks: list[T.Callable[[bytes, requests.Response | None], None]]
     cluster_filetype: ClusterFileType
     organization_id: str | int | None
     chunk_size: int
@@ -55,18 +53,12 @@ class UploadService:
         session_key: str,
         organization_id: str | int | None = None,
         cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
     ):
-        if chunk_size <= 0:
-            raise ValueError("Expect positive chunk size")
-
         self.user_access_token = user_access_token
         self.session_key = session_key
         self.organization_id = organization_id
         #  validate the input
         self.cluster_filetype = ClusterFileType(cluster_filetype)
-        self.callbacks = []
-        self.chunk_size = chunk_size
 
     def fetch_offset(self) -> int:
         headers = {
@@ -82,24 +74,19 @@ class UploadService:
         data = resp.json()
         return data["offset"]
 
-    def upload(
-        self,
-        data: T.IO[bytes],
-        offset: int | None = None,
-    ) -> str:
-        chunks = self._chunkize_byte_stream(data)
-        return self.upload_chunks(chunks, offset=offset)
-
-    def _chunkize_byte_stream(
-        self, stream: T.IO[bytes]
+    @classmethod
+    def chunkize_byte_stream(
+        cls, stream: T.IO[bytes], chunk_size: int
     ) -> T.Generator[bytes, None, None]:
+        if chunk_size <= 0:
+            raise ValueError("Expect positive chunk size")
         while True:
-            data = stream.read(self.chunk_size)
+            data = stream.read(chunk_size)
             if not data:
                 break
             yield data
 
-    def _offset_chunks(
+    def shift_chunks(
         self, chunks: T.Iterable[bytes], offset: int
     ) -> T.Generator[bytes, None, None]:
         assert offset >= 0, f"Expect non-negative offset but got {offset}"
@@ -114,14 +101,6 @@ class UploadService:
             else:
                 yield chunk
 
-    def _attach_callbacks(
-        self, chunks: T.Iterable[bytes]
-    ) -> T.Generator[bytes, None, None]:
-        for chunk in chunks:
-            yield chunk
-            for callback in self.callbacks:
-                callback(chunk, None)
-
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
@@ -129,8 +108,17 @@ class UploadService:
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
+        shifted_chunks = self.shift_chunks(chunks, offset)
+        return self.upload_shifted_chunks(shifted_chunks, offset)
 
-        chunks = self._attach_callbacks(self._offset_chunks(chunks, offset))
+    def upload_shifted_chunks(
+        self,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
+    ) -> str:
+        """
+        Upload the chunks that must already be shifted by the offset (e.g. fp.seek(begin_offset, io.SEEK_SET))
+        """
 
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
@@ -142,7 +130,7 @@ class UploadService:
         resp = request_post(
             url,
             headers=headers,
-            data=chunks,
+            data=shifted_chunks,
             timeout=UPLOAD_REQUESTS_TIMEOUT,
         )
 
@@ -196,22 +184,24 @@ class FakeUploadService(UploadService):
         self._upload_path = os.getenv(
             "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
         )
-        self._error_ratio = 0.1
+        self._error_ratio = 0.02
 
-    def upload_chunks(
+    @T.override
+    def upload_shifted_chunks(
         self,
-        chunks: T.Iterable[bytes],
-        offset: int | None = None,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
     ) -> str:
-        if offset is None:
-            offset = self.fetch_offset()
-
-        chunks = self._attach_callbacks(self._offset_chunks(chunks, offset))
+        expected_offset = self.fetch_offset()
+        if offset != expected_offset:
+            raise ValueError(
+                f"Expect offset {expected_offset} but got {offset} for session {self.session_key}"
+            )
 
         os.makedirs(self._upload_path, exist_ok=True)
         filename = os.path.join(self._upload_path, self.session_key)
         with open(filename, "ab") as fp:
-            for chunk in chunks:
+            for chunk in shifted_chunks:
                 if random.random() <= self._error_ratio:
                     raise requests.ConnectionError(
                         f"TEST ONLY: Failed to upload with error ratio {self._error_ratio}"
@@ -223,9 +213,11 @@ class FakeUploadService(UploadService):
                     )
         return uuid.uuid4().hex
 
+    @T.override
     def finish(self, _: str) -> str:
         return "0"
 
+    @T.override
     def fetch_offset(self) -> int:
         if random.random() <= self._error_ratio:
             raise requests.ConnectionError(
