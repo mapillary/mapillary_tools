@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -27,7 +29,7 @@ from .gpmf import gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
 
-JSONDict = T.Dict[str, T.Union[str, int, float, None]]
+JSONDict = dict[str, str | int | float | None]
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
@@ -45,8 +47,8 @@ class UploadError(Exception):
 
 
 def _load_validate_metadatas_from_desc_path(
-    desc_path: T.Optional[str], import_paths: T.Sequence[Path]
-) -> T.List[types.Metadata]:
+    desc_path: str | None, import_paths: T.Sequence[Path]
+) -> list[types.Metadata]:
     is_default_desc_path = False
     if desc_path is None:
         is_default_desc_path = True
@@ -64,7 +66,7 @@ def _load_validate_metadatas_from_desc_path(
                     "The description path must be specified (with --desc_path) when uploading a single file",
                 )
 
-    descs: T.List[types.DescriptionOrError] = []
+    descs: list[types.DescriptionOrError] = []
 
     if desc_path == "-":
         try:
@@ -117,7 +119,7 @@ def _load_validate_metadatas_from_desc_path(
 def zip_images(
     import_path: Path,
     zip_dir: Path,
-    desc_path: T.Optional[str] = None,
+    desc_path: str | None = None,
 ):
     if not import_path.is_dir():
         raise exceptions.MapillaryFileNotFoundError(
@@ -162,7 +164,7 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
 def _setup_write_upload_history(
     emitter: uploader.EventEmitter,
     params: JSONDict,
-    metadatas: T.Optional[T.List[types.Metadata]] = None,
+    metadatas: list[types.Metadata] | None = None,
 ) -> None:
     @emitter.on("upload_finished")
     def upload_finished(payload: uploader.Progress):
@@ -190,7 +192,7 @@ def _setup_write_upload_history(
 
 
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
-    upload_pbar: T.Optional[tqdm] = None
+    upload_pbar: tqdm | None = None
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
@@ -201,7 +203,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
         nth = payload["sequence_idx"] + 1
         total = payload["total_sequence_count"]
-        import_path: T.Optional[str] = payload.get("import_path")
+        import_path: str | None = payload.get("import_path")
         filetype = payload.get("file_type", "unknown").upper()
         if import_path is None:
             _desc = f"Uploading {filetype} ({nth}/{total})"
@@ -276,7 +278,7 @@ class _APIStats(uploader.Progress, total=False):
 
 
 def _setup_api_stats(emitter: uploader.EventEmitter):
-    all_stats: T.List[_APIStats] = []
+    all_stats: list[_APIStats] = []
 
     @emitter.on("upload_start")
     def collect_start_time(payload: _APIStats) -> None:
@@ -309,7 +311,7 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
     return all_stats
 
 
-def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
+def _summarize(stats: T.Sequence[_APIStats]) -> dict:
     total_image_count = sum(s.get("sequence_image_count", 0) for s in stats)
     total_uploaded_sequence_count = len(stats)
     # note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
@@ -341,7 +343,7 @@ def _summarize(stats: T.Sequence[_APIStats]) -> T.Dict:
 
 
 def _show_upload_summary(stats: T.Sequence[_APIStats]):
-    grouped: T.Dict[str, T.List[_APIStats]] = {}
+    grouped: dict[str, list[_APIStats]] = {}
     for stat in stats:
         grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
 
@@ -365,7 +367,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats]):
     LOG.info("%8.1fs upload time", summary["time"])
 
 
-def _api_logging_finished(summary: T.Dict):
+def _api_logging_finished(summary: dict):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -383,7 +385,7 @@ def _api_logging_finished(summary: T.Dict):
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _api_logging_failed(payload: T.Dict, exc: Exception):
+def _api_logging_failed(payload: dict, exc: Exception):
     if MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -403,11 +405,11 @@ def _api_logging_failed(payload: T.Dict, exc: Exception):
 
 
 def _load_descs(
-    _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]],
-    desc_path: T.Optional[str],
+    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None,
+    desc_path: str | None,
     import_paths: T.Sequence[Path],
-) -> T.List[types.Metadata]:
-    metadatas: T.List[types.Metadata]
+) -> list[types.Metadata]:
+    metadatas: list[types.Metadata]
 
     if _metadatas_from_process is not None:
         metadatas = [
@@ -439,7 +441,7 @@ _M = T.TypeVar("_M", bound=types.Metadata)
 
 def _find_metadata_with_filename_existed_in(
     metadatas: T.Sequence[_M], paths: T.Sequence[Path]
-) -> T.List[_M]:
+) -> list[_M]:
     resolved_image_paths = set(p.resolve() for p in paths)
     return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
 
@@ -488,7 +490,7 @@ def _upload_everything(
         assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
         # extract telemetry measurements from GoPro videos
-        telemetry_measurements: T.List[camm_parser.TelemetryMeasurement] = []
+        telemetry_measurements: list[camm_parser.TelemetryMeasurement] = []
         if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
             if video_metadata.filetype is FileType.GOPRO:
                 with video_metadata.filename.open("rb") as fp:
@@ -528,10 +530,10 @@ def _upload_everything(
 
 
 def upload(
-    import_path: T.Union[Path, T.Sequence[Path]],
+    import_path: Path | T.Sequence[Path],
     user_items: types.UserItem,
-    desc_path: T.Optional[str] = None,
-    _metadatas_from_process: T.Optional[T.Sequence[types.MetadataOrError]] = None,
+    desc_path: str | None = None,
+    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
