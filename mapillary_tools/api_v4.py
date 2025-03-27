@@ -2,6 +2,7 @@ import logging
 import os
 import ssl
 import typing as T
+import enum
 from json import dumps
 
 import requests
@@ -16,6 +17,12 @@ MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
 )
 REQUESTS_TIMEOUT = 60  # 1 minutes
 USE_SYSTEM_CERTS: bool = False
+
+
+class ClusterFileType(enum.Enum):
+    ZIP = "zip"
+    BLACKVUE = "mly_blackvue_video"
+    CAMM = "mly_camm_video"
 
 
 class HTTPSystemCertsAdapter(HTTPAdapter):
@@ -333,4 +340,31 @@ def log_event(action_type: ActionType, properties: T.Dict) -> requests.Response:
         timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
+    return resp
+
+
+def finish_upload(
+    user_access_token: str,
+    file_handle: str,
+    cluster_filetype: ClusterFileType,
+    organization_id: int | str | None = None,
+) -> requests.Response:
+    data: dict[str, str | int] = {
+        "file_handle": file_handle,
+        "file_type": cluster_filetype.value,
+    }
+    if organization_id is not None:
+        data["organization_id"] = organization_id
+
+    resp = request_post(
+        f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+        headers={
+            "Authorization": f"OAuth {user_access_token}",
+        },
+        json=data,
+        timeout=REQUESTS_TIMEOUT,
+    )
+
+    resp.raise_for_status()
+
     return resp

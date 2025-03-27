@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import enum
 import io
 import os
 import random
@@ -10,10 +9,10 @@ import uuid
 import requests
 
 from .api_v4 import (
-    MAPILLARY_GRAPH_API_ENDPOINT,
     request_get,
     request_post,
     REQUESTS_TIMEOUT,
+    ClusterFileType,
 )
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
@@ -28,17 +27,10 @@ MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
 UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
-class ClusterFileType(enum.Enum):
-    ZIP = "zip"
-    BLACKVUE = "mly_blackvue_video"
-    CAMM = "mly_camm_video"
-
-
 class UploadService:
     user_access_token: str
     session_key: str
     cluster_filetype: ClusterFileType
-    organization_id: str | int | None
     chunk_size: int
 
     MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
@@ -51,12 +43,10 @@ class UploadService:
         self,
         user_access_token: str,
         session_key: str,
-        organization_id: str | int | None = None,
         cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
     ):
         self.user_access_token = user_access_token
         self.session_key = session_key
-        self.organization_id = organization_id
         #  validate the input
         self.cluster_filetype = ClusterFileType(cluster_filetype)
 
@@ -101,6 +91,16 @@ class UploadService:
             else:
                 yield chunk
 
+    def upload_byte_stream(
+        self,
+        stream: T.IO[bytes],
+        offset: int | None = None,
+        chunk_size: int = 2 * 1024 * 1024,
+    ) -> str:
+        if offset is None:
+            offset = self.fetch_offset()
+        return self.upload_chunks(self.chunkize_byte_stream(stream, chunk_size), offset)
+
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
@@ -144,38 +144,6 @@ class UploadService:
                 f"Upload server error: File handle not found in the upload response {resp.text}"
             )
 
-    def finish(self, file_handle: str) -> str:
-        headers = {
-            "Authorization": f"OAuth {self.user_access_token}",
-        }
-        data: dict[str, str | int] = {
-            "file_handle": file_handle,
-            "file_type": self.cluster_filetype.value,
-        }
-        if self.organization_id is not None:
-            data["organization_id"] = self.organization_id
-
-        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
-
-        resp = request_post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=REQUESTS_TIMEOUT,
-        )
-
-        resp.raise_for_status()
-
-        data = resp.json()
-
-        cluster_id = data.get("cluster_id")
-        if cluster_id is None:
-            raise RuntimeError(
-                f"Upload server error: failed to create the cluster {resp.text}"
-            )
-
-        return T.cast(str, cluster_id)
-
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
@@ -212,10 +180,6 @@ class FakeUploadService(UploadService):
                         f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
                     )
         return uuid.uuid4().hex
-
-    @T.override
-    def finish(self, _: str) -> str:
-        return "0"
 
     @T.override
     def fetch_offset(self) -> int:
