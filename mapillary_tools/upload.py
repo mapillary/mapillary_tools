@@ -463,9 +463,9 @@ def _upload_everything(
     )
     if specified_image_metadatas:
         try:
-            clusters = mly_uploader.upload_images(
+            clusters = uploader.ZipImageSequence.prepare_images_and_upload(
                 specified_image_metadatas,
-                event_payload={"file_type": FileType.IMAGE.value},
+                mly_uploader,
             )
         except Exception as ex:
             raise UploadError(ex) from ex
@@ -635,12 +635,11 @@ def _upload_zipfiles(
         event_payload: uploader.Progress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
-            "file_type": FileType.ZIP.value,
             "import_path": str(zip_path),
         }
         try:
-            cluster_id = mly_uploader.upload_zipfile(
-                zip_path, event_payload=event_payload
+            cluster_id = uploader.ZipImageSequence.prepare_zipfile_and_upload(
+                zip_path, mly_uploader, event_payload=event_payload
             )
         except Exception as ex:
             raise UploadError(ex) from ex

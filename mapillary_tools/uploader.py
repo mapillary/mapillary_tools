@@ -36,6 +36,12 @@ class Progress(T.TypedDict, total=False):
     # Size in bytes of the zipfile/BlackVue/CAMM
     entity_size: int
 
+    # An "upload_interrupted" will increase it. Reset to 0 if the chunk is uploaded
+    retries: int
+
+    # md5sum of the zipfile/BlackVue/CAMM in uploading
+    md5sum: str
+
     # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue/CAMM
     total_sequence_count: int
 
@@ -47,12 +53,6 @@ class Progress(T.TypedDict, total=False):
 
     # MAPSequenceUUID. It is only available for directory uploading
     sequence_uuid: str
-
-    # An "upload_interrupted" will increase it. Reset to 0 if the chunk is uploaded
-    retries: int
-
-    # md5sum of the zipfile/BlackVue/CAMM in uploading
-    md5sum: str
 
     # Path to the Zipfile/BlackVue/CAMM
     import_path: str
@@ -191,24 +191,11 @@ class ZipImageSequence:
         zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
         zipf.writestr(zipinfo, image_bytes)
 
-
-class Uploader:
-    def __init__(
-        self,
-        user_items: types.UserItem,
-        emitter: EventEmitter | None = None,
-        chunk_size: int = 2 * 1024 * 1024,  # 2MB
-        dry_run=False,
-    ):
-        jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-        self.user_items = user_items
-        self.emitter = emitter
-        self.chunk_size = chunk_size
-        self.dry_run = dry_run
-
-    def upload_zipfile(
-        self,
+    @classmethod
+    def prepare_zipfile_and_upload(
+        cls,
         zip_path: Path,
+        uploader: Uploader,
         event_payload: Progress | None = None,
     ) -> str | None:
         if event_payload is None:
@@ -223,26 +210,29 @@ class Uploader:
         final_event_payload: Progress = {
             # **event_payload,  # type: ignore
             "sequence_image_count": len(namelist),
+            "file_type": types.FileType.ZIP.value,
         }
 
         with zip_path.open("rb") as zip_fp:
-            upload_md5sum = ZipImageSequence.extract_upload_md5sum(zip_fp)
+            upload_md5sum = cls.extract_upload_md5sum(zip_fp)
 
         if upload_md5sum is None:
             with zip_path.open("rb") as zip_fp:
                 upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
         with zip_path.open("rb") as zip_fp:
-            return self.upload_stream(
+            return uploader.upload_stream(
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
                 upload_md5sum,
                 progress=final_event_payload,
             )
 
-    def upload_images(
-        self,
+    @classmethod
+    def prepare_images_and_upload(
+        cls,
         image_metadatas: T.Sequence[types.ImageMetadata],
+        uploader: Uploader,
         event_payload: Progress | None = None,
     ) -> dict[str, str]:
         if event_payload is None:
@@ -258,10 +248,11 @@ class Uploader:
                 "total_sequence_count": len(sequences),
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
+                "file_type": types.FileType.IMAGE.value,
             }
             with tempfile.NamedTemporaryFile() as fp:
-                upload_md5sum = ZipImageSequence.zip_sequence_fp(sequence, fp)
-                cluster_id = self.upload_stream(
+                upload_md5sum = cls.zip_sequence_fp(sequence, fp)
+                cluster_id = uploader.upload_stream(
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
                     upload_md5sum,
@@ -271,78 +262,20 @@ class Uploader:
                 ret[sequence_uuid] = cluster_id
         return ret
 
-    def _create_upload_service(
-        self, session_key: str, cluster_filetype: upload_api_v4.ClusterFileType
-    ) -> upload_api_v4.UploadService:
-        upload_service: upload_api_v4.UploadService
 
-        if self.dry_run:
-            upload_service = upload_api_v4.FakeUploadService(
-                user_access_token=self.user_items["user_upload_token"],
-                session_key=session_key,
-                cluster_filetype=cluster_filetype,
-            )
-        else:
-            upload_service = upload_api_v4.UploadService(
-                user_access_token=self.user_items["user_upload_token"],
-                session_key=session_key,
-                cluster_filetype=cluster_filetype,
-            )
-
-        return upload_service
-
-    def _handle_upload_exception(self, ex: Exception, progress: Progress) -> None:
-        retries = progress["retries"]
-        begin_offset = progress.get("begin_offset")
-        chunk_size = progress["chunk_size"]
-
-        if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-            if self.emitter:
-                self.emitter.emit("upload_interrupted", progress)
-            LOG.warning(
-                # use %s instead of %d because offset could be None
-                "Error uploading chunk_size %d at begin_offset %s: %s: %s",
-                chunk_size,
-                begin_offset,
-                ex.__class__.__name__,
-                str(ex),
-            )
-            # Keep things immutable here. Will increment retries in the caller
-            retries += 1
-            if _is_immediate_retry(ex):
-                sleep_for = 0
-            else:
-                sleep_for = min(2**retries, 16)
-            LOG.info(
-                "Retrying in %d seconds (%d/%d)",
-                sleep_for,
-                retries,
-                constants.MAX_UPLOAD_RETRIES,
-            )
-            if sleep_for:
-                time.sleep(sleep_for)
-        else:
-            raise ex
-
-    def _finish_upload_retryable(
-        self, upload_service: upload_api_v4.UploadService, file_handle: str
+class Uploader:
+    def __init__(
+        self,
+        user_items: types.UserItem,
+        emitter: EventEmitter | None = None,
+        chunk_size: int = 2 * 1024 * 1024,  # 2MB
+        dry_run=False,
     ):
-        if self.dry_run:
-            cluster_id = "0"
-        else:
-            resp = api_v4.finish_upload(
-                self.user_items["user_upload_token"],
-                file_handle,
-                upload_service.cluster_filetype,
-                organization_id=self.user_items.get("MAPOrganizationKey"),
-            )
-
-            data = resp.json()
-            cluster_id = data.get("cluster_id")
-
-            # TODO: validate cluster_id
-
-        return cluster_id
+        jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
+        self.user_items = user_items
+        self.emitter = emitter
+        self.chunk_size = chunk_size
+        self.dry_run = dry_run
 
     def upload_stream(
         self,
@@ -401,18 +334,70 @@ class Uploader:
 
         return cluster_id
 
+    def _create_upload_service(
+        self, session_key: str, cluster_filetype: upload_api_v4.ClusterFileType
+    ) -> upload_api_v4.UploadService:
+        upload_service: upload_api_v4.UploadService
+
+        if self.dry_run:
+            upload_service = upload_api_v4.FakeUploadService(
+                user_access_token=self.user_items["user_upload_token"],
+                session_key=session_key,
+                cluster_filetype=cluster_filetype,
+            )
+        else:
+            upload_service = upload_api_v4.UploadService(
+                user_access_token=self.user_items["user_upload_token"],
+                session_key=session_key,
+                cluster_filetype=cluster_filetype,
+            )
+
+        return upload_service
+
+    def _handle_upload_exception(self, ex: Exception, progress: Progress) -> None:
+        retries = progress["retries"]
+        begin_offset = progress.get("begin_offset")
+        chunk_size = progress["chunk_size"]
+
+        if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
+            if self.emitter:
+                self.emitter.emit("upload_interrupted", progress)
+            LOG.warning(
+                # use %s instead of %d because offset could be None
+                "Error uploading chunk_size %d at begin_offset %s: %s: %s",
+                chunk_size,
+                begin_offset,
+                ex.__class__.__name__,
+                str(ex),
+            )
+            # Keep things immutable here. Will increment retries in the caller
+            retries += 1
+            if _is_immediate_retry(ex):
+                sleep_for = 0
+            else:
+                sleep_for = min(2**retries, 16)
+            LOG.info(
+                "Retrying in %d seconds (%d/%d)",
+                sleep_for,
+                retries,
+                constants.MAX_UPLOAD_RETRIES,
+            )
+            if sleep_for:
+                time.sleep(sleep_for)
+        else:
+            raise ex
+
     def _chunkize_byte_stream(
         self,
         stream: T.IO[bytes],
         progress: Progress,
     ) -> T.Generator[bytes, None, None]:
-        while True:
-            data = stream.read(self.chunk_size)
-            if not data:
-                break
-            yield data
-            progress["offset"] += len(data)
-            progress["chunk_size"] = len(data)
+        for chunk in upload_api_v4.UploadService.chunkize_byte_stream(
+            stream, self.chunk_size
+        ):
+            yield chunk
+            progress["offset"] += len(chunk)
+            progress["chunk_size"] = len(chunk)
             if self.emitter:
                 self.emitter.emit("upload_progress", progress)
 
@@ -437,6 +422,26 @@ class Uploader:
         file_handle = upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
 
         return file_handle
+
+    def _finish_upload_retryable(
+        self, upload_service: upload_api_v4.UploadService, file_handle: str
+    ):
+        if self.dry_run:
+            cluster_id = "0"
+        else:
+            resp = api_v4.finish_upload(
+                self.user_items["user_upload_token"],
+                file_handle,
+                upload_service.cluster_filetype,
+                organization_id=self.user_items.get("MAPOrganizationKey"),
+            )
+
+            data = resp.json()
+            cluster_id = data.get("cluster_id")
+
+            # TODO: validate cluster_id
+
+        return cluster_id
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
