@@ -15,7 +15,7 @@ from pathlib import Path
 import jsonschema
 import requests
 
-from . import constants, exif_write, types, upload_api_v4, utils
+from . import api_v4, constants, exif_write, types, upload_api_v4, utils
 
 
 LOG = logging.getLogger(__name__)
@@ -27,6 +27,8 @@ class Progress(T.TypedDict, total=False):
 
     # File type
     file_type: str
+
+    begin_offset: int
 
     # How many bytes has been uploaded so far since "upload_start"
     offset: int
@@ -74,7 +76,7 @@ EventName = T.Literal[
 
 
 class EventEmitter:
-    events: dict[EventName, T.List]
+    events: dict[EventName, list]
 
     def __init__(self):
         self.events = {}
@@ -195,7 +197,7 @@ class Uploader:
         self,
         user_items: types.UserItem,
         emitter: EventEmitter | None = None,
-        chunk_size: int = upload_api_v4.DEFAULT_CHUNK_SIZE,
+        chunk_size: int = 2 * 1024 * 1024,  # 2MB
         dry_run=False,
     ):
         jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
@@ -219,7 +221,7 @@ class Uploader:
                 return None
 
         final_event_payload: Progress = {
-            **event_payload,  # type: ignore
+            # **event_payload,  # type: ignore
             "sequence_image_count": len(namelist),
         }
 
@@ -235,7 +237,7 @@ class Uploader:
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
                 upload_md5sum,
-                event_payload=final_event_payload,
+                progress=final_event_payload,
             )
 
     def upload_images(
@@ -269,15 +271,88 @@ class Uploader:
                 ret[sequence_uuid] = cluster_id
         return ret
 
+    def _create_upload_service(
+        self, session_key: str, cluster_filetype: upload_api_v4.ClusterFileType
+    ) -> upload_api_v4.UploadService:
+        upload_service: upload_api_v4.UploadService
+
+        if self.dry_run:
+            upload_service = upload_api_v4.FakeUploadService(
+                user_access_token=self.user_items["user_upload_token"],
+                session_key=session_key,
+                cluster_filetype=cluster_filetype,
+            )
+        else:
+            upload_service = upload_api_v4.UploadService(
+                user_access_token=self.user_items["user_upload_token"],
+                session_key=session_key,
+                cluster_filetype=cluster_filetype,
+            )
+
+        return upload_service
+
+    def _handle_upload_exception(self, ex: Exception, progress: Progress) -> None:
+        retries = progress["retries"]
+        begin_offset = progress.get("begin_offset")
+        chunk_size = progress["chunk_size"]
+
+        if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
+            if self.emitter:
+                self.emitter.emit("upload_interrupted", progress)
+            LOG.warning(
+                # use %s instead of %d because offset could be None
+                "Error uploading chunk_size %d at begin_offset %s: %s: %s",
+                chunk_size,
+                begin_offset,
+                ex.__class__.__name__,
+                str(ex),
+            )
+            # Keep things immutable here. Will increment retries in the caller
+            retries += 1
+            if _is_immediate_retry(ex):
+                sleep_for = 0
+            else:
+                sleep_for = min(2**retries, 16)
+            LOG.info(
+                "Retrying in %d seconds (%d/%d)",
+                sleep_for,
+                retries,
+                constants.MAX_UPLOAD_RETRIES,
+            )
+            if sleep_for:
+                time.sleep(sleep_for)
+        else:
+            raise ex
+
+    def _finish_upload_retryable(
+        self, upload_service: upload_api_v4.UploadService, file_handle: str
+    ):
+        if self.dry_run:
+            cluster_id = "0"
+        else:
+            resp = api_v4.finish_upload(
+                self.user_items["user_upload_token"],
+                file_handle,
+                upload_service.cluster_filetype,
+                organization_id=self.user_items.get("MAPOrganizationKey"),
+            )
+
+            data = resp.json()
+            cluster_id = data.get("cluster_id")
+
+            # TODO: validate cluster_id
+
+        return cluster_id
+
     def upload_stream(
         self,
         fp: T.IO[bytes],
         cluster_filetype: upload_api_v4.ClusterFileType,
         upload_md5sum: str,
-        event_payload: Progress | None = None,
+        progress: Progress | None = None,
     ) -> str | None:
-        if event_payload is None:
-            event_payload = {}
+        if progress is None:
+            progress = {}
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -289,40 +364,79 @@ class Uploader:
         }
         session_key = f"mly_tools_{upload_md5sum}{SUFFIX_MAP[cluster_filetype]}"
 
-        if self.dry_run:
-            upload_service: upload_api_v4.UploadService = (
-                upload_api_v4.FakeUploadService(
-                    user_access_token=self.user_items["user_upload_token"],
-                    session_key=session_key,
-                    organization_id=self.user_items.get("MAPOrganizationKey"),
-                    cluster_filetype=cluster_filetype,
-                    chunk_size=self.chunk_size,
+        upload_service = self._create_upload_service(session_key, cluster_filetype)
+
+        progress["entity_size"] = entity_size
+        progress["md5sum"] = upload_md5sum
+        progress["chunk_size"] = self.chunk_size
+        progress["retries"] = 0
+
+        if self.emitter:
+            try:
+                self.emitter.emit("upload_start", progress)
+            except UploadCancelled:
+                # throw in upload_start only
+                return None
+
+        while True:
+            try:
+                file_handle = self._upload_stream_retryable(
+                    upload_service, fp, progress
                 )
-            )
-        else:
-            upload_service = upload_api_v4.UploadService(
-                user_access_token=self.user_items["user_upload_token"],
-                session_key=session_key,
-                organization_id=self.user_items.get("MAPOrganizationKey"),
-                cluster_filetype=cluster_filetype,
-                chunk_size=self.chunk_size,
-            )
+            except Exception as ex:
+                self._handle_upload_exception(ex, progress)
+            else:
+                break
 
-        final_event_payload: Progress = {
-            **event_payload,  # type: ignore
-            "entity_size": entity_size,
-            "md5sum": upload_md5sum,
-        }
+            progress["retries"] += 1
 
-        try:
-            return _upload_stream_with_retries(
-                upload_service,
-                fp,
-                event_payload=final_event_payload,
-                emitter=self.emitter,
-            )
-        except UploadCancelled:
-            return None
+        if self.emitter:
+            self.emitter.emit("upload_end", progress)
+
+        # TODO: retry here
+        cluster_id = self._finish_upload_retryable(upload_service, file_handle)
+
+        if self.emitter:
+            self.emitter.emit("upload_finished", progress)
+
+        return cluster_id
+
+    def _chunkize_byte_stream(
+        self,
+        stream: T.IO[bytes],
+        progress: Progress,
+    ) -> T.Generator[bytes, None, None]:
+        while True:
+            data = stream.read(self.chunk_size)
+            if not data:
+                break
+            yield data
+            progress["offset"] += len(data)
+            progress["chunk_size"] = len(data)
+            if self.emitter:
+                self.emitter.emit("upload_progress", progress)
+
+    def _upload_stream_retryable(
+        self,
+        upload_service: upload_api_v4.UploadService,
+        fp: T.IO[bytes],
+        progress: Progress,
+    ) -> str:
+        begin_offset = upload_service.fetch_offset()
+
+        progress["begin_offset"] = begin_offset
+        progress["offset"] = begin_offset
+
+        if self.emitter:
+            self.emitter.emit("upload_fetch_offset", progress)
+
+        fp.seek(begin_offset, io.SEEK_SET)
+
+        shifted_chunks = self._chunkize_byte_stream(fp, progress)
+
+        file_handle = upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
+
+        return file_handle
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
@@ -384,91 +498,3 @@ def _is_retriable_exception(ex: Exception):
             return True
 
     return False
-
-
-def _setup_callback(emitter: EventEmitter, mutable_payload: Progress):
-    def _callback(chunk: bytes, _):
-        assert isinstance(emitter, EventEmitter)
-        mutable_payload["offset"] += len(chunk)
-        mutable_payload["chunk_size"] = len(chunk)
-        emitter.emit("upload_progress", mutable_payload)
-
-    return _callback
-
-
-def _upload_stream_with_retries(
-    upload_service: upload_api_v4.UploadService,
-    fp: T.IO[bytes],
-    event_payload: Progress | None = None,
-    emitter: EventEmitter | None = None,
-) -> str:
-    retries = 0
-
-    if event_payload is None:
-        event_payload = {}
-
-    mutable_payload = T.cast(Progress, {**event_payload})
-
-    # when it progresses, we reset retries
-    def _reset_retries(_, __):
-        nonlocal retries
-        retries = 0
-
-    if emitter:
-        emitter.emit("upload_start", mutable_payload)
-
-    while True:
-        fp.seek(0, io.SEEK_SET)
-        begin_offset: int | None = None
-        try:
-            begin_offset = upload_service.fetch_offset()
-            upload_service.callbacks = [_reset_retries]
-            if emitter:
-                mutable_payload["offset"] = begin_offset
-                mutable_payload["retries"] = retries
-                emitter.emit("upload_fetch_offset", mutable_payload)
-                upload_service.callbacks.append(
-                    _setup_callback(emitter, mutable_payload)
-                )
-            file_handle = upload_service.upload(fp, offset=begin_offset)
-        except Exception as ex:
-            if retries < constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-                if emitter:
-                    emitter.emit("upload_interrupted", mutable_payload)
-                LOG.warning(
-                    # use %s instead of %d because offset could be None
-                    "Error uploading chunk_size %d at begin_offset %s: %s: %s",
-                    upload_service.chunk_size,
-                    begin_offset,
-                    ex.__class__.__name__,
-                    str(ex),
-                )
-                retries += 1
-                if _is_immediate_retry(ex):
-                    sleep_for = 0
-                else:
-                    sleep_for = min(2**retries, 16)
-                LOG.info(
-                    "Retrying in %d seconds (%d/%d)",
-                    sleep_for,
-                    retries,
-                    constants.MAX_UPLOAD_RETRIES,
-                )
-                if sleep_for:
-                    time.sleep(sleep_for)
-            else:
-                raise ex
-        else:
-            break
-
-    if emitter:
-        emitter.emit("upload_end", mutable_payload)
-
-    # TODO: retry here
-    cluster_id = upload_service.finish(file_handle)
-
-    if emitter:
-        mutable_payload["cluster_id"] = cluster_id
-        emitter.emit("upload_finished", mutable_payload)
-
-    return cluster_id

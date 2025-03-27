@@ -1,8 +1,8 @@
+import enum
 import logging
 import os
 import ssl
 import typing as T
-import enum
 from json import dumps
 
 import requests

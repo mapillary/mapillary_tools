@@ -8,7 +8,7 @@ import requests
 import tqdm
 from mapillary_tools import api_v4, authenticate
 
-from mapillary_tools.upload_api_v4 import UploadService, FakeUploadService
+from mapillary_tools.upload_api_v4 import FakeUploadService, UploadService
 
 
 LOG = logging.getLogger("mapillary_tools")

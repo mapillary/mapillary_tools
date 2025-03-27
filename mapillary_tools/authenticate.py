@@ -7,8 +7,9 @@ import re
 import sys
 import typing as T
 
-import requests
 import jsonschema
+
+import requests
 
 from . import api_v4, config, constants, exceptions, types
 
