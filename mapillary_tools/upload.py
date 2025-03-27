@@ -507,7 +507,7 @@ def _upload_everything(
 
         with video_metadata.filename.open("rb") as src_fp:
             camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-            progress: uploader.FileProgress = {
+            progress: uploader.SequenceProgress = {
                 "total_sequence_count": len(specified_video_metadatas),
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
@@ -634,7 +634,7 @@ def _upload_zipfiles(
     zip_paths: T.Sequence[Path],
 ) -> None:
     for idx, zip_path in enumerate(zip_paths):
-        progress: uploader.FileProgress = {
+        progress: uploader.SequenceProgress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
             "import_path": str(zip_path),

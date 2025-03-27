@@ -47,7 +47,9 @@ class UploaderProgress(T.TypedDict, total=True):
     cluster_id: str
 
 
-class FileProgress(T.TypedDict, total=False):
+class SequenceProgress(T.TypedDict, total=False):
+    """Progress data at sequence level"""
+
     # File type
     file_type: str
 
@@ -67,7 +69,7 @@ class FileProgress(T.TypedDict, total=False):
     import_path: str
 
 
-class Progress(FileProgress, UploaderProgress):
+class Progress(SequenceProgress, UploaderProgress):
     pass
 
 
@@ -206,10 +208,10 @@ class ZipImageSequence:
         cls,
         zip_path: Path,
         uploader: Uploader,
-        progress: FileProgress | None = None,
+        progress: SequenceProgress | None = None,
     ) -> str | None:
         if progress is None:
-            progress = T.cast(FileProgress, {})
+            progress = T.cast(SequenceProgress, {})
 
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
@@ -217,7 +219,7 @@ class ZipImageSequence:
                 LOG.warning("Skipping empty zipfile: %s", zip_path)
                 return None
 
-        final_progress: FileProgress = {
+        final_progress: SequenceProgress = {
             **progress,
             "sequence_image_count": len(namelist),
             "file_type": types.FileType.ZIP.value,
@@ -243,16 +245,16 @@ class ZipImageSequence:
         cls,
         image_metadatas: T.Sequence[types.ImageMetadata],
         uploader: Uploader,
-        progress: FileProgress | None = None,
+        progress: SequenceProgress | None = None,
     ) -> dict[str, str]:
         if progress is None:
-            progress = T.cast(FileProgress, {})
+            progress = T.cast(SequenceProgress, {})
 
         _validate_metadatas(image_metadatas)
         sequences = types.group_and_sort_images(image_metadatas)
         ret: dict[str, str] = {}
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            final_progress: FileProgress = {
+            final_progress: SequenceProgress = {
                 **progress,
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
@@ -339,6 +341,7 @@ class Uploader:
 
         # TODO: retry here
         cluster_id = self._finish_upload_retryable(upload_service, file_handle)
+        progress["cluster_id"] = cluster_id
 
         if self.emitter:
             self.emitter.emit("upload_finished", progress)
