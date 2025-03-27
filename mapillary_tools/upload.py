@@ -29,7 +29,7 @@ from .gpmf import gpmf_parser
 from .mp4 import simple_mp4_builder
 from .types import FileType
 
-JSONDict = dict[str, T.Union[str, int, float, None]]
+JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
 MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
