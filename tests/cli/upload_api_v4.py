@@ -6,22 +6,12 @@ import typing as T
 
 import requests
 import tqdm
-from mapillary_tools import upload
+from mapillary_tools import api_v4, authenticate
 
 from mapillary_tools.upload_api_v4 import DEFAULT_CHUNK_SIZE, UploadService
 
 
 LOG = logging.getLogger("mapillary_tools")
-
-
-def wrap_http_exception(ex: requests.HTTPError):
-    resp = ex.response
-    lines = [
-        f"{ex.request.method} {resp.url}",
-        f"> HTTP Status: {ex.response.status_code}",
-        f"{resp.content!r}",
-    ]
-    return Exception("\n".join(lines))
 
 
 def configure_logger(logger: logging.Logger, stream=None) -> None:
@@ -67,7 +57,7 @@ def main():
     with open(parsed.filename, "rb") as fp:
         entity_size = _file_stats(fp)
 
-    user_items = upload.fetch_user_items(parsed.user_name)
+    user_items = authenticate.fetch_user_items(parsed.user_name)
 
     session_key = parsed.session_key
     user_access_token = user_items.get("user_upload_token", "")
@@ -81,11 +71,15 @@ def main():
             else DEFAULT_CHUNK_SIZE
         ),
     )
-    initial_offset = service.fetch_offset()
+
+    try:
+        initial_offset = service.fetch_offset()
+    except requests.HTTPError as ex:
+        raise RuntimeError(api_v4.readable_http_error(ex))
 
     LOG.info("Session key: %s", session_key)
-    LOG.info("Entity size: %d", entity_size)
     LOG.info("Initial offset: %s", initial_offset)
+    LOG.info("Entity size: %d", entity_size)
     LOG.info("Chunk size: %s MB", service.chunk_size / (1024 * 1024))
 
     with open(parsed.filename, "rb") as fp:
@@ -101,9 +95,20 @@ def main():
             try:
                 file_handle = service.upload(fp, initial_offset)
             except requests.HTTPError as ex:
-                raise wrap_http_exception(ex)
+                raise RuntimeError(api_v4.readable_http_error(ex))
+            except KeyboardInterrupt:
+                file_handle = None
+                LOG.warning("Upload interrupted")
 
-    LOG.info(file_handle)
+    try:
+        final_offset = service.fetch_offset()
+    except requests.HTTPError as ex:
+        raise RuntimeError(api_v4.readable_http_error(ex))
+
+    LOG.info("Final offset: %s", final_offset)
+    LOG.info("Entity size: %d", entity_size)
+
+    LOG.info("File handle: %s", file_handle)
 
 
 if __name__ == "__main__":
