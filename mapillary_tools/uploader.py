@@ -237,7 +237,7 @@ class ZipImageSequence:
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
                 upload_md5sum,
-                progress=T.cast(dict[str, T.Any], final_progress),
+                progress=T.cast(T.Dict[str, T.Any], final_progress),
             )
 
     @classmethod
