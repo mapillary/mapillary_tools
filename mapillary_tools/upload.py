@@ -317,6 +317,9 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
         now = time.time()
         payload["upload_end_time"] = now
         payload["upload_total_time"] += now - payload["upload_last_restart_time"]
+
+    @emitter.on("upload_finished")
+    def append_stats(payload: _APIStats) -> None:
         all_stats.append(payload)
 
     return all_stats
