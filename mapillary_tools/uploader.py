@@ -295,7 +295,7 @@ class Uploader:
         self,
         user_items: types.UserItem,
         emitter: EventEmitter | None = None,
-        chunk_size: int = 2 * 1024 * 1024,  # 2MB
+        chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
         dry_run=False,
     ):
         jsonschema.validate(instance=user_items, schema=types.UserItemSchema)

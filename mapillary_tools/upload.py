@@ -644,12 +644,7 @@ def upload(
     if enable_history:
         _setup_write_upload_history(emitter, params, metadatas)
 
-    mly_uploader = uploader.Uploader(
-        user_items,
-        emitter=emitter,
-        dry_run=dry_run,
-        chunk_size=int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
-    )
+    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
 
     try:
         _upload_everything(mly_uploader, metadatas, import_paths, skip_subfolders)
