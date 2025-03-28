@@ -73,8 +73,6 @@ class Progress(SequenceProgress, UploaderProgress):
     pass
 
 
-class UploadCancelled(Exception):
-    pass
 
 
 EventName = T.Literal[
@@ -328,11 +326,7 @@ class Uploader:
         progress["retries"] = 0
         progress["begin_offset"] = None
 
-        try:
-            self.emitter.emit("upload_start", progress)
-        except UploadCancelled:
-            # TODO: Right now it is thrown in upload_start only
-            return None
+        self.emitter.emit("upload_start", progress)
 
         while True:
             try:
