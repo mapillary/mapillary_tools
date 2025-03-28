@@ -23,13 +23,23 @@ class GoProVideoExtractor(GenericVideoExtractor):
         gps_points = gopro_info.gps
         assert gps_points is not None, "must have GPS data extracted"
         if not gps_points:
-            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.GOPRO
+            )
 
         gps_points = T.cast(
             T.List[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
         )
         if not gps_points:
-            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.GOPRO
+            )
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
@@ -54,7 +64,13 @@ class CAMMVideoExtractor(GenericVideoExtractor):
             )
 
         if not camm_info.gps and not camm_info.mini_gps:
-            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.CAMM
+            )
 
         return types.VideoMetadata(
             filename=self.video_path,
@@ -77,7 +93,13 @@ class BlackVueVideoExtractor(GenericVideoExtractor):
             )
 
         if not blackvue_info.gps:
-            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.BLACKVUE
+            )
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
