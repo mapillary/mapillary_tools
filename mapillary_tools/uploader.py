@@ -532,13 +532,14 @@ def _is_retriable_exception(ex: Exception):
     return False
 
 
+_SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
+    upload_api_v4.ClusterFileType.ZIP: ".zip",
+    upload_api_v4.ClusterFileType.CAMM: ".mp4",
+    upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
+}
+
+
 def _session_key(
     upload_md5sum: str, cluster_filetype: upload_api_v4.ClusterFileType
 ) -> str:
-    SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
-        upload_api_v4.ClusterFileType.ZIP: ".zip",
-        upload_api_v4.ClusterFileType.CAMM: ".mp4",
-        upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
-    }
-
-    return f"mly_tools_{upload_md5sum}{SUFFIX_MAP[cluster_filetype]}"
+    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[cluster_filetype]}"
