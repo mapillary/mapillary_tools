@@ -16,8 +16,10 @@ from . import (
     api_v4,
     constants,
     exceptions,
+    geo,
     history,
     ipc,
+    telemetry,
     types,
     upload_api_v4,
     uploader,
@@ -32,12 +34,6 @@ from .types import FileType
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
-MAPILLARY_DISABLE_API_LOGGING = os.getenv("MAPILLARY_DISABLE_API_LOGGING")
-MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN = os.getenv(
-    "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"
-)
-MAPILLARY__EXPERIMENTAL_ENABLE_IMU = os.getenv("MAPILLARY__EXPERIMENTAL_ENABLE_IMU")
-CAMM_CONVERTABLES = {FileType.CAMM, FileType.BLACKVUE, FileType.GOPRO}
 
 
 class UploadError(Exception):
@@ -238,25 +234,40 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
         type: uploader.EventName = "upload_start"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_fetch_offset"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress):
         type: uploader.EventName = "upload_progress"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+
+        if LOG.getEffectiveLevel() <= logging.DEBUG:
+            # In debug mode, we want to see the progress every 10 seconds
+            # instead of every chunk (which is too verbose)
+            INTERVAL_SECONDS = 10
+            now = time.time()
+            last_upload_progress_debug_at: float | None = T.cast(T.Dict, payload).get(
+                "_last_upload_progress_debug_at"
+            )
+            if (
+                last_upload_progress_debug_at is None
+                or last_upload_progress_debug_at + INTERVAL_SECONDS < now
+            ):
+                LOG.debug("IPC %s: %s", type.upper(), payload)
+                T.cast(T.Dict, payload)["_last_upload_progress_debug_at"] = now
+
         ipc.send(type, payload)
 
     @emitter.on("upload_end")
     def upload_end(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_end"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
 
@@ -368,7 +379,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats]):
 
 
 def _api_logging_finished(summary: dict):
-    if MAPILLARY_DISABLE_API_LOGGING:
+    if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
     action: api_v4.ActionType = "upload_finished_upload"
@@ -386,7 +397,7 @@ def _api_logging_finished(summary: dict):
 
 
 def _api_logging_failed(payload: dict, exc: Exception):
-    if MAPILLARY_DISABLE_API_LOGGING:
+    if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
     payload_with_reason = {**payload, "reason": exc.__class__.__name__}
@@ -448,13 +459,13 @@ def _find_metadata_with_filename_existed_in(
 
 def _upload_everything(
     mly_uploader: uploader.Uploader,
-    import_paths: T.Sequence[Path],
     metadatas: T.Sequence[types.Metadata],
+    import_paths: T.Sequence[Path],
     skip_subfolders: bool,
 ):
-    # upload images
+    # Upload images
     image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-    # find descs that match the image paths from the import paths
+    # Find descs that match the image paths from the import paths
     image_metadatas = [
         metadata
         for metadata in (metadatas or [])
@@ -475,7 +486,7 @@ def _upload_everything(
         if clusters:
             LOG.debug("Uploaded to cluster: %s", clusters)
 
-    # upload videos
+    # Upload videos
     video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
     video_metadatas = [
         metadata
@@ -485,30 +496,28 @@ def _upload_everything(
     specified_video_metadatas = _find_metadata_with_filename_existed_in(
         video_metadatas, video_paths
     )
-    for idx, video_metadata in enumerate(specified_video_metadatas):
+    _upload_videos(mly_uploader, specified_video_metadatas)
+
+    # Upload zip files
+    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+    _upload_zipfiles(mly_uploader, zip_paths)
+
+
+def _upload_videos(
+    mly_uploader: uploader.Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
+):
+    for idx, video_metadata in enumerate(video_metadatas):
         video_metadata.update_md5sum()
         assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
-        # extract telemetry measurements from GoPro videos
-        telemetry_measurements: list[camm_parser.TelemetryMeasurement] = []
-        if MAPILLARY__EXPERIMENTAL_ENABLE_IMU == "YES":
-            if video_metadata.filetype is FileType.GOPRO:
-                with video_metadata.filename.open("rb") as fp:
-                    gopro_info = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
-                if gopro_info is not None:
-                    telemetry_measurements.extend(gopro_info.accl or [])
-                    telemetry_measurements.extend(gopro_info.gyro or [])
-                    telemetry_measurements.extend(gopro_info.magn or [])
-                telemetry_measurements.sort(key=lambda m: m.time)
+        camm_info = _prepare_camm_info(video_metadata)
 
-        generator = camm_builder.camm_sample_generator2(
-            video_metadata, telemetry_measurements=telemetry_measurements
-        )
+        generator = camm_builder.camm_sample_generator2(camm_info)
 
         with video_metadata.filename.open("rb") as src_fp:
             camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
             progress: uploader.SequenceProgress = {
-                "total_sequence_count": len(specified_video_metadatas),
+                "total_sequence_count": len(video_metadatas),
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
                 "import_path": str(video_metadata.filename),
@@ -530,9 +539,62 @@ def _upload_everything(
                 raise UploadError(ex) from ex
             LOG.debug("Uploaded to cluster: %s", cluster_id)
 
-    # upload zip files
-    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-    _upload_zipfiles(mly_uploader, zip_paths)
+
+def _prepare_camm_info(video_metadata: types.VideoMetadata) -> camm_parser.CAMMInfo:
+    camm_info = camm_parser.CAMMInfo(
+        make=video_metadata.make or "", model=video_metadata.model or ""
+    )
+
+    for point in video_metadata.points:
+        if isinstance(point, telemetry.CAMMGPSPoint):
+            if camm_info.gps is None:
+                camm_info.gps = []
+            camm_info.gps.append(point)
+
+        elif isinstance(point, telemetry.GPSPoint):
+            # There is no proper CAMM entry for GoPro GPS
+            if camm_info.mini_gps is None:
+                camm_info.mini_gps = []
+            camm_info.mini_gps.append(point)
+
+        elif isinstance(point, geo.Point):
+            if camm_info.mini_gps is None:
+                camm_info.mini_gps = []
+            camm_info.mini_gps.append(point)
+        else:
+            raise ValueError(f"Unknown point type: {point}")
+
+    if constants.MAPILLARY__EXPERIMENTAL_ENABLE_IMU:
+        if video_metadata.filetype is FileType.GOPRO:
+            with video_metadata.filename.open("rb") as fp:
+                gopro_info = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
+            if gopro_info is not None:
+                camm_info.accl = gopro_info.accl or []
+                camm_info.gyro = gopro_info.gyro or []
+                camm_info.magn = gopro_info.magn or []
+
+    return camm_info
+
+
+def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
+    import_paths: list[Path]
+
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        assert isinstance(import_path, list)
+        import_paths = import_path
+
+    import_paths = list(utils.deduplicate_paths(import_paths))
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
+
+    return import_paths
 
 
 def upload(
@@ -543,23 +605,7 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        assert isinstance(import_path, list)
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
-
-    if not import_paths:
-        return
-
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
-            )
+    import_paths = _normalize_import_paths(import_path)
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
@@ -567,8 +613,11 @@ def upload(
 
     emitter = uploader.EventEmitter()
 
-    enable_history = history.MAPILLARY_UPLOAD_HISTORY_PATH and (
-        not dry_run or MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN == "YES"
+    # When dry_run mode is on, we disable history by default.
+    # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
+    # and when it is on, we enable history regardless of dry_run
+    enable_history = constants.MAPILLARY_UPLOAD_HISTORY_PATH and (
+        not dry_run or constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
     )
 
     # Put it first one to cancel early
@@ -603,7 +652,7 @@ def upload(
     )
 
     try:
-        _upload_everything(mly_uploader, import_paths, metadatas, skip_subfolders)
+        _upload_everything(mly_uploader, metadatas, import_paths, skip_subfolders)
     except UploadError as ex:
         inner_ex = ex.inner_ex
 
@@ -647,7 +696,7 @@ def _upload_zipfiles(
         }
         try:
             cluster_id = uploader.ZipImageSequence.prepare_zipfile_and_upload(
-                zip_path, mly_uploader, progress=progress
+                zip_path, mly_uploader, progress=T.cast(T.Dict[str, T.Any], progress)
             )
         except Exception as ex:
             raise UploadError(ex) from ex

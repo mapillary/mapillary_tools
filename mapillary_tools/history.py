@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import string
 import typing as T
 from pathlib import Path
@@ -10,13 +9,6 @@ from . import constants, types
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
-MAPILLARY_UPLOAD_HISTORY_PATH = os.getenv(
-    "MAPILLARY_UPLOAD_HISTORY_PATH",
-    os.path.join(
-        constants.USER_DATA_DIR,
-        "upload_history",
-    ),
-)
 
 
 def _validate_hexdigits(md5sum: str):
@@ -35,14 +27,14 @@ def history_desc_path(md5sum: str) -> Path:
     basename = md5sum[2:]
     assert basename, f"Invalid md5sum {md5sum}"
     return (
-        Path(MAPILLARY_UPLOAD_HISTORY_PATH)
+        Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH)
         .joinpath(subfolder)
         .joinpath(f"{basename}.json")
     )
 
 
 def is_uploaded(md5sum: str) -> bool:
-    if not MAPILLARY_UPLOAD_HISTORY_PATH:
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
         return False
     return history_desc_path(md5sum).is_file()
 
@@ -53,7 +45,7 @@ def write_history(
     summary: JSONDict,
     metadatas: T.Optional[T.Sequence[types.Metadata]] = None,
 ) -> None:
-    if not MAPILLARY_UPLOAD_HISTORY_PATH:
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
         return
     path = history_desc_path(md5sum)
     LOG.debug("Writing upload history: %s", path)

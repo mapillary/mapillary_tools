@@ -3,7 +3,7 @@ import io
 import typing as T
 from pathlib import Path
 
-from mapillary_tools import geo, telemetry, types
+from mapillary_tools import geo, telemetry, types, upload
 from mapillary_tools.camm import camm_builder, camm_parser
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 
@@ -38,6 +38,7 @@ def test_filter_points_by_edit_list():
     )
 
 
+# TODO: use CAMMInfo as input
 def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMetadata:
     movie_timescale = 1_000_000
 
@@ -56,8 +57,9 @@ def encode_decode_empty_camm_mp4(metadata: types.VideoMetadata) -> types.VideoMe
         {"type": b"moov", "data": [mvhd]},
     ]
     src = cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(empty_mp4)
+    input_camm_info = upload._prepare_camm_info(metadata)
     target_fp = simple_mp4_builder.transform_mp4(
-        io.BytesIO(src), camm_builder.camm_sample_generator2(metadata)
+        io.BytesIO(src), camm_builder.camm_sample_generator2(input_camm_info)
     )
 
     # extract points

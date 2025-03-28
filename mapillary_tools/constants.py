@@ -70,3 +70,20 @@ PROMPT_DISABLED: bool = _yes_or_no(os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "N
 _AUTH_VERIFICATION_DISABLED: bool = _yes_or_no(
     os.getenv(_ENV_PREFIX + "_AUTH_VERIFICATION_DISABLED", "NO")
 )
+
+MAPILLARY_DISABLE_API_LOGGING: bool = _yes_or_no(
+    os.getenv("MAPILLARY_DISABLE_API_LOGGING", "NO")
+)
+MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN: bool = _yes_or_no(
+    os.getenv("MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN", "NO")
+)
+MAPILLARY__EXPERIMENTAL_ENABLE_IMU: bool = _yes_or_no(
+    os.getenv("MAPILLARY__EXPERIMENTAL_ENABLE_IMU", "NO")
+)
+MAPILLARY_UPLOAD_HISTORY_PATH: str = os.getenv(
+    "MAPILLARY_UPLOAD_HISTORY_PATH",
+    os.path.join(
+        USER_DATA_DIR,
+        "upload_history",
+    ),
+)

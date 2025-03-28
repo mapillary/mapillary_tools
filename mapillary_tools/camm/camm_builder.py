@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import io
 import typing as T
 
-from .. import geo, types
+from .. import geo
 from ..mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
@@ -23,25 +25,23 @@ def _build_camm_sample(measurement: camm_parser.TelemetryMeasurement) -> bytes:
 
 
 def _create_edit_list_from_points(
-    point_segments: T.Sequence[T.Sequence[geo.Point]],
+    tracks: T.Sequence[T.Sequence[geo.Point]],
     movie_timescale: int,
     media_timescale: int,
 ) -> builder.BoxDict:
-    entries: T.List[T.Dict] = []
+    entries: list[dict] = []
 
-    non_empty_point_segments = [points for points in point_segments if points]
+    non_empty_tracks = [track for track in tracks if track]
 
-    for idx, points in enumerate(non_empty_point_segments):
-        assert 0 <= points[0].time, (
-            f"expect non-negative point time but got {points[0]}"
-        )
-        assert points[0].time <= points[-1].time, (
-            f"expect points to be sorted but got first point {points[0]} and last point {points[-1]}"
+    for idx, track in enumerate(non_empty_tracks):
+        assert 0 <= track[0].time, f"expect non-negative point time but got {track[0]}"
+        assert track[0].time <= track[-1].time, (
+            f"expect points to be sorted but got first point {track[0]} and last point {track[-1]}"
         )
 
         if idx == 0:
-            if 0 < points[0].time:
-                segment_duration = int(points[0].time * movie_timescale)
+            if 0 < track[0].time:
+                segment_duration = int(track[0].time * movie_timescale)
                 # put an empty edit list entry to skip the initial gap
                 entries.append(
                     {
@@ -53,8 +53,8 @@ def _create_edit_list_from_points(
                     }
                 )
         else:
-            media_time = int(points[0].time * media_timescale)
-            segment_duration = int((points[-1].time - points[0].time) * movie_timescale)
+            media_time = int(track[0].time * media_timescale)
+            segment_duration = int((track[-1].time - track[0].time) * movie_timescale)
             entries.append(
                 {
                     "media_time": media_time,
@@ -70,19 +70,6 @@ def _create_edit_list_from_points(
             "entries": entries,
         },
     }
-
-
-def _multiplex(
-    points: T.Sequence[geo.Point],
-    measurements: T.Optional[T.List[camm_parser.TelemetryMeasurement]] = None,
-) -> T.List[camm_parser.TelemetryMeasurement]:
-    mutiplexed: T.List[camm_parser.TelemetryMeasurement] = [
-        *points,
-        *(measurements or []),
-    ]
-    mutiplexed.sort(key=lambda m: m.time)
-
-    return mutiplexed
 
 
 def convert_telemetry_to_raw_samples(
@@ -237,29 +224,44 @@ def create_camm_trak(
     }
 
 
-def camm_sample_generator2(
-    video_metadata: types.VideoMetadata,
-    telemetry_measurements: T.Optional[T.List[camm_parser.TelemetryMeasurement]] = None,
-):
+def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
     def _f(
         fp: T.BinaryIO,
-        moov_children: T.List[builder.BoxDict],
+        moov_children: list[builder.BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder.find_movie_timescale(moov_children)
-        # make sure the precision of timedeltas not lower than 0.001 (1ms)
+        # Make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
 
-        # points with negative time are skipped
-        # TODO: interpolate first point at time == 0
-        # TODO: measurements with negative times should be skipped too
-        points = [point for point in video_metadata.points if point.time >= 0]
+        # Multiplex points for creating elst
+        track: list[geo.Point] = [
+            *(camm_info.gps or []),
+            *(camm_info.mini_gps or []),
+        ]
+        track.sort(key=lambda p: p.time)
+        if track and track[0].time < 0:
+            track = [p for p in track if p.time >= 0]
+        elst = _create_edit_list_from_points([track], movie_timescale, media_timescale)
 
-        measurements = _multiplex(points, telemetry_measurements)
+        # Multiplex telemetry measurements
+        measurements: list[camm_parser.TelemetryMeasurement] = [
+            *(camm_info.gps or []),
+            *(camm_info.mini_gps or []),
+            *(camm_info.accl or []),
+            *(camm_info.gyro or []),
+            *(camm_info.magn or []),
+        ]
+        measurements.sort(key=lambda m: m.time)
+        if measurements and measurements[0].time < 0:
+            measurements = [m for m in measurements if m.time >= 0]
+
+        # Serialize the telemetry measurements into MP4 samples
         camm_samples = list(
             convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
+
         camm_trak = create_camm_trak(camm_samples, media_timescale)
-        elst = _create_edit_list_from_points([points], movie_timescale, media_timescale)
+
         if T.cast(T.Dict, elst["data"])["entries"]:
             T.cast(T.List[builder.BoxDict], camm_trak["data"]).append(
                 {
@@ -269,19 +271,19 @@ def camm_sample_generator2(
             )
         moov_children.append(camm_trak)
 
-        udta_data: T.List[builder.BoxDict] = []
-        if video_metadata.make:
+        udta_data: list[builder.BoxDict] = []
+        if camm_info.make:
             udta_data.append(
                 {
                     "type": b"@mak",
-                    "data": video_metadata.make.encode("utf-8"),
+                    "data": camm_info.make.encode("utf-8"),
                 }
             )
-        if video_metadata.model:
+        if camm_info.model:
             udta_data.append(
                 {
                     "type": b"@mod",
-                    "data": video_metadata.model.encode("utf-8"),
+                    "data": camm_info.model.encode("utf-8"),
                 }
             )
         if udta_data:

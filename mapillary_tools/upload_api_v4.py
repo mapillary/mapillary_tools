@@ -32,7 +32,6 @@ class UploadService:
     user_access_token: str
     session_key: str
     cluster_filetype: ClusterFileType
-    chunk_size: int
 
     MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
         ClusterFileType.ZIP: "application/zip",
@@ -96,7 +95,7 @@ class UploadService:
         self,
         stream: T.IO[bytes],
         offset: int | None = None,
-        chunk_size: int = 2 * 1024 * 1024,
+        chunk_size: int = 2 * 1024 * 1024,  # 2MB
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()

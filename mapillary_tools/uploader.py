@@ -209,10 +209,10 @@ class ZipImageSequence:
         cls,
         zip_path: Path,
         uploader: Uploader,
-        progress: SequenceProgress | None = None,
+        progress: dict[str, T.Any] | None = None,
     ) -> str | None:
         if progress is None:
-            progress = T.cast(SequenceProgress, {})
+            progress = {}
 
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
@@ -227,8 +227,7 @@ class ZipImageSequence:
             with zip_path.open("rb") as zip_fp:
                 upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
-        final_progress: SequenceProgress = {
-            **progress,
+        sequence_progress: SequenceProgress = {
             "sequence_image_count": len(namelist),
             "file_type": types.FileType.ZIP.value,
             "md5sum": upload_md5sum,
@@ -241,7 +240,8 @@ class ZipImageSequence:
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
                 session_key,
-                progress=T.cast(T.Dict[str, T.Any], final_progress),
+                # Send the copy of the input progress to each upload session, to avoid modifying the original one
+                progress=T.cast(T.Dict[str, T.Any], {**progress, **sequence_progress}),
             )
 
     @classmethod
@@ -249,17 +249,16 @@ class ZipImageSequence:
         cls,
         image_metadatas: T.Sequence[types.ImageMetadata],
         uploader: Uploader,
-        progress: SequenceProgress | None = None,
+        progress: dict[str, T.Any] | None = None,
     ) -> dict[str, str]:
         if progress is None:
-            progress = T.cast(SequenceProgress, {})
+            progress = {}
 
         _validate_metadatas(image_metadatas)
         sequences = types.group_and_sort_images(image_metadatas)
         ret: dict[str, str] = {}
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            final_progress: SequenceProgress = {
-                **progress,
+            sequence_progress: SequenceProgress = {
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
                 "sequence_image_count": len(sequence),
@@ -270,7 +269,7 @@ class ZipImageSequence:
             with tempfile.NamedTemporaryFile() as fp:
                 upload_md5sum = cls.zip_sequence_fp(sequence, fp)
 
-                final_progress["md5sum"] = upload_md5sum
+                sequence_progress["md5sum"] = upload_md5sum
 
                 session_key = _session_key(
                     upload_md5sum, upload_api_v4.ClusterFileType.ZIP
@@ -280,8 +279,12 @@ class ZipImageSequence:
                     fp,
                     upload_api_v4.ClusterFileType.ZIP,
                     session_key,
-                    progress=T.cast(T.Dict[str, T.Any], final_progress),
+                    # Send the copy of the input progress to each upload session, to avoid modifying the original one
+                    progress=T.cast(
+                        T.Dict[str, T.Any], {**progress, **sequence_progress}
+                    ),
                 )
+
             if cluster_id is not None:
                 ret[sequence_uuid] = cluster_id
         return ret
@@ -419,6 +422,9 @@ class Uploader:
 
             progress["offset"] += len(chunk)
             progress["chunk_size"] = len(chunk)
+            # Whenever a chunk is uploaded, reset retries
+            progress["retries"] = 0
+
             if self.emitter:
                 self.emitter.emit("upload_progress", progress)
 
