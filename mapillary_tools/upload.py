@@ -696,7 +696,7 @@ def _upload_zipfiles(
         }
         try:
             cluster_id = uploader.ZipImageSequence.prepare_zipfile_and_upload(
-                zip_path, mly_uploader, progress=progress
+                zip_path, mly_uploader, progress=T.cast(T.Dict[str, T.Any], progress)
             )
         except Exception as ex:
             raise UploadError(ex) from ex
