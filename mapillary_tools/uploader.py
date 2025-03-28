@@ -300,7 +300,11 @@ class Uploader:
     ):
         jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
         self.user_items = user_items
-        self.emitter = emitter
+        if emitter is None:
+            # An empty event emitter that does nothing
+            self.emitter = EventEmitter()
+        else:
+            self.emitter = emitter
         self.chunk_size = chunk_size
         self.dry_run = dry_run
 
@@ -324,12 +328,11 @@ class Uploader:
         progress["retries"] = 0
         progress["begin_offset"] = None
 
-        if self.emitter:
-            try:
-                self.emitter.emit("upload_start", progress)
-            except UploadCancelled:
-                # TODO: Right now it is thrown in upload_start only
-                return None
+        try:
+            self.emitter.emit("upload_start", progress)
+        except UploadCancelled:
+            # TODO: Right now it is thrown in upload_start only
+            return None
 
         while True:
             try:
@@ -343,15 +346,13 @@ class Uploader:
 
             progress["retries"] += 1
 
-        if self.emitter:
-            self.emitter.emit("upload_end", progress)
+        self.emitter.emit("upload_end", progress)
 
         # TODO: retry here
         cluster_id = self._finish_upload_retryable(upload_service, file_handle)
         progress["cluster_id"] = cluster_id
 
-        if self.emitter:
-            self.emitter.emit("upload_finished", progress)
+        self.emitter.emit("upload_finished", progress)
 
         return cluster_id
 
@@ -383,8 +384,7 @@ class Uploader:
         chunk_size = progress["chunk_size"]
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-            if self.emitter:
-                self.emitter.emit("upload_interrupted", progress)
+            self.emitter.emit("upload_interrupted", progress)
             LOG.warning(
                 # use %s instead of %d because offset could be None
                 "Error uploading chunk_size %d at begin_offset %s: %s: %s",
@@ -425,8 +425,7 @@ class Uploader:
             # Whenever a chunk is uploaded, reset retries
             progress["retries"] = 0
 
-            if self.emitter:
-                self.emitter.emit("upload_progress", progress)
+            self.emitter.emit("upload_progress", progress)
 
     def _upload_stream_retryable(
         self,
@@ -441,8 +440,7 @@ class Uploader:
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
 
-        if self.emitter:
-            self.emitter.emit("upload_fetch_offset", progress)
+        self.emitter.emit("upload_fetch_offset", progress)
 
         fp.seek(begin_offset, io.SEEK_SET)
 
