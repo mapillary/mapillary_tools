@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import typing as T
 
@@ -27,7 +29,7 @@ def _create_edit_list_from_points(
     movie_timescale: int,
     media_timescale: int,
 ) -> builder.BoxDict:
-    entries: T.List[T.Dict] = []
+    entries: list[dict] = []
 
     non_empty_tracks = [track for track in tracks if track]
 
@@ -225,7 +227,7 @@ def create_camm_trak(
 def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
     def _f(
         fp: T.BinaryIO,
-        moov_children: T.List[builder.BoxDict],
+        moov_children: list[builder.BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder.find_movie_timescale(moov_children)
         # Make sure the precision of timedeltas not lower than 0.001 (1ms)
@@ -269,7 +271,7 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
             )
         moov_children.append(camm_trak)
 
-        udta_data: T.List[builder.BoxDict] = []
+        udta_data: list[builder.BoxDict] = []
         if camm_info.make:
             udta_data.append(
                 {
