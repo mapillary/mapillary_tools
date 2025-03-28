@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import struct
 import json
 import logging
 import os
@@ -73,6 +74,10 @@ class Progress(SequenceProgress, UploaderProgress):
     pass
 
 
+class ExifError(Exception):
+    def __init__(self, message: str, image_path: Path):
+        super().__init__(message)
+        self.image_path = image_path
 
 
 EventName = T.Literal[
@@ -189,12 +194,22 @@ class ZipImageSequence:
         if arcnames is None:
             arcnames = set()
 
-        edit = exif_write.ExifEdit(metadata.filename)
+        try:
+            edit = exif_write.ExifEdit(metadata.filename)
+        except struct.error as ex:
+            raise ExifError(f"Failed to load EXIF: {ex}", metadata.filename) from ex
+
         # The cast is to fix the type checker error
         edit.add_image_description(
             T.cast(T.Dict, types.desc_file_to_exif(types.as_desc(metadata)))
         )
-        image_bytes = edit.dump_image_bytes()
+
+        try:
+            image_bytes = edit.dump_image_bytes()
+        except struct.error as ex:
+            raise ExifError(
+                f"Failed to dump EXIF bytes: {ex}", metadata.filename
+            ) from ex
 
         arcname = cls._uniq_arcname(metadata.filename, arcnames)
         arcnames.add(arcname)
