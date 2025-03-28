@@ -282,6 +282,7 @@ class ZipImageSequence:
                     session_key,
                     progress=T.cast(T.Dict[str, T.Any], final_progress),
                 )
+
             if cluster_id is not None:
                 ret[sequence_uuid] = cluster_id
         return ret
@@ -419,6 +420,9 @@ class Uploader:
 
             progress["offset"] += len(chunk)
             progress["chunk_size"] = len(chunk)
+            # Whenever a chunk is uploaded, reset retries
+            progress["retries"] = 0
+
             if self.emitter:
                 self.emitter.emit("upload_progress", progress)
 

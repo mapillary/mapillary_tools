@@ -234,25 +234,40 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
         type: uploader.EventName = "upload_start"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_fetch_offset"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress):
         type: uploader.EventName = "upload_progress"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+
+        if LOG.getEffectiveLevel() <= logging.DEBUG:
+            # In debug mode, we want to see the progress every 10 seconds
+            # instead of every chunk (which is too verbose)
+            INTERVAL_SECONDS = 10
+            now = time.time()
+            last_upload_progress_debug_at: float | None = T.cast(T.Dict, payload).get(
+                "_last_upload_progress_debug_at"
+            )
+            if (
+                last_upload_progress_debug_at is None
+                or last_upload_progress_debug_at + INTERVAL_SECONDS < now
+            ):
+                LOG.debug("IPC %s: %s", type.upper(), payload)
+                T.cast(T.Dict, payload)["_last_upload_progress_debug_at"] = now
+
         ipc.send(type, payload)
 
     @emitter.on("upload_end")
     def upload_end(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_end"
-        LOG.debug("Sending %s via IPC: %s", type, payload)
+        LOG.debug("IPC %s: %s", type.upper(), payload)
         ipc.send(type, payload)
 
 
@@ -561,6 +576,27 @@ def _prepare_camm_info(video_metadata: types.VideoMetadata) -> camm_parser.CAMMI
     return camm_info
 
 
+def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
+    import_paths: list[Path]
+
+    if isinstance(import_path, Path):
+        import_paths = [import_path]
+    else:
+        assert isinstance(import_path, list)
+        import_paths = import_path
+
+    import_paths = list(utils.deduplicate_paths(import_paths))
+
+    # Check and fail early
+    for path in import_paths:
+        if not path.is_file() and not path.is_dir():
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Import file or directory not found: {path}"
+            )
+
+    return import_paths
+
+
 def upload(
     import_path: Path | T.Sequence[Path],
     user_items: types.UserItem,
@@ -569,23 +605,7 @@ def upload(
     dry_run=False,
     skip_subfolders=False,
 ) -> None:
-    import_paths: T.Sequence[Path]
-    if isinstance(import_path, Path):
-        import_paths = [import_path]
-    else:
-        assert isinstance(import_path, list)
-        import_paths = import_path
-    import_paths = list(utils.deduplicate_paths(import_paths))
-
-    if not import_paths:
-        return
-
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
-            )
+    import_paths = _normalize_import_paths(import_path)
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
