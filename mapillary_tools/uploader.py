@@ -143,16 +143,17 @@ class ZipImageSequence:
         """
         Group images into sequences and zip each sequence into a zipfile.
         """
-        _validate_metadatas(metadatas)
         sequences = types.group_and_sort_images(metadatas)
         os.makedirs(zip_dir, exist_ok=True)
 
         for sequence_uuid, sequence in sequences.items():
+            _validate_metadatas(sequence)
+            upload_md5sum = types.update_sequence_md5sum(sequence)
+
             # For atomicity we write into a WIP file and then rename to the final file
             wip_zip_filename = zip_dir.joinpath(
                 f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{int(time.time())}"
             )
-            upload_md5sum = types.update_sequence_md5sum(sequence)
             filename = _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
             zip_filename = zip_dir.joinpath(filename)
             with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
@@ -187,18 +188,27 @@ class ZipImageSequence:
         return upload_md5sum
 
     @classmethod
-    def extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str | None:
+    def extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str:
         with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
             comment = ziph.comment
+
         if not comment:
-            return None
+            raise InvalidMapillaryZipFileError("No comment found in the zipfile")
+
         try:
-            upload_md5sum = json.loads(comment.decode("utf-8")).get("upload_md5sum")
-        except Exception:
-            return None
-        if not upload_md5sum:
-            return None
-        return str(upload_md5sum)
+            decoded = comment.decode("utf-8")
+            zip_metadata = json.loads(decoded)
+        except UnicodeDecodeError as ex:
+            raise InvalidMapillaryZipFileError(str(ex)) from ex
+        except json.JSONDecodeError as ex:
+            raise InvalidMapillaryZipFileError(str(ex)) from ex
+
+        upload_md5sum = zip_metadata.get("upload_md5sum")
+
+        if not upload_md5sum and not isinstance(upload_md5sum, str):
+            raise InvalidMapillaryZipFileError("No upload_md5sum found")
+
+        return upload_md5sum
 
     @classmethod
     def _uniq_arcname(cls, filename: Path, arcnames: set[str]):
@@ -262,11 +272,6 @@ class ZipImageSequence:
 
         with zip_path.open("rb") as zip_fp:
             upload_md5sum = cls.extract_upload_md5sum(zip_fp)
-
-        # TODO: If it's None it's not a MLY image zip, we should throw and skip it
-        if upload_md5sum is None:
-            with zip_path.open("rb") as zip_fp:
-                upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
         sequence_progress: SequenceProgress = {
             "sequence_image_count": len(namelist),
