@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
 import io
-import struct
 import json
 import logging
 import os
+import struct
 import tempfile
 import time
 import typing as T
@@ -109,6 +110,12 @@ class EventEmitter:
     def emit(self, event: EventName, *args, **kwargs):
         for callback in self.events.get(event, []):
             callback(*args, **kwargs)
+
+
+@dataclasses.dataclass
+class UploadResult:
+    result: str | None = None
+    error: Exception | None = None
 
 
 class ZipImageSequence:
@@ -267,14 +274,19 @@ class ZipImageSequence:
         image_metadatas: T.Sequence[types.ImageMetadata],
         uploader: Uploader,
         progress: dict[str, T.Any] | None = None,
-    ) -> dict[str, str]:
+    ) -> T.Generator[tuple[str, UploadResult], None, None]:
         if progress is None:
             progress = {}
 
-        _validate_metadatas(image_metadatas)
         sequences = types.group_and_sort_images(image_metadatas)
-        ret: dict[str, str] = {}
+
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            try:
+                _validate_metadatas(sequence)
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+                continue
+
             sequence_progress: SequenceProgress = {
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
@@ -284,7 +296,11 @@ class ZipImageSequence:
             }
 
             with tempfile.NamedTemporaryFile() as fp:
-                upload_md5sum = cls.zip_sequence_fp(sequence, fp)
+                try:
+                    upload_md5sum = cls.zip_sequence_fp(sequence, fp)
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
 
                 sequence_progress["md5sum"] = upload_md5sum
 
@@ -292,19 +308,20 @@ class ZipImageSequence:
                     upload_md5sum, upload_api_v4.ClusterFileType.ZIP
                 )
 
-                cluster_id = uploader.upload_stream(
-                    fp,
-                    upload_api_v4.ClusterFileType.ZIP,
-                    session_key,
-                    # Send the copy of the input progress to each upload session, to avoid modifying the original one
-                    progress=T.cast(
-                        T.Dict[str, T.Any], {**progress, **sequence_progress}
-                    ),
-                )
+                try:
+                    cluster_id = uploader.upload_stream(
+                        fp,
+                        upload_api_v4.ClusterFileType.ZIP,
+                        session_key,
+                        progress=T.cast(
+                            T.Dict[str, T.Any], {**progress, **sequence_progress}
+                        ),
+                    )
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
 
-            if cluster_id is not None:
-                ret[sequence_uuid] = cluster_id
-        return ret
+            yield sequence_uuid, UploadResult(result=cluster_id)
 
 
 class Uploader:
@@ -331,7 +348,7 @@ class Uploader:
         cluster_filetype: upload_api_v4.ClusterFileType,
         session_key: str,
         progress: dict[str, T.Any] | None = None,
-    ) -> str | None:
+    ) -> str:
         if progress is None:
             progress = {}
 
