@@ -36,10 +36,8 @@ JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 LOG = logging.getLogger(__name__)
 
 
-class UploadError(Exception):
-    def __init__(self, inner_ex) -> None:
-        self.inner_ex = inner_ex
-        super().__init__(str(inner_ex))
+class UploadedAlreadyError(Exception):
+    pass
 
 
 def _load_validate_metadatas_from_desc_path(
@@ -154,7 +152,7 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
                     sequence_uuid,
                     history.history_desc_path(md5sum),
                 )
-            raise uploader.UploadCancelled()
+            raise UploadedAlreadyError()
 
 
 def _setup_write_upload_history(
@@ -328,7 +326,7 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
 def _summarize(stats: T.Sequence[_APIStats]) -> dict:
     total_image_count = sum(s.get("sequence_image_count", 0) for s in stats)
     total_uploaded_sequence_count = len(stats)
-    # note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
+    # Note that stats[0]["total_sequence_count"] not always same as total_uploaded_sequence_count
 
     total_uploaded_size = sum(
         s["entity_size"] - s.get("upload_first_offset", 0) for s in stats
@@ -346,6 +344,7 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
 
     upload_summary = {
         "images": total_image_count,
+        # TODO: rename sequences to total uploads
         "sequences": total_uploaded_sequence_count,
         "size": round(total_entity_size_mb, 4),
         "uploaded_size": round(total_uploaded_size_mb, 4),
@@ -356,29 +355,27 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
     return upload_summary
 
 
-def _show_upload_summary(stats: T.Sequence[_APIStats]):
-    grouped: dict[str, list[_APIStats]] = {}
-    for stat in stats:
-        grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
+def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
+    if not stats:
+        LOG.info("Nothing uploaded. Bye.")
+    else:
+        grouped: dict[str, list[_APIStats]] = {}
+        for stat in stats:
+            grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
 
-    for file_type, typed_stats in grouped.items():
-        if file_type == FileType.IMAGE.value:
-            LOG.info(
-                "%8d  %s sequences uploaded",
-                len(typed_stats),
-                file_type.upper(),
-            )
-        else:
-            LOG.info(
-                "%8d  %s files uploaded",
-                len(typed_stats),
-                file_type.upper(),
-            )
+        for file_type, typed_stats in grouped.items():
+            if file_type == FileType.IMAGE.value:
+                LOG.info("%8d image sequences uploaded", len(typed_stats))
+            else:
+                LOG.info("%8d  %s videos uploaded", len(typed_stats), file_type.upper())
 
-    summary = _summarize(stats)
-    LOG.info("%8.1fM data in total", summary["size"])
-    LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
-    LOG.info("%8.1fs upload time", summary["time"])
+        summary = _summarize(stats)
+        LOG.info("%8.1fM data in total", summary["size"])
+        LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
+        LOG.info("%8.1fs upload time", summary["time"])
+
+    for error in errors:
+        LOG.warning("Upload error: %s", error)
 
 
 def _api_logging_finished(summary: dict):
@@ -386,7 +383,6 @@ def _api_logging_finished(summary: dict):
         return
 
     action: api_v4.ActionType = "upload_finished_upload"
-    LOG.debug("API Logging for action %s: %s", action, summary)
     try:
         api_v4.log_event(action, summary)
     except requests.HTTPError as exc:
@@ -405,7 +401,6 @@ def _api_logging_failed(payload: dict, exc: Exception):
 
     payload_with_reason = {**payload, "reason": exc.__class__.__name__}
     action: api_v4.ActionType = "upload_failed_upload"
-    LOG.debug("API Logging for action %s: %s", action, payload)
     try:
         api_v4.log_event(action, payload_with_reason)
     except requests.HTTPError as exc:
@@ -454,93 +449,86 @@ _M = T.TypeVar("_M", bound=types.Metadata)
 
 
 def _find_metadata_with_filename_existed_in(
-    metadatas: T.Sequence[_M], paths: T.Sequence[Path]
+    metadatas: T.Iterable[_M], paths: T.Iterable[Path]
 ) -> list[_M]:
     resolved_image_paths = set(p.resolve() for p in paths)
     return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
 
 
-def _upload_everything(
+def _gen_upload_everything(
     mly_uploader: uploader.Uploader,
     metadatas: T.Sequence[types.Metadata],
     import_paths: T.Sequence[Path],
     skip_subfolders: bool,
 ):
     # Upload images
-    image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
-    # Find descs that match the image paths from the import paths
-    image_metadatas = [
-        metadata
-        for metadata in (metadatas or [])
-        if isinstance(metadata, types.ImageMetadata)
-    ]
-    specified_image_metadatas = _find_metadata_with_filename_existed_in(
-        image_metadatas, image_paths
+    image_metadatas = _find_metadata_with_filename_existed_in(
+        (m for m in metadatas if isinstance(m, types.ImageMetadata)),
+        utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    if specified_image_metadatas:
-        try:
-            clusters = uploader.ZipImageSequence.prepare_images_and_upload(
-                specified_image_metadatas,
-                mly_uploader,
-            )
-        except Exception as ex:
-            raise UploadError(ex) from ex
-
-        if clusters:
-            LOG.debug("Uploaded to cluster: %s", clusters)
+    for image_result in uploader.ZipImageSequence.prepare_images_and_upload(
+        image_metadatas,
+        mly_uploader,
+    ):
+        yield image_result
 
     # Upload videos
-    video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
-    video_metadatas = [
-        metadata
-        for metadata in (metadatas or [])
-        if isinstance(metadata, types.VideoMetadata)
-    ]
-    specified_video_metadatas = _find_metadata_with_filename_existed_in(
-        video_metadatas, video_paths
+    video_metadatas = _find_metadata_with_filename_existed_in(
+        (m for m in metadatas if isinstance(m, types.VideoMetadata)),
+        utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
     )
-    _upload_videos(mly_uploader, specified_video_metadatas)
+    for video_result in _gen_upload_videos(mly_uploader, video_metadatas):
+        yield video_result
 
     # Upload zip files
     zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-    _upload_zipfiles(mly_uploader, zip_paths)
+    for zip_result in _gen_upload_zipfiles(mly_uploader, zip_paths):
+        yield zip_result
 
 
-def _upload_videos(
+def _gen_upload_videos(
     mly_uploader: uploader.Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
-):
+) -> T.Generator[tuple[types.VideoMetadata, uploader.UploadResult], None, None]:
     for idx, video_metadata in enumerate(video_metadatas):
         video_metadata.update_md5sum()
         assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
+        # Convert video metadata to CAMMInfo
         camm_info = _prepare_camm_info(video_metadata)
 
-        generator = camm_builder.camm_sample_generator2(camm_info)
+        # Create the CAMM sample generator
+        camm_sample_generator = camm_builder.camm_sample_generator2(camm_info)
 
-        with video_metadata.filename.open("rb") as src_fp:
-            camm_fp = simple_mp4_builder.transform_mp4(src_fp, generator)
-            progress: uploader.SequenceProgress = {
-                "total_sequence_count": len(video_metadatas),
-                "sequence_idx": idx,
-                "file_type": video_metadata.filetype.value,
-                "import_path": str(video_metadata.filename),
-                "md5sum": video_metadata.md5sum,
-            }
+        progress: uploader.SequenceProgress = {
+            "total_sequence_count": len(video_metadatas),
+            "sequence_idx": idx,
+            "file_type": video_metadata.filetype.value,
+            "import_path": str(video_metadata.filename),
+            "md5sum": video_metadata.md5sum,
+        }
 
-            session_key = uploader._session_key(
-                video_metadata.md5sum, upload_api_v4.ClusterFileType.CAMM
-            )
+        session_key = uploader._session_key(
+            video_metadata.md5sum, upload_api_v4.ClusterFileType.CAMM
+        )
 
-            try:
+        try:
+            with video_metadata.filename.open("rb") as src_fp:
+                # Build the mp4 stream with the CAMM samples
+                camm_fp = simple_mp4_builder.transform_mp4(
+                    src_fp, camm_sample_generator
+                )
+
+                # Upload the mp4 stream
                 cluster_id = mly_uploader.upload_stream(
-                    T.cast(T.BinaryIO, camm_fp),
+                    camm_fp,
                     upload_api_v4.ClusterFileType.CAMM,
                     session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),
                 )
-            except Exception as ex:
-                raise UploadError(ex) from ex
-            LOG.debug("Uploaded to cluster: %s", cluster_id)
+        except Exception as ex:
+            yield video_metadata, uploader.UploadResult(error=ex)
+        else:
+            yield video_metadata, uploader.UploadResult(result=cluster_id)
 
 
 def _prepare_camm_info(video_metadata: types.VideoMetadata) -> camm_parser.CAMMInfo:
@@ -600,6 +588,38 @@ def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
     return import_paths
 
 
+def _continue_or_fail(ex: Exception) -> Exception:
+    """
+    Wrap the exception, or re-raise if it is a fatal error (i.e. there is no point to continue)
+    """
+
+    if isinstance(ex, uploader.ExifError):
+        return ex
+
+    if isinstance(ex, UploadedAlreadyError):
+        return ex
+
+    # Fatal error: this is thrown after all retries
+    if isinstance(ex, requests.ConnectionError):
+        raise exceptions.MapillaryUploadConnectionError(str(ex)) from ex
+
+    # Fatal error: this is thrown after all retries
+    if isinstance(ex, requests.Timeout):
+        raise exceptions.MapillaryUploadTimeoutError(str(ex)) from ex
+
+    # Fatal error:
+    if isinstance(ex, requests.HTTPError) and isinstance(
+        ex.response, requests.Response
+    ):
+        if api_v4.is_auth_error(ex.response):
+            raise exceptions.MapillaryUploadUnauthorizedError(
+                api_v4.extract_auth_error_message(ex.response)
+            ) from ex
+        raise ex
+
+    raise ex
+
+
 def upload(
     import_path: Path | T.Sequence[Path],
     user_items: types.UserItem,
@@ -630,7 +650,7 @@ def upload(
     # This one set up tdqm
     _setup_tdqm(emitter)
 
-    # Now stats is empty but it will collect during upload
+    # Now stats is empty but it will collect during ALL uploads
     stats = _setup_api_stats(emitter)
 
     # Send the progress as well as the log stats collected above
@@ -649,43 +669,40 @@ def upload(
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
 
+    results = _gen_upload_everything(
+        mly_uploader, metadatas, import_paths, skip_subfolders
+    )
+
+    upload_successes = 0
+    upload_errors: list[Exception] = []
+
+    # The real upload happens here
     try:
-        _upload_everything(mly_uploader, metadatas, import_paths, skip_subfolders)
-    except UploadError as ex:
-        inner_ex = ex.inner_ex
+        for _, result in results:
+            if result.error is not None:
+                upload_errors.append(_continue_or_fail(result.error))
+            else:
+                upload_successes += 1
 
+    except Exception as ex:
+        # Fatal error: log the error and raise
         if not dry_run:
-            _api_logging_failed(_summarize(stats), inner_ex)
+            _api_logging_failed(_summarize(stats), ex)
+        raise ex
 
-        if isinstance(inner_ex, requests.ConnectionError):
-            raise exceptions.MapillaryUploadConnectionError(str(inner_ex)) from inner_ex
-
-        if isinstance(inner_ex, requests.Timeout):
-            raise exceptions.MapillaryUploadTimeoutError(str(inner_ex)) from inner_ex
-
-        if isinstance(inner_ex, requests.HTTPError) and isinstance(
-            inner_ex.response, requests.Response
-        ):
-            if api_v4.is_auth_error(inner_ex.response):
-                raise exceptions.MapillaryUploadUnauthorizedError(
-                    api_v4.extract_auth_error_message(inner_ex.response)
-                ) from inner_ex
-            raise inner_ex
-
-        raise inner_ex
-
-    if stats:
+    else:
         if not dry_run:
             _api_logging_finished(_summarize(stats))
-        _show_upload_summary(stats)
-    else:
-        LOG.info("Nothing uploaded. Bye.")
+
+    finally:
+        assert upload_successes == len(stats)
+        _show_upload_summary(stats, upload_errors)
 
 
-def _upload_zipfiles(
+def _gen_upload_zipfiles(
     mly_uploader: uploader.Uploader,
     zip_paths: T.Sequence[Path],
-) -> None:
+) -> T.Generator[tuple[Path, uploader.UploadResult], None, None]:
     for idx, zip_path in enumerate(zip_paths):
         progress: uploader.SequenceProgress = {
             "total_sequence_count": len(zip_paths),
@@ -697,6 +714,6 @@ def _upload_zipfiles(
                 zip_path, mly_uploader, progress=T.cast(T.Dict[str, T.Any], progress)
             )
         except Exception as ex:
-            raise UploadError(ex) from ex
-
-        LOG.debug("Uploaded to cluster: %s", cluster_id)
+            yield zip_path, uploader.UploadResult(error=ex)
+        else:
+            yield zip_path, uploader.UploadResult(result=cluster_id)
