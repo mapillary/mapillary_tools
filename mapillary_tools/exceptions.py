@@ -1,8 +1,22 @@
+from __future__ import annotations
+
 import typing as T
 
 
 class MapillaryUserError(Exception):
     exit_code: int
+
+
+class MapillaryProcessError(MapillaryUserError):
+    """
+    Base exception for process specific errors
+    """
+
+    exit_code = 6
+
+
+class MapillaryDescriptionError(Exception):
+    pass
 
 
 class MapillaryBadParameterError(MapillaryUserError):
@@ -17,44 +31,35 @@ class MapillaryInvalidDescriptionFile(MapillaryUserError):
     exit_code = 4
 
 
-class MapillaryUnknownFileTypeError(MapillaryUserError):
-    exit_code = 5
-
-
-class MapillaryProcessError(MapillaryUserError):
-    exit_code = 6
-
-
 class MapillaryVideoError(MapillaryUserError):
     exit_code = 7
 
 
 class MapillaryFFmpegNotFoundError(MapillaryUserError):
     exit_code = 8
-    help = "https://github.com/mapillary/mapillary_tools#video-support"
 
 
 class MapillaryExiftoolNotFoundError(MapillaryUserError):
     exit_code = 8
 
 
-class MapillaryDescriptionError(Exception):
-    pass
-
-
 class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
 
-class MapillaryGPXEmptyError(MapillaryDescriptionError, MapillaryUserError):
-    exit_code = 9
+class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError):
+    pass
 
 
-class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError, MapillaryUserError):
-    exit_code = 9
+class MapillaryGPXEmptyError(MapillaryDescriptionError):
+    pass
 
 
 class MapillaryGPSNoiseError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryStationaryVideoError(MapillaryDescriptionError):
     pass
 
 
@@ -68,21 +73,13 @@ class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
         self.gpx_end_time = gpx_end_time
 
 
-class MapillaryStationaryVideoError(MapillaryDescriptionError, MapillaryUserError):
-    exit_code = 10
-
-
-class MapillaryInvalidBlackVueVideoError(MapillaryDescriptionError, MapillaryUserError):
-    exit_code = 11
-
-
 class MapillaryDuplicationError(MapillaryDescriptionError):
     def __init__(
         self,
         message: str,
         desc: T.Mapping[str, T.Any],
         distance: float,
-        angle_diff: T.Optional[float],
+        angle_diff: float | None,
     ) -> None:
         super().__init__(message)
         self.desc = desc
@@ -90,17 +87,19 @@ class MapillaryDuplicationError(MapillaryDescriptionError):
         self.angle_diff = angle_diff
 
 
-class MapillaryUploadedAlreadyError(MapillaryDescriptionError):
-    def __init__(
-        self,
-        message: str,
-        desc: T.Mapping[str, T.Any],
-    ) -> None:
-        super().__init__(message)
-        self.desc = desc
-
-
 class MapillaryEXIFNotFoundError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryFileTooLargeError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryCaptureSpeedTooFastError(MapillaryDescriptionError):
+    pass
+
+
+class MapillaryNullIslandError(MapillaryDescriptionError):
     pass
 
 
@@ -116,17 +115,5 @@ class MapillaryUploadUnauthorizedError(MapillaryUserError):
     exit_code = 14
 
 
-class MapillaryMetadataValidationError(MapillaryUserError, MapillaryDescriptionError):
+class MapillaryMetadataValidationError(MapillaryUserError):
     exit_code = 15
-
-
-class MapillaryFileTooLargeError(MapillaryDescriptionError):
-    pass
-
-
-class MapillaryCaptureSpeedTooFastError(MapillaryDescriptionError):
-    pass
-
-
-class MapillaryNullIslandError(MapillaryDescriptionError):
-    pass

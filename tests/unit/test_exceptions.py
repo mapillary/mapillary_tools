@@ -20,8 +20,6 @@ def test_all():
             e = exc("hello", "world", "hey", "aa")
         elif exc is exceptions.MapillaryDuplicationError:
             e = exc("hello", {}, 1, float("inf"))
-        elif exc is exceptions.MapillaryUploadedAlreadyError:
-            e = exc("world", {})
         else:
             e = exc("hello")
         # should not raise

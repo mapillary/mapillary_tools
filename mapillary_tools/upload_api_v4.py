@@ -43,12 +43,12 @@ class UploadService:
         self,
         user_access_token: str,
         session_key: str,
-        cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
+        cluster_filetype: ClusterFileType,
     ):
         self.user_access_token = user_access_token
         self.session_key = session_key
-        #  validate the input
-        self.cluster_filetype = ClusterFileType(cluster_filetype)
+        # Validate the input
+        self.cluster_filetype = cluster_filetype
 
     def fetch_offset(self) -> int:
         headers = {
