@@ -9,6 +9,7 @@ import typing as T
 import uuid
 from pathlib import Path
 
+import jsonschema
 import requests
 from tqdm import tqdm
 
@@ -631,6 +632,8 @@ def upload(
     import_paths = _normalize_import_paths(import_path)
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
+
+    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
 
     # Setup the emitter -- the order matters here
 

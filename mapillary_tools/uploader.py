@@ -14,7 +14,6 @@ import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
-import jsonschema
 import requests
 
 from . import api_v4, constants, exif_write, types, upload_api_v4, utils
@@ -332,7 +331,6 @@ class Uploader:
         chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
         dry_run=False,
     ):
-        jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
         self.user_items = user_items
         if emitter is None:
             # An empty event emitter that does nothing
