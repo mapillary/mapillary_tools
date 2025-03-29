@@ -64,11 +64,13 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
             "filetype": "image",
         },
     ]
-    resp = uploader.ZipImageSequence.prepare_images_and_upload(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
-        mly_uploader,
+    results = list(
+        uploader.ZipImageSequence.prepare_images_and_upload(
+            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            mly_uploader,
+        )
     )
-    assert len(resp) == 1
+    assert len(results) == 1
     assert len(setup_upload.listdir()) == 1
     actual_descs = _validate_zip_dir(setup_upload)
     assert 1 == len(actual_descs), "should return 1 desc because of the unique filename"
@@ -116,11 +118,13 @@ def test_upload_images_multiple_sequences(
         },
         dry_run=True,
     )
-    resp = uploader.ZipImageSequence.prepare_images_and_upload(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
-        mly_uploader,
+    results = list(
+        uploader.ZipImageSequence.prepare_images_and_upload(
+            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            mly_uploader,
+        )
     )
-    assert len(resp) == 2
+    assert len(results) == 2
     assert len(setup_upload.listdir()) == 2
     actual_descs = _validate_zip_dir(setup_upload)
     assert 2 == len(actual_descs)
