@@ -37,7 +37,7 @@ JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 LOG = logging.getLogger(__name__)
 
 
-class UploadedAlreadyError(Exception):
+class UploadedAlreadyError(uploader.SequenceError):
     pass
 
 
@@ -491,7 +491,12 @@ def _gen_upload_videos(
     mly_uploader: uploader.Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
 ) -> T.Generator[tuple[types.VideoMetadata, uploader.UploadResult], None, None]:
     for idx, video_metadata in enumerate(video_metadatas):
-        video_metadata.update_md5sum()
+        try:
+            video_metadata.update_md5sum()
+        except Exception as ex:
+            yield video_metadata, uploader.UploadResult(error=ex)
+            continue
+
         assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
         # Convert video metadata to CAMMInfo
@@ -594,10 +599,15 @@ def _continue_or_fail(ex: Exception) -> Exception:
     Wrap the exception, or re-raise if it is a fatal error (i.e. there is no point to continue)
     """
 
-    if isinstance(ex, uploader.ExifError):
+    if isinstance(ex, uploader.SequenceError):
         return ex
 
-    if isinstance(ex, UploadedAlreadyError):
+    # Certain files not found or no permission
+    if isinstance(ex, OSError):
+        return ex
+
+    # Certain metadatas are not valid
+    if isinstance(ex, exceptions.MapillaryMetadataValidationError):
         return ex
 
     # Fatal error: this is thrown after all retries
@@ -679,7 +689,7 @@ def upload(
     upload_successes = 0
     upload_errors: list[Exception] = []
 
-    # The real upload happens here
+    # The real upload happens sequentially here
     try:
         for _, result in results:
             if result.error is not None:
@@ -688,7 +698,7 @@ def upload(
                 upload_successes += 1
 
     except Exception as ex:
-        # Fatal error: log the error and raise
+        # Fatal error: log and raise
         if not dry_run:
             _api_logging_failed(_summarize(stats), ex)
         raise ex
@@ -698,6 +708,7 @@ def upload(
             _api_logging_finished(_summarize(stats))
 
     finally:
+        # We collected stats after every upload is finished
         assert upload_successes == len(stats)
         _show_upload_summary(stats, upload_errors)
 

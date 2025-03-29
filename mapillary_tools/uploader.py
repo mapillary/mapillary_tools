@@ -16,7 +16,7 @@ from pathlib import Path
 
 import requests
 
-from . import api_v4, constants, exif_write, types, upload_api_v4, utils
+from . import api_v4, constants, exif_write, types, upload_api_v4
 
 
 LOG = logging.getLogger(__name__)
@@ -27,18 +27,26 @@ class UploaderProgress(T.TypedDict, total=True):
     Progress data that Uploader cares about.
     """
 
-    # The size of the chunk, in bytes, that has been read and upload
+    # The size, in bytes, of the last chunk that has been read and upload
     chunk_size: int
 
+    # The initial offset returned by the upload service, which is also the offset
+    # uploader start uploading from.
+    # Assert:
+    #   - 0 <= begin_offset <= offset <= entity_size
+    #   - Be non-None after at least a successful "upload_fetch_offset"
     begin_offset: int | None
 
-    # How many bytes has been uploaded so far since "upload_start"
+    # How many bytes of the file has been uploaded so far
     offset: int
 
-    # Size in bytes of the zipfile/BlackVue/CAMM
+    # Size in bytes of the file (i.e. fp.tell() after seek to the end)
+    # NOTE: It's different from filesize in file system
+    # Assert:
+    #   - offset == entity_size when "upload_end" or "upload_finished"
     entity_size: int
 
-    # An "upload_interrupted" will increase it. Reset to 0 if the chunk is uploaded
+    # An "upload_interrupted" will increase it. Reset to 0 if a chunk is uploaded
     retries: int
 
     # Cluster ID after finishing the upload
@@ -74,13 +82,23 @@ class Progress(SequenceProgress, UploaderProgress):
     pass
 
 
-class ExifError(Exception):
+class SequenceError(Exception):
+    """
+    Base class for sequence specific errors. These errors will cause the
+    current sequence upload to fail but will not interrupt the overall upload
+    process for other sequences.
+    """
+
+    pass
+
+
+class ExifError(SequenceError):
     def __init__(self, message: str, image_path: Path):
         super().__init__(message)
         self.image_path = image_path
 
 
-class EmptyZipFileError(Exception):
+class InvalidMapillaryZipFileError(SequenceError):
     pass
 
 
@@ -240,7 +258,7 @@ class ZipImageSequence:
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
             if not namelist:
-                raise EmptyZipFileError("Zipfile has no files")
+                raise InvalidMapillaryZipFileError("Zipfile has no files")
 
         with zip_path.open("rb") as zip_fp:
             upload_md5sum = cls.extract_upload_md5sum(zip_fp)
@@ -280,12 +298,6 @@ class ZipImageSequence:
         sequences = types.group_and_sort_images(image_metadatas)
 
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            try:
-                _validate_metadatas(sequence)
-            except Exception as ex:
-                yield sequence_uuid, UploadResult(error=ex)
-                continue
-
             sequence_progress: SequenceProgress = {
                 "sequence_idx": sequence_idx,
                 "total_sequence_count": len(sequences),
@@ -293,6 +305,12 @@ class ZipImageSequence:
                 "sequence_uuid": sequence_uuid,
                 "file_type": types.FileType.IMAGE.value,
             }
+
+            try:
+                _validate_metadatas(sequence)
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+                continue
 
             with tempfile.NamedTemporaryFile() as fp:
                 try:
