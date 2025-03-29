@@ -134,10 +134,16 @@ def zip_images(
     uploader.ZipImageSequence.zip_images(image_metadatas, zip_dir)
 
 
-def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
+def _setup_history(
+    emitter: uploader.EventEmitter,
+    upload_run_params: JSONDict,
+    metadatas: list[types.Metadata],
+) -> None:
     @emitter.on("upload_start")
-    def upload_start(payload: uploader.Progress):
-        md5sum = payload["md5sum"]
+    def check_duplication(payload: uploader.Progress):
+        md5sum = payload.get("md5sum")
+        assert md5sum is not None, f"md5sum has to be set for {payload}"
+
         if history.is_uploaded(md5sum):
             sequence_uuid = payload.get("sequence_uuid")
             if sequence_uuid is None:
@@ -155,17 +161,13 @@ def _setup_cancel_due_to_duplication(emitter: uploader.EventEmitter) -> None:
                 )
             raise UploadedAlreadyError()
 
-
-def _setup_write_upload_history(
-    emitter: uploader.EventEmitter,
-    params: JSONDict,
-    metadatas: list[types.Metadata] | None = None,
-) -> None:
     @emitter.on("upload_finished")
-    def upload_finished(payload: uploader.Progress):
+    def write_history(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
-        md5sum = payload["md5sum"]
-        if sequence_uuid is None or metadatas is None:
+        md5sum = payload.get("md5sum")
+        assert md5sum is not None, f"md5sum has to be set for {payload}"
+
+        if sequence_uuid is None:
             sequence = None
         else:
             sequence = [
@@ -175,10 +177,11 @@ def _setup_write_upload_history(
                 and metadata.MAPSequenceUUID == sequence_uuid
             ]
             sequence.sort(key=lambda metadata: metadata.sort_key())
+
         try:
             history.write_history(
                 md5sum,
-                params,
+                upload_run_params,
                 T.cast(JSONDict, payload),
                 sequence,
             )
@@ -376,7 +379,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info("%8.1fs upload time", summary["time"])
 
     for error in errors:
-        LOG.warning("Upload error: %s", error)
+        LOG.error("Upload error: %s: %s", error.__class__.__name__, error)
 
 
 def _api_logging_finished(summary: dict):
@@ -656,29 +659,26 @@ def upload(
         not dry_run or constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
     )
 
-    # Put it first one to cancel early
+    # Put it first one to check duplications first
     if enable_history:
-        _setup_cancel_due_to_duplication(emitter)
+        upload_run_params: JSONDict = {
+            # Null if multiple paths provided
+            "import_path": str(import_path) if isinstance(import_path, Path) else None,
+            "organization_key": user_items.get("MAPOrganizationKey"),
+            "user_key": user_items.get("MAPSettingsUserKey"),
+            "version": VERSION,
+            "run_at": time.time(),
+        }
+        _setup_history(emitter, upload_run_params, metadatas)
 
-    # This one set up tdqm
+    # Set up tdqm
     _setup_tdqm(emitter)
 
     # Now stats is empty but it will collect during ALL uploads
     stats = _setup_api_stats(emitter)
 
-    # Send the progress as well as the log stats collected above
+    # Send the progress via IPC, and log the progress in debug mode
     _setup_ipc(emitter)
-
-    params: JSONDict = {
-        # null if multiple paths provided
-        "import_path": str(import_path) if isinstance(import_path, Path) else None,
-        "organization_key": user_items.get("MAPOrganizationKey"),
-        "user_key": user_items.get("MAPSettingsUserKey"),
-        "version": VERSION,
-    }
-
-    if enable_history:
-        _setup_write_upload_history(emitter, params, metadatas)
 
     mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
 
