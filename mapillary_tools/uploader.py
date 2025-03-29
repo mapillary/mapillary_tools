@@ -80,6 +80,10 @@ class ExifError(Exception):
         self.image_path = image_path
 
 
+class EmptyZipFileError(Exception):
+    pass
+
+
 EventName = T.Literal[
     "upload_start",
     "upload_fetch_offset",
@@ -223,19 +227,19 @@ class ZipImageSequence:
         zip_path: Path,
         uploader: Uploader,
         progress: dict[str, T.Any] | None = None,
-    ) -> str | None:
+    ) -> str:
         if progress is None:
             progress = {}
 
         with zipfile.ZipFile(zip_path) as ziph:
             namelist = ziph.namelist()
             if not namelist:
-                LOG.warning("Skipping empty zipfile: %s", zip_path)
-                return None
+                raise EmptyZipFileError("Zipfile has no files")
 
         with zip_path.open("rb") as zip_fp:
             upload_md5sum = cls.extract_upload_md5sum(zip_fp)
 
+        # TODO: If it's None it's not a MLY image zip, we should throw and skip it
         if upload_md5sum is None:
             with zip_path.open("rb") as zip_fp:
                 upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
