@@ -520,7 +520,7 @@ def _gen_upload_videos(
 
                 # Upload the mp4 stream
                 cluster_id = mly_uploader.upload_stream(
-                    camm_fp,
+                    T.cast(T.IO[bytes], camm_fp),
                     upload_api_v4.ClusterFileType.CAMM,
                     session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),

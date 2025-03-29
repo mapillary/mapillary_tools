@@ -2,7 +2,7 @@ import io
 import typing as T
 
 
-class ChainedIO(io.IOBase, T.IO[bytes]):
+class ChainedIO(io.IOBase):
     _streams: T.Sequence[io.IOBase]
     # the beginning offset of the current stream
     _begin_offset: int
