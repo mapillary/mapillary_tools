@@ -562,10 +562,7 @@ def process_finalize(
         # skip all exceptions
         skipped_process_errors = {Exception}
     else:
-        skipped_process_errors = {
-            exceptions.MapillaryDuplicationError,
-            exceptions.MapillaryUploadedAlreadyError,
-        }
+        skipped_process_errors = {exceptions.MapillaryDuplicationError}
     _show_stats(metadatas, skipped_process_errors=skipped_process_errors)
 
     return metadatas
