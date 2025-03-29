@@ -69,7 +69,7 @@ def _load_validate_metadatas_from_desc_path(
         except json.JSONDecodeError as ex:
             raise exceptions.MapillaryInvalidDescriptionFile(
                 f"Invalid JSON stream from stdin: {ex}"
-            )
+            ) from ex
     else:
         if not os.path.isfile(desc_path):
             if is_default_desc_path:
@@ -86,7 +86,7 @@ def _load_validate_metadatas_from_desc_path(
             except json.JSONDecodeError as ex:
                 raise exceptions.MapillaryInvalidDescriptionFile(
                     f"Invalid JSON file {desc_path}: {ex}"
-                )
+                ) from ex
 
     # the descs load from stdin or json file may contain invalid entries
     validated_descs = [

@@ -456,11 +456,11 @@ def validate_image_desc(desc: T.Any) -> None:
         jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
     except jsonschema.ValidationError as ex:
         # do not use str(ex) which is more verbose
-        raise exceptions.MapillaryMetadataValidationError(ex.message)
+        raise exceptions.MapillaryMetadataValidationError(ex.message) from ex
     try:
         map_capture_time_to_datetime(desc["MAPCaptureTime"])
     except ValueError as ex:
-        raise exceptions.MapillaryMetadataValidationError(str(ex))
+        raise exceptions.MapillaryMetadataValidationError(str(ex)) from ex
 
 
 def validate_video_desc(desc: T.Any) -> None:
@@ -468,7 +468,7 @@ def validate_video_desc(desc: T.Any) -> None:
         jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
     except jsonschema.ValidationError as ex:
         # do not use str(ex) which is more verbose
-        raise exceptions.MapillaryMetadataValidationError(ex.message)
+        raise exceptions.MapillaryMetadataValidationError(ex.message) from ex
 
 
 def datetime_to_map_capture_time(time: T.Union[datetime.datetime, int, float]) -> str:
