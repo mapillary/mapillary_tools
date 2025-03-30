@@ -3,7 +3,6 @@ import typing as T
 
 
 class ChainedIO(io.IOBase):
-    # is the chained stream seekable?
     _streams: T.Sequence[io.IOBase]
     # the beginning offset of the current stream
     _begin_offset: int
