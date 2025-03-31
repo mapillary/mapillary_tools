@@ -5,8 +5,9 @@ import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from .. import exceptions, exiftool_read, geo, types, utils
+from .. import constants, exceptions, exiftool_read, geo, types, utils
 from ..exiftool_read_video import ExifToolReadVideo
+from ..exiftool_runner import ExiftoolRunner
 from ..gpmf import gpmf_gps_filter
 from ..telemetry import GPSPoint
 from .geotag_from_generic import GenericVideoExtractor, GeotagVideosFromGeneric
@@ -92,6 +93,46 @@ class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(
                     f"The {exiftool_read._DESCRIPTION_TAG} XML element for the image not found"
+                )
+                results.append(
+                    types.describe_error_metadata(
+                        exc, path, filetype=types.FileType.IMAGE
+                    )
+                )
+            else:
+                results.append(VideoExifToolExtractor(path, rdf_description))
+
+        return results
+
+
+class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
+    def _generate_video_extractors(
+        self,
+    ) -> T.Sequence[GenericVideoExtractor | types.ErrorMetadata]:
+        runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+
+        LOG.debug(
+            "Extracting XML from %d videos with exiftool command: %s",
+            len(self.video_paths),
+            " ".join(runner._build_args_read_stdin()),
+        )
+        xml = runner.extract_xml(self.video_paths)
+
+        rdf_description_by_path = (
+            exiftool_read.index_rdf_description_by_path_from_xml_element(
+                ET.fromstring(xml)
+            )
+        )
+
+        results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
+
+        for path in self.video_paths:
+            rdf_description = rdf_description_by_path.get(
+                exiftool_read.canonical_path(path)
+            )
+            if rdf_description is None:
+                exc = exceptions.MapillaryEXIFNotFoundError(
+                    f"The {exiftool_read._DESCRIPTION_TAG} XML element for the video not found"
                 )
                 results.append(
                     types.describe_error_metadata(
