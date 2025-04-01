@@ -22,6 +22,7 @@ class ExiftoolRunner:
 
     def _get_executable_path(self) -> str | None:
         system = platform.system()
+
         if system and system.lower() == "windows":
             exiftool_paths = ["exiftool.exe", "exiftool"]
         else:

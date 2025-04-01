@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import inspect
-import typing as T
 from pathlib import Path
 
 from .. import constants, types
