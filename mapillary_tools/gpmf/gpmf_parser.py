@@ -166,7 +166,7 @@ def extract_gopro_info(
                 gyros_by_dvid = None
                 magns_by_dvid = None
 
-            _load_telemetry_from_samples(
+            device_found = _load_telemetry_from_samples(
                 fp,
                 gpmd_samples,
                 points_by_dvid=points_by_dvid,
@@ -175,6 +175,10 @@ def extract_gopro_info(
                 magns_by_dvid=magns_by_dvid,
                 dvnm_by_dvid=dvnm_by_dvid,
             )
+            # If no device found, it's likely some other cameras using
+            # the "gpmd" container format, e.g. VANTRUE N2S 4K Dashcam
+            if not device_found:
+                return None
 
             gopro_info = GoProInfo()
 
@@ -595,13 +599,19 @@ def _load_telemetry_from_samples(
     gyros_by_dvid: dict[int, list[telemetry.GyroscopeData]] | None = None,
     magns_by_dvid: dict[int, list[telemetry.MagnetometerData]] | None = None,
     dvnm_by_dvid: dict[int, bytes] | None = None,
-) -> None:
+) -> bool:
+    device_found: bool = False
+
     for sample, sample_data in _iterate_read_sample_data(fp, samples):
-        gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(sample_data))
+        try:
+            gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(sample_data))
+        except C.ConstructError:
+            continue
 
         # iterate devices
         devices = (klv for klv in gpmf_sample_data if klv["key"] == b"DEVC")
         for device in devices:
+            device_found = True
             device_id = _find_first_device_id(device["data"])
 
             if dvnm_by_dvid is not None:
@@ -666,6 +676,8 @@ def _load_telemetry_from_samples(
                         )
                         for idx, (z, x, y, *_) in enumerate(sample_magns)
                     )
+
+    return device_found
 
 
 def _is_gpmd_description(description: T.Dict) -> bool:

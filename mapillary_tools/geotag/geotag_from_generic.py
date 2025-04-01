@@ -34,7 +34,7 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
     """
 
     def __init__(
-        self, image_paths: T.Sequence[Path], num_processes: int | None
+        self, image_paths: T.Sequence[Path], num_processes: int | None = None
     ) -> None:
         self.image_paths = image_paths
         self.num_processes = num_processes
@@ -109,7 +109,7 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
     """
 
     def __init__(
-        self, video_paths: T.Sequence[Path], num_processes: int | None
+        self, video_paths: T.Sequence[Path], num_processes: int | None = None
     ) -> None:
         self.video_paths = video_paths
         self.num_processes = num_processes
