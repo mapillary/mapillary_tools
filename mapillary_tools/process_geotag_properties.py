@@ -45,8 +45,9 @@ def _parse_source_options(
 
     for s in video_geotag_source:
         for video_option in parse_source_option(s):
-            # TODO: if video_option.filetypes was GOPRO, BLACKVUE, or CAMM, then we should do the intersection
-            video_option.filetypes = {types.FileType.VIDEO}
+            video_option.filetypes = _combine_filetypes(
+                video_option.filetypes, {types.FileType.VIDEO}
+            )
             parsed_options.append(video_option)
 
     if geotag_source_path is not None:
@@ -66,6 +67,35 @@ def _parse_source_options(
                     )
 
     return parsed_options
+
+
+# Assume {GOPRO, VIDEO} are the NATIVE_VIDEO_FILETYPES:
+# a             | b               = result
+# {CAMM}        | {GOPRO}         = {}
+# {CAMM}        | {GOPRO, VIDEO}  = {CAMM}
+# {GOPRO}       | {GOPRO, VIDEO}  = {GOPRO}
+# {GOPRO}       | {VIDEO}         = {GOPRO}
+# {CAMM, GOPRO} | {VIDEO}         = {CAMM, GOPRO}
+# {VIDEO}       | {VIDEO}         = {CAMM, GOPRO, VIDEO}
+def _combine_filetypes(
+    a: set[types.FileType] | None, b: set[types.FileType] | None
+) -> set[types.FileType] | None:
+    if a is None:
+        return b
+
+    if b is None:
+        return a
+
+    # VIDEO is a superset of NATIVE_VIDEO_FILETYPES,
+    # so we add NATIVE_VIDEO_FILETYPES to each set for intersection later
+
+    if types.FileType.VIDEO in a:
+        a = a | types.NATIVE_VIDEO_FILETYPES
+
+    if types.FileType.VIDEO in b:
+        b = b | types.NATIVE_VIDEO_FILETYPES
+
+    return a.intersection(b)
 
 
 def process_geotag_properties(
@@ -105,7 +135,7 @@ def process_geotag_properties(
     )
 
     for option in options:
-        option.filetypes = filetypes
+        option.filetypes = _combine_filetypes(option.filetypes, filetypes)
         option.num_processes = num_processes
         if option.interpolation is None:
             option.interpolation = InterpolationOption(

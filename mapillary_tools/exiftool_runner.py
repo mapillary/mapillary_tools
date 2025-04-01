@@ -8,6 +8,10 @@ from pathlib import Path
 
 
 class ExiftoolRunner:
+    """
+    Wrapper around ExifTool to run it in a subprocess
+    """
+
     def __init__(self, exiftool_path: str | None = None, recursive: bool = False):
         if exiftool_path is None:
             exiftool_path = self._search_preferred_exiftool_path()
@@ -27,7 +31,8 @@ class ExiftoolRunner:
             if full_path:
                 return path
 
-        # Always return the prefered one, even if it is not found
+        # Always return the prefered one, even if it is not found,
+        # and let the subprocess.run figure out the error later
         return exiftool_paths[0]
 
     def _build_args_read_stdin(self) -> list[str]:

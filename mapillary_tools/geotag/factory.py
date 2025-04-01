@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-
 import typing as T
 from pathlib import Path
 
@@ -113,19 +112,14 @@ def _filter_images_and_videos(
     image_paths = []
     video_paths = []
 
-    ALL_VIDEO_TYPES = {
-        types.FileType.VIDEO,
-        types.FileType.BLACKVUE,
-        types.FileType.CAMM,
-        types.FileType.GOPRO,
-    }
+    ALL_VIDEO_TYPES = {types.FileType.VIDEO, *types.NATIVE_VIDEO_FILETYPES}
 
     if filetypes is None:
         include_images = True
         include_videos = True
     else:
         include_images = types.FileType.IMAGE in filetypes
-        include_videos = bool(filetypes.intersection(ALL_VIDEO_TYPES))
+        include_videos = bool(filetypes & ALL_VIDEO_TYPES)
 
     for path in file_paths:
         if utils.is_image_file(path):

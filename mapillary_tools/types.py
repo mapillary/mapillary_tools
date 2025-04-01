@@ -33,12 +33,21 @@ _ANGLE_PRECISION = 3
 
 
 class FileType(enum.Enum):
+    IMAGE = "image"
+    ZIP = "zip"
+    # VIDEO is a superset of all NATIVE_VIDEO_FILETYPES below.
+    # It also contains the videos that external geotag source (e.g. exiftool) supports
+    VIDEO = "video"
     BLACKVUE = "blackvue"
     CAMM = "camm"
     GOPRO = "gopro"
-    IMAGE = "image"
-    VIDEO = "video"
-    ZIP = "zip"
+
+
+NATIVE_VIDEO_FILETYPES = {
+    FileType.BLACKVUE,
+    FileType.CAMM,
+    FileType.GOPRO,
+}
 
 
 @dataclasses.dataclass
