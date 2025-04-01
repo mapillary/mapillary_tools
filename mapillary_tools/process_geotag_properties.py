@@ -50,24 +50,20 @@ def _parse_source_options(
             parsed_options.append(video_option)
 
     if geotag_source_path is not None:
-        if len(parsed_options) != 1:
-            raise exceptions.MapillaryBadParameterError(
-                f"The option --geotag_source_path must be used with exactly one source but got {[s.source.value for s in parsed_options]}",
-            )
-        parsed_option = parsed_options[0]
-        if parsed_option.source_path is None:
-            parsed_option.source_path = SourcePathOption(
-                source_path=Path(geotag_source_path)
-            )
-        else:
-            source_path_option = parsed_option.source_path
-            if source_path_option.source_path is None:
-                source_path_option.source_path = Path(geotag_source_path)
-            else:
-                LOG.warning(
-                    "The option --geotag_source_path is ignored for source %s",
-                    parsed_option,
+        for parsed_option in parsed_options:
+            if parsed_option.source_path is None:
+                parsed_option.source_path = SourcePathOption(
+                    source_path=Path(geotag_source_path)
                 )
+            else:
+                source_path_option = parsed_option.source_path
+                if source_path_option.source_path is None:
+                    source_path_option.source_path = Path(geotag_source_path)
+                else:
+                    LOG.warning(
+                        "The option --geotag_source_path is ignored for source %s",
+                        parsed_option,
+                    )
 
     return parsed_options
 
@@ -81,7 +77,6 @@ def process_geotag_properties(
     video_geotag_source: list[str],
     # Global options
     # video_import_path comes from the command video_process
-    # TODO: pass it to geotag options
     video_import_path: Path | None = None,
     interpolation_use_gpx_start_time: bool = False,
     interpolation_offset_time: float = 0.0,
@@ -100,7 +95,7 @@ def process_geotag_properties(
     if geotag_source_path is None:
         geotag_source_path = video_import_path
 
-    if not geotag_source and not video_geotag_source and geotag_source_path is None:
+    if not geotag_source and not video_geotag_source:
         geotag_source = [*DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
     options = _parse_source_options(

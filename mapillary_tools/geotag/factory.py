@@ -19,7 +19,7 @@ from . import (
     geotag_videos_from_gpx,
     geotag_videos_from_video,
 )
-from .options import SOURCE_TYPE_ALIAS, SourceOption, SourceType
+from .options import InterpolationOption, SOURCE_TYPE_ALIAS, SourceOption, SourceType
 
 
 def parse_source_option(source: str) -> list[SourceOption]:
@@ -53,7 +53,9 @@ def parse_source_option(source: str) -> list[SourceOption]:
 
 
 def process(
-    paths: T.Sequence[Path], options: T.Sequence[SourceOption]
+    # Collection: ABC for sized iterable container classes
+    paths: T.Iterable[Path],
+    options: T.Collection[SourceOption],
 ) -> list[types.MetadataOrError]:
     if not options:
         raise ValueError("No geotag options provided")
@@ -147,6 +149,11 @@ def _geotag_images(
     if not image_paths:
         return []
 
+    if option.interpolation is None:
+        interpolation = InterpolationOption()
+    else:
+        interpolation = option.interpolation
+
     geotag: geotag_from_generic.GeotagImagesFromGeneric
 
     if option.source is SourceType.NATIVE:
@@ -175,8 +182,8 @@ def _geotag_images(
         geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
             image_paths,
             source_path=_ensure_source_path(option),
-            # use_gpx_start_time=use_gpx_start_time,
-            # offset_time=offset_time,
+            use_gpx_start_time=interpolation.use_gpx_start_time,
+            offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
         return geotag.to_description()
@@ -185,8 +192,8 @@ def _geotag_images(
         geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
             image_paths,
             source_path=_ensure_source_path(option),
-            # use_gpx_start_time=option.interpolation.use_gpx_start_time,
-            # offset_time=option.interpolation.offset_time,
+            use_gpx_start_time=interpolation.use_gpx_start_time,
+            offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
 
@@ -221,7 +228,7 @@ def _geotag_images(
         geotag = geotag_images_from_video.GeotagImagesFromVideo(
             image_paths,
             video_metadatas,
-            # offset_time=option.interpolation.offset_time,
+            offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
         return geotag.to_description()
@@ -242,7 +249,7 @@ def _geotag_videos(
 
     if option.source is SourceType.NATIVE:
         geotag = geotag_videos_from_video.GeotagVideosFromVideo(
-            video_paths, num_processes=option.num_processes
+            video_paths, num_processes=option.num_processes, filetypes=option.filetypes
         )
         return geotag.to_description()
 
@@ -260,10 +267,8 @@ def _geotag_videos(
         return geotag.to_description()
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX(
-            video_paths,
-        )
-        return []
+        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX(video_paths)
+        return geotag.to_description()
 
     elif option.source is SourceType.NMEA:
         # TODO: geotag videos from NMEA
