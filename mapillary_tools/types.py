@@ -115,6 +115,35 @@ Metadata = T.Union[ImageMetadata, VideoMetadata]
 MetadataOrError = T.Union[Metadata, ErrorMetadata]
 
 
+# Assume {GOPRO, VIDEO} are the NATIVE_VIDEO_FILETYPES:
+# a             | b               = result
+# {CAMM}        | {GOPRO}         = {}
+# {CAMM}        | {GOPRO, VIDEO}  = {CAMM}
+# {GOPRO}       | {GOPRO, VIDEO}  = {GOPRO}
+# {GOPRO}       | {VIDEO}         = {GOPRO}
+# {CAMM, GOPRO} | {VIDEO}         = {CAMM, GOPRO}
+# {VIDEO}       | {VIDEO}         = {CAMM, GOPRO, VIDEO}
+def combine_filetype_filters(
+    a: set[FileType] | None, b: set[FileType] | None
+) -> set[FileType] | None:
+    if a is None:
+        return b
+
+    if b is None:
+        return a
+
+    # VIDEO is a superset of NATIVE_VIDEO_FILETYPES,
+    # so we add NATIVE_VIDEO_FILETYPES to each set for intersection later
+
+    if FileType.VIDEO in a:
+        a = a | NATIVE_VIDEO_FILETYPES
+
+    if FileType.VIDEO in b:
+        b = b | NATIVE_VIDEO_FILETYPES
+
+    return a.intersection(b)
+
+
 class UserItem(TypedDict, total=False):
     MAPOrganizationKey: T.Union[int, str]
     # Not in use. Keep here for back-compatibility
