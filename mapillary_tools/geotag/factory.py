@@ -18,7 +18,7 @@ from . import (
     geotag_videos_from_gpx,
     geotag_videos_from_video,
 )
-from .options import SourceOption, SourceType
+from .options import SOURCE_TYPE_ALIAS, SourceOption, SourceType
 
 
 def _parse_source_option(source: str) -> list[SourceOption]:
@@ -33,7 +33,7 @@ def _parse_source_option(source: str) -> list[SourceOption]:
     """
 
     try:
-        source_type = SourceType(source)
+        source_type = SourceType(SOURCE_TYPE_ALIAS.get(source, source))
     except ValueError:
         pass
     else:
@@ -48,7 +48,7 @@ def _parse_source_option(source: str) -> list[SourceOption]:
 
     sources = source.split(",")
 
-    return [SourceOption(SourceType(s)) for s in sources]
+    return [SourceOption(SourceType(SOURCE_TYPE_ALIAS.get(s, s))) for s in sources]
 
 
 def parse_source_options(
@@ -60,7 +60,9 @@ def parse_source_options(
 
     if geotag_source_path is not None:
         assert len(geotag_source) == 1
-        results.append(SourceOption(SourceType(geotag_source[0])))
+        options = _parse_source_option(geotag_source[0])
+        assert len(options) == 1
+        results.append(options[0])
     else:
         for source in geotag_source:
             results.extend(_parse_source_option(source))

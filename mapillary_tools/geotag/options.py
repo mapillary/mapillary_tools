@@ -55,7 +55,7 @@ class SourceOption:
             if v is None:
                 continue
             if k == "source":
-                kwargs[k] = SourceType(v)
+                kwargs[k] = SourceType(SOURCE_TYPE_ALIAS.get(v, v))
             elif k == "filetypes":
                 kwargs[k] = {types.FileType(t) for t in v}
             elif k == "source_path":
