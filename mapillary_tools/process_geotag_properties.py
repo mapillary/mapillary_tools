@@ -9,10 +9,10 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from mapillary_tools.geotag.options import InterpolationOption
+from mapillary_tools.geotag.options import InterpolationOption, SourcePathOption
 
 from . import constants, exceptions, exif_write, types, utils
-from .geotag.factory import parse_source_option, process, SourceType, SourceOption
+from .geotag.factory import parse_source_option, process, SourceOption, SourceType
 
 LOG = logging.getLogger(__name__)
 DEFAULT_GEOTAG_SOURCE_OPTIONS = [
@@ -35,28 +35,41 @@ def _normalize_import_paths(
 
 def _parse_source_options(
     geotag_source: list[str],
-    geotag_source_path: Path | None,
     video_geotag_source: list[str],
+    geotag_source_path: Path | None,
 ) -> list[SourceOption]:
-    results: list[SourceOption] = []
+    parsed_options: list[SourceOption] = []
 
-    if geotag_source_path is not None:
-        assert len(geotag_source) == 1
-        options = parse_source_option(geotag_source[0])
-        assert len(options) == 1
-        results.append(options[0])
-    else:
-        for source in geotag_source:
-            results.extend(parse_source_option(source))
+    for s in geotag_source:
+        parsed_options.extend(parse_source_option(s))
 
-    for source in video_geotag_source:
-        video_options = parse_source_option(source)
-        for video_option in video_options:
+    for s in video_geotag_source:
+        for video_option in parse_source_option(s):
             # TODO: if video_option.filetypes was GOPRO, BLACKVUE, or CAMM, then we should do the intersection
             video_option.filetypes = {types.FileType.VIDEO}
-        results.extend(video_options)
+            parsed_options.append(video_option)
 
-    return results
+    if geotag_source_path is not None:
+        if len(parsed_options) != 1:
+            raise exceptions.MapillaryBadParameterError(
+                f"The option --geotag_source_path must be used with exactly one source but got {[s.source.value for s in parsed_options]}",
+            )
+        parsed_option = parsed_options[0]
+        if parsed_option.source_path is None:
+            parsed_option.source_path = SourcePathOption(
+                source_path=Path(geotag_source_path)
+            )
+        else:
+            source_path_option = parsed_option.source_path
+            if source_path_option.source_path is None:
+                source_path_option.source_path = Path(geotag_source_path)
+            else:
+                LOG.warning(
+                    "The option --geotag_source_path is ignored for source %s",
+                    parsed_option,
+                )
+
+    return parsed_options
 
 
 def process_geotag_properties(
@@ -84,13 +97,16 @@ def process_geotag_properties(
                 f"Import file or directory not found: {path}"
             )
 
-    if not geotag_source:
+    if geotag_source_path is None:
+        geotag_source_path = video_import_path
+
+    if not geotag_source and not video_geotag_source and geotag_source_path is None:
         geotag_source = [*DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
     options = _parse_source_options(
         geotag_source=geotag_source or [],
-        geotag_source_path=geotag_source_path,
         video_geotag_source=video_geotag_source or [],
+        geotag_source_path=geotag_source_path,
     )
 
     for option in options:

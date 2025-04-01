@@ -152,7 +152,7 @@ def run_exiftool_and_generate_geotag_args(
         pytest.skip("exiftool not installed")
     exiftool_outuput_dir = run_exiftool(test_data_dir)
     exiftool_params = (
-        f"--geotag_source exiftool --geotag_source_path {exiftool_outuput_dir}"
+        f"--geotag_source exiftool_xml --geotag_source_path {exiftool_outuput_dir}"
     )
     return f"{run_args} {exiftool_params}"
 

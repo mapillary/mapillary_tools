@@ -125,9 +125,11 @@ def test_process_gopro_hero8(
     if not IS_FFMPEG_INSTALLED:
         pytest.skip("skip because ffmpeg not installed")
     video_path = setup_data.join("hero8.mp4")
-    args = f"{EXECUTABLE} video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}"
     if use_exiftool:
+        args = f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {str(video_path)}"
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
+    else:
+        args = f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}"
     env = os.environ.copy()
     env.update(TEST_ENVS)
     x = subprocess.run(args, shell=True, env=env)

@@ -11,6 +11,7 @@ from . import (
     geotag_from_generic,
     geotag_images_from_exif,
     geotag_images_from_exiftool,
+    geotag_images_from_exiftool_both_image_and_video,
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
     geotag_images_from_video,
@@ -161,7 +162,9 @@ def _geotag_images(
         return geotag.to_description()
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        geotag = geotag_images_from_exiftool.GeotagImagesFromExifTool(
+        # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
+        # to work
+        geotag = geotag_images_from_exiftool_both_image_and_video.GeotagImagesFromExifToolBothImageAndVideo(
             image_paths,
             xml_path=_ensure_source_path(option),
             num_processes=option.num_processes,
