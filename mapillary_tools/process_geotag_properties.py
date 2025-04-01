@@ -12,7 +12,7 @@ from tqdm import tqdm
 from mapillary_tools.geotag.options import InterpolationOption
 
 from . import constants, exceptions, exif_write, types, utils
-from .geotag.factory import parse_source_options, process, SourceType
+from .geotag.factory import parse_source_option, process, SourceType, SourceOption
 
 LOG = logging.getLogger(__name__)
 DEFAULT_GEOTAG_SOURCE_OPTIONS = [
@@ -31,6 +31,32 @@ def _normalize_import_paths(
         import_paths = import_path
     import_paths = list(utils.deduplicate_paths(import_paths))
     return import_paths
+
+
+def _parse_source_options(
+    geotag_source: list[str],
+    geotag_source_path: Path | None,
+    video_geotag_source: list[str],
+) -> list[SourceOption]:
+    results: list[SourceOption] = []
+
+    if geotag_source_path is not None:
+        assert len(geotag_source) == 1
+        options = parse_source_option(geotag_source[0])
+        assert len(options) == 1
+        results.append(options[0])
+    else:
+        for source in geotag_source:
+            results.extend(parse_source_option(source))
+
+    for source in video_geotag_source:
+        video_options = parse_source_option(source)
+        for video_option in video_options:
+            # TODO: if video_option.filetypes was GOPRO, BLACKVUE, or CAMM, then we should do the intersection
+            video_option.filetypes = {types.FileType.VIDEO}
+        results.extend(video_options)
+
+    return results
 
 
 def process_geotag_properties(
@@ -61,7 +87,7 @@ def process_geotag_properties(
     if not geotag_source:
         geotag_source = [*DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
-    options = parse_source_options(
+    options = _parse_source_options(
         geotag_source=geotag_source or [],
         geotag_source_path=geotag_source_path,
         video_geotag_source=video_geotag_source or [],

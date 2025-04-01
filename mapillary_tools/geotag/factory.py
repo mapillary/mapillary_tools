@@ -21,7 +21,7 @@ from . import (
 from .options import SOURCE_TYPE_ALIAS, SourceOption, SourceType
 
 
-def _parse_source_option(source: str) -> list[SourceOption]:
+def parse_source_option(source: str) -> list[SourceOption]:
     """
     Given a source string, parse it into a list of GeotagOptions objects.
 
@@ -49,32 +49,6 @@ def _parse_source_option(source: str) -> list[SourceOption]:
     sources = source.split(",")
 
     return [SourceOption(SourceType(SOURCE_TYPE_ALIAS.get(s, s))) for s in sources]
-
-
-def parse_source_options(
-    geotag_source: list[str],
-    geotag_source_path: Path | None,
-    video_geotag_source: list[str],
-) -> list[SourceOption]:
-    results: list[SourceOption] = []
-
-    if geotag_source_path is not None:
-        assert len(geotag_source) == 1
-        options = _parse_source_option(geotag_source[0])
-        assert len(options) == 1
-        results.append(options[0])
-    else:
-        for source in geotag_source:
-            results.extend(_parse_source_option(source))
-
-    for source in video_geotag_source:
-        video_options = _parse_source_option(source)
-        for video_option in video_options:
-            # TODO: if video_option.filetypes was GOPRO, BLACKVUE, or CAMM, then we should do the intersection
-            video_option.filetypes = {types.FileType.VIDEO}
-        results.extend(video_options)
-
-    return results
 
 
 def process(
