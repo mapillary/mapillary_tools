@@ -45,7 +45,8 @@ class SourceOption:
 
     interpolation: InterpolationOption | None = None
 
-    def from_dict(self, data: dict[str, T.Any]) -> SourceOption:
+    @classmethod
+    def from_dict(cls, data: dict[str, T.Any]) -> SourceOption:
         validate_option(data)
 
         kwargs: dict[str, T.Any] = {}
@@ -70,7 +71,7 @@ class SourceOption:
                     "interpolation", InterpolationOption()
                 ).use_gpx_start_time = v
 
-        return SourceOption(**kwargs)
+        return cls(**kwargs)
 
 
 @dataclasses.dataclass
