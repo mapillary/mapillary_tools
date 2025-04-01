@@ -1,23 +1,24 @@
-import enum
+from __future__ import annotations
+
 import io
 import os
 import random
+import sys
 import typing as T
 import uuid
 
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
+
 import requests
 
-from .api_v4 import (
-    MAPILLARY_GRAPH_API_ENDPOINT,
-    request_get,
-    request_post,
-    REQUESTS_TIMEOUT,
-)
+from .api_v4 import ClusterFileType, request_get, request_post, REQUESTS_TIMEOUT
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 # According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
 # (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
 # In my test, however, the connection_timeout rules both connection timeout and read timeout.
@@ -27,21 +28,12 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024 * 16  # 16MB
 UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
-class ClusterFileType(enum.Enum):
-    ZIP = "zip"
-    BLACKVUE = "mly_blackvue_video"
-    CAMM = "mly_camm_video"
-
-
 class UploadService:
     user_access_token: str
     session_key: str
-    callbacks: T.List[T.Callable[[bytes, T.Optional[requests.Response]], None]]
     cluster_filetype: ClusterFileType
-    organization_id: T.Optional[T.Union[str, int]]
-    chunk_size: int
 
-    MIME_BY_CLUSTER_TYPE: T.Dict[ClusterFileType, str] = {
+    MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
         ClusterFileType.ZIP: "application/zip",
         ClusterFileType.BLACKVUE: "video/mp4",
         ClusterFileType.CAMM: "video/mp4",
@@ -51,20 +43,12 @@ class UploadService:
         self,
         user_access_token: str,
         session_key: str,
-        organization_id: T.Optional[T.Union[str, int]] = None,
-        cluster_filetype: ClusterFileType = ClusterFileType.ZIP,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
+        cluster_filetype: ClusterFileType,
     ):
-        if chunk_size <= 0:
-            raise ValueError("Expect positive chunk size")
-
         self.user_access_token = user_access_token
         self.session_key = session_key
-        self.organization_id = organization_id
-        #  validate the input
-        self.cluster_filetype = ClusterFileType(cluster_filetype)
-        self.callbacks = []
-        self.chunk_size = chunk_size
+        # Validate the input
+        self.cluster_filetype = cluster_filetype
 
     def fetch_offset(self) -> int:
         headers = {
@@ -80,24 +64,19 @@ class UploadService:
         data = resp.json()
         return data["offset"]
 
-    def upload(
-        self,
-        data: T.IO[bytes],
-        offset: T.Optional[int] = None,
-    ) -> str:
-        chunks = self._chunkize_byte_stream(data)
-        return self.upload_chunks(chunks, offset=offset)
-
-    def _chunkize_byte_stream(
-        self, stream: T.IO[bytes]
+    @classmethod
+    def chunkize_byte_stream(
+        cls, stream: T.IO[bytes], chunk_size: int
     ) -> T.Generator[bytes, None, None]:
+        if chunk_size <= 0:
+            raise ValueError("Expect positive chunk size")
         while True:
-            data = stream.read(self.chunk_size)
+            data = stream.read(chunk_size)
             if not data:
                 break
             yield data
 
-    def _offset_chunks(
+    def shift_chunks(
         self, chunks: T.Iterable[bytes], offset: int
     ) -> T.Generator[bytes, None, None]:
         assert offset >= 0, f"Expect non-negative offset but got {offset}"
@@ -112,23 +91,34 @@ class UploadService:
             else:
                 yield chunk
 
-    def _attach_callbacks(
-        self, chunks: T.Iterable[bytes]
-    ) -> T.Generator[bytes, None, None]:
-        for chunk in chunks:
-            yield chunk
-            for callback in self.callbacks:
-                callback(chunk, None)
+    def upload_byte_stream(
+        self,
+        stream: T.IO[bytes],
+        offset: int | None = None,
+        chunk_size: int = 2 * 1024 * 1024,  # 2MB
+    ) -> str:
+        if offset is None:
+            offset = self.fetch_offset()
+        return self.upload_chunks(self.chunkize_byte_stream(stream, chunk_size), offset)
 
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
-        offset: T.Optional[int] = None,
+        offset: int | None = None,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
+        shifted_chunks = self.shift_chunks(chunks, offset)
+        return self.upload_shifted_chunks(shifted_chunks, offset)
 
-        chunks = self._attach_callbacks(self._offset_chunks(chunks, offset))
+    def upload_shifted_chunks(
+        self,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
+    ) -> str:
+        """
+        Upload the chunks that must already be shifted by the offset (e.g. fp.seek(begin_offset, io.SEEK_SET))
+        """
 
         headers = {
             "Authorization": f"OAuth {self.user_access_token}",
@@ -140,9 +130,11 @@ class UploadService:
         resp = request_post(
             url,
             headers=headers,
-            data=chunks,
+            data=shifted_chunks,
             timeout=UPLOAD_REQUESTS_TIMEOUT,
         )
+
+        resp.raise_for_status()
 
         payload = resp.json()
         try:
@@ -152,38 +144,6 @@ class UploadService:
                 f"Upload server error: File handle not found in the upload response {resp.text}"
             )
 
-    def finish(self, file_handle: str) -> str:
-        headers = {
-            "Authorization": f"OAuth {self.user_access_token}",
-        }
-        data: T.Dict[str, T.Union[str, int]] = {
-            "file_handle": file_handle,
-            "file_type": self.cluster_filetype.value,
-        }
-        if self.organization_id is not None:
-            data["organization_id"] = self.organization_id
-
-        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload"
-
-        resp = request_post(
-            url,
-            headers=headers,
-            json=data,
-            timeout=REQUESTS_TIMEOUT,
-        )
-
-        resp.raise_for_status()
-
-        data = resp.json()
-
-        cluster_id = data.get("cluster_id")
-        if cluster_id is None:
-            raise RuntimeError(
-                f"Upload server error: failed to create the cluster {resp.text}"
-            )
-
-        return T.cast(str, cluster_id)
-
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
@@ -192,22 +152,24 @@ class FakeUploadService(UploadService):
         self._upload_path = os.getenv(
             "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
         )
-        self._error_ratio = 0.1
+        self._error_ratio = 0.02
 
-    def upload_chunks(
+    @override
+    def upload_shifted_chunks(
         self,
-        chunks: T.Iterable[bytes],
-        offset: T.Optional[int] = None,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
     ) -> str:
-        if offset is None:
-            offset = self.fetch_offset()
-
-        chunks = self._attach_callbacks(self._offset_chunks(chunks, offset))
+        expected_offset = self.fetch_offset()
+        if offset != expected_offset:
+            raise ValueError(
+                f"Expect offset {expected_offset} but got {offset} for session {self.session_key}"
+            )
 
         os.makedirs(self._upload_path, exist_ok=True)
         filename = os.path.join(self._upload_path, self.session_key)
         with open(filename, "ab") as fp:
-            for chunk in chunks:
+            for chunk in shifted_chunks:
                 if random.random() <= self._error_ratio:
                     raise requests.ConnectionError(
                         f"TEST ONLY: Failed to upload with error ratio {self._error_ratio}"
@@ -219,9 +181,7 @@ class FakeUploadService(UploadService):
                     )
         return uuid.uuid4().hex
 
-    def finish(self, _: str) -> str:
-        return "0"
-
+    @override
     def fetch_offset(self) -> int:
         if random.random() <= self._error_ratio:
             raise requests.ConnectionError(

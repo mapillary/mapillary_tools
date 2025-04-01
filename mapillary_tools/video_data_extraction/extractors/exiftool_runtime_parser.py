@@ -24,7 +24,10 @@ class ExiftoolRuntimeParser(BaseParser):
         self, video_path: Path, options: CliOptions, parser_options: CliParserOptions
     ):
         super().__init__(video_path, options, parser_options)
-        exiftool_path = shutil.which(constants.EXIFTOOL_PATH)
+        if constants.EXIFTOOL_PATH is None:
+            exiftool_path = shutil.which("exiftool")
+        else:
+            exiftool_path = shutil.which(constants.EXIFTOOL_PATH)
 
         if not exiftool_path:
             raise exceptions.MapillaryExiftoolNotFoundError(

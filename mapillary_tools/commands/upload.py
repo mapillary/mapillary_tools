@@ -1,6 +1,7 @@
 import inspect
 
 from .. import constants
+from ..authenticate import fetch_user_items
 from ..upload import upload
 from .process import bold_text
 
@@ -41,9 +42,18 @@ class Command:
         Command.add_common_upload_options(group)
 
     def run(self, vars_args: dict):
-        args = {
-            k: v
-            for k, v in vars_args.items()
-            if k in inspect.getfullargspec(upload).args
-        }
-        upload(**args)
+        if "user_items" not in vars_args:
+            user_items_args = {
+                k: v
+                for k, v in vars_args.items()
+                if k in inspect.getfullargspec(fetch_user_items).args
+            }
+            vars_args["user_items"] = fetch_user_items(**user_items_args)
+
+        upload(
+            **{
+                k: v
+                for k, v in vars_args.items()
+                if k in inspect.getfullargspec(upload).args
+            }
+        )

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import logging
 import typing as T
@@ -93,11 +95,23 @@ def index_rdf_description_by_path(
                 LOG.warning(f"Failed to parse {xml_path}: {ex}", exc_info=verbose)
             continue
 
-        elements = etree.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
-        for element in elements:
-            path = find_rdf_description_path(element)
-            if path is not None:
-                rdf_description_by_path[canonical_path(path)] = element
+        rdf_description_by_path.update(
+            index_rdf_description_by_path_from_xml_element(etree.getroot())
+        )
+
+    return rdf_description_by_path
+
+
+def index_rdf_description_by_path_from_xml_element(
+    element: ET.Element,
+) -> dict[str, ET.Element]:
+    rdf_description_by_path: dict[str, ET.Element] = {}
+
+    elements = element.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
+    for element in elements:
+        path = find_rdf_description_path(element)
+        if path is not None:
+            rdf_description_by_path[canonical_path(path)] = element
 
     return rdf_description_by_path
 

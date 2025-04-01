@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import io
 import typing as T
 from pathlib import Path
 
-from .. import exceptions, geo, telemetry, types, utils
+from .. import blackvue_parser, exceptions, geo, telemetry, types, utils
 from ..camm import camm_parser
 from ..gpmf import gpmf_gps_filter, gpmf_parser
 from ..types import FileType
-from . import blackvue_parser
 from .geotag_from_generic import GenericVideoExtractor, GeotagVideosFromGeneric
 
 
@@ -25,13 +23,23 @@ class GoProVideoExtractor(GenericVideoExtractor):
         gps_points = gopro_info.gps
         assert gps_points is not None, "must have GPS data extracted"
         if not gps_points:
-            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.GOPRO
+            )
 
         gps_points = T.cast(
             T.List[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
         )
         if not gps_points:
-            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.GOPRO
+            )
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
@@ -48,52 +56,58 @@ class GoProVideoExtractor(GenericVideoExtractor):
 class CAMMVideoExtractor(GenericVideoExtractor):
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
-            points = camm_parser.extract_points(fp)
+            camm_info = camm_parser.extract_camm_info(fp)
 
-            if points is None:
-                raise exceptions.MapillaryVideoGPSNotFoundError(
-                    "No GPS data found from the video"
-                )
+        if camm_info is None:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
 
-            if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-
-            fp.seek(0, io.SEEK_SET)
-            make, model = camm_parser.extract_camera_make_and_model(fp)
+        if not camm_info.gps and not camm_info.mini_gps:
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.CAMM
+            )
 
         return types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=FileType.CAMM,
-            points=points,
-            make=make,
-            model=model,
+            points=T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps),
+            make=camm_info.make,
+            model=camm_info.model,
         )
 
 
 class BlackVueVideoExtractor(GenericVideoExtractor):
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
-            points = blackvue_parser.extract_points(fp)
+            blackvue_info = blackvue_parser.extract_blackvue_info(fp)
 
-            if points is None:
-                raise exceptions.MapillaryVideoGPSNotFoundError(
-                    "No GPS data found from the video"
-                )
+        if blackvue_info is None:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
 
-            if not points:
-                raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-
-            fp.seek(0, io.SEEK_SET)
-            make, model = "BlackVue", blackvue_parser.extract_camera_model(fp)
+        if not blackvue_info.gps:
+            # Instead of raising an exception, return error metadata to tell the file type
+            ex: exceptions.MapillaryDescriptionError = (
+                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+            )
+            return types.describe_error_metadata(
+                ex, self.video_path, filetype=FileType.BLACKVUE
+            )
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=FileType.BLACKVUE,
-            points=points,
-            make=make,
-            model=model,
+            points=blackvue_info.gps or [],
+            make=blackvue_info.make,
+            model=blackvue_info.model,
         )
 
         return video_metadata

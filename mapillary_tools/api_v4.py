@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import enum
 import logging
 import os
 import ssl
@@ -16,6 +19,12 @@ MAPILLARY_GRAPH_API_ENDPOINT = os.getenv(
 )
 REQUESTS_TIMEOUT = 60  # 1 minutes
 USE_SYSTEM_CERTS: bool = False
+
+
+class ClusterFileType(enum.Enum):
+    ZIP = "zip"
+    BLACKVUE = "mly_blackvue_video"
+    CAMM = "mly_camm_video"
 
 
 class HTTPSystemCertsAdapter(HTTPAdapter):
@@ -70,7 +79,7 @@ def _truncate(s, limit=512):
         return s
 
 
-def _sanitize(headers: T.Dict):
+def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
     new_headers = {}
 
     for k, v in headers.items():
@@ -81,6 +90,7 @@ def _sanitize(headers: T.Dict):
             "access-token",
             "access_token",
             "password",
+            "user_upload_token",
         ]:
             new_headers[k] = "[REDACTED]"
         else:
@@ -92,9 +102,9 @@ def _sanitize(headers: T.Dict):
 def _log_debug_request(
     method: str,
     url: str,
-    json: T.Optional[T.Dict] = None,
-    params: T.Optional[T.Dict] = None,
-    headers: T.Optional[T.Dict] = None,
+    json: dict | None = None,
+    params: dict | None = None,
+    headers: dict | None = None,
     timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
@@ -149,8 +159,8 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
 def request_post(
     url: str,
-    data: T.Optional[T.Any] = None,
-    json: T.Optional[dict] = None,
+    data: T.Any | None = None,
+    json: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -189,7 +199,7 @@ def request_post(
 
 def request_get(
     url: str,
-    params: T.Optional[dict] = None,
+    params: dict | None = None,
     **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
@@ -224,6 +234,44 @@ def request_get(
     return resp
 
 
+def is_auth_error(resp: requests.Response) -> bool:
+    if resp.status_code in [401, 403]:
+        return True
+
+    if resp.status_code in [400]:
+        try:
+            error_body = resp.json()
+        except Exception:
+            error_body = {}
+
+        type = error_body.get("debug_info", {}).get("type")
+        if type in ["NotAuthorizedError"]:
+            return True
+
+    return False
+
+
+def extract_auth_error_message(resp: requests.Response) -> str:
+    assert is_auth_error(resp), "has to be an auth error"
+
+    try:
+        error_body = resp.json()
+    except Exception:
+        error_body = {}
+
+    # from Graph APIs
+    message = error_body.get("error", {}).get("message")
+    if message is not None:
+        return str(message)
+
+    # from upload service
+    message = error_body.get("debug_info", {}).get("message")
+    if message is not None:
+        return str(message)
+
+    return resp.text
+
+
 def get_upload_token(email: str, password: str) -> requests.Response:
     resp = request_post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/login",
@@ -252,6 +300,30 @@ def fetch_organization(
     return resp
 
 
+def fetch_user_or_me(
+    user_access_token: str,
+    user_id: int | str | None = None,
+) -> requests.Response:
+    if user_id is None:
+        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/me"
+    else:
+        url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/{user_id}"
+
+    resp = request_get(
+        url,
+        params={
+            "fields": ",".join(["id", "username"]),
+        },
+        headers={
+            "Authorization": f"OAuth {user_access_token}",
+        },
+        timeout=REQUESTS_TIMEOUT,
+    )
+
+    resp.raise_for_status()
+    return resp
+
+
 ActionType = T.Literal[
     "upload_started_upload", "upload_finished_upload", "upload_failed_upload"
 ]
@@ -270,4 +342,31 @@ def log_event(action_type: ActionType, properties: T.Dict) -> requests.Response:
         timeout=REQUESTS_TIMEOUT,
     )
     resp.raise_for_status()
+    return resp
+
+
+def finish_upload(
+    user_access_token: str,
+    file_handle: str,
+    cluster_filetype: ClusterFileType,
+    organization_id: int | str | None = None,
+) -> requests.Response:
+    data: dict[str, str | int] = {
+        "file_handle": file_handle,
+        "file_type": cluster_filetype.value,
+    }
+    if organization_id is not None:
+        data["organization_id"] = organization_id
+
+    resp = request_post(
+        f"{MAPILLARY_GRAPH_API_ENDPOINT}/finish_upload",
+        headers={
+            "Authorization": f"OAuth {user_access_token}",
+        },
+        json=data,
+        timeout=REQUESTS_TIMEOUT,
+    )
+
+    resp.raise_for_status()
+
     return resp

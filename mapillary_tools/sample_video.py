@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import logging
 import os
@@ -11,7 +13,6 @@ from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
 from .mp4 import mp4_sample_parser
-from .process_geotag_properties import GeotagSource
 
 LOG = logging.getLogger(__name__)
 
@@ -46,7 +47,6 @@ def sample_video(
     video_import_path: Path,
     import_path: Path,
     # None if called from the sample_video command
-    geotag_source: T.Optional[GeotagSource] = None,
     skip_subfolders=False,
     video_sample_distance=constants.VIDEO_SAMPLE_DISTANCE,
     video_sample_interval=constants.VIDEO_SAMPLE_INTERVAL,
@@ -85,16 +85,6 @@ def sample_video(
                 shutil.rmtree(sample_dir)
             elif sample_dir.is_file():
                 os.remove(sample_dir)
-
-    if geotag_source is None:
-        geotag_source = "exif"
-
-    # If it is not exif, then we use the legacy interval-based sample and geotag them in "process" for backward compatibility
-    if geotag_source not in ["exif"]:
-        if 0 <= video_sample_distance:
-            raise exceptions.MapillaryBadParameterError(
-                f'Geotagging from "{geotag_source}" works with the legacy interval-based sampling only. To switch back, rerun the command with "--video_sample_distance -1 --video_sample_interval 2"'
-            )
 
     for video_path in video_list:
         # need to resolve video_path because video_dir might be absolute
@@ -303,7 +293,7 @@ def _sample_single_video_by_distance(
     video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
         [video_path]
     ).to_description()
-    assert video_metadatas, "expect non-empty video metadatas"
+    assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
     if isinstance(video_metadata, types.ErrorMetadata):
         LOG.warning(str(video_metadata.error))

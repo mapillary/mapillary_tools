@@ -1,9 +1,20 @@
+from __future__ import annotations
+
 import os
 import typing as T
 
 import appdirs
 
 _ENV_PREFIX = "MAPILLARY_TOOLS_"
+
+
+def _yes_or_no(val: str) -> bool:
+    return val.strip().upper() in [
+        "1",
+        "TRUE",
+        "YES",
+    ]
+
 
 # In meters
 CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
@@ -21,7 +32,8 @@ VIDEO_SAMPLE_DISTANCE = float(os.getenv(_ENV_PREFIX + "VIDEO_SAMPLE_DISTANCE", 3
 VIDEO_DURATION_RATIO = float(os.getenv(_ENV_PREFIX + "VIDEO_DURATION_RATIO", 1))
 FFPROBE_PATH: str = os.getenv(_ENV_PREFIX + "FFPROBE_PATH", "ffprobe")
 FFMPEG_PATH: str = os.getenv(_ENV_PREFIX + "FFMPEG_PATH", "ffmpeg")
-EXIFTOOL_PATH: str = os.getenv(_ENV_PREFIX + "EXIFTOOL_PATH", "exiftool")
+# When not set, MT will try to check both "exiftool" and "exiftool.exe" from $PATH
+EXIFTOOL_PATH: str | None = os.getenv(_ENV_PREFIX + "EXIFTOOL_PATH")
 IMAGE_DESCRIPTION_FILENAME = os.getenv(
     _ENV_PREFIX + "IMAGE_DESCRIPTION_FILENAME", "mapillary_image_description.json"
 )
@@ -55,3 +67,26 @@ MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 1000))
 MAX_SEQUENCE_FILESIZE: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "110G")
 # Max number of pixels per sequence (sum of image pixels in the sequence)
 MAX_SEQUENCE_PIXELS: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
+
+PROMPT_DISABLED: bool = _yes_or_no(os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO"))
+
+_AUTH_VERIFICATION_DISABLED: bool = _yes_or_no(
+    os.getenv(_ENV_PREFIX + "_AUTH_VERIFICATION_DISABLED", "NO")
+)
+
+MAPILLARY_DISABLE_API_LOGGING: bool = _yes_or_no(
+    os.getenv("MAPILLARY_DISABLE_API_LOGGING", "NO")
+)
+MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN: bool = _yes_or_no(
+    os.getenv("MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN", "NO")
+)
+MAPILLARY__EXPERIMENTAL_ENABLE_IMU: bool = _yes_or_no(
+    os.getenv("MAPILLARY__EXPERIMENTAL_ENABLE_IMU", "NO")
+)
+MAPILLARY_UPLOAD_HISTORY_PATH: str = os.getenv(
+    "MAPILLARY_UPLOAD_HISTORY_PATH",
+    os.path.join(
+        USER_DATA_DIR,
+        "upload_history",
+    ),
+)
