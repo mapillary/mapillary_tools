@@ -45,7 +45,7 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
         )
 
 
-Track = list[geo.Point]
+Track = T.List[geo.Point]
 
 
 def parse_gpx(gpx_file: Path) -> list[Track]:
