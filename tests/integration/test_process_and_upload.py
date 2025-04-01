@@ -150,7 +150,7 @@ def _validate_uploads(upload_dir: py.path.local, expected):
 
     actual = {}
     for desc in descs:
-        actual[os.path.basename(desc["filename"])] = {
+        actual[os.path.basename(desc["MAPFilename"])] = {
             k: v for k, v in desc.items() if k not in excludes
         }
 
