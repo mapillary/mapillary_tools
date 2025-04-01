@@ -66,7 +66,6 @@ class ImageMetadata(geo.Point):
     MAPOrientation: T.Optional[int] = None
     # deprecated since v0.10.0; keep here for compatibility
     MAPMetaTags: T.Optional[T.Dict] = None
-    # deprecated since v0.10.0; keep here for compatibility
     MAPFilename: T.Optional[str] = None
     filesize: T.Optional[int] = None
 
@@ -105,7 +104,7 @@ class VideoMetadata:
 @dataclasses.dataclass
 class ErrorMetadata:
     filename: Path
-    filetype: T.Optional[FileType]
+    filetype: FileType
     error: Exception
 
 
@@ -113,6 +112,35 @@ ImageMetadataOrError = T.Union[ImageMetadata, ErrorMetadata]
 VideoMetadataOrError = T.Union[VideoMetadata, ErrorMetadata]
 Metadata = T.Union[ImageMetadata, VideoMetadata]
 MetadataOrError = T.Union[Metadata, ErrorMetadata]
+
+
+# Assume {GOPRO, VIDEO} are the NATIVE_VIDEO_FILETYPES:
+# a             | b               = result
+# {CAMM}        | {GOPRO}         = {}
+# {CAMM}        | {GOPRO, VIDEO}  = {CAMM}
+# {GOPRO}       | {GOPRO, VIDEO}  = {GOPRO}
+# {GOPRO}       | {VIDEO}         = {GOPRO}
+# {CAMM, GOPRO} | {VIDEO}         = {CAMM, GOPRO}
+# {VIDEO}       | {VIDEO}         = {CAMM, GOPRO, VIDEO}
+def combine_filetype_filters(
+    a: set[FileType] | None, b: set[FileType] | None
+) -> set[FileType] | None:
+    if a is None:
+        return b
+
+    if b is None:
+        return a
+
+    # VIDEO is a superset of NATIVE_VIDEO_FILETYPES,
+    # so we add NATIVE_VIDEO_FILETYPES to each set for intersection later
+
+    if FileType.VIDEO in a:
+        a = a | NATIVE_VIDEO_FILETYPES
+
+    if FileType.VIDEO in b:
+        b = b | NATIVE_VIDEO_FILETYPES
+
+    return a.intersection(b)
 
 
 class UserItem(TypedDict, total=False):
@@ -239,7 +267,7 @@ def _describe_error_desc(
 
 
 def describe_error_metadata(
-    exc: Exception, filename: Path, filetype: T.Optional[FileType]
+    exc: Exception, filename: Path, filetype: FileType
 ) -> ErrorMetadata:
     return ErrorMetadata(filename=filename, filetype=filetype, error=exc)
 
@@ -307,7 +335,6 @@ ImageDescriptionEXIFSchema = {
         "MAPDeviceModel": {"type": "string"},
         "MAPGPSAccuracyMeters": {"type": "number"},
         "MAPCameraUUID": {"type": "string"},
-        # deprecated since v0.10.0; keep here for compatibility
         "MAPFilename": {
             "type": "string",
             "description": "The base filename of the image",
@@ -673,15 +700,16 @@ def validate_and_fail_metadata(metadata: MetadataOrError) -> MetadataOrError:
     if isinstance(metadata, ErrorMetadata):
         return metadata
 
-    filetype: T.Optional[FileType] = None
+    if isinstance(metadata, ImageMetadata):
+        filetype = FileType.IMAGE
+        validate = validate_image_desc
+    else:
+        assert isinstance(metadata, VideoMetadata)
+        filetype = metadata.filetype
+        validate = validate_video_desc
+
     try:
-        if isinstance(metadata, ImageMetadata):
-            filetype = FileType.IMAGE
-            validate_image_desc(as_desc(metadata))
-        else:
-            assert isinstance(metadata, VideoMetadata)
-            filetype = metadata.filetype
-            validate_video_desc(as_desc(metadata))
+        validate(as_desc(metadata))
     except exceptions.MapillaryMetadataValidationError as ex:
         # rethrow because the original error is too verbose
         return describe_error_metadata(

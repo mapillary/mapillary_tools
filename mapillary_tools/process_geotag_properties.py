@@ -45,7 +45,7 @@ def _parse_source_options(
 
     for s in video_geotag_source:
         for video_option in parse_source_option(s):
-            video_option.filetypes = _combine_filetypes(
+            video_option.filetypes = types.combine_filetype_filters(
                 video_option.filetypes, {types.FileType.VIDEO}
             )
             parsed_options.append(video_option)
@@ -67,35 +67,6 @@ def _parse_source_options(
                     )
 
     return parsed_options
-
-
-# Assume {GOPRO, VIDEO} are the NATIVE_VIDEO_FILETYPES:
-# a             | b               = result
-# {CAMM}        | {GOPRO}         = {}
-# {CAMM}        | {GOPRO, VIDEO}  = {CAMM}
-# {GOPRO}       | {GOPRO, VIDEO}  = {GOPRO}
-# {GOPRO}       | {VIDEO}         = {GOPRO}
-# {CAMM, GOPRO} | {VIDEO}         = {CAMM, GOPRO}
-# {VIDEO}       | {VIDEO}         = {CAMM, GOPRO, VIDEO}
-def _combine_filetypes(
-    a: set[types.FileType] | None, b: set[types.FileType] | None
-) -> set[types.FileType] | None:
-    if a is None:
-        return b
-
-    if b is None:
-        return a
-
-    # VIDEO is a superset of NATIVE_VIDEO_FILETYPES,
-    # so we add NATIVE_VIDEO_FILETYPES to each set for intersection later
-
-    if types.FileType.VIDEO in a:
-        a = a | types.NATIVE_VIDEO_FILETYPES
-
-    if types.FileType.VIDEO in b:
-        b = b | types.NATIVE_VIDEO_FILETYPES
-
-    return a.intersection(b)
 
 
 def process_geotag_properties(
@@ -135,7 +106,7 @@ def process_geotag_properties(
     )
 
     for option in options:
-        option.filetypes = _combine_filetypes(option.filetypes, filetypes)
+        option.filetypes = types.combine_filetype_filters(option.filetypes, filetypes)
         option.num_processes = num_processes
         if option.interpolation is None:
             option.interpolation = InterpolationOption(
@@ -236,9 +207,7 @@ def _write_metadatas(
         LOG.info("Check the description file for details: %s", desc_path)
 
 
-def _is_error_skipped(
-    error_type: str, skipped_process_errors: T.Set[T.Type[Exception]]
-):
+def _is_error_skipped(error_type: str, skipped_process_errors: set[T.Type[Exception]]):
     skipped_process_error_names = set(err.__name__ for err in skipped_process_errors)
     skip_all = Exception in skipped_process_errors
     return skip_all or error_type in skipped_process_error_names
@@ -248,17 +217,13 @@ def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: T.Set[T.Type[Exception]],
 ) -> None:
-    metadatas_by_filetype: T.Dict[types.FileType, list[types.MetadataOrError]] = {}
+    metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
-        filetype: types.FileType | None
         if isinstance(metadata, types.ImageMetadata):
             filetype = types.FileType.IMAGE
         else:
             filetype = metadata.filetype
-        if filetype:
-            metadatas_by_filetype.setdefault(types.FileType(filetype), []).append(
-                metadata
-            )
+        metadatas_by_filetype.setdefault(filetype, []).append(metadata)
 
     for filetype, group in metadatas_by_filetype.items():
         _show_stats_per_filetype(group, filetype, skipped_process_errors)
@@ -278,19 +243,16 @@ def _show_stats(
 
 
 def _show_stats_per_filetype(
-    metadatas: T.Sequence[types.MetadataOrError],
+    metadatas: T.Collection[types.MetadataOrError],
     filetype: types.FileType,
     skipped_process_errors: T.Set[T.Type[Exception]],
 ):
-    good_metadatas: list[T.Union[types.VideoMetadata, types.ImageMetadata]] = []
-    filesize_to_upload = 0
-    error_metadatas: list[types.ErrorMetadata] = []
-    for metadata in metadatas:
-        if isinstance(metadata, types.ErrorMetadata):
-            error_metadatas.append(metadata)
-        else:
-            good_metadatas.append(metadata)
-            filesize_to_upload += metadata.filesize or 0
+    good_metadatas: list[types.Metadata]
+    good_metadatas, error_metadatas = types.separate_errors(metadatas)
+
+    filesize_to_upload = sum(
+        [0 if m.filesize is None else m.filesize for m in good_metadatas]
+    )
 
     LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
     if good_metadatas:
@@ -317,8 +279,10 @@ def _show_stats_per_filetype(
 
 
 def _validate_metadatas(
-    metadatas: T.Sequence[types.MetadataOrError], num_processes: int | None
+    metadatas: T.Collection[types.MetadataOrError], num_processes: int | None
 ) -> list[types.MetadataOrError]:
+    LOG.debug("Validating %d metadatas", len(metadatas))
+
     # validating metadatas is slow, hence multiprocessing
 
     # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
@@ -361,34 +325,45 @@ def process_finalize(
     desc_path: str | None = None,
     num_processes: int | None = None,
 ) -> list[types.MetadataOrError]:
+    image_metadatas: list[types.ImageMetadata] = []
+    video_metadatas: list[types.VideoMetadata] = []
+
     for metadata in metadatas:
         if isinstance(metadata, types.VideoMetadata):
-            if device_make is not None:
-                metadata.make = device_make
-            if device_model is not None:
-                metadata.model = device_model
+            video_metadatas.append(metadata)
         elif isinstance(metadata, types.ImageMetadata):
-            if device_make is not None:
-                metadata.MAPDeviceMake = device_make
-            if device_model is not None:
-                metadata.MAPDeviceModel = device_model
+            image_metadatas.append(metadata)
+
+    for metadata in video_metadatas:
+        if device_make is not None:
+            metadata.make = device_make
+        if device_model is not None:
+            metadata.model = device_model
+
+    for metadata in image_metadatas:
+        if device_make is not None:
+            metadata.MAPDeviceMake = device_make
+        if device_model is not None:
+            metadata.MAPDeviceModel = device_model
+        # Add the basename
+        metadata.MAPFilename = metadata.filename.name
 
     # modified in place
     _apply_offsets(
-        [
-            metadata
-            for metadata in metadatas
-            if isinstance(metadata, types.ImageMetadata)
-        ],
+        image_metadatas,
         offset_time=offset_time,
         offset_angle=offset_angle,
     )
 
-    LOG.debug("Validating %d metadatas", len(metadatas))
     metadatas = _validate_metadatas(metadatas, num_processes=num_processes)
 
+    # image_metadatas and video_metadatas get stale after the validation,
+    # hence delete them to avoid confusion
+    del image_metadatas
+    del video_metadatas
+
     _overwrite_exif_tags(
-        # search image metadatas again because some of them might have been failed
+        # Search image metadatas again because some of them might have been failed
         [
             metadata
             for metadata in metadatas
@@ -426,10 +401,10 @@ def process_finalize(
         # write descs first because _show_stats() may raise an exception
         _write_metadatas(metadatas, desc_path)
 
-    # show stats
+    # Show stats
     skipped_process_errors: T.Set[T.Type[Exception]]
     if skip_process_errors:
-        # skip all exceptions
+        # Skip all exceptions
         skipped_process_errors = {Exception}
     else:
         skipped_process_errors = {exceptions.MapillaryDuplicationError}
