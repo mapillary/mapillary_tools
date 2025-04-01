@@ -10,17 +10,11 @@ from pathlib import Path
 class ExiftoolRunner:
     def __init__(self, exiftool_path: str | None = None, recursive: bool = False):
         if exiftool_path is None:
-            exiftool_path = self._get_executable_path()
-
-        if exiftool_path is None:
-            raise FileNotFoundError(
-                "Cannot find exiftool. Please install it from https://exiftool.org/ or your package manager"
-            )
-
-        self.exiftool_path: str = exiftool_path
+            exiftool_path = self._search_preferred_exiftool_path()
+        self.exiftool_path = exiftool_path
         self.recursive = recursive
 
-    def _get_executable_path(self) -> str | None:
+    def _search_preferred_exiftool_path(self) -> str:
         system = platform.system()
 
         if system and system.lower() == "windows":
@@ -33,7 +27,8 @@ class ExiftoolRunner:
             if full_path:
                 return path
 
-        return None
+        # Always return the prefered one, even if it is not found
+        return exiftool_paths[0]
 
     def _build_args_read_stdin(self) -> list[str]:
         args: list[str] = [
@@ -63,6 +58,7 @@ class ExiftoolRunner:
 
         args = self._build_args_read_stdin()
 
+        # Raise FileNotFoundError here if self.exiftool_path not found
         process = subprocess.run(
             args,
             capture_output=True,

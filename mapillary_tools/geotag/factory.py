@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import typing as T
 from pathlib import Path
@@ -20,6 +21,9 @@ from . import (
     geotag_videos_from_video,
 )
 from .options import InterpolationOption, SOURCE_TYPE_ALIAS, SourceOption, SourceType
+
+
+LOG = logging.getLogger(__name__)
 
 
 def parse_source_option(source: str) -> list[SourceOption]:
@@ -66,6 +70,8 @@ def process(
     reprocessable_paths = set(paths)
 
     for idx, option in enumerate(options):
+        LOG.debug("Processing %d files with %s", len(reprocessable_paths), option)
+
         image_metadata_or_errors = _geotag_images(reprocessable_paths, option)
         video_metadata_or_errors = _geotag_videos(reprocessable_paths, option)
 
@@ -166,7 +172,11 @@ def _geotag_images(
         geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
             image_paths, num_processes=option.num_processes
         )
-        return geotag.to_description()
+        try:
+            return geotag.to_description()
+        except exceptions.MapillaryExiftoolNotFoundError as ex:
+            LOG.warning('Skip "%s" because: %s', option.source.value, ex)
+            return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
         # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
@@ -257,7 +267,11 @@ def _geotag_videos(
         geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolRunner(
             video_paths, num_processes=option.num_processes
         )
-        return geotag.to_description()
+        try:
+            return geotag.to_description()
+        except exceptions.MapillaryExiftoolNotFoundError as ex:
+            LOG.warning('Skip "%s" because: %s', option.source.value, ex)
+            return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
         geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(

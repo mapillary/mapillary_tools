@@ -73,7 +73,10 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
             len(self.image_paths),
             " ".join(runner._build_args_read_stdin()),
         )
-        xml = runner.extract_xml(self.image_paths)
+        try:
+            xml = runner.extract_xml(self.image_paths)
+        except FileNotFoundError as ex:
+            raise exceptions.MapillaryExiftoolNotFoundError(ex) from ex
 
         rdf_description_by_path = (
             exiftool_read.index_rdf_description_by_path_from_xml_element(

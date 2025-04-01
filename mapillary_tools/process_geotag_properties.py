@@ -113,9 +113,6 @@ def process_geotag_properties(
                 use_gpx_start_time=interpolation_use_gpx_start_time,
             )
 
-    for option in options:
-        LOG.debug("GeotagOption: %s", option)
-
     # TODO: can find both in one pass
     image_paths = utils.find_images(import_paths, skip_subfolders=skip_subfolders)
     video_paths = utils.find_videos(import_paths, skip_subfolders=skip_subfolders)
