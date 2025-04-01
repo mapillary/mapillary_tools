@@ -219,7 +219,11 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
         if _contains_gpmd_description(track):
             gpmd_samples = _filter_gpmd_samples(track)
             dvnm_by_dvid: dict[int, bytes] = {}
-            _load_telemetry_from_samples(fp, gpmd_samples, dvnm_by_dvid=dvnm_by_dvid)
+            device_found = _load_telemetry_from_samples(
+                fp, gpmd_samples, dvnm_by_dvid=dvnm_by_dvid
+            )
+            if not device_found:
+                return ""
             return _extract_camera_model_from_devices(dvnm_by_dvid)
 
     return ""
