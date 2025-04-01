@@ -139,7 +139,14 @@ def _validate_uploads(upload_dir: py.path.local, expected):
         else:
             raise Exception(f"invalid file {file}")
 
-    excludes = ["filename", "filesize", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
+    excludes = [
+        "filename",
+        "filesize",
+        "md5sum",
+        "MAPMetaTags",
+        "MAPSequenceUUID",
+        "MAPFilename",
+    ]
 
     actual = {}
     for desc in descs:
