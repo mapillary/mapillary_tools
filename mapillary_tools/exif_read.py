@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import datetime
 import io
@@ -477,9 +479,9 @@ class ExifReadFromXMP(ExifReadABC):
 
     def _extract_alternative_fields(
         self,
-        fields: T.Sequence[str],
-        field_type: T.Type[_FIELD_TYPE],
-    ) -> T.Optional[_FIELD_TYPE]:
+        fields: T.Iterable[str],
+        field_type: type[_FIELD_TYPE],
+    ) -> _FIELD_TYPE | None:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list
@@ -736,17 +738,7 @@ class ExifReadFromEXIF(ExifReadABC):
             "GPS GPSImgDirection",
             "GPS GPSTrack",
         ]
-        direction = self._extract_alternative_fields(fields, float)
-        if direction is not None:
-            if direction > 360:
-                # fix negative value wrongly parsed in exifread
-                # -360 degree -> 4294966935 when converting from hex
-                bearing1 = bin(int(direction))[2:]
-                bearing2 = "".join([str(int(int(a) == 0)) for a in bearing1])
-                direction = -float(int(bearing2, 2))
-            direction %= 360
-
-        return direction
+        return self._extract_alternative_fields(fields, float)
 
     def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
         lat_tag = self.tags.get("GPS GPSLatitude")
@@ -774,7 +766,9 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         Extract camera make
         """
-        make = self._extract_alternative_fields(["Image Make", "EXIF LensMake"], str)
+        make = self._extract_alternative_fields(
+            ["Image Make", "EXIF Make", "EXIF LensMake"], str
+        )
         if make is None:
             return None
         return make.strip()
@@ -783,7 +777,9 @@ class ExifReadFromEXIF(ExifReadABC):
         """
         Extract camera model
         """
-        model = self._extract_alternative_fields(["Image Model", "EXIF LensModel"], str)
+        model = self._extract_alternative_fields(
+            ["Image Model", "EXIF Model", "EXIF LensModel"], str
+        )
         if model is None:
             return None
         return model.strip()
@@ -818,8 +814,8 @@ class ExifReadFromEXIF(ExifReadABC):
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
-        field_type: T.Type[_FIELD_TYPE],
-    ) -> T.Optional[_FIELD_TYPE]:
+        field_type: type[_FIELD_TYPE],
+    ) -> _FIELD_TYPE | None:
         """
         Extract a value for a list of ordered fields.
         Return the value of the first existed field in the list

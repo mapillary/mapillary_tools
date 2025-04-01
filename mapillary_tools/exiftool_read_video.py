@@ -86,6 +86,7 @@ def _aggregate_gps_track(
     lon_tag: str,
     lat_tag: str,
     alt_tag: T.Optional[str] = None,
+    gps_time_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
     ground_speed_tag: T.Optional[str] = None,
 ) -> T.List[GPSPoint]:
@@ -161,6 +162,15 @@ def _aggregate_gps_track(
     # aggregate speeds (optional)
     ground_speeds = _aggregate_float_values_same_length(ground_speed_tag)
 
+    # GPS timestamp (optional)
+    epoch_time = None
+    if gps_time_tag is not None:
+        gps_time_text = _extract_alternative_fields(texts_by_tag, [gps_time_tag], str)
+        if gps_time_text is not None:
+            dt = exif_read.parse_gps_datetime(gps_time_text)
+            if dt is not None:
+                epoch_time = geo.as_unix_time(dt)
+
     # build track
     track = []
     for timestamp, lon, lat, alt, direction, ground_speed in zip(
@@ -180,7 +190,7 @@ def _aggregate_gps_track(
                 lat=lat,
                 alt=alt,
                 angle=direction,
-                epoch_time=None,
+                epoch_time=epoch_time,
                 fix=None,
                 precision=None,
                 ground_speed=ground_speed,
@@ -228,6 +238,7 @@ def _aggregate_gps_track_by_sample_time(
     lon_tag: str,
     lat_tag: str,
     alt_tag: T.Optional[str] = None,
+    gps_time_tag: T.Optional[str] = None,
     direction_tag: T.Optional[str] = None,
     ground_speed_tag: T.Optional[str] = None,
     gps_fix_tag: T.Optional[str] = None,
