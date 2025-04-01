@@ -183,8 +183,11 @@ class ZipImageSequence:
         upload_md5sum = types.update_sequence_md5sum(sequence)
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for metadata in sequence:
-                cls._write_imagebytes_in_zip(zipf, metadata)
+            for idx, metadata in enumerate(sequence):
+                # Use {idx}.jpg (suffix does not matter) as the archive name to ensure the
+                # resulting zipfile is deterministic. This determinism is based on the upload_md5sum,
+                # which is derived from a list of image md5sums
+                cls._write_imagebytes_in_zip(zipf, metadata, arcname=f"{idx}.jpg")
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
 
@@ -215,11 +218,8 @@ class ZipImageSequence:
 
     @classmethod
     def _write_imagebytes_in_zip(
-        cls, zipf: zipfile.ZipFile, metadata: types.ImageMetadata
+        cls, zipf: zipfile.ZipFile, metadata: types.ImageMetadata, arcname: str
     ):
-        assert metadata.md5sum, "md5sum is not set"
-        arcname = metadata.md5sum
-
         try:
             edit = exif_write.ExifEdit(metadata.filename)
         except struct.error as ex:

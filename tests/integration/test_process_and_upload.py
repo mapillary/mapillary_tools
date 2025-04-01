@@ -22,8 +22,7 @@ UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 EXPECTED_DESCS = {
     "image": {
-        "1daf0afb27a5a852693006ef98040dba": {
-            # DSC00001.JPG
+        "DSC00001.JPG": {
             "MAPAltitude": 70.3,
             "MAPCaptureTime": "2018_06_08_20_24_11_000",
             "MAPCompassHeading": {"MagneticHeading": 270.89, "TrueHeading": 270.89},
@@ -34,8 +33,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "ad0d5264fc195a0f93f275895dc88fb2": {
-            # DSC00497.JPG
+        "DSC00497.JPG": {
             "MAPAltitude": 77.5,
             "MAPCaptureTime": "2018_06_08_20_32_28_000",
             "MAPCompassHeading": {"MagneticHeading": 271.27, "TrueHeading": 271.27},
@@ -46,8 +44,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "e48c08e5df11c52270ef2568dbf493d6": {
-            # V0370574.JPG
+        "V0370574.JPG": {
             # convert DateTimeOriginal "2018:07:27 11:32:14" in local time to UTC
             "MAPCaptureTime": datetime.datetime.fromisoformat("2018-07-27T11:32:14")
             .astimezone(datetime.timezone.utc)
@@ -142,11 +139,18 @@ def _validate_uploads(upload_dir: py.path.local, expected):
         else:
             raise Exception(f"invalid file {file}")
 
-    excludes = ["filename", "filesize", "md5sum", "MAPMetaTags", "MAPSequenceUUID"]
+    excludes = [
+        "filename",
+        "filesize",
+        "md5sum",
+        "MAPMetaTags",
+        "MAPSequenceUUID",
+        "MAPFilename",
+    ]
 
     actual = {}
     for desc in descs:
-        actual[os.path.basename(desc["filename"])] = {
+        actual[os.path.basename(desc["MAPFilename"])] = {
             k: v for k, v in desc.items() if k not in excludes
         }
 
@@ -221,8 +225,7 @@ def test_video_process_and_upload(
     assert x.returncode == 0, x.stderr
     assert 1 == len(setup_upload.listdir())
     expected = {
-        "11db367c55e8e8b751daef7a42632a59": {
-            # sample-5s_NA_000001.jpg
+        "sample-5s_NA_000001.jpg": {
             "MAPAltitude": 94.75,
             "MAPCaptureTime": "2025_03_14_07_00_00_000",
             "MAPCompassHeading": {
@@ -234,8 +237,7 @@ def test_video_process_and_upload(
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "d73aa1576a2dd75d8f17b2f6f2bba0fb": {
-            # sample-5s_NA_000002.jpg
+        "sample-5s_NA_000002.jpg": {
             "MAPAltitude": 93.347,
             "MAPCaptureTime": "2025_03_14_07_00_02_000",
             "MAPCompassHeading": {
@@ -247,8 +249,7 @@ def test_video_process_and_upload(
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "e89f809c1b51ef5a0a8a496c1030d875": {
-            # sample-5s_NA_000003.jpg
+        "sample-5s_NA_000003.jpg": {
             "MAPAltitude": 92.492,
             "MAPCaptureTime": "2025_03_14_07_00_04_000",
             "MAPCompassHeading": {
