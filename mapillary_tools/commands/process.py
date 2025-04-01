@@ -1,14 +1,15 @@
+from __future__ import annotations
+
 import argparse
 import inspect
-import typing as T
 from pathlib import Path
 
-from .. import constants
+from .. import constants, types
 from ..process_geotag_properties import (
-    FileType,
-    GeotagSource,
+    DEFAULT_GEOTAG_SOURCE_OPTIONS,
     process_finalize,
     process_geotag_properties,
+    SourceType,
 )
 from ..process_sequence_properties import process_sequence_properties
 
@@ -24,24 +25,13 @@ class Command:
     help = "process images and videos"
 
     def add_basic_arguments(self, parser: argparse.ArgumentParser):
-        geotag_sources: T.List[GeotagSource] = [
-            "blackvue_videos",
-            "camm",
-            "exif",
-            "exiftool",
-            "gopro_videos",
-            "gpx",
-            "nmea",
+        geotag_gpx_based_sources: list[str] = [
+            SourceType.GPX.value,
+            SourceType.NMEA.value,
+            SourceType.GOPRO.value,
+            SourceType.BLACKVUE.value,
+            SourceType.CAMM.value,
         ]
-        geotag_gpx_based_sources: T.List[GeotagSource] = [
-            "gpx",
-            "gopro_videos",
-            "nmea",
-            "blackvue_videos",
-            "camm",
-        ]
-        for source in geotag_gpx_based_sources:
-            assert source in geotag_sources
 
         parser.add_argument(
             "--skip_process_errors",
@@ -53,9 +43,9 @@ class Command:
         parser.add_argument(
             "--filetypes",
             "--file_types",
-            help=f"Process files of the specified types only. Supported file types: {','.join(sorted(t.value for t in FileType))} [default: %(default)s]",
-            type=lambda option: set(FileType(t) for t in option.split(",")),
-            default=",".join(sorted(t.value for t in FileType)),
+            help=f"Process files of the specified types only. Supported file types: {','.join(sorted(t.value for t in types.FileType))} [default: %(default)s]",
+            type=lambda option: set(types.FileType(t) for t in option.split(",")),
+            default=None,
             required=False,
         )
         group = parser.add_argument_group(bold_text("PROCESS EXIF OPTIONS"))
@@ -122,10 +112,9 @@ class Command:
         )
         group_geotagging.add_argument(
             "--geotag_source",
-            help="Provide the source of date/time and GPS information needed for geotagging. [default: %(default)s]",
-            action="store",
-            choices=geotag_sources,
-            default="exif",
+            help=f"Provide the source of date/time and GPS information needed for geotagging. Supported source types: {', '.join(g.value for g in SourceType)} [default: {','.join(DEFAULT_GEOTAG_SOURCE_OPTIONS)}]",
+            action="append",
+            default=[],
             required=False,
         )
         group_geotagging.add_argument(
@@ -216,24 +205,7 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        if (
-            "geotag_source" in vars_args
-            and vars_args["geotag_source"] == "blackvue_videos"
-            and (
-                "device_make" not in vars_args
-                or ("device_make" in vars_args and not vars_args["device_make"])
-            )
-        ):
-            vars_args["device_make"] = "Blackvue"
-        if (
-            "device_make" in vars_args
-            and vars_args["device_make"]
-            and vars_args["device_make"].lower() == "blackvue"
-        ):
-            vars_args["duplicate_angle"] = 360
-
         metadatas = process_geotag_properties(
-            vars_args=vars_args,
             **(
                 {
                     k: v

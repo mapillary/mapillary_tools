@@ -22,7 +22,7 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         image_paths: T.Sequence[Path],
         xml_path: Path,
         offset_time: float = 0.0,
-        num_processes: T.Optional[int] = None,
+        num_processes: int | None = None,
     ):
         super().__init__(image_paths, num_processes=num_processes)
         self.xml_path = xml_path

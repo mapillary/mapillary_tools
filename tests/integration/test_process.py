@@ -420,7 +420,7 @@ def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
         fp.write(GPX_CONTENT)
 
     x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
+        f"{EXECUTABLE} --verbose process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
@@ -556,7 +556,7 @@ def test_process_unsupported_filetypes(setup_data: py.path.local):
     video_dir = setup_data.join("gopro_data")
     for filetypes in ["blackvue"]:
         x = subprocess.run(
-            f"{EXECUTABLE} --verbose process --filetypes={filetypes} {PROCESS_FLAGS} --skip_process_errors {video_dir}",
+            f"{EXECUTABLE} --verbose process --filetypes={filetypes} --geotag_source=native {PROCESS_FLAGS} --skip_process_errors {video_dir}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -568,7 +568,7 @@ def test_process_unsupported_filetypes(setup_data: py.path.local):
 
     for filetypes in ["image"]:
         x = subprocess.run(
-            f"{EXECUTABLE} --verbose process --filetypes={filetypes} {PROCESS_FLAGS} --skip_process_errors {video_dir}",
+            f"{EXECUTABLE} --verbose process --filetypes={filetypes} --geotag_source=native {PROCESS_FLAGS} --skip_process_errors {video_dir}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
