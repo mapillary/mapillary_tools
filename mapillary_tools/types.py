@@ -105,7 +105,7 @@ class VideoMetadata:
 @dataclasses.dataclass
 class ErrorMetadata:
     filename: Path
-    filetype: T.Optional[FileType]
+    filetype: FileType
     error: Exception
 
 
@@ -239,7 +239,7 @@ def _describe_error_desc(
 
 
 def describe_error_metadata(
-    exc: Exception, filename: Path, filetype: T.Optional[FileType]
+    exc: Exception, filename: Path, filetype: FileType
 ) -> ErrorMetadata:
     return ErrorMetadata(filename=filename, filetype=filetype, error=exc)
 
@@ -673,15 +673,16 @@ def validate_and_fail_metadata(metadata: MetadataOrError) -> MetadataOrError:
     if isinstance(metadata, ErrorMetadata):
         return metadata
 
-    filetype: T.Optional[FileType] = None
+    if isinstance(metadata, ImageMetadata):
+        filetype = FileType.IMAGE
+        validate = validate_image_desc
+    else:
+        assert isinstance(metadata, VideoMetadata)
+        filetype = metadata.filetype
+        validate = validate_video_desc
+
     try:
-        if isinstance(metadata, ImageMetadata):
-            filetype = FileType.IMAGE
-            validate_image_desc(as_desc(metadata))
-        else:
-            assert isinstance(metadata, VideoMetadata)
-            filetype = metadata.filetype
-            validate_video_desc(as_desc(metadata))
+        validate(as_desc(metadata))
     except exceptions.MapillaryMetadataValidationError as ex:
         # rethrow because the original error is too verbose
         return describe_error_metadata(

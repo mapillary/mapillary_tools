@@ -236,9 +236,7 @@ def _write_metadatas(
         LOG.info("Check the description file for details: %s", desc_path)
 
 
-def _is_error_skipped(
-    error_type: str, skipped_process_errors: T.Set[T.Type[Exception]]
-):
+def _is_error_skipped(error_type: str, skipped_process_errors: set[T.Type[Exception]]):
     skipped_process_error_names = set(err.__name__ for err in skipped_process_errors)
     skip_all = Exception in skipped_process_errors
     return skip_all or error_type in skipped_process_error_names
@@ -248,17 +246,13 @@ def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: T.Set[T.Type[Exception]],
 ) -> None:
-    metadatas_by_filetype: T.Dict[types.FileType, list[types.MetadataOrError]] = {}
+    metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
-        filetype: types.FileType | None
         if isinstance(metadata, types.ImageMetadata):
             filetype = types.FileType.IMAGE
         else:
             filetype = metadata.filetype
-        if filetype:
-            metadatas_by_filetype.setdefault(types.FileType(filetype), []).append(
-                metadata
-            )
+        metadatas_by_filetype.setdefault(filetype, []).append(metadata)
 
     for filetype, group in metadatas_by_filetype.items():
         _show_stats_per_filetype(group, filetype, skipped_process_errors)
@@ -278,19 +272,16 @@ def _show_stats(
 
 
 def _show_stats_per_filetype(
-    metadatas: T.Sequence[types.MetadataOrError],
+    metadatas: T.Collection[types.MetadataOrError],
     filetype: types.FileType,
     skipped_process_errors: T.Set[T.Type[Exception]],
 ):
-    good_metadatas: list[T.Union[types.VideoMetadata, types.ImageMetadata]] = []
-    filesize_to_upload = 0
-    error_metadatas: list[types.ErrorMetadata] = []
-    for metadata in metadatas:
-        if isinstance(metadata, types.ErrorMetadata):
-            error_metadatas.append(metadata)
-        else:
-            good_metadatas.append(metadata)
-            filesize_to_upload += metadata.filesize or 0
+    good_metadatas: list[types.Metadata]
+    good_metadatas, error_metadatas = types.separate_errors(metadatas)
+
+    filesize_to_upload = sum(
+        [0 if m.filesize is None else m.filesize for m in good_metadatas]
+    )
 
     LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
     if good_metadatas:
@@ -317,7 +308,7 @@ def _show_stats_per_filetype(
 
 
 def _validate_metadatas(
-    metadatas: T.Sequence[types.MetadataOrError], num_processes: int | None
+    metadatas: T.Collection[types.MetadataOrError], num_processes: int | None
 ) -> list[types.MetadataOrError]:
     LOG.debug("Validating %d metadatas", len(metadatas))
 
