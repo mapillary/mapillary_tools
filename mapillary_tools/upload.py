@@ -250,9 +250,9 @@ def _setup_ipc(emitter: uploader.EventEmitter):
         type: uploader.EventName = "upload_progress"
 
         if LOG.getEffectiveLevel() <= logging.DEBUG:
-            # In debug mode, we want to see the progress every 10 seconds
+            # In debug mode, we want to see the progress every 30 seconds
             # instead of every chunk (which is too verbose)
-            INTERVAL_SECONDS = 10
+            INTERVAL_SECONDS = 30
             now = time.time()
             last_upload_progress_debug_at: float | None = T.cast(T.Dict, payload).get(
                 "_last_upload_progress_debug_at"
@@ -425,11 +425,7 @@ def _load_descs(
     metadatas: list[types.Metadata]
 
     if _metadatas_from_process is not None:
-        metadatas = [
-            metadata
-            for metadata in _metadatas_from_process
-            if not isinstance(metadata, types.ErrorMetadata)
-        ]
+        metadatas, _ = types.separate_errors(_metadatas_from_process)
     else:
         metadatas = _load_validate_metadatas_from_desc_path(desc_path, import_paths)
 

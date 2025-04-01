@@ -164,6 +164,8 @@ def main():
         args.func(argvars)
     except requests.HTTPError as ex:
         LOG.error("%s: %s", ex.__class__.__name__, api_v4.readable_http_error(ex))
+        # TODO: standardize exit codes as exceptions.MapillaryUserError
+        sys.exit(16)
 
     except exceptions.MapillaryUserError as ex:
         LOG.error(

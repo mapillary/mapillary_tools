@@ -9,10 +9,14 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from mapillary_tools.geotag.options import InterpolationOption, SourcePathOption
-
 from . import constants, exceptions, exif_write, types, utils
-from .geotag.factory import parse_source_option, process, SourceOption, SourceType
+from .geotag.factory import parse_source_option, process
+from .geotag.options import (
+    InterpolationOption,
+    SourceOption,
+    SourcePathOption,
+    SourceType,
+)
 
 LOG = logging.getLogger(__name__)
 DEFAULT_GEOTAG_SOURCE_OPTIONS = [
