@@ -66,7 +66,6 @@ class ImageMetadata(geo.Point):
     MAPOrientation: T.Optional[int] = None
     # deprecated since v0.10.0; keep here for compatibility
     MAPMetaTags: T.Optional[T.Dict] = None
-    # deprecated since v0.10.0; keep here for compatibility
     MAPFilename: T.Optional[str] = None
     filesize: T.Optional[int] = None
 
@@ -336,7 +335,6 @@ ImageDescriptionEXIFSchema = {
         "MAPDeviceModel": {"type": "string"},
         "MAPGPSAccuracyMeters": {"type": "number"},
         "MAPCameraUUID": {"type": "string"},
-        # deprecated since v0.10.0; keep here for compatibility
         "MAPFilename": {
             "type": "string",
             "description": "The base filename of the image",
