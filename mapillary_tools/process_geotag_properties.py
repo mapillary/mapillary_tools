@@ -319,6 +319,8 @@ def _show_stats_per_filetype(
 def _validate_metadatas(
     metadatas: T.Sequence[types.MetadataOrError], num_processes: int | None
 ) -> list[types.MetadataOrError]:
+    LOG.debug("Validating %d metadatas", len(metadatas))
+
     # validating metadatas is slow, hence multiprocessing
 
     # Do not pass error metadatas where the error object can not be pickled for multiprocessing to work
@@ -361,34 +363,45 @@ def process_finalize(
     desc_path: str | None = None,
     num_processes: int | None = None,
 ) -> list[types.MetadataOrError]:
+    image_metadatas: list[types.ImageMetadata] = []
+    video_metadatas: list[types.VideoMetadata] = []
+
     for metadata in metadatas:
         if isinstance(metadata, types.VideoMetadata):
-            if device_make is not None:
-                metadata.make = device_make
-            if device_model is not None:
-                metadata.model = device_model
+            video_metadatas.append(metadata)
         elif isinstance(metadata, types.ImageMetadata):
-            if device_make is not None:
-                metadata.MAPDeviceMake = device_make
-            if device_model is not None:
-                metadata.MAPDeviceModel = device_model
+            image_metadatas.append(metadata)
+
+    for metadata in video_metadatas:
+        if device_make is not None:
+            metadata.make = device_make
+        if device_model is not None:
+            metadata.model = device_model
+
+    for metadata in image_metadatas:
+        if device_make is not None:
+            metadata.MAPDeviceMake = device_make
+        if device_model is not None:
+            metadata.MAPDeviceModel = device_model
+        # Add the basename
+        metadata.MAPFilename = metadata.filename.name
 
     # modified in place
     _apply_offsets(
-        [
-            metadata
-            for metadata in metadatas
-            if isinstance(metadata, types.ImageMetadata)
-        ],
+        image_metadatas,
         offset_time=offset_time,
         offset_angle=offset_angle,
     )
 
-    LOG.debug("Validating %d metadatas", len(metadatas))
     metadatas = _validate_metadatas(metadatas, num_processes=num_processes)
 
+    # image_metadatas and video_metadatas get stale after the validation,
+    # hence delete them to avoid confusion
+    del image_metadatas
+    del video_metadatas
+
     _overwrite_exif_tags(
-        # search image metadatas again because some of them might have been failed
+        # Search image metadatas again because some of them might have been failed
         [
             metadata
             for metadata in metadatas
@@ -426,10 +439,10 @@ def process_finalize(
         # write descs first because _show_stats() may raise an exception
         _write_metadatas(metadatas, desc_path)
 
-    # show stats
+    # Show stats
     skipped_process_errors: T.Set[T.Type[Exception]]
     if skip_process_errors:
-        # skip all exceptions
+        # Skip all exceptions
         skipped_process_errors = {Exception}
     else:
         skipped_process_errors = {exceptions.MapillaryDuplicationError}
