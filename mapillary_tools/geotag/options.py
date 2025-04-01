@@ -11,7 +11,7 @@ import jsonschema
 from .. import types
 
 
-class SourceType(enum.StrEnum):
+class SourceType(enum.Enum):
     NATIVE = "native"
     GPX = "gpx"
     NMEA = "nmea"
