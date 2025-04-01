@@ -158,19 +158,23 @@ class ZipImageSequence:
             zip_filename = zip_dir.joinpath(filename)
             with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
-                    actual_md5sum = cls.zip_sequence_fp(sequence, wip_fp)
+                    actual_md5sum = cls.zip_sequence_deterministically(sequence, wip_fp)
                     assert actual_md5sum == upload_md5sum, "md5sum mismatch"
 
     @classmethod
-    def zip_sequence_fp(
+    def zip_sequence_deterministically(
         cls,
         sequence: T.Sequence[types.ImageMetadata],
         zip_fp: T.IO[bytes],
     ) -> str:
         """
-        Write a sequence of ImageMetadata into the zipfile handle.
+        Write a sequence of ImageMetadata into the zipfile handle. It should guarantee
+        that the same sequence always produces the same zipfile, because the
+        sequence md5sum will be used to upload the zipfile or resume the upload.
+
         The sequence has to be one sequence and sorted.
         """
+
         sequence_groups = types.group_and_sort_images(sequence)
         assert len(sequence_groups) == 1, (
             f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
@@ -179,9 +183,8 @@ class ZipImageSequence:
         upload_md5sum = types.update_sequence_md5sum(sequence)
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
-            arcnames: set[str] = set()
             for metadata in sequence:
-                cls._write_imagebytes_in_zip(zipf, metadata, arcnames=arcnames)
+                cls._write_imagebytes_in_zip(zipf, metadata)
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
 
@@ -211,26 +214,11 @@ class ZipImageSequence:
         return upload_md5sum
 
     @classmethod
-    def _uniq_arcname(cls, filename: Path, arcnames: set[str]):
-        arcname: str = filename.name
-
-        # make sure the arcname is unique, otherwise zipfile.extractAll will eliminate duplicated ones
-        arcname_idx = 0
-        while arcname in arcnames:
-            arcname_idx += 1
-            arcname = f"{filename.stem}_{arcname_idx}{filename.suffix}"
-
-        return arcname
-
-    @classmethod
     def _write_imagebytes_in_zip(
-        cls,
-        zipf: zipfile.ZipFile,
-        metadata: types.ImageMetadata,
-        arcnames: set[str] | None = None,
+        cls, zipf: zipfile.ZipFile, metadata: types.ImageMetadata
     ):
-        if arcnames is None:
-            arcnames = set()
+        assert metadata.md5sum, "md5sum is not set"
+        arcname = metadata.md5sum
 
         try:
             edit = exif_write.ExifEdit(metadata.filename)
@@ -248,9 +236,6 @@ class ZipImageSequence:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
-
-        arcname = cls._uniq_arcname(metadata.filename, arcnames)
-        arcnames.add(arcname)
 
         zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
         zipf.writestr(zipinfo, image_bytes)
@@ -319,7 +304,7 @@ class ZipImageSequence:
 
             with tempfile.NamedTemporaryFile() as fp:
                 try:
-                    upload_md5sum = cls.zip_sequence_fp(sequence, fp)
+                    upload_md5sum = cls.zip_sequence_deterministically(sequence, fp)
                 except Exception as ex:
                     yield sequence_uuid, UploadResult(error=ex)
                     continue
