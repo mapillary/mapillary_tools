@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import typing as T
 from pathlib import Path
@@ -18,7 +20,7 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
-        num_processes: T.Optional[int] = None,
+        num_processes: int | None = None,
     ):
         try:
             tracks = parse_gpx(source_path)
@@ -43,14 +45,14 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
         )
 
 
-Track = T.List[geo.Point]
+Track = list[geo.Point]
 
 
-def parse_gpx(gpx_file: Path) -> T.List[Track]:
+def parse_gpx(gpx_file: Path) -> list[Track]:
     with gpx_file.open("r") as f:
         gpx = gpxpy.parse(f)
 
-    tracks: T.List[Track] = []
+    tracks: list[Track] = []
 
     for track in gpx.tracks:
         for segment in track.segments:

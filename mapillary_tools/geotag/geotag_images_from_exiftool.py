@@ -41,7 +41,7 @@ class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
             [self.xml_path]
         )
 
-        results: T.List[ImageExifToolExtractor | types.ErrorMetadata] = []
+        results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
 
         for path in self.image_paths:
             rdf_description = rdf_description_by_path.get(
@@ -81,7 +81,7 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
             )
         )
 
-        results: T.List[ImageExifToolExtractor | types.ErrorMetadata] = []
+        results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
 
         for path in self.image_paths:
             rdf_description = rdf_description_by_path.get(
