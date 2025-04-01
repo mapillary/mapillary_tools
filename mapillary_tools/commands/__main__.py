@@ -86,7 +86,7 @@ def configure_logger(logger: logging.Logger, stream=None) -> None:
     logger.addHandler(handler)
 
 
-def _log_params(argvars: T.Dict) -> None:
+def _log_params(argvars: dict) -> None:
     MAX_ENTRIES = 5
 
     def _stringify(x) -> str:

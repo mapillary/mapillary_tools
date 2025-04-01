@@ -9,7 +9,7 @@ from pathlib import Path
 from . import exif_read, utils
 
 
-EXIFTOOL_NAMESPACES: T.Dict[str, str] = {
+EXIFTOOL_NAMESPACES: dict[str, str] = {
     "Adobe": "http://ns.exiftool.org/APP14/Adobe/1.0/",
     "Apple": "http://ns.exiftool.org/MakerNotes/Apple/1.0/",
     "Composite": "http://ns.exiftool.org/Composite/1.0/",
@@ -57,7 +57,7 @@ _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
 _DESCRIPTION_TAG = "rdf:Description"
 
 
-def expand_tag(ns_tag: str, namespaces: T.Dict[str, str]) -> str:
+def expand_tag(ns_tag: str, namespaces: dict[str, str]) -> str:
     try:
         ns, tag = ns_tag.split(":", maxsplit=2)
     except ValueError:
@@ -72,7 +72,7 @@ def canonical_path(path: Path) -> str:
     return str(path.resolve().as_posix())
 
 
-def find_rdf_description_path(element: ET.Element) -> T.Optional[Path]:
+def find_rdf_description_path(element: ET.Element) -> Path | None:
     about = element.get(_EXPANDED_ABOUT_TAG)
     if about is None:
         return None
@@ -81,8 +81,8 @@ def find_rdf_description_path(element: ET.Element) -> T.Optional[Path]:
 
 def index_rdf_description_by_path(
     xml_paths: T.Sequence[Path],
-) -> T.Dict[str, ET.Element]:
-    rdf_description_by_path: T.Dict[str, ET.Element] = {}
+) -> dict[str, ET.Element]:
+    rdf_description_by_path: dict[str, ET.Element] = {}
 
     for xml_path in utils.find_xml_files(xml_paths):
         try:
@@ -127,7 +127,7 @@ class ExifToolRead(exif_read.ExifReadABC):
     ) -> None:
         self.etree = etree
 
-    def extract_altitude(self) -> T.Optional[float]:
+    def extract_altitude(self) -> float | None:
         """
         Extract altitude
         """
@@ -143,7 +143,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
     def _extract_gps_datetime(
         self, date_tags: T.Sequence[str], time_tags: T.Sequence[str]
-    ) -> T.Optional[datetime.datetime]:
+    ) -> datetime.datetime | None:
         """
         Extract timestamp from GPS field.
         """
@@ -157,13 +157,13 @@ class ExifToolRead(exif_read.ExifReadABC):
 
         return exif_read.parse_gps_datetime_separately(gpsdate, gpstimestamp)
 
-    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_gps_datetime(self) -> datetime.datetime | None:
         """
         Extract timestamp from GPS field.
         """
         return self._extract_gps_datetime(["GPS:GPSDateStamp"], ["GPS:GPSTimeStamp"])
 
-    def extract_gps_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
+    def extract_gps_datetime_from_xmp(self) -> datetime.datetime | None:
         """
         Extract timestamp from XMP GPS field.
         """
@@ -180,7 +180,7 @@ class ExifToolRead(exif_read.ExifReadABC):
         dt_tags: T.Sequence[str],
         subsec_tags: T.Sequence[str],
         offset_tags: T.Sequence[str],
-    ) -> T.Optional[datetime.datetime]:
+    ) -> datetime.datetime | None:
         dtstr = self._extract_alternative_fields(dt_tags, str)
         if dtstr is None:
             return None
@@ -195,7 +195,7 @@ class ExifToolRead(exif_read.ExifReadABC):
             return None
         return dt
 
-    def extract_exif_datetime_from_xmp(self) -> T.Optional[datetime.datetime]:
+    def extract_exif_datetime_from_xmp(self) -> datetime.datetime | None:
         # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
         # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
         # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
@@ -234,7 +234,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
         return None
 
-    def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_exif_datetime(self) -> datetime.datetime | None:
         # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
         # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
         # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
@@ -270,7 +270,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
         return None
 
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+    def extract_capture_time(self) -> datetime.datetime | None:
         """
         Extract capture time from EXIF DateTime tags
         """
@@ -300,7 +300,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
         return None
 
-    def extract_direction(self) -> T.Optional[float]:
+    def extract_direction(self) -> float | None:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
@@ -313,7 +313,7 @@ class ExifToolRead(exif_read.ExifReadABC):
             float,
         )
 
-    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+    def extract_lon_lat(self) -> tuple[float, float] | None:
         lon_lat = self._extract_lon_lat("GPS:GPSLongitude", "GPS:GPSLatitude")
         if lon_lat is not None:
             return lon_lat
@@ -332,7 +332,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
     def _extract_lon_lat(
         self, lon_tag: str, lat_tag: str
-    ) -> T.Optional[T.Tuple[float, float]]:
+    ) -> tuple[float, float] | None:
         lon = self._extract_alternative_fields(
             [lon_tag],
             float,
@@ -355,7 +355,7 @@ class ExifToolRead(exif_read.ExifReadABC):
 
         return lon, lat
 
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         """
         Extract camera make
         """
@@ -374,7 +374,7 @@ class ExifToolRead(exif_read.ExifReadABC):
             return None
         return make.strip()
 
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         """
         Extract camera model
         """
@@ -394,7 +394,7 @@ class ExifToolRead(exif_read.ExifReadABC):
             return None
         return model.strip()
 
-    def extract_width(self) -> T.Optional[int]:
+    def extract_width(self) -> int | None:
         """
         Extract image width in pixels
         """
@@ -409,7 +409,7 @@ class ExifToolRead(exif_read.ExifReadABC):
             int,
         )
 
-    def extract_height(self) -> T.Optional[int]:
+    def extract_height(self) -> int | None:
         """
         Extract image height in pixels
         """
@@ -447,8 +447,8 @@ class ExifToolRead(exif_read.ExifReadABC):
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],
-        field_type: T.Type[_FIELD_TYPE],
-    ) -> T.Optional[_FIELD_TYPE]:
+        field_type: type[_FIELD_TYPE],
+    ) -> _FIELD_TYPE | None:
         for field in fields:
             value = self.etree.findtext(field, namespaces=EXIFTOOL_NAMESPACES)
             if value is None:

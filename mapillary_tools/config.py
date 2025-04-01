@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import configparser
 import os
 import typing as T
@@ -35,8 +37,8 @@ def _load_config(config_path: str) -> configparser.ConfigParser:
 
 
 def load_user(
-    profile_name: str, config_path: T.Optional[str] = None
-) -> T.Optional[types.UserItem]:
+    profile_name: str, config_path: str | None = None
+) -> types.UserItem | None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     config = _load_config(config_path)
@@ -46,7 +48,7 @@ def load_user(
     return T.cast(types.UserItem, user_items)
 
 
-def list_all_users(config_path: T.Optional[str] = None) -> T.Dict[str, types.UserItem]:
+def list_all_users(config_path: str | None = None) -> dict[str, types.UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     cp = _load_config(config_path)
@@ -58,7 +60,7 @@ def list_all_users(config_path: T.Optional[str] = None) -> T.Dict[str, types.Use
 
 
 def update_config(
-    profile_name: str, user_items: types.UserItem, config_path: T.Optional[str] = None
+    profile_name: str, user_items: types.UserItem, config_path: str | None = None
 ) -> None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
@@ -72,7 +74,7 @@ def update_config(
         config.write(fp)
 
 
-def remove_config(profile_name: str, config_path: T.Optional[str] = None) -> None:
+def remove_config(profile_name: str, config_path: str | None = None) -> None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
 

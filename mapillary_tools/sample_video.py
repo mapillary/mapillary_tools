@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 
 def _normalize_path(
     video_import_path: Path, skip_subfolders: bool
-) -> T.Tuple[Path, T.List[Path]]:
+) -> tuple[Path, list[Path]]:
     if video_import_path.is_dir():
         video_list = utils.find_videos(
             [video_import_path], skip_subfolders=skip_subfolders
@@ -51,7 +51,7 @@ def sample_video(
     video_sample_distance=constants.VIDEO_SAMPLE_DISTANCE,
     video_sample_interval=constants.VIDEO_SAMPLE_INTERVAL,
     video_duration_ratio=constants.VIDEO_DURATION_RATIO,
-    video_start_time: T.Optional[str] = None,
+    video_start_time: str | None = None,
     skip_sample_errors: bool = False,
     rerun: bool = False,
 ) -> None:
@@ -62,7 +62,7 @@ def sample_video(
             f"Expect either non-negative video_sample_distance or positive video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
         )
 
-    video_start_time_dt: T.Optional[datetime.datetime] = None
+    video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
             video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
@@ -179,7 +179,7 @@ def _sample_single_video_by_interval(
     sample_dir: Path,
     sample_interval: float,
     duration_ratio: float,
-    start_time: T.Optional[datetime.datetime] = None,
+    start_time: datetime.datetime | None = None,
 ) -> None:
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
@@ -219,7 +219,7 @@ def _sample_video_stream_by_distance(
     points: T.Sequence[geo.Point],
     video_track_parser: mp4_sample_parser.TrackBoxParser,
     sample_distance: float,
-) -> T.Dict[int, T.Tuple[mp4_sample_parser.Sample, geo.Point]]:
+) -> dict[int, tuple[mp4_sample_parser.Sample, geo.Point]]:
     """
     Locate video frames along the track (points), then resample them by the minimal sample_distance, and return the sparse frames.
     """
@@ -275,7 +275,7 @@ def _sample_single_video_by_distance(
     video_path: Path,
     sample_dir: Path,
     sample_distance: float,
-    start_time: T.Optional[datetime.datetime] = None,
+    start_time: datetime.datetime | None = None,
 ) -> None:
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 

@@ -25,9 +25,7 @@ DEFAULT_GEOTAG_SOURCE_OPTIONS = [
 ]
 
 
-def _normalize_import_paths(
-    import_path: T.Union[Path, T.Sequence[Path]],
-) -> T.Sequence[Path]:
+def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> T.Sequence[Path]:
     import_paths: T.Sequence[Path]
     if isinstance(import_path, Path):
         import_paths = [import_path]
@@ -219,7 +217,7 @@ def _is_error_skipped(error_type: str, skipped_process_errors: set[T.Type[Except
 
 def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
-    skipped_process_errors: T.Set[T.Type[Exception]],
+    skipped_process_errors: set[T.Type[Exception]],
 ) -> None:
     metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
@@ -249,7 +247,7 @@ def _show_stats(
 def _show_stats_per_filetype(
     metadatas: T.Collection[types.MetadataOrError],
     filetype: types.FileType,
-    skipped_process_errors: T.Set[T.Type[Exception]],
+    skipped_process_errors: set[T.Type[Exception]],
 ):
     good_metadatas: list[types.Metadata]
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
@@ -314,7 +312,7 @@ def _validate_metadatas(
 
 
 def process_finalize(
-    import_path: T.Union[T.Sequence[Path], Path],
+    import_path: T.Sequence[Path] | Path,
     metadatas: list[types.MetadataOrError],
     skip_process_errors: bool = False,
     device_make: str | None = None,
@@ -406,7 +404,7 @@ def process_finalize(
         _write_metadatas(metadatas, desc_path)
 
     # Show stats
-    skipped_process_errors: T.Set[T.Type[Exception]]
+    skipped_process_errors: set[T.Type[Exception]]
     if skip_process_errors:
         # Skip all exceptions
         skipped_process_errors = {Exception}

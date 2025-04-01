@@ -1,4 +1,5 @@
 # pyre-ignore-all-errors[5, 24]
+from __future__ import annotations
 
 import datetime
 import json
@@ -33,7 +34,7 @@ class Stream(T.TypedDict):
 
 
 class ProbeOutput(T.TypedDict):
-    streams: T.List[Stream]
+    streams: list[Stream]
 
 
 class FFmpegNotFoundError(Exception):
@@ -77,7 +78,7 @@ class FFMPEG:
         self,
         ffmpeg_path: str = "ffmpeg",
         ffprobe_path: str = "ffprobe",
-        stderr: T.Optional[int] = None,
+        stderr: int | None = None,
     ) -> None:
         """
         ffmpeg_path: path to ffmpeg binary
@@ -88,8 +89,8 @@ class FFMPEG:
         self.ffprobe_path = ffprobe_path
         self.stderr = stderr
 
-    def _run_ffprobe_json(self, cmd: T.List[str]) -> T.Dict:
-        full_cmd: T.List[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
+    def _run_ffprobe_json(self, cmd: list[str]) -> dict:
+        full_cmd: list[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
         LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
         try:
             completed = subprocess.run(
@@ -132,8 +133,8 @@ class FFMPEG:
 
         return output
 
-    def _run_ffmpeg(self, cmd: T.List[str]) -> None:
-        full_cmd: T.List[str] = [self.ffmpeg_path, *cmd]
+    def _run_ffmpeg(self, cmd: list[str]) -> None:
+        full_cmd: list[str] = [self.ffmpeg_path, *cmd]
         LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
         try:
             subprocess.run(full_cmd, check=True, stderr=self.stderr)
@@ -145,7 +146,7 @@ class FFMPEG:
             raise FFmpegCalledProcessError(ex) from ex
 
     def probe_format_and_streams(self, video_path: Path) -> ProbeOutput:
-        cmd: T.List[str] = [
+        cmd: list[str] = [
             "-hide_banner",
             "-show_format",
             "-show_streams",
@@ -158,7 +159,7 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         sample_interval: float,
-        stream_idx: T.Optional[int] = None,
+        stream_idx: int | None = None,
     ) -> None:
         """
         Extract frames by the sample interval from the specified video stream.
@@ -175,7 +176,7 @@ class FFMPEG:
             ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
             stream_specifier = "v"
 
-        cmd: T.List[str] = [
+        cmd: list[str] = [
             # global options should be specified first
             *["-hide_banner", "-nostdin"],
             # input 0
@@ -195,7 +196,7 @@ class FFMPEG:
 
         self._run_ffmpeg(cmd)
 
-    def generate_binary_search(self, sorted_frame_indices: T.Sequence[int]) -> str:
+    def generate_binary_search(self, sorted_frame_indices: list[int]) -> str:
         length = len(sorted_frame_indices)
 
         if length == 0:
@@ -211,8 +212,8 @@ class FFMPEG:
         self,
         video_path: Path,
         sample_dir: Path,
-        frame_indices: T.Set[int],
-        stream_idx: T.Optional[int] = None,
+        frame_indices: set[int],
+        stream_idx: int | None = None,
     ) -> None:
         """
         Extract specified frames from the specified video stream.
@@ -253,7 +254,7 @@ class FFMPEG:
                 # If not close, error "The process cannot access the file because it is being used by another process"
                 if not delete:
                     select_file.close()
-                cmd: T.List[str] = [
+                cmd: list[str] = [
                     # global options should be specified first
                     *["-hide_banner", "-nostdin"],
                     # input 0
@@ -300,7 +301,7 @@ class Probe:
     def __init__(self, probe: ProbeOutput) -> None:
         self.probe = probe
 
-    def probe_video_start_time(self) -> T.Optional[datetime.datetime]:
+    def probe_video_start_time(self) -> datetime.datetime | None:
         """
         Find video start time of the given video.
         It searches video creation time and duration in video streams first and then the other streams.
@@ -327,11 +328,11 @@ class Probe:
 
         return None
 
-    def probe_video_streams(self) -> T.List[Stream]:
+    def probe_video_streams(self) -> list[Stream]:
         streams = self.probe.get("streams", [])
         return [stream for stream in streams if stream.get("codec_type") == "video"]
 
-    def probe_video_with_max_resolution(self) -> T.Optional[Stream]:
+    def probe_video_with_max_resolution(self) -> Stream | None:
         video_streams = self.probe_video_streams()
         video_streams.sort(
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
@@ -341,7 +342,7 @@ class Probe:
         return video_streams[0]
 
 
-def extract_stream_start_time(stream: Stream) -> T.Optional[datetime.datetime]:
+def extract_stream_start_time(stream: Stream) -> datetime.datetime | None:
     """
     Find the start time of the given stream.
     Start time is the creation time of the stream minus the duration of the stream.
@@ -368,7 +369,7 @@ def extract_stream_start_time(stream: Stream) -> T.Optional[datetime.datetime]:
 def _extract_stream_frame_idx(
     sample_basename: str,
     sample_basename_pattern: T.Pattern[str],
-) -> T.Optional[T.Tuple[T.Optional[int], int]]:
+) -> tuple[int | None, int] | None:
     """
     extract stream id and frame index from sample basename
     e.g. basename GX010001_NA_000000.jpg will extract (None, 0)
@@ -408,7 +409,7 @@ def _extract_stream_frame_idx(
 
 def iterate_samples(
     sample_dir: Path, video_path: Path
-) -> T.Generator[T.Tuple[T.Optional[int], int, Path], None, None]:
+) -> T.Generator[tuple[int | None, int, Path], None, None]:
     """
     Search all samples in the sample_dir,
     and return a generator of the tuple: (stream ID, frame index, sample path).
@@ -428,17 +429,17 @@ def iterate_samples(
 
 
 def sort_selected_samples(
-    sample_dir: Path, video_path: Path, selected_stream_indices: T.List[T.Optional[int]]
-) -> T.List[T.Tuple[int, T.List[T.Optional[Path]]]]:
+    sample_dir: Path, video_path: Path, selected_stream_indices: list[int | None]
+) -> list[tuple[int, list[Path | None]]]:
     """
     Group frames by frame index, so that
     the Nth group contains all the frames from the selected streams at frame index N.
     """
-    stream_samples: T.Dict[int, T.List[T.Tuple[T.Optional[int], Path]]] = {}
+    stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
     for stream_idx, frame_idx, sample_path in iterate_samples(sample_dir, video_path):
         stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
 
-    selected: T.List[T.Tuple[int, T.List[T.Optional[Path]]]] = []
+    selected: list[tuple[int, list[Path | None]]] = []
     for frame_idx in sorted(stream_samples.keys()):
         indexed = {
             stream_idx: sample_path

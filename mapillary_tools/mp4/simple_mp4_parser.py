@@ -1,4 +1,5 @@
 # pyre-ignore-all-errors[5, 16, 21, 24, 58]
+from __future__ import annotations
 
 import io
 import typing as T
@@ -130,8 +131,8 @@ def parse_boxes_recursive(
     stream: T.BinaryIO,
     maxsize: int = -1,
     depth: int = 0,
-    box_list_types: T.Optional[T.Set[bytes]] = None,
-) -> T.Generator[T.Tuple[Header, int, T.BinaryIO], None, None]:
+    box_list_types: set[bytes] | None = None,
+) -> T.Generator[tuple[Header, int, T.BinaryIO], None, None]:
     assert maxsize == -1 or 0 <= maxsize
 
     if box_list_types is None:
@@ -152,10 +153,10 @@ def parse_boxes_recursive(
 
 def parse_path(
     stream: T.BinaryIO,
-    path: T.Sequence[T.Union[bytes, T.Sequence[bytes]]],
+    path: T.Sequence[bytes | T.Sequence[bytes]],
     maxsize: int = -1,
     depth: int = 0,
-) -> T.Generator[T.Tuple[Header, T.BinaryIO], None, None]:
+) -> T.Generator[tuple[Header, T.BinaryIO], None, None]:
     if not path:
         return
 
@@ -172,8 +173,8 @@ def parse_path(
 
 
 def _parse_path_first(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1, depth: int = 0
-) -> T.Optional[T.Tuple[Header, T.BinaryIO]]:
+    stream: T.BinaryIO, path: list[bytes], maxsize: int = -1, depth: int = 0
+) -> tuple[Header, T.BinaryIO] | None:
     if not path:
         return None
     for h, s in parse_boxes(stream, maxsize=maxsize, extend_eof=depth == 0):
@@ -188,8 +189,8 @@ def _parse_path_first(
 
 
 def parse_mp4_data_first(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
-) -> T.Optional[bytes]:
+    stream: T.BinaryIO, path: list[bytes], maxsize: int = -1
+) -> bytes | None:
     # depth=0 will enable EoF extension
     parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=0)
     if parsed is None:
@@ -199,7 +200,7 @@ def parse_mp4_data_first(
 
 
 def parse_mp4_data_firstx(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
+    stream: T.BinaryIO, path: list[bytes], maxsize: int = -1
 ) -> bytes:
     data = parse_mp4_data_first(stream, path, maxsize=maxsize)
     if data is None:
@@ -208,8 +209,8 @@ def parse_mp4_data_firstx(
 
 
 def parse_box_data_first(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
-) -> T.Optional[bytes]:
+    stream: T.BinaryIO, path: list[bytes], maxsize: int = -1
+) -> bytes | None:
     # depth=1 will disable EoF extension
     parsed = _parse_path_first(stream, path, maxsize=maxsize, depth=1)
     if parsed is None:
@@ -219,7 +220,7 @@ def parse_box_data_first(
 
 
 def parse_box_data_firstx(
-    stream: T.BinaryIO, path: T.List[bytes], maxsize: int = -1
+    stream: T.BinaryIO, path: list[bytes], maxsize: int = -1
 ) -> bytes:
     data = parse_box_data_first(stream, path, maxsize=maxsize)
     if data is None:

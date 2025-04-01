@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import statistics
 import typing as T
 
@@ -96,7 +98,7 @@ def both(
 def dbscan(
     sequences: T.Sequence[PointSequence],
     merge_or_not: Decider,
-) -> T.Dict[int, PointSequence]:
+) -> dict[int, PointSequence]:
     """
     One-dimension DBSCAN clustering: https://en.wikipedia.org/wiki/DBSCAN
     The input is a list of sequences, and it is guaranteed that all sequences are sorted by time.
@@ -107,7 +109,7 @@ def dbscan(
     """
 
     # find which sequences (keys) should be merged to which sequences (values)
-    mergeto: T.Dict[int, int] = {}
+    mergeto: dict[int, int] = {}
     for left in range(len(sequences)):
         mergeto.setdefault(left, left)
         # find the first sequence to merge with
@@ -119,7 +121,7 @@ def dbscan(
                 break
 
     # merge
-    merged: T.Dict[int, PointSequence] = {}
+    merged: dict[int, PointSequence] = {}
     for idx, s in enumerate(sequences):
         merged.setdefault(mergeto[idx], []).extend(s)
 
