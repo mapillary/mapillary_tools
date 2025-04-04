@@ -440,7 +440,7 @@ class Box64ConstructBuilder:
         return T.cast(BoxDict, self.Box.parse(data))
 
     def parse_boxlist(self, data: bytes) -> list[BoxDict]:
-        return T.cast(list[BoxDict], self.BoxList.parse(data))
+        return T.cast(T.List[BoxDict], self.BoxList.parse(data))
 
 
 class Box32ConstructBuilder(Box64ConstructBuilder):
@@ -609,7 +609,7 @@ def find_box_at_path(
         if box["type"] == path[0]:
             if len(path) == 1:
                 return box
-            box_data = T.cast(list[BoxDict], box["data"])
+            box_data = T.cast(T.List[BoxDict], box["data"])
             # ListContainer from construct is not sequence
             assert isinstance(box_data, T.Sequence), (
                 f"expect a list of boxes but got {type(box_data)} at path {path}"

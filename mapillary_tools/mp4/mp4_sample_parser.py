@@ -234,7 +234,7 @@ class TrackBoxParser:
 
     def is_video_track(self) -> bool:
         hdlr = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"hdlr"])
-        return T.cast(dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
+        return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
     def extract_sample_descriptions(self) -> list[dict]:
         # TODO: return [] if parsing fail
@@ -242,7 +242,7 @@ class TrackBoxParser:
         stsd = cparser.find_box_at_pathx(
             T.cast(T.Sequence[cparser.BoxDict], boxes), [b"stsd"]
         )
-        return T.cast(list[dict], T.cast(dict, stsd["data"])["entries"])
+        return T.cast(T.List[dict], T.cast(dict, stsd["data"])["entries"])
 
     def extract_elst_boxdata(self) -> dict | None:
         box = cparser.find_box_at_path(self.trak_children, [b"edts", b"elst"])
