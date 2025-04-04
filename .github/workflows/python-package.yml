@@ -35,27 +35,6 @@ jobs:
         with:
           path: main
 
-      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
-      # pull into mapillary/mapillary_tools/exiftool
-      - name: Setup ExifTool
-        uses: actions/checkout@v4
-        with:
-          repository: "exiftool/exiftool"
-          path: exiftool
-
-      - name: Check ExifTool version
-        # DO NOT USE envvars here which does not work on Windows (needs prefixing with $env:)
-        # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
-        run: |
-          mv ${{ github.workspace }}/exiftool/exiftool ${{ github.workspace }}/exiftool/exiftool.pl
-          perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
-
-      - name: Setup FFmpeg
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        # ffmpeg is not supported in the latest macOS arch:
-        # Error: setup-ffmpeg can only be run on 64-bit systems
-        if: matrix.platform != 'macos-latest'
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -82,6 +61,33 @@ jobs:
       - name: Type check with mypy
         run: |
           mypy mapillary_tools tests/cli
+
+      # Begin of expensive steps: run after the quick checks done above
+
+      # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
+      # pull into mapillary/mapillary_tools/exiftool
+      - name: Setup ExifTool
+        uses: actions/checkout@v4
+        with:
+          repository: "exiftool/exiftool"
+          path: exiftool
+
+      - name: Check ExifTool version
+        # DO NOT USE envvars here which does not work on Windows (needs prefixing with $env:)
+        # need to rename exiftool to exiftool.pl according to https://exiftool.org/install.html
+        run: |
+          mv ${{ github.workspace }}/exiftool/exiftool ${{ github.workspace }}/exiftool/exiftool.pl
+          perl ${{ github.workspace }}/exiftool/exiftool.pl -ver
+
+      - name: Setup FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        # ffmpeg is not supported in the latest macOS arch:
+        # Error: setup-ffmpeg can only be run on 64-bit systems
+        if: matrix.platform != 'macos-latest'
+        # Allow this step to fail (it frequently fails)
+        continue-on-error: true
+
+      # End of expensive steps
 
       - name: Test with pytest
         run: |
