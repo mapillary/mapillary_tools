@@ -317,17 +317,17 @@ class ExifToolReadVideo:
         # blackvue and many other cameras
         track_with_fix = self._extract_gps_track_from_quicktime()
         if track_with_fix:
-            return T.cast(list[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         # insta360 has its own tag
         track_with_fix = self._extract_gps_track_from_quicktime(namespace="Insta360")
         if track_with_fix:
-            return T.cast(list[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         # mostly for gopro
         track_with_fix = self._extract_gps_track_from_track()
         if track_with_fix:
-            return T.cast(list[geo.Point], track_with_fix)
+            return T.cast(T.List[geo.Point], track_with_fix)
 
         return []
 
