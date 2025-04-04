@@ -36,7 +36,7 @@ def eval_frac(value: Ratio) -> float:
     return float(value.num) / float(value.den)
 
 
-def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
+def gps_to_decimal(values: tuple[Ratio, Ratio, Ratio]) -> float | None:
     try:
         deg, min, sec, *_ = values
     except (TypeError, ValueError):
@@ -56,14 +56,14 @@ def gps_to_decimal(values: T.Tuple[Ratio, Ratio, Ratio]) -> T.Optional[float]:
     return degrees + minutes / 60 + seconds / 3600
 
 
-def _parse_coord_numeric(coord: str, ref: T.Optional[str]) -> T.Optional[float]:
+def _parse_coord_numeric(coord: str, ref: str | None) -> float | None:
     try:
         return float(coord) * SIGN_BY_DIRECTION[ref]
     except (ValueError, KeyError):
         return None
 
 
-def _parse_coord_adobe(coord: str) -> T.Optional[float]:
+def _parse_coord_adobe(coord: str) -> float | None:
     """
     Parse Adobe coordinate format: <degrees,fractionalminutes[NSEW]>
     """
@@ -79,7 +79,7 @@ def _parse_coord_adobe(coord: str) -> T.Optional[float]:
     return None
 
 
-def _parse_coord(coord: T.Optional[str], ref: T.Optional[str]) -> T.Optional[float]:
+def _parse_coord(coord: str | None, ref: str | None) -> float | None:
     if coord is None:
         return None
     parsed = _parse_coord_numeric(coord, ref)
@@ -88,7 +88,7 @@ def _parse_coord(coord: T.Optional[str], ref: T.Optional[str]) -> T.Optional[flo
     return parsed
 
 
-def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
+def _parse_iso(dtstr: str) -> datetime.datetime | None:
     try:
         return datetime.datetime.fromisoformat(dtstr)
     except ValueError:
@@ -99,8 +99,8 @@ def _parse_iso(dtstr: str) -> T.Optional[datetime.datetime]:
 
 
 def strptime_alternative_formats(
-    dtstr: str, formats: T.Sequence[str]
-) -> T.Optional[datetime.datetime]:
+    dtstr: str, formats: list[str]
+) -> datetime.datetime | None:
     for format in formats:
         if format == "ISO":
             dt = _parse_iso(dtstr)
@@ -114,7 +114,7 @@ def strptime_alternative_formats(
     return None
 
 
-def parse_timestr_as_timedelta(timestr: str) -> T.Optional[datetime.timedelta]:
+def parse_timestr_as_timedelta(timestr: str) -> datetime.timedelta | None:
     timestr = timestr.strip()
     parts = timestr.strip().split(":")
     try:
@@ -133,8 +133,8 @@ def parse_timestr_as_timedelta(timestr: str) -> T.Optional[datetime.timedelta]:
 
 
 def parse_time_ratios_as_timedelta(
-    time_tuple: T.Sequence[Ratio],
-) -> T.Optional[datetime.timedelta]:
+    time_tuple: list[Ratio],
+) -> datetime.timedelta | None:
     try:
         hours, minutes, seconds, *_ = time_tuple
     except (ValueError, TypeError):
@@ -156,8 +156,8 @@ def parse_time_ratios_as_timedelta(
 
 def parse_gps_datetime(
     dtstr: str,
-    default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
-) -> T.Optional[datetime.datetime]:
+    default_tz: datetime.timezone | None = datetime.timezone.utc,
+) -> datetime.datetime | None:
     dtstr = dtstr.strip()
 
     dt = strptime_alternative_formats(dtstr, ["ISO"])
@@ -176,8 +176,8 @@ def parse_gps_datetime(
 def parse_gps_datetime_separately(
     datestr: str,
     timestr: str,
-    default_tz: T.Optional[datetime.timezone] = datetime.timezone.utc,
-) -> T.Optional[datetime.datetime]:
+    default_tz: datetime.timezone | None = datetime.timezone.utc,
+) -> datetime.datetime | None:
     """
     Parse GPSDateStamp and GPSTimeStamp and return the corresponding datetime object in GMT.
 
@@ -232,8 +232,8 @@ def parse_gps_datetime_separately(
 
 
 def parse_datetimestr_with_subsec_and_offset(
-    dtstr: str, subsec: T.Optional[str] = None, tz_offset: T.Optional[str] = None
-) -> T.Optional[datetime.datetime]:
+    dtstr: str, subsec: str | None = None, tz_offset: str | None = None
+) -> datetime.datetime | None:
     """
     Convert dtstr "YYYY:mm:dd HH:MM:SS[.sss]" to a datetime object.
     It handles time "24:00:00" as "00:00:00" of the next day.
@@ -294,35 +294,35 @@ _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
 
 class ExifReadABC(abc.ABC):
     @abc.abstractmethod
-    def extract_altitude(self) -> T.Optional[float]:
+    def extract_altitude(self) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+    def extract_capture_time(self) -> datetime.datetime | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_direction(self) -> T.Optional[float]:
+    def extract_direction(self) -> float | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+    def extract_lon_lat(self) -> tuple[float, float] | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_width(self) -> T.Optional[int]:
+    def extract_width(self) -> int | None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def extract_height(self) -> T.Optional[int]:
+    def extract_height(self) -> int | None:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -333,7 +333,7 @@ class ExifReadABC(abc.ABC):
 class ExifReadFromXMP(ExifReadABC):
     def __init__(self, etree: et.ElementTree):
         self.etree = etree
-        self._tags_or_attrs: T.Dict[str, str] = {}
+        self._tags_or_attrs: dict[str, str] = {}
         for description in self.etree.iterfind(
             ".//rdf:Description", namespaces=XMP_NAMESPACES
         ):
@@ -343,12 +343,12 @@ class ExifReadFromXMP(ExifReadABC):
                 if child.text is not None:
                     self._tags_or_attrs[child.tag] = child.text
 
-    def extract_altitude(self) -> T.Optional[float]:
+    def extract_altitude(self) -> float | None:
         return self._extract_alternative_fields(["exif:GPSAltitude"], float)
 
     def _extract_exif_datetime(
         self, dt_tag: str, subsec_tag: str, offset_tag: str
-    ) -> T.Optional[datetime.datetime]:
+    ) -> datetime.datetime | None:
         dtstr = self._extract_alternative_fields([dt_tag], str)
         if dtstr is None:
             return None
@@ -363,7 +363,7 @@ class ExifReadFromXMP(ExifReadABC):
             return None
         return dt
 
-    def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_exif_datetime(self) -> datetime.datetime | None:
         dt = self._extract_exif_datetime(
             "exif:DateTimeOriginal",
             "exif:SubsecTimeOriginal",
@@ -382,7 +382,7 @@ class ExifReadFromXMP(ExifReadABC):
 
         return None
 
-    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_gps_datetime(self) -> datetime.datetime | None:
         """
         Extract timestamp from GPS field.
         """
@@ -402,7 +402,7 @@ class ExifReadFromXMP(ExifReadABC):
         # handle: exif:GPSTimeStamp="17:22:05.999000"
         return parse_gps_datetime_separately(datestr, timestr)
 
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+    def extract_capture_time(self) -> datetime.datetime | None:
         dt = self.extract_gps_datetime()
         if dt is not None and dt.date() != datetime.date(1970, 1, 1):
             return dt
@@ -413,22 +413,22 @@ class ExifReadFromXMP(ExifReadABC):
 
         return None
 
-    def extract_direction(self) -> T.Optional[float]:
+    def extract_direction(self) -> float | None:
         return self._extract_alternative_fields(
             ["exif:GPSImgDirection", "exif:GPSTrack"], float
         )
 
-    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+    def extract_lon_lat(self) -> tuple[float, float] | None:
         lat_ref = self._extract_alternative_fields(["exif:GPSLatitudeRef"], str)
-        lat_str: T.Optional[str] = self._extract_alternative_fields(
+        lat_str: str | None = self._extract_alternative_fields(
             ["exif:GPSLatitude"], str
         )
-        lat: T.Optional[float] = _parse_coord(lat_str, lat_ref)
+        lat: float | None = _parse_coord(lat_str, lat_ref)
         if lat is None:
             return None
 
         lon_ref = self._extract_alternative_fields(["exif:GPSLongitudeRef"], str)
-        lon_str: T.Optional[str] = self._extract_alternative_fields(
+        lon_str: str | None = self._extract_alternative_fields(
             ["exif:GPSLongitude"], str
         )
         lon = _parse_coord(lon_str, lon_ref)
@@ -437,13 +437,13 @@ class ExifReadFromXMP(ExifReadABC):
 
         return lon, lat
 
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         make = self._extract_alternative_fields(["tiff:Make", "exifEX:LensMake"], str)
         if make is None:
             return None
         return make.strip()
 
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         model = self._extract_alternative_fields(
             ["tiff:Model", "exifEX:LensModel"], str
         )
@@ -451,7 +451,7 @@ class ExifReadFromXMP(ExifReadABC):
             return None
         return model.strip()
 
-    def extract_width(self) -> T.Optional[int]:
+    def extract_width(self) -> int | None:
         return self._extract_alternative_fields(
             [
                 "exif:PixelXDimension",
@@ -461,7 +461,7 @@ class ExifReadFromXMP(ExifReadABC):
             int,
         )
 
-    def extract_height(self) -> T.Optional[int]:
+    def extract_height(self) -> int | None:
         return self._extract_alternative_fields(
             [
                 "exif:PixelYDimension",
@@ -513,7 +513,7 @@ class ExifReadFromXMP(ExifReadABC):
         return None
 
 
-def extract_xmp_efficiently(fp) -> T.Optional[str]:
+def extract_xmp_efficiently(fp) -> str | None:
     """
     Extract XMP metadata from a JPEG file efficiently by reading only necessary chunks.
 
@@ -598,7 +598,7 @@ class ExifReadFromEXIF(ExifReadABC):
     EXIF class for reading exif from an image
     """
 
-    def __init__(self, path_or_stream: T.Union[Path, T.BinaryIO]) -> None:
+    def __init__(self, path_or_stream: Path | T.BinaryIO) -> None:
         """
         Initialize EXIF object with FILE as filename or fileobj
         """
@@ -621,7 +621,7 @@ class ExifReadFromEXIF(ExifReadABC):
                 LOG.warning("Error reading EXIF: %s", ex)
                 self.tags = {}
 
-    def extract_altitude(self) -> T.Optional[float]:
+    def extract_altitude(self) -> float | None:
         """
         Extract altitude
         """
@@ -634,7 +634,7 @@ class ExifReadFromEXIF(ExifReadABC):
         altitude_ref = {0: 1, 1: -1}
         return altitude * altitude_ref.get(ref, 1)
 
-    def extract_gps_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_gps_datetime(self) -> datetime.datetime | None:
         """
         Extract timestamp from GPS field.
         """
@@ -662,7 +662,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
     def _extract_exif_datetime(
         self, dt_tag: str, subsec_tag: str, offset_tag: str
-    ) -> T.Optional[datetime.datetime]:
+    ) -> datetime.datetime | None:
         dtstr = self._extract_alternative_fields([dt_tag], field_type=str)
         if dtstr is None:
             return None
@@ -677,7 +677,7 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
         return dt
 
-    def extract_exif_datetime(self) -> T.Optional[datetime.datetime]:
+    def extract_exif_datetime(self) -> datetime.datetime | None:
         # EXIF DateTimeOriginal: 0x9003 (date/time when original image was taken)
         # EXIF SubSecTimeOriginal: 0x9291 (fractional seconds for DateTimeOriginal)
         # EXIF OffsetTimeOriginal: 0x9011 (time zone for DateTimeOriginal)
@@ -711,7 +711,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
         return None
 
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+    def extract_capture_time(self) -> datetime.datetime | None:
         """
         Extract capture time from EXIF DateTime tags
         """
@@ -730,7 +730,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
         return None
 
-    def extract_direction(self) -> T.Optional[float]:
+    def extract_direction(self) -> float | None:
         """
         Extract image direction (i.e. compass, heading, bearing)
         """
@@ -740,7 +740,7 @@ class ExifReadFromEXIF(ExifReadABC):
         ]
         return self._extract_alternative_fields(fields, float)
 
-    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+    def extract_lon_lat(self) -> tuple[float, float] | None:
         lat_tag = self.tags.get("GPS GPSLatitude")
         lon_tag = self.tags.get("GPS GPSLongitude")
         if lat_tag and lon_tag:
@@ -762,7 +762,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
         return None
 
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         """
         Extract camera make
         """
@@ -773,7 +773,7 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
         return make.strip()
 
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         """
         Extract camera model
         """
@@ -784,7 +784,7 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
         return model.strip()
 
-    def extract_width(self) -> T.Optional[int]:
+    def extract_width(self) -> int | None:
         """
         Extract image width in pixels
         """
@@ -792,7 +792,7 @@ class ExifReadFromEXIF(ExifReadABC):
             ["Image ImageWidth", "EXIF ExifImageWidth"], int
         )
 
-    def extract_height(self) -> T.Optional[int]:
+    def extract_height(self) -> int | None:
         """
         Extract image height in pixels
         """
@@ -813,7 +813,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
     def _extract_alternative_fields(
         self,
-        fields: T.Sequence[str],
+        fields: T.Iterable[str],
         field_type: type[_FIELD_TYPE],
     ) -> _FIELD_TYPE | None:
         """
@@ -847,7 +847,7 @@ class ExifReadFromEXIF(ExifReadABC):
                 raise ValueError(f"Invalid field type {field_type}")
         return None
 
-    def extract_application_notes(self) -> T.Optional[str]:
+    def extract_application_notes(self) -> str | None:
         xmp = self.tags.get("Image ApplicationNotes")
         if xmp is None:
             return None
@@ -863,13 +863,13 @@ class ExifRead(ExifReadFromEXIF):
     NOTE: For performance reasons, XMP is only extracted if EXIF does not contain the required fields
     """
 
-    def __init__(self, path_or_stream: T.Union[Path, T.BinaryIO]) -> None:
+    def __init__(self, path_or_stream: Path | T.BinaryIO) -> None:
         super().__init__(path_or_stream)
         self._path_or_stream = path_or_stream
         self._xml_extracted: bool = False
-        self._cached_xml: T.Optional[ExifReadFromXMP] = None
+        self._cached_xml: ExifReadFromXMP | None = None
 
-    def _xmp_with_reason(self, reason: str) -> T.Optional[ExifReadFromXMP]:
+    def _xmp_with_reason(self, reason: str) -> ExifReadFromXMP | None:
         if not self._xml_extracted:
             LOG.debug('Extracting XMP for "%s"', reason)
             self._cached_xml = self._extract_xmp()
@@ -877,7 +877,7 @@ class ExifRead(ExifReadFromEXIF):
 
         return self._cached_xml
 
-    def _extract_xmp(self) -> T.Optional[ExifReadFromXMP]:
+    def _extract_xmp(self) -> ExifReadFromXMP | None:
         xml_str = self.extract_application_notes()
         if xml_str is None:
             if isinstance(self._path_or_stream, Path):
@@ -898,7 +898,7 @@ class ExifRead(ExifReadFromEXIF):
 
         return ExifReadFromXMP(et.ElementTree(e))
 
-    def extract_altitude(self) -> T.Optional[float]:
+    def extract_altitude(self) -> float | None:
         val = super().extract_altitude()
         if val is not None:
             return val
@@ -910,7 +910,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_capture_time(self) -> T.Optional[datetime.datetime]:
+    def extract_capture_time(self) -> datetime.datetime | None:
         val = super().extract_capture_time()
         if val is not None:
             return val
@@ -922,7 +922,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_lon_lat(self) -> T.Optional[T.Tuple[float, float]]:
+    def extract_lon_lat(self) -> tuple[float, float] | None:
         val = super().extract_lon_lat()
         if val is not None:
             return val
@@ -934,7 +934,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_make(self) -> T.Optional[str]:
+    def extract_make(self) -> str | None:
         val = super().extract_make()
         if val is not None:
             return val
@@ -946,7 +946,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_model(self) -> T.Optional[str]:
+    def extract_model(self) -> str | None:
         val = super().extract_model()
         if val is not None:
             return val
@@ -958,7 +958,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_width(self) -> T.Optional[int]:
+    def extract_width(self) -> int | None:
         val = super().extract_width()
         if val is not None:
             return val
@@ -970,7 +970,7 @@ class ExifRead(ExifReadFromEXIF):
             return val
         return None
 
-    def extract_height(self) -> T.Optional[int]:
+    def extract_height(self) -> int | None:
         val = super().extract_height()
         if val is not None:
             return val

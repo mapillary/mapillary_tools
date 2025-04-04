@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import logging
 import math
@@ -14,13 +16,13 @@ PointSequence = T.List[geo.PointLike]
 
 
 def split_sequence_by(
-    sequence: T.List[SeqItem],
+    sequence: T.Sequence[SeqItem],
     should_split: T.Callable[[SeqItem, SeqItem], bool],
-) -> T.List[T.List[SeqItem]]:
+) -> list[list[SeqItem]]:
     """
     Split a sequence into multiple sequences by should_split(prev, cur) => True
     """
-    output_sequences: T.List[T.List[SeqItem]] = []
+    output_sequences: list[list[SeqItem]] = []
 
     seq = iter(sequence)
 
@@ -45,14 +47,14 @@ def split_sequence_by(
 
 
 def split_sequence_by_agg(
-    sequence: T.List[SeqItem],
-    should_split_with_sequence_state: T.Callable[[SeqItem, T.Dict], bool],
-) -> T.List[T.List[SeqItem]]:
+    sequence: T.Sequence[SeqItem],
+    should_split_with_sequence_state: T.Callable[[SeqItem, dict], bool],
+) -> list[list[SeqItem]]:
     """
     Split a sequence by should_split_with_sequence_state(cur, sequence_state) => True
     """
-    output_sequences: T.List[T.List[SeqItem]] = []
-    sequence_state: T.Dict = {}
+    output_sequences: list[list[SeqItem]] = []
+    sequence_state: dict = {}
 
     for cur in sequence:
         start_new_sequence = should_split_with_sequence_state(cur, sequence_state)
@@ -77,9 +79,9 @@ def duplication_check(
     sequence: PointSequence,
     max_duplicate_distance: float,
     max_duplicate_angle: float,
-) -> T.Tuple[PointSequence, T.List[types.ErrorMetadata]]:
+) -> tuple[PointSequence, list[types.ErrorMetadata]]:
     dedups: PointSequence = []
-    dups: T.List[types.ErrorMetadata] = []
+    dups: list[types.ErrorMetadata] = []
 
     it = iter(sequence)
     prev = next(it)
@@ -125,10 +127,10 @@ def duplication_check(
 
 
 def _group_by(
-    image_metadatas: T.List[types.ImageMetadata],
+    image_metadatas: T.Iterable[types.ImageMetadata],
     group_key_func=T.Callable[[types.ImageMetadata], T.Hashable],
-) -> T.Dict[T.Hashable, T.List[types.ImageMetadata]]:
-    grouped: T.Dict[T.Hashable, T.List[types.ImageMetadata]] = {}
+) -> dict[T.Hashable, list[types.ImageMetadata]]:
+    grouped: dict[T.Hashable, list[types.ImageMetadata]] = {}
     for metadata in image_metadatas:
         grouped.setdefault(group_key_func(metadata), []).append(metadata)
     return grouped
@@ -245,13 +247,13 @@ def _is_video_stationary(
 
 
 def _check_video_limits(
-    video_metadatas: T.Sequence[types.VideoMetadata],
+    video_metadatas: T.Iterable[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
     max_radius_for_stationary_check: float,
-) -> T.Tuple[T.List[types.VideoMetadata], T.List[types.ErrorMetadata]]:
-    output_video_metadatas: T.List[types.VideoMetadata] = []
-    error_metadatas: T.List[types.ErrorMetadata] = []
+) -> tuple[list[types.VideoMetadata], list[types.ErrorMetadata]]:
+    output_video_metadatas: list[types.VideoMetadata] = []
+    error_metadatas: list[types.ErrorMetadata] = []
 
     for video_metadata in video_metadatas:
         try:
@@ -312,9 +314,9 @@ def _check_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
     max_sequence_filesize_in_bytes: int,
     max_avg_speed: float,
-) -> T.Tuple[T.List[PointSequence], T.List[types.ErrorMetadata]]:
-    output_sequences: T.List[PointSequence] = []
-    output_errors: T.List[types.ErrorMetadata] = []
+) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
+    output_sequences: list[PointSequence] = []
+    output_errors: list[types.ErrorMetadata] = []
 
     for sequence in input_sequences:
         sequence_filesize = sum(
@@ -370,8 +372,8 @@ def _check_sequences_by_limits(
 
 
 def _group_by_folder_and_camera(
-    image_metadatas: T.List[types.ImageMetadata],
-) -> T.List[T.List[types.ImageMetadata]]:
+    image_metadatas: list[types.ImageMetadata],
+) -> list[list[types.ImageMetadata]]:
     grouped = _group_by(
         image_metadatas,
         lambda metadata: (
@@ -395,8 +397,8 @@ def _group_by_folder_and_camera(
 
 
 def _split_sequences_by_cutoff_time(
-    input_sequences: T.List[PointSequence], cutoff_time: float
-) -> T.List[PointSequence]:
+    input_sequences: T.Sequence[PointSequence], cutoff_time: float
+) -> list[PointSequence]:
     def _should_split_by_cutoff_time(
         prev: types.ImageMetadata, cur: types.ImageMetadata
     ) -> bool:
@@ -432,8 +434,8 @@ def _split_sequences_by_cutoff_time(
 
 
 def _split_sequences_by_cutoff_distance(
-    input_sequences: T.List[PointSequence], cutoff_distance: float
-) -> T.List[PointSequence]:
+    input_sequences: T.Sequence[PointSequence], cutoff_distance: float
+) -> list[PointSequence]:
     def _should_split_by_cutoff_distance(
         prev: types.ImageMetadata, cur: types.ImageMetadata
     ) -> bool:
@@ -471,12 +473,12 @@ def _split_sequences_by_cutoff_distance(
 
 
 def _check_sequences_duplication(
-    input_sequences: T.List[PointSequence],
+    input_sequences: T.Sequence[PointSequence],
     duplicate_distance: float,
     duplicate_angle: float,
-) -> T.Tuple[T.List[PointSequence], T.List[types.ErrorMetadata]]:
-    output_sequences: T.List[PointSequence] = []
-    output_errors: T.List[types.ErrorMetadata] = []
+) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
+    output_sequences: list[PointSequence] = []
+    output_errors: list[types.ErrorMetadata] = []
 
     for sequence in input_sequences:
         output_sequence, errors = duplication_check(
@@ -502,14 +504,14 @@ def _check_sequences_duplication(
 
 
 def _split_sequences_by_limits(
-    input_sequences: T.List[PointSequence],
+    input_sequences: T.Sequence[PointSequence],
     max_sequence_filesize_in_bytes: float,
     max_sequence_pixels: float,
-) -> T.List[PointSequence]:
+) -> list[PointSequence]:
     max_sequence_images = constants.MAX_SEQUENCE_LENGTH
     max_sequence_filesize = max_sequence_filesize_in_bytes
 
-    def _should_split(image: types.ImageMetadata, sequence_state: T.Dict) -> bool:
+    def _should_split(image: types.ImageMetadata, sequence_state: dict) -> bool:
         last_sequence_images = sequence_state.get("last_sequence_images", 0)
         last_sequence_file_size = sequence_state.get("last_sequence_file_size", 0)
         last_sequence_pixels = sequence_state.get("last_sequence_pixels", 0)
@@ -586,15 +588,15 @@ def process_sequence_properties(
     duplicate_distance: float = constants.DUPLICATE_DISTANCE,
     duplicate_angle: float = constants.DUPLICATE_ANGLE,
     max_avg_speed: float = constants.MAX_AVG_SPEED,
-) -> T.List[types.MetadataOrError]:
+) -> list[types.MetadataOrError]:
     max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
         constants.MAX_SEQUENCE_FILESIZE
     )
     max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
 
-    error_metadatas: T.List[types.ErrorMetadata] = []
-    image_metadatas: T.List[types.ImageMetadata] = []
-    video_metadatas: T.List[types.VideoMetadata] = []
+    error_metadatas: list[types.ErrorMetadata] = []
+    image_metadatas: list[types.ImageMetadata] = []
+    video_metadatas: list[types.VideoMetadata] = []
 
     for metadata in metadatas:
         if isinstance(metadata, types.ErrorMetadata):
@@ -617,7 +619,7 @@ def process_sequence_properties(
         error_metadatas.extend(video_error_metadatas)
 
     if image_metadatas:
-        sequences: T.List[PointSequence]
+        sequences: list[PointSequence]
 
         # Group by folder and camera
         sequences = _group_by_folder_and_camera(image_metadatas)

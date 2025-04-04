@@ -39,7 +39,7 @@ class KLVDict(T.TypedDict):
     type: bytes
     structure_size: int
     repeat: int
-    data: T.List[T.Any]
+    data: list[T.Any]
 
 
 GPMFSampleData: C.GreedyRange
@@ -143,7 +143,7 @@ class GoProInfo:
 
 def extract_gopro_info(
     fp: T.BinaryIO, telemetry_only: bool = False
-) -> T.Optional[GoProInfo]:
+) -> GoProInfo | None:
     """
     Return the GoProInfo object if found. None indicates it's not a valid GoPro video.
     """
@@ -276,7 +276,7 @@ def _gps5_timestamp_to_epoch_time(dtstr: str):
 def _gps5_from_stream(
     stream: T.Sequence[KLVDict],
 ) -> T.Generator[telemetry.GPSPoint, None, None]:
-    indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
+    indexed: dict[bytes, list[list[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
 
@@ -362,7 +362,7 @@ def _gps9_from_stream(
 ) -> T.Generator[telemetry.GPSPoint, None, None]:
     NUM_VALUES = 9
 
-    indexed: T.Dict[bytes, T.List[T.List[T.Any]]] = {
+    indexed: dict[bytes, list[list[T.Any]]] = {
         klv["key"]: klv["data"] for klv in stream
     }
 
@@ -444,8 +444,8 @@ def _find_first_device_id(stream: T.Sequence[KLVDict]) -> int:
     return device_id
 
 
-def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> T.List[telemetry.GPSPoint]:
-    sample_points: T.List[telemetry.GPSPoint] = []
+def _find_first_gps_stream(stream: T.Sequence[KLVDict]) -> list[telemetry.GPSPoint]:
+    sample_points: list[telemetry.GPSPoint] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -469,7 +469,7 @@ def _is_matrix_calibration(matrix: T.Sequence[float]) -> bool:
 
 
 def _build_matrix(
-    orin: T.Union[bytes, T.Sequence[int]], orio: T.Union[bytes, T.Sequence[int]]
+    orin: bytes | T.Sequence[int], orio: bytes | T.Sequence[int]
 ) -> T.Sequence[float]:
     matrix = []
 
@@ -503,14 +503,14 @@ def _apply_matrix(
         yield sum(matrix[row_start + x] * values[x] for x in range(size))
 
 
-def _flatten(nested: T.Sequence[T.Sequence[float]]) -> T.List[float]:
-    output: T.List[float] = []
+def _flatten(nested: T.Sequence[T.Sequence[float]]) -> list[float]:
+    output: list[float] = []
     for row in nested:
         output.extend(row)
     return output
 
 
-def _get_matrix(klv: T.Dict[bytes, KLVDict]) -> T.Optional[T.Sequence[float]]:
+def _get_matrix(klv: dict[bytes, KLVDict]) -> T.Sequence[float] | None:
     mtrx = klv.get(b"MTRX")
     if mtrx is not None:
         matrix: T.Sequence[float] = _flatten(mtrx["data"])
@@ -530,7 +530,7 @@ def _get_matrix(klv: T.Dict[bytes, KLVDict]) -> T.Optional[T.Sequence[float]]:
 def _scale_and_calibrate(
     stream: T.Sequence[KLVDict], key: bytes
 ) -> T.Generator[T.Sequence[float], None, None]:
-    indexed: T.Dict[bytes, KLVDict] = {klv["key"]: klv for klv in stream}
+    indexed: dict[bytes, KLVDict] = {klv["key"]: klv for klv in stream}
 
     klv = indexed.get(key)
     if klv is None:
@@ -561,7 +561,7 @@ def _scale_and_calibrate(
 
 
 def _find_first_telemetry_stream(stream: T.Sequence[KLVDict], key: bytes):
-    values: T.List[T.Sequence[float]] = []
+    values: list[T.Sequence[float]] = []
 
     for klv in stream:
         if klv["key"] == b"STRM":
@@ -684,7 +684,7 @@ def _load_telemetry_from_samples(
     return device_found
 
 
-def _is_gpmd_description(description: T.Dict) -> bool:
+def _is_gpmd_description(description: dict) -> bool:
     return description["format"] == b"gpmd"
 
 
@@ -699,11 +699,11 @@ def _filter_gpmd_samples(track: TrackBoxParser) -> T.Generator[Sample, None, Non
             yield sample
 
 
-def _extract_camera_model_from_devices(device_names: T.Dict[int, bytes]) -> str:
+def _extract_camera_model_from_devices(device_names: dict[int, bytes]) -> str:
     if not device_names:
         return ""
 
-    unicode_names: T.List[str] = []
+    unicode_names: list[str] = []
     for name in device_names.values():
         try:
             unicode_names.append(name.decode("utf-8"))
@@ -730,7 +730,7 @@ def _extract_camera_model_from_devices(device_names: T.Dict[int, bytes]) -> str:
 
 def _iterate_read_sample_data(
     fp: T.BinaryIO, samples: T.Iterable[Sample]
-) -> T.Generator[T.Tuple[Sample, bytes], None, None]:
+) -> T.Generator[tuple[Sample, bytes], None, None]:
     for sample in samples:
         fp.seek(sample.raw_sample.offset, io.SEEK_SET)
         yield (sample, fp.read(sample.raw_sample.size))

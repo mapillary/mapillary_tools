@@ -9,9 +9,7 @@ from pathlib import Path
 
 # Use "hashlib._Hash" instead of hashlib._Hash because:
 # AttributeError: module 'hashlib' has no attribute '_Hash'
-def md5sum_fp(
-    fp: T.IO[bytes], md5: T.Optional["hashlib._Hash"] = None
-) -> "hashlib._Hash":
+def md5sum_fp(fp: T.IO[bytes], md5: "hashlib._Hash | None" = None) -> "hashlib._Hash":
     if md5 is None:
         md5 = hashlib.md5()
     while True:
@@ -93,12 +91,12 @@ def filter_video_samples(
 
 
 def find_all_image_samples(
-    image_paths: T.Sequence[Path], video_paths: T.Sequence[Path]
-) -> T.Dict[Path, T.List[Path]]:
+    image_paths: T.Iterable[Path], video_paths: T.Iterable[Path]
+) -> dict[Path, list[Path]]:
     # TODO: not work with the same filenames, e.g. foo/hello.mp4 and bar/hello.mp4
     video_basenames = {path.name: path for path in video_paths}
 
-    image_samples_by_video_path: T.Dict[Path, T.List[Path]] = {}
+    image_samples_by_video_path: dict[Path, list[Path]] = {}
     for image_path in image_paths:
         # If you want to walk an arbitrary filesystem path upwards,
         # it is recommended to first call Path.resolve() so as to resolve symlinks and eliminate “..” components.
@@ -115,7 +113,7 @@ def find_all_image_samples(
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
-    resolved_paths: T.Set[Path] = set()
+    resolved_paths: set[Path] = set()
     for p in paths:
         resolved = p.resolve()
         if resolved not in resolved_paths:
@@ -124,10 +122,10 @@ def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
 
 
 def find_images(
-    import_paths: T.Sequence[Path],
+    import_paths: T.Iterable[Path],
     skip_subfolders: bool = False,
-) -> T.List[Path]:
-    image_paths: T.List[Path] = []
+) -> list[Path]:
+    image_paths: list[Path] = []
     for path in import_paths:
         if path.is_dir():
             image_paths.extend(
@@ -142,10 +140,10 @@ def find_images(
 
 
 def find_videos(
-    import_paths: T.Sequence[Path],
+    import_paths: T.Iterable[Path],
     skip_subfolders: bool = False,
-) -> T.List[Path]:
-    video_paths: T.List[Path] = []
+) -> list[Path]:
+    video_paths: list[Path] = []
     for path in import_paths:
         if path.is_dir():
             video_paths.extend(
@@ -160,10 +158,10 @@ def find_videos(
 
 
 def find_zipfiles(
-    import_paths: T.Sequence[Path],
+    import_paths: T.Iterable[Path],
     skip_subfolders: bool = False,
-) -> T.List[Path]:
-    zip_paths: T.List[Path] = []
+) -> list[Path]:
+    zip_paths: list[Path] = []
     for path in import_paths:
         if path.is_dir():
             zip_paths.extend(
@@ -177,8 +175,8 @@ def find_zipfiles(
     return list(deduplicate_paths(zip_paths))
 
 
-def find_xml_files(import_paths: T.Sequence[Path]) -> T.List[Path]:
-    xml_paths: T.List[Path] = []
+def find_xml_files(import_paths: T.Iterable[Path]) -> list[Path]:
+    xml_paths: list[Path] = []
     for path in import_paths:
         if path.is_dir():
             # XML could be hidden in hidden folders

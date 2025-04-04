@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import dataclasses
-import typing as T
 from enum import Enum, unique
 
 from .geo import Point
@@ -26,10 +27,10 @@ class TimestampedMeasurement:
 
 @dataclasses.dataclass
 class GPSPoint(TimestampedMeasurement, Point):
-    epoch_time: T.Optional[float]
-    fix: T.Optional[GPSFix]
-    precision: T.Optional[float]
-    ground_speed: T.Optional[float]
+    epoch_time: float | None
+    fix: GPSFix | None
+    precision: float | None
+    ground_speed: float | None
 
 
 @dataclasses.dataclass

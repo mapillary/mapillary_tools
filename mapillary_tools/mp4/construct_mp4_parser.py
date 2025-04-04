@@ -1,4 +1,5 @@
 # pyre-ignore-all-errors[5, 16, 21, 58]
+from __future__ import annotations
 
 import typing as T
 
@@ -42,7 +43,7 @@ BoxType = T.Literal[
 
 class BoxDict(T.TypedDict, total=True):
     type: BoxType
-    data: T.Union[T.Sequence["BoxDict"], T.Dict[str, T.Any], bytes]
+    data: T.Sequence["BoxDict"] | dict[str, T.Any] | bytes
 
 
 _UNITY_MATRIX = [0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000]
@@ -376,7 +377,7 @@ class Box64ConstructBuilder:
     NOTE: Do not build data with this struct. For building, use Box32StructBuilder instead.
     """
 
-    _box: T.Optional[C.Construct]
+    _box: C.Construct | None
 
     def __init__(
         self,
@@ -438,7 +439,7 @@ class Box64ConstructBuilder:
     def parse_box(self, data: bytes) -> BoxDict:
         return T.cast(BoxDict, self.Box.parse(data))
 
-    def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
+    def parse_boxlist(self, data: bytes) -> list[BoxDict]:
         return T.cast(T.List[BoxDict], self.BoxList.parse(data))
 
 
@@ -464,7 +465,7 @@ class Box32ConstructBuilder(Box64ConstructBuilder):
     def parse_box(self, data: bytes) -> BoxDict:
         raise NotImplementedError("Box32ConstructBuilder does not support parsing")
 
-    def parse_boxlist(self, data: bytes) -> T.List[BoxDict]:
+    def parse_boxlist(self, data: bytes) -> list[BoxDict]:
         raise NotImplementedError("Box32ConstructBuilder does not support parsing")
 
     def build_box(self, box: BoxDict) -> bytes:
@@ -584,7 +585,7 @@ MOOVWithoutSTBLBuilderConstruct = Box32ConstructBuilder(
 
 
 def find_box_at_pathx(
-    box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
+    box: T.Sequence[BoxDict] | BoxDict, path: T.Sequence[bytes]
 ) -> BoxDict:
     found = find_box_at_path(box, path)
     if found is None:
@@ -593,8 +594,8 @@ def find_box_at_pathx(
 
 
 def find_box_at_path(
-    box: T.Union[T.Sequence[BoxDict], BoxDict], path: T.Sequence[bytes]
-) -> T.Optional[BoxDict]:
+    box: T.Sequence[BoxDict] | BoxDict, path: T.Sequence[bytes]
+) -> BoxDict | None:
     if not path:
         return None
 
@@ -608,7 +609,7 @@ def find_box_at_path(
         if box["type"] == path[0]:
             if len(path) == 1:
                 return box
-            box_data = T.cast(T.Sequence[BoxDict], box["data"])
+            box_data = T.cast(T.List[BoxDict], box["data"])
             # ListContainer from construct is not sequence
             assert isinstance(box_data, T.Sequence), (
                 f"expect a list of boxes but got {type(box_data)} at path {path}"

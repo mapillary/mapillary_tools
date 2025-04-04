@@ -135,7 +135,7 @@ def _log_debug_response(resp: requests.Response):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
 
-    data: T.Union[str, bytes]
+    data: str | bytes
     try:
         data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
@@ -148,7 +148,7 @@ def readable_http_error(ex: requests.HTTPError) -> str:
     req = ex.request
     resp = ex.response
 
-    data: T.Union[str, bytes]
+    data: str | bytes
     try:
         data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
@@ -284,7 +284,7 @@ def get_upload_token(email: str, password: str) -> requests.Response:
 
 
 def fetch_organization(
-    user_access_token: str, organization_id: T.Union[int, str]
+    user_access_token: str, organization_id: int | str
 ) -> requests.Response:
     resp = request_get(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/{organization_id}",
@@ -329,7 +329,7 @@ ActionType = T.Literal[
 ]
 
 
-def log_event(action_type: ActionType, properties: T.Dict) -> requests.Response:
+def log_event(action_type: ActionType, properties: dict) -> requests.Response:
     resp = request_post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/logging",
         json={

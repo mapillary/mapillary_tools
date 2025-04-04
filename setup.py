@@ -49,8 +49,6 @@ setup(
         "mapillary_tools.geotag",
         "mapillary_tools.gpmf",
         "mapillary_tools.mp4",
-        "mapillary_tools.video_data_extraction",
-        "mapillary_tools.video_data_extraction.extractors",
     ],
     entry_points="""
       [console_scripts]

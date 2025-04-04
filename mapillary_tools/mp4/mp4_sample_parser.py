@@ -44,16 +44,16 @@ class Sample(T.NamedTuple):
     exact_timedelta: float
 
     # reference to the sample description
-    description: T.Dict
+    description: dict
 
 
 def _extract_raw_samples(
     sizes: T.Sequence[int],
-    chunk_entries: T.Sequence[T.Dict],
+    chunk_entries: T.Sequence[dict],
     chunk_offsets: T.Sequence[int],
     timedeltas: T.Sequence[int],
-    composition_offsets: T.Optional[T.Sequence[int]],
-    syncs: T.Optional[T.Set[int]],
+    composition_offsets: list[int] | None,
+    syncs: set[int] | None,
 ) -> T.Generator[RawSample, None, None]:
     if not sizes:
         return
@@ -130,7 +130,7 @@ def _extract_raw_samples(
 
 def _extract_samples(
     raw_samples: T.Iterator[RawSample],
-    descriptions: T.List,
+    descriptions: list,
     timescale: int,
 ) -> T.Generator[Sample, None, None]:
     acc_delta = 0
@@ -154,21 +154,21 @@ STBLBoxlistConstruct = cparser.Box64ConstructBuilder(
 
 def extract_raw_samples_from_stbl_data(
     stbl: bytes,
-) -> T.Tuple[T.List[T.Dict], T.Generator[RawSample, None, None]]:
-    descriptions = []
-    sizes = []
-    chunk_offsets = []
-    chunk_entries = []
-    timedeltas: T.List[int] = []
-    composition_offsets: T.Optional[T.List[int]] = None
-    syncs: T.Optional[T.Set[int]] = None
+) -> tuple[list[dict], T.Generator[RawSample, None, None]]:
+    descriptions: list[dict] = []
+    sizes: list[int] = []
+    chunk_offsets: list[int] = []
+    chunk_entries: list[dict] = []
+    timedeltas: list[int] = []
+    composition_offsets: list[int] | None = None
+    syncs: set[int] | None = None
 
     stbl_children = T.cast(
         T.Sequence[cparser.BoxDict], STBLBoxlistConstruct.parse(stbl)
     )
 
     for box in stbl_children:
-        data: T.Dict = T.cast(T.Dict, box["data"])
+        data: dict = T.cast(dict, box["data"])
 
         if box["type"] == b"stsd":
             descriptions = list(data["entries"])
@@ -227,32 +227,32 @@ class TrackBoxParser:
         )
         self.stbl_data = T.cast(bytes, stbl["data"])
 
-    def extract_tkhd_boxdata(self) -> T.Dict:
+    def extract_tkhd_boxdata(self) -> dict:
         return T.cast(
-            T.Dict, cparser.find_box_at_pathx(self.trak_children, [b"tkhd"])["data"]
+            dict, cparser.find_box_at_pathx(self.trak_children, [b"tkhd"])["data"]
         )
 
     def is_video_track(self) -> bool:
         hdlr = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"hdlr"])
         return T.cast(T.Dict[str, T.Any], hdlr["data"])["handler_type"] == b"vide"
 
-    def extract_sample_descriptions(self) -> T.List[T.Dict]:
+    def extract_sample_descriptions(self) -> list[dict]:
         # TODO: return [] if parsing fail
         boxes = _STSDBoxListConstruct.parse(self.stbl_data)
         stsd = cparser.find_box_at_pathx(
             T.cast(T.Sequence[cparser.BoxDict], boxes), [b"stsd"]
         )
-        return T.cast(T.List[T.Dict], T.cast(T.Dict, stsd["data"])["entries"])
+        return T.cast(T.List[dict], T.cast(dict, stsd["data"])["entries"])
 
-    def extract_elst_boxdata(self) -> T.Optional[T.Dict]:
+    def extract_elst_boxdata(self) -> dict | None:
         box = cparser.find_box_at_path(self.trak_children, [b"edts", b"elst"])
         if box is None:
             return None
-        return T.cast(T.Dict, box["data"])
+        return T.cast(dict, box["data"])
 
-    def extract_mdhd_boxdata(self) -> T.Dict:
+    def extract_mdhd_boxdata(self) -> dict:
         box = cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])
-        return T.cast(T.Dict, box["data"])
+        return T.cast(dict, box["data"])
 
     def extract_raw_samples(self) -> T.Generator[RawSample, None, None]:
         _, raw_samples = extract_raw_samples_from_stbl_data(self.stbl_data)
@@ -261,7 +261,7 @@ class TrackBoxParser:
     def extract_samples(self) -> T.Generator[Sample, None, None]:
         descriptions, raw_samples = extract_raw_samples_from_stbl_data(self.stbl_data)
         mdhd = T.cast(
-            T.Dict,
+            dict,
             cparser.find_box_at_pathx(self.trak_children, [b"mdia", b"mdhd"])["data"],
         )
         yield from _extract_samples(raw_samples, descriptions, mdhd["timescale"])
@@ -287,15 +287,15 @@ class MovieBoxParser:
         moov = sparser.parse_box_data_firstx(stream, [b"moov"])
         return cls(moov)
 
-    def extract_mvhd_boxdata(self) -> T.Dict:
+    def extract_mvhd_boxdata(self) -> dict:
         mvhd = cparser.find_box_at_pathx(self.moov_children, [b"mvhd"])
-        return T.cast(T.Dict, mvhd["data"])
+        return T.cast(dict, mvhd["data"])
 
-    def extract_udta_boxdata(self) -> T.Dict | None:
+    def extract_udta_boxdata(self) -> dict | None:
         box = cparser.find_box_at_path(self.moov_children, [b"udta"])
         if box is None:
             return None
-        return T.cast(T.Dict, box["data"])
+        return T.cast(dict, box["data"])
 
     def extract_tracks(self) -> T.Generator[TrackBoxParser, None, None]:
         for box in self.moov_children:

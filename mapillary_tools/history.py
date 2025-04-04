@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 import string
@@ -43,14 +45,14 @@ def write_history(
     md5sum: str,
     params: JSONDict,
     summary: JSONDict,
-    metadatas: T.Optional[T.Sequence[types.Metadata]] = None,
+    metadatas: T.Sequence[types.Metadata] | None = None,
 ) -> None:
     if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
         return
     path = history_desc_path(md5sum)
     LOG.debug("Writing upload history: %s", path)
     path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    history: T.Dict[str, T.Any] = {
+    history: dict[str, T.Any] = {
         "params": params,
         "summary": summary,
     }

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import typing as T
 
 import appdirs
 
@@ -52,7 +51,7 @@ UPLOAD_CHUNK_SIZE_MB = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 1))
 # It is used to filter out noisy points
 GOPRO_MAX_DOP100 = int(os.getenv(_ENV_PREFIX + "GOPRO_MAX_DOP100", 1000))
 # Within the GPS stream: 0 - no lock, 2 or 3 - 2D or 3D Lock
-GOPRO_GPS_FIXES: T.Set[int] = set(
+GOPRO_GPS_FIXES: set[int] = set(
     int(fix) for fix in os.getenv(_ENV_PREFIX + "GOPRO_GPS_FIXES", "2,3").split(",")
 )
 MAX_UPLOAD_RETRIES: int = int(os.getenv(_ENV_PREFIX + "MAX_UPLOAD_RETRIES", 200))

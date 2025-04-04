@@ -1,11 +1,11 @@
 # pyre-ignore-all-errors[5, 21, 24]
+from __future__ import annotations
 
 import datetime
 import io
 import json
 import logging
 import math
-import typing as T
 from pathlib import Path
 
 import piexif
@@ -15,9 +15,9 @@ LOG = logging.getLogger(__name__)
 
 
 class ExifEdit:
-    _filename_or_bytes: T.Union[str, bytes]
+    _filename_or_bytes: str | bytes
 
-    def __init__(self, filename_or_bytes: T.Union[Path, bytes]) -> None:
+    def __init__(self, filename_or_bytes: Path | bytes) -> None:
         """Initialize the object"""
         if isinstance(filename_or_bytes, Path):
             # make sure filename is resolved to avoid to be interpretted as bytes in piexif
@@ -25,12 +25,12 @@ class ExifEdit:
             self._filename_or_bytes = str(filename_or_bytes.resolve())
         else:
             self._filename_or_bytes = filename_or_bytes
-        self._ef: T.Dict = piexif.load(self._filename_or_bytes)
+        self._ef: dict = piexif.load(self._filename_or_bytes)
 
     @staticmethod
     def decimal_to_dms(
         value: float, precision: int
-    ) -> T.Tuple[T.Tuple[float, int], T.Tuple[float, int], T.Tuple[float, int]]:
+    ) -> tuple[tuple[float, int], tuple[float, int], tuple[float, int]]:
         """
         Convert decimal position to degrees, minutes, seconds in a fromat supported by EXIF
         """
@@ -40,7 +40,7 @@ class ExifEdit:
 
         return (deg, 1), (min, 1), (sec, precision)
 
-    def add_image_description(self, data: T.Dict) -> None:
+    def add_image_description(self, data: dict) -> None:
         """Add a dict to image description."""
         self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
 
@@ -201,7 +201,7 @@ class ExifEdit:
             piexif.insert(exif_bytes, self._filename_or_bytes, output)
             return output.read()
 
-    def write(self, filename: T.Optional[Path] = None) -> None:
+    def write(self, filename: Path | None = None) -> None:
         """Save exif data to file."""
         if filename is None:
             if not isinstance(self._filename_or_bytes, str):

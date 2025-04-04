@@ -373,7 +373,7 @@ SAMPLE_ENTRY_CLS_BY_CAMM_TYPE = {
 assert len(SAMPLE_ENTRY_CLS_BY_CAMM_TYPE) == 5, SAMPLE_ENTRY_CLS_BY_CAMM_TYPE.keys()
 
 
-_SWITCH: T.Dict[int, C.Struct] = {
+_SWITCH: dict[int, C.Struct] = {
     # Angle_axis
     CAMMType.ANGLE_AXIS.value: _Float[3],  # type: ignore
     # Exposure time
@@ -436,7 +436,7 @@ def _parse_telemetry_from_sample(
 
 def _filter_telemetry_by_elst_segments(
     measurements: T.Iterable[TelemetryMeasurement],
-    elst: T.Sequence[T.Tuple[float, float]],
+    elst: T.Sequence[tuple[float, float]],
 ) -> T.Generator[TelemetryMeasurement, None, None]:
     empty_elst = [entry for entry in elst if entry[0] == -1]
     if empty_elst:
@@ -466,8 +466,8 @@ def _filter_telemetry_by_elst_segments(
 
 
 def elst_entry_to_seconds(
-    entry: T.Dict, movie_timescale: int, media_timescale: int
-) -> T.Tuple[float, float]:
+    entry: dict, movie_timescale: int, media_timescale: int
+) -> tuple[float, float]:
     assert movie_timescale > 0, "expected positive movie_timescale"
     assert media_timescale > 0, "expected positive media_timescale"
     media_time, duration = entry["media_time"], entry["segment_duration"]
@@ -477,7 +477,7 @@ def elst_entry_to_seconds(
     return (media_time, duration)
 
 
-def _is_camm_description(description: T.Dict) -> bool:
+def _is_camm_description(description: dict) -> bool:
     return description["format"] == b"camm"
 
 

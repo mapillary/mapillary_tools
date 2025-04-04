@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import io
 import typing as T
@@ -64,8 +66,8 @@ class _SampleChunk:
     offset: int
 
 
-def _build_chunks(raw_samples: T.Iterable[RawSample]) -> T.List[_SampleChunk]:
-    chunks: T.List[_SampleChunk] = []
+def _build_chunks(raw_samples: T.Iterable[RawSample]) -> list[_SampleChunk]:
+    chunks: list[_SampleChunk] = []
     prev_raw_sample = None
 
     for raw_sample in raw_samples:
@@ -120,7 +122,7 @@ class _CompressedSampleDelta:
 
 def _build_stts(sample_deltas: T.Iterable[int]) -> BoxDict:
     # compress deltas
-    compressed: T.List[_CompressedSampleDelta] = []
+    compressed: list[_CompressedSampleDelta] = []
     for delta in sample_deltas:
         if compressed and delta == compressed[-1].sample_delta:
             compressed[-1].sample_count += 1
@@ -146,7 +148,7 @@ class _CompressedSampleCompositionOffset:
 
 def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
     # compress offsets
-    compressed: T.List[_CompressedSampleCompositionOffset] = []
+    compressed: list[_CompressedSampleCompositionOffset] = []
     for offset in sample_composition_offsets:
         if compressed and offset == compressed[-1].sample_offset:
             compressed[-1].sample_count += 1
@@ -182,7 +184,7 @@ def _build_stss(is_syncs: T.Iterable[bool]) -> BoxDict:
 
 def build_stbl_from_raw_samples(
     descriptions: T.Sequence[T.Any], raw_samples: T.Iterable[RawSample]
-) -> T.List[BoxDict]:
+) -> list[BoxDict]:
     # raw_samples could be iterator so convert to list
     raw_samples = list(raw_samples)
     # It is recommended that the boxes within the Sample Table Box be in the following order:
@@ -329,9 +331,8 @@ _MOOVChildrenParserConstruct = cparser.Box64ConstructBuilder(
 
 def transform_mp4(
     src_fp: T.BinaryIO,
-    sample_generator: T.Optional[
-        T.Callable[[T.BinaryIO, T.List[BoxDict]], T.Iterator[io.IOBase]]
-    ] = None,
+    sample_generator: T.Callable[[T.BinaryIO, list[BoxDict]], T.Iterator[io.IOBase]]
+    | None = None,
 ) -> io_utils.ChainedIO:
     # extract ftyp
     src_fp.seek(0)
@@ -347,7 +348,7 @@ def transform_mp4(
 
     # extract video samples
     source_samples = list(iterate_samples(moov_children))
-    sample_readers: T.List[io.IOBase] = [
+    sample_readers: list[io.IOBase] = [
         io_utils.SlicedIO(src_fp, sample.offset, sample.size)
         for sample in source_samples
     ]
