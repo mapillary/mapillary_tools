@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import typing as T
 from enum import Enum, unique
 
 from .geo import Point

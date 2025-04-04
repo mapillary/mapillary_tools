@@ -2,7 +2,6 @@ import argparse
 import enum
 import logging
 import sys
-import typing as T
 from pathlib import Path
 
 import requests

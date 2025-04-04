@@ -6,7 +6,6 @@ import io
 import json
 import logging
 import math
-import typing as T
 from pathlib import Path
 
 import piexif
