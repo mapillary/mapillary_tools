@@ -8,7 +8,7 @@ from pathlib import Path
 from .. import exceptions, types, utils
 from ..types import FileType
 from . import (
-    geotag_from_generic,
+    base,
     geotag_images_from_exif,
     geotag_images_from_exiftool,
     geotag_images_from_gpx_file,
@@ -153,7 +153,7 @@ def _geotag_images(
     else:
         interpolation = option.interpolation
 
-    geotag: geotag_from_generic.GeotagImagesFromGeneric
+    geotag: base.GeotagImagesFromGeneric
 
     if option.source is SourceType.NATIVE:
         geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
@@ -248,7 +248,7 @@ def _geotag_videos(
     if not video_paths:
         return []
 
-    geotag: geotag_from_generic.GeotagVideosFromGeneric
+    geotag: base.GeotagVideosFromGeneric
 
     if option.source is SourceType.NATIVE:
         geotag = geotag_videos_from_video.GeotagVideosFromVideo(

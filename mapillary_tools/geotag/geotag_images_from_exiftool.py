@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import typing as T
 import xml.etree.ElementTree as ET
@@ -8,22 +7,12 @@ from pathlib import Path
 
 from .. import constants, exceptions, exiftool_read, types, utils
 from ..exiftool_runner import ExiftoolRunner
-from .geotag_from_generic import GeotagImagesFromGeneric
-from .geotag_images_from_exif import ImageEXIFExtractor
+from .base import GeotagImagesFromGeneric
 from .geotag_images_from_video import GeotagImagesFromVideo
 from .geotag_videos_from_exiftool import GeotagVideosFromExifToolXML
+from .image_extractors.exiftool import ImageExifToolExtractor
 
 LOG = logging.getLogger(__name__)
-
-
-class ImageExifToolExtractor(ImageEXIFExtractor):
-    def __init__(self, image_path: Path, element: ET.Element):
-        super().__init__(image_path)
-        self.element = element
-
-    @contextlib.contextmanager
-    def _exif_context(self):
-        yield exiftool_read.ExifToolRead(ET.ElementTree(self.element))
 
 
 class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):

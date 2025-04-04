@@ -8,24 +8,14 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .. import exceptions, types, utils
+from .image_extractors.base import BaseImageExtractor
+from .video_extractors.base import BaseVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
 
 
-class GenericImageExtractor(abc.ABC):
-    """
-    Extracts metadata from an image file.
-    """
-
-    def __init__(self, image_path: Path):
-        self.image_path = image_path
-
-    def extract(self) -> types.ImageMetadataOrError:
-        raise NotImplementedError
-
-
-TImageExtractor = T.TypeVar("TImageExtractor", bound=GenericImageExtractor)
+TImageExtractor = T.TypeVar("TImageExtractor", bound=BaseImageExtractor)
 
 
 class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
@@ -88,19 +78,7 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
             )
 
 
-class GenericVideoExtractor(abc.ABC):
-    """
-    Extracts metadata from a video file.
-    """
-
-    def __init__(self, video_path: Path):
-        self.video_path = video_path
-
-    def extract(self) -> types.VideoMetadataOrError:
-        raise NotImplementedError
-
-
-TVideoExtractor = T.TypeVar("TVideoExtractor", bound=GenericVideoExtractor)
+TVideoExtractor = T.TypeVar("TVideoExtractor", bound=BaseVideoExtractor)
 
 
 class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):

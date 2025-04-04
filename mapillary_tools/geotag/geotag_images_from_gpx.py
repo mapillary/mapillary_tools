@@ -6,7 +6,7 @@ import typing as T
 from pathlib import Path
 
 from .. import exceptions, geo, types
-from .geotag_from_generic import GeotagImagesFromGeneric
+from .base import GeotagImagesFromGeneric
 from .geotag_images_from_exif import ImageEXIFExtractor
 
 
