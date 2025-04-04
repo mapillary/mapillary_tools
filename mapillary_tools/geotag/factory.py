@@ -15,7 +15,7 @@ from . import (
     geotag_images_from_gpx_file,
     geotag_images_from_nmea_file,
     geotag_images_from_video,
-    geotag_videos_from_exiftool_video,
+    geotag_videos_from_exiftool,
     geotag_videos_from_gpx,
     geotag_videos_from_video,
 )
@@ -258,7 +258,7 @@ def _geotag_videos(
         return geotag.to_description()
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
-        geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolRunner(
+        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
             video_paths, num_processes=option.num_processes
         )
         try:
@@ -268,7 +268,7 @@ def _geotag_videos(
             return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        geotag = geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
+        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
             video_paths,
             xml_path=_ensure_source_path(option),
         )

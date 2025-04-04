@@ -8,7 +8,7 @@ from .. import exiftool_read, types, utils
 from . import (
     geotag_images_from_exiftool,
     geotag_images_from_video,
-    geotag_videos_from_exiftool_video,
+    geotag_videos_from_exiftool,
 )
 from .geotag_from_generic import GeotagImagesFromGeneric
 
@@ -41,7 +41,7 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         samples_by_video = utils.find_all_image_samples(self.image_paths, video_paths)
 
         video_metadata_or_errors = (
-            geotag_videos_from_exiftool_video.GeotagVideosFromExifToolVideo(
+            geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
                 list(samples_by_video.keys()),
                 self.xml_path,
                 num_processes=self.num_processes,
@@ -67,7 +67,7 @@ class GeotagImagesFromExifToolBothImageAndVideo(GeotagImagesFromGeneric):
         ]
 
         non_sample_metadata_or_errors = (
-            geotag_images_from_exiftool.GeotagImagesFromExifTool(
+            geotag_images_from_exiftool.GeotagImagesFromExifToolXML(
                 non_sample_paths,
                 self.xml_path,
                 num_processes=self.num_processes,

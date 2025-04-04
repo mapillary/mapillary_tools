@@ -24,7 +24,7 @@ class ImageExifToolExtractor(ImageEXIFExtractor):
         yield exiftool_read.ExifToolRead(ET.ElementTree(self.element))
 
 
-class GeotagImagesFromExifTool(GeotagImagesFromGeneric):
+class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
     def __init__(
         self,
         image_paths: T.Sequence[Path],

@@ -69,7 +69,7 @@ class VideoExifToolExtractor(GenericVideoExtractor):
         return video_metadata
 
 
-class GeotagVideosFromExifToolVideo(GeotagVideosFromGeneric):
+class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
     def __init__(
         self,
         video_paths: T.Sequence[Path],
