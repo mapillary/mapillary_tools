@@ -53,8 +53,8 @@ EXIFTOOL_NAMESPACES: dict[str, str] = {
 
 
 LOG = logging.getLogger(__name__)
+DESCRIPTION_TAG = "rdf:Description"
 _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
-_DESCRIPTION_TAG = "rdf:Description"
 
 
 def expand_tag(ns_tag: str, namespaces: dict[str, str]) -> str:
@@ -107,7 +107,7 @@ def index_rdf_description_by_path_from_xml_element(
 ) -> dict[str, ET.Element]:
     rdf_description_by_path: dict[str, ET.Element] = {}
 
-    elements = element.iterfind(_DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
+    elements = element.iterfind(DESCRIPTION_TAG, namespaces=EXIFTOOL_NAMESPACES)
     for element in elements:
         path = find_rdf_description_path(element)
         if path is not None:

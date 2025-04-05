@@ -44,7 +44,7 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
             )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(
-                    f"The {exiftool_read._DESCRIPTION_TAG} XML element for the video not found"
+                    f"The {exiftool_read.DESCRIPTION_TAG} XML element for the video not found"
                 )
                 results.append(
                     types.describe_error_metadata(
@@ -89,7 +89,7 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
             )
             if rdf_description is None:
                 exc = exceptions.MapillaryEXIFNotFoundError(
-                    f"The {exiftool_read._DESCRIPTION_TAG} XML element for the video not found"
+                    f"The {exiftool_read.DESCRIPTION_TAG} XML element for the video not found"
                 )
                 results.append(
                     types.describe_error_metadata(

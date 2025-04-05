@@ -105,7 +105,7 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
 
 
 def _filter_images_and_videos(
-    file_paths: T.Iterable[Path],
+    paths: T.Iterable[Path],
     filetypes: set[types.FileType] | None = None,
 ) -> tuple[list[Path], list[Path]]:
     image_paths = []
@@ -120,7 +120,7 @@ def _filter_images_and_videos(
         include_images = types.FileType.IMAGE in filetypes
         include_videos = bool(filetypes & ALL_VIDEO_TYPES)
 
-    for path in file_paths:
+    for path in paths:
         if utils.is_image_file(path):
             if include_images:
                 image_paths.append(path)
