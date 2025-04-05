@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 import typing as T
 
 if sys.version_info >= (3, 12):
@@ -17,5 +18,7 @@ LOG = logging.getLogger(__name__)
 
 class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
     @override
-    def _generate_image_extractors(self) -> T.Sequence[ImageEXIFExtractor]:
-        return [ImageEXIFExtractor(path) for path in self.image_paths]
+    def _generate_image_extractors(
+        self, image_paths: T.Sequence[Path]
+    ) -> T.Sequence[ImageEXIFExtractor]:
+        return [ImageEXIFExtractor(path) for path in image_paths]

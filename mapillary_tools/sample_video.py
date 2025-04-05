@@ -290,9 +290,9 @@ def _sample_single_video_by_distance(
 
     LOG.info("Extracting video metdata")
 
-    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
+    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo().to_description(
         [video_path]
-    ).to_description()
+    )
     assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
     if isinstance(video_metadata, types.ErrorMetadata):

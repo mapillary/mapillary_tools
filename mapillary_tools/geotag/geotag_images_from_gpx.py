@@ -22,14 +22,13 @@ LOG = logging.getLogger(__name__)
 class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def __init__(
         self,
-        image_paths: T.Sequence[Path],
         points: T.Sequence[geo.Point],
         use_gpx_start_time: bool = False,
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
         num_processes: int | None = None,
     ):
-        super().__init__(image_paths, num_processes=num_processes)
+        super().__init__(num_processes=num_processes)
         self.points = points
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
@@ -80,17 +79,20 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         )
 
     @override
-    def _generate_image_extractors(self) -> T.Sequence[ImageEXIFExtractor]:
+    def _generate_image_extractors(
+        self, image_paths: T.Sequence[Path]
+    ) -> T.Sequence[ImageEXIFExtractor]:
         return [
-            ImageEXIFExtractor(path, skip_lonlat_error=True)
-            for path in self.image_paths
+            ImageEXIFExtractor(path, skip_lonlat_error=True) for path in image_paths
         ]
 
     @override
-    def to_description(self) -> list[types.ImageMetadataOrError]:
+    def to_description(
+        self, image_paths: T.Sequence[Path]
+    ) -> list[types.ImageMetadataOrError]:
         final_metadatas: list[types.ImageMetadataOrError] = []
 
-        image_metadata_or_errors = super().to_description()
+        image_metadata_or_errors = super().to_description(image_paths)
 
         image_metadatas, error_metadatas = types.separate_errors(
             image_metadata_or_errors
@@ -98,7 +100,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         final_metadatas.extend(error_metadatas)
 
         if not image_metadatas:
-            assert len(self.image_paths) == len(final_metadatas)
+            assert len(image_paths) == len(final_metadatas)
             return final_metadatas
 
         # Do not use point itself for comparison because point.angle or point.alt could be None
@@ -153,6 +155,6 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
                 )
                 final_metadatas.append(error_metadata)
 
-        assert len(self.image_paths) == len(final_metadatas)
+        assert len(image_paths) == len(final_metadatas)
 
         return final_metadatas

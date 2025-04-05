@@ -21,18 +21,19 @@ LOG = logging.getLogger(__name__)
 class GeotagVideosFromGPX(GeotagVideosFromGeneric):
     def __init__(
         self,
-        video_paths: T.Sequence[Path],
         option: options.SourcePathOption | None = None,
         num_processes: int | None = None,
     ):
-        super().__init__(video_paths, num_processes=num_processes)
+        super().__init__(num_processes=num_processes)
         if option is None:
             option = options.SourcePathOption(pattern="%f.gpx")
         self.option = option
 
     @override
-    def _generate_video_extractors(self) -> T.Sequence[GPXVideoExtractor]:
+    def _generate_video_extractors(
+        self, video_paths: T.Sequence[Path]
+    ) -> T.Sequence[GPXVideoExtractor]:
         return [
             GPXVideoExtractor(video_path, self.option.resolve(video_path))
-            for video_path in self.video_paths
+            for video_path in video_paths
         ]

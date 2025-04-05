@@ -23,16 +23,15 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
     Extracts metadata from a list of image files with multiprocessing.
     """
 
-    def __init__(
-        self, image_paths: T.Sequence[Path], num_processes: int | None = None
-    ) -> None:
-        self.image_paths = image_paths
+    def __init__(self, num_processes: int | None = None) -> None:
         self.num_processes = num_processes
 
-    def to_description(self) -> list[types.ImageMetadataOrError]:
-        extractor_or_errors = self._generate_image_extractors()
+    def to_description(
+        self, image_paths: T.Sequence[Path]
+    ) -> list[types.ImageMetadataOrError]:
+        extractor_or_errors = self._generate_image_extractors(image_paths)
 
-        assert len(extractor_or_errors) == len(self.image_paths)
+        assert len(extractor_or_errors) == len(image_paths)
 
         extractors, error_metadatas = types.separate_errors(extractor_or_errors)
 
@@ -55,7 +54,7 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
         return results + error_metadatas
 
     def _generate_image_extractors(
-        self,
+        self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[TImageExtractor | types.ErrorMetadata]:
         raise NotImplementedError
 
@@ -86,16 +85,15 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
     Extracts metadata from a list of video files with multiprocessing.
     """
 
-    def __init__(
-        self, video_paths: T.Sequence[Path], num_processes: int | None = None
-    ) -> None:
-        self.video_paths = video_paths
+    def __init__(self, num_processes: int | None = None) -> None:
         self.num_processes = num_processes
 
-    def to_description(self) -> list[types.VideoMetadataOrError]:
-        extractor_or_errors = self._generate_video_extractors()
+    def to_description(
+        self, video_paths: T.Sequence[Path]
+    ) -> list[types.VideoMetadataOrError]:
+        extractor_or_errors = self._generate_video_extractors(video_paths)
 
-        assert len(extractor_or_errors) == len(self.video_paths)
+        assert len(extractor_or_errors) == len(video_paths)
 
         extractors, error_metadatas = types.separate_errors(extractor_or_errors)
 
@@ -118,7 +116,7 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
         return results + error_metadatas
 
     def _generate_video_extractors(
-        self,
+        self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[TVideoExtractor | types.ErrorMetadata]:
         raise NotImplementedError
 

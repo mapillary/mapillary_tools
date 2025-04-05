@@ -157,16 +157,16 @@ def _geotag_images(
 
     if option.source is SourceType.NATIVE:
         geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
-            image_paths, num_processes=option.num_processes
+            num_processes=option.num_processes
         )
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
         geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
-            image_paths, num_processes=option.num_processes
+            num_processes=option.num_processes
         )
         try:
-            return geotag.to_description()
+            return geotag.to_description(image_paths)
         except exceptions.MapillaryExiftoolNotFoundError as ex:
             LOG.warning('Skip "%s" because: %s', option.source.value, ex)
             return []
@@ -175,38 +175,35 @@ def _geotag_images(
         # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
         # to work
         geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
-            image_paths,
             xml_path=_ensure_source_path(option),
             num_processes=option.num_processes,
         )
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     elif option.source is SourceType.GPX:
         geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
-            image_paths,
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     elif option.source is SourceType.NMEA:
         geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
-            image_paths,
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
 
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     elif option.source is SourceType.EXIF:
         geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
-            image_paths, num_processes=option.num_processes
+            num_processes=option.num_processes
         )
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     elif option.source in [
         SourceType.GOPRO,
@@ -224,17 +221,15 @@ def _geotag_images(
         )
         video_paths_with_image_samples = list(image_samples_by_video_path.keys())
         video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
-            video_paths_with_image_samples,
             filetypes={map_geotag_source_to_filetype[option.source]},
             num_processes=option.num_processes,
-        ).to_description()
+        ).to_description(video_paths_with_image_samples)
         geotag = geotag_images_from_video.GeotagImagesFromVideo(
-            image_paths,
             video_metadatas,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag.to_description()
+        return geotag.to_description(image_paths)
 
     else:
         raise ValueError(f"Invalid geotag source {option.source}")
@@ -252,30 +247,29 @@ def _geotag_videos(
 
     if option.source is SourceType.NATIVE:
         geotag = geotag_videos_from_video.GeotagVideosFromVideo(
-            video_paths, num_processes=option.num_processes, filetypes=option.filetypes
+            num_processes=option.num_processes, filetypes=option.filetypes
         )
-        return geotag.to_description()
+        return geotag.to_description(video_paths)
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
         geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
-            video_paths, num_processes=option.num_processes
+            num_processes=option.num_processes
         )
         try:
-            return geotag.to_description()
+            return geotag.to_description(video_paths)
         except exceptions.MapillaryExiftoolNotFoundError as ex:
             LOG.warning('Skip "%s" because: %s', option.source.value, ex)
             return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
         geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
-            video_paths,
             xml_path=_ensure_source_path(option),
         )
-        return geotag.to_description()
+        return geotag.to_description(video_paths)
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX(video_paths)
-        return geotag.to_description()
+        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX()
+        return geotag.to_description(video_paths)
 
     elif option.source is SourceType.NMEA:
         # TODO: geotag videos from NMEA

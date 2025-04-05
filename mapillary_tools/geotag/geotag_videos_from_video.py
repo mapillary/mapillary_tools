@@ -17,16 +17,16 @@ from .video_extractors.native import NativeVideoExtractor
 class GeotagVideosFromVideo(GeotagVideosFromGeneric):
     def __init__(
         self,
-        video_paths: T.Sequence[Path],
         filetypes: set[FileType] | None = None,
         num_processes: int | None = None,
     ):
-        super().__init__(video_paths, num_processes=num_processes)
+        super().__init__(num_processes=num_processes)
         self.filetypes = filetypes
 
     @override
-    def _generate_video_extractors(self) -> T.Sequence[NativeVideoExtractor]:
+    def _generate_video_extractors(
+        self, video_paths: T.Sequence[Path]
+    ) -> T.Sequence[NativeVideoExtractor]:
         return [
-            NativeVideoExtractor(path, filetypes=self.filetypes)
-            for path in self.video_paths
+            NativeVideoExtractor(path, filetypes=self.filetypes) for path in video_paths
         ]

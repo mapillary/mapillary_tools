@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import typing as T
 from pathlib import Path
 
 from . import utils
@@ -14,7 +13,6 @@ LOG = logging.getLogger(__name__)
 class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
     def __init__(
         self,
-        image_paths: T.Sequence[Path],
         source_path: Path,
         use_gpx_start_time: bool = False,
         offset_time: float = 0.0,
@@ -35,7 +33,6 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
             )
         points = sum(tracks, [])
         super().__init__(
-            image_paths,
             points,
             use_gpx_start_time=use_gpx_start_time,
             offset_time=offset_time,

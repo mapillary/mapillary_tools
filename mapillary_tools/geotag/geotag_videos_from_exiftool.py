@@ -22,16 +22,15 @@ LOG = logging.getLogger(__name__)
 class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
     def __init__(
         self,
-        video_paths: T.Sequence[Path],
         xml_path: Path,
         num_processes: int | None = None,
     ):
-        super().__init__(video_paths, num_processes=num_processes)
+        super().__init__(num_processes=num_processes)
         self.xml_path = xml_path
 
     @override
     def _generate_video_extractors(
-        self,
+        self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
         rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
             [self.xml_path]
@@ -39,7 +38,7 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
 
         results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
 
-        for path in self.video_paths:
+        for path in video_paths:
             rdf_description = rdf_description_by_path.get(
                 exiftool_read.canonical_path(path)
             )
@@ -61,18 +60,18 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
 class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
     @override
     def _generate_video_extractors(
-        self,
+        self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
         runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
             "Extracting XML from %d videos with exiftool command: %s",
-            len(self.video_paths),
+            len(video_paths),
             " ".join(runner._build_args_read_stdin()),
         )
 
         try:
-            xml = runner.extract_xml(self.video_paths)
+            xml = runner.extract_xml(video_paths)
         except FileNotFoundError as ex:
             raise exceptions.MapillaryExiftoolNotFoundError(ex) from ex
 
@@ -84,7 +83,7 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
 
         results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
 
-        for path in self.video_paths:
+        for path in video_paths:
             rdf_description = rdf_description_by_path.get(
                 exiftool_read.canonical_path(path)
             )
