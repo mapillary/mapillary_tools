@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import contextlib
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from ... import exceptions, exif_read, geo, types, utils
 from .base import BaseImageExtractor
@@ -18,6 +24,7 @@ class ImageEXIFExtractor(BaseImageExtractor):
         with self.image_path.open("rb") as fp:
             yield exif_read.ExifRead(fp)
 
+    @override
     def extract(self) -> types.ImageMetadata:
         with self._exif_context() as exif:
             lonlat = exif.extract_lon_lat()

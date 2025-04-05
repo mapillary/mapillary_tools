@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import logging
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from .. import types, utils
 from .base import GeotagImagesFromGeneric
@@ -24,6 +30,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         self.video_metadatas = video_metadatas
         self.offset_time = offset_time
 
+    @override
     def to_description(self) -> list[types.ImageMetadataOrError]:
         # Will return this list
         final_image_metadatas: list[types.ImageMetadataOrError] = []

@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import sys
 import typing as T
 from pathlib import Path
 from xml.etree import ElementTree as ET
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from ... import exceptions, exiftool_read_video, geo, telemetry, types, utils
 from ...gpmf import gpmf_gps_filter
@@ -14,6 +20,7 @@ class VideoExifToolExtractor(BaseVideoExtractor):
         super().__init__(video_path)
         self.element = element
 
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         exif = exiftool_read_video.ExifToolReadVideo(ET.ElementTree(self.element))
 

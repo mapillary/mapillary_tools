@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import logging
+import sys
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from .. import constants, exceptions, exiftool_read, types, utils
 from ..exiftool_runner import ExiftoolRunner
@@ -25,6 +31,7 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
         self.xml_path = xml_path
         super().__init__(image_paths=image_paths, num_processes=num_processes)
 
+    @override
     def _generate_image_extractors(
         self,
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
@@ -54,6 +61,7 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
 
 
 class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
+    @override
     def _generate_image_extractors(
         self,
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
@@ -135,6 +143,7 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
 
         return sample_metadata_or_errors
 
+    @override
     def to_description(self) -> list[types.ImageMetadataOrError]:
         sample_metadata_or_errors = self.geotag_samples()
 

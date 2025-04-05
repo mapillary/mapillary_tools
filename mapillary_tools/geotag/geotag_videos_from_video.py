@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from ..types import FileType
 from .base import GeotagVideosFromGeneric
@@ -18,6 +24,7 @@ class GeotagVideosFromVideo(GeotagVideosFromGeneric):
         super().__init__(video_paths, num_processes=num_processes)
         self.filetypes = filetypes
 
+    @override
     def _generate_video_extractors(self) -> T.Sequence[NativeVideoExtractor]:
         return [
             NativeVideoExtractor(path, filetypes=self.filetypes)

@@ -3,8 +3,14 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import logging
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from ... import geo, telemetry, types
 from ..utils import parse_gpx
@@ -20,6 +26,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self.video_path = video_path
         self.gpx_path = gpx_path
 
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         try:
             gpx_tracks = parse_gpx(self.gpx_path)

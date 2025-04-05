@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import logging
+import sys
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from .. import constants, exceptions, exiftool_read, types
 from ..exiftool_runner import ExiftoolRunner
@@ -23,6 +29,7 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
         super().__init__(video_paths, num_processes=num_processes)
         self.xml_path = xml_path
 
+    @override
     def _generate_video_extractors(
         self,
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
@@ -52,6 +59,7 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
 
 
 class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
+    @override
     def _generate_video_extractors(
         self,
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:

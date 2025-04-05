@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from ... import blackvue_parser, exceptions, geo, telemetry, types, utils
 from ...camm import camm_parser
@@ -10,6 +16,7 @@ from .base import BaseVideoExtractor
 
 
 class GoProVideoExtractor(BaseVideoExtractor):
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
             gopro_info = gpmf_parser.extract_gopro_info(fp)
@@ -53,6 +60,7 @@ class GoProVideoExtractor(BaseVideoExtractor):
 
 
 class CAMMVideoExtractor(BaseVideoExtractor):
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
             camm_info = camm_parser.extract_camm_info(fp)
@@ -82,6 +90,7 @@ class CAMMVideoExtractor(BaseVideoExtractor):
 
 
 class BlackVueVideoExtractor(BaseVideoExtractor):
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         with self.video_path.open("rb") as fp:
             blackvue_info = blackvue_parser.extract_blackvue_info(fp)
@@ -117,6 +126,7 @@ class NativeVideoExtractor(BaseVideoExtractor):
         super().__init__(video_path)
         self.filetypes = filetypes
 
+    @override
     def extract(self) -> types.VideoMetadataOrError:
         ft = self.filetypes
         extractor: BaseVideoExtractor

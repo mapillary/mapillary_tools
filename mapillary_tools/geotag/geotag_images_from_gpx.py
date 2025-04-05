@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from .. import exceptions, geo, types
 from .base import GeotagImagesFromGeneric
@@ -73,12 +79,14 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
             time=interpolated.time,
         )
 
+    @override
     def _generate_image_extractors(self) -> T.Sequence[ImageEXIFExtractor]:
         return [
             ImageEXIFExtractor(path, skip_lonlat_error=True)
             for path in self.image_paths
         ]
 
+    @override
     def to_description(self) -> list[types.ImageMetadataOrError]:
         final_metadatas: list[types.ImageMetadataOrError] = []
 

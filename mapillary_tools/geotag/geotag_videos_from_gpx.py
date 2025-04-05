@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import logging
+import sys
 import typing as T
 from pathlib import Path
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 from . import options
 from .base import GeotagVideosFromGeneric
@@ -24,7 +30,8 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
             option = options.SourcePathOption(pattern="%f.gpx")
         self.option = option
 
-    def _generate_image_extractors(self) -> T.Sequence[GPXVideoExtractor]:
+    @override
+    def _generate_video_extractors(self) -> T.Sequence[GPXVideoExtractor]:
         return [
             GPXVideoExtractor(video_path, self.option.resolve(video_path))
             for video_path in self.video_paths
