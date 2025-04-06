@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 import typing as T
+from pathlib import Path
 
 if sys.version_info >= (3, 12):
     from typing import override

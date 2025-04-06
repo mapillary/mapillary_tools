@@ -6,7 +6,7 @@ import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from . import exif_read, utils
+from . import exif_read
 
 
 EXIFTOOL_NAMESPACES: dict[str, str] = {
@@ -77,29 +77,6 @@ def find_rdf_description_path(element: ET.Element) -> Path | None:
     if about is None:
         return None
     return Path(about)
-
-
-def index_rdf_description_by_path(
-    xml_paths: T.Sequence[Path],
-) -> dict[str, ET.Element]:
-    rdf_description_by_path: dict[str, ET.Element] = {}
-
-    for xml_path in utils.find_xml_files(xml_paths):
-        try:
-            etree = ET.parse(xml_path)
-        except ET.ParseError as ex:
-            verbose = LOG.getEffectiveLevel() <= logging.DEBUG
-            if verbose:
-                LOG.warning(f"Failed to parse {xml_path}", exc_info=verbose)
-            else:
-                LOG.warning(f"Failed to parse {xml_path}: {ex}", exc_info=verbose)
-            continue
-
-        rdf_description_by_path.update(
-            index_rdf_description_by_path_from_xml_element(etree.getroot())
-        )
-
-    return rdf_description_by_path
 
 
 def index_rdf_description_by_path_from_xml_element(

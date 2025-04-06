@@ -17,6 +17,7 @@ from .base import GeotagImagesFromGeneric
 from .geotag_images_from_video import GeotagImagesFromVideo
 from .geotag_videos_from_exiftool import GeotagVideosFromExifToolXML
 from .image_extractors.exiftool import ImageExifToolExtractor
+from .utils import index_rdf_description_by_path
 
 LOG = logging.getLogger(__name__)
 
@@ -30,33 +31,36 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
         self.xml_path = xml_path
         super().__init__(num_processes=num_processes)
 
+    @classmethod
+    def build_image_extractors(
+        cls,
+        rdf_by_path: dict[str, ET.Element],
+        image_paths: T.Iterable[Path],
+    ) -> list[ImageExifToolExtractor | types.ErrorMetadata]:
+        results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
+
+        for path in image_paths:
+            rdf = rdf_by_path.get(exiftool_read.canonical_path(path))
+            if rdf is None:
+                ex = exceptions.MapillaryExifToolXMLNotFoundError(
+                    "Cannot find the image in the ExifTool XML"
+                )
+                results.append(
+                    types.describe_error_metadata(
+                        ex, path, filetype=types.FileType.IMAGE
+                    )
+                )
+            else:
+                results.append(ImageExifToolExtractor(path, rdf))
+
+        return results
+
     @override
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
-        rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
-            [self.xml_path]
-        )
-
-        results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
-
-        for path in image_paths:
-            rdf_description = rdf_description_by_path.get(
-                exiftool_read.canonical_path(path)
-            )
-            if rdf_description is None:
-                exc = exceptions.MapillaryEXIFNotFoundError(
-                    f"The {exiftool_read.DESCRIPTION_TAG} XML element for the image not found"
-                )
-                results.append(
-                    types.describe_error_metadata(
-                        exc, path, filetype=types.FileType.IMAGE
-                    )
-                )
-            else:
-                results.append(ImageExifToolExtractor(path, rdf_description))
-
-        return results
+        rdf_by_path = index_rdf_description_by_path([self.xml_path])
+        return self.build_image_extractors(rdf_by_path, image_paths)
 
 
 class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
@@ -67,7 +71,7 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
         runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
-            "Extracting XML from %d images with exiftool command: %s",
+            "Extracting XML from %d images with ExifTool command: %s",
             len(image_paths),
             " ".join(runner._build_args_read_stdin()),
         )
@@ -76,31 +80,23 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
         except FileNotFoundError as ex:
             raise exceptions.MapillaryExiftoolNotFoundError(ex) from ex
 
-        rdf_description_by_path = (
-            exiftool_read.index_rdf_description_by_path_from_xml_element(
-                ET.fromstring(xml)
+        try:
+            xml_element = ET.fromstring(xml)
+        except ET.ParseError as ex:
+            LOG.warning(
+                "Failed to parse ExifTool XML: %s",
+                str(ex),
+                exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
             )
+            rdf_by_path = {}
+        else:
+            rdf_by_path = exiftool_read.index_rdf_description_by_path_from_xml_element(
+                xml_element
+            )
+
+        return GeotagImagesFromExifToolXML.build_image_extractors(
+            rdf_by_path, image_paths
         )
-
-        results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
-
-        for path in image_paths:
-            rdf_description = rdf_description_by_path.get(
-                exiftool_read.canonical_path(path)
-            )
-            if rdf_description is None:
-                exc = exceptions.MapillaryEXIFNotFoundError(
-                    f"The {exiftool_read.DESCRIPTION_TAG} XML element for the image not found"
-                )
-                results.append(
-                    types.describe_error_metadata(
-                        exc, path, filetype=types.FileType.IMAGE
-                    )
-                )
-            else:
-                results.append(ImageExifToolExtractor(path, rdf_description))
-
-        return results
 
 
 class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
@@ -118,11 +114,9 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
         self, image_paths: T.Sequence[Path]
     ) -> list[types.ImageMetadataOrError]:
         # Find all video paths in self.xml_path
-        rdf_description_by_path = exiftool_read.index_rdf_description_by_path(
-            [self.xml_path]
-        )
+        rdf_by_path = index_rdf_description_by_path([self.xml_path])
         video_paths = utils.find_videos(
-            [Path(pathstr) for pathstr in rdf_description_by_path.keys()],
+            [Path(pathstr) for pathstr in rdf_by_path.keys()],
             skip_subfolders=True,
         )
         # Find all video paths that have sample images
