@@ -13,6 +13,7 @@ if ($MAXSIZE32 -ceq "True") {
 mkdir -Force dist
 pyinstaller --version
 pyinstaller --noconfirm --distpath dist\win mapillary_tools.spec
+pyinstaller --noconfirm --distpath dist\win mapillary_tools_folder.spec
 
 # check
 $SOURCE="dist\win\mapillary_tools.exe"
@@ -25,6 +26,23 @@ pyi-archive_viewer --list "$SOURCE"
 # package
 mkdir -Force dist\releases
 Copy-Item "$SOURCE" "$TARGET"
+
+# sha256
+Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
+
+# check
+$FOLDER="dist\win\mapillary_tools_folder"
+$SOURCE="dist\win\mapillary_tools_folder\mapillary_tools.exe"
+dist\win\mapillary_tools_folder\mapillary_tools.exe --version
+$VERSION_OUTPUT=dist\win\mapillary_tools_folder\mapillary_tools.exe --version
+$VERSION=$VERSION_OUTPUT.split(' ')[2]
+$TARGET="dist\releases\mapillary_tools-folder-$VERSION-$OS-$ARCH.zip"
+
+# package
+mkdir -Force dist\releases
+cd dist\win
+Compress-Archive -Path mapillary_tools_folder -DestinationPath ..\..\"$TARGET"
+cd ..\..\
 
 # sha256
 Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
