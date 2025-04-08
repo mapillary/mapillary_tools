@@ -108,6 +108,7 @@ jobs:
         if: startsWith(matrix.platform, 'macos')
         run: |
           ./script/build_osx
+          ./script/build_osx_folder
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
@@ -118,6 +119,7 @@ jobs:
         if: contains(matrix.platform, 'ubuntu')
         run: |
           ./script/build_linux
+          ./script/build_linux_folder
           # Could run full integration tests with the binary (it might be slow)
           pytest tests/integration
         env:
@@ -129,6 +131,7 @@ jobs:
         run: |
           ./script/build_bootloader.ps1
           ./script/build_win.ps1
+          ./script/build_win_folder.ps1
           # Could run full integration tests with the binary (it might be slow)
           cp ./dist/win/mapillary_tools.exe mapillary_tools_WINDOWS_VERY_HARD_TO_FIND_YOU_IN_ANOTHER_DIR_SO_I_MOVE_YOU_HERE.exe
           pytest tests/integration
