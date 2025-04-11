@@ -28,6 +28,7 @@ class SourceType(enum.Enum):
 SOURCE_TYPE_ALIAS: dict[str, SourceType] = {
     "blackvue_videos": SourceType.BLACKVUE,
     "gopro_videos": SourceType.GOPRO,
+    "exiftool": SourceType.EXIFTOOL_RUNTIME,
 }
 
 

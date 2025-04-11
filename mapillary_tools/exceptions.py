@@ -87,7 +87,7 @@ class MapillaryDuplicationError(MapillaryDescriptionError):
         self.angle_diff = angle_diff
 
 
-class MapillaryEXIFNotFoundError(MapillaryDescriptionError):
+class MapillaryExifToolXMLNotFoundError(MapillaryDescriptionError):
     pass
 
 
