@@ -303,7 +303,7 @@ def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     assert x.returncode == 0, x.stderr
     assert 0 < len(zip_dir.listdir())
     for file in zip_dir.listdir():
-        validate_and_extract_zip(str(file))
+        validate_and_extract_zip(Path(file))
 
 
 @pytest.mark.usefixtures("setup_config")

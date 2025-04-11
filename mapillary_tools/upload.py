@@ -141,7 +141,7 @@ def _setup_history(
 ) -> None:
     @emitter.on("upload_start")
     def check_duplication(payload: uploader.Progress):
-        md5sum = payload.get("md5sum")
+        md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
 
         if history.is_uploaded(md5sum):
@@ -164,7 +164,7 @@ def _setup_history(
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
-        md5sum = payload.get("md5sum")
+        md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
 
         if sequence_uuid is None:
@@ -509,7 +509,8 @@ def _gen_upload_videos(
             "sequence_idx": idx,
             "file_type": video_metadata.filetype.value,
             "import_path": str(video_metadata.filename),
-            "md5sum": video_metadata.md5sum,
+            "sequence_md5sum": video_metadata.md5sum,
+            "upload_md5sum": video_metadata.md5sum,
         }
 
         session_key = uploader._session_key(

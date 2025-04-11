@@ -8,7 +8,7 @@ import py.path
 
 import pytest
 
-from mapillary_tools import types, upload_api_v4, uploader
+from mapillary_tools import types, upload_api_v4, uploader, utils
 
 from ..integration.fixtures import setup_upload, validate_and_extract_zip
 
@@ -32,12 +32,15 @@ def _validate_zip_dir(zip_dir: py.path.local):
         with zipfile.ZipFile(zip_path) as ziph:
             filename = ziph.testzip()
             assert filename is None, f"Corrupted zip {zip_path}: {filename}"
+            sequence_md5sum = json.loads(ziph.comment).get("sequence_md5sum")
 
-            upload_md5sum = json.loads(ziph.comment).get("upload_md5sum")
+        with open(zip_path, "rb") as fp:
+            upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+
         assert str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip", (
             zip_path
         )
-        descs.extend(validate_and_extract_zip(str(zip_path)))
+        descs.extend(validate_and_extract_zip(Path(zip_path)))
     return descs
 
 
@@ -238,8 +241,8 @@ def test_upload_zip_with_emitter(
         assert "test_started" not in payload
         payload["test_started"] = True
 
-        assert payload["md5sum"] not in stats
-        stats[payload["md5sum"]] = {**payload}
+        assert payload["upload_md5sum"] not in stats
+        stats[payload["upload_md5sum"]] = {**payload}
 
     @emitter.on("upload_fetch_offset")
     def _fetch_offset(payload):
@@ -247,7 +250,7 @@ def test_upload_zip_with_emitter(
         assert payload["test_started"]
         payload["test_fetch_offset"] = True
 
-        assert payload["md5sum"] in stats
+        assert payload["upload_md5sum"] in stats
 
     @emitter.on("upload_end")
     def _upload_end(payload):
@@ -255,7 +258,7 @@ def test_upload_zip_with_emitter(
         assert payload["test_started"]
         assert payload["test_fetch_offset"]
 
-        assert payload["md5sum"] in stats
+        assert payload["upload_md5sum"] in stats
 
     test_upload_zip(setup_unittest_data, setup_upload, emitter=emitter)
 

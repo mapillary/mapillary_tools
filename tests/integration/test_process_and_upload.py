@@ -1,5 +1,6 @@
 import datetime
 import os
+from pathlib import Path
 import subprocess
 
 import py.path
@@ -135,7 +136,7 @@ def _validate_uploads(upload_dir: py.path.local, expected):
         if str(file).endswith(".mp4"):
             descs.extend(validate_and_extract_camm(str(file)))
         elif str(file).endswith(".zip"):
-            descs.extend(validate_and_extract_zip(str(file)))
+            descs.extend(validate_and_extract_zip(Path(file)))
         else:
             raise Exception(f"invalid file {file}")
 

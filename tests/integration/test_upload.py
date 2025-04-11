@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import subprocess
+from pathlib import Path
 
 import py.path
 import pytest
@@ -46,7 +47,7 @@ def test_upload_image_dir(
         shell=True,
     )
     for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
+        validate_and_extract_zip(Path(file))
     assert x.returncode == 0, x.stderr
 
 
@@ -71,7 +72,7 @@ def test_upload_image_dir_twice(
     )
     assert x.returncode == 0, x.stderr
     for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
+        validate_and_extract_zip(Path(file))
         md5sum_map[os.path.basename(file)] = file_md5sum(file)
 
     # expect the second upload to not produce new uploads
@@ -81,7 +82,7 @@ def test_upload_image_dir_twice(
     )
     assert x.returncode == 0, x.stderr
     for file in setup_upload.listdir():
-        validate_and_extract_zip(str(file))
+        validate_and_extract_zip(Path(file))
         new_md5sum = file_md5sum(file)
         assert md5sum_map[os.path.basename(file)] == new_md5sum
     assert len(md5sum_map) == len(setup_upload.listdir())

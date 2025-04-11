@@ -16,7 +16,7 @@ from pathlib import Path
 
 import requests
 
-from . import api_v4, constants, exif_write, types, upload_api_v4
+from . import api_v4, constants, exif_write, types, upload_api_v4, utils
 
 
 LOG = logging.getLogger(__name__)
@@ -56,8 +56,11 @@ class UploaderProgress(T.TypedDict, total=True):
 class SequenceProgress(T.TypedDict, total=False):
     """Progress data at sequence level"""
 
-    # md5sum of the zipfile/BlackVue/CAMM in uploading
-    md5sum: str
+    # To check if it is uploaded or not
+    sequence_md5sum: str
+
+    # To resume from the previous upload
+    upload_md5sum: str
 
     # File type
     file_type: str
@@ -148,30 +151,50 @@ class ZipImageSequence:
 
         for sequence_uuid, sequence in sequences.items():
             _validate_metadatas(sequence)
-            upload_md5sum = types.update_sequence_md5sum(sequence)
-
             # For atomicity we write into a WIP file and then rename to the final file
             wip_zip_filename = zip_dir.joinpath(
                 f".mly_zip_{uuid.uuid4()}_{sequence_uuid}_{os.getpid()}_{int(time.time())}"
             )
-            filename = _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
-            zip_filename = zip_dir.joinpath(filename)
-            with wip_file_context(wip_zip_filename, zip_filename) as wip_path:
+            with cls._wip_file_context(wip_zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
-                    actual_md5sum = cls.zip_sequence_deterministically(sequence, wip_fp)
-                    assert actual_md5sum == upload_md5sum, "md5sum mismatch"
+                    cls.zip_sequence_fp(sequence, wip_fp)
 
     @classmethod
-    def zip_sequence_deterministically(
+    @contextmanager
+    def _wip_file_context(cls, wip_path: Path):
+        try:
+            os.remove(wip_path)
+        except FileNotFoundError:
+            pass
+        try:
+            yield wip_path
+
+            with wip_path.open("rb") as fp:
+                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+
+            done_path = wip_path.parent.joinpath(
+                _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+            )
+
+            try:
+                os.remove(done_path)
+            except FileNotFoundError:
+                pass
+            wip_path.rename(done_path)
+        finally:
+            try:
+                os.remove(wip_path)
+            except FileNotFoundError:
+                pass
+
+    @classmethod
+    def zip_sequence_fp(
         cls,
         sequence: T.Sequence[types.ImageMetadata],
         zip_fp: T.IO[bytes],
     ) -> str:
         """
-        Write a sequence of ImageMetadata into the zipfile handle. It should guarantee
-        that the same sequence always produces the same zipfile, because the
-        sequence md5sum will be used to upload the zipfile or resume the upload.
-
+        Write a sequence of ImageMetadata into the zipfile handle.
         The sequence has to be one sequence and sorted.
         """
 
@@ -180,21 +203,21 @@ class ZipImageSequence:
             f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
         )
 
-        upload_md5sum = types.update_sequence_md5sum(sequence)
+        sequence_md5sum = types.update_sequence_md5sum(sequence)
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
             for idx, metadata in enumerate(sequence):
-                # Use {idx}.jpg (suffix does not matter) as the archive name to ensure the
-                # resulting zipfile is deterministic. This determinism is based on the upload_md5sum,
-                # which is derived from a list of image md5sums
+                # Arcname does not matter, but it should be unique
                 cls._write_imagebytes_in_zip(zipf, metadata, arcname=f"{idx}.jpg")
             assert len(sequence) == len(set(zipf.namelist()))
-            zipf.comment = json.dumps({"upload_md5sum": upload_md5sum}).encode("utf-8")
+            zipf.comment = json.dumps({"sequence_md5sum": sequence_md5sum}).encode(
+                "utf-8"
+            )
 
-        return upload_md5sum
+        return sequence_md5sum
 
     @classmethod
-    def extract_upload_md5sum(cls, zip_fp: T.IO[bytes]) -> str:
+    def extract_sequence_md5sum(cls, zip_fp: T.IO[bytes]) -> str:
         with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
             comment = ziph.comment
 
@@ -209,12 +232,12 @@ class ZipImageSequence:
         except json.JSONDecodeError as ex:
             raise InvalidMapillaryZipFileError(str(ex)) from ex
 
-        upload_md5sum = zip_metadata.get("upload_md5sum")
+        sequence_md5sum = zip_metadata.get("sequence_md5sum")
 
-        if not upload_md5sum and not isinstance(upload_md5sum, str):
-            raise InvalidMapillaryZipFileError("No upload_md5sum found")
+        if not sequence_md5sum and not isinstance(sequence_md5sum, str):
+            raise InvalidMapillaryZipFileError("No sequence_md5sum found")
 
-        return upload_md5sum
+        return sequence_md5sum
 
     @classmethod
     def _write_imagebytes_in_zip(
@@ -256,21 +279,27 @@ class ZipImageSequence:
                 raise InvalidMapillaryZipFileError("Zipfile has no files")
 
         with zip_path.open("rb") as zip_fp:
-            upload_md5sum = cls.extract_upload_md5sum(zip_fp)
+            sequence_md5sum = cls.extract_sequence_md5sum(zip_fp)
+
+        with zip_path.open("rb") as zip_fp:
+            upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
 
         sequence_progress: SequenceProgress = {
             "sequence_image_count": len(namelist),
             "file_type": types.FileType.ZIP.value,
-            "md5sum": upload_md5sum,
+            "sequence_md5sum": sequence_md5sum,
+            "upload_md5sum": upload_md5sum,
         }
 
-        session_key = _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+        upload_session_key = _session_key(
+            upload_md5sum, upload_api_v4.ClusterFileType.ZIP
+        )
 
         with zip_path.open("rb") as zip_fp:
             return uploader.upload_stream(
                 zip_fp,
                 upload_api_v4.ClusterFileType.ZIP,
-                session_key,
+                upload_session_key,
                 # Send the copy of the input progress to each upload session, to avoid modifying the original one
                 progress=T.cast(T.Dict[str, T.Any], {**progress, **sequence_progress}),
             )
@@ -304,14 +333,17 @@ class ZipImageSequence:
 
             with tempfile.NamedTemporaryFile() as fp:
                 try:
-                    upload_md5sum = cls.zip_sequence_deterministically(sequence, fp)
+                    sequence_md5sum = cls.zip_sequence_fp(sequence, fp)
                 except Exception as ex:
                     yield sequence_uuid, UploadResult(error=ex)
                     continue
 
-                sequence_progress["md5sum"] = upload_md5sum
+                sequence_progress["sequence_md5sum"] = sequence_md5sum
 
-                session_key = _session_key(
+                fp.seek(0, io.SEEK_SET)
+                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+
+                upload_session_key = _session_key(
                     upload_md5sum, upload_api_v4.ClusterFileType.ZIP
                 )
 
@@ -319,7 +351,7 @@ class ZipImageSequence:
                     cluster_id = uploader.upload_stream(
                         fp,
                         upload_api_v4.ClusterFileType.ZIP,
-                        session_key,
+                        upload_session_key,
                         progress=T.cast(
                             T.Dict[str, T.Any], {**progress, **sequence_progress}
                         ),
@@ -512,27 +544,6 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
         types.validate_image_desc(types.as_desc(metadata))
         if not metadata.filename.is_file():
             raise FileNotFoundError(f"No such file {metadata.filename}")
-
-
-@contextmanager
-def wip_file_context(wip_path: Path, done_path: Path):
-    assert wip_path != done_path, "should not be the same file"
-    try:
-        os.remove(wip_path)
-    except FileNotFoundError:
-        pass
-    try:
-        yield wip_path
-        try:
-            os.remove(done_path)
-        except FileNotFoundError:
-            pass
-        wip_path.rename(done_path)
-    finally:
-        try:
-            os.remove(wip_path)
-        except FileNotFoundError:
-            pass
 
 
 def _is_immediate_retry(ex: Exception):
