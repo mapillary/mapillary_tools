@@ -8,6 +8,7 @@ mkdir -p dist
 rm -rf dist/${OS}
 pyinstaller --version
 pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools.spec
+pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools_folder.spec
 
 # check
 SOURCE=dist/${OS}/mapillary_tools
@@ -24,6 +25,27 @@ cp "$SOURCE" "$TARGET"
 # sha256
 TARGET_BASENAME=$(basename "$TARGET")
 # to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
+cd dist/releases
+shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
+cd ../../
+
+# check
+FOLDER=dist/${OS}/mapillary_tools_folder
+SOURCE=dist/${OS}/mapillary_tools_folder/mapillary_tools
+$SOURCE --version
+VERSION=$($SOURCE --version | awk '{print $3}')
+ARCH=$(uname -m)
+TARGET=dist/releases/mapillary_tools-folder-${VERSION}-${OS}-${ARCH}
+
+# package
+mkdir -p dist/releases
+cd dist/${OS}/
+zip -r ../../"$TARGET" mapillary_tools_folder
+cd ../../
+
+# sha256
+TARGET_BASENAME=$(basename "$TARGET")
+# to produce "HASH mapillary_tools" instead of "HASH dist/releases/mapillary_tools"
 cd dist/releases
 shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
 cd ../../
