@@ -69,8 +69,8 @@ def process(
     for idx, option in enumerate(options):
         LOG.debug("Processing %d files with %s", len(reprocessable_paths), option)
 
-        image_metadata_or_errors = _geotag_images(reprocessable_paths, option)
-        video_metadata_or_errors = _geotag_videos(reprocessable_paths, option)
+        image_metadata_or_errors = _build_image_geotag(reprocessable_paths, option)
+        video_metadata_or_errors = _build_video_geotag(reprocessable_paths, option)
 
         more_option = idx < len(options) - 1
 
@@ -139,7 +139,7 @@ def _ensure_source_path(option: SourceOption) -> Path:
     return option.source_path.source_path
 
 
-def _geotag_images(
+def _build_image_geotag(
     paths: T.Iterable[Path], option: SourceOption
 ) -> list[types.ImageMetadataOrError]:
     image_paths, _ = _filter_images_and_videos(paths, option.filetypes)
@@ -216,7 +216,7 @@ def _geotag_images(
         raise ValueError(f"Invalid geotag source {option.source}")
 
 
-def _geotag_videos(
+def _build_video_geotag(
     paths: T.Iterable[Path], option: SourceOption
 ) -> list[types.VideoMetadataOrError]:
     _, video_paths = _filter_images_and_videos(paths, option.filetypes)
@@ -260,11 +260,7 @@ def _geotag_videos(
         # Legacy image-specific geotag types
         return []
 
-    elif option.source in [
-        SourceType.GOPRO,
-        SourceType.BLACKVUE,
-        SourceType.CAMM,
-    ]:
+    elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
         # Legacy image-specific geotag types
         return []
 
