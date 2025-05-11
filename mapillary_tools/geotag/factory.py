@@ -6,7 +6,6 @@ import typing as T
 from pathlib import Path
 
 from .. import exceptions, types, utils
-from ..types import FileType
 from . import (
     base,
     geotag_images_from_exif,
@@ -205,27 +204,9 @@ def _geotag_images(
         )
         return geotag.to_description(image_paths)
 
-    elif option.source in [
-        SourceType.GOPRO,
-        SourceType.BLACKVUE,
-        SourceType.CAMM,
-    ]:
-        map_geotag_source_to_filetype: dict[SourceType, FileType] = {
-            SourceType.GOPRO: FileType.GOPRO,
-            SourceType.BLACKVUE: FileType.BLACKVUE,
-            SourceType.CAMM: FileType.CAMM,
-        }
-        video_paths = utils.find_videos([_ensure_source_path(option)])
-        image_samples_by_video_path = utils.find_all_image_samples(
-            image_paths, video_paths
-        )
-        video_paths_with_image_samples = list(image_samples_by_video_path.keys())
-        video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
-            filetypes={map_geotag_source_to_filetype[option.source]},
-            num_processes=option.num_processes,
-        ).to_description(video_paths_with_image_samples)
-        geotag = geotag_images_from_video.GeotagImagesFromVideo(
-            video_metadatas,
+    elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
+        geotag = geotag_images_from_video.GeotagImageSamplesFromVideo(
+            _ensure_source_path(option),
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
