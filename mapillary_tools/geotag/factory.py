@@ -63,28 +63,29 @@ def process(
 
     final_metadatas: list[types.MetadataOrError] = []
 
-    video_geotags = [_build_video_geotag(option) for option in options]
-    image_geotags = [_build_image_geotag(option) for option in options]
-
     # Paths (image path or video path) that will be sent to the next geotag process
     reprocessable_paths = set(paths)
 
-    for idx, (option, video_geotag, image_geotag) in enumerate(
-        zip(options, video_geotags, image_geotags)
-    ):
+    for idx, option in enumerate(options):
         LOG.debug("Processing %d files with %s", len(reprocessable_paths), option)
 
         image_videos, video_paths = _filter_images_and_videos(
             reprocessable_paths, option.filetypes
         )
 
-        if image_videos and image_geotag is not None:
-            image_metadata_or_errors = image_geotag.to_description(image_videos)
+        if image_videos:
+            image_geotag = _build_image_geotag(option)
+            image_metadata_or_errors = (
+                image_geotag.to_description(image_videos) if image_geotag else []
+            )
         else:
             image_metadata_or_errors = []
 
-        if video_paths and video_geotag is not None:
-            video_metadata_or_errors = video_geotag.to_description(video_paths)
+        if video_paths:
+            video_geotag = _build_video_geotag(option)
+            video_metadata_or_errors = (
+                video_geotag.to_description(video_paths) if video_geotag else []
+            )
         else:
             video_metadata_or_errors = []
 
@@ -161,90 +162,74 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
     else:
         interpolation = option.interpolation
 
-    geotag: base.GeotagImagesFromGeneric
-
     if option.source is SourceType.NATIVE:
-        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
+        return geotag_images_from_exif.GeotagImagesFromEXIF(
             num_processes=option.num_processes
         )
-        return geotag
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
-        geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
+        return geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
             num_processes=option.num_processes
         )
-        return geotag
 
     elif option.source is SourceType.EXIFTOOL_XML:
         # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
         # to work
-        geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
+        return geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
             xml_path=_ensure_source_path(option),
             num_processes=option.num_processes,
         )
-        return geotag
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
+        return geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag
 
     elif option.source is SourceType.NMEA:
-        geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
+        return geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
 
-        return geotag
-
     elif option.source is SourceType.EXIF:
-        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
+        return geotag_images_from_exif.GeotagImagesFromEXIF(
             num_processes=option.num_processes
         )
-        return geotag
 
     elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
-        geotag = geotag_images_from_video.GeotagImageSamplesFromVideo(
+        return geotag_images_from_video.GeotagImageSamplesFromVideo(
             _ensure_source_path(option),
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag
 
     else:
         raise ValueError(f"Invalid geotag source {option.source}")
 
 
 def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | None:
-    geotag: base.GeotagVideosFromGeneric
-
     if option.source is SourceType.NATIVE:
-        geotag = geotag_videos_from_video.GeotagVideosFromVideo(
+        return geotag_videos_from_video.GeotagVideosFromVideo(
             num_processes=option.num_processes, filetypes=option.filetypes
         )
-        return geotag
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
-        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
+        return geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
             num_processes=option.num_processes
         )
-        return geotag
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
+        return geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
             xml_path=_ensure_source_path(option),
         )
-        return geotag
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX()
-        return geotag
+        return geotag_videos_from_gpx.GeotagVideosFromGPX()
 
     elif option.source is SourceType.NMEA:
         # TODO: geotag videos from NMEA
