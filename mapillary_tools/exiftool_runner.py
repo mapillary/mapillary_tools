@@ -38,6 +38,7 @@ class ExiftoolRunner:
     def _build_args_read_stdin(self) -> list[str]:
         args: list[str] = [
             self.exiftool_path,
+            "-fast",
             "-q",
             "-n",  # Disable print conversion
             "-X",  # XML output
