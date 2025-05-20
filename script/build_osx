@@ -40,7 +40,7 @@ TARGET=dist/releases/mapillary_tools-folder-${VERSION}-${OS}-${ARCH}.zip
 # package
 mkdir -p dist/releases
 cd dist/${OS}/
-zip -r ../../"$TARGET" mapillary_tools_folder
+zip -y -r ../../"$TARGET" mapillary_tools_folder
 cd ../../
 
 # sha256
