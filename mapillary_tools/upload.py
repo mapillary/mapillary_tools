@@ -467,8 +467,8 @@ def _gen_upload_everything(
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
     for image_result in uploader.ZipImageSequence.prepare_images_and_upload(
-        image_metadatas,
         mly_uploader,
+        image_metadatas,
     ):
         yield image_result
 
@@ -722,7 +722,7 @@ def _gen_upload_zipfiles(
         }
         try:
             cluster_id = uploader.ZipImageSequence.prepare_zipfile_and_upload(
-                zip_path, mly_uploader, progress=T.cast(T.Dict[str, T.Any], progress)
+                mly_uploader, zip_path, progress=T.cast(T.Dict[str, T.Any], progress)
             )
         except Exception as ex:
             yield zip_path, uploader.UploadResult(error=ex)

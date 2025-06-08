@@ -267,8 +267,8 @@ class ZipImageSequence:
     @classmethod
     def prepare_zipfile_and_upload(
         cls,
-        zip_path: Path,
         uploader: Uploader,
+        zip_path: Path,
         progress: dict[str, T.Any] | None = None,
     ) -> str:
         if progress is None:
@@ -308,8 +308,8 @@ class ZipImageSequence:
     @classmethod
     def prepare_images_and_upload(
         cls,
-        image_metadatas: T.Sequence[types.ImageMetadata],
         uploader: Uploader,
+        image_metadatas: T.Sequence[types.ImageMetadata],
         progress: dict[str, T.Any] | None = None,
     ) -> T.Generator[tuple[str, UploadResult], None, None]:
         if progress is None:
