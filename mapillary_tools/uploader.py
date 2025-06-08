@@ -56,10 +56,11 @@ class UploaderProgress(T.TypedDict, total=True):
 class SequenceProgress(T.TypedDict, total=False):
     """Progress data at sequence level"""
 
-    # To check if it is uploaded or not
+    # Used to check if it is uploaded or not
     sequence_md5sum: str
 
-    # To resume from the previous upload
+    # Used to resume from the previous upload,
+    # so it has to an unique identifier (hash) of the upload content
     upload_md5sum: str
 
     # File type
