@@ -1,7 +1,7 @@
 import datetime
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import py.path
 import pytest
