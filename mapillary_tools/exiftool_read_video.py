@@ -310,7 +310,10 @@ class ExifToolReadVideo:
         etree: ET.ElementTree,
     ) -> None:
         self.etree = etree
-        self._texts_by_tag = _index_text_by_tag(self.etree.getroot())
+        root = self.etree.getroot()
+        if root is None:
+            raise ValueError("ElementTree root is None")
+        self._texts_by_tag = _index_text_by_tag(root)
         self._all_tags = set(self._texts_by_tag.keys())
 
     def extract_gps_track(self) -> list[geo.Point]:
@@ -371,6 +374,10 @@ class ExifToolReadVideo:
         return model
 
     def _extract_gps_track_from_track(self) -> list[GPSPoint]:
+        root = self.etree.getroot()
+        if root is None:
+            raise ValueError("ElementTree root is None")
+
         for track_id in range(1, MAX_TRACK_ID + 1):
             track_ns = f"Track{track_id}"
             if self._all_tags_exists(
@@ -382,7 +389,7 @@ class ExifToolReadVideo:
                 }
             ):
                 sample_iterator = _aggregate_samples(
-                    self.etree.getroot(),
+                    root,
                     f"{track_ns}:SampleTime",
                     f"{track_ns}:SampleDuration",
                 )
