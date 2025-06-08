@@ -265,7 +265,7 @@ class ZipImageSequence:
         zipf.writestr(zipinfo, image_bytes)
 
     @classmethod
-    def prepare_zipfile_and_upload(
+    def upload_zipfile(
         cls,
         uploader: Uploader,
         zip_path: Path,
@@ -306,7 +306,7 @@ class ZipImageSequence:
             )
 
     @classmethod
-    def prepare_images_and_upload(
+    def zip_images_and_upload(
         cls,
         uploader: Uploader,
         image_metadatas: T.Sequence[types.ImageMetadata],

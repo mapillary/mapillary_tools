@@ -68,9 +68,9 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
         },
     ]
     results = list(
-        uploader.ZipImageSequence.prepare_images_and_upload(
-            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+        uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
+            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
         )
     )
     assert len(results) == 1
@@ -122,9 +122,9 @@ def test_upload_images_multiple_sequences(
         dry_run=True,
     )
     results = list(
-        uploader.ZipImageSequence.prepare_images_and_upload(
-            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+        uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
+            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
         )
     )
     assert len(results) == 2
@@ -189,9 +189,7 @@ def test_upload_zip(
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
-        cluster = uploader.ZipImageSequence.prepare_zipfile_and_upload(
-            Path(zip_path), mly_uploader
-        )
+        cluster = uploader.ZipImageSequence.upload_zipfile(mly_uploader, Path(zip_path))
         assert cluster == "0"
     descs = _validate_zip_dir(setup_upload)
     assert 3 == len(descs)
