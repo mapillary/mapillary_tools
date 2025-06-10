@@ -8,7 +8,7 @@ import py.path
 
 import pytest
 
-from mapillary_tools import types, upload_api_v4, uploader, utils, api_v4
+from mapillary_tools import api_v4, types, upload_api_v4, uploader, utils
 
 from ..integration.fixtures import setup_upload, validate_and_extract_zip
 
