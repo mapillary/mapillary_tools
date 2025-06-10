@@ -174,7 +174,7 @@ class ZipImageSequence:
                 upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
             done_path = wip_path.parent.joinpath(
-                _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+                _session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
             )
 
             try:
@@ -292,18 +292,21 @@ class ZipImageSequence:
             "upload_md5sum": upload_md5sum,
         }
 
-        upload_session_key = _session_key(
-            upload_md5sum, upload_api_v4.ClusterFileType.ZIP
-        )
+        # Send the copy of the input progress to each upload session, to avoid modifying the original one
+        mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
+
+        upload_session_key = _session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
 
         with zip_path.open("rb") as zip_fp:
-            return uploader.upload_stream(
-                zip_fp,
-                upload_api_v4.ClusterFileType.ZIP,
-                upload_session_key,
-                # Send the copy of the input progress to each upload session, to avoid modifying the original one
-                progress=T.cast(T.Dict[str, T.Any], {**progress, **sequence_progress}),
+            file_handle = uploader.upload_stream(
+                zip_fp, upload_session_key, progress=mutable_progress
             )
+
+        cluster_id = uploader.finish_upload(
+            file_handle, api_v4.ClusterFileType.ZIP, progress=mutable_progress
+        )
+
+        return cluster_id
 
     @classmethod
     def zip_images_and_upload(
@@ -326,6 +329,8 @@ class ZipImageSequence:
                 "file_type": types.FileType.IMAGE.value,
             }
 
+            mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
+
             try:
                 _validate_metadatas(sequence)
             except Exception as ex:
@@ -345,17 +350,17 @@ class ZipImageSequence:
                 upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
                 upload_session_key = _session_key(
-                    upload_md5sum, upload_api_v4.ClusterFileType.ZIP
+                    upload_md5sum, api_v4.ClusterFileType.ZIP
                 )
 
                 try:
-                    cluster_id = uploader.upload_stream(
-                        fp,
-                        upload_api_v4.ClusterFileType.ZIP,
-                        upload_session_key,
-                        progress=T.cast(
-                            T.Dict[str, T.Any], {**progress, **sequence_progress}
-                        ),
+                    file_handle = uploader.upload_stream(
+                        fp, upload_session_key, progress=mutable_progress
+                    )
+                    cluster_id = uploader.finish_upload(
+                        file_handle,
+                        api_v4.ClusterFileType.ZIP,
+                        progress=mutable_progress,
                     )
                 except Exception as ex:
                     yield sequence_uuid, UploadResult(error=ex)
@@ -384,7 +389,6 @@ class Uploader:
     def upload_stream(
         self,
         fp: T.IO[bytes],
-        cluster_filetype: upload_api_v4.ClusterFileType,
         session_key: str,
         progress: dict[str, T.Any] | None = None,
     ) -> str:
@@ -394,7 +398,7 @@ class Uploader:
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
-        upload_service = self._create_upload_service(session_key, cluster_filetype)
+        upload_service = self._create_upload_service(session_key)
 
         progress["entity_size"] = entity_size
         progress["chunk_size"] = self.chunk_size
@@ -417,30 +421,20 @@ class Uploader:
 
         self.emitter.emit("upload_end", progress)
 
-        # TODO: retry here
-        cluster_id = self._finish_upload_retryable(upload_service, file_handle)
-        progress["cluster_id"] = cluster_id
+        return file_handle
 
-        self.emitter.emit("upload_finished", progress)
-
-        return cluster_id
-
-    def _create_upload_service(
-        self, session_key: str, cluster_filetype: upload_api_v4.ClusterFileType
-    ) -> upload_api_v4.UploadService:
+    def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:
         upload_service: upload_api_v4.UploadService
 
         if self.dry_run:
             upload_service = upload_api_v4.FakeUploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
-                cluster_filetype=cluster_filetype,
             )
         else:
             upload_service = upload_api_v4.UploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
-                cluster_filetype=cluster_filetype,
             )
 
         return upload_service
@@ -517,10 +511,15 @@ class Uploader:
 
         return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
 
-    def _finish_upload_retryable(
-        self, upload_service: upload_api_v4.UploadService, file_handle: str
+    def finish_upload(
+        self,
+        file_handle: str,
+        cluster_filetype: api_v4.ClusterFileType,
+        progress: dict[str, T.Any] | None = None,
     ) -> str:
         """Finish upload with safe retries guraranteed"""
+        if progress is None:
+            progress = {}
 
         if self.dry_run:
             cluster_id = "0"
@@ -528,7 +527,7 @@ class Uploader:
             resp = api_v4.finish_upload(
                 self.user_items["user_upload_token"],
                 file_handle,
-                upload_service.cluster_filetype,
+                cluster_filetype,
                 organization_id=self.user_items.get("MAPOrganizationKey"),
             )
 
@@ -536,6 +535,9 @@ class Uploader:
             cluster_id = data.get("cluster_id")
 
             # TODO: validate cluster_id
+
+        progress["cluster_id"] = cluster_id
+        self.emitter.emit("upload_finished", progress)
 
         return cluster_id
 
@@ -580,14 +582,12 @@ def _is_retriable_exception(ex: Exception):
     return False
 
 
-_SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
-    upload_api_v4.ClusterFileType.ZIP: ".zip",
-    upload_api_v4.ClusterFileType.CAMM: ".mp4",
-    upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
+_SUFFIX_MAP: dict[api_v4.ClusterFileType, str] = {
+    api_v4.ClusterFileType.ZIP: ".zip",
+    api_v4.ClusterFileType.CAMM: ".mp4",
+    api_v4.ClusterFileType.BLACKVUE: ".mp4",
 }
 
 
-def _session_key(
-    upload_md5sum: str, cluster_filetype: upload_api_v4.ClusterFileType
-) -> str:
+def _session_key(upload_md5sum: str, cluster_filetype: api_v4.ClusterFileType) -> str:
     return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[cluster_filetype]}"

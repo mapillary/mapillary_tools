@@ -514,7 +514,7 @@ def _gen_upload_videos(
         }
 
         session_key = uploader._session_key(
-            video_metadata.md5sum, upload_api_v4.ClusterFileType.CAMM
+            video_metadata.md5sum, api_v4.ClusterFileType.CAMM
         )
 
         try:
@@ -525,12 +525,16 @@ def _gen_upload_videos(
                 )
 
                 # Upload the mp4 stream
-                cluster_id = mly_uploader.upload_stream(
+                file_handle = mly_uploader.upload_stream(
                     T.cast(T.IO[bytes], camm_fp),
-                    upload_api_v4.ClusterFileType.CAMM,
                     session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),
                 )
+            cluster_id = mly_uploader.finish_upload(
+                file_handle,
+                api_v4.ClusterFileType.CAMM,
+                progress=T.cast(T.Dict[str, T.Any], progress),
+            )
         except Exception as ex:
             yield video_metadata, uploader.UploadResult(error=ex)
         else:

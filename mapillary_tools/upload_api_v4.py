@@ -14,7 +14,7 @@ else:
 
 import requests
 
-from .api_v4 import ClusterFileType, request_get, request_post, REQUESTS_TIMEOUT
+from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
@@ -31,24 +31,14 @@ UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 class UploadService:
     user_access_token: str
     session_key: str
-    cluster_filetype: ClusterFileType
-
-    MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
-        ClusterFileType.ZIP: "application/zip",
-        ClusterFileType.BLACKVUE: "video/mp4",
-        ClusterFileType.CAMM: "video/mp4",
-    }
 
     def __init__(
         self,
         user_access_token: str,
         session_key: str,
-        cluster_filetype: ClusterFileType,
     ):
         self.user_access_token = user_access_token
         self.session_key = session_key
-        # Validate the input
-        self.cluster_filetype = cluster_filetype
 
     def fetch_offset(self) -> int:
         headers = {
@@ -124,7 +114,6 @@ class UploadService:
             "Authorization": f"OAuth {self.user_access_token}",
             "Offset": f"{offset}",
             "X-Entity-Name": self.session_key,
-            "X-Entity-Type": self.MIME_BY_CLUSTER_TYPE[self.cluster_filetype],
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         resp = request_post(
