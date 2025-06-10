@@ -11,7 +11,6 @@ def test_upload(setup_upload: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
         user_access_token="TEST",
         session_key="FOOBAR.txt",
-        cluster_filetype=upload_api_v4.ClusterFileType.ZIP,
     )
     upload_service._error_ratio = 0
     content = b"double_foobar"
@@ -28,7 +27,6 @@ def test_upload_big_chunksize(setup_upload: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
         user_access_token="TEST",
         session_key="FOOBAR.txt",
-        cluster_filetype=upload_api_v4.ClusterFileType.ZIP,
     )
     upload_service._error_ratio = 0
     content = b"double_foobar"
@@ -45,7 +43,6 @@ def test_upload_chunks(setup_upload: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
         user_access_token="TEST",
         session_key="FOOBAR2.txt",
-        cluster_filetype=upload_api_v4.ClusterFileType.ZIP,
     )
     upload_service._error_ratio = 0
 

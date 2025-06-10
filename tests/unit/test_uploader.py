@@ -8,7 +8,7 @@ import py.path
 
 import pytest
 
-from mapillary_tools import types, upload_api_v4, uploader, utils
+from mapillary_tools import types, upload_api_v4, uploader, utils, api_v4
 
 from ..integration.fixtures import setup_upload, validate_and_extract_zip
 
@@ -211,12 +211,14 @@ def test_upload_blackvue(
     with open(blackvue_path, "wb") as fp:
         fp.write(b"this is a fake video")
     with Path(blackvue_path).open("rb") as fp:
-        resp = mly_uploader.upload_stream(
+        file_handle = mly_uploader.upload_stream(
             fp,
-            upload_api_v4.ClusterFileType.BLACKVUE,
             "this_is_a_blackvue.mp4",
         )
-    assert resp == "0"
+    cluster_id = mly_uploader.finish_upload(
+        file_handle, api_v4.ClusterFileType.BLACKVUE
+    )
+    assert cluster_id == "0"
     for mp4_path in setup_upload.listdir():
         assert os.path.basename(mp4_path) == "this_is_a_blackvue.mp4"
         with open(mp4_path, "rb") as fp:

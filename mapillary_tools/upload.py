@@ -22,7 +22,6 @@ from . import (
     ipc,
     telemetry,
     types,
-    upload_api_v4,
     uploader,
     utils,
     VERSION,
