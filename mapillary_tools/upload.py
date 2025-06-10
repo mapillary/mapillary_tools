@@ -141,7 +141,7 @@ def _setup_history(
 ) -> None:
     @emitter.on("upload_start")
     def check_duplication(payload: uploader.Progress):
-        md5sum = payload.get("md5sum")
+        md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
 
         if history.is_uploaded(md5sum):
@@ -164,7 +164,7 @@ def _setup_history(
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
         sequence_uuid = payload.get("sequence_uuid")
-        md5sum = payload.get("md5sum")
+        md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
 
         if sequence_uuid is None:
@@ -466,9 +466,9 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    for image_result in uploader.ZipImageSequence.prepare_images_and_upload(
-        image_metadatas,
+    for image_result in uploader.ZipImageSequence.zip_images_and_upload(
         mly_uploader,
+        image_metadatas,
     ):
         yield image_result
 
@@ -509,7 +509,8 @@ def _gen_upload_videos(
             "sequence_idx": idx,
             "file_type": video_metadata.filetype.value,
             "import_path": str(video_metadata.filename),
-            "md5sum": video_metadata.md5sum,
+            "sequence_md5sum": video_metadata.md5sum,
+            "upload_md5sum": video_metadata.md5sum,
         }
 
         session_key = uploader._session_key(
@@ -720,8 +721,8 @@ def _gen_upload_zipfiles(
             "import_path": str(zip_path),
         }
         try:
-            cluster_id = uploader.ZipImageSequence.prepare_zipfile_and_upload(
-                zip_path, mly_uploader, progress=T.cast(T.Dict[str, T.Any], progress)
+            cluster_id = uploader.ZipImageSequence.upload_zipfile(
+                mly_uploader, zip_path, progress=T.cast(T.Dict[str, T.Any], progress)
             )
         except Exception as ex:
             yield zip_path, uploader.UploadResult(error=ex)

@@ -13,6 +13,7 @@ import jsonschema
 import py.path
 import pytest
 
+from mapillary_tools import utils
 
 EXECUTABLE = os.getenv(
     "MAPILLARY_TOOLS__TESTS_EXECUTABLE", "python3 -m mapillary_tools.commands"
@@ -174,11 +175,11 @@ def validate_and_extract_image(image_path: str):
     return desc
 
 
-def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
+def validate_and_extract_zip(zip_path: Path) -> T.List[T.Dict]:
     descs = []
 
     with zipfile.ZipFile(zip_path) as zipf:
-        upload_md5sum = json.loads(zipf.comment)["upload_md5sum"]
+        _sequence_md5sum = json.loads(zipf.comment)["sequence_md5sum"]
         with tempfile.TemporaryDirectory() as tempdir:
             zipf.extractall(path=tempdir)
             for name in os.listdir(tempdir):
@@ -186,8 +187,13 @@ def validate_and_extract_zip(zip_path: str) -> T.List[T.Dict]:
                 desc = validate_and_extract_image(filename)
                 descs.append(desc)
 
-    basename = os.path.basename(zip_path)
-    assert f"mly_tools_{upload_md5sum}.zip" == basename, (basename, upload_md5sum)
+    with zip_path.open("rb") as fp:
+        upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+
+    assert f"mly_tools_{upload_md5sum}.zip" == zip_path.name, (
+        zip_path.name,
+        upload_md5sum,
+    )
 
     return descs
 
