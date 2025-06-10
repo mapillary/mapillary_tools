@@ -329,8 +329,6 @@ class ZipImageSequence:
                 "file_type": types.FileType.IMAGE.value,
             }
 
-            mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
             try:
                 _validate_metadatas(sequence)
             except Exception as ex:
@@ -352,6 +350,8 @@ class ZipImageSequence:
                 upload_session_key = _session_key(
                     upload_md5sum, api_v4.ClusterFileType.ZIP
                 )
+
+                mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
                 try:
                     file_handle = uploader.upload_stream(
