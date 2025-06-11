@@ -208,8 +208,10 @@ class ZipImageSequence:
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
             for idx, metadata in enumerate(sequence):
-                # Arcname does not matter, but it should be unique
-                cls._write_imagebytes_in_zip(zipf, metadata, arcname=f"{idx}.jpg")
+                # Arcname should be unique, the name does not matter
+                arcname = f"{idx}.jpg"
+                zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+                zipf.writestr(zipinfo, cls._dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"sequence_md5sum": sequence_md5sum}).encode(
                 "utf-8"
@@ -241,9 +243,7 @@ class ZipImageSequence:
         return sequence_md5sum
 
     @classmethod
-    def _write_imagebytes_in_zip(
-        cls, zipf: zipfile.ZipFile, metadata: types.ImageMetadata, arcname: str
-    ):
+    def _dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
         try:
             edit = exif_write.ExifEdit(metadata.filename)
         except struct.error as ex:
@@ -255,14 +255,11 @@ class ZipImageSequence:
         )
 
         try:
-            image_bytes = edit.dump_image_bytes()
+            return edit.dump_image_bytes()
         except struct.error as ex:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
-
-        zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-        zipf.writestr(zipinfo, image_bytes)
 
     @classmethod
     def upload_zipfile(
