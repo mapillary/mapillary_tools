@@ -191,9 +191,49 @@ def _setup_history(
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
     upload_pbar: tqdm | None = None
 
+    @emitter.on("upload_start")
+    def upload_start_for_images(payload: uploader.Progress) -> None:
+        nonlocal upload_pbar
+
+        if payload.get("file_type") != FileType.IMAGE.value:
+            return
+
+        if upload_pbar is not None:
+            upload_pbar.close()
+
+        nth = payload["sequence_idx"] + 1
+        total = payload["total_sequence_count"]
+        filetype = payload.get("file_type", "unknown").upper()
+        import_path: str | None = payload.get("import_path")
+        if import_path is None:
+            desc = f"Uploading {filetype} ({nth}/{total})"
+        else:
+            desc = (
+                f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
+            )
+        upload_pbar = tqdm(
+            total=payload["sequence_image_count"],
+            desc=desc,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            initial=0,
+            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        )
+
+    @emitter.on("upload_progress")
+    def upload_progress_for_images(payload: uploader.Progress) -> None:
+        if payload.get("file_type") != FileType.IMAGE.value:
+            return
+        assert upload_pbar is not None, "progress_bar must be initialized"
+        upload_pbar.update()
+
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
         nonlocal upload_pbar
+
+        if payload.get("file_type") == FileType.IMAGE.value:
+            return
 
         if upload_pbar is not None:
             upload_pbar.close()
@@ -203,14 +243,14 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         import_path: str | None = payload.get("import_path")
         filetype = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading {filetype} ({nth}/{total})"
+            desc = f"Uploading {filetype} ({nth}/{total})"
         else:
-            _desc = (
+            desc = (
                 f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
             )
         upload_pbar = tqdm(
             total=payload["entity_size"],
-            desc=_desc,
+            desc=desc,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
@@ -220,6 +260,8 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress) -> None:
+        if payload.get("file_type") == FileType.IMAGE.value:
+            return
         assert upload_pbar is not None, "progress_bar must be initialized"
         upload_pbar.update(payload["chunk_size"])
 
@@ -294,8 +336,13 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
 
     @emitter.on("upload_start")
     def collect_start_time(payload: _APIStats) -> None:
-        payload["upload_start_time"] = time.time()
+        now = time.time()
+        payload["upload_start_time"] = now
         payload["upload_total_time"] = 0
+        # These filed should be initialized in upload events like "upload_fetch_offset"
+        # but since we disabled them for uploading images, so we initialize them here
+        payload["upload_last_restart_time"] = now
+        payload["upload_first_offset"] = 0
 
     @emitter.on("upload_fetch_offset")
     def collect_restart_time(payload: _APIStats) -> None:
@@ -465,7 +512,7 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    for image_result in uploader.ZipImageSequence.zip_images_and_upload(
+    for image_result in uploader.ZipImageSequence.upload_images(
         mly_uploader,
         image_metadatas,
     ):
@@ -709,7 +756,9 @@ def upload(
 
     finally:
         # We collected stats after every upload is finished
-        assert upload_successes == len(stats)
+        assert upload_successes == len(stats), (
+            f"Expect {upload_successes} success but got {stats}"
+        )
         _show_upload_summary(stats, upload_errors)
 
 

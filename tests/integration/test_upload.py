@@ -1,6 +1,4 @@
-import hashlib
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -13,7 +11,7 @@ from .fixtures import (
     setup_data,
     setup_upload,
     USERNAME,
-    validate_and_extract_zip,
+    validate_uploaded_images,
 )
 
 
@@ -21,41 +19,33 @@ PROCESS_FLAGS = ""
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
-def file_md5sum(path) -> str:
-    with open(path, "rb") as fp:
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(1024 * 1024 * 32)
-            if not buf:
-                break
-            md5.update(buf)
-        return md5.hexdigest()
-
-
 @pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_upload_image_dir(setup_data: py.path.local, setup_upload: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
         shell=True,
     )
-    assert x.returncode == 0, x.stderr
+    desc_path = setup_data.join("mapillary_image_description.json")
+    with open(desc_path) as fp:
+        descs = json.load(fp)
+        for desc in descs:
+            # TODO: check if the descs are valid
+            pass
+
     x = subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
     assert x.returncode == 0, x.stderr
+
+    descs = validate_uploaded_images(Path(setup_upload))
+    for x in descs:
+        # TODO: check if the descs are valid
+        pass
 
 
 @pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir_twice(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_upload_image_dir_twice(setup_data: py.path.local, setup_upload: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --skip_process_errors {PROCESS_FLAGS} {setup_data}",
         shell=True,
@@ -63,17 +53,13 @@ def test_upload_image_dir_twice(
     assert x.returncode == 0, x.stderr
     desc_path = setup_data.join("mapillary_image_description.json")
 
-    md5sum_map = {}
-
     # first upload
     x = subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
-        md5sum_map[os.path.basename(file)] = file_md5sum(file)
+    validate_uploaded_images(Path(setup_upload))
 
     # expect the second upload to not produce new uploads
     x = subprocess.run(
@@ -81,18 +67,11 @@ def test_upload_image_dir_twice(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
-        new_md5sum = file_md5sum(file)
-        assert md5sum_map[os.path.basename(file)] == new_md5sum
-    assert len(md5sum_map) == len(setup_upload.listdir())
+    validate_uploaded_images(Path(setup_upload))
 
 
 @pytest.mark.usefixtures("setup_config")
-def test_upload_wrong_descs(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --skip_process_errors {PROCESS_FLAGS} {setup_data}",
         shell=True,

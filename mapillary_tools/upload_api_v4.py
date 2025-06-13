@@ -4,6 +4,7 @@ import io
 import os
 import random
 import sys
+from pathlib import Path
 import typing as T
 import uuid
 
@@ -138,8 +139,8 @@ class UploadService:
 class FakeUploadService(UploadService):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._upload_path = os.getenv(
-            "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
+        self._upload_path = Path(
+            os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
         )
         self._error_ratio = 0.02
 
@@ -156,8 +157,8 @@ class FakeUploadService(UploadService):
             )
 
         os.makedirs(self._upload_path, exist_ok=True)
-        filename = os.path.join(self._upload_path, self.session_key)
-        with open(filename, "ab") as fp:
+        filename = self._upload_path.joinpath(self.session_key)
+        with filename.open("ab") as fp:
             for chunk in shifted_chunks:
                 if random.random() <= self._error_ratio:
                     raise requests.ConnectionError(
@@ -168,7 +169,15 @@ class FakeUploadService(UploadService):
                     raise requests.ConnectionError(
                         f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
                     )
-        return uuid.uuid4().hex
+
+        file_handle_dir = self._upload_path.joinpath("file_handles")
+        file_handle_path = file_handle_dir.joinpath(self.session_key)
+        if not file_handle_path.exists():
+            os.makedirs(file_handle_dir, exist_ok=True)
+            random_file_handle = uuid.uuid4().hex
+            file_handle_path.write_text(random_file_handle)
+
+        return file_handle_path.read_text()
 
     @override
     def fetch_offset(self) -> int:

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -291,3 +292,39 @@ def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]
 
         if "MAPDeviceModel" in expected_desc:
             assert expected_desc["MAPDeviceModel"] == actual_desc["MAPDeviceModel"]
+
+
+def validate_uploaded_images(upload_folder: Path):
+    session_by_file_handle: dict[str, str] = {}
+    for session_path in upload_folder.joinpath("file_handles").iterdir():
+        file_handle = session_path.read_text()
+        session_by_file_handle[file_handle] = session_path.name
+
+    sequence_paths = []
+    for file in upload_folder.iterdir():
+        if file.suffix == ".json":
+            with file.open() as fp:
+                manifest = json.load(fp)
+            image_file_handles = manifest["image_handles"]
+            sequence_paths.append(
+                [
+                    upload_folder.joinpath(session_by_file_handle[file_handle])
+                    for file_handle in image_file_handles
+                ]
+            )
+
+    return [
+        [validate_and_extract_image(str(path)) for path in paths]
+        for paths in sequence_paths
+    ]
+
+
+def file_md5sum(path) -> str:
+    with open(path, "rb") as fp:
+        md5 = hashlib.md5()
+        while True:
+            buf = fp.read(1024 * 1024 * 32)
+            if not buf:
+                break
+            md5.update(buf)
+        return md5.hexdigest()
