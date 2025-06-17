@@ -114,9 +114,7 @@ def test_upload_images_multiple_sequences(
 
 
 def test_upload_zip(
-    setup_unittest_data: py.path.local,
-    setup_upload: py.path.local,
-    emitter=None,
+    setup_unittest_data: py.path.local, setup_upload: py.path.local, emitter=None
 ):
     test_exif = setup_unittest_data.join("test_exif.jpg")
     setup_unittest_data.join("another_directory").mkdir()
@@ -174,10 +172,7 @@ def test_upload_zip(
     assert 3 == len(actual_descs)
 
 
-def test_upload_blackvue(
-    tmpdir: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         {
             "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
@@ -204,9 +199,7 @@ def test_upload_blackvue(
 
 
 def test_upload_zip_with_emitter(
-    setup_unittest_data: py.path.local,
-    tmpdir: py.path.local,
-    setup_upload: py.path.local,
+    setup_unittest_data: py.path.local, setup_upload: py.path.local
 ):
     emitter = uploader.EventEmitter()
 
