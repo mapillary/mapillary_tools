@@ -6,12 +6,13 @@ import py.path
 import pytest
 
 from .fixtures import (
+    assert_contains_image_descs,
     EXECUTABLE,
+    extract_all_uploaded_descs,
     setup_config,
     setup_data,
     setup_upload,
     USERNAME,
-    validate_uploaded_images,
 )
 
 
@@ -21,53 +22,59 @@ UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 @pytest.mark.usefixtures("setup_config")
 def test_upload_image_dir(setup_data: py.path.local, setup_upload: py.path.local):
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
+    subprocess.run(
+        f"{EXECUTABLE} process {PROCESS_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    desc_path = setup_data.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-        for desc in descs:
-            # TODO: check if the descs are valid
-            pass
 
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
 
-    descs = validate_uploaded_images(Path(setup_upload))
-    for x in descs:
-        # TODO: check if the descs are valid
-        pass
+    uploaded_descs: list[dict] = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert len(uploaded_descs) > 0, "No images were uploaded"
+
+    assert_contains_image_descs(
+        Path(setup_data.join("mapillary_image_description.json")),
+        uploaded_descs,
+    )
 
 
 @pytest.mark.usefixtures("setup_config")
 def test_upload_image_dir_twice(setup_data: py.path.local, setup_upload: py.path.local):
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process --skip_process_errors {PROCESS_FLAGS} {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
     desc_path = setup_data.join("mapillary_image_description.json")
 
     # first upload
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    validate_uploaded_images(Path(setup_upload))
+    first_descs = extract_all_uploaded_descs(Path(setup_upload))
+    assert_contains_image_descs(
+        Path(desc_path),
+        sum(first_descs, []),
+    )
 
     # expect the second upload to not produce new uploads
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    validate_uploaded_images(Path(setup_upload))
+    second_descs = extract_all_uploaded_descs(Path(setup_upload))
+    assert_contains_image_descs(
+        Path(desc_path),
+        sum(second_descs, []),
+    )
 
 
 @pytest.mark.usefixtures("setup_config")

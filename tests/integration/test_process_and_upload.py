@@ -1,5 +1,4 @@
 import datetime
-import os
 import subprocess
 from pathlib import Path
 
@@ -7,14 +6,15 @@ import py.path
 import pytest
 
 from .fixtures import (
+    assert_contains_image_descs,
+    assert_same_image_descs,
     EXECUTABLE,
+    extract_all_uploaded_descs,
     IS_FFMPEG_INSTALLED,
     setup_config,
     setup_data,
     setup_upload,
     USERNAME,
-    validate_and_extract_camm,
-    validate_and_extract_zip,
 )
 
 PROCESS_FLAGS = ""
@@ -130,34 +130,6 @@ EXPECTED_DESCS = {
 }
 
 
-def _validate_uploads(upload_dir: py.path.local, expected):
-    descs = []
-    for file in upload_dir.listdir():
-        if str(file).endswith(".mp4"):
-            descs.extend(validate_and_extract_camm(str(file)))
-        elif str(file).endswith(".zip"):
-            descs.extend(validate_and_extract_zip(Path(file)))
-        else:
-            raise Exception(f"invalid file {file}")
-
-    excludes = [
-        "filename",
-        "filesize",
-        "md5sum",
-        "MAPMetaTags",
-        "MAPSequenceUUID",
-        "MAPFilename",
-    ]
-
-    actual = {}
-    for desc in descs:
-        actual[os.path.basename(desc["MAPFilename"])] = {
-            k: v for k, v in desc.items() if k not in excludes
-        }
-
-    assert expected == actual
-
-
 @pytest.mark.usefixtures("setup_config")
 def test_process_and_upload(setup_data: py.path.local, setup_upload: py.path.local):
     input_paths = [
@@ -168,17 +140,17 @@ def test_process_and_upload(setup_data: py.path.local, setup_upload: py.path.loc
         setup_data.join("images"),
         setup_data.join("images").join("DSC00001.JPG"),
     ]
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} --verbose process_and_upload {UPLOAD_FLAGS} {' '.join(map(str, input_paths))} --skip_process_errors",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    if IS_FFMPEG_INSTALLED:
-        _validate_uploads(
-            setup_upload, {**EXPECTED_DESCS["gopro"], **EXPECTED_DESCS["image"]}
-        )
-    else:
-        _validate_uploads(setup_upload, {**EXPECTED_DESCS["image"]})
+
+    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_contains_image_descs(
+        descs,
+        [*EXPECTED_DESCS["gopro"].values(), *EXPECTED_DESCS["image"].values()],
+    )
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -186,7 +158,7 @@ def test_process_and_upload_images_only(
     setup_data: py.path.local,
     setup_upload: py.path.local,
 ):
-    x = subprocess.run(
+    subprocess.run(
         f"""{EXECUTABLE} --verbose process_and_upload \
     {UPLOAD_FLAGS} {PROCESS_FLAGS} \
     --filetypes=image \
@@ -194,9 +166,10 @@ def test_process_and_upload_images_only(
     {setup_data}/images {setup_data}/images {setup_data}/images/DSC00001.JPG
 """,
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    _validate_uploads(setup_upload, EXPECTED_DESCS["image"])
+    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_contains_image_descs(descs, [*EXPECTED_DESCS["image"].values()])
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -210,7 +183,7 @@ def test_video_process_and_upload(
     gpx_start_time = "2025_03_14_07_00_00_000"
     gpx_end_time = "2025_03_14_07_01_33_624"
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    x = subprocess.run(
+    subprocess.run(
         f"""{EXECUTABLE} video_process_and_upload \
     {PROCESS_FLAGS} {UPLOAD_FLAGS} \
     --video_sample_interval=2 \
@@ -222,11 +195,12 @@ def test_video_process_and_upload(
     {video_dir} {video_dir.join("my_samples")}
 """,
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    assert 1 == len(setup_upload.listdir())
     expected = {
         "sample-5s_NA_000001.jpg": {
+            "filename": "sample-5s_NA_000001.jpg",
+            "MAPFilename": "sample-5s_NA_000001.jpg",
             "MAPAltitude": 94.75,
             "MAPCaptureTime": "2025_03_14_07_00_00_000",
             "MAPCompassHeading": {
@@ -239,6 +213,8 @@ def test_video_process_and_upload(
             "filetype": "image",
         },
         "sample-5s_NA_000002.jpg": {
+            "filename": "sample-5s_NA_000002.jpg",
+            "MAPFilename": "sample-5s_NA_000002.jpg",
             "MAPAltitude": 93.347,
             "MAPCaptureTime": "2025_03_14_07_00_02_000",
             "MAPCompassHeading": {
@@ -251,6 +227,8 @@ def test_video_process_and_upload(
             "filetype": "image",
         },
         "sample-5s_NA_000003.jpg": {
+            "filename": "sample-5s_NA_000003.jpg",
+            "MAPFilename": "sample-5s_NA_000003.jpg",
             "MAPAltitude": 92.492,
             "MAPCaptureTime": "2025_03_14_07_00_04_000",
             "MAPCompassHeading": {
@@ -263,7 +241,8 @@ def test_video_process_and_upload(
             "filetype": "image",
         },
     }
-    _validate_uploads(setup_upload, expected)
+    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_same_image_descs(descs, list(expected.values()))
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -278,7 +257,7 @@ def test_video_process_and_upload_after_gpx(
     gpx_end_time = "2025_03_14_07_01_33_624"
     video_start_time = "2025_03_14_07_01_34_624"
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    x = subprocess.run(
+    subprocess.run(
         f"""{EXECUTABLE} video_process_and_upload \
     {PROCESS_FLAGS} {UPLOAD_FLAGS} \
     --video_sample_interval=2 \
@@ -291,7 +270,7 @@ def test_video_process_and_upload_after_gpx(
     {video_dir} {video_dir.join("my_samples")}
 """,
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    assert 0 == len(setup_upload.listdir())
-    _validate_uploads(setup_upload, {})
+    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_same_image_descs(descs, [])

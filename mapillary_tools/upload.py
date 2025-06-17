@@ -556,12 +556,7 @@ def _gen_upload_videos(
             "file_type": video_metadata.filetype.value,
             "import_path": str(video_metadata.filename),
             "sequence_md5sum": video_metadata.md5sum,
-            "upload_md5sum": video_metadata.md5sum,
         }
-
-        session_key = uploader._session_key(
-            video_metadata.md5sum, api_v4.ClusterFileType.CAMM
-        )
 
         try:
             with video_metadata.filename.open("rb") as src_fp:
@@ -573,7 +568,6 @@ def _gen_upload_videos(
                 # Upload the mp4 stream
                 file_handle = mly_uploader.upload_stream(
                     T.cast(T.IO[bytes], camm_fp),
-                    session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),
                 )
             cluster_id = mly_uploader.finish_upload(

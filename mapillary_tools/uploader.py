@@ -280,25 +280,17 @@ class ZipImageSequence:
         with zip_path.open("rb") as zip_fp:
             sequence_md5sum = cls.extract_sequence_md5sum(zip_fp)
 
-        with zip_path.open("rb") as zip_fp:
-            upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
-
         sequence_progress: SequenceProgress = {
             "sequence_image_count": len(namelist),
             "file_type": types.FileType.ZIP.value,
             "sequence_md5sum": sequence_md5sum,
-            "upload_md5sum": upload_md5sum,
         }
 
         # Send the copy of the input progress to each upload session, to avoid modifying the original one
         mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
-        upload_session_key = _session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
-
         with zip_path.open("rb") as zip_fp:
-            file_handle = uploader.upload_stream(
-                zip_fp, upload_session_key, progress=mutable_progress
-            )
+            file_handle = uploader.upload_stream(zip_fp, progress=mutable_progress)
 
         cluster_id = uploader.finish_upload(
             file_handle, api_v4.ClusterFileType.ZIP, progress=mutable_progress
@@ -342,19 +334,10 @@ class ZipImageSequence:
 
                 sequence_progress["sequence_md5sum"] = sequence_md5sum
 
-                fp.seek(0, io.SEEK_SET)
-                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-
-                upload_session_key = _session_key(
-                    upload_md5sum, api_v4.ClusterFileType.ZIP
-                )
-
                 mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
                 try:
-                    file_handle = uploader.upload_stream(
-                        fp, upload_session_key, progress=mutable_progress
-                    )
+                    file_handle = uploader.upload_stream(fp, progress=mutable_progress)
                     cluster_id = uploader.finish_upload(
                         file_handle,
                         api_v4.ClusterFileType.ZIP,
@@ -395,9 +378,8 @@ class ZipImageSequence:
 
             bytes = cls._dump_image_bytes(image_metadata)
             total_bytes += len(bytes)
-            upload_md5sum = utils.md5sum_fp(io.BytesIO(bytes)).hexdigest()
             file_handle = uploader.upload_stream(
-                io.BytesIO(bytes), f"{upload_md5sum}.jpg"
+                io.BytesIO(bytes), progress=mutable_progress
             )
             image_file_handles.append(file_handle)
 
@@ -412,7 +394,9 @@ class ZipImageSequence:
         with io.BytesIO() as manifest_fp:
             manifest_fp.write(json.dumps(manifest).encode("utf-8"))
             manifest_fp.seek(0, io.SEEK_SET)
-            manifest_file_handle = uploader.upload_stream(manifest_fp, f"{uuid.uuid4().hex}.json")
+            manifest_file_handle = uploader.upload_stream(
+                manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
+            )
 
         progress["entity_size"] = total_bytes
         uploader.emitter.emit("upload_end", progress)
@@ -485,11 +469,20 @@ class Uploader:
     def upload_stream(
         self,
         fp: T.IO[bytes],
-        session_key: str,
+        session_key: str | None = None,
         progress: dict[str, T.Any] | None = None,
     ) -> str:
         if progress is None:
             progress = {}
+
+        if session_key is None:
+            fp.seek(0, io.SEEK_SET)
+            md5sum = utils.md5sum_fp(fp).hexdigest()
+            filetype = progress.get("file_type")
+            if filetype is not None:
+                session_key = _session_key(md5sum, types.FileType(filetype))
+            else:
+                session_key = md5sum
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -682,12 +675,19 @@ def _is_retriable_exception(ex: Exception):
     return False
 
 
-_SUFFIX_MAP: dict[api_v4.ClusterFileType, str] = {
-    api_v4.ClusterFileType.ZIP: ".zip",
-    api_v4.ClusterFileType.CAMM: ".mp4",
-    api_v4.ClusterFileType.BLACKVUE: ".mp4",
-}
+def _session_key(
+    upload_md5sum: str, filetype: api_v4.ClusterFileType | types.FileType
+) -> str:
+    _SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
+        api_v4.ClusterFileType.ZIP: ".zip",
+        api_v4.ClusterFileType.CAMM: ".mp4",
+        api_v4.ClusterFileType.BLACKVUE: ".mp4",
+        types.FileType.IMAGE: ".jpg",
+        types.FileType.ZIP: ".zip",
+        types.FileType.BLACKVUE: ".mp4",
+        types.FileType.CAMM: ".mp4",
+        types.FileType.GOPRO: ".mp4",
+        types.FileType.VIDEO: ".mp4",
+    }
 
-
-def _session_key(upload_md5sum: str, cluster_filetype: api_v4.ClusterFileType) -> str:
-    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[cluster_filetype]}"
+    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[filetype]}"

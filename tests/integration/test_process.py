@@ -9,13 +9,13 @@ import py.path
 import pytest
 
 from .fixtures import (
+    assert_contains_image_descs,
     EXECUTABLE,
     IS_FFMPEG_INSTALLED,
     run_exiftool_and_generate_geotag_args,
     setup_config,
     setup_data,
     validate_and_extract_zip,
-    verify_descs,
 )
 
 
@@ -25,6 +25,7 @@ _DEFAULT_EXPECTED_DESCS = {
     "DSC00001.JPG": {
         "filename": "DSC00001.JPG",
         "filetype": "image",
+        "MAPFilename": "DSC00001.JPG",
         "MAPLatitude": 45.5169031,
         "MAPLongitude": -122.572765,
         "MAPCaptureTime": "2018_06_08_20_24_11_000",
@@ -37,6 +38,7 @@ _DEFAULT_EXPECTED_DESCS = {
     "DSC00497.JPG": {
         "filename": "DSC00497.JPG",
         "filetype": "image",
+        "MAPFilename": "DSC00497.JPG",
         "MAPLatitude": 45.5107231,
         "MAPLongitude": -122.5760514,
         "MAPCaptureTime": "2018_06_08_20_32_28_000",
@@ -49,6 +51,7 @@ _DEFAULT_EXPECTED_DESCS = {
     "V0370574.JPG": {
         "filename": "V0370574.JPG",
         "filetype": "image",
+        "MAPFilename": "V0370574.JPG",
         "MAPLatitude": -1.0169444,
         "MAPLongitude": -1.0169444,
         "MAPCaptureTime": "2018_07_27_11_32_14_000",
@@ -58,7 +61,9 @@ _DEFAULT_EXPECTED_DESCS = {
         "MAPOrientation": 1,
     },
     "adobe_coords.jpg": {
+        "filename": "adobe_coords.jpg",
         "filetype": "image",
+        "MAPFilename": "adobe_coords.jpg",
         "MAPLatitude": -0.0702668,
         "MAPLongitude": 34.3819352,
         "MAPCaptureTime": "2019_07_16_10_26_11_000",
@@ -94,23 +99,20 @@ def test_process_images_with_defaults(
     x = subprocess.run(args, shell=True)
 
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
-                "filename": str(Path(setup_data, "images", "DSC00001.JPG")),
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00497.JPG"],
-                "filename": str(Path(setup_data, "images", "DSC00497.JPG")),
             },
             {
                 **_DEFAULT_EXPECTED_DESCS["V0370574.JPG"],
-                "filename": str(Path(setup_data, "images", "V0370574.JPG")),
                 "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:14"),
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -124,7 +126,8 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -142,7 +145,6 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
                 "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:16.500"),
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=-1.0"
@@ -150,7 +152,8 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -168,7 +171,6 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
                 "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:13.000"),
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -201,9 +203,9 @@ def test_process_images_with_overwrite_all_EXIF_tags(
             "MAPCaptureTime": _local_to_utc("2018-07-27T11:32:16.500"),
         },
     ]
-    verify_descs(
-        expected_descs,
+    assert_contains_image_descs(
         Path(setup_data, "mapillary_image_description.json"),
+        expected_descs,
     )
 
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
@@ -211,9 +213,9 @@ def test_process_images_with_overwrite_all_EXIF_tags(
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
-    verify_descs(
-        expected_descs,
+    assert_contains_image_descs(
         Path(setup_data, "mapillary_image_description.json"),
+        expected_descs,
     )
 
 
@@ -232,7 +234,8 @@ def test_angle_with_offset(setup_data: py.path.local, use_exiftool: bool = False
     x = subprocess.run(args, shell=True)
     assert x.returncode == 0, x.stderr
 
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -260,7 +263,6 @@ def test_angle_with_offset(setup_data: py.path.local, use_exiftool: bool = False
                 },
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -271,7 +273,8 @@ def test_angle_with_offset_with_exiftool(setup_data: py.path.local):
 def test_parse_adobe_coordinates(setup_data: py.path.local):
     args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}/adobe_coords"
     x = subprocess.run(args, shell=True)
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "adobe_coords/mapillary_image_description.json"),
         [
             {
                 "filename": str(Path(setup_data, "adobe_coords", "adobe_coords.jpg")),
@@ -285,7 +288,6 @@ def test_parse_adobe_coordinates(setup_data: py.path.local):
                 "MAPOrientation": 1,
             }
         ],
-        Path(setup_data, "adobe_coords/mapillary_image_description.json"),
     )
 
 
@@ -385,7 +387,8 @@ def test_geotagging_images_from_gpx(setup_data: py.path.local):
 """,
         shell=True,
     )
-    verify_descs(
+    assert_contains_image_descs(
+        Path(images, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -410,7 +413,6 @@ def test_geotagging_images_from_gpx(setup_data: py.path.local):
                 },
             },
         ],
-        Path(images, "mapillary_image_description.json"),
     )
 
 
@@ -424,7 +426,8 @@ def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -451,7 +454,6 @@ def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
                 },
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -464,7 +466,8 @@ def test_geotagging_images_from_gpx_use_gpx_start_time(setup_data: py.path.local
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -491,7 +494,6 @@ def test_geotagging_images_from_gpx_use_gpx_start_time(setup_data: py.path.local
                 },
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -506,7 +508,8 @@ def test_geotagging_images_from_gpx_use_gpx_start_time_with_offset(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    verify_descs(
+    assert_contains_image_descs(
+        Path(setup_data, "mapillary_image_description.json"),
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -533,7 +536,6 @@ def test_geotagging_images_from_gpx_use_gpx_start_time_with_offset(
                 },
             },
         ],
-        Path(setup_data, "mapillary_image_description.json"),
     )
 
 
@@ -711,7 +713,8 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
             shell=True,
         )
         assert x.returncode == 0, x.stderr
-        verify_descs(
+        assert_contains_image_descs(
+            desc_path,
             [
                 {
                     "filename": str(
@@ -780,7 +783,6 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
                     "MAPOrientation": 1,
                 },
             ],
-            desc_path,
         )
 
 

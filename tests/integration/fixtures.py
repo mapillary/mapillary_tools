@@ -1,10 +1,10 @@
-import hashlib
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import subprocess
 import tempfile
-import typing as T
 import zipfile
 from pathlib import Path
 
@@ -160,34 +160,23 @@ def run_exiftool_and_generate_geotag_args(
 
 
 with open("schema/image_description_schema.json") as fp:
-    image_description_schema = json.load(fp)
+    IMAGE_DESCRIPTION_SCHEMA = json.load(fp)
 
 
-def validate_and_extract_image(image_path: str):
-    with open(image_path, "rb") as fp:
+def validate_and_extract_image(image_path: Path):
+    with image_path.open("rb") as fp:
         tags = exifread.process_file(fp)
 
     desc_tag = tags.get("Image ImageDescription")
     assert desc_tag is not None, (tags, image_path)
     desc = json.loads(str(desc_tag.values))
-    desc["filename"] = image_path
+    desc["filename"] = str(image_path)
     desc["filetype"] = "image"
-    jsonschema.validate(desc, image_description_schema)
+    jsonschema.validate(desc, IMAGE_DESCRIPTION_SCHEMA)
     return desc
 
 
-def validate_and_extract_zip(zip_path: Path) -> T.List[T.Dict]:
-    descs = []
-
-    with zipfile.ZipFile(zip_path) as zipf:
-        _sequence_md5sum = json.loads(zipf.comment)["sequence_md5sum"]
-        with tempfile.TemporaryDirectory() as tempdir:
-            zipf.extractall(path=tempdir)
-            for name in os.listdir(tempdir):
-                filename = os.path.join(tempdir, name)
-                desc = validate_and_extract_image(filename)
-                descs.append(desc)
-
+def validate_and_extract_zip(zip_path: Path) -> list[dict]:
     with zip_path.open("rb") as fp:
         upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
@@ -196,16 +185,34 @@ def validate_and_extract_zip(zip_path: Path) -> T.List[T.Dict]:
         upload_md5sum,
     )
 
+    descs = []
+
+    with zipfile.ZipFile(zip_path) as zipf:
+        with tempfile.TemporaryDirectory() as tempdir:
+            zipf.extractall(path=tempdir)
+            for name in os.listdir(tempdir):
+                filename = os.path.join(tempdir, name)
+                desc = validate_and_extract_image(Path(filename))
+                descs.append(desc)
+
     return descs
 
 
-def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
+def validate_and_extract_camm(video_path: Path) -> list[dict]:
+    with video_path.open("rb") as fp:
+        upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+
+    assert f"mly_tools_{upload_md5sum}.mp4" == video_path.name, (
+        video_path.name,
+        upload_md5sum,
+    )
+
     if not IS_FFMPEG_INSTALLED:
         return []
 
     with tempfile.TemporaryDirectory() as tempdir:
         x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=camm {filename} {tempdir}",
+            f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=camm {str(video_path)} {tempdir}",
             shell=True,
         )
         assert x.returncode == 0, x.stderr
@@ -223,108 +230,135 @@ def validate_and_extract_camm(filename: str) -> T.List[T.Dict]:
             return json.load(fp)
 
 
-def verify_descs(expected: T.List[T.Dict], actual: T.Union[Path, T.List[T.Dict]]):
-    if isinstance(actual, Path):
-        with actual.open("r") as fp:
-            actual = json.load(fp)
-    assert isinstance(actual, list), f"expect a list of descs but got: {actual}"
-
-    expected_map = {desc["filename"]: desc for desc in expected}
-    assert len(expected) == len(expected_map), expected
-
-    actual_map = {desc["filename"]: desc for desc in actual}
-    assert len(actual) == len(actual_map), actual
-
-    for filename, expected_desc in expected_map.items():
-        actual_desc = actual_map.get(filename)
-        assert actual_desc is not None, expected_desc
-        if "error" in expected_desc:
-            assert expected_desc["error"]["type"] == actual_desc.get("error", {}).get(
-                "type"
-            ), f"{expected_desc=} != {actual_desc=}"
-            if "message" in expected_desc["error"]:
-                assert (
-                    expected_desc["error"]["message"] == actual_desc["error"]["message"]
-                )
-        if "filetype" in expected_desc:
-            assert expected_desc["filetype"] == actual_desc.get("filetype"), actual_desc
-
-        if "MAPCompassHeading" in expected_desc:
-            e = expected_desc["MAPCompassHeading"]
-            assert "MAPCompassHeading" in actual_desc, actual_desc
-            a = actual_desc["MAPCompassHeading"]
-            assert abs(e["TrueHeading"] - a["TrueHeading"]) < 0.001, (
-                f"got {a['TrueHeading']} but expect {e['TrueHeading']} in {filename}"
-            )
-            assert abs(e["MagneticHeading"] - a["MagneticHeading"]) < 0.001, (
-                f"got {a['MagneticHeading']} but expect {e['MagneticHeading']} in {filename}"
-            )
-
-        if "MAPCaptureTime" in expected_desc:
-            assert expected_desc["MAPCaptureTime"] == actual_desc["MAPCaptureTime"], (
-                f"expect {expected_desc['MAPCaptureTime']} but got {actual_desc['MAPCaptureTime']} in {filename}"
-            )
-
-        if "MAPLongitude" in expected_desc:
-            assert (
-                abs(expected_desc["MAPLongitude"] - actual_desc["MAPLongitude"])
-                < 0.00001
-            ), (
-                f"expect {expected_desc['MAPLongitude']} but got {actual_desc['MAPLongitude']} in {filename}"
-            )
-
-        if "MAPLatitude" in expected_desc:
-            assert (
-                abs(expected_desc["MAPLatitude"] - actual_desc["MAPLatitude"]) < 0.00001
-            ), (
-                f"expect {expected_desc['MAPLatitude']} but got {actual_desc['MAPLatitude']} in {filename}"
-            )
-
-        if "MAPAltitude" in expected_desc:
-            assert (
-                abs(expected_desc["MAPAltitude"] - actual_desc["MAPAltitude"]) < 0.001
-            ), (
-                f"expect {expected_desc['MAPAltitude']} but got {actual_desc['MAPAltitude']} in {filename}"
-            )
-
-        if "MAPDeviceMake" in expected_desc:
-            assert expected_desc["MAPDeviceMake"] == actual_desc["MAPDeviceMake"]
-
-        if "MAPDeviceModel" in expected_desc:
-            assert expected_desc["MAPDeviceModel"] == actual_desc["MAPDeviceModel"]
+def load_descs(descs) -> list:
+    if isinstance(descs, Path):
+        with descs.open("r") as fp:
+            descs = json.load(fp)
+    assert isinstance(descs, list), f"expect a list of descs but got: {descs}"
+    return descs
 
 
-def validate_uploaded_images(upload_folder: Path):
+def extract_all_uploaded_descs(upload_folder: Path) -> list[list[dict]]:
+    FILE_HANDLE_DIRNAME = "file_handles"
+
     session_by_file_handle: dict[str, str] = {}
-    for session_path in upload_folder.joinpath("file_handles").iterdir():
-        file_handle = session_path.read_text()
-        session_by_file_handle[file_handle] = session_path.name
+    if upload_folder.joinpath(FILE_HANDLE_DIRNAME).exists():
+        for session_path in upload_folder.joinpath(FILE_HANDLE_DIRNAME).iterdir():
+            file_handle = session_path.read_text()
+            session_by_file_handle[file_handle] = session_path.name
 
-    sequence_paths = []
+    sequences = []
+
     for file in upload_folder.iterdir():
         if file.suffix == ".json":
             with file.open() as fp:
                 manifest = json.load(fp)
             image_file_handles = manifest["image_handles"]
-            sequence_paths.append(
-                [
-                    upload_folder.joinpath(session_by_file_handle[file_handle])
-                    for file_handle in image_file_handles
-                ]
-            )
+            assert len(image_file_handles) > 0, manifest
+            image_sequence = []
+            for file_handle in image_file_handles:
+                image_path = upload_folder.joinpath(session_by_file_handle[file_handle])
+                with image_path.open("rb") as fp:
+                    upload_md5sum = utils.md5sum_fp(fp).hexdigest()
+                assert upload_md5sum in image_path.stem, (upload_md5sum, image_path)
+                image_sequence.append(validate_and_extract_image(image_path))
+            sequences.append(image_sequence)
+        elif file.suffix == ".zip":
+            sequences.append(validate_and_extract_zip(file))
+        elif file.suffix == ".mp4":
+            sequences.append(validate_and_extract_camm(file))
+        elif file.name == FILE_HANDLE_DIRNAME:
+            # Already processed above
+            pass
 
-    return [
-        [validate_and_extract_image(str(path)) for path in paths]
-        for paths in sequence_paths
-    ]
+    return sequences
 
 
-def file_md5sum(path) -> str:
-    with open(path, "rb") as fp:
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(1024 * 1024 * 32)
-            if not buf:
-                break
-            md5.update(buf)
-        return md5.hexdigest()
+def approximate(left: float, right: float, threshold=0.00001):
+    return abs(left - right) < threshold
+
+
+def assert_compare_image_descs(expected: dict, actual: dict):
+    jsonschema.validate(expected, IMAGE_DESCRIPTION_SCHEMA)
+    jsonschema.validate(actual, IMAGE_DESCRIPTION_SCHEMA)
+
+    assert expected.get("MAPFilename"), expected
+    assert actual.get("MAPFilename"), actual
+    assert expected.get("MAPFilename") == actual.get("MAPFilename")
+
+    filename = actual.get("MAPFilename")
+
+    if "error" in expected:
+        assert expected["error"]["type"] == actual.get("error", {}).get("type"), (
+            f"{expected=} != {actual=}"
+        )
+        if "message" in expected["error"]:
+            assert expected["error"]["message"] == actual["error"]["message"]
+
+    if "filetype" in expected:
+        assert expected["filetype"] == actual.get("filetype"), actual
+
+    if "MAPCompassHeading" in expected:
+        e = expected["MAPCompassHeading"]
+        assert "MAPCompassHeading" in actual, actual
+        a = actual["MAPCompassHeading"]
+        assert approximate(e["TrueHeading"], a["TrueHeading"], 0.001), (
+            f"got {a['TrueHeading']} but expect {e['TrueHeading']} in {filename}"
+        )
+        assert approximate(e["MagneticHeading"], a["MagneticHeading"], 0.001), (
+            f"got {a['MagneticHeading']} but expect {e['MagneticHeading']} in {filename}"
+        )
+
+    if "MAPCaptureTime" in expected:
+        assert expected["MAPCaptureTime"] == actual["MAPCaptureTime"], (
+            f"expect {expected['MAPCaptureTime']} but got {actual['MAPCaptureTime']} in {filename}"
+        )
+
+    if "MAPLongitude" in expected:
+        assert approximate(expected["MAPLongitude"], actual["MAPLongitude"], 0.00001), (
+            f"expect {expected['MAPLongitude']} but got {actual['MAPLongitude']} in {filename}"
+        )
+
+    if "MAPLatitude" in expected:
+        assert approximate(expected["MAPLatitude"], actual["MAPLatitude"], 0.00001), (
+            f"expect {expected['MAPLatitude']} but got {actual['MAPLatitude']} in {filename}"
+        )
+
+    if "MAPAltitude" in expected:
+        assert approximate(expected["MAPAltitude"], actual["MAPAltitude"], 0.001), (
+            f"expect {expected['MAPAltitude']} but got {actual['MAPAltitude']} in {filename}"
+        )
+
+    if "MAPDeviceMake" in expected:
+        assert expected["MAPDeviceMake"] == actual["MAPDeviceMake"]
+
+    if "MAPDeviceModel" in expected:
+        assert expected["MAPDeviceModel"] == actual["MAPDeviceModel"]
+
+
+def assert_contains_image_descs(haystack: Path | list[dict], needle: Path | list[dict]):
+    """
+    Check if the haystack contains all the descriptions in needle.
+    """
+
+    haystack = load_descs(haystack)
+    needle = load_descs(needle)
+
+    haystack_by_filename = {
+        desc["MAPFilename"]: desc for desc in haystack if "MAPFilename" in desc
+    }
+
+    needle_by_filename = {
+        desc["MAPFilename"]: desc for desc in needle if "MAPFilename" in desc
+    }
+
+    assert haystack_by_filename.keys() >= needle_by_filename.keys(), (
+        f"haystack {list(haystack_by_filename.keys())} does not contain all the keys in needle {list(needle_by_filename.keys())}"
+    )
+    for filename, desc in needle_by_filename.items():
+        assert_compare_image_descs(desc, haystack_by_filename[filename])
+
+
+def assert_same_image_descs(left: Path | list[dict], right: Path | list[dict]):
+    assert_contains_image_descs(left, right)
+    assert_contains_image_descs(right, left)

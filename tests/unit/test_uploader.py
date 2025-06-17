@@ -1,16 +1,14 @@
-import json
 import os
 import typing as T
-import zipfile
 from pathlib import Path
 
 import py.path
 
 import pytest
 
-from mapillary_tools import api_v4, types, upload_api_v4, uploader, utils
+from mapillary_tools import api_v4, types, uploader
 
-from ..integration.fixtures import setup_upload, validate_and_extract_zip
+from ..integration.fixtures import extract_all_uploaded_descs, setup_upload
 
 
 IMPORT_PATH = "tests/unit/data"
@@ -24,24 +22,6 @@ def setup_unittest_data(tmpdir: py.path.local):
     yield data_path
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
-
-
-def _validate_zip_dir(zip_dir: py.path.local):
-    descs = []
-    for zip_path in zip_dir.listdir():
-        with zipfile.ZipFile(zip_path) as ziph:
-            filename = ziph.testzip()
-            assert filename is None, f"Corrupted zip {zip_path}: {filename}"
-            sequence_md5sum = json.loads(ziph.comment).get("sequence_md5sum")
-
-        with open(zip_path, "rb") as fp:
-            upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-
-        assert str(os.path.basename(zip_path)) == f"mly_tools_{upload_md5sum}.zip", (
-            zip_path
-        )
-        descs.extend(validate_and_extract_zip(Path(zip_path)))
-    return descs
 
 
 def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path.local):
@@ -74,9 +54,10 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
         )
     )
     assert len(results) == 1
-    assert len(setup_upload.listdir()) == 1
-    actual_descs = _validate_zip_dir(setup_upload)
-    assert 1 == len(actual_descs), "should return 1 desc because of the unique filename"
+    actual_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert 1 == len(actual_descs), (
+        f"should return 1 desc because of the unique filename but got {actual_descs}"
+    )
 
 
 def test_upload_images_multiple_sequences(
@@ -128,8 +109,7 @@ def test_upload_images_multiple_sequences(
         )
     )
     assert len(results) == 2
-    assert len(setup_upload.listdir()) == 2
-    actual_descs = _validate_zip_dir(setup_upload)
+    actual_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert 2 == len(actual_descs)
 
 
@@ -173,11 +153,10 @@ def test_upload_zip(
         },
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
-    sequence = [types.from_desc(T.cast(T.Any, desc)) for desc in descs]
-    uploader.ZipImageSequence.zip_images(sequence, Path(zip_dir))
+    uploader.ZipImageSequence.zip_images(
+        [types.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
+    )
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
-    descs = _validate_zip_dir(zip_dir)
-    assert 3 == len(descs)
 
     mly_uploader = uploader.Uploader(
         {
@@ -191,8 +170,8 @@ def test_upload_zip(
     for zip_path in zip_dir.listdir():
         cluster = uploader.ZipImageSequence.upload_zipfile(mly_uploader, Path(zip_path))
         assert cluster == "0"
-    descs = _validate_zip_dir(setup_upload)
-    assert 3 == len(descs)
+    actual_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert 3 == len(actual_descs)
 
 
 def test_upload_blackvue(
@@ -213,16 +192,15 @@ def test_upload_blackvue(
     with Path(blackvue_path).open("rb") as fp:
         file_handle = mly_uploader.upload_stream(
             fp,
-            "this_is_a_blackvue.mp4",
+            session_key="this_is_a_blackvue.mp4",
         )
     cluster_id = mly_uploader.finish_upload(
         file_handle, api_v4.ClusterFileType.BLACKVUE
     )
     assert cluster_id == "0"
-    for mp4_path in setup_upload.listdir():
-        assert os.path.basename(mp4_path) == "this_is_a_blackvue.mp4"
-        with open(mp4_path, "rb") as fp:
-            assert fp.read() == b"this is a fake video"
+    assert setup_upload.join("this_is_a_blackvue.mp4").exists()
+    with open(setup_upload.join("this_is_a_blackvue.mp4"), "rb") as fp:
+        assert fp.read() == b"this is a fake video"
 
 
 def test_upload_zip_with_emitter(
@@ -241,8 +219,8 @@ def test_upload_zip_with_emitter(
         assert "test_started" not in payload
         payload["test_started"] = True
 
-        assert payload["upload_md5sum"] not in stats
-        stats[payload["upload_md5sum"]] = {**payload}
+        assert payload["sequence_md5sum"] not in stats
+        stats[payload["sequence_md5sum"]] = {**payload}
 
     @emitter.on("upload_fetch_offset")
     def _fetch_offset(payload):
@@ -250,7 +228,7 @@ def test_upload_zip_with_emitter(
         assert payload["test_started"]
         payload["test_fetch_offset"] = True
 
-        assert payload["upload_md5sum"] in stats
+        assert payload["sequence_md5sum"] in stats
 
     @emitter.on("upload_end")
     def _upload_end(payload):
@@ -258,8 +236,8 @@ def test_upload_zip_with_emitter(
         assert payload["test_started"]
         assert payload["test_fetch_offset"]
 
-        assert payload["upload_md5sum"] in stats
+        assert payload["sequence_md5sum"] in stats
 
     test_upload_zip(setup_unittest_data, setup_upload, emitter=emitter)
 
-    assert len(stats) == 2
+    assert len(stats) == 2, stats
