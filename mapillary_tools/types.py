@@ -10,12 +10,12 @@ import sys
 import typing as T
 import uuid
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import TypedDict
 
-if sys.version_info >= (3, 12):
-    from typing import NotRequired, Required
+if sys.version_info >= (3, 11):
+    from typing import Required
 else:
-    from typing_extensions import NotRequired, Required
+    from typing_extensions import Required
 
 import jsonschema
 
