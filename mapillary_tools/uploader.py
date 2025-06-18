@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import concurrent.futures
+
 import dataclasses
 import io
 import json
@@ -7,6 +9,7 @@ import logging
 import os
 import struct
 import tempfile
+import threading
 import time
 import typing as T
 import uuid
@@ -359,6 +362,28 @@ class ZipImageSequence:
         if progress is None:
             progress = {}
 
+        lock = threading.Lock()
+        total_image_bytes = 0
+
+        def _upload_image(image_metadata: types.ImageMetadata) -> str:
+            nonlocal total_image_bytes
+
+            mutable_progress: dict[str, T.Any] = {
+                **progress,
+                "filename": str(image_metadata.filename),
+            }
+
+            bytes = cls._dump_image_bytes(image_metadata)
+            file_handle = uploader.upload_stream(
+                io.BytesIO(bytes), progress=mutable_progress
+            )
+
+            with lock:
+                uploader.emitter.emit("upload_progress", mutable_progress)
+                total_image_bytes += len(bytes)
+
+            return file_handle
+
         _validate_metadatas(sequence)
 
         # TODO: assert sequence is sorted
@@ -368,22 +393,8 @@ class ZipImageSequence:
 
         uploader.emitter.emit("upload_start", progress)
 
-        image_file_handles: list[str] = []
-        total_bytes = 0
-        for image_metadata in sequence:
-            mutable_progress: dict[str, T.Any] = {
-                **progress,
-                "filename": str(image_metadata.filename),
-            }
-
-            bytes = cls._dump_image_bytes(image_metadata)
-            total_bytes += len(bytes)
-            file_handle = uploader.upload_stream(
-                io.BytesIO(bytes), progress=mutable_progress
-            )
-            image_file_handles.append(file_handle)
-
-            uploader.emitter.emit("upload_progress", mutable_progress)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            image_file_handles = list(executor.map(_upload_image, sequence))
 
         manifest = {
             "version": "1",
@@ -398,7 +409,7 @@ class ZipImageSequence:
                 manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
             )
 
-        progress["entity_size"] = total_bytes
+        progress["entity_size"] = total_image_bytes
         uploader.emitter.emit("upload_end", progress)
 
         # FIXME: This is a hack to disable the event emitter inside the uploader
