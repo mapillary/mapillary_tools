@@ -368,7 +368,7 @@ class ZipImageSequence:
         def _upload_image(image_metadata: types.ImageMetadata) -> str:
             nonlocal total_image_bytes
 
-            mutable_progress: dict[str, T.Any] = {
+            mutable_progress = {
                 **progress,
                 "filename": str(image_metadata.filename),
             }

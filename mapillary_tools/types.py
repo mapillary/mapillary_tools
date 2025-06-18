@@ -144,7 +144,7 @@ class UserItem(TypedDict, total=False):
     # Not in use. Keep here for back-compatibility
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
-    user_upload_token: str
+    user_upload_token: T.Required[str]
 
 
 class _CompassHeading(TypedDict, total=True):
