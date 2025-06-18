@@ -363,13 +363,10 @@ class ZipImageSequence:
             progress = {}
 
         lock = threading.Lock()
-        total_image_bytes = 0
 
         def _upload_image(image_metadata: types.ImageMetadata) -> str:
-            nonlocal total_image_bytes
-
             mutable_progress = {
-                **progress,
+                **(progress or {}),
                 "filename": str(image_metadata.filename),
             }
 
@@ -378,13 +375,16 @@ class ZipImageSequence:
                 io.BytesIO(bytes), progress=mutable_progress
             )
 
+            mutable_progress["chunk_size"] = image_metadata.filesize
+
             with lock:
                 uploader.emitter.emit("upload_progress", mutable_progress)
-                total_image_bytes += len(bytes)
 
             return file_handle
 
         _validate_metadatas(sequence)
+
+        progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
 
         # TODO: assert sequence is sorted
 
@@ -409,7 +409,6 @@ class ZipImageSequence:
                 manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
             )
 
-        progress["entity_size"] = total_image_bytes
         uploader.emitter.emit("upload_end", progress)
 
         # FIXME: This is a hack to disable the event emitter inside the uploader

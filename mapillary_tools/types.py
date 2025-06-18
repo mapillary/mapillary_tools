@@ -6,10 +6,16 @@ import enum
 import hashlib
 import json
 import os
+import sys
 import typing as T
 import uuid
 from pathlib import Path
 from typing import Literal, TypedDict
+
+if sys.version_info >= (3, 12):
+    from typing import NotRequired, Required
+else:
+    from typing_extensions import NotRequired, Required
 
 import jsonschema
 
@@ -144,7 +150,7 @@ class UserItem(TypedDict, total=False):
     # Not in use. Keep here for back-compatibility
     MAPSettingsUsername: str
     MAPSettingsUserKey: str
-    user_upload_token: T.Required[str]
+    user_upload_token: Required[str]
 
 
 class _CompassHeading(TypedDict, total=True):
@@ -152,65 +158,49 @@ class _CompassHeading(TypedDict, total=True):
     MagneticHeading: float
 
 
-class _ImageRequired(TypedDict, total=True):
-    MAPLatitude: float
-    MAPLongitude: float
-    MAPCaptureTime: str
+class _SharedDescription(TypedDict, total=False):
+    filename: Required[str]
+    filetype: Required[str]
+
+    # if None or absent, it will be calculated
+    md5sum: str | None
+    filesize: int | None
 
 
-class _Image(_ImageRequired, total=False):
+class ImageDescription(_SharedDescription, total=False):
+    MAPLatitude: Required[float]
+    MAPLongitude: Required[float]
     MAPAltitude: float
+    MAPCaptureTime: Required[str]
     MAPCompassHeading: _CompassHeading
 
-
-class _SequenceOnly(TypedDict, total=False):
-    MAPSequenceUUID: str
-
-
-class MetaProperties(TypedDict, total=False):
     MAPDeviceMake: str
     MAPDeviceModel: str
     MAPGPSAccuracyMeters: float
     MAPCameraUUID: str
     MAPOrientation: int
 
-
-class ImageDescription(_SequenceOnly, _Image, MetaProperties, total=True):
-    # filename is required
-    filename: str
-    # if None or absent, it will be calculated
-    md5sum: str | None
-    filetype: Literal["image"]
-    filesize: int | None
+    # For grouping images in a sequence
+    MAPSequenceUUID: str
 
 
-class _VideoDescriptionRequired(TypedDict, total=True):
-    filename: str
-    md5sum: str | None
-    filetype: str
-    MAPGPSTrack: list[T.Sequence[float | int | None]]
-
-
-class VideoDescription(_VideoDescriptionRequired, total=False):
+class VideoDescription(_SharedDescription, total=False):
+    MAPGPSTrack: Required[list[T.Sequence[float | int | None]]]
     MAPDeviceMake: str
     MAPDeviceModel: str
-    filesize: int | None
 
 
 class _ErrorDescription(TypedDict, total=False):
     # type and message are required
-    type: str
+    type: Required[str]
     message: str
     # vars is optional
     vars: dict
 
 
-class _ImageDescriptionErrorRequired(TypedDict, total=True):
-    filename: str
-    error: _ErrorDescription
-
-
-class ImageDescriptionError(_ImageDescriptionErrorRequired, total=False):
+class ImageDescriptionError(TypedDict, total=False):
+    filename: Required[str]
+    error: Required[_ErrorDescription]
     filetype: str
 
 

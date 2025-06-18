@@ -192,48 +192,9 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
     upload_pbar: tqdm | None = None
 
     @emitter.on("upload_start")
-    def upload_start_for_images(payload: uploader.Progress) -> None:
-        nonlocal upload_pbar
-
-        if payload.get("file_type") != FileType.IMAGE.value:
-            return
-
-        if upload_pbar is not None:
-            upload_pbar.close()
-
-        nth = payload["sequence_idx"] + 1
-        total = payload["total_sequence_count"]
-        filetype = payload.get("file_type", "unknown").upper()
-        import_path: str | None = payload.get("import_path")
-        if import_path is None:
-            desc = f"Uploading {filetype} ({nth}/{total})"
-        else:
-            desc = (
-                f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
-            )
-        upload_pbar = tqdm(
-            total=payload["sequence_image_count"],
-            desc=desc,
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-            initial=0,
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-        )
-
-    @emitter.on("upload_progress")
-    def upload_progress_for_images(payload: uploader.Progress) -> None:
-        if payload.get("file_type") != FileType.IMAGE.value:
-            return
-        assert upload_pbar is not None, "progress_bar must be initialized"
-        upload_pbar.update()
-
     @emitter.on("upload_fetch_offset")
-    def upload_fetch_offset(payload: uploader.Progress) -> None:
+    def upload_start(payload: uploader.Progress) -> None:
         nonlocal upload_pbar
-
-        if payload.get("file_type") == FileType.IMAGE.value:
-            return
 
         if upload_pbar is not None:
             upload_pbar.close()
@@ -254,14 +215,12 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            initial=payload["offset"],
+            initial=payload.get("offset", 0),
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress) -> None:
-        if payload.get("file_type") == FileType.IMAGE.value:
-            return
         assert upload_pbar is not None, "progress_bar must be initialized"
         upload_pbar.update(payload["chunk_size"])
 
