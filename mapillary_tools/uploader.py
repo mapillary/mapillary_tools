@@ -393,7 +393,9 @@ class ZipImageSequence:
 
         uploader.emitter.emit("upload_start", progress)
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
+        ) as executor:
             image_file_handles = list(executor.map(_upload_image, sequence))
 
         manifest = {
