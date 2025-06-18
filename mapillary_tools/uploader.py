@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import concurrent.futures
+
 import dataclasses
 import io
 import json
@@ -7,6 +9,7 @@ import logging
 import os
 import struct
 import tempfile
+import threading
 import time
 import typing as T
 import uuid
@@ -125,6 +128,7 @@ class EventEmitter:
     def on(self, event: EventName):
         def _wrap(callback):
             self.events.setdefault(event, []).append(callback)
+            return callback
 
         return _wrap
 
@@ -174,7 +178,7 @@ class ZipImageSequence:
                 upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
             done_path = wip_path.parent.joinpath(
-                _session_key(upload_md5sum, upload_api_v4.ClusterFileType.ZIP)
+                _session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
             )
 
             try:
@@ -208,8 +212,10 @@ class ZipImageSequence:
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
             for idx, metadata in enumerate(sequence):
-                # Arcname does not matter, but it should be unique
-                cls._write_imagebytes_in_zip(zipf, metadata, arcname=f"{idx}.jpg")
+                # Arcname should be unique, the name does not matter
+                arcname = f"{idx}.jpg"
+                zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+                zipf.writestr(zipinfo, cls._dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps({"sequence_md5sum": sequence_md5sum}).encode(
                 "utf-8"
@@ -241,9 +247,7 @@ class ZipImageSequence:
         return sequence_md5sum
 
     @classmethod
-    def _write_imagebytes_in_zip(
-        cls, zipf: zipfile.ZipFile, metadata: types.ImageMetadata, arcname: str
-    ):
+    def _dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
         try:
             edit = exif_write.ExifEdit(metadata.filename)
         except struct.error as ex:
@@ -255,14 +259,11 @@ class ZipImageSequence:
         )
 
         try:
-            image_bytes = edit.dump_image_bytes()
+            return edit.dump_image_bytes()
         except struct.error as ex:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
-
-        zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-        zipf.writestr(zipinfo, image_bytes)
 
     @classmethod
     def upload_zipfile(
@@ -282,28 +283,23 @@ class ZipImageSequence:
         with zip_path.open("rb") as zip_fp:
             sequence_md5sum = cls.extract_sequence_md5sum(zip_fp)
 
-        with zip_path.open("rb") as zip_fp:
-            upload_md5sum = utils.md5sum_fp(zip_fp).hexdigest()
-
         sequence_progress: SequenceProgress = {
             "sequence_image_count": len(namelist),
             "file_type": types.FileType.ZIP.value,
             "sequence_md5sum": sequence_md5sum,
-            "upload_md5sum": upload_md5sum,
         }
 
-        upload_session_key = _session_key(
-            upload_md5sum, upload_api_v4.ClusterFileType.ZIP
-        )
+        # Send the copy of the input progress to each upload session, to avoid modifying the original one
+        mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
         with zip_path.open("rb") as zip_fp:
-            return uploader.upload_stream(
-                zip_fp,
-                upload_api_v4.ClusterFileType.ZIP,
-                upload_session_key,
-                # Send the copy of the input progress to each upload session, to avoid modifying the original one
-                progress=T.cast(T.Dict[str, T.Any], {**progress, **sequence_progress}),
-            )
+            file_handle = uploader.upload_stream(zip_fp, progress=mutable_progress)
+
+        cluster_id = uploader.finish_upload(
+            file_handle, api_v4.ClusterFileType.ZIP, progress=mutable_progress
+        )
+
+        return cluster_id
 
     @classmethod
     def zip_images_and_upload(
@@ -323,7 +319,7 @@ class ZipImageSequence:
                 "total_sequence_count": len(sequences),
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
-                "file_type": types.FileType.IMAGE.value,
+                "file_type": types.FileType.ZIP.value,
             }
 
             try:
@@ -341,27 +337,127 @@ class ZipImageSequence:
 
                 sequence_progress["sequence_md5sum"] = sequence_md5sum
 
-                fp.seek(0, io.SEEK_SET)
-                upload_md5sum = utils.md5sum_fp(fp).hexdigest()
-
-                upload_session_key = _session_key(
-                    upload_md5sum, upload_api_v4.ClusterFileType.ZIP
-                )
+                mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
                 try:
-                    cluster_id = uploader.upload_stream(
-                        fp,
-                        upload_api_v4.ClusterFileType.ZIP,
-                        upload_session_key,
-                        progress=T.cast(
-                            T.Dict[str, T.Any], {**progress, **sequence_progress}
-                        ),
+                    file_handle = uploader.upload_stream(fp, progress=mutable_progress)
+                    cluster_id = uploader.finish_upload(
+                        file_handle,
+                        api_v4.ClusterFileType.ZIP,
+                        progress=mutable_progress,
                     )
                 except Exception as ex:
                     yield sequence_uuid, UploadResult(error=ex)
                     continue
 
             yield sequence_uuid, UploadResult(result=cluster_id)
+
+    @classmethod
+    def _upload_sequence(
+        cls,
+        uploader: Uploader,
+        sequence: T.Sequence[types.ImageMetadata],
+        progress: dict[str, T.Any] | None = None,
+    ) -> str:
+        if progress is None:
+            progress = {}
+
+        lock = threading.Lock()
+
+        def _upload_image(image_metadata: types.ImageMetadata) -> str:
+            mutable_progress = {
+                **(progress or {}),
+                "filename": str(image_metadata.filename),
+            }
+
+            bytes = cls._dump_image_bytes(image_metadata)
+            file_handle = uploader.upload_stream(
+                io.BytesIO(bytes), progress=mutable_progress
+            )
+
+            mutable_progress["chunk_size"] = image_metadata.filesize
+
+            with lock:
+                uploader.emitter.emit("upload_progress", mutable_progress)
+
+            return file_handle
+
+        _validate_metadatas(sequence)
+
+        progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
+
+        # TODO: assert sequence is sorted
+
+        # FIXME: This is a hack to disable the event emitter inside the uploader
+        uploader.emittion_disabled = True
+
+        uploader.emitter.emit("upload_start", progress)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
+        ) as executor:
+            image_file_handles = list(executor.map(_upload_image, sequence))
+
+        manifest = {
+            "version": "1",
+            "upload_type": "images",
+            "image_handles": image_file_handles,
+        }
+
+        with io.BytesIO() as manifest_fp:
+            manifest_fp.write(json.dumps(manifest).encode("utf-8"))
+            manifest_fp.seek(0, io.SEEK_SET)
+            manifest_file_handle = uploader.upload_stream(
+                manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
+            )
+
+        uploader.emitter.emit("upload_end", progress)
+
+        # FIXME: This is a hack to disable the event emitter inside the uploader
+        uploader.emittion_disabled = False
+
+        cluster_id = uploader.finish_upload(
+            manifest_file_handle,
+            api_v4.ClusterFileType.MLY_BUNDLE_MANIFEST,
+            progress=progress,
+        )
+
+        return cluster_id
+
+    @classmethod
+    def upload_images(
+        cls,
+        uploader: Uploader,
+        image_metadatas: T.Sequence[types.ImageMetadata],
+        progress: dict[str, T.Any] | None = None,
+    ) -> T.Generator[tuple[str, UploadResult], None, None]:
+        if progress is None:
+            progress = {}
+
+        sequences = types.group_and_sort_images(image_metadatas)
+
+        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            sequence_md5sum = types.update_sequence_md5sum(sequence)
+
+            sequence_progress: SequenceProgress = {
+                "sequence_idx": sequence_idx,
+                "total_sequence_count": len(sequences),
+                "sequence_image_count": len(sequence),
+                "sequence_uuid": sequence_uuid,
+                "file_type": types.FileType.IMAGE.value,
+                "sequence_md5sum": sequence_md5sum,
+            }
+
+            mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
+
+            try:
+                cluster_id = cls._upload_sequence(
+                    uploader, sequence, progress=mutable_progress
+                )
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+            else:
+                yield sequence_uuid, UploadResult(result=cluster_id)
 
 
 class Uploader:
@@ -373,6 +469,7 @@ class Uploader:
         dry_run=False,
     ):
         self.user_items = user_items
+        self.emittion_disabled = False
         if emitter is None:
             # An empty event emitter that does nothing
             self.emitter = EventEmitter()
@@ -384,24 +481,32 @@ class Uploader:
     def upload_stream(
         self,
         fp: T.IO[bytes],
-        cluster_filetype: upload_api_v4.ClusterFileType,
-        session_key: str,
+        session_key: str | None = None,
         progress: dict[str, T.Any] | None = None,
     ) -> str:
         if progress is None:
             progress = {}
 
+        if session_key is None:
+            fp.seek(0, io.SEEK_SET)
+            md5sum = utils.md5sum_fp(fp).hexdigest()
+            filetype = progress.get("file_type")
+            if filetype is not None:
+                session_key = _session_key(md5sum, types.FileType(filetype))
+            else:
+                session_key = md5sum
+
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
 
-        upload_service = self._create_upload_service(session_key, cluster_filetype)
+        upload_service = self._create_upload_service(session_key)
 
         progress["entity_size"] = entity_size
         progress["chunk_size"] = self.chunk_size
         progress["retries"] = 0
         progress["begin_offset"] = None
 
-        self.emitter.emit("upload_start", progress)
+        self._maybe_emit("upload_start", progress)
 
         while True:
             try:
@@ -415,32 +520,22 @@ class Uploader:
 
             progress["retries"] += 1
 
-        self.emitter.emit("upload_end", progress)
+        self._maybe_emit("upload_end", progress)
 
-        # TODO: retry here
-        cluster_id = self._finish_upload_retryable(upload_service, file_handle)
-        progress["cluster_id"] = cluster_id
+        return file_handle
 
-        self.emitter.emit("upload_finished", progress)
-
-        return cluster_id
-
-    def _create_upload_service(
-        self, session_key: str, cluster_filetype: upload_api_v4.ClusterFileType
-    ) -> upload_api_v4.UploadService:
+    def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:
         upload_service: upload_api_v4.UploadService
 
         if self.dry_run:
             upload_service = upload_api_v4.FakeUploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
-                cluster_filetype=cluster_filetype,
             )
         else:
             upload_service = upload_api_v4.UploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
-                cluster_filetype=cluster_filetype,
             )
 
         return upload_service
@@ -453,7 +548,7 @@ class Uploader:
         chunk_size = progress["chunk_size"]
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-            self.emitter.emit("upload_interrupted", progress)
+            self._maybe_emit("upload_interrupted", progress)
             LOG.warning(
                 # use %s instead of %d because offset could be None
                 "Error uploading chunk_size %d at begin_offset %s: %s: %s",
@@ -494,7 +589,7 @@ class Uploader:
             # Whenever a chunk is uploaded, reset retries
             progress["retries"] = 0
 
-            self.emitter.emit("upload_progress", progress)
+            self._maybe_emit("upload_progress", progress)
 
     def _upload_stream_retryable(
         self,
@@ -509,7 +604,7 @@ class Uploader:
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
 
-        self.emitter.emit("upload_fetch_offset", progress)
+        self._maybe_emit("upload_fetch_offset", progress)
 
         fp.seek(begin_offset, io.SEEK_SET)
 
@@ -517,10 +612,15 @@ class Uploader:
 
         return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
 
-    def _finish_upload_retryable(
-        self, upload_service: upload_api_v4.UploadService, file_handle: str
+    def finish_upload(
+        self,
+        file_handle: str,
+        cluster_filetype: api_v4.ClusterFileType,
+        progress: dict[str, T.Any] | None = None,
     ) -> str:
         """Finish upload with safe retries guraranteed"""
+        if progress is None:
+            progress = {}
 
         if self.dry_run:
             cluster_id = "0"
@@ -528,7 +628,7 @@ class Uploader:
             resp = api_v4.finish_upload(
                 self.user_items["user_upload_token"],
                 file_handle,
-                upload_service.cluster_filetype,
+                cluster_filetype,
                 organization_id=self.user_items.get("MAPOrganizationKey"),
             )
 
@@ -537,7 +637,16 @@ class Uploader:
 
             # TODO: validate cluster_id
 
+        progress["cluster_id"] = cluster_id
+        self._maybe_emit("upload_finished", progress)
+
         return cluster_id
+
+    def _maybe_emit(
+        self, event: EventName, progress: dict[str, T.Any] | UploaderProgress
+    ):
+        if not self.emittion_disabled:
+            return self.emitter.emit(event, progress)
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
@@ -580,14 +689,19 @@ def _is_retriable_exception(ex: Exception):
     return False
 
 
-_SUFFIX_MAP: dict[upload_api_v4.ClusterFileType, str] = {
-    upload_api_v4.ClusterFileType.ZIP: ".zip",
-    upload_api_v4.ClusterFileType.CAMM: ".mp4",
-    upload_api_v4.ClusterFileType.BLACKVUE: ".mp4",
-}
-
-
 def _session_key(
-    upload_md5sum: str, cluster_filetype: upload_api_v4.ClusterFileType
+    upload_md5sum: str, filetype: api_v4.ClusterFileType | types.FileType
 ) -> str:
-    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[cluster_filetype]}"
+    _SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
+        api_v4.ClusterFileType.ZIP: ".zip",
+        api_v4.ClusterFileType.CAMM: ".mp4",
+        api_v4.ClusterFileType.BLACKVUE: ".mp4",
+        types.FileType.IMAGE: ".jpg",
+        types.FileType.ZIP: ".zip",
+        types.FileType.BLACKVUE: ".mp4",
+        types.FileType.CAMM: ".mp4",
+        types.FileType.GOPRO: ".mp4",
+        types.FileType.VIDEO: ".mp4",
+    }
+
+    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[filetype]}"

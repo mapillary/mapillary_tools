@@ -25,6 +25,7 @@ class ClusterFileType(enum.Enum):
     ZIP = "zip"
     BLACKVUE = "mly_blackvue_video"
     CAMM = "mly_camm_video"
+    MLY_BUNDLE_MANIFEST = "mly_bundle_manifest"
 
 
 class HTTPSystemCertsAdapter(HTTPAdapter):

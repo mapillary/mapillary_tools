@@ -47,18 +47,19 @@ def test_upload_gopro(
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert len(setup_upload.listdir()) == 1, (
+    assert len(setup_upload.listdir()) == 2, (
         f"should be uploaded for the first time but got {setup_upload.listdir()}"
     )
     for upload in setup_upload.listdir():
-        upload.remove()
-    assert len(setup_upload.listdir()) == 0
+        if upload.basename != "file_handles":
+            upload.remove()
+    assert len(setup_upload.listdir()) == 1
 
     x = subprocess.run(
         f"{EXECUTABLE} process_and_upload --skip_process_errors {UPLOAD_FLAGS} {str(video_dir)}",
         shell=True,
     )
     assert x.returncode == 0, x.stderr
-    assert len(setup_upload.listdir()) == 0, (
+    assert len(setup_upload.listdir()) == 1, (
         "should NOT upload because it is uploaded already"
     )

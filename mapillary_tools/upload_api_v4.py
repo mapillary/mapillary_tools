@@ -6,6 +6,7 @@ import random
 import sys
 import typing as T
 import uuid
+from pathlib import Path
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -14,7 +15,7 @@ else:
 
 import requests
 
-from .api_v4 import ClusterFileType, request_get, request_post, REQUESTS_TIMEOUT
+from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
@@ -31,24 +32,14 @@ UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 class UploadService:
     user_access_token: str
     session_key: str
-    cluster_filetype: ClusterFileType
-
-    MIME_BY_CLUSTER_TYPE: dict[ClusterFileType, str] = {
-        ClusterFileType.ZIP: "application/zip",
-        ClusterFileType.BLACKVUE: "video/mp4",
-        ClusterFileType.CAMM: "video/mp4",
-    }
 
     def __init__(
         self,
         user_access_token: str,
         session_key: str,
-        cluster_filetype: ClusterFileType,
     ):
         self.user_access_token = user_access_token
         self.session_key = session_key
-        # Validate the input
-        self.cluster_filetype = cluster_filetype
 
     def fetch_offset(self) -> int:
         headers = {
@@ -124,7 +115,6 @@ class UploadService:
             "Authorization": f"OAuth {self.user_access_token}",
             "Offset": f"{offset}",
             "X-Entity-Name": self.session_key,
-            "X-Entity-Type": self.MIME_BY_CLUSTER_TYPE[self.cluster_filetype],
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         resp = request_post(
@@ -149,8 +139,8 @@ class UploadService:
 class FakeUploadService(UploadService):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._upload_path = os.getenv(
-            "MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads"
+        self._upload_path = Path(
+            os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
         )
         self._error_ratio = 0.02
 
@@ -167,8 +157,8 @@ class FakeUploadService(UploadService):
             )
 
         os.makedirs(self._upload_path, exist_ok=True)
-        filename = os.path.join(self._upload_path, self.session_key)
-        with open(filename, "ab") as fp:
+        filename = self._upload_path.joinpath(self.session_key)
+        with filename.open("ab") as fp:
             for chunk in shifted_chunks:
                 if random.random() <= self._error_ratio:
                     raise requests.ConnectionError(
@@ -179,7 +169,15 @@ class FakeUploadService(UploadService):
                     raise requests.ConnectionError(
                         f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
                     )
-        return uuid.uuid4().hex
+
+        file_handle_dir = self._upload_path.joinpath("file_handles")
+        file_handle_path = file_handle_dir.joinpath(self.session_key)
+        if not file_handle_path.exists():
+            os.makedirs(file_handle_dir, exist_ok=True)
+            random_file_handle = uuid.uuid4().hex
+            file_handle_path.write_text(random_file_handle)
+
+        return file_handle_path.read_text()
 
     @override
     def fetch_offset(self) -> int:

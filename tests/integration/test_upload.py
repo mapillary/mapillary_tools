@@ -1,6 +1,4 @@
-import hashlib
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -8,12 +6,13 @@ import py.path
 import pytest
 
 from .fixtures import (
+    assert_contains_image_descs,
     EXECUTABLE,
+    extract_all_uploaded_descs,
     setup_config,
     setup_data,
     setup_upload,
     USERNAME,
-    validate_and_extract_zip,
 )
 
 
@@ -21,78 +20,65 @@ PROCESS_FLAGS = ""
 UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
 
 
-def file_md5sum(path) -> str:
-    with open(path, "rb") as fp:
-        md5 = hashlib.md5()
-        while True:
-            buf = fp.read(1024 * 1024 * 32)
-            if not buf:
-                break
-            md5.update(buf)
-        return md5.hexdigest()
-
-
 @pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
+def test_upload_image_dir(setup_data: py.path.local, setup_upload: py.path.local):
+    subprocess.run(
+        f"{EXECUTABLE} process {PROCESS_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    x = subprocess.run(
+
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
-    assert x.returncode == 0, x.stderr
+
+    uploaded_descs: list[dict] = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert len(uploaded_descs) > 0, "No images were uploaded"
+
+    assert_contains_image_descs(
+        Path(setup_data.join("mapillary_image_description.json")),
+        uploaded_descs,
+    )
 
 
 @pytest.mark.usefixtures("setup_config")
-def test_upload_image_dir_twice(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
-    x = subprocess.run(
+def test_upload_image_dir_twice(setup_data: py.path.local, setup_upload: py.path.local):
+    subprocess.run(
         f"{EXECUTABLE} process --skip_process_errors {PROCESS_FLAGS} {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
     desc_path = setup_data.join("mapillary_image_description.json")
 
-    md5sum_map = {}
-
     # first upload
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
-        md5sum_map[os.path.basename(file)] = file_md5sum(file)
+    first_descs = extract_all_uploaded_descs(Path(setup_upload))
+    assert_contains_image_descs(
+        Path(desc_path),
+        sum(first_descs, []),
+    )
 
     # expect the second upload to not produce new uploads
-    x = subprocess.run(
+    subprocess.run(
         f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --desc_path={desc_path} --file_types=image {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
+        check=True,
     )
-    assert x.returncode == 0, x.stderr
-    for file in setup_upload.listdir():
-        validate_and_extract_zip(Path(file))
-        new_md5sum = file_md5sum(file)
-        assert md5sum_map[os.path.basename(file)] == new_md5sum
-    assert len(md5sum_map) == len(setup_upload.listdir())
+    second_descs = extract_all_uploaded_descs(Path(setup_upload))
+    assert_contains_image_descs(
+        Path(desc_path),
+        sum(second_descs, []),
+    )
 
 
 @pytest.mark.usefixtures("setup_config")
-def test_upload_wrong_descs(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
-):
+def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.local):
     x = subprocess.run(
         f"{EXECUTABLE} process --skip_process_errors {PROCESS_FLAGS} {setup_data}",
         shell=True,

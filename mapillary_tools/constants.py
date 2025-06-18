@@ -89,3 +89,5 @@ MAPILLARY_UPLOAD_HISTORY_PATH: str = os.getenv(
         "upload_history",
     ),
 )
+
+MAX_IMAGE_UPLOAD_WORKERS = int(os.getenv(_ENV_PREFIX + "MAX_IMAGE_UPLOAD_WORKERS", 64))

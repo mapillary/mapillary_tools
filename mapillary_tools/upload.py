@@ -22,7 +22,6 @@ from . import (
     ipc,
     telemetry,
     types,
-    upload_api_v4,
     uploader,
     utils,
     VERSION,
@@ -192,8 +191,9 @@ def _setup_history(
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
     upload_pbar: tqdm | None = None
 
+    @emitter.on("upload_start")
     @emitter.on("upload_fetch_offset")
-    def upload_fetch_offset(payload: uploader.Progress) -> None:
+    def upload_start(payload: uploader.Progress) -> None:
         nonlocal upload_pbar
 
         if upload_pbar is not None:
@@ -204,18 +204,18 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         import_path: str | None = payload.get("import_path")
         filetype = payload.get("file_type", "unknown").upper()
         if import_path is None:
-            _desc = f"Uploading {filetype} ({nth}/{total})"
+            desc = f"Uploading {filetype} ({nth}/{total})"
         else:
-            _desc = (
+            desc = (
                 f"Uploading {filetype} {os.path.basename(import_path)} ({nth}/{total})"
             )
         upload_pbar = tqdm(
             total=payload["entity_size"],
-            desc=_desc,
+            desc=desc,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-            initial=payload["offset"],
+            initial=payload.get("offset", 0),
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
 
@@ -295,8 +295,13 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
 
     @emitter.on("upload_start")
     def collect_start_time(payload: _APIStats) -> None:
-        payload["upload_start_time"] = time.time()
+        now = time.time()
+        payload["upload_start_time"] = now
         payload["upload_total_time"] = 0
+        # These filed should be initialized in upload events like "upload_fetch_offset"
+        # but since we disabled them for uploading images, so we initialize them here
+        payload["upload_last_restart_time"] = now
+        payload["upload_first_offset"] = 0
 
     @emitter.on("upload_fetch_offset")
     def collect_restart_time(payload: _APIStats) -> None:
@@ -466,7 +471,7 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    for image_result in uploader.ZipImageSequence.zip_images_and_upload(
+    for image_result in uploader.ZipImageSequence.upload_images(
         mly_uploader,
         image_metadatas,
     ):
@@ -510,12 +515,7 @@ def _gen_upload_videos(
             "file_type": video_metadata.filetype.value,
             "import_path": str(video_metadata.filename),
             "sequence_md5sum": video_metadata.md5sum,
-            "upload_md5sum": video_metadata.md5sum,
         }
-
-        session_key = uploader._session_key(
-            video_metadata.md5sum, upload_api_v4.ClusterFileType.CAMM
-        )
 
         try:
             with video_metadata.filename.open("rb") as src_fp:
@@ -525,12 +525,15 @@ def _gen_upload_videos(
                 )
 
                 # Upload the mp4 stream
-                cluster_id = mly_uploader.upload_stream(
+                file_handle = mly_uploader.upload_stream(
                     T.cast(T.IO[bytes], camm_fp),
-                    upload_api_v4.ClusterFileType.CAMM,
-                    session_key,
                     progress=T.cast(T.Dict[str, T.Any], progress),
                 )
+            cluster_id = mly_uploader.finish_upload(
+                file_handle,
+                api_v4.ClusterFileType.CAMM,
+                progress=T.cast(T.Dict[str, T.Any], progress),
+            )
         except Exception as ex:
             yield video_metadata, uploader.UploadResult(error=ex)
         else:
@@ -706,7 +709,9 @@ def upload(
 
     finally:
         # We collected stats after every upload is finished
-        assert upload_successes == len(stats)
+        assert upload_successes == len(stats), (
+            f"Expect {upload_successes} success but got {stats}"
+        )
         _show_upload_summary(stats, upload_errors)
 
 
