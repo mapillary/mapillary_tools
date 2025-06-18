@@ -641,7 +641,9 @@ class Uploader:
 
         return cluster_id
 
-    def _maybe_emit(self, event: EventName, progress: dict[str, T.Any]):
+    def _maybe_emit(
+        self, event: EventName, progress: dict[str, T.Any] | UploaderProgress
+    ):
         if not self.emittion_disabled:
             return self.emitter.emit(event, progress)
 
