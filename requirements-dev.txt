@@ -1,8 +1,0 @@
-pytest
-mypy
-ruff
-pyinstaller
-types-requests
-types-appdirs
-usort
-pyre-check

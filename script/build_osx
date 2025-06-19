@@ -7,8 +7,8 @@ OS=osx
 mkdir -p dist
 rm -rf dist/${OS}
 pyinstaller --version
-pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools.spec
-pyinstaller --noconfirm --distpath dist/${OS} mapillary_tools_folder.spec
+pyinstaller --noconfirm --distpath dist/${OS} pyinstaller/mapillary_tools.spec
+pyinstaller --noconfirm --distpath dist/${OS} pyinstaller/mapillary_tools_folder.spec
 
 # check
 SOURCE=dist/${OS}/mapillary_tools.app/Contents/MacOS/mapillary_tools

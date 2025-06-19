@@ -1,0 +1,84 @@
+# Build system configuration - tells Python packaging tools how to build this package
+# This section is required for modern Python packaging with pyproject.toml
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]  # Tools needed to build the package
+build-backend = "setuptools.build_meta"   # Use setuptools backend that reads pyproject.toml
+
+[project]
+name = "mapillary_tools"
+dynamic = ["version"]
+description = "Mapillary Image/Video Import Pipeline"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "BSD"}
+authors = [
+    {name = "Mapillary", email = "support@mapillary.com"},
+]
+keywords = ["mapillary", "gis", "computer vision", "street view"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "appdirs>=1.4.4,<2.0.0",
+    "construct>=2.10.0,<3.0.0",
+    "exifread==2.3.2",
+    "gpxpy>=1.5.0,<1.6.0",
+    "jsonschema~=4.17.3",
+    "piexif==1.1.3",
+    "pynmea2>=1.12.0,<2.0.0",
+    "requests[socks]>=2.20.0,<3.0.0",
+    "tqdm>=4.0,<5.0",
+    "typing-extensions>=4.12.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/mapillary/mapillary_tools"
+Repository = "https://github.com/mapillary/mapillary_tools"
+Issues = "https://github.com/mapillary/mapillary_tools/issues"
+
+[project.scripts]
+mapillary_tools = "mapillary_tools.commands.__main__:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "mapillary_tools.VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["mapillary_tools*"]
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "pyinstaller",
+    "pyre-check",
+    "pytest",
+    "ruff",
+    "types-appdirs",
+    "types-requests",
+    "types-tqdm",
+    "types-jsonschema",
+    "usort",
+]
+
+# Mypy configuration
+[tool.mypy]
+# Global mypy settings
+
+[[tool.mypy.overrides]]
+module = [
+    "piexif.*",
+    "pynmea2.*",
+    "gpxpy.*",
+    "exifread.*",
+    "construct.*",
+    "py.*",
+]
+ignore_missing_imports = true
