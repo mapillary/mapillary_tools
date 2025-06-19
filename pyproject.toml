@@ -1,9 +1,32 @@
+# Build system configuration - tells Python packaging tools how to build this package
+# This section is required for modern Python packaging with pyproject.toml
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]  # Tools needed to build the package
+build-backend = "setuptools.build_meta"   # Use setuptools backend that reads pyproject.toml
+
 [project]
-name = "mapillary-tools"
-version = "0.12.1"
+name = "mapillary_tools"
+dynamic = ["version"]
 description = "Mapillary Image/Video Import Pipeline"
 readme = "README.md"
 requires-python = ">=3.8"
+license = {text = "BSD"}
+authors = [
+    {name = "Mapillary"},
+]
+keywords = ["mapillary", "gis", "computer vision", "street view"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "appdirs>=1.4.4,<2.0.0",
     "construct>=2.10.0,<3.0.0",
@@ -13,20 +36,32 @@ dependencies = [
     "piexif==1.1.3",
     "pynmea2>=1.12.0,<2.0.0",
     "requests[socks]>=2.20.0,<3.0.0",
-    "rich-click>=1.8.5",
     "tqdm>=4.0,<5.0",
     "typing-extensions>=4.12.2",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mapillary/mapillary_tools"
+Repository = "https://github.com/mapillary/mapillary_tools"
+Issues = "https://github.com/mapillary/mapillary_tools/issues"
+
+[project.scripts]
+mapillary_tools = "mapillary_tools.commands.__main__:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "mapillary_tools.VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["mapillary_tools*"]
+
 [dependency-groups]
 dev = [
-    "mypy>=1.13.0",
-    "pyinstaller>=6.11.1",
-    "pyre-check>=0.9.23",
-    "pytest>=8.3.4",
-    "ruff>=0.8.3",
-    "shapely>=2.0.7",
-    "types-appdirs>=1.4.3.5",
-    "types-requests>=2.32.0.20241016",
+    "mypy",
+    "pyinstaller",
+    "pyre-check",
+    "pytest",
+    "ruff",
+    "types-appdirs",
+    "types-requests",
     "usort",
 ]
