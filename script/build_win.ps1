@@ -12,8 +12,8 @@ if ($MAXSIZE32 -ceq "True") {
 # build
 mkdir -Force dist
 pyinstaller --version
-pyinstaller --noconfirm --distpath dist\win mapillary_tools.spec
-pyinstaller --noconfirm --distpath dist\win mapillary_tools_folder.spec
+pyinstaller --noconfirm --distpath dist\win pyinstaller\mapillary_tools.spec
+pyinstaller --noconfirm --distpath dist\win pyinstaller\mapillary_tools_folder.spec
 
 # check
 $SOURCE="dist\win\mapillary_tools.exe"
