@@ -54,9 +54,6 @@ version = {attr = "mapillary_tools.VERSION"}
 [tool.setuptools.packages.find]
 include = ["mapillary_tools*"]
 
-[tool.setuptools.package-data]
-"*" = ["schema/*.json"]
-
 [dependency-groups]
 dev = [
     "mypy",
