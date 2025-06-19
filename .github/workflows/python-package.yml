@@ -56,7 +56,7 @@ jobs:
 
       - name: Sort imports with usort
         run: |
-          usort diff mapillary_tools/
+          usort diff mapillary_tools
 
       - name: Type check with mypy
         run: |
