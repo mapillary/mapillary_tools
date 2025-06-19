@@ -1,5 +1,0 @@
-# Ignore generated files
-__pycache__
-/venv/
-/dist/
-/publish/
