@@ -63,5 +63,22 @@ dev = [
     "ruff",
     "types-appdirs",
     "types-requests",
+    "types-tqdm",
+    "types-jsonschema",
     "usort",
 ]
+
+# Mypy configuration
+[tool.mypy]
+# Global mypy settings
+
+[[tool.mypy.overrides]]
+module = [
+    "piexif.*",
+    "pynmea2.*",
+    "gpxpy.*",
+    "exifread.*",
+    "construct.*",
+    "py.*",
+]
+ignore_missing_imports = true
