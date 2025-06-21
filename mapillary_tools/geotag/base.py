@@ -51,7 +51,7 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
             )
         )
 
-        return results + error_metadatas
+        return T.cast(list[types.ImageMetadataOrError], results + error_metadatas)
 
     # This method is passed to multiprocessing
     # so it has to be classmethod or staticmethod to avoid pickling the instance
@@ -117,7 +117,7 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
             )
         )
 
-        return results + error_metadatas
+        return T.cast(list[types.VideoMetadataOrError], results + error_metadatas)
 
     # This method is passed to multiprocessing
     # so it has to be classmethod or staticmethod to avoid pickling the instance

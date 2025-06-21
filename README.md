@@ -28,18 +28,40 @@ mapillary_tools --help
 <!--ts-->
 
 - [Supported File Formats](#supported-file-formats)
+  - [Image Formats](#image-formats)
+  - [Video Formats](#video-formats)
 - [Installation](#installation)
+  - [Standalone Executable](#standalone-executable)
+  - [Installing via pip](#installing-via-pip)
+    - [Installing on Android Devices](#installing-on-android-devices)
 - [Usage](#usage)
   - [Process and Upload](#process-and-upload)
   - [Process](#process)
   - [Upload](#upload)
 - [Advanced Usage](#advanced-usage)
   - [Local Video Processing](#local-video-processing)
+    - [Install FFmpeg](#install-ffmpeg)
+    - [Video Processing](#video-processing)
   - [Geotagging with GPX](#geotagging-with-gpx)
+  - [New video geotagging features (experimental)](#new-video-geotagging-features-experimental)
+    - [Usage](#usage-1)
+    - [Examples](#examples)
+      - [Generic supported videos](#generic-supported-videos)
+      - [External GPX](#external-gpx)
+      - [Insta360 stitched videos](#insta360-stitched-videos)
+    - [Limitations of `--video_geotag_source`](#limitations-of---video_geotag_source)
   - [Authenticate](#authenticate)
+    - [Examples](#examples-1)
   - [Image Description](#image-description)
   - [Zip Images](#zip-images)
 - [Development](#development)
+  - [Setup](#setup)
+    - [Option 1: Using uv (Recommended)](#option-1-using-uv-recommended)
+    - [Option 2: Using pip with virtual environment](#option-2-using-pip-with-virtual-environment)
+  - [Running the code](#running-the-code)
+  - [Tests](#tests)
+  - [Code Quality](#code-quality)
+  - [Release and Build](#release-and-build)
 
 <!--te-->
 
@@ -465,29 +487,49 @@ git clone git@github.com:mapillary/mapillary_tools.git
 cd mapillary_tools
 ```
 
-Set up the virtual environment. It is optional but recommended:
+### Option 1: Using uv (Recommended)
+
+Use [uv](https://docs.astral.sh/uv/) - a fast Python package manager.
+
+Install the project in development mode with all dependencies:
 
 ```sh
-pip install pipenv
+# Install the project and development dependencies
+uv sync --group dev
+
+# Activate the virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-Install dependencies:
+### Option 2: Using pip with virtual environment
+
+Set up a virtual environment (recommended):
 
 ```sh
-pipenv install -r requirements.txt
-pipenv install -r requirements-dev.txt
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-Enter the virtualenv shell:
+Install the project in development mode:
 
 ```sh
-pipenv shell
+# Install the project and all dependencies in editable mode
+pip install -e .
+
+# Install development dependencies
+pip install --group dev
 ```
+
+## Running the code
 
 Run the code from the repository:
 
 ```sh
-python3 -m mapillary_tools.commands --version
+# If you have mapillary_tools installed in editable mode
+mapillary_tools --version
+
+# Alternatively
+python -m mapillary_tools.commands --version
 ```
 
 ## Tests
@@ -495,19 +537,28 @@ python3 -m mapillary_tools.commands --version
 Run tests:
 
 ```sh
-# test all cases
-python3 -m pytest -s -vv tests
-# or test a single case specifically
-python3 -m pytest -s -vv tests/unit/test_camm_parser.py::test_build_and_parse
+# Test all cases
+pytest -s -vv tests
+# Or test a single case specifically
+pytest -s -vv tests/unit/test_camm_parser.py::test_build_and_parse
 ```
 
-Run linting:
+## Code Quality
+
+Run code formatting and linting:
 
 ```sh
-# format code
-black mapillary_tools tests
-# sort imports
+# Format code with ruff
+ruff format mapillary_tools tests
+
+# Lint code with ruff
+ruff check mapillary_tools tests
+
+# Sort imports with usort
 usort format mapillary_tools tests
+
+# Type checking with mypy
+mypy mapillary_tools
 ```
 
 ## Release and Build

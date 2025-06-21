@@ -308,7 +308,7 @@ def _validate_metadatas(
         )
     )
 
-    return validated_metadatas + error_metadatas
+    return T.cast(list[types.MetadataOrError], validated_metadatas + error_metadatas)
 
 
 def process_finalize(

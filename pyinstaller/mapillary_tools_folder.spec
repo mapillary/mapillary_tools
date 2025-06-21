@@ -4,7 +4,7 @@
 block_cipher = None
 
 
-a = Analysis(["./pyinstaller/main.py"],
+a = Analysis(["./main.py"],
              pathex=[SPECPATH],
              binaries=[],
              datas=[],
