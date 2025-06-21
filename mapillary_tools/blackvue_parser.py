@@ -14,7 +14,6 @@ from .mp4 import simple_mp4_parser as sparser
 
 
 LOG = logging.getLogger(__name__)
-# An example: [1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]
 NMEA_LINE_REGEX = re.compile(
     rb"""
     ^\s*
@@ -83,8 +82,12 @@ def extract_camera_model(fp: T.BinaryIO) -> str:
 
 
 def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
-    # examples: b' {"model":"DR900X Plus","ver":0.918,"lang":"English","direct":1,"psn":"","temp":34,"GPS":1}\x00'
-    #           b' Pittasoft Co., Ltd.;DR900S-1CH;1.008;English;1;D90SS1HAE00661;T69;\x00'
+    """
+    >>> _extract_camera_model_from_cprt(b' {"model":"DR900X Plus","ver":0.918,"lang":"English","direct":1,"psn":"","temp":34,"GPS":1}')
+    'DR900X Plus'
+    >>> _extract_camera_model_from_cprt(b' Pittasoft Co., Ltd.;DR900S-1CH;1.008;English;1;D90SS1HAE00661;T69;')
+    'DR900S-1CH'
+    """
     cprt_bytes = cprt_bytes.strip().strip(b"\x00")
 
     try:
@@ -112,12 +115,22 @@ def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
 
 
 def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
+    """
+    >>> list(_parse_gps_box(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"))
+    [Point(time=1623057074211, lat=51.150436666666664, lon=-114.03067833333333, alt=1097.36, angle=None)]
+    >>> list(_parse_gps_box(b"[1629874404069]$GNGGA,175322.00,3244.53126,N,11710.97811,W,1,12,0.84,17.4,M,-34.0,M,,*45"))
+    [Point(time=1629874404069, lat=32.742187666666666, lon=-117.1829685, alt=17.4, angle=None)]
+    >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
+    []
+    """
     for line_bytes in gps_data.splitlines():
         match = NMEA_LINE_REGEX.match(line_bytes)
         if match is None:
             continue
         nmea_line_bytes = match.group(2)
-        if nmea_line_bytes.startswith(b"$GPGGA"):
+        if nmea_line_bytes.startswith(b"$GPGGA") or nmea_line_bytes.startswith(
+            b"$GNGGA"
+        ):
             try:
                 nmea_line = nmea_line_bytes.decode("utf8")
             except UnicodeDecodeError:
