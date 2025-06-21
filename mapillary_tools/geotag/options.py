@@ -140,7 +140,7 @@ SourceOptionSchema = {
             "type": "integer",
         },
         "interpolation_offset_time": {
-            "type": "float",
+            "type": "number",
         },
         "interpolation_use_gpx_start_time": {
             "type": "boolean",

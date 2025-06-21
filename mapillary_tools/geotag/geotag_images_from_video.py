@@ -13,6 +13,7 @@ else:
 from .. import types, utils
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
+from .geotag_videos_from_video import GeotagVideosFromVideo
 
 
 LOG = logging.getLogger(__name__)
@@ -90,3 +91,37 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         assert len(final_image_metadatas) <= len(image_paths)
 
         return final_image_metadatas
+
+
+class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
+    def __init__(
+        self,
+        source_path: Path,
+        filetypes: set[types.FileType] | None = None,
+        offset_time: float = 0.0,
+        num_processes: int | None = None,
+    ):
+        super().__init__(num_processes=num_processes)
+        self.source_path = source_path
+        self.filetypes = filetypes
+        self.offset_time = offset_time
+
+    @override
+    def to_description(
+        self, image_paths: T.Sequence[Path]
+    ) -> list[types.ImageMetadataOrError]:
+        video_paths = utils.find_videos([self.source_path])
+        image_samples_by_video_path = utils.find_all_image_samples(
+            image_paths, video_paths
+        )
+        video_paths_with_image_samples = list(image_samples_by_video_path.keys())
+        video_metadatas = GeotagVideosFromVideo(
+            filetypes=self.filetypes,
+            num_processes=self.num_processes,
+        ).to_description(video_paths_with_image_samples)
+        geotag = GeotagImagesFromVideo(
+            video_metadatas,
+            offset_time=self.offset_time,
+            num_processes=self.num_processes,
+        )
+        return geotag.to_description(image_paths)
