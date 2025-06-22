@@ -9,7 +9,7 @@ import typing as T
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
+from . import constants, description, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
 from .mp4 import mp4_sample_parser
@@ -65,7 +65,9 @@ def sample_video(
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
-            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+            video_start_time_dt = description.map_capture_time_to_datetime(
+                video_start_time
+            )
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
 

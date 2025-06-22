@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from . import (
     api_v4,
+    config,
     constants,
     description,
     exceptions,
@@ -107,7 +108,9 @@ def _load_validate_metadatas_from_desc_path(
 
     # validated_descs should contain no errors
     return [
-        description.from_desc(T.cast(description.Description, desc))
+        description.DescriptionJSONSerializer.from_desc(
+            T.cast(description.Description, desc)
+        )
         for desc in validated_descs
     ]
 
@@ -638,7 +641,7 @@ def _continue_or_fail(ex: Exception) -> Exception:
 
 def upload(
     import_path: Path | T.Sequence[Path],
-    user_items: description.UserItem,
+    user_items: config.UserItem,
     desc_path: str | None = None,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
     dry_run=False,
@@ -648,7 +651,7 @@ def upload(
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
-    jsonschema.validate(instance=user_items, schema=description.UserItemSchema)
+    jsonschema.validate(instance=user_items, schema=config.UserItemSchema)
 
     # Setup the emitter -- the order matters here
 

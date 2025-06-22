@@ -200,10 +200,16 @@ def _write_metadatas(
     desc_path: str,
 ) -> None:
     if desc_path == "-":
-        descs = [description.as_desc(metadata) for metadata in metadatas]
+        descs = [
+            description.DescriptionJSONSerializer.as_desc(metadata)
+            for metadata in metadatas
+        ]
         print(json.dumps(descs, indent=2))
     else:
-        descs = [description.as_desc(metadata) for metadata in metadatas]
+        descs = [
+            description.DescriptionJSONSerializer.as_desc(metadata)
+            for metadata in metadatas
+        ]
         with open(desc_path, "w") as fp:
             json.dump(descs, fp)
         LOG.info("Check the description file for details: %s", desc_path)

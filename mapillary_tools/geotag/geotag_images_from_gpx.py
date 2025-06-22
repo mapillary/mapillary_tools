@@ -11,7 +11,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import exceptions, geo, types
+from .. import description, exceptions, geo, types
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_exif import ImageEXIFExtractor
 
@@ -43,26 +43,38 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
 
         if image_metadata.time < sorted_points[0].time:
             delta = sorted_points[0].time - image_metadata.time
-            gpx_start_time = types.datetime_to_map_capture_time(sorted_points[0].time)
-            gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
+            gpx_start_time = description.datetime_to_map_capture_time(
+                sorted_points[0].time
+            )
+            gpx_end_time = description.datetime_to_map_capture_time(
+                sorted_points[-1].time
+            )
             # with the tolerance of 1ms
             if 0.001 < delta:
                 raise exceptions.MapillaryOutsideGPXTrackError(
                     f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
-                    image_time=types.datetime_to_map_capture_time(image_metadata.time),
+                    image_time=description.datetime_to_map_capture_time(
+                        image_metadata.time
+                    ),
                     gpx_start_time=gpx_start_time,
                     gpx_end_time=gpx_end_time,
                 )
 
         if sorted_points[-1].time < image_metadata.time:
             delta = image_metadata.time - sorted_points[-1].time
-            gpx_start_time = types.datetime_to_map_capture_time(sorted_points[0].time)
-            gpx_end_time = types.datetime_to_map_capture_time(sorted_points[-1].time)
+            gpx_start_time = description.datetime_to_map_capture_time(
+                sorted_points[0].time
+            )
+            gpx_end_time = description.datetime_to_map_capture_time(
+                sorted_points[-1].time
+            )
             # with the tolerance of 1ms
             if 0.001 < delta:
                 raise exceptions.MapillaryOutsideGPXTrackError(
                     f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
-                    image_time=types.datetime_to_map_capture_time(image_metadata.time),
+                    image_time=description.datetime_to_map_capture_time(
+                        image_metadata.time
+                    ),
                     gpx_start_time=gpx_start_time,
                     gpx_end_time=gpx_end_time,
                 )

@@ -57,6 +57,9 @@ def write_history(
         "summary": summary,
     }
     if metadatas is not None:
-        history["descs"] = [description.as_desc(metadata) for metadata in metadatas]
+        history["descs"] = [
+            description.DescriptionJSONSerializer.as_desc(metadata)
+            for metadata in metadatas
+        ]
     with open(path, "w") as fp:
         fp.write(json.dumps(history))

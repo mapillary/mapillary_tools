@@ -1,17 +1,12 @@
 from __future__ import annotations
 
+import abc
 import dataclasses
 import enum
 import hashlib
-import sys
 import typing as T
 import uuid
 from pathlib import Path
-
-if sys.version_info >= (3, 11):
-    from typing import Required
-else:
-    from typing_extensions import Required
 
 from . import geo, utils
 
@@ -95,6 +90,18 @@ ImageMetadataOrError = T.Union[ImageMetadata, ErrorMetadata]
 VideoMetadataOrError = T.Union[VideoMetadata, ErrorMetadata]
 Metadata = T.Union[ImageMetadata, VideoMetadata]
 MetadataOrError = T.Union[Metadata, ErrorMetadata]
+
+
+class BaseSerializer(abc.ABC):
+    @classmethod
+    @abc.abstractmethod
+    def serialize(cls, metadata: MetadataOrError) -> bytes:
+        raise NotImplementedError()
+
+    @classmethod
+    @abc.abstractmethod
+    def deserialize(cls, data: bytes) -> MetadataOrError:
+        raise NotImplementedError()
 
 
 def combine_filetype_filters(

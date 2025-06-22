@@ -106,7 +106,7 @@ def duplication_check(
             dup = types.describe_error_metadata(
                 exceptions.MapillaryDuplicationError(
                     msg,
-                    description.as_desc(cur),
+                    description.DescriptionJSONSerializer.as_desc(cur),
                     distance=distance,
                     angle_diff=angle_diff,
                 ),

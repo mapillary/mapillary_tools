@@ -19,7 +19,16 @@ from pathlib import Path
 
 import requests
 
-from . import api_v4, constants, description, exif_write, types, upload_api_v4, utils
+from . import (
+    api_v4,
+    config,
+    constants,
+    description,
+    exif_write,
+    types,
+    upload_api_v4,
+    utils,
+)
 
 
 LOG = logging.getLogger(__name__)
@@ -255,7 +264,12 @@ class ZipImageSequence:
 
         # The cast is to fix the type checker error
         edit.add_image_description(
-            T.cast(T.Dict, description.desc_file_to_exif(description.as_desc(metadata)))
+            T.cast(
+                T.Dict,
+                description.desc_file_to_exif(
+                    description.DescriptionJSONSerializer.as_desc(metadata)
+                ),
+            )
         )
 
         try:
@@ -463,7 +477,7 @@ class ZipImageSequence:
 class Uploader:
     def __init__(
         self,
-        user_items: description.UserItem,
+        user_items: config.UserItem,
         emitter: EventEmitter | None = None,
         chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
         dry_run=False,
@@ -657,7 +671,9 @@ class Uploader:
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
-        description.validate_image_desc(description.as_desc(metadata))
+        description.validate_image_desc(
+            description.DescriptionJSONSerializer.as_desc(metadata)
+        )
         if not metadata.filename.is_file():
             raise FileNotFoundError(f"No such file {metadata.filename}")
 
