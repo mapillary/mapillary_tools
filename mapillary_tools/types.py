@@ -97,17 +97,31 @@ Metadata = T.Union[ImageMetadata, VideoMetadata]
 MetadataOrError = T.Union[Metadata, ErrorMetadata]
 
 
-# Assume {GOPRO, VIDEO} are the NATIVE_VIDEO_FILETYPES:
-# a             | b               = result
-# {CAMM}        | {GOPRO}         = {}
-# {CAMM}        | {GOPRO, VIDEO}  = {CAMM}
-# {GOPRO}       | {GOPRO, VIDEO}  = {GOPRO}
-# {GOPRO}       | {VIDEO}         = {GOPRO}
-# {CAMM, GOPRO} | {VIDEO}         = {CAMM, GOPRO}
-# {VIDEO}       | {VIDEO}         = {CAMM, GOPRO, VIDEO}
 def combine_filetype_filters(
     a: set[FileType] | None, b: set[FileType] | None
 ) -> set[FileType] | None:
+    """
+    >>> combine_filetype_filters({FileType.CAMM}, {FileType.GOPRO})
+    set()
+
+    >>> combine_filetype_filters({FileType.CAMM}, {FileType.GOPRO, FileType.VIDEO})
+    {<FileType.CAMM: 'camm'>}
+
+    >>> combine_filetype_filters({FileType.GOPRO}, {FileType.GOPRO, FileType.VIDEO})
+    {<FileType.GOPRO: 'gopro'>}
+
+    >>> combine_filetype_filters({FileType.GOPRO}, {FileType.VIDEO})
+    {<FileType.GOPRO: 'gopro'>}
+
+    >>> expected = {FileType.CAMM, FileType.GOPRO}
+    >>> combine_filetype_filters({FileType.CAMM, FileType.GOPRO}, {FileType.VIDEO}) == expected
+    True
+
+    >>> expected = {FileType.CAMM, FileType.GOPRO, FileType.BLACKVUE, FileType.VIDEO}
+    >>> combine_filetype_filters({FileType.VIDEO}, {FileType.VIDEO}) == expected
+    True
+    """
+
     if a is None:
         return b
 
