@@ -2,29 +2,52 @@ from __future__ import annotations
 
 import configparser
 import os
+import sys
 import typing as T
+from typing import TypedDict
 
-from . import api_v4, description
+if sys.version_info >= (3, 11):
+    from typing import Required
+else:
+    from typing_extensions import Required
+
+from . import api_v4
 
 
-_CLIENT_ID = api_v4.MAPILLARY_CLIENT_TOKEN
-# Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
-_CLIENT_ID = _CLIENT_ID.replace("|", "_", 2)
-
-DEFAULT_MAPILLARY_FOLDER = os.path.join(
-    os.path.expanduser("~"),
-    ".config",
-    "mapillary",
-)
-
+DEFAULT_MAPILLARY_FOLDER = os.path.join(os.path.expanduser("~"), ".config", "mapillary")
 MAPILLARY_CONFIG_PATH = os.getenv(
     "MAPILLARY_CONFIG_PATH",
     os.path.join(
         DEFAULT_MAPILLARY_FOLDER,
         "configs",
-        _CLIENT_ID,
+        # Windows is not happy with | so we convert MLY|ID|TOKEN to MLY_ID_TOKEN
+        api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"),
     ),
 )
+
+
+class UserItem(TypedDict, total=False):
+    MAPOrganizationKey: int | str
+    # Username
+    MAPSettingsUsername: str
+    # User ID
+    MAPSettingsUserKey: str
+    # User access token
+    user_upload_token: Required[str]
+
+
+UserItemSchema = {
+    "type": "object",
+    "properties": {
+        "MAPOrganizationKey": {"type": ["integer", "string"]},
+        # Not in use. Keep here for back-compatibility
+        "MAPSettingsUsername": {"type": "string"},
+        "MAPSettingsUserKey": {"type": "string"},
+        "user_upload_token": {"type": "string"},
+    },
+    "required": ["user_upload_token"],
+    "additionalProperties": True,
+}
 
 
 def _load_config(config_path: str) -> configparser.ConfigParser:
@@ -36,19 +59,17 @@ def _load_config(config_path: str) -> configparser.ConfigParser:
     return config
 
 
-def load_user(
-    profile_name: str, config_path: str | None = None
-) -> description.UserItem | None:
+def load_user(profile_name: str, config_path: str | None = None) -> UserItem | None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     config = _load_config(config_path)
     if not config.has_section(profile_name):
         return None
     user_items = dict(config.items(profile_name))
-    return T.cast(description.UserItem, user_items)
+    return T.cast(UserItem, user_items)
 
 
-def list_all_users(config_path: str | None = None) -> dict[str, description.UserItem]:
+def list_all_users(config_path: str | None = None) -> dict[str, UserItem]:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
     cp = _load_config(config_path)
@@ -60,7 +81,7 @@ def list_all_users(config_path: str | None = None) -> dict[str, description.User
 
 
 def update_config(
-    profile_name: str, user_items: description.UserItem, config_path: str | None = None
+    profile_name: str, user_items: UserItem, config_path: str | None = None
 ) -> None:
     if config_path is None:
         config_path = MAPILLARY_CONFIG_PATH
