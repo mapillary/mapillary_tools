@@ -19,15 +19,11 @@ from pathlib import Path
 
 import requests
 
-from . import (
-    api_v4,
-    config,
-    constants,
-    description,
-    exif_write,
-    types,
-    upload_api_v4,
-    utils,
+from . import api_v4, config, constants, exif_write, types, upload_api_v4, utils
+from .serializer.description import (
+    desc_file_to_exif,
+    DescriptionJSONSerializer,
+    validate_image_desc,
 )
 
 
@@ -266,9 +262,7 @@ class ZipImageSequence:
         edit.add_image_description(
             T.cast(
                 T.Dict,
-                description.desc_file_to_exif(
-                    description.DescriptionJSONSerializer.as_desc(metadata)
-                ),
+                desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata)),
             )
         )
 
@@ -671,9 +665,7 @@ class Uploader:
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
-        description.validate_image_desc(
-            description.DescriptionJSONSerializer.as_desc(metadata)
-        )
+        validate_image_desc(DescriptionJSONSerializer.as_desc(metadata))
         if not metadata.filename.is_file():
             raise FileNotFoundError(f"No such file {metadata.filename}")
 

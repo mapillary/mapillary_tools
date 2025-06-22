@@ -9,13 +9,17 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from . import constants, description, exceptions, exif_write, types, utils
+from . import constants, exceptions, exif_write, types, utils
 from .geotag.factory import parse_source_option, process
 from .geotag.options import (
     InterpolationOption,
     SourceOption,
     SourcePathOption,
     SourceType,
+)
+from .serializer.description import (
+    DescriptionJSONSerializer,
+    validate_and_fail_metadata,
 )
 
 LOG = logging.getLogger(__name__)
@@ -200,16 +204,10 @@ def _write_metadatas(
     desc_path: str,
 ) -> None:
     if desc_path == "-":
-        descs = [
-            description.DescriptionJSONSerializer.as_desc(metadata)
-            for metadata in metadatas
-        ]
+        descs = [DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas]
         print(json.dumps(descs, indent=2))
     else:
-        descs = [
-            description.DescriptionJSONSerializer.as_desc(metadata)
-            for metadata in metadatas
-        ]
+        descs = [DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas]
         with open(desc_path, "w") as fp:
             json.dump(descs, fp)
         LOG.info("Check the description file for details: %s", desc_path)
@@ -299,7 +297,7 @@ def _validate_metadatas(
     # See https://stackoverflow.com/a/61432070
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
     map_results = utils.mp_map_maybe(
-        description.validate_and_fail_metadata,
+        validate_and_fail_metadata,
         T.cast(T.Iterable[types.Metadata], good_metadatas),
         num_processes=num_processes,
     )

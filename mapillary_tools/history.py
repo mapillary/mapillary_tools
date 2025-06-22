@@ -6,7 +6,8 @@ import string
 import typing as T
 from pathlib import Path
 
-from . import constants, description, types
+from . import constants, types
+from .serializer.description import DescriptionJSONSerializer
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
@@ -58,8 +59,7 @@ def write_history(
     }
     if metadatas is not None:
         history["descs"] = [
-            description.DescriptionJSONSerializer.as_desc(metadata)
-            for metadata in metadatas
+            DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas
         ]
     with open(path, "w") as fp:
         fp.write(json.dumps(history))

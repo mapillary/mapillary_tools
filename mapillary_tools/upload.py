@@ -17,7 +17,6 @@ from . import (
     api_v4,
     config,
     constants,
-    description,
     exceptions,
     geo,
     history,
@@ -31,6 +30,12 @@ from . import (
 from .camm import camm_builder, camm_parser
 from .gpmf import gpmf_parser
 from .mp4 import simple_mp4_builder
+from .serializer.description import (
+    Description,
+    DescriptionJSONSerializer,
+    DescriptionOrError,
+    validate_and_fail_desc,
+)
 from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
@@ -62,7 +67,7 @@ def _load_validate_metadatas_from_desc_path(
                     "The description path must be specified (with --desc_path) when uploading a single file",
                 )
 
-    descs: list[description.DescriptionOrError] = []
+    descs: list[DescriptionOrError] = []
 
     if desc_path == "-":
         try:
@@ -91,7 +96,7 @@ def _load_validate_metadatas_from_desc_path(
 
     # the descs load from stdin or json file may contain invalid entries
     validated_descs = [
-        description.validate_and_fail_desc(desc)
+        validate_and_fail_desc(desc)
         for desc in descs
         # skip error descriptions
         if "error" not in desc
@@ -108,9 +113,7 @@ def _load_validate_metadatas_from_desc_path(
 
     # validated_descs should contain no errors
     return [
-        description.DescriptionJSONSerializer.from_desc(
-            T.cast(description.Description, desc)
-        )
+        DescriptionJSONSerializer.from_desc(T.cast(Description, desc))
         for desc in validated_descs
     ]
 
