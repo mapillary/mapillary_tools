@@ -1,7 +1,7 @@
 import datetime
 from pathlib import Path
 
-from mapillary_tools import geo, types
+from mapillary_tools import description, geo, types
 
 
 def test_desc():
@@ -39,9 +39,9 @@ def test_desc():
         ),
     ]
     for metadata in metadatas:
-        desc = types.as_desc(metadata)
-        types.validate_image_desc(desc)
-        actual = types.from_desc(desc)
+        desc = description.as_desc(metadata)
+        description.validate_image_desc(desc)
+        actual = description.from_desc(desc)
         assert metadata == actual
 
 
@@ -69,9 +69,9 @@ def test_desc_video():
         ),
     ]
     for metadata in ds:
-        desc = types._as_video_desc(metadata)
-        types.validate_video_desc(desc)
-        actual = types._from_video_desc(desc)
+        desc = description._as_video_desc(metadata)
+        description.validate_video_desc(desc)
+        actual = description._from_video_desc(desc)
         assert metadata == actual
 
 

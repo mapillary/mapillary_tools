@@ -16,6 +16,7 @@ from tqdm import tqdm
 from . import (
     api_v4,
     constants,
+    description,
     exceptions,
     geo,
     history,
@@ -60,7 +61,7 @@ def _load_validate_metadatas_from_desc_path(
                     "The description path must be specified (with --desc_path) when uploading a single file",
                 )
 
-    descs: list[types.DescriptionOrError] = []
+    descs: list[description.DescriptionOrError] = []
 
     if desc_path == "-":
         try:
@@ -89,7 +90,7 @@ def _load_validate_metadatas_from_desc_path(
 
     # the descs load from stdin or json file may contain invalid entries
     validated_descs = [
-        types.validate_and_fail_desc(desc)
+        description.validate_and_fail_desc(desc)
         for desc in descs
         # skip error descriptions
         if "error" not in desc
@@ -106,7 +107,8 @@ def _load_validate_metadatas_from_desc_path(
 
     # validated_descs should contain no errors
     return [
-        types.from_desc(T.cast(types.Description, desc)) for desc in validated_descs
+        description.from_desc(T.cast(description.Description, desc))
+        for desc in validated_descs
     ]
 
 
@@ -636,7 +638,7 @@ def _continue_or_fail(ex: Exception) -> Exception:
 
 def upload(
     import_path: Path | T.Sequence[Path],
-    user_items: types.UserItem,
+    user_items: description.UserItem,
     desc_path: str | None = None,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
     dry_run=False,
@@ -646,7 +648,7 @@ def upload(
 
     metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
 
-    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
+    jsonschema.validate(instance=user_items, schema=description.UserItemSchema)
 
     # Setup the emitter -- the order matters here
 

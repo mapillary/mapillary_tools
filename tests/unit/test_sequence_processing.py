@@ -7,6 +7,7 @@ import pytest
 
 from mapillary_tools import (
     constants,
+    description,
     exceptions,
     geo,
     process_geotag_properties as pgp,
@@ -481,7 +482,7 @@ def test_process_finalize(setup_data):
         #     "filetype": "image",
         # },
     ]
-    assert expected == [types.as_desc(d) for d in actual]
+    assert expected == [description.as_desc(d) for d in actual]
 
 
 def test_cut_by_pixels(tmpdir: py.path.local):

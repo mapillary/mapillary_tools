@@ -5,7 +5,7 @@ import py.path
 
 import pytest
 
-from mapillary_tools import api_v4, types, uploader
+from mapillary_tools import api_v4, description, types, uploader
 
 from ..integration.fixtures import extract_all_uploaded_descs, setup_upload
 
@@ -28,7 +28,7 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
         {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
     )
     test_exif = setup_unittest_data.join("test_exif.jpg")
-    descs: T.List[types.DescriptionOrError] = [
+    descs: T.List[description.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -49,7 +49,7 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
     results = list(
         uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
-            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            [description.from_desc(T.cast(T.Any, desc)) for desc in descs],
         )
     )
     assert len(results) == 1
@@ -64,7 +64,7 @@ def test_upload_images_multiple_sequences(
 ):
     test_exif = setup_unittest_data.join("test_exif.jpg")
     fixed_exif = setup_unittest_data.join("fixed_exif.jpg")
-    descs: T.List[types.DescriptionOrError] = [
+    descs: T.List[description.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -104,7 +104,7 @@ def test_upload_images_multiple_sequences(
     results = list(
         uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
-            [types.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            [description.from_desc(T.cast(T.Any, desc)) for desc in descs],
         )
     )
     assert len(results) == 2
@@ -120,7 +120,7 @@ def test_upload_zip(
     test_exif2 = setup_unittest_data.join("another_directory").join("test_exif.jpg")
     test_exif.copy(test_exif2)
 
-    descs: T.List[types.DescriptionOrError] = [
+    descs: T.List[description.DescriptionOrError] = [
         {
             "MAPLatitude": 58.5927694,
             "MAPLongitude": 16.1840944,
@@ -151,7 +151,7 @@ def test_upload_zip(
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
     uploader.ZipImageSequence.zip_images(
-        [types.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
+        [description.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
     )
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
 

@@ -6,7 +6,7 @@ import math
 import os
 import typing as T
 
-from . import constants, exceptions, geo, types, utils
+from . import constants, description, exceptions, geo, types, utils
 
 LOG = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def duplication_check(
             dup = types.describe_error_metadata(
                 exceptions.MapillaryDuplicationError(
                     msg,
-                    types.as_desc(cur),
+                    description.as_desc(cur),
                     distance=distance,
                     angle_diff=angle_diff,
                 ),
