@@ -76,22 +76,20 @@ def test_desc_video():
 
 
 def test_datetimes():
-    ct = description.datetime_to_map_capture_time(0)
+    ct = description.build_capture_time(0)
     assert ct == "1970_01_01_00_00_00_000"
-    ct = description.datetime_to_map_capture_time(0.123456)
+    ct = description.build_capture_time(0.123456)
     assert ct == "1970_01_01_00_00_00_123"
-    ct = description.datetime_to_map_capture_time(0.000456)
+    ct = description.build_capture_time(0.000456)
     assert ct == "1970_01_01_00_00_00_000"
     dt = description.parse_capture_time(ct)
     assert dt == datetime.datetime(1970, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
     x = datetime.datetime.fromisoformat("2020-01-01T00:00:12.123567+08:00")
-    assert "2019_12_31_16_00_12_123" == description.datetime_to_map_capture_time(x)
+    assert "2019_12_31_16_00_12_123" == description.build_capture_time(x)
     assert (
         abs(
             geo.as_unix_time(
-                description.parse_capture_time(
-                    description.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )
@@ -101,9 +99,7 @@ def test_datetimes():
     assert (
         abs(
             geo.as_unix_time(
-                description.parse_capture_time(
-                    description.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )
@@ -113,9 +109,7 @@ def test_datetimes():
     assert (
         abs(
             geo.as_unix_time(
-                description.parse_capture_time(
-                    description.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )

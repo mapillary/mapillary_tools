@@ -67,9 +67,7 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time(
-        "2021_08_10_14_37_05_023"
-    )
+    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
@@ -85,9 +83,7 @@ def test_sample_single_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time(
-        "2021_08_10_14_37_05_023"
-    )
+    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
