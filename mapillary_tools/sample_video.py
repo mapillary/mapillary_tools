@@ -65,7 +65,7 @@ def sample_video(
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
-            video_start_time_dt = description.map_capture_time_to_datetime(
+            video_start_time_dt = description.parse_capture_time(
                 video_start_time
             )
         except ValueError as ex:
