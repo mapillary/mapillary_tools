@@ -16,22 +16,6 @@ else:
 from . import geo, utils
 
 
-# http://wiki.gis.com/wiki/index.php/Decimal_degrees
-# decimal places	degrees	distance
-# 0	                 1.0	111 km
-# 1	                 0.1	11.1 km
-# 2	                 0.01	1.11 km
-# 3	                 0.001	111 m
-# 4	                 0.0001	11.1 m
-# 5	                 0.00001	1.11 m
-# 6	                 0.000001	0.111 m
-# 7	                 0.0000001	1.11 cm
-# 8	                 0.00000001	1.11 mm
-_COORDINATES_PRECISION = 7
-_ALTITUDE_PRECISION = 3
-_ANGLE_PRECISION = 3
-
-
 class FileType(enum.Enum):
     IMAGE = "image"
     ZIP = "zip"
@@ -53,9 +37,13 @@ NATIVE_VIDEO_FILETYPES = {
 @dataclasses.dataclass
 class ImageMetadata(geo.Point):
     filename: Path
+    # filetype should be always FileType.IMAGE
     md5sum: str | None = None
     width: int | None = None
     height: int | None = None
+    filesize: int | None = None
+
+    # Fields starting with MAP* will be written to the image EXIF
     MAPSequenceUUID: str | None = None
     MAPDeviceMake: str | None = None
     MAPDeviceModel: str | None = None
@@ -64,7 +52,6 @@ class ImageMetadata(geo.Point):
     MAPOrientation: int | None = None
     MAPMetaTags: dict | None = None
     MAPFilename: str | None = None
-    filesize: int | None = None
 
     def update_md5sum(self, image_data: T.BinaryIO | None = None) -> None:
         if self.md5sum is None:
