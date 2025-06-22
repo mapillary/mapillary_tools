@@ -8,7 +8,7 @@ from pathlib import Path
 import py.path
 import pytest
 
-from mapillary_tools import exif_read, ffmpeg, sample_video, types
+from mapillary_tools import description, exif_read, ffmpeg, sample_video
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
@@ -67,7 +67,9 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
+    video_start_time = description.map_capture_time_to_datetime(
+        "2021_08_10_14_37_05_023"
+    )
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
@@ -83,7 +85,9 @@ def test_sample_single_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = types.map_capture_time_to_datetime("2021_08_10_14_37_05_023")
+    video_start_time = description.map_capture_time_to_datetime(
+        "2021_08_10_14_37_05_023"
+    )
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
@@ -92,7 +96,7 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
     video_dir = root.joinpath("videos")
     sample_dir = tmpdir.mkdir("sampled_video_frames")
     video_start_time_str = "2020_08_10_14_37_05_023"
-    video_start_time = types.map_capture_time_to_datetime(video_start_time_str)
+    video_start_time = description.map_capture_time_to_datetime(video_start_time_str)
     sample_video.sample_video(
         video_dir,
         Path(sample_dir),

@@ -482,7 +482,9 @@ def test_process_finalize(setup_data):
         #     "filetype": "image",
         # },
     ]
-    assert expected == [description.as_desc(d) for d in actual]
+    assert expected == [
+        description.DescriptionJSONSerializer.as_desc(d) for d in actual
+    ]
 
 
 def test_cut_by_pixels(tmpdir: py.path.local):

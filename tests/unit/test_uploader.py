@@ -5,7 +5,7 @@ import py.path
 
 import pytest
 
-from mapillary_tools import api_v4, description, types, uploader
+from mapillary_tools import api_v4, description, uploader
 
 from ..integration.fixtures import extract_all_uploaded_descs, setup_upload
 
@@ -49,7 +49,10 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
     results = list(
         uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
-            [description.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            [
+                description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
+                for desc in descs
+            ],
         )
     )
     assert len(results) == 1
@@ -104,7 +107,10 @@ def test_upload_images_multiple_sequences(
     results = list(
         uploader.ZipImageSequence.zip_images_and_upload(
             mly_uploader,
-            [description.from_desc(T.cast(T.Any, desc)) for desc in descs],
+            [
+                description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
+                for desc in descs
+            ],
         )
     )
     assert len(results) == 2
@@ -151,7 +157,11 @@ def test_upload_zip(
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
     uploader.ZipImageSequence.zip_images(
-        [description.from_desc(T.cast(T.Any, desc)) for desc in descs], Path(zip_dir)
+        [
+            description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
+            for desc in descs
+        ],
+        Path(zip_dir),
     )
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
 
