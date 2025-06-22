@@ -5,7 +5,8 @@ import py.path
 
 import pytest
 
-from mapillary_tools import api_v4, description, uploader
+from mapillary_tools import api_v4, uploader
+from mapillary_tools.serializer import description
 
 from ..integration.fixtures import extract_all_uploaded_descs, setup_upload
 

@@ -1,7 +1,8 @@
 import datetime
 from pathlib import Path
 
-from mapillary_tools import description, geo, types
+from mapillary_tools import geo, types
+from mapillary_tools.serializer import description
 
 
 def test_desc():

@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from mapillary_tools import description, exceptions, types
+from mapillary_tools import exceptions, types
+from mapillary_tools.serializer import description
 
 
 def test_all():

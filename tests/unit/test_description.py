@@ -1,12 +1,11 @@
 import json
 
-from mapillary_tools.description import (
+from mapillary_tools.exceptions import MapillaryMetadataValidationError
+from mapillary_tools.serializer.description import (
     ImageVideoDescriptionFileSchema,
     validate_and_fail_desc,
     validate_image_desc,
 )
-
-from mapillary_tools.exceptions import MapillaryMetadataValidationError
 
 
 def test_validate_descs_ok():

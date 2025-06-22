@@ -7,13 +7,13 @@ import pytest
 
 from mapillary_tools import (
     constants,
-    description,
     exceptions,
     geo,
     process_geotag_properties as pgp,
     process_sequence_properties as psp,
     types,
 )
+from mapillary_tools.serializer import description
 
 
 def _make_image_metadata(
