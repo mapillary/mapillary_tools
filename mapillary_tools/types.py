@@ -95,12 +95,12 @@ MetadataOrError = T.Union[Metadata, ErrorMetadata]
 class BaseSerializer(abc.ABC):
     @classmethod
     @abc.abstractmethod
-    def serialize(cls, metadata: MetadataOrError) -> bytes:
+    def serialize(cls, metadatas: T.Sequence[MetadataOrError]) -> bytes:
         raise NotImplementedError()
 
     @classmethod
     @abc.abstractmethod
-    def deserialize(cls, data: bytes) -> MetadataOrError:
+    def deserialize(cls, data: bytes) -> list[MetadataOrError]:
         raise NotImplementedError()
 
 

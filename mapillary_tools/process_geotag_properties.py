@@ -21,6 +21,7 @@ from .serializer.description import (
     DescriptionJSONSerializer,
     validate_and_fail_metadata,
 )
+from .serializer.gpx import GPXSerializer
 
 LOG = logging.getLogger(__name__)
 DEFAULT_GEOTAG_SOURCE_OPTIONS = [
@@ -204,12 +205,16 @@ def _write_metadatas(
     desc_path: str,
 ) -> None:
     if desc_path == "-":
-        descs = [DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas]
-        print(json.dumps(descs, indent=2))
+        descs = DescriptionJSONSerializer.serialize(metadatas)
+        print(descs.decode("utf-8"))
     else:
-        descs = [DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas]
-        with open(desc_path, "w") as fp:
-            json.dump(descs, fp)
+        normalized_suffix = Path(desc_path).suffix.strip().lower()
+        if normalized_suffix in [".gpx"]:
+            descs = GPXSerializer.serialize(metadatas)
+        else:
+            descs = DescriptionJSONSerializer.serialize(metadatas)
+        with open(desc_path, "wb") as fp:
+            fp.write(descs)
         LOG.info("Check the description file for details: %s", desc_path)
 
 

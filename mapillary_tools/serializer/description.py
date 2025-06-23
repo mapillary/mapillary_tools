@@ -305,15 +305,15 @@ ImageVideoDescriptionFileSchema = {
 class DescriptionJSONSerializer(BaseSerializer):
     @override
     @classmethod
-    def serialize(cls, metadata: MetadataOrError) -> bytes:
-        desc = cls.as_desc(metadata)
-        data = json.dumps(desc)
-        return data.encode("utf-8")
+    def serialize(cls, metadatas: T.Sequence[MetadataOrError]) -> bytes:
+        descs = [cls.as_desc(m) for m in metadatas]
+        return json.dumps(descs).encode("utf-8")
 
     @override
     @classmethod
-    def deserialize(cls, data: bytes) -> MetadataOrError:
-        return cls.from_desc(json.loads(data))
+    def deserialize(cls, data: bytes) -> list[MetadataOrError]:
+        descs = json.loads(data)
+        return [cls.from_desc(desc) for desc in descs]
 
     @T.overload
     @classmethod
