@@ -48,6 +48,20 @@ def test_parse_points():
             time=0.0, lat=38.8861575, lon=-76.99239516666667, alt=10.2, angle=None
         ),
         geo.Point(
+            time=0.0,
+            lat=38.8861575,
+            lon=-76.99239516666667,
+            alt=None,
+            angle=None,
+        ),
+        geo.Point(
+            time=0.0,
+            lat=38.88615816666667,
+            lon=-76.992434,
+            alt=None,
+            angle=None,
+        ),
+        geo.Point(
             time=0.968, lat=38.88615816666667, lon=-76.992434, alt=7.7, angle=None
         ),
         geo.Point(
