@@ -17,11 +17,11 @@ LOG = logging.getLogger(__name__)
 NMEA_LINE_REGEX = re.compile(
     rb"""
     ^\s*
-    \[(\d+)\] # timestamp
+    \[(\d+)\] # Timestamp
     \s*
-    (\$\w{5}.*) # nmea line
+    (\$\w{5}.*) # NMEA message
     \s*
-    (\[\d+\])? # strange timestamp
+    (\[\d+\])? # Strange timestamp
     \s*$
     """,
     re.X,
@@ -118,8 +118,16 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
     """
     >>> list(_parse_gps_box(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"))
     [Point(time=1623057074211, lat=51.150436666666664, lon=-114.03067833333333, alt=1097.36, angle=None)]
+
     >>> list(_parse_gps_box(b"[1629874404069]$GNGGA,175322.00,3244.53126,N,11710.97811,W,1,12,0.84,17.4,M,-34.0,M,,*45"))
     [Point(time=1629874404069, lat=32.742187666666666, lon=-117.1829685, alt=17.4, angle=None)]
+
+    >>> list(_parse_gps_box(b"[1629874404069]$GNGLL,4404.14012,N,12118.85993,W,001037.00,A,A*67"))
+    [Point(time=1629874404069, lat=44.069002, lon=-121.31433216666667, alt=None, angle=None)]
+
+    >>> list(_parse_gps_box(b"[1629874404069]$GNRMC,001031.00,A,4404.13993,N,12118.86023,W,0.146,,100117,,,A*7B"))
+    [Point(time=1629874404069, lat=44.06899883333333, lon=-121.31433716666666, alt=None, angle=None)]
+
     >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
     []
     """
@@ -128,24 +136,43 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
         if match is None:
             continue
         nmea_line_bytes = match.group(2)
-        if nmea_line_bytes.startswith(b"$GPGGA") or nmea_line_bytes.startswith(
-            b"$GNGGA"
-        ):
-            try:
-                nmea_line = nmea_line_bytes.decode("utf8")
-            except UnicodeDecodeError:
+
+        if not nmea_line_bytes:
+            continue
+
+        try:
+            nmea_line = nmea_line_bytes.decode("utf8")
+        except UnicodeDecodeError:
+            continue
+
+        if not nmea_line:
+            continue
+
+        try:
+            message = pynmea2.parse(nmea_line)
+        except pynmea2.nmea.ParseError:
+            continue
+
+        epoch_ms = int(match.group(1))
+
+        # https://tavotech.com/gps-nmea-sentence-structure/
+        if message.sentence_type in ["GGA"]:
+            if not message.is_valid:
                 continue
-            try:
-                nmea = pynmea2.parse(nmea_line)
-            except pynmea2.nmea.ParseError:
-                continue
-            if not nmea.is_valid:
-                continue
-            epoch_ms = int(match.group(1))
             yield geo.Point(
                 time=epoch_ms,
-                lat=nmea.latitude,
-                lon=nmea.longitude,
-                alt=nmea.altitude,
+                lat=message.latitude,
+                lon=message.longitude,
+                alt=message.altitude,
+                angle=None,
+            )
+        elif message.sentence_type in ["RMC", "GLL"]:
+            if not message.is_valid:
+                continue
+            yield geo.Point(
+                time=epoch_ms,
+                lat=message.latitude,
+                lon=message.longitude,
+                alt=None,
                 angle=None,
             )
