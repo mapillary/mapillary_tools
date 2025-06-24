@@ -14,7 +14,7 @@ import jsonschema
 import py.path
 import pytest
 
-from mapillary_tools import utils
+from mapillary_tools import upload_api_v4, utils
 
 EXECUTABLE = os.getenv(
     "MAPILLARY_TOOLS__TESTS_EXECUTABLE", "python3 -m mapillary_tools.commands"
@@ -58,7 +58,7 @@ def setup_data(tmpdir: py.path.local):
 @pytest.fixture
 def setup_upload(tmpdir: py.path.local):
     upload_dir = tmpdir.mkdir("mapillary_public_uploads")
-    os.environ["MAPILLARY_UPLOAD_PATH"] = str(upload_dir)
+    os.environ["MAPILLARY_UPLOAD_ENDPOINT"] = str(upload_dir)
     os.environ["MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED"] = "YES"
     os.environ["MAPILLARY_TOOLS_PROMPT_DISABLED"] = "YES"
     os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
@@ -67,7 +67,7 @@ def setup_upload(tmpdir: py.path.local):
     yield upload_dir
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
-    os.environ.pop("MAPILLARY_UPLOAD_PATH", None)
+    os.environ.pop("MAPILLARY_UPLOAD_ENDPOINT", None)
     os.environ.pop("MAPILLARY_UPLOAD_HISTORY_PATH", None)
     os.environ.pop("MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED", None)
     os.environ.pop("MAPILLARY_TOOLS_PROMPT_DISABLED", None)
@@ -239,11 +239,11 @@ def load_descs(descs) -> list:
 
 
 def extract_all_uploaded_descs(upload_folder: Path) -> list[list[dict]]:
-    FILE_HANDLE_DIRNAME = "file_handles"
-
     session_by_file_handle: dict[str, str] = {}
-    if upload_folder.joinpath(FILE_HANDLE_DIRNAME).exists():
-        for session_path in upload_folder.joinpath(FILE_HANDLE_DIRNAME).iterdir():
+    if upload_folder.joinpath(upload_api_v4.FakeUploadService.FILE_HANDLE_DIR).exists():
+        for session_path in upload_folder.joinpath(
+            upload_api_v4.FakeUploadService.FILE_HANDLE_DIR
+        ).iterdir():
             file_handle = session_path.read_text()
             session_by_file_handle[file_handle] = session_path.name
 
@@ -267,7 +267,7 @@ def extract_all_uploaded_descs(upload_folder: Path) -> list[list[dict]]:
             sequences.append(validate_and_extract_zip(file))
         elif file.suffix == ".mp4":
             sequences.append(validate_and_extract_camm(file))
-        elif file.name == FILE_HANDLE_DIRNAME:
+        elif file.name == upload_api_v4.FakeUploadService.FILE_HANDLE_DIR:
             # Already processed above
             pass
 
