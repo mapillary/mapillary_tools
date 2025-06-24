@@ -99,16 +99,16 @@ def test_serialize_image_description_ok():
         {
             "MAPLatitude": 1,
             "MAPLongitude": 2,
-            "MAPCaptureTime": "9020_01_02_11_12_13_1",
+            "MAPCaptureTime": "2020_01_02_11_12_13_1",
             "filename": "foo你好",
             "filetype": "image",
         }
     ]
     metadatas = DescriptionJSONSerializer.deserialize(json.dumps(desc).encode("utf-8"))
     actual = json.loads(DescriptionJSONSerializer.serialize(metadatas))
-    assert len(actual) == 1
+    assert len(actual) == 1, actual
     actual = actual[0]
-    assert "9020_01_02_11_12_13_100" == actual["MAPCaptureTime"]
+    assert "2020_01_02_11_12_13_100" == actual["MAPCaptureTime"]
     assert "foo你好" == Path(actual["filename"]).name
     assert 1 == actual["MAPLatitude"]
     assert 2 == actual["MAPLongitude"]
