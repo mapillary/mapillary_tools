@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import struct
+import sys
 import tempfile
 import threading
 import time
@@ -16,6 +17,11 @@ import uuid
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
+
+if sys.version_info >= (3, 11):
+    from typing import Required
+else:
+    from typing_extensions import Required
 
 import requests
 
@@ -65,20 +71,20 @@ class SequenceProgress(T.TypedDict, total=False):
     """Progress data at sequence level"""
 
     # Used to check if it is uploaded or not
-    sequence_md5sum: str
+    sequence_md5sum: Required[str]
 
     # Used to resume from the previous upload,
     # so it has to an unique identifier (hash) of the upload content
     upload_md5sum: str
 
     # File type
-    file_type: str
+    file_type: Required[str]
 
     # How many sequences in total. It's always 1 when uploading Zipfile/BlackVue/CAMM
-    total_sequence_count: int
+    total_sequence_count: Required[int]
 
     # 0-based nth sequence. It is always 0 when uploading Zipfile/BlackVue/CAMM
-    sequence_idx: int
+    sequence_idx: Required[int]
 
     # How many images in the sequence. It's available only when uploading directories/Zipfiles
     sequence_image_count: int
@@ -291,20 +297,23 @@ class ZipImageSequence:
         with zip_path.open("rb") as zip_fp:
             sequence_md5sum = cls.extract_sequence_md5sum(zip_fp)
 
-        sequence_progress: SequenceProgress = {
+        # Send the copy of the input progress to each upload session, to avoid modifying the original one
+        mutable_progress: SequenceProgress = {
+            **T.cast(SequenceProgress, progress),
             "sequence_image_count": len(namelist),
-            "file_type": types.FileType.ZIP.value,
             "sequence_md5sum": sequence_md5sum,
+            "file_type": types.FileType.ZIP.value,
         }
 
-        # Send the copy of the input progress to each upload session, to avoid modifying the original one
-        mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
         with zip_path.open("rb") as zip_fp:
-            file_handle = uploader.upload_stream(zip_fp, progress=mutable_progress)
+            file_handle = uploader.upload_stream(
+                zip_fp, progress=T.cast(T.Dict[str, T.Any], mutable_progress)
+            )
 
         cluster_id = uploader.finish_upload(
-            file_handle, api_v4.ClusterFileType.ZIP, progress=mutable_progress
+            file_handle,
+            api_v4.ClusterFileType.ZIP,
+            progress=T.cast(T.Dict[str, T.Any], mutable_progress),
         )
 
         return cluster_id
@@ -322,14 +331,6 @@ class ZipImageSequence:
         sequences = types.group_and_sort_images(image_metadatas)
 
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            sequence_progress: SequenceProgress = {
-                "sequence_idx": sequence_idx,
-                "total_sequence_count": len(sequences),
-                "sequence_image_count": len(sequence),
-                "sequence_uuid": sequence_uuid,
-                "file_type": types.FileType.ZIP.value,
-            }
-
             try:
                 _validate_metadatas(sequence)
             except Exception as ex:
@@ -343,7 +344,14 @@ class ZipImageSequence:
                     yield sequence_uuid, UploadResult(error=ex)
                     continue
 
-                sequence_progress["sequence_md5sum"] = sequence_md5sum
+                sequence_progress: SequenceProgress = {
+                    "sequence_idx": sequence_idx,
+                    "total_sequence_count": len(sequences),
+                    "sequence_image_count": len(sequence),
+                    "sequence_uuid": sequence_uuid,
+                    "file_type": types.FileType.ZIP.value,
+                    "sequence_md5sum": sequence_md5sum,
+                }
 
                 mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
 
