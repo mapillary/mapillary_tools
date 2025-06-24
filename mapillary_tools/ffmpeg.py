@@ -169,12 +169,10 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
-            stream_specifier = f"{stream_idx}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
         else:
             stream_selector = []
-            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
-            stream_specifier = "v"
+            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
 
         cmd: list[str] = [
             # global options should be specified first
@@ -186,12 +184,12 @@ class FFMPEG:
             # filter videos
             *["-vf", f"fps=1/{sample_interval}"],
             # video quality level (or the alias -q:v)
-            *[f"-qscale:{stream_specifier}", "2"],
+            *["-qscale:v", "2"],
             # -q:v=1 is the best quality but larger image sizes
             # see https://stackoverflow.com/a/10234065
             # *["-qscale:v", "1", "-qmin", "1"],
             # output
-            ouput_template,
+            output_template,
         ]
 
         self._run_ffmpeg(cmd)
@@ -227,12 +225,10 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
-            stream_specifier = f"{stream_idx}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
         else:
             stream_selector = []
-            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
-            stream_specifier = "v"
+            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
 
         # Write the select filter to a temp file because:
         # The select filter could be large and
@@ -269,8 +265,8 @@ class FFMPEG:
                         # vsync is deprecated by fps_mode,
                         # but fps_mode is not avaliable on some older versions ;(
                         # *[f"-fps_mode:{stream_specifier}", "passthrough"],
-                        # Set the number of video frames to output
-                        *[f"-frames:{stream_specifier}", str(len(frame_indices))],
+                        # Set the number of video frames to output (this is an optimization to let ffmpeg stop early)
+                        *["-frames:v", str(len(frame_indices))],
                         # Disabled because it doesn't always name the sample images as expected
                         # For example "select(n\,1)" we expected the first sample to be IMG_001.JPG
                         # but it could be IMG_005.JPG
@@ -279,12 +275,12 @@ class FFMPEG:
                         # *["-frame_pts", "1"],
                     ],
                     # video quality level (or the alias -q:v)
-                    *[f"-qscale:{stream_specifier}", "2"],
+                    *["-qscale:v", "2"],
                     # -q:v=1 is the best quality but larger image sizes
                     # see https://stackoverflow.com/a/10234065
                     # *["-qscale:v", "1", "-qmin", "1"],
                     # output
-                    ouput_template,
+                    output_template,
                 ]
                 self._run_ffmpeg(cmd)
             finally:
