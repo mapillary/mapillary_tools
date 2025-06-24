@@ -90,62 +90,6 @@ class FFMPEG:
         self.ffprobe_path = ffprobe_path
         self.stderr = stderr
 
-    def _run_ffprobe_json(self, cmd: list[str]) -> dict:
-        full_cmd: list[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
-        LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
-        try:
-            completed = subprocess.run(
-                full_cmd,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=self.stderr,
-            )
-        except FileNotFoundError:
-            raise FFmpegNotFoundError(
-                f'The ffprobe command "{self.ffprobe_path}" not found'
-            )
-        except subprocess.CalledProcessError as ex:
-            raise FFmpegCalledProcessError(ex) from ex
-
-        try:
-            stdout = completed.stdout.decode("utf-8")
-        except UnicodeDecodeError:
-            raise RuntimeError(
-                f"Error decoding ffprobe output as unicode: {_truncate_end(str(completed.stdout))}"
-            )
-
-        try:
-            output = json.loads(stdout)
-        except json.JSONDecodeError:
-            raise RuntimeError(
-                f"Error JSON decoding ffprobe output: {_truncate_end(stdout)}"
-            )
-
-        # This check is for macOS:
-        # ffprobe -hide_banner -print_format json not_exists
-        # you will get exit code == 0 with the following stdout and stderr:
-        # {
-        # }
-        # not_exists: No such file or directory
-        if not output:
-            raise RuntimeError(
-                f"Empty JSON ffprobe output with STDERR: {_truncate_begin(str(completed.stderr))}"
-            )
-
-        return output
-
-    def _run_ffmpeg(self, cmd: list[str]) -> None:
-        full_cmd: list[str] = [self.ffmpeg_path, *cmd]
-        LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
-        try:
-            subprocess.run(full_cmd, check=True, stderr=self.stderr)
-        except FileNotFoundError:
-            raise FFmpegNotFoundError(
-                f'The ffmpeg command "{self.ffmpeg_path}" not found'
-            )
-        except subprocess.CalledProcessError as ex:
-            raise FFmpegCalledProcessError(ex) from ex
-
     def probe_format_and_streams(self, video_path: Path) -> ProbeOutput:
         cmd: list[str] = [
             "-hide_banner",
@@ -313,6 +257,123 @@ class FFMPEG:
                     except FileNotFoundError:
                         pass
 
+    @classmethod
+    def iterate_samples(
+        cls, sample_dir: Path, video_path: Path
+    ) -> T.Generator[tuple[int | None, int, Path], None, None]:
+        """
+        Search all samples in the sample_dir,
+        and return a generator of the tuple: (stream ID, frame index, sample path).
+        The frame index could be 0-based or 1-based depending on how it's sampled.
+        """
+        sample_basename_pattern = re.compile(
+            rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(cls.NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
+        )
+        for sample_path in sample_dir.iterdir():
+            stream_frame_idx = cls._extract_stream_frame_idx(
+                sample_path.name,
+                sample_basename_pattern,
+            )
+            if stream_frame_idx is not None:
+                stream_idx, frame_idx = stream_frame_idx
+                yield (stream_idx, frame_idx, sample_path)
+
+    @classmethod
+    def _extract_stream_frame_idx(
+        cls, sample_basename: str, sample_basename_pattern: T.Pattern[str]
+    ) -> tuple[int | None, int] | None:
+        """
+        extract stream id and frame index from sample basename
+        e.g. basename GX010001_NA_000000.jpg will extract (None, 0)
+        e.g. basename GX010001_1_000002.jpg will extract (1, 2)
+        If returning None, it means the basename does not match the pattern
+        """
+        image_no_ext, ext = os.path.splitext(sample_basename)
+        if ext.lower() != cls.FRAME_EXT.lower():
+            return None
+
+        match = sample_basename_pattern.match(image_no_ext)
+        if not match:
+            return None
+
+        g1 = match.group("stream_idx")
+        try:
+            if g1 == cls.NA_STREAM_IDX:
+                stream_idx = None
+            else:
+                stream_idx = int(g1)
+        except ValueError:
+            return None
+
+        # convert 0-padded numbers to int
+        # e.g. 000000 -> 0
+        # e.g. 000001 -> 1
+        g2 = match.group("frame_idx")
+        g2 = g2.lstrip("0") or "0"
+
+        try:
+            frame_idx = int(g2)
+        except ValueError:
+            return None
+
+        return stream_idx, frame_idx
+
+    def _run_ffprobe_json(self, cmd: list[str]) -> dict:
+        full_cmd: list[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
+        LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
+        try:
+            completed = subprocess.run(
+                full_cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=self.stderr,
+            )
+        except FileNotFoundError:
+            raise FFmpegNotFoundError(
+                f'The ffprobe command "{self.ffprobe_path}" not found'
+            )
+        except subprocess.CalledProcessError as ex:
+            raise FFmpegCalledProcessError(ex) from ex
+
+        try:
+            stdout = completed.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            raise RuntimeError(
+                f"Error decoding ffprobe output as unicode: {_truncate_end(str(completed.stdout))}"
+            )
+
+        try:
+            output = json.loads(stdout)
+        except json.JSONDecodeError:
+            raise RuntimeError(
+                f"Error JSON decoding ffprobe output: {_truncate_end(stdout)}"
+            )
+
+        # This check is for macOS:
+        # ffprobe -hide_banner -print_format json not_exists
+        # you will get exit code == 0 with the following stdout and stderr:
+        # {
+        # }
+        # not_exists: No such file or directory
+        if not output:
+            raise RuntimeError(
+                f"Empty JSON ffprobe output with STDERR: {_truncate_begin(str(completed.stderr))}"
+            )
+
+        return output
+
+    def _run_ffmpeg(self, cmd: list[str]) -> None:
+        full_cmd: list[str] = [self.ffmpeg_path, *cmd]
+        LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
+        try:
+            subprocess.run(full_cmd, check=True, stderr=self.stderr)
+        except FileNotFoundError:
+            raise FFmpegNotFoundError(
+                f'The ffmpeg command "{self.ffmpeg_path}" not found'
+            )
+        except subprocess.CalledProcessError as ex:
+            raise FFmpegCalledProcessError(ex) from ex
+
 
 class Probe:
     probe: ProbeOutput
@@ -385,68 +446,6 @@ def extract_stream_start_time(stream: Stream) -> datetime.datetime | None:
     return creation_time - datetime.timedelta(seconds=duration)
 
 
-def _extract_stream_frame_idx(
-    sample_basename: str,
-    sample_basename_pattern: T.Pattern[str],
-) -> tuple[int | None, int] | None:
-    """
-    extract stream id and frame index from sample basename
-    e.g. basename GX010001_NA_000000.jpg will extract (None, 0)
-    e.g. basename GX010001_1_000002.jpg will extract (1, 2)
-    If returning None, it means the basename does not match the pattern
-    """
-    image_no_ext, ext = os.path.splitext(sample_basename)
-    if ext.lower() != FFMPEG.FRAME_EXT.lower():
-        return None
-
-    match = sample_basename_pattern.match(image_no_ext)
-    if not match:
-        return None
-
-    g1 = match.group("stream_idx")
-    try:
-        if g1 == FFMPEG.NA_STREAM_IDX:
-            stream_idx = None
-        else:
-            stream_idx = int(g1)
-    except ValueError:
-        return None
-
-    # convert 0-padded numbers to int
-    # e.g. 000000 -> 0
-    # e.g. 000001 -> 1
-    g2 = match.group("frame_idx")
-    g2 = g2.lstrip("0") or "0"
-
-    try:
-        frame_idx = int(g2)
-    except ValueError:
-        return None
-
-    return stream_idx, frame_idx
-
-
-def iterate_samples(
-    sample_dir: Path, video_path: Path
-) -> T.Generator[tuple[int | None, int, Path], None, None]:
-    """
-    Search all samples in the sample_dir,
-    and return a generator of the tuple: (stream ID, frame index, sample path).
-    The frame index could be 0-based or 1-based depending on how it's sampled.
-    """
-    sample_basename_pattern = re.compile(
-        rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(FFMPEG.NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
-    )
-    for sample_path in sample_dir.iterdir():
-        stream_frame_idx = _extract_stream_frame_idx(
-            sample_path.name,
-            sample_basename_pattern,
-        )
-        if stream_frame_idx is not None:
-            stream_idx, frame_idx = stream_frame_idx
-            yield (stream_idx, frame_idx, sample_path)
-
-
 def sort_selected_samples(
     sample_dir: Path, video_path: Path, selected_stream_indices: list[int | None]
 ) -> list[tuple[int, list[Path | None]]]:
@@ -455,7 +454,9 @@ def sort_selected_samples(
     the Nth group contains all the frames from the selected streams at frame index N.
     """
     stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
-    for stream_idx, frame_idx, sample_path in iterate_samples(sample_dir, video_path):
+    for stream_idx, frame_idx, sample_path in FFMPEG.iterate_samples(
+        sample_dir, video_path
+    ):
         stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
 
     selected: list[tuple[int, list[Path | None]]] = []
