@@ -31,6 +31,10 @@ UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
 class UploadService:
+    """
+    Upload byte streams to the Upload Service.
+    """
+
     user_access_token: str
     session_key: str
 
@@ -52,18 +56,53 @@ class UploadService:
     def chunkize_byte_stream(
         cls, stream: T.IO[bytes], chunk_size: int
     ) -> T.Generator[bytes, None, None]:
+        """
+        Chunkize a byte stream into chunks of the specified size.
+
+        >>> list(UploadService.chunkize_byte_stream(io.BytesIO(b"foo"), 1))
+        [b'f', b'o', b'o']
+
+        >>> list(UploadService.chunkize_byte_stream(io.BytesIO(b"foo"), 10))
+        [b'foo']
+        """
+
         if chunk_size <= 0:
             raise ValueError("Expect positive chunk size")
+
         while True:
             data = stream.read(chunk_size)
             if not data:
                 break
             yield data
 
+    @classmethod
     def shift_chunks(
-        self, chunks: T.Iterable[bytes], offset: int
+        cls, chunks: T.Iterable[bytes], offset: int
     ) -> T.Generator[bytes, None, None]:
-        assert offset >= 0, f"Expect non-negative offset but got {offset}"
+        """
+        Shift the chunks by the offset.
+
+        >>> list(UploadService.shift_chunks([b"foo", b"bar"], 0))
+        [b'foo', b'bar']
+
+        >>> list(UploadService.shift_chunks([b"foo", b"bar"], 1))
+        [b'oo', b'bar']
+
+        >>> list(UploadService.shift_chunks([b"foo", b"bar"], 3))
+        [b'bar']
+
+        >>> list(UploadService.shift_chunks([b"foo", b"bar"], 6))
+        []
+
+        >>> list(UploadService.shift_chunks([b"foo", b"bar"], 7))
+        []
+
+        >>> list(UploadService.shift_chunks([], 0))
+        []
+        """
+
+        if offset < 0:
+            raise ValueError(f"Expect non-negative offset but got {offset}")
 
         for chunk in chunks:
             if offset:
@@ -99,7 +138,7 @@ class UploadService:
         self, shifted_chunks: T.Iterable[bytes], offset: int
     ) -> str:
         """
-        Upload the chunks that must already be shifted by the offset (e.g. fp.seek(begin_offset, io.SEEK_SET))
+        Upload the chunks that must already be shifted by the offset (e.g. fp.seek(offset, io.SEEK_SET))
         """
 
         headers = {
@@ -125,6 +164,11 @@ class UploadService:
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
+    """
+    A mock upload service that simulates the upload process for testing purposes.
+    It writes the uploaded data to a file in a temporary directory and generates a fake file handle.
+    """
+
     FILE_HANDLE_DIR: str = "file_handles"
 
     def __init__(
