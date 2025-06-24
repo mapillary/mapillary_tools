@@ -13,10 +13,11 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
+import tempfile
+
 import requests
 
 from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
-import tempfile
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"

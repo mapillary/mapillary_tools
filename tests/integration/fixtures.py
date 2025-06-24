@@ -14,7 +14,7 @@ import jsonschema
 import py.path
 import pytest
 
-from mapillary_tools import utils, upload_api_v4
+from mapillary_tools import upload_api_v4, utils
 
 EXECUTABLE = os.getenv(
     "MAPILLARY_TOOLS__TESTS_EXECUTABLE", "python3 -m mapillary_tools.commands"
