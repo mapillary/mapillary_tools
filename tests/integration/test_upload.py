@@ -92,7 +92,7 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
             "filename": str(setup_data.join("not_found")),
             "filetype": "image",
             "MAPLatitude": 1,
-            "MAPLongitude": 1,
+            "MAPLongitude": 181,
             "MAPCaptureTime": "1970_01_01_00_00_02_000",
             "MAPCompassHeading": {"TrueHeading": 17.0, "MagneticHeading": 17.0},
         },
@@ -104,4 +104,4 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
         f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
     )
-    assert x.returncode == 4, x.stderr
+    assert x.returncode == 15, x.stderr

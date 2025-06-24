@@ -100,8 +100,12 @@ class BaseSerializer(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def deserialize(cls, data: bytes) -> list[MetadataOrError]:
+    def deserialize(cls, data: bytes) -> list[Metadata]:
         raise NotImplementedError()
+
+    @classmethod
+    def deserialize_stream(cls, data: T.IO[bytes]) -> list[Metadata]:
+        return cls.deserialize(data.read())
 
 
 def combine_filetype_filters(

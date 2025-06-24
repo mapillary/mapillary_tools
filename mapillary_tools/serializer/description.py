@@ -3,7 +3,6 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import json
-import os
 import sys
 import typing as T
 from pathlib import Path
@@ -28,6 +27,7 @@ from ..types import (
     ErrorMetadata,
     FileType,
     ImageMetadata,
+    Metadata,
     MetadataOrError,
     VideoMetadata,
 )
@@ -311,9 +311,15 @@ class DescriptionJSONSerializer(BaseSerializer):
 
     @override
     @classmethod
-    def deserialize(cls, data: bytes) -> list[MetadataOrError]:
+    def deserialize(cls, data: bytes) -> list[Metadata]:
         descs = json.loads(data)
-        return [cls.from_desc(desc) for desc in descs]
+        return [cls.from_desc(desc) for desc in descs if "error" not in desc]
+
+    @override
+    @classmethod
+    def deserialize_stream(cls, data: T.IO[bytes]) -> list[Metadata]:
+        descs = json.load(data)
+        return [cls.from_desc(desc) for desc in descs if "error" not in desc]
 
     @T.overload
     @classmethod
@@ -394,7 +400,9 @@ class DescriptionJSONSerializer(BaseSerializer):
 
     @classmethod
     def from_desc(cls, desc):
-        assert "error" not in desc
+        if "error" in desc:
+            raise ValueError("Cannot deserialize error description")
+
         if desc["filetype"] == FileType.IMAGE.value:
             return cls._from_image_desc(desc)
         else:
@@ -402,6 +410,8 @@ class DescriptionJSONSerializer(BaseSerializer):
 
     @classmethod
     def _from_image_desc(cls, desc) -> ImageMetadata:
+        validate_image_desc(desc)
+
         kwargs: dict = {}
         for k, v in desc.items():
             if k not in [
@@ -449,6 +459,8 @@ class DescriptionJSONSerializer(BaseSerializer):
 
     @classmethod
     def _from_video_desc(cls, desc: VideoDescription) -> VideoMetadata:
+        validate_video_desc(desc)
+
         return VideoMetadata(
             filename=Path(desc["filename"]),
             md5sum=desc.get("md5sum"),
@@ -483,6 +495,7 @@ def validate_image_desc(desc: T.Any) -> None:
     except jsonschema.ValidationError as ex:
         # do not use str(ex) which is more verbose
         raise exceptions.MapillaryMetadataValidationError(ex.message) from ex
+
     try:
         parse_capture_time(desc["MAPCaptureTime"])
     except ValueError as ex:
@@ -497,36 +510,6 @@ def validate_video_desc(desc: T.Any) -> None:
         raise exceptions.MapillaryMetadataValidationError(ex.message) from ex
 
 
-def validate_and_fail_desc(desc: DescriptionOrError) -> DescriptionOrError:
-    if "error" in desc:
-        return desc
-
-    filetype = desc.get("filetype")
-    try:
-        if filetype == FileType.IMAGE.value:
-            validate_image_desc(desc)
-        else:
-            validate_video_desc(desc)
-    except exceptions.MapillaryMetadataValidationError as ex:
-        return _describe_error_desc(
-            ex,
-            Path(desc["filename"]),
-            filetype=FileType(filetype) if filetype else None,
-        )
-
-    if not os.path.isfile(desc["filename"]):
-        return _describe_error_desc(
-            exceptions.MapillaryMetadataValidationError(
-                f"No such file {desc['filename']}"
-            ),
-            Path(desc["filename"]),
-            filetype=FileType(filetype) if filetype else None,
-        )
-
-    return desc
-
-
-# Same as validate_and_fail_desc but for the metadata dataclass
 def validate_and_fail_metadata(metadata: MetadataOrError) -> MetadataOrError:
     if isinstance(metadata, ErrorMetadata):
         return metadata
@@ -561,9 +544,7 @@ def validate_and_fail_metadata(metadata: MetadataOrError) -> MetadataOrError:
     return metadata
 
 
-def desc_file_to_exif(
-    desc: ImageDescription,
-) -> ImageDescription:
+def desc_file_to_exif(desc: ImageDescription) -> ImageDescription:
     not_needed = ["MAPSequenceUUID"]
     removed = {
         key: value
