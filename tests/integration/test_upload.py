@@ -111,6 +111,12 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
 def test_upload_read_descs_from_stdin(
     setup_data: py.path.local, setup_upload: py.path.local
 ):
+    subprocess.run(
+        f"{EXECUTABLE} process {PROCESS_FLAGS} --file_types=image {setup_data}",
+        shell=True,
+        check=True,
+    )
+
     descs = [
         {
             "filename": "foo.jpg",
