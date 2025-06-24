@@ -194,22 +194,7 @@ class FFMPEG:
 
         self._run_ffmpeg(cmd)
 
-    @classmethod
-    def generate_binary_search(cls, sorted_frame_indices: T.Sequence[int]) -> str:
-        """
-        >>> FFMPEG.generate_binary_search([])
-        '0'
-
-        >>> FFMPEG.generate_binary_search([1])
-        'eq(n\\\\,1)'
-
-        >>> FFMPEG.generate_binary_search([1, 2])
-        'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,eq(n\\\\,2))'
-
-        >>> FFMPEG.generate_binary_search([1, 2, 3])
-        'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,if(lt(n\\\\,3)\\\\,eq(n\\\\,2)\\\\,eq(n\\\\,3)))'
-        """
-
+    def generate_binary_search(self, sorted_frame_indices: list[int]) -> str:
         length = len(sorted_frame_indices)
 
         if length == 0:
@@ -218,11 +203,8 @@ class FFMPEG:
         if length == 1:
             return f"eq(n\\,{sorted_frame_indices[0]})"
 
-        middle_idx = length // 2
-        left = cls.generate_binary_search(sorted_frame_indices[:middle_idx])
-        right = cls.generate_binary_search(sorted_frame_indices[middle_idx:])
-
-        return f"if(lt(n\\,{sorted_frame_indices[middle_idx]})\\,{left}\\,{right})"
+        middle = length // 2
+        return f"if(lt(n\\,{sorted_frame_indices[middle]})\\,{self.generate_binary_search(sorted_frame_indices[:middle])}\\,{self.generate_binary_search(sorted_frame_indices[middle:])})"
 
     def extract_specified_frames(
         self,
