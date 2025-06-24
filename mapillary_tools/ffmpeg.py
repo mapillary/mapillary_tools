@@ -265,7 +265,7 @@ class FFMPEG:
                         # vsync is deprecated by fps_mode,
                         # but fps_mode is not avaliable on some older versions ;(
                         # *[f"-fps_mode:{stream_specifier}", "passthrough"],
-                        # Set the number of video frames to output
+                        # Set the number of video frames to output (this is an optimization to let ffmpeg stop early)
                         *["-frames:v", str(len(frame_indices))],
                         # Disabled because it doesn't always name the sample images as expected
                         # For example "select(n\,1)" we expected the first sample to be IMG_001.JPG
