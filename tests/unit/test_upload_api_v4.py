@@ -11,6 +11,7 @@ def test_upload(tmpdir: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR.txt",
         upload_path=Path(tmpdir),
+        transient_error_ratio=0.02,
     )
     upload_service._transient_error_ratio = 0
     content = b"double_foobar"
@@ -28,6 +29,7 @@ def test_upload_big_chunksize(tmpdir: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR.txt",
         upload_path=Path(tmpdir),
+        transient_error_ratio=0.02,
     )
     upload_service._transient_error_ratio = 0
     content = b"double_foobar"
@@ -45,6 +47,7 @@ def test_upload_chunks(tmpdir: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR2.txt",
         upload_path=Path(tmpdir),
+        transient_error_ratio=0.02,
     )
     upload_service._transient_error_ratio = 0
 
