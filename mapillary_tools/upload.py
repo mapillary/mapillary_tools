@@ -617,14 +617,15 @@ def _continue_or_fail(ex: Exception) -> Exception:
 
 
 def _gen_upload_zipfiles(
-    mly_uploader: uploader.Uploader,
-    zip_paths: T.Sequence[Path],
+    mly_uploader: uploader.Uploader, zip_paths: T.Sequence[Path]
 ) -> T.Generator[tuple[Path, uploader.UploadResult], None, None]:
     for idx, zip_path in enumerate(zip_paths):
         progress: uploader.SequenceProgress = {
             "total_sequence_count": len(zip_paths),
             "sequence_idx": idx,
             "import_path": str(zip_path),
+            "file_type": types.FileType.ZIP.value,
+            "sequence_md5sum": "",  # Placeholder, will be set in upload_zipfile
         }
         try:
             cluster_id = uploader.ZipImageSequence.upload_zipfile(
