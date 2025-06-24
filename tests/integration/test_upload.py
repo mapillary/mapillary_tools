@@ -92,7 +92,7 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
             "filename": str(setup_data.join("not_found")),
             "filetype": "image",
             "MAPLatitude": 1,
-            "MAPLongitude": 1,
+            "MAPLongitude": 181,
             "MAPCaptureTime": "1970_01_01_00_00_02_000",
             "MAPCompassHeading": {"TrueHeading": 17.0, "MagneticHeading": 17.0},
         },
@@ -104,4 +104,44 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
         f"{EXECUTABLE} upload {UPLOAD_FLAGS} --desc_path={desc_path} {setup_data} {setup_data} {setup_data}/images/DSC00001.JPG",
         shell=True,
     )
-    assert x.returncode == 4, x.stderr
+    assert x.returncode == 15, x.stderr
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_upload_read_descs_from_stdin(
+    setup_data: py.path.local, setup_upload: py.path.local
+):
+    subprocess.run(
+        f"{EXECUTABLE} process {PROCESS_FLAGS} --file_types=image {setup_data}",
+        shell=True,
+        check=True,
+    )
+
+    descs = [
+        {
+            "filename": "foo.jpg",
+            "filetype": "image",
+            "MAPLatitude": 1.0,
+            "MAPLongitude": 2.0,
+            "MAPCaptureTime": "2020_01_02_11_12_13_123456",
+        },
+    ]
+    descs_json = json.dumps(descs)
+
+    process = subprocess.Popen(
+        f"{EXECUTABLE} process_and_upload {UPLOAD_FLAGS} --file_types=image {setup_data}",
+        stdin=subprocess.PIPE,
+        text=True,
+        shell=True,
+    )
+
+    stdout, stderr = process.communicate(input=descs_json)
+    assert process.returncode == 0, stderr
+
+    uploaded_descs: list[dict] = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert len(uploaded_descs) > 0, "No images were uploaded"
+
+    assert_contains_image_descs(
+        Path(setup_data.join("mapillary_image_description.json")),
+        uploaded_descs,
+    )

@@ -13,6 +13,7 @@ from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
 from .mp4 import mp4_sample_parser
+from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def sample_video(
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
-            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+            video_start_time_dt = parse_capture_time(video_start_time)
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from tqdm import tqdm
 
 from . import (
     api_v4,
+    config,
     constants,
     exceptions,
     geo,
@@ -29,6 +31,7 @@ from . import (
 from .camm import camm_builder, camm_parser
 from .gpmf import gpmf_parser
 from .mp4 import simple_mp4_builder
+from .serializer.description import DescriptionJSONSerializer
 from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
@@ -40,87 +43,94 @@ class UploadedAlreadyError(uploader.SequenceError):
     pass
 
 
-def _load_validate_metadatas_from_desc_path(
-    desc_path: str | None, import_paths: T.Sequence[Path]
-) -> list[types.Metadata]:
-    is_default_desc_path = False
-    if desc_path is None:
-        is_default_desc_path = True
-        if len(import_paths) == 1 and import_paths[0].is_dir():
-            desc_path = str(
-                import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME)
-            )
-        else:
-            if 1 < len(import_paths):
-                raise exceptions.MapillaryBadParameterError(
-                    "The description path must be specified (with --desc_path) when uploading multiple paths",
-                )
-            else:
-                raise exceptions.MapillaryBadParameterError(
-                    "The description path must be specified (with --desc_path) when uploading a single file",
-                )
-
-    descs: list[types.DescriptionOrError] = []
-
-    if desc_path == "-":
-        try:
-            descs = json.load(sys.stdin)
-        except json.JSONDecodeError as ex:
-            raise exceptions.MapillaryInvalidDescriptionFile(
-                f"Invalid JSON stream from stdin: {ex}"
-            ) from ex
-    else:
-        if not os.path.isfile(desc_path):
-            if is_default_desc_path:
-                raise exceptions.MapillaryFileNotFoundError(
-                    f"Description file {desc_path} not found. Has the directory been processed yet?"
-                )
-            else:
-                raise exceptions.MapillaryFileNotFoundError(
-                    f"Description file {desc_path} not found"
-                )
-        with open(desc_path) as fp:
-            try:
-                descs = json.load(fp)
-            except json.JSONDecodeError as ex:
-                raise exceptions.MapillaryInvalidDescriptionFile(
-                    f"Invalid JSON file {desc_path}: {ex}"
-                ) from ex
-
-    # the descs load from stdin or json file may contain invalid entries
-    validated_descs = [
-        types.validate_and_fail_desc(desc)
-        for desc in descs
-        # skip error descriptions
-        if "error" not in desc
-    ]
-
-    # throw if we found any invalid descs
-    invalid_descs = [desc for desc in validated_descs if "error" in desc]
-    if invalid_descs:
-        for desc in invalid_descs:
-            LOG.error("Invalid description entry: %s", json.dumps(desc))
-        raise exceptions.MapillaryInvalidDescriptionFile(
-            f"Found {len(invalid_descs)} invalid descriptions"
-        )
-
-    # validated_descs should contain no errors
-    return [
-        types.from_desc(T.cast(types.Description, desc)) for desc in validated_descs
-    ]
-
-
-def zip_images(
-    import_path: Path,
-    zip_dir: Path,
+def upload(
+    import_path: Path | T.Sequence[Path],
+    user_items: config.UserItem,
     desc_path: str | None = None,
-):
+    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
+    dry_run=False,
+    skip_subfolders=False,
+) -> None:
+    import_paths = _normalize_import_paths(import_path)
+
+    metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
+
+    jsonschema.validate(instance=user_items, schema=config.UserItemSchema)
+
+    # Setup the emitter -- the order matters here
+
+    emitter = uploader.EventEmitter()
+
+    # When dry_run mode is on, we disable history by default.
+    # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
+    # and when it is on, we enable history regardless of dry_run
+    enable_history = constants.MAPILLARY_UPLOAD_HISTORY_PATH and (
+        not dry_run or constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
+    )
+
+    # Put it first one to check duplications first
+    if enable_history:
+        upload_run_params: JSONDict = {
+            # Null if multiple paths provided
+            "import_path": str(import_path) if isinstance(import_path, Path) else None,
+            "organization_key": user_items.get("MAPOrganizationKey"),
+            "user_key": user_items.get("MAPSettingsUserKey"),
+            "version": VERSION,
+            "run_at": time.time(),
+        }
+        _setup_history(emitter, upload_run_params, metadatas)
+
+    # Set up tdqm
+    _setup_tdqm(emitter)
+
+    # Now stats is empty but it will collect during ALL uploads
+    stats = _setup_api_stats(emitter)
+
+    # Send the progress via IPC, and log the progress in debug mode
+    _setup_ipc(emitter)
+
+    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
+
+    results = _gen_upload_everything(
+        mly_uploader, metadatas, import_paths, skip_subfolders
+    )
+
+    upload_successes = 0
+    upload_errors: list[Exception] = []
+
+    # The real upload happens sequentially here
+    try:
+        for _, result in results:
+            if result.error is not None:
+                upload_errors.append(_continue_or_fail(result.error))
+            else:
+                upload_successes += 1
+
+    except Exception as ex:
+        # Fatal error: log and raise
+        if not dry_run:
+            _api_logging_failed(_summarize(stats), ex)
+        raise ex
+
+    else:
+        if not dry_run:
+            _api_logging_finished(_summarize(stats))
+
+    finally:
+        # We collected stats after every upload is finished
+        assert upload_successes == len(stats), (
+            f"Expect {upload_successes} success but got {stats}"
+        )
+        _show_upload_summary(stats, upload_errors)
+
+
+def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
     if not import_path.is_dir():
         raise exceptions.MapillaryFileNotFoundError(
             f"Import directory not found: {import_path}"
         )
 
-    metadatas = _load_validate_metadatas_from_desc_path(desc_path, [import_path])
+    metadatas = _load_valid_metadatas_from_desc_path([import_path], desc_path)
 
     if not metadatas:
         LOG.warning("No images or videos found in %s", desc_path)
@@ -422,34 +432,6 @@ def _api_logging_failed(payload: dict, exc: Exception):
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _load_descs(
-    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None,
-    desc_path: str | None,
-    import_paths: T.Sequence[Path],
-) -> list[types.Metadata]:
-    metadatas: list[types.Metadata]
-
-    if _metadatas_from_process is not None:
-        metadatas, _ = types.separate_errors(_metadatas_from_process)
-    else:
-        metadatas = _load_validate_metadatas_from_desc_path(desc_path, import_paths)
-
-    # Make sure all metadatas have sequence uuid assigned
-    # It is used to find the right sequence when writing upload history
-    missing_sequence_uuid = str(uuid.uuid4())
-    for metadata in metadatas:
-        if isinstance(metadata, types.ImageMetadata):
-            if metadata.MAPSequenceUUID is None:
-                metadata.MAPSequenceUUID = missing_sequence_uuid
-
-    for metadata in metadatas:
-        assert isinstance(metadata, (types.ImageMetadata, types.VideoMetadata))
-        if isinstance(metadata, types.ImageMetadata):
-            assert metadata.MAPSequenceUUID is not None
-
-    return metadatas
-
-
 _M = T.TypeVar("_M", bound=types.Metadata)
 
 
@@ -634,87 +616,6 @@ def _continue_or_fail(ex: Exception) -> Exception:
     raise ex
 
 
-def upload(
-    import_path: Path | T.Sequence[Path],
-    user_items: types.UserItem,
-    desc_path: str | None = None,
-    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
-    dry_run=False,
-    skip_subfolders=False,
-) -> None:
-    import_paths = _normalize_import_paths(import_path)
-
-    metadatas = _load_descs(_metadatas_from_process, desc_path, import_paths)
-
-    jsonschema.validate(instance=user_items, schema=types.UserItemSchema)
-
-    # Setup the emitter -- the order matters here
-
-    emitter = uploader.EventEmitter()
-
-    # When dry_run mode is on, we disable history by default.
-    # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
-    # and when it is on, we enable history regardless of dry_run
-    enable_history = constants.MAPILLARY_UPLOAD_HISTORY_PATH and (
-        not dry_run or constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
-    )
-
-    # Put it first one to check duplications first
-    if enable_history:
-        upload_run_params: JSONDict = {
-            # Null if multiple paths provided
-            "import_path": str(import_path) if isinstance(import_path, Path) else None,
-            "organization_key": user_items.get("MAPOrganizationKey"),
-            "user_key": user_items.get("MAPSettingsUserKey"),
-            "version": VERSION,
-            "run_at": time.time(),
-        }
-        _setup_history(emitter, upload_run_params, metadatas)
-
-    # Set up tdqm
-    _setup_tdqm(emitter)
-
-    # Now stats is empty but it will collect during ALL uploads
-    stats = _setup_api_stats(emitter)
-
-    # Send the progress via IPC, and log the progress in debug mode
-    _setup_ipc(emitter)
-
-    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
-
-    results = _gen_upload_everything(
-        mly_uploader, metadatas, import_paths, skip_subfolders
-    )
-
-    upload_successes = 0
-    upload_errors: list[Exception] = []
-
-    # The real upload happens sequentially here
-    try:
-        for _, result in results:
-            if result.error is not None:
-                upload_errors.append(_continue_or_fail(result.error))
-            else:
-                upload_successes += 1
-
-    except Exception as ex:
-        # Fatal error: log and raise
-        if not dry_run:
-            _api_logging_failed(_summarize(stats), ex)
-        raise ex
-
-    else:
-        if not dry_run:
-            _api_logging_finished(_summarize(stats))
-
-    finally:
-        # We collected stats after every upload is finished
-        assert upload_successes == len(stats), (
-            f"Expect {upload_successes} success but got {stats}"
-        )
-        _show_upload_summary(stats, upload_errors)
-
-
 def _gen_upload_zipfiles(
     mly_uploader: uploader.Uploader,
     zip_paths: T.Sequence[Path],
@@ -733,3 +634,66 @@ def _gen_upload_zipfiles(
             yield zip_path, uploader.UploadResult(error=ex)
         else:
             yield zip_path, uploader.UploadResult(result=cluster_id)
+
+
+def _load_descs(
+    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None,
+    import_paths: T.Sequence[Path],
+    desc_path: str | None,
+) -> list[types.Metadata]:
+    metadatas: list[types.Metadata]
+
+    if _metadatas_from_process is not None:
+        metadatas, _ = types.separate_errors(_metadatas_from_process)
+    else:
+        metadatas = _load_valid_metadatas_from_desc_path(import_paths, desc_path)
+
+    # Make sure all metadatas have sequence uuid assigned
+    # It is used to find the right sequence when writing upload history
+    missing_sequence_uuid = str(uuid.uuid4())
+    for metadata in metadatas:
+        if isinstance(metadata, types.ImageMetadata):
+            if metadata.MAPSequenceUUID is None:
+                metadata.MAPSequenceUUID = missing_sequence_uuid
+
+    for metadata in metadatas:
+        assert isinstance(metadata, (types.ImageMetadata, types.VideoMetadata))
+        if isinstance(metadata, types.ImageMetadata):
+            assert metadata.MAPSequenceUUID is not None
+
+    return metadatas
+
+
+def _load_valid_metadatas_from_desc_path(
+    import_paths: T.Sequence[Path], desc_path: str | None
+) -> list[types.Metadata]:
+    if desc_path is None:
+        desc_path = _find_desc_path(import_paths)
+
+    with (
+        contextlib.nullcontext(sys.stdin.buffer)
+        if desc_path == "-"
+        else open(desc_path, "rb")
+    ) as fp:
+        try:
+            metadatas = DescriptionJSONSerializer.deserialize_stream(fp)
+        except json.JSONDecodeError as ex:
+            raise exceptions.MapillaryInvalidDescriptionFile(
+                f"Invalid JSON stream from {desc_path}: {ex}"
+            ) from ex
+
+    return metadatas
+
+
+def _find_desc_path(import_paths: T.Sequence[Path]) -> str:
+    if len(import_paths) == 1 and import_paths[0].is_dir():
+        return str(import_paths[0].joinpath(constants.IMAGE_DESCRIPTION_FILENAME))
+
+    if 1 < len(import_paths):
+        raise exceptions.MapillaryBadParameterError(
+            "The description path must be specified (with --desc_path) when uploading multiple paths",
+        )
+    else:
+        raise exceptions.MapillaryBadParameterError(
+            "The description path must be specified (with --desc_path) when uploading a single file",
+        )
