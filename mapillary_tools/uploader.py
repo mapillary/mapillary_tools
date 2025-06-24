@@ -528,9 +528,15 @@ class Uploader:
         upload_service: upload_api_v4.UploadService
 
         if self.dry_run:
+            upload_path = os.getenv("MAPILLARY_UPLOAD_ENDPOINT")
             upload_service = upload_api_v4.FakeUploadService(
                 user_access_token=self.user_items["user_upload_token"],
                 session_key=session_key,
+                upload_path=Path(upload_path) if upload_path is not None else None,
+            )
+            LOG.info(
+                "Dry run mode enabled. Data will be uploaded to %s",
+                upload_service.upload_path.joinpath(session_key),
             )
         else:
             upload_service = upload_api_v4.UploadService(

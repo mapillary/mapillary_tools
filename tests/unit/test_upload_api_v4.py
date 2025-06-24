@@ -12,7 +12,7 @@ def test_upload(setup_upload: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR.txt",
     )
-    upload_service._error_ratio = 0
+    upload_service._transient_error_ratio = 0
     content = b"double_foobar"
     cluster_id = upload_service.upload_byte_stream(io.BytesIO(content), chunk_size=1)
     assert isinstance(cluster_id, str), cluster_id
@@ -28,7 +28,7 @@ def test_upload_big_chunksize(setup_upload: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR.txt",
     )
-    upload_service._error_ratio = 0
+    upload_service._transient_error_ratio = 0
     content = b"double_foobar"
     cluster_id = upload_service.upload_byte_stream(io.BytesIO(content), chunk_size=1000)
     assert isinstance(cluster_id, str), cluster_id
@@ -44,7 +44,7 @@ def test_upload_chunks(setup_upload: py.path.local):
         user_access_token="TEST",
         session_key="FOOBAR2.txt",
     )
-    upload_service._error_ratio = 0
+    upload_service._transient_error_ratio = 0
 
     def _gen_chunks():
         yield b"foo"

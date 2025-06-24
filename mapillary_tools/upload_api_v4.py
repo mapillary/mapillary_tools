@@ -16,6 +16,7 @@ else:
 import requests
 
 from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
+import tempfile
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
@@ -33,11 +34,7 @@ class UploadService:
     user_access_token: str
     session_key: str
 
-    def __init__(
-        self,
-        user_access_token: str,
-        session_key: str,
-    ):
+    def __init__(self, user_access_token: str, session_key: str):
         self.user_access_token = user_access_token
         self.session_key = session_key
 
@@ -46,11 +43,7 @@ class UploadService:
             "Authorization": f"OAuth {self.user_access_token}",
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        resp = request_get(
-            url,
-            headers=headers,
-            timeout=REQUESTS_TIMEOUT,
-        )
+        resp = request_get(url, headers=headers, timeout=REQUESTS_TIMEOUT)
         resp.raise_for_status()
         data = resp.json()
         return data["offset"]
@@ -103,9 +96,7 @@ class UploadService:
         return self.upload_shifted_chunks(shifted_chunks, offset)
 
     def upload_shifted_chunks(
-        self,
-        shifted_chunks: T.Iterable[bytes],
-        offset: int,
+        self, shifted_chunks: T.Iterable[bytes], offset: int
     ) -> str:
         """
         Upload the chunks that must already be shifted by the offset (e.g. fp.seek(begin_offset, io.SEEK_SET))
@@ -118,10 +109,7 @@ class UploadService:
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         resp = request_post(
-            url,
-            headers=headers,
-            data=shifted_chunks,
-            timeout=UPLOAD_REQUESTS_TIMEOUT,
+            url, headers=headers, data=shifted_chunks, timeout=UPLOAD_REQUESTS_TIMEOUT
         )
 
         resp.raise_for_status()
@@ -137,18 +125,30 @@ class UploadService:
 
 # A mock class for testing only
 class FakeUploadService(UploadService):
-    def __init__(self, *args, **kwargs):
+    FILE_HANDLE_DIR: str = "file_handles"
+
+    def __init__(
+        self,
+        upload_path: Path | None = None,
+        transient_error_ratio: float = 0.0,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self._upload_path = Path(
-            os.getenv("MAPILLARY_UPLOAD_PATH", "mapillary_public_uploads")
-        )
-        self._error_ratio = 0.02
+        if upload_path is None:
+            upload_path = Path(tempfile.gettempdir()).joinpath(
+                "mapillary_public_uploads"
+            )
+        self._upload_path = upload_path
+        self._transient_error_ratio = transient_error_ratio
+
+    @property
+    def upload_path(self) -> Path:
+        return self._upload_path
 
     @override
     def upload_shifted_chunks(
-        self,
-        shifted_chunks: T.Iterable[bytes],
-        offset: int,
+        self, shifted_chunks: T.Iterable[bytes], offset: int
     ) -> str:
         expected_offset = self.fetch_offset()
         if offset != expected_offset:
@@ -160,17 +160,17 @@ class FakeUploadService(UploadService):
         filename = self._upload_path.joinpath(self.session_key)
         with filename.open("ab") as fp:
             for chunk in shifted_chunks:
-                if random.random() <= self._error_ratio:
+                if random.random() <= self._transient_error_ratio:
                     raise requests.ConnectionError(
-                        f"TEST ONLY: Failed to upload with error ratio {self._error_ratio}"
+                        f"TEST ONLY: Failed to upload with error ratio {self._transient_error_ratio}"
                     )
                 fp.write(chunk)
-                if random.random() <= self._error_ratio:
+                if random.random() <= self._transient_error_ratio:
                     raise requests.ConnectionError(
-                        f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
+                        f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
                     )
 
-        file_handle_dir = self._upload_path.joinpath("file_handles")
+        file_handle_dir = self._upload_path.joinpath(self.FILE_HANDLE_DIR)
         file_handle_path = file_handle_dir.joinpath(self.session_key)
         if not file_handle_path.exists():
             os.makedirs(file_handle_dir, exist_ok=True)
@@ -181,12 +181,12 @@ class FakeUploadService(UploadService):
 
     @override
     def fetch_offset(self) -> int:
-        if random.random() <= self._error_ratio:
+        if random.random() <= self._transient_error_ratio:
             raise requests.ConnectionError(
-                f"TEST ONLY: Partially uploaded with error ratio {self._error_ratio}"
+                f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
             )
-        filename = os.path.join(self._upload_path, self.session_key)
-        if not os.path.exists(filename):
+        filename = self._upload_path.joinpath(self.session_key)
+        if not filename.exists():
             return 0
         with open(filename, "rb") as fp:
             fp.seek(0, io.SEEK_END)
