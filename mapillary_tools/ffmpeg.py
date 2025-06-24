@@ -13,8 +13,6 @@ import typing as T
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
-FRAME_EXT = ".jpg"
-NA_STREAM_IDX = "NA"
 
 
 class StreamTag(T.TypedDict):
@@ -74,6 +72,9 @@ class FFmpegCalledProcessError(Exception):
 
 
 class FFMPEG:
+    FRAME_EXT = ".jpg"
+    NA_STREAM_IDX = "NA"
+
     def __init__(
         self,
         ffmpeg_path: str = "ffmpeg",
@@ -169,10 +170,12 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{self.FRAME_EXT}"
         else:
             stream_selector = []
-            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            output_template = (
+                f"{sample_prefix}_{self.NA_STREAM_IDX}_%06d{self.FRAME_EXT}"
+            )
 
         cmd: list[str] = [
             # global options should be specified first
@@ -243,10 +246,12 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{self.FRAME_EXT}"
         else:
             stream_selector = []
-            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            output_template = (
+                f"{sample_prefix}_{self.NA_STREAM_IDX}_%06d{self.FRAME_EXT}"
+            )
 
         # Write the select filter to a temp file because:
         # The select filter could be large and
@@ -391,7 +396,7 @@ def _extract_stream_frame_idx(
     If returning None, it means the basename does not match the pattern
     """
     image_no_ext, ext = os.path.splitext(sample_basename)
-    if ext.lower() != FRAME_EXT.lower():
+    if ext.lower() != FFMPEG.FRAME_EXT.lower():
         return None
 
     match = sample_basename_pattern.match(image_no_ext)
@@ -400,7 +405,7 @@ def _extract_stream_frame_idx(
 
     g1 = match.group("stream_idx")
     try:
-        if g1 == NA_STREAM_IDX:
+        if g1 == FFMPEG.NA_STREAM_IDX:
             stream_idx = None
         else:
             stream_idx = int(g1)
@@ -430,7 +435,7 @@ def iterate_samples(
     The frame index could be 0-based or 1-based depending on how it's sampled.
     """
     sample_basename_pattern = re.compile(
-        rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
+        rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(FFMPEG.NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
     )
     for sample_path in sample_dir.iterdir():
         stream_frame_idx = _extract_stream_frame_idx(
