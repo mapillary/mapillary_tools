@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import collections
 import datetime
-import json
 import logging
 import typing as T
 from pathlib import Path
