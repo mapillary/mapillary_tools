@@ -169,10 +169,10 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
         else:
             stream_selector = []
-            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
 
         cmd: list[str] = [
             # global options should be specified first
@@ -189,7 +189,7 @@ class FFMPEG:
             # see https://stackoverflow.com/a/10234065
             # *["-qscale:v", "1", "-qmin", "1"],
             # output
-            ouput_template,
+            output_template,
         ]
 
         self._run_ffmpeg(cmd)
@@ -225,10 +225,10 @@ class FFMPEG:
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
             stream_selector = ["-map", f"0:{stream_idx}"]
-            ouput_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{stream_idx}_%06d{FRAME_EXT}"
         else:
             stream_selector = []
-            ouput_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
+            output_template = f"{sample_prefix}_{NA_STREAM_IDX}_%06d{FRAME_EXT}"
 
         # Write the select filter to a temp file because:
         # The select filter could be large and
@@ -280,7 +280,7 @@ class FFMPEG:
                     # see https://stackoverflow.com/a/10234065
                     # *["-qscale:v", "1", "-qmin", "1"],
                     # output
-                    ouput_template,
+                    output_template,
                 ]
                 self._run_ffmpeg(cmd)
             finally:
