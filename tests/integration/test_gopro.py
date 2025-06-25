@@ -26,7 +26,7 @@ TEST_ENVS = {
 }
 EXPECTED_DESCS: T.List[T.Any] = [
     {
-        "filename": "hero8.mp4/hero8_NA_000001.jpg",
+        "filename": "hero8.mp4/hero8_v_000001.jpg",
         "filetype": "image",
         "MAPAltitude": 9540.24,
         "MAPCaptureTime": "2019_11_18_15_41_12_354",
@@ -38,10 +38,10 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -129.2943386,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000001.jpg",
+        "MAPFilename": "hero8_v_000001.jpg",
     },
     {
-        "filename": "hero8.mp4/hero8_NA_000002.jpg",
+        "filename": "hero8.mp4/hero8_v_000002.jpg",
         "filetype": "image",
         "MAPAltitude": 7112.573717404068,
         "MAPCaptureTime": "2019_11_18_15_41_14_354",
@@ -53,10 +53,10 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -126.85929159704702,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000002.jpg",
+        "MAPFilename": "hero8_v_000002.jpg",
     },
     {
-        "filename": "hero8.mp4/hero8_NA_000003.jpg",
+        "filename": "hero8.mp4/hero8_v_000003.jpg",
         "filetype": "image",
         "MAPAltitude": 7463.642846094319,
         "MAPCaptureTime": "2019_11_18_15_41_16_354",
@@ -68,10 +68,10 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -127.18475264566939,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000003.jpg",
+        "MAPFilename": "hero8_v_000003.jpg",
     },
     {
-        "filename": "hero8.mp4/hero8_NA_000004.jpg",
+        "filename": "hero8.mp4/hero8_v_000004.jpg",
         "filetype": "image",
         "MAPAltitude": 6909.8168472111465,
         "MAPCaptureTime": "2019_11_18_15_41_18_354",
@@ -83,10 +83,10 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -126.65905680405231,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000004.jpg",
+        "MAPFilename": "hero8_v_000004.jpg",
     },
     {
-        "filename": "hero8.mp4/hero8_NA_000005.jpg",
+        "filename": "hero8.mp4/hero8_v_000005.jpg",
         "filetype": "image",
         "MAPAltitude": 7212.594480737465,
         "MAPCaptureTime": "2019_11_18_15_41_20_354",
@@ -98,10 +98,10 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -126.93688762007304,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000005.jpg",
+        "MAPFilename": "hero8_v_000005.jpg",
     },
     {
-        "filename": "hero8.mp4/hero8_NA_000006.jpg",
+        "filename": "hero8.mp4/hero8_v_000006.jpg",
         "filetype": "image",
         "MAPAltitude": 7274.361994963208,
         "MAPCaptureTime": "2019_11_18_15_41_22_354",
@@ -113,7 +113,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "MAPLongitude": -126.98833423074615,
         "MAPDeviceMake": "GoPro",
         "MAPDeviceModel": "HERO8 Black",
-        "MAPFilename": "hero8_NA_000006.jpg",
+        "MAPFilename": "hero8_v_000006.jpg",
     },
 ]
 

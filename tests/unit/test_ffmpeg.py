@@ -114,6 +114,23 @@ def test_ffmpeg_extract_specified_frames_ok(setup_data: py.path.local):
         assert frame_paths[0].exists()
 
 
+def test_ffmpeg_extract_specified_frames_empty_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    sample_dir = Path(setup_data.join("videos/samples"))
+    sample_dir.mkdir()
+
+    ff.extract_specified_frames(video_path, sample_dir, frame_indices=set())
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path))
+    assert len(results) == 0
+
+
 def test_probe_format_and_streams_ok(setup_data: py.path.local):
     if not IS_FFMPEG_INSTALLED:
         pytest.skip("ffmpeg not installed")
