@@ -131,8 +131,9 @@ class FFMPEG:
             video_path: Path to input video file
             sample_dir: Directory where extracted frame images will be saved
             sample_interval: Time interval between extracted frames in seconds
-            stream_idx: Index of specific video stream to extract from.
-                       If None, extracts from all video streams
+            stream_specifier: Stream specifier to target specific stream(s).
+                              Can be an integer (stream index) or "v" (all video streams)
+                              See https://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
 
         Raises:
             FFmpegNotFoundError: If ffmpeg binary is not found
@@ -220,8 +221,9 @@ class FFMPEG:
             video_path: Path to input video file
             sample_dir: Directory where extracted frame images will be saved
             frame_indices: Set of specific frame numbers to extract (0-based)
-            stream_idx: Index of specific video stream to extract from.
-                       If None, extracts from all video streams
+            stream_specifier: Stream specifier to target specific stream(s).
+                              Can be an integer (stream index) or "v" (all video streams)
+                              See https://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
 
         Raises:
             FFmpegNotFoundError: If ffmpeg binary is not found
@@ -316,8 +318,9 @@ class FFMPEG:
         Args:
             sample_dir: Directory containing extracted frame files
             video_path: Original video file path (used to match frame filenames)
-            selected_stream_indices: List of stream indices to include in output.
-                                    None values represent streams with no specific index
+            selected_stream_specifiers: List of stream specifiers to include in output.
+                                       Can contain integers (stream indices) or "v" (all video streams).
+                                       If None, defaults to ["v"]
 
         Returns:
             List of tuples where each tuple contains:
@@ -363,7 +366,7 @@ class FFMPEG:
         Iterate over all extracted frame samples in a directory.
 
         Searches for frame files matching the expected naming pattern and yields
-        information about each frame including stream ID, frame index, and file path.
+        information about each frame including stream specifier, frame index, and file path.
 
         Args:
             sample_dir: Directory containing extracted frame files
@@ -371,13 +374,13 @@ class FFMPEG:
 
         Yields:
             Tuple containing:
-            - stream_idx (int | None): Stream index (None for default stream)
+            - stream_specifier (str): Stream specifier (number or "v")
             - frame_idx (int): Frame index (0-based or 1-based depending on extraction method)
             - sample_path (Path): Path to the frame image file
 
         Note:
-            Expected filename pattern: {video_stem}_{stream_idx}_{frame_idx:06d}.jpg
-            where stream_idx can be a number or "NA" for default stream.
+            Expected filename pattern: {video_stem}_{stream_specifier}_{frame_idx:06d}.jpg
+            where stream_specifier can be a number or "v" for video streams.
         """
         sample_basename_pattern = re.compile(
             rf"""
@@ -425,7 +428,7 @@ class FFMPEG:
         cls, sample_basename: str, pattern: T.Pattern[str]
     ) -> tuple[str, int] | None:
         """
-        Extract stream id and frame index from sample basename
+        Extract stream specifier and frame index from sample basename
 
         Returns:
             If returning None, it means the basename does not match the pattern
