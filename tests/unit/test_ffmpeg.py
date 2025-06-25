@@ -12,6 +12,8 @@ from ..integration.fixtures import IS_FFMPEG_INSTALLED, setup_data
 
 
 def test_ffmpeg_run_ok():
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
     ff = ffmpeg.FFMPEG()
     ff.run_ffmpeg_non_interactive(["-version"])
 
@@ -21,6 +23,8 @@ def test_ffmpeg_run_ok():
     raises=ffmpeg.FFmpegCalledProcessError,
 )
 def test_ffmpeg_run_raise():
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
     ff = ffmpeg.FFMPEG()
     ff.run_ffmpeg_non_interactive(["foo"])
 
