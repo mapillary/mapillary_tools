@@ -15,7 +15,7 @@ _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
 
 class MOCK_FFMPEG(ffmpeg.FFMPEG):
-    def extract_frames(
+    def extract_frames_by_interval(
         self,
         video_path: Path,
         sample_path: Path,

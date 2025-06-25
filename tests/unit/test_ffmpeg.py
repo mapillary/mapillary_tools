@@ -1,30 +1,118 @@
 import datetime
-import os
 import subprocess
 from pathlib import Path
+
+import py.path
 
 import pytest
 
 from mapillary_tools import ffmpeg
 
-
-def _ffmpeg_installed():
-    ffmpeg_path = os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg")
-    ffprobe_path = os.getenv("MAPILLARY_TOOLS_FFPROBE_PATH", "ffprobe")
-    try:
-        subprocess.run(
-            [ffmpeg_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
-        )
-        # In Windows, ffmpeg is installed but ffprobe is not?
-        subprocess.run(
-            [ffprobe_path, "-version"], stderr=subprocess.PIPE, stdout=subprocess.PIPE
-        )
-    except FileNotFoundError:
-        return False
-    return True
+from ..integration.fixtures import IS_FFMPEG_INSTALLED, setup_data
 
 
-IS_FFMPEG_INSTALLED = _ffmpeg_installed()
+def test_ffmpeg_run_ok():
+    ff = ffmpeg.FFMPEG()
+    ff.run_ffmpeg_non_interactive(["-version"])
+
+
+@pytest.mark.xfail(
+    reason="ffmpeg run_ffmpeg_non_interactive should raise FFmpegCalledProcessError",
+    raises=ffmpeg.FFmpegCalledProcessError,
+)
+def test_ffmpeg_run_raise():
+    ff = ffmpeg.FFMPEG()
+    ff.run_ffmpeg_non_interactive(["foo"])
+
+
+def test_ffmpeg_extract_frames_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    sample_dir = Path(setup_data.join("videos/samples"))
+    sample_dir.mkdir()
+
+    ff.extract_frames_by_interval(
+        video_path, sample_dir, stream_idx=None, sample_interval=1
+    )
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path, [None]))
+    assert len(results) == 6
+    for idx, (file_idx, frame_paths) in enumerate(results):
+        assert idx + 1 == file_idx
+        assert 1 == len(frame_paths)
+        assert frame_paths[0] is not None
+        assert frame_paths[0].exists()
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path, [0]))
+    assert len(results) == 6
+    for idx, (file_idx, frame_paths) in enumerate(results):
+        assert idx + 1 == file_idx
+        assert 1 == len(frame_paths)
+        assert frame_paths[0] is None
+
+
+def test_ffmpeg_extract_specified_frames_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    sample_dir = Path(setup_data.join("videos/samples"))
+    sample_dir.mkdir()
+
+    ff.extract_specified_frames(video_path, sample_dir, frame_indices={2, 9})
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path, [None]))
+    assert len(results) == 2
+
+    for idx, (file_idx, frame_paths) in enumerate(results):
+        assert idx + 1 == file_idx
+        assert frame_paths[0] is not None
+        assert frame_paths[0].exists()
+
+
+def test_probe_format_and_streams_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    ff = ffmpeg.FFMPEG()
+    probe_output = ff.probe_format_and_streams(video_path)
+    probe = ffmpeg.Probe(probe_output)
+
+    start_time = probe.probe_video_start_time()
+    assert start_time is None
+    max_stream = probe.probe_video_with_max_resolution()
+    assert max_stream is not None
+    assert max_stream["index"] == 0
+    assert max_stream["codec_type"] == "video"
+
+
+def test_probe_format_and_streams_gopro_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    video_path = Path(setup_data.join("gopro_data/hero8.mp4"))
+
+    ff = ffmpeg.FFMPEG()
+    probe_output = ff.probe_format_and_streams(video_path)
+    probe = ffmpeg.Probe(probe_output)
+
+    start_time = probe.probe_video_start_time()
+    assert start_time is not None
+    assert datetime.datetime.isoformat(start_time) == "2019-11-18T15:41:12.354033+00:00"
+    max_stream = probe.probe_video_with_max_resolution()
+    assert max_stream is not None
+    assert max_stream["index"] == 0
+    assert max_stream["codec_type"] == "video"
 
 
 def test_ffmpeg_not_exists():
@@ -33,7 +121,9 @@ def test_ffmpeg_not_exists():
 
     ff = ffmpeg.FFMPEG()
     try:
-        ff.extract_frames(Path("not_exist_a"), Path("not_exist_b"), sample_interval=2)
+        ff.extract_frames_by_interval(
+            Path("not_exist_a"), Path("not_exist_b"), sample_interval=2
+        )
     except ffmpeg.FFmpegCalledProcessError as ex:
         assert "STDERR:" not in str(ex)
     else:
@@ -41,7 +131,9 @@ def test_ffmpeg_not_exists():
 
     ff = ffmpeg.FFMPEG(stderr=subprocess.PIPE)
     try:
-        ff.extract_frames(Path("not_exist_a"), Path("not_exist_b"), sample_interval=2)
+        ff.extract_frames_by_interval(
+            Path("not_exist_a"), Path("not_exist_b"), sample_interval=2
+        )
     except ffmpeg.FFmpegCalledProcessError as ex:
         assert "STDERR:" in str(ex)
     else:

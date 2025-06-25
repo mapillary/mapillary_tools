@@ -13,6 +13,7 @@ import typing as T
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
+_MAX_STDERR_LENGTH = 2048
 
 
 class StreamTag(T.TypedDict):
@@ -29,6 +30,9 @@ class Stream(T.TypedDict):
     index: int
     tags: StreamTag
     width: int
+    r_frame_rate: str
+    avg_frame_rate: str
+    nb_frames: str
 
 
 class ProbeOutput(T.TypedDict):
@@ -37,9 +41,6 @@ class ProbeOutput(T.TypedDict):
 
 class FFmpegNotFoundError(Exception):
     pass
-
-
-_MAX_STDERR_LENGTH = 2048
 
 
 def _truncate_begin(s: str) -> str:
@@ -99,7 +100,7 @@ class FFMPEG:
         ]
         return T.cast(ProbeOutput, self._run_ffprobe_json(cmd))
 
-    def extract_frames(
+    def extract_frames_by_interval(
         self,
         video_path: Path,
         sample_dir: Path,
@@ -123,23 +124,23 @@ class FFMPEG:
 
         cmd: list[str] = [
             # global options should be specified first
-            *["-hide_banner", "-nostdin"],
-            # input 0
+            *["-hide_banner"],
+            # Input 0
             *["-i", str(video_path)],
-            # select stream
+            # Select stream
             *stream_selector,
-            # filter videos
+            # Filter videos
             *["-vf", f"fps=1/{sample_interval}"],
-            # video quality level (or the alias -q:v)
-            *["-qscale:v", "2"],
+            # Video quality level (or the alias -q:v)
             # -q:v=1 is the best quality but larger image sizes
             # see https://stackoverflow.com/a/10234065
             # *["-qscale:v", "1", "-qmin", "1"],
+            *["-qscale:v", "2"],
             # output
             output_template,
         ]
 
-        self._run_ffmpeg(cmd)
+        self.run_ffmpeg_non_interactive(cmd)
 
     @classmethod
     def generate_binary_search(cls, sorted_frame_indices: list[int]) -> str:
@@ -218,13 +219,13 @@ class FFMPEG:
                 if not delete:
                     select_file.close()
                 cmd: list[str] = [
-                    # global options should be specified first
-                    *["-hide_banner", "-nostdin"],
-                    # input 0
+                    # Global options should be specified first
+                    *["-hide_banner"],
+                    # Input 0
                     *["-i", str(video_path)],
-                    # select stream
+                    # Select stream
                     *stream_selector,
-                    # filter videos
+                    # Filter videos
                     *[
                         *["-filter_script:v", select_file.name],
                         # Each frame is passed with its timestamp from the demuxer to the muxer
@@ -241,21 +242,50 @@ class FFMPEG:
                         # If set to 1, expand the filename with pts from pkt->pts. Default value is 0.
                         # *["-frame_pts", "1"],
                     ],
-                    # video quality level (or the alias -q:v)
-                    *["-qscale:v", "2"],
+                    # Video quality level (or the alias -q:v)
                     # -q:v=1 is the best quality but larger image sizes
                     # see https://stackoverflow.com/a/10234065
                     # *["-qscale:v", "1", "-qmin", "1"],
+                    *["-qscale:v", "2"],
                     # output
                     output_template,
                 ]
-                self._run_ffmpeg(cmd)
+                self.run_ffmpeg_non_interactive(cmd)
             finally:
                 if not delete:
                     try:
                         os.remove(select_file.name)
                     except FileNotFoundError:
                         pass
+
+    @classmethod
+    def sort_selected_samples(
+        cls,
+        sample_dir: Path,
+        video_path: Path,
+        selected_stream_indices: list[int | None],
+    ) -> list[tuple[int, list[Path | None]]]:
+        """
+        Group frames by frame index, so that
+        the Nth group contains all the frames from the selected streams at frame index N.
+        """
+        stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
+        for stream_idx, frame_idx, sample_path in cls.iterate_samples(
+            sample_dir, video_path
+        ):
+            stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
+
+        selected: list[tuple[int, list[Path | None]]] = []
+        for frame_idx in sorted(stream_samples.keys()):
+            indexed = {
+                stream_idx: sample_path
+                for stream_idx, sample_path in stream_samples[frame_idx]
+            }
+            selected_sample_paths = [
+                indexed.get(stream_idx) for stream_idx in selected_stream_indices
+            ]
+            selected.append((frame_idx, selected_sample_paths))
+        return selected
 
     @classmethod
     def iterate_samples(
@@ -271,8 +301,7 @@ class FFMPEG:
         )
         for sample_path in sample_dir.iterdir():
             stream_frame_idx = cls._extract_stream_frame_idx(
-                sample_path.name,
-                sample_basename_pattern,
+                sample_path.name, sample_basename_pattern
             )
             if stream_frame_idx is not None:
                 stream_idx, frame_idx = stream_frame_idx
@@ -323,10 +352,7 @@ class FFMPEG:
         LOG.info(f"Extracting video information: {' '.join(full_cmd)}")
         try:
             completed = subprocess.run(
-                full_cmd,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=self.stderr,
+                full_cmd, check=True, stdout=subprocess.PIPE, stderr=self.stderr
             )
         except FileNotFoundError:
             raise FFmpegNotFoundError(
@@ -362,9 +388,9 @@ class FFMPEG:
 
         return output
 
-    def _run_ffmpeg(self, cmd: list[str]) -> None:
-        full_cmd: list[str] = [self.ffmpeg_path, *cmd]
-        LOG.info(f"Extracting frames: {' '.join(full_cmd)}")
+    def run_ffmpeg_non_interactive(self, cmd: list[str]) -> None:
+        full_cmd: list[str] = [self.ffmpeg_path, "-nostdin", *cmd]
+        LOG.info(f"Running ffmpeg: {' '.join(full_cmd)}")
         try:
             subprocess.run(full_cmd, check=True, stderr=self.stderr)
         except FileNotFoundError:
@@ -376,10 +402,10 @@ class FFMPEG:
 
 
 class Probe:
-    probe: ProbeOutput
+    probe_output: ProbeOutput
 
-    def __init__(self, probe: ProbeOutput) -> None:
-        self.probe = probe
+    def __init__(self, probe_output: ProbeOutput) -> None:
+        self.probe_output = probe_output
 
     def probe_video_start_time(self) -> datetime.datetime | None:
         """
@@ -387,7 +413,7 @@ class Probe:
         It searches video creation time and duration in video streams first and then the other streams.
         Once found, return stream creation time - stream duration as the video start time.
         """
-        streams = self.probe.get("streams", [])
+        streams = self.probe_output.get("streams", [])
 
         # search start time from video streams
         video_streams = self.probe_video_streams()
@@ -395,21 +421,21 @@ class Probe:
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
         )
         for stream in video_streams:
-            start_time = extract_stream_start_time(stream)
+            start_time = self.extract_stream_start_time(stream)
             if start_time is not None:
                 return start_time
 
         # search start time from the other streams
         for stream in streams:
             if stream.get("codec_type") != "video":
-                start_time = extract_stream_start_time(stream)
+                start_time = self.extract_stream_start_time(stream)
                 if start_time is not None:
                     return start_time
 
         return None
 
     def probe_video_streams(self) -> list[Stream]:
-        streams = self.probe.get("streams", [])
+        streams = self.probe_output.get("streams", [])
         return [stream for stream in streams if stream.get("codec_type") == "video"]
 
     def probe_video_with_max_resolution(self) -> Stream | None:
@@ -421,52 +447,26 @@ class Probe:
             return None
         return video_streams[0]
 
+    @classmethod
+    def extract_stream_start_time(cls, stream: Stream) -> datetime.datetime | None:
+        """
+        Find the start time of the given stream.
+        Start time is the creation time of the stream minus the duration of the stream.
+        """
+        duration_str = stream.get("duration")
+        LOG.debug("Extracted video duration: %s", duration_str)
+        if duration_str is None:
+            return None
+        duration = float(duration_str)
 
-def extract_stream_start_time(stream: Stream) -> datetime.datetime | None:
-    """
-    Find the start time of the given stream.
-    Start time is the creation time of the stream minus the duration of the stream.
-    """
-    duration_str = stream.get("duration")
-    LOG.debug("Extracted video duration: %s", duration_str)
-    if duration_str is None:
-        return None
-    duration = float(duration_str)
-
-    creation_time_str = stream.get("tags", {}).get("creation_time")
-    LOG.debug("Extracted video creation time: %s", creation_time_str)
-    if creation_time_str is None:
-        return None
-    try:
-        creation_time = datetime.datetime.fromisoformat(creation_time_str)
-    except ValueError:
-        creation_time = datetime.datetime.strptime(
-            creation_time_str, "%Y-%m-%dT%H:%M:%S.%f%z"
-        )
-    return creation_time - datetime.timedelta(seconds=duration)
-
-
-def sort_selected_samples(
-    sample_dir: Path, video_path: Path, selected_stream_indices: list[int | None]
-) -> list[tuple[int, list[Path | None]]]:
-    """
-    Group frames by frame index, so that
-    the Nth group contains all the frames from the selected streams at frame index N.
-    """
-    stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
-    for stream_idx, frame_idx, sample_path in FFMPEG.iterate_samples(
-        sample_dir, video_path
-    ):
-        stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
-
-    selected: list[tuple[int, list[Path | None]]] = []
-    for frame_idx in sorted(stream_samples.keys()):
-        indexed = {
-            stream_idx: sample_path
-            for stream_idx, sample_path in stream_samples[frame_idx]
-        }
-        selected_sample_paths = [
-            indexed.get(stream_idx) for stream_idx in selected_stream_indices
-        ]
-        selected.append((frame_idx, selected_sample_paths))
-    return selected
+        creation_time_str = stream.get("tags", {}).get("creation_time")
+        LOG.debug("Extracted video creation time: %s", creation_time_str)
+        if creation_time_str is None:
+            return None
+        try:
+            creation_time = datetime.datetime.fromisoformat(creation_time_str)
+        except ValueError:
+            creation_time = datetime.datetime.strptime(
+                creation_time_str, "%Y-%m-%dT%H:%M:%S.%f%z"
+            )
+        return creation_time - datetime.timedelta(seconds=duration)
