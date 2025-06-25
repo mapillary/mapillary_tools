@@ -83,15 +83,33 @@ class FFMPEG:
         stderr: int | None = None,
     ) -> None:
         """
-        ffmpeg_path: path to ffmpeg binary
-        ffprobe_path: path to ffprobe binary
-        stderr: param passed to subprocess.run to control whether to capture stderr
+        Initialize FFMPEG wrapper with paths to ffmpeg and ffprobe binaries.
+
+        Args:
+            ffmpeg_path: Path to ffmpeg binary executable
+            ffprobe_path: Path to ffprobe binary executable
+            stderr: Parameter passed to subprocess.run to control stderr capture.
+                   Use subprocess.PIPE to capture stderr, None to inherit from parent
         """
         self.ffmpeg_path = ffmpeg_path
         self.ffprobe_path = ffprobe_path
         self.stderr = stderr
 
     def probe_format_and_streams(self, video_path: Path) -> ProbeOutput:
+        """
+        Probe video file to extract format and stream information using ffprobe.
+
+        Args:
+            video_path: Path to the video file to probe
+
+        Returns:
+            Dictionary containing streams and format information from ffprobe
+
+        Raises:
+            FFmpegNotFoundError: If ffprobe binary is not found
+            FFmpegCalledProcessError: If ffprobe command fails
+            RuntimeError: If output cannot be decoded or parsed as JSON
+        """
         cmd: list[str] = [
             "-hide_banner",
             "-show_format",
@@ -108,9 +126,18 @@ class FFMPEG:
         stream_idx: int | None = None,
     ) -> None:
         """
-        Extract frames by the sample interval from the specified video stream.
+        Extract frames from video at regular time intervals using fps filter.
 
-        stream_idx: the stream_index specifier to a **video stream**. If it's None, defaults to "v". See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
+        Args:
+            video_path: Path to input video file
+            sample_dir: Directory where extracted frame images will be saved
+            sample_interval: Time interval between extracted frames in seconds
+            stream_idx: Index of specific video stream to extract from.
+                       If None, extracts from all video streams
+
+        Raises:
+            FFmpegNotFoundError: If ffmpeg binary is not found
+            FFmpegCalledProcessError: If ffmpeg command fails
         """
         sample_prefix = sample_dir.joinpath(video_path.stem)
         if stream_idx is not None:
@@ -145,17 +172,26 @@ class FFMPEG:
     @classmethod
     def generate_binary_search(cls, sorted_frame_indices: list[int]) -> str:
         """
-        >>> FFMPEG.generate_binary_search([])
-        '0'
+        Generate a binary search expression for ffmpeg select filter.
 
-        >>> FFMPEG.generate_binary_search([1])
-        'eq(n\\\\,1)'
+        Creates an optimized filter expression that uses binary search logic
+        to efficiently select specific frame numbers from a video stream.
 
-        >>> FFMPEG.generate_binary_search([1, 2])
-        'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,eq(n\\\\,2))'
+        Args:
+            sorted_frame_indices: List of frame numbers to select, must be sorted in ascending order
 
-        >>> FFMPEG.generate_binary_search([1, 2, 3])
-        'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,if(lt(n\\\\,3)\\\\,eq(n\\\\,2)\\\\,eq(n\\\\,3)))'
+        Returns:
+            FFmpeg filter expression string using binary search logic
+
+        Examples:
+            >>> FFMPEG.generate_binary_search([])
+            '0'
+            >>> FFMPEG.generate_binary_search([1])
+            'eq(n\\\\,1)'
+            >>> FFMPEG.generate_binary_search([1, 2])
+            'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,eq(n\\\\,2))'
+            >>> FFMPEG.generate_binary_search([1, 2, 3])
+            'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,if(lt(n\\\\,3)\\\\,eq(n\\\\,2)\\\\,eq(n\\\\,3)))'
         """
 
         length = len(sorted_frame_indices)
@@ -180,9 +216,25 @@ class FFMPEG:
         stream_idx: int | None = None,
     ) -> None:
         """
-        Extract specified frames from the specified video stream.
+        Extract specific frames from video by frame number using select filter.
 
-        stream_idx: the stream_index specifier to a **video stream**. If it's None, defaults to "v". See http://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
+        Uses a binary search filter expression to efficiently select only the
+        specified frame numbers from the video stream.
+
+        Args:
+            video_path: Path to input video file
+            sample_dir: Directory where extracted frame images will be saved
+            frame_indices: Set of specific frame numbers to extract (0-based)
+            stream_idx: Index of specific video stream to extract from.
+                       If None, extracts from all video streams
+
+        Raises:
+            FFmpegNotFoundError: If ffmpeg binary is not found
+            FFmpegCalledProcessError: If ffmpeg command fails
+
+        Note:
+            Frame indices are 0-based but ffmpeg output files are numbered starting from 1.
+            Creates temporary filter script file on Windows to avoid command line length limits.
         """
 
         if not frame_indices:
@@ -198,11 +250,6 @@ class FFMPEG:
                 f"{sample_prefix}_{self.NA_STREAM_IDX}_%06d{self.FRAME_EXT}"
             )
 
-        # Write the select filter to a temp file because:
-        # The select filter could be large and
-        # the maximum command line length for the CreateProcess function is 32767 characters
-        # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
-
         eqs = self.generate_binary_search(sorted(frame_indices))
 
         # https://github.com/mapillary/mapillary_tools/issues/503
@@ -211,6 +258,10 @@ class FFMPEG:
         else:
             delete = True
 
+        # Write the select filter to a temp file because:
+        # The select filter could be large and
+        # the maximum command line length for the CreateProcess function is 32767 characters
+        # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
         with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
             try:
                 select_file.write(f"select={eqs}")
@@ -266,8 +317,25 @@ class FFMPEG:
         selected_stream_indices: list[int | None],
     ) -> list[tuple[int, list[Path | None]]]:
         """
-        Group frames by frame index, so that
-        the Nth group contains all the frames from the selected streams at frame index N.
+        Group extracted frame samples by frame index across multiple streams.
+
+        Groups frames so that the Nth group contains all frames from the selected
+        streams at frame index N, allowing synchronized access to multi-stream frames.
+
+        Args:
+            sample_dir: Directory containing extracted frame files
+            video_path: Original video file path (used to match frame filenames)
+            selected_stream_indices: List of stream indices to include in output.
+                                    None values represent streams with no specific index
+
+        Returns:
+            List of tuples where each tuple contains:
+            - frame_idx (int): The frame index
+            - sample_paths (list[Path | None]): Paths to frame files from each selected stream,
+              or None if no frame exists for that stream at this index
+
+        Note:
+            Output is sorted by frame index in ascending order.
         """
         stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
         for stream_idx, frame_idx, sample_path in cls.iterate_samples(
@@ -292,9 +360,24 @@ class FFMPEG:
         cls, sample_dir: Path, video_path: Path
     ) -> T.Generator[tuple[int | None, int, Path], None, None]:
         """
-        Search all samples in the sample_dir,
-        and return a generator of the tuple: (stream ID, frame index, sample path).
-        The frame index could be 0-based or 1-based depending on how it's sampled.
+        Iterate over all extracted frame samples in a directory.
+
+        Searches for frame files matching the expected naming pattern and yields
+        information about each frame including stream ID, frame index, and file path.
+
+        Args:
+            sample_dir: Directory containing extracted frame files
+            video_path: Original video file path (used to match frame filenames)
+
+        Yields:
+            Tuple containing:
+            - stream_idx (int | None): Stream index (None for default stream)
+            - frame_idx (int): Frame index (0-based or 1-based depending on extraction method)
+            - sample_path (Path): Path to the frame image file
+
+        Note:
+            Expected filename pattern: {video_stem}_{stream_idx}_{frame_idx:06d}.jpg
+            where stream_idx can be a number or "NA" for default stream.
         """
         sample_basename_pattern = re.compile(
             rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(cls.NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
@@ -312,9 +395,12 @@ class FFMPEG:
         cls, sample_basename: str, sample_basename_pattern: T.Pattern[str]
     ) -> tuple[int | None, int] | None:
         """
-        extract stream id and frame index from sample basename
-        e.g. basename GX010001_NA_000000.jpg will extract (None, 0)
-        e.g. basename GX010001_1_000002.jpg will extract (1, 2)
+        Extract stream id and frame index from sample basename
+
+        Examples:
+            * basename GX010001_NA_000000.jpg will extract (None, 0)
+            * basename GX010001_1_000002.jpg will extract (1, 2)
+
         If returning None, it means the basename does not match the pattern
         """
         image_no_ext, ext = os.path.splitext(sample_basename)
@@ -389,6 +475,19 @@ class FFMPEG:
         return output
 
     def run_ffmpeg_non_interactive(self, cmd: list[str]) -> None:
+        """
+        Execute ffmpeg command in non-interactive mode.
+
+        Runs ffmpeg with the given command arguments, automatically adding
+        the -nostdin flag to prevent interactive prompts.
+
+        Args:
+            cmd: List of command line arguments to pass to ffmpeg
+
+        Raises:
+            FFmpegNotFoundError: If ffmpeg binary is not found
+            FFmpegCalledProcessError: If ffmpeg command fails
+        """
         full_cmd: list[str] = [self.ffmpeg_path, "-nostdin", *cmd]
         LOG.info(f"Running ffmpeg: {' '.join(full_cmd)}")
         try:
@@ -405,13 +504,27 @@ class Probe:
     probe_output: ProbeOutput
 
     def __init__(self, probe_output: ProbeOutput) -> None:
+        """
+        Initialize Probe with ffprobe output data.
+
+        Args:
+            probe_output: Dictionary containing streams and format information from ffprobe
+        """
         self.probe_output = probe_output
 
     def probe_video_start_time(self) -> datetime.datetime | None:
         """
-        Find video start time of the given video.
-        It searches video creation time and duration in video streams first and then the other streams.
-        Once found, return stream creation time - stream duration as the video start time.
+        Determine the start time of the video by analyzing stream metadata.
+
+        Searches for creation time and duration information in video streams first,
+        then falls back to other stream types. Calculates start time as:
+        creation_time - duration
+
+        Returns:
+            Video start time as datetime object, or None if cannot be determined
+
+        Note:
+            Prioritizes video streams with highest resolution when multiple exist.
         """
         streams = self.probe_output.get("streams", [])
 
@@ -435,10 +548,27 @@ class Probe:
         return None
 
     def probe_video_streams(self) -> list[Stream]:
+        """
+        Extract all video streams from the probe output.
+
+        Returns:
+            List of video stream dictionaries containing metadata like codec,
+            dimensions, frame rate, etc.
+        """
         streams = self.probe_output.get("streams", [])
         return [stream for stream in streams if stream.get("codec_type") == "video"]
 
     def probe_video_with_max_resolution(self) -> Stream | None:
+        """
+        Find the video stream with the highest resolution.
+
+        Sorts all video streams by width × height and returns the one with
+        the largest resolution.
+
+        Returns:
+            Stream dictionary for the highest resolution video stream,
+            or None if no video streams exist
+        """
         video_streams = self.probe_video_streams()
         video_streams.sort(
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
@@ -450,8 +580,19 @@ class Probe:
     @classmethod
     def extract_stream_start_time(cls, stream: Stream) -> datetime.datetime | None:
         """
-        Find the start time of the given stream.
-        Start time is the creation time of the stream minus the duration of the stream.
+        Calculate the start time of a specific stream.
+
+        Determines start time by subtracting stream duration from creation time:
+        start_time = creation_time - duration
+
+        Args:
+            stream: Stream dictionary containing metadata including tags and duration
+
+        Returns:
+            Stream start time as datetime object, or None if required metadata is missing
+
+        Note:
+            Handles multiple datetime formats including ISO format and custom patterns.
         """
         duration_str = stream.get("duration")
         LOG.debug("Extracted video duration: %s", duration_str)
