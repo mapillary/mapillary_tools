@@ -74,7 +74,6 @@ class FFmpegCalledProcessError(Exception):
 
 class FFMPEG:
     FRAME_EXT = ".jpg"
-    NA_STREAM_IDX = "NA"
 
     def __init__(
         self,
@@ -123,7 +122,7 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         sample_interval: float,
-        stream_idx: int | None = None,
+        stream_specifier: int | str = "v",
     ) -> None:
         """
         Extract frames from video at regular time intervals using fps filter.
@@ -139,18 +138,14 @@ class FFMPEG:
             FFmpegNotFoundError: If ffmpeg binary is not found
             FFmpegCalledProcessError: If ffmpeg command fails
         """
+        self._validate_stream_specifier(stream_specifier)
+
         sample_prefix = sample_dir.joinpath(video_path.stem)
-        if stream_idx is not None:
-            stream_selector = ["-map", f"0:{stream_idx}"]
-            output_template = f"{sample_prefix}_{stream_idx}_%06d{self.FRAME_EXT}"
-        else:
-            stream_selector = []
-            output_template = (
-                f"{sample_prefix}_{self.NA_STREAM_IDX}_%06d{self.FRAME_EXT}"
-            )
+        stream_selector = ["-map", f"0:{stream_specifier}"]
+        output_template = f"{sample_prefix}_{stream_specifier}_%06d{self.FRAME_EXT}"
 
         cmd: list[str] = [
-            # global options should be specified first
+            # Global options should be specified first
             *["-hide_banner"],
             # Input 0
             *["-i", str(video_path)],
@@ -163,7 +158,7 @@ class FFMPEG:
             # see https://stackoverflow.com/a/10234065
             # *["-qscale:v", "1", "-qmin", "1"],
             *["-qscale:v", "2"],
-            # output
+            # Output
             output_template,
         ]
 
@@ -213,7 +208,7 @@ class FFMPEG:
         video_path: Path,
         sample_dir: Path,
         frame_indices: set[int],
-        stream_idx: int | None = None,
+        stream_specifier: int | str = "v",
     ) -> None:
         """
         Extract specific frames from video by frame number using select filter.
@@ -237,18 +232,14 @@ class FFMPEG:
             Creates temporary filter script file on Windows to avoid command line length limits.
         """
 
+        self._validate_stream_specifier(stream_specifier)
+
         if not frame_indices:
             return
 
         sample_prefix = sample_dir.joinpath(video_path.stem)
-        if stream_idx is not None:
-            stream_selector = ["-map", f"0:{stream_idx}"]
-            output_template = f"{sample_prefix}_{stream_idx}_%06d{self.FRAME_EXT}"
-        else:
-            stream_selector = []
-            output_template = (
-                f"{sample_prefix}_{self.NA_STREAM_IDX}_%06d{self.FRAME_EXT}"
-            )
+        stream_selector = ["-map", f"0:{stream_specifier}"]
+        output_template = f"{sample_prefix}_{stream_specifier}_%06d{self.FRAME_EXT}"
 
         eqs = self.generate_binary_search(sorted(frame_indices))
 
@@ -314,7 +305,7 @@ class FFMPEG:
         cls,
         sample_dir: Path,
         video_path: Path,
-        selected_stream_indices: list[int | None],
+        selected_stream_specifiers: list[int | str] | None = None,
     ) -> list[tuple[int, list[Path | None]]]:
         """
         Group extracted frame samples by frame index across multiple streams.
@@ -337,20 +328,29 @@ class FFMPEG:
         Note:
             Output is sorted by frame index in ascending order.
         """
-        stream_samples: dict[int, list[tuple[int | None, Path]]] = {}
-        for stream_idx, frame_idx, sample_path in cls.iterate_samples(
+        if selected_stream_specifiers is None:
+            selected_stream_specifiers = ["v"]
+
+        for stream_specifier in selected_stream_specifiers:
+            cls._validate_stream_specifier(stream_specifier)
+
+        stream_samples: dict[int, list[tuple[str, Path]]] = {}
+        for stream_specifier, frame_idx, sample_path in cls.iterate_samples(
             sample_dir, video_path
         ):
-            stream_samples.setdefault(frame_idx, []).append((stream_idx, sample_path))
+            stream_samples.setdefault(frame_idx, []).append(
+                (str(stream_specifier), sample_path)
+            )
 
         selected: list[tuple[int, list[Path | None]]] = []
         for frame_idx in sorted(stream_samples.keys()):
-            indexed = {
-                stream_idx: sample_path
-                for stream_idx, sample_path in stream_samples[frame_idx]
+            indexed_by_specifier = {
+                specifier: sample_path
+                for specifier, sample_path in stream_samples[frame_idx]
             }
             selected_sample_paths = [
-                indexed.get(stream_idx) for stream_idx in selected_stream_indices
+                indexed_by_specifier.get(str(specifier))
+                for specifier in selected_stream_specifiers
             ]
             selected.append((frame_idx, selected_sample_paths))
         return selected
@@ -358,7 +358,7 @@ class FFMPEG:
     @classmethod
     def iterate_samples(
         cls, sample_dir: Path, video_path: Path
-    ) -> T.Generator[tuple[int | None, int, Path], None, None]:
+    ) -> T.Generator[tuple[str, int, Path], None, None]:
         """
         Iterate over all extracted frame samples in a directory.
 
@@ -380,58 +380,82 @@ class FFMPEG:
             where stream_idx can be a number or "NA" for default stream.
         """
         sample_basename_pattern = re.compile(
-            rf"^{re.escape(video_path.stem)}_(?P<stream_idx>\d+|{re.escape(cls.NA_STREAM_IDX)})_(?P<frame_idx>\d+)$"
+            rf"""
+            ^{re.escape(video_path.stem)}  # Match the video stem
+            _(?P<stream_specifier>\d+|v)   # Stream specifier can be a number or "v"
+            _(?P<frame_idx>\d+)$           # Frame index, can be 0-padded
+            """,
+            re.X,
         )
         for sample_path in sample_dir.iterdir():
-            stream_frame_idx = cls._extract_stream_frame_idx(
+            result = cls._extract_stream_frame_idx(
                 sample_path.name, sample_basename_pattern
             )
-            if stream_frame_idx is not None:
-                stream_idx, frame_idx = stream_frame_idx
-                yield (stream_idx, frame_idx, sample_path)
+            if result is not None:
+                stream_specifier, frame_idx = result
+                yield (stream_specifier, frame_idx, sample_path)
+
+    def run_ffmpeg_non_interactive(self, cmd: list[str]) -> None:
+        """
+        Execute ffmpeg command in non-interactive mode.
+
+        Runs ffmpeg with the given command arguments, automatically adding
+        the -nostdin flag to prevent interactive prompts.
+
+        Args:
+            cmd: List of command line arguments to pass to ffmpeg
+
+        Raises:
+            FFmpegNotFoundError: If ffmpeg binary is not found
+            FFmpegCalledProcessError: If ffmpeg command fails
+        """
+        full_cmd: list[str] = [self.ffmpeg_path, "-nostdin", *cmd]
+        LOG.info(f"Running ffmpeg: {' '.join(full_cmd)}")
+        try:
+            subprocess.run(full_cmd, check=True, stderr=self.stderr)
+        except FileNotFoundError:
+            raise FFmpegNotFoundError(
+                f'The ffmpeg command "{self.ffmpeg_path}" not found'
+            )
+        except subprocess.CalledProcessError as ex:
+            raise FFmpegCalledProcessError(ex) from ex
 
     @classmethod
     def _extract_stream_frame_idx(
-        cls, sample_basename: str, sample_basename_pattern: T.Pattern[str]
-    ) -> tuple[int | None, int] | None:
+        cls, sample_basename: str, pattern: T.Pattern[str]
+    ) -> tuple[str, int] | None:
         """
         Extract stream id and frame index from sample basename
 
-        Examples:
-            * basename GX010001_NA_000000.jpg will extract (None, 0)
-            * basename GX010001_1_000002.jpg will extract (1, 2)
+        Returns:
+            If returning None, it means the basename does not match the pattern
 
-        If returning None, it means the basename does not match the pattern
+        Examples:
+            * basename GX010001_v_000000.jpg will extract ("v", 0)
+            * basename GX010001_1_000002.jpg will extract ("1", 2)
         """
         image_no_ext, ext = os.path.splitext(sample_basename)
         if ext.lower() != cls.FRAME_EXT.lower():
             return None
 
-        match = sample_basename_pattern.match(image_no_ext)
+        match = pattern.match(image_no_ext)
         if not match:
             return None
 
-        g1 = match.group("stream_idx")
-        try:
-            if g1 == cls.NA_STREAM_IDX:
-                stream_idx = None
-            else:
-                stream_idx = int(g1)
-        except ValueError:
-            return None
+        stream_specifier = match.group("stream_specifier")
 
-        # convert 0-padded numbers to int
+        # Convert 0-padded numbers to int
         # e.g. 000000 -> 0
         # e.g. 000001 -> 1
-        g2 = match.group("frame_idx")
-        g2 = g2.lstrip("0") or "0"
+        frame_idx_str = match.group("frame_idx")
+        frame_idx_str = frame_idx_str.lstrip("0") or "0"
 
         try:
-            frame_idx = int(g2)
+            frame_idx = int(frame_idx_str)
         except ValueError:
             return None
 
-        return stream_idx, frame_idx
+        return stream_specifier, frame_idx
 
     def _run_ffprobe_json(self, cmd: list[str]) -> dict:
         full_cmd: list[str] = [self.ffprobe_path, "-print_format", "json", *cmd]
@@ -474,30 +498,16 @@ class FFMPEG:
 
         return output
 
-    def run_ffmpeg_non_interactive(self, cmd: list[str]) -> None:
-        """
-        Execute ffmpeg command in non-interactive mode.
-
-        Runs ffmpeg with the given command arguments, automatically adding
-        the -nostdin flag to prevent interactive prompts.
-
-        Args:
-            cmd: List of command line arguments to pass to ffmpeg
-
-        Raises:
-            FFmpegNotFoundError: If ffmpeg binary is not found
-            FFmpegCalledProcessError: If ffmpeg command fails
-        """
-        full_cmd: list[str] = [self.ffmpeg_path, "-nostdin", *cmd]
-        LOG.info(f"Running ffmpeg: {' '.join(full_cmd)}")
-        try:
-            subprocess.run(full_cmd, check=True, stderr=self.stderr)
-        except FileNotFoundError:
-            raise FFmpegNotFoundError(
-                f'The ffmpeg command "{self.ffmpeg_path}" not found'
-            )
-        except subprocess.CalledProcessError as ex:
-            raise FFmpegCalledProcessError(ex) from ex
+    @classmethod
+    def _validate_stream_specifier(cls, stream_specifier: int | str) -> None:
+        if isinstance(stream_specifier, str):
+            if stream_specifier in ["v"]:
+                pass
+            else:
+                try:
+                    int(stream_specifier)
+                except ValueError:
+                    raise ValueError(f"Invalid stream specifier: {stream_specifier}")
 
 
 class Probe:
@@ -528,7 +538,7 @@ class Probe:
         """
         streams = self.probe_output.get("streams", [])
 
-        # search start time from video streams
+        # Search start time from video streams
         video_streams = self.probe_video_streams()
         video_streams.sort(
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
@@ -538,7 +548,7 @@ class Probe:
             if start_time is not None:
                 return start_time
 
-        # search start time from the other streams
+        # Search start time from the other streams
         for stream in streams:
             if stream.get("codec_type") != "video":
                 start_time = self.extract_stream_start_time(stream)

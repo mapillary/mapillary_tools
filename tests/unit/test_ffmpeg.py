@@ -40,11 +40,9 @@ def test_ffmpeg_extract_frames_ok(setup_data: py.path.local):
     sample_dir = Path(setup_data.join("videos/samples"))
     sample_dir.mkdir()
 
-    ff.extract_frames_by_interval(
-        video_path, sample_dir, stream_idx=None, sample_interval=1
-    )
+    ff.extract_frames_by_interval(video_path, sample_dir, sample_interval=1)
 
-    results = list(ff.sort_selected_samples(sample_dir, video_path, [None]))
+    results = list(ff.sort_selected_samples(sample_dir, video_path))
     assert len(results) == 6
     for idx, (file_idx, frame_paths) in enumerate(results):
         assert idx + 1 == file_idx
@@ -52,7 +50,41 @@ def test_ffmpeg_extract_frames_ok(setup_data: py.path.local):
         assert frame_paths[0] is not None
         assert frame_paths[0].exists()
 
+    results = list(ff.sort_selected_samples(sample_dir, video_path, ["0"]))
+    assert len(results) == 6
+    for idx, (file_idx, frame_paths) in enumerate(results):
+        assert idx + 1 == file_idx
+        assert 1 == len(frame_paths)
+        assert frame_paths[0] is None
+
+
+def test_ffmpeg_extract_frames_with_specifier_ok(setup_data: py.path.local):
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg not installed")
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    sample_dir = Path(setup_data.join("videos/samples"))
+    sample_dir.mkdir()
+
+    ff.extract_frames_by_interval(
+        video_path,
+        sample_dir,
+        sample_interval=1,
+        stream_specifier=0,
+    )
+
     results = list(ff.sort_selected_samples(sample_dir, video_path, [0]))
+    assert len(results) == 6
+    for idx, (file_idx, frame_paths) in enumerate(results):
+        assert idx + 1 == file_idx
+        assert 1 == len(frame_paths)
+        assert frame_paths[0] is not None
+        assert frame_paths[0].exists()
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path, [1]))
     assert len(results) == 6
     for idx, (file_idx, frame_paths) in enumerate(results):
         assert idx + 1 == file_idx
@@ -73,7 +105,7 @@ def test_ffmpeg_extract_specified_frames_ok(setup_data: py.path.local):
 
     ff.extract_specified_frames(video_path, sample_dir, frame_indices={2, 9})
 
-    results = list(ff.sort_selected_samples(sample_dir, video_path, [None]))
+    results = list(ff.sort_selected_samples(sample_dir, video_path))
     assert len(results) == 2
 
     for idx, (file_idx, frame_paths) in enumerate(results):
