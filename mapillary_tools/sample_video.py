@@ -13,6 +13,7 @@ from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
 from .mp4 import mp4_sample_parser
+from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def sample_video(
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
-            video_start_time_dt = types.map_capture_time_to_datetime(video_start_time)
+            video_start_time_dt = parse_capture_time(video_start_time)
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
 
@@ -193,8 +194,8 @@ def _sample_single_video_by_interval(
             )
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
-        ffmpeg.extract_frames(video_path, wip_dir, sample_interval)
-        frame_samples = ffmpeglib.sort_selected_samples(wip_dir, video_path, [None])
+        ffmpeg.extract_frames_by_interval(video_path, wip_dir, sample_interval)
+        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(wip_dir, video_path)
         for frame_idx_1based, sample_paths in frame_samples:
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
@@ -321,11 +322,11 @@ def _sample_single_video_by_distance(
             video_path,
             wip_dir,
             frame_indices=set(sorted_sample_indices),
-            stream_idx=video_stream_idx,
+            stream_specifier=str(video_stream_idx),
         )
 
-        frame_samples = ffmpeglib.sort_selected_samples(
-            wip_dir, video_path, [video_stream_idx]
+        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
+            wip_dir, video_path, selected_stream_specifiers=[str(video_stream_idx)]
         )
         if len(frame_samples) != len(sorted_sample_indices):
             raise exceptions.MapillaryVideoError(

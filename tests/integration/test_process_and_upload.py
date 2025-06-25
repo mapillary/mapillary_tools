@@ -60,7 +60,7 @@ EXPECTED_DESCS = {
         },
     },
     "gopro": {
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000001.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000001.jpg": {
             "MAPAltitude": -22.18,
             "MAPCaptureTime": "2019_11_18_15_44_47_862",
             "MAPCompassHeading": {"MagneticHeading": 313.689, "TrueHeading": 313.689},
@@ -71,7 +71,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000002.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000002.jpg": {
             "MAPAltitude": -21.62,
             "MAPCaptureTime": "2019_11_18_15_44_49_862",
             "MAPCompassHeading": {"MagneticHeading": 326.179, "TrueHeading": 326.179},
@@ -82,7 +82,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000003.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000003.jpg": {
             "MAPAltitude": -21.896,
             "MAPCaptureTime": "2019_11_18_15_44_51_862",
             "MAPCompassHeading": {"MagneticHeading": 353.178, "TrueHeading": 353.178},
@@ -93,7 +93,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000004.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000004.jpg": {
             "MAPAltitude": -21.997,
             "MAPCaptureTime": "2019_11_18_15_44_53_862",
             "MAPCompassHeading": {"MagneticHeading": 334.427, "TrueHeading": 334.427},
@@ -104,7 +104,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000005.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000005.jpg": {
             "MAPAltitude": -22.364,
             "MAPCaptureTime": "2019_11_18_15_44_55_862",
             "MAPCompassHeading": {"MagneticHeading": 325.089, "TrueHeading": 325.089},
@@ -115,7 +115,7 @@ EXPECTED_DESCS = {
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_NA_000006.jpg": {
+        "mly_tools_724084a74a44eebd025d0d97a1d5aa30_v_000006.jpg": {
             "MAPAltitude": -22.539,
             "MAPCaptureTime": "2019_11_18_15_44_57_862",
             "MAPCompassHeading": {"MagneticHeading": 327.867, "TrueHeading": 327.867},
@@ -198,9 +198,9 @@ def test_video_process_and_upload(
         check=True,
     )
     expected = {
-        "sample-5s_NA_000001.jpg": {
-            "filename": "sample-5s_NA_000001.jpg",
-            "MAPFilename": "sample-5s_NA_000001.jpg",
+        "sample-5s_v_000001.jpg": {
+            "filename": "sample-5s_v_000001.jpg",
+            "MAPFilename": "sample-5s_v_000001.jpg",
             "MAPAltitude": 94.75,
             "MAPCaptureTime": "2025_03_14_07_00_00_000",
             "MAPCompassHeading": {
@@ -212,9 +212,9 @@ def test_video_process_and_upload(
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "sample-5s_NA_000002.jpg": {
-            "filename": "sample-5s_NA_000002.jpg",
-            "MAPFilename": "sample-5s_NA_000002.jpg",
+        "sample-5s_v_000002.jpg": {
+            "filename": "sample-5s_v_000002.jpg",
+            "MAPFilename": "sample-5s_v_000002.jpg",
             "MAPAltitude": 93.347,
             "MAPCaptureTime": "2025_03_14_07_00_02_000",
             "MAPCompassHeading": {
@@ -226,9 +226,9 @@ def test_video_process_and_upload(
             "MAPOrientation": 1,
             "filetype": "image",
         },
-        "sample-5s_NA_000003.jpg": {
-            "filename": "sample-5s_NA_000003.jpg",
-            "MAPFilename": "sample-5s_NA_000003.jpg",
+        "sample-5s_v_000003.jpg": {
+            "filename": "sample-5s_v_000003.jpg",
+            "MAPFilename": "sample-5s_v_000003.jpg",
             "MAPAltitude": 92.492,
             "MAPCaptureTime": "2025_03_14_07_00_04_000",
             "MAPCompassHeading": {

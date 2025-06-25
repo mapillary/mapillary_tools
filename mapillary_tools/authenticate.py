@@ -11,7 +11,7 @@ import jsonschema
 
 import requests
 
-from . import api_v4, config, constants, exceptions, types
+from . import api_v4, config, constants, exceptions
 
 
 LOG = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def authenticate(
             LOG.info('Creating new profile: "%s"', profile_name)
 
         if jwt:
-            user_items: types.UserItem = {"user_upload_token": jwt}
+            user_items: config.UserItem = {"user_upload_token": jwt}
             user_items = _verify_user_auth(_validate_profile(user_items))
         else:
             user_items = _prompt_login(
@@ -89,7 +89,7 @@ def authenticate(
 def fetch_user_items(
     user_name: str | None = None,
     organization_key: str | None = None,
-) -> types.UserItem:
+) -> config.UserItem:
     """
     Read user information from the config file,
     or prompt the user to authenticate if the specified profile does not exist
@@ -155,9 +155,9 @@ def _prompt(message: str) -> str:
     return input()
 
 
-def _validate_profile(user_items: types.UserItem) -> types.UserItem:
+def _validate_profile(user_items: config.UserItem) -> config.UserItem:
     try:
-        jsonschema.validate(user_items, types.UserItemSchema)
+        jsonschema.validate(user_items, config.UserItemSchema)
     except jsonschema.ValidationError as ex:
         raise exceptions.MapillaryBadParameterError(
             f"Invalid profile format: {ex.message}"
@@ -165,7 +165,7 @@ def _validate_profile(user_items: types.UserItem) -> types.UserItem:
     return user_items
 
 
-def _verify_user_auth(user_items: types.UserItem) -> types.UserItem:
+def _verify_user_auth(user_items: config.UserItem) -> config.UserItem:
     """
     Verify that the user access token is valid
     """
@@ -205,7 +205,7 @@ def _validate_profile_name(profile_name: str):
         )
 
 
-def _list_all_profiles(profiles: dict[str, types.UserItem]) -> None:
+def _list_all_profiles(profiles: dict[str, config.UserItem]) -> None:
     _echo("Existing Mapillary profiles:")
 
     # Header
@@ -256,7 +256,7 @@ def _is_login_retryable(ex: requests.HTTPError) -> bool:
 def _prompt_login(
     user_email: str | None = None,
     user_password: str | None = None,
-) -> types.UserItem:
+) -> config.UserItem:
     _enabled = _prompt_enabled()
 
     if user_email is None:
@@ -288,7 +288,7 @@ def _prompt_login(
 
     data = resp.json()
 
-    user_items: types.UserItem = {
+    user_items: config.UserItem = {
         "user_upload_token": str(data["access_token"]),
         "MAPSettingsUserKey": str(data["user_id"]),
     }

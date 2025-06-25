@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import collections
 import datetime
-import json
 import logging
 import typing as T
 from pathlib import Path
@@ -17,6 +16,11 @@ from .geotag.options import (
     SourcePathOption,
     SourceType,
 )
+from .serializer.description import (
+    DescriptionJSONSerializer,
+    validate_and_fail_metadata,
+)
+from .serializer.gpx import GPXSerializer
 
 LOG = logging.getLogger(__name__)
 DEFAULT_GEOTAG_SOURCE_OPTIONS = [
@@ -200,12 +204,16 @@ def _write_metadatas(
     desc_path: str,
 ) -> None:
     if desc_path == "-":
-        descs = [types.as_desc(metadata) for metadata in metadatas]
-        print(json.dumps(descs, indent=2))
+        descs = DescriptionJSONSerializer.serialize(metadatas)
+        print(descs.decode("utf-8"))
     else:
-        descs = [types.as_desc(metadata) for metadata in metadatas]
-        with open(desc_path, "w") as fp:
-            json.dump(descs, fp)
+        normalized_suffix = Path(desc_path).suffix.strip().lower()
+        if normalized_suffix in [".gpx"]:
+            descs = GPXSerializer.serialize(metadatas)
+        else:
+            descs = DescriptionJSONSerializer.serialize(metadatas)
+        with open(desc_path, "wb") as fp:
+            fp.write(descs)
         LOG.info("Check the description file for details: %s", desc_path)
 
 
@@ -293,7 +301,7 @@ def _validate_metadatas(
     # See https://stackoverflow.com/a/61432070
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
     map_results = utils.mp_map_maybe(
-        types.validate_and_fail_metadata,
+        validate_and_fail_metadata,
         T.cast(T.Iterable[types.Metadata], good_metadatas),
         num_processes=num_processes,
     )

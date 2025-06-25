@@ -7,6 +7,7 @@ import os
 import typing as T
 
 from . import constants, exceptions, geo, types, utils
+from .serializer.description import DescriptionJSONSerializer
 
 LOG = logging.getLogger(__name__)
 
@@ -24,24 +25,21 @@ def split_sequence_by(
     """
     output_sequences: list[list[SeqItem]] = []
 
-    seq = iter(sequence)
+    if sequence:
+        output_sequences.append([sequence[0]])
 
-    prev = next(seq, None)
-    if prev is None:
-        return output_sequences
-
-    output_sequences.append([prev])
-
-    for cur in seq:
+    for prev, cur in geo.pairwise(sequence):
         # invariant: prev is processed
         if should_split(prev, cur):
             output_sequences.append([cur])
         else:
             output_sequences[-1].append(cur)
-        prev = cur
         # invariant: cur is processed
 
-    assert sum(len(s) for s in output_sequences) == len(sequence)
+    assert sum(len(s) for s in output_sequences) == len(sequence), (
+        output_sequences,
+        sequence,
+    )
 
     return output_sequences
 
@@ -109,7 +107,7 @@ def duplication_check(
             dup = types.describe_error_metadata(
                 exceptions.MapillaryDuplicationError(
                     msg,
-                    types.as_desc(cur),
+                    DescriptionJSONSerializer.as_desc(cur),
                     distance=distance,
                     angle_diff=angle_diff,
                 ),

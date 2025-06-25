@@ -2,6 +2,7 @@ import datetime
 from pathlib import Path
 
 from mapillary_tools import geo, types
+from mapillary_tools.serializer import description
 
 
 def test_desc():
@@ -39,9 +40,9 @@ def test_desc():
         ),
     ]
     for metadata in metadatas:
-        desc = types.as_desc(metadata)
-        types.validate_image_desc(desc)
-        actual = types.from_desc(desc)
+        desc = description.DescriptionJSONSerializer.as_desc(metadata)
+        description.validate_image_desc(desc)
+        actual = description.DescriptionJSONSerializer.from_desc(desc)
         assert metadata == actual
 
 
@@ -69,29 +70,27 @@ def test_desc_video():
         ),
     ]
     for metadata in ds:
-        desc = types._as_video_desc(metadata)
-        types.validate_video_desc(desc)
-        actual = types._from_video_desc(desc)
+        desc = description.DescriptionJSONSerializer._as_video_desc(metadata)
+        description.validate_video_desc(desc)
+        actual = description.DescriptionJSONSerializer._from_video_desc(desc)
         assert metadata == actual
 
 
 def test_datetimes():
-    ct = types.datetime_to_map_capture_time(0)
+    ct = description.build_capture_time(0)
     assert ct == "1970_01_01_00_00_00_000"
-    ct = types.datetime_to_map_capture_time(0.123456)
+    ct = description.build_capture_time(0.123456)
     assert ct == "1970_01_01_00_00_00_123"
-    ct = types.datetime_to_map_capture_time(0.000456)
+    ct = description.build_capture_time(0.000456)
     assert ct == "1970_01_01_00_00_00_000"
-    dt = types.map_capture_time_to_datetime(ct)
+    dt = description.parse_capture_time(ct)
     assert dt == datetime.datetime(1970, 1, 1, 0, 0, tzinfo=datetime.timezone.utc)
     x = datetime.datetime.fromisoformat("2020-01-01T00:00:12.123567+08:00")
-    assert "2019_12_31_16_00_12_123" == types.datetime_to_map_capture_time(x)
+    assert "2019_12_31_16_00_12_123" == description.build_capture_time(x)
     assert (
         abs(
             geo.as_unix_time(
-                types.map_capture_time_to_datetime(
-                    types.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )
@@ -101,9 +100,7 @@ def test_datetimes():
     assert (
         abs(
             geo.as_unix_time(
-                types.map_capture_time_to_datetime(
-                    types.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )
@@ -113,9 +110,7 @@ def test_datetimes():
     assert (
         abs(
             geo.as_unix_time(
-                types.map_capture_time_to_datetime(
-                    types.datetime_to_map_capture_time(x)
-                )
+                description.parse_capture_time(description.build_capture_time(x))
             )
             - geo.as_unix_time(x)
         )
