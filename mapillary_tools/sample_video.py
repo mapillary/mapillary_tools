@@ -195,7 +195,9 @@ def _sample_single_video_by_interval(
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_frames_by_interval(video_path, wip_dir, sample_interval)
-        frame_samples = ffmpeglib.sort_selected_samples(wip_dir, video_path, [None])
+        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
+            wip_dir, video_path, [None]
+        )
         for frame_idx_1based, sample_paths in frame_samples:
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
@@ -325,7 +327,7 @@ def _sample_single_video_by_distance(
             stream_idx=video_stream_idx,
         )
 
-        frame_samples = ffmpeglib.sort_selected_samples(
+        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
             wip_dir, video_path, [video_stream_idx]
         )
         if len(frame_samples) != len(sorted_sample_indices):
