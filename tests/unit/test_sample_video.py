@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import json
 import os
@@ -15,12 +17,12 @@ _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
 
 class MOCK_FFMPEG(ffmpeg.FFMPEG):
-    def extract_frames(
+    def extract_frames_by_interval(
         self,
         video_path: Path,
         sample_path: Path,
         video_sample_interval: float,
-        stream_idx: T.Optional[int] = None,
+        stream_specifier: int | str = "v",
     ):
         probe = self.probe_format_and_streams(video_path)
         video_streams = [
@@ -31,10 +33,7 @@ class MOCK_FFMPEG(ffmpeg.FFMPEG):
         frame_path_prefix = os.path.join(sample_path, video_basename_no_ext)
         src = os.path.join(_PWD, "data/test_exif.jpg")
         for idx in range(0, int(duration / video_sample_interval)):
-            if stream_idx is None:
-                sample = f"{frame_path_prefix}_NA_{idx + 1:06d}.jpg"
-            else:
-                sample = f"{frame_path_prefix}_{stream_idx}_{idx + 1:06d}.jpg"
+            sample = f"{frame_path_prefix}_{stream_specifier}_{idx + 1:06d}.jpg"
             shutil.copyfile(src, sample)
 
     def probe_format_and_streams(self, video_path: Path) -> ffmpeg.ProbeOutput:
@@ -50,7 +49,7 @@ def setup_mock(monkeypatch):
 def _validate_interval(samples: T.Sequence[Path], video_start_time):
     assert len(samples), "expect samples but got none"
     for idx, sample in enumerate(sorted(samples)):
-        assert sample.name == f"hello_NA_{idx + 1:06d}.jpg"
+        assert sample.name == f"hello_v_{idx + 1:06d}.jpg"
         exif = exif_read.ExifRead(sample)
         expected_dt = video_start_time + datetime.timedelta(seconds=2 * idx)
         assert exif.extract_capture_time() == expected_dt
