@@ -26,14 +26,17 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
     ):
         super().__init__(num_processes=num_processes)
         if option is None:
-            option = options.SourcePathOption(pattern="%f.gpx")
+            option = options.SourcePathOption(pattern="%g.gpx")
         self.option = option
 
     @override
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[GPXVideoExtractor]:
-        return [
-            GPXVideoExtractor(video_path, self.option.resolve(video_path))
-            for video_path in video_paths
-        ]
+        extractors = []
+        for video_path in video_paths:
+            resolved_path = self.option.resolve(video_path)
+            if not resolved_path.is_file():
+                pass
+            extractors.append(GPXVideoExtractor(video_path, resolved_path))
+        return extractors

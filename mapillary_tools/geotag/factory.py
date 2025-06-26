@@ -162,7 +162,7 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
     else:
         interpolation = option.interpolation
 
-    if option.source is SourceType.NATIVE:
+    if option.source in [SourceType.EXIF, SourceType.NATIVE]:
         return geotag_images_from_exif.GeotagImagesFromEXIF(
             num_processes=option.num_processes
         )
@@ -196,11 +196,6 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
             num_processes=option.num_processes,
         )
 
-    elif option.source is SourceType.EXIF:
-        return geotag_images_from_exif.GeotagImagesFromEXIF(
-            num_processes=option.num_processes
-        )
-
     elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
         return geotag_images_from_video.GeotagImageSamplesFromVideo(
             _ensure_source_path(option),
@@ -229,7 +224,9 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         )
 
     elif option.source is SourceType.GPX:
-        return geotag_videos_from_gpx.GeotagVideosFromGPX()
+        return geotag_videos_from_gpx.GeotagVideosFromGPX(
+            option=option.source_path, num_processes=option.num_processes
+        )
 
     elif option.source is SourceType.NMEA:
         # TODO: geotag videos from NMEA

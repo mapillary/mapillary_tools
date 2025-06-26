@@ -60,9 +60,13 @@ class SourceOption:
             elif k == "filetypes":
                 kwargs[k] = {types.FileType(t) for t in v}
             elif k == "source_path":
-                kwargs.setdefault("source_path", SourcePathOption()).source_path = v
+                kwargs.setdefault(
+                    "source_path", SourcePathOption(source_path=Path(v))
+                ).sourthe_path = Path(v)
             elif k == "pattern":
-                kwargs.setdefault("source_path", SourcePathOption()).pattern = v
+                kwargs.setdefault(
+                    "source_path", SourcePathOption(pattern=v)
+                ).pattern = v
             elif k == "interpolation_offset_time":
                 kwargs.setdefault(
                     "interpolation", InterpolationOption()
