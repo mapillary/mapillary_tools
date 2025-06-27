@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import platform
-import shutil
 import subprocess
 import typing as T
 from pathlib import Path
@@ -12,32 +10,15 @@ class ExiftoolRunner:
     Wrapper around ExifTool to run it in a subprocess
     """
 
-    def __init__(self, exiftool_path: str | None = None, recursive: bool = False):
-        if exiftool_path is None:
-            exiftool_path = self._search_preferred_exiftool_path()
-        self.exiftool_path = exiftool_path
+    def __init__(self, exiftool_executable: str = "exiftool", recursive: bool = False):
+        if exiftool_executable is None:
+            exiftool_executable = self._search_preferred_exiftool_path()
+        self.exiftool_executable = exiftool_executable
         self.recursive = recursive
-
-    def _search_preferred_exiftool_path(self) -> str:
-        system = platform.system()
-
-        if system and system.lower() == "windows":
-            exiftool_paths = ["exiftool.exe", "exiftool"]
-        else:
-            exiftool_paths = ["exiftool", "exiftool.exe"]
-
-        for path in exiftool_paths:
-            full_path = shutil.which(path)
-            if full_path:
-                return path
-
-        # Always return the prefered one, even if it is not found,
-        # and let the subprocess.run figure out the error later
-        return exiftool_paths[0]
 
     def _build_args_read_stdin(self) -> list[str]:
         args: list[str] = [
-            self.exiftool_path,
+            self.exiftool_executable,
             "-fast",
             "-q",
             "-n",  # Disable print conversion
