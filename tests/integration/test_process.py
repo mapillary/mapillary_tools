@@ -816,3 +816,12 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
         assert "sample-5s.mp4" in d["filename"]
     assert 0 == len(find_desc_errors(descs))
     assert 3 == len(filter_out_errors(descs))
+
+
+def test_process_video_geotag_source_gpx(setup_data: py.path.local):
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    subprocess.run(
+        f"""{EXECUTABLE} process {PROCESS_FLAGS} --skip_process_errors --video_geotag_source=gpx {video_path}""",
+        shell=True,
+        check=True,
+    )

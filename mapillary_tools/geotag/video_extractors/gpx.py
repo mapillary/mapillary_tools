@@ -28,12 +28,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
     @override
     def extract(self) -> types.VideoMetadataOrError:
-        try:
-            gpx_tracks = parse_gpx(self.gpx_path)
-        except Exception as ex:
-            raise RuntimeError(
-                f"Error parsing GPX {self.gpx_path}: {ex.__class__.__name__}: {ex}"
-            )
+        gpx_tracks = parse_gpx(self.gpx_path)
 
         if 1 < len(gpx_tracks):
             LOG.warning(

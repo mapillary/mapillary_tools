@@ -10,6 +10,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
+from .. import types, exceptions
 from . import options
 from .base import GeotagVideosFromGeneric
 from .video_extractors.gpx import GPXVideoExtractor
@@ -32,11 +33,20 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
     @override
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
-    ) -> T.Sequence[GPXVideoExtractor]:
-        extractors = []
+    ) -> T.Sequence[GPXVideoExtractor | types.ErrorMetadata]:
+        results: list[GPXVideoExtractor | types.ErrorMetadata] = []
         for video_path in video_paths:
-            resolved_path = self.option.resolve(video_path)
-            if not resolved_path.is_file():
-                pass
-            extractors.append(GPXVideoExtractor(video_path, resolved_path))
-        return extractors
+            source_path = self.option.resolve(video_path)
+            if source_path.is_file():
+                results.append(GPXVideoExtractor(video_path, source_path))
+            else:
+                results.append(
+                    types.describe_error_metadata(
+                        exceptions.MapillaryVideoGPSNotFoundError(
+                            "GPX file not found for video"
+                        ),
+                        filename=video_path,
+                        filetype=types.FileType.VIDEO,
+                    )
+                )
+        return results
