@@ -68,7 +68,10 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
-        runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+        if constants.EXIFTOOL_PATH is None:
+            runner = ExiftoolRunner()
+        else:
+            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
             "Extracting XML from %d images with ExifTool command: %s",

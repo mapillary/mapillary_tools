@@ -11,8 +11,6 @@ class ExiftoolRunner:
     """
 
     def __init__(self, exiftool_executable: str = "exiftool", recursive: bool = False):
-        if exiftool_executable is None:
-            exiftool_executable = self._search_preferred_exiftool_path()
         self.exiftool_executable = exiftool_executable
         self.recursive = recursive
 

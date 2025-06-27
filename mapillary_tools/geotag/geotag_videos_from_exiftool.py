@@ -66,7 +66,10 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
-        runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+        if constants.EXIFTOOL_PATH is None:
+            runner = ExiftoolRunner()
+        else:
+            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
             "Extracting XML from %d videos with ExifTool command: %s",
