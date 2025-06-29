@@ -33,11 +33,13 @@ def setup_config(tmpdir: py.path.local):
     os.environ["MAPILLARY_CONFIG_PATH"] = str(config_path)
     os.environ["MAPILLARY_TOOLS_PROMPT_DISABLED"] = "YES"
     os.environ["MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED"] = "YES"
-    x = subprocess.run(
-        f"{EXECUTABLE} authenticate --user_name {USERNAME} --jwt test_user_token",
-        shell=True,
+    run_command(
+        [
+            *["--user_name", USERNAME],
+            *["--jwt", "test_user_token"],
+        ],
+        command="authenticate",
     )
-    assert x.returncode == 0, x.stderr
     yield config_path
     if tmpdir.check():
         tmpdir.remove(ignore_errors=True)
@@ -83,12 +85,14 @@ def _ffmpeg_installed():
             [ffmpeg_path, "-version"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            check=True,
         )
         # In Windows, ffmpeg is installed but ffprobe is not?
         subprocess.run(
             [ffprobe_path, "-version"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            check=True,
         )
     except FileNotFoundError:
         return False
@@ -104,7 +108,7 @@ def _exiftool_installed():
             [EXIFTOOL_EXECUTABLE, "-ver"],
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            shell=True,
+            check=True,
         )
     except FileNotFoundError:
         return False
@@ -211,27 +215,9 @@ def validate_and_extract_camm(video_path: Path) -> list[dict]:
         upload_md5sum,
     )
 
-    if not IS_FFMPEG_INSTALLED:
-        return []
-
-    with tempfile.TemporaryDirectory() as tempdir:
-        x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=camm {str(video_path)} {tempdir}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-
-        # no exif written so we can't extract the image description
-        # descs = []
-        # for root, _, files in os.walk(tempdir):
-        #     for file in files:
-        #         if file.endswith(".jpg"):
-        #             descs.append(validate_and_extract_image(os.path.join(root, file)))
-        # return descs
-
-        # instead, we return the mapillary_image_description.json
-        with open(os.path.join(tempdir, "mapillary_image_description.json")) as fp:
-            return json.load(fp)
+    return run_process_for_descs(
+        ["--file_types=camm", str(video_path)], command="process"
+    )
 
 
 def load_descs(descs) -> list:
@@ -339,6 +325,11 @@ def assert_compare_image_descs(expected: dict, actual: dict):
     if "MAPDeviceModel" in expected:
         assert expected["MAPDeviceModel"] == actual["MAPDeviceModel"]
 
+    if "MAPGPSTrack" in expected:
+        assert expected["MAPGPSTrack"] == actual["MAPGPSTrack"], (
+            f"expect {expected['MAPGPSTrack']} but got {actual['MAPGPSTrack']} in {filename}"
+        )
+
 
 def assert_contains_image_descs(haystack: Path | list[dict], needle: Path | list[dict]):
     """
@@ -369,14 +360,10 @@ def assert_same_image_descs(left: Path | list[dict], right: Path | list[dict]):
 
 
 def run_command(params: list[str], command: str, **kwargs):
-    subprocess.run(
-        [*shlex.split(EXECUTABLE), command, *params],
-        check=True,
-        **kwargs,
-    )
+    subprocess.run([*shlex.split(EXECUTABLE), command, *params], check=True, **kwargs)
 
 
-def run_command_for_descs(params: list[str], command: str, **kwargs):
+def run_process_for_descs(params: list[str], command: str = "process", **kwargs):
     with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
         run_command(
             [
@@ -391,3 +378,17 @@ def run_command_for_descs(params: list[str], command: str, **kwargs):
         with open(desc_file.name, "r") as fp:
             fp.seek(0)
             return json.load(fp)
+
+
+def run_process_and_upload_for_descs(
+    params: list[str], command="process_and_upload", **kwargs
+):
+    return run_process_for_descs(
+        ["--dry_run", *["--user_name", USERNAME], *params], command=command, **kwargs
+    )
+
+
+def run_upload(params: list[str], **kwargs):
+    return run_command(
+        ["--dry_run", *["--user_name", USERNAME], *params], command="upload", **kwargs
+    )

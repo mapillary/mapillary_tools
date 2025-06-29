@@ -9,14 +9,14 @@ import pytest
 from .fixtures import (
     assert_same_image_descs,
     IS_FFMPEG_INSTALLED,
-    run_command_for_descs,
     run_exiftool_and_generate_geotag_args,
+    run_process_for_descs,
     setup_config,
     setup_upload,
 )
 
 run_video_process_for_descs = functools.partial(
-    run_command_for_descs, command="video_process"
+    run_process_for_descs, command="video_process"
 )
 
 IMPORT_PATH = "tests/data/gopro_data"

@@ -1,5 +1,4 @@
 import datetime
-import subprocess
 from pathlib import Path
 
 import py.path
@@ -8,18 +7,13 @@ import pytest
 from .fixtures import (
     assert_contains_image_descs,
     assert_same_image_descs,
-    EXECUTABLE,
     extract_all_uploaded_descs,
     IS_FFMPEG_INSTALLED,
+    run_process_and_upload_for_descs,
     setup_config,
     setup_data,
     setup_upload,
-    USERNAME,
 )
-
-PROCESS_FLAGS = ""
-UPLOAD_FLAGS = f"--dry_run --user_name={USERNAME}"
-
 
 EXPECTED_DESCS = {
     "image": {
@@ -140,36 +134,36 @@ def test_process_and_upload(setup_data: py.path.local, setup_upload: py.path.loc
         setup_data.join("images"),
         setup_data.join("images").join("DSC00001.JPG"),
     ]
-    subprocess.run(
-        f"{EXECUTABLE} --verbose process_and_upload {UPLOAD_FLAGS} {' '.join(map(str, input_paths))} --skip_process_errors",
-        shell=True,
-        check=True,
-    )
 
-    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    descs = run_process_and_upload_for_descs([*[str(path) for path in input_paths]])
     assert_contains_image_descs(
         descs,
+        [*EXPECTED_DESCS["gopro"].values(), *EXPECTED_DESCS["image"].values()],
+    )
+
+    uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_contains_image_descs(
+        uploaded_descs,
         [*EXPECTED_DESCS["gopro"].values(), *EXPECTED_DESCS["image"].values()],
     )
 
 
 @pytest.mark.usefixtures("setup_config")
 def test_process_and_upload_images_only(
-    setup_data: py.path.local,
-    setup_upload: py.path.local,
+    setup_data: py.path.local, setup_upload: py.path.local
 ):
-    subprocess.run(
-        f"""{EXECUTABLE} --verbose process_and_upload \
-    {UPLOAD_FLAGS} {PROCESS_FLAGS} \
-    --filetypes=image \
-    --desc_path=- \
-    {setup_data}/images {setup_data}/images {setup_data}/images/DSC00001.JPG
-""",
-        shell=True,
-        check=True,
+    descs = run_process_and_upload_for_descs(
+        [
+            "--filetypes=image",
+            str(setup_data.join("images")),
+            str(setup_data.join("images")),
+            str(setup_data.join("images").join("DSC00001.JPG")),
+        ]
     )
-    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert_contains_image_descs(descs, [*EXPECTED_DESCS["image"].values()])
+
+    uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_contains_image_descs(uploaded_descs, [*EXPECTED_DESCS["image"].values()])
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -183,20 +177,20 @@ def test_video_process_and_upload(
     gpx_start_time = "2025_03_14_07_00_00_000"
     gpx_end_time = "2025_03_14_07_01_33_624"
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    subprocess.run(
-        f"""{EXECUTABLE} video_process_and_upload \
-    {PROCESS_FLAGS} {UPLOAD_FLAGS} \
-    --video_sample_interval=2 \
-    --video_sample_distance=-1 \
-    --video_start_time {gpx_start_time} \
-    --geotag_source gpx \
-    --geotag_source_path {gpx_file} \
-    --desc_path - \
-    {video_dir} {video_dir.join("my_samples")}
-""",
-        shell=True,
-        check=True,
+
+    run_process_and_upload_for_descs(
+        [
+            "--video_sample_interval=2",
+            "--video_sample_distance=-1",
+            *["--video_start_time", gpx_start_time],
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_dir),
+            str(video_dir.join("my_samples")),
+        ],
+        command="video_process_and_upload",
     )
+
     expected = {
         "sample-5s_v_000001.jpg": {
             "filename": "sample-5s_v_000001.jpg",
@@ -241,8 +235,8 @@ def test_video_process_and_upload(
             "filetype": "image",
         },
     }
-    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
-    assert_same_image_descs(descs, list(expected.values()))
+    uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_same_image_descs(uploaded_descs, list(expected.values()))
 
 
 @pytest.mark.usefixtures("setup_config")
@@ -257,20 +251,19 @@ def test_video_process_and_upload_after_gpx(
     gpx_end_time = "2025_03_14_07_01_33_624"
     video_start_time = "2025_03_14_07_01_34_624"
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    subprocess.run(
-        f"""{EXECUTABLE} video_process_and_upload \
-    {PROCESS_FLAGS} {UPLOAD_FLAGS} \
-    --video_sample_interval=2 \
-    --video_sample_distance=-1 \
-    --video_start_time {video_start_time} \
-    --geotag_source gpx \
-    --geotag_source_path {gpx_file} \
-    --skip_process_errors \
-    --desc_path - \
-    {video_dir} {video_dir.join("my_samples")}
-""",
-        shell=True,
-        check=True,
+
+    run_process_and_upload_for_descs(
+        [
+            "--video_sample_interval=2",
+            "--video_sample_distance=-1",
+            *["--video_start_time", video_start_time],
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_dir),
+            str(video_dir.join("my_samples")),
+        ],
+        command="video_process_and_upload",
     )
-    descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
-    assert_same_image_descs(descs, [])
+
+    uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_same_image_descs(uploaded_descs, [])

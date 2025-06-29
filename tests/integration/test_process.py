@@ -1,5 +1,4 @@
 import datetime
-import functools
 import json
 import subprocess
 from pathlib import Path
@@ -10,8 +9,8 @@ from .fixtures import (
     assert_contains_image_descs,
     EXECUTABLE,
     run_command,
-    run_command_for_descs,
     run_exiftool_and_generate_geotag_args,
+    run_process_for_descs,
     setup_data,
     validate_and_extract_zip,
 )
@@ -69,9 +68,6 @@ _DEFAULT_EXPECTED_DESCS = {
         "MAPOrientation": 1,
     },
 }
-
-
-run_process_for_descs = functools.partial(run_command_for_descs, command="process")
 
 
 def _local_to_utc(ct: str):
@@ -616,6 +612,22 @@ def test_process_video_geotag_source_gopro_gpx_specified(setup_data: py.path.loc
                 "--video_geotag_source",
                 json.dumps({"source": "gpx", "source_path": str(gpx_file)}),
             ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["MAPDeviceMake"] == "GoPro"
+    assert descs[0]["MAPDeviceModel"] == "GoPro Max"
+    assert len(descs[0]["MAPGPSTrack"]) > 0
+
+
+def test_process_video_geotag_source_exiftool_runtime(setup_data: py.path.local):
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    descs = run_process_for_descs(
+        [
+            *["--video_geotag_source", json.dumps({"source": "exiftool"})],
             str(video_path),
         ]
     )

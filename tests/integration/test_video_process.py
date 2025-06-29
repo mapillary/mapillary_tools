@@ -12,13 +12,13 @@ from .fixtures import (
     assert_contains_image_descs,
     IS_FFMPEG_INSTALLED,
     run_command,
-    run_command_for_descs,
+    run_process_for_descs,
     setup_data,
 )
 
 
 run_video_process_for_descs = functools.partial(
-    run_command_for_descs, command="video_process"
+    run_process_for_descs, command="video_process"
 )
 
 run_sample_video = functools.partial(run_command, command="sample_video")
@@ -60,7 +60,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
                     input_path,
                 ]
             )
-            assert 7 == ex.value.returncode, ex.value.stderr
+        assert 7 == ex.value.returncode, ex.value.stderr
 
         if root_sample_dir.exists():
             assert len(root_sample_dir.listdir()) == 0
