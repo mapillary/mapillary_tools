@@ -7,6 +7,7 @@ from pathlib import Path
 import exifread
 import py.path
 import pytest
+import shlex
 
 from .fixtures import (
     assert_contains_image_descs,
@@ -818,10 +819,73 @@ def test_video_process_multiple_videos(setup_data: py.path.local):
     assert 3 == len(filter_out_errors(descs))
 
 
-def test_process_video_geotag_source_gpx(setup_data: py.path.local):
-    video_path = setup_data.join("videos").join("sample-5s.mp4")
+def run_process(params: list[str]):
     subprocess.run(
-        f"""{EXECUTABLE} process {PROCESS_FLAGS} --skip_process_errors --video_geotag_source=gpx {video_path}""",
-        shell=True,
+        [*shlex.split(EXECUTABLE), "process", *params],
         check=True,
     )
+
+
+def run_process_for_descs(params: list[str]):
+    with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
+        run_process(
+            [
+                "--skip_process_errors",
+                *["--desc_path", str(desc_file.name)],
+                *params,
+            ],
+        )
+
+        with open(desc_file.name, "r") as fp:
+            fp.seek(0)
+            return json.load(fp)
+
+
+def test_process_video_geotag_source_gpx_specified(setup_data: py.path.local):
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                json.dumps({"source": "gpx", "source_path": str(gpx_file)}),
+            ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert len(descs[0]["MAPGPSTrack"]) > 0
+
+
+def test_process_video_geotag_source_gpx_not_found(setup_data: py.path.local):
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    descs = run_process_for_descs(
+        [
+            *["--video_geotag_source", "gpx"],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
+
+
+def test_process_video_geotag_source_gopro_gpx_specified(setup_data: py.path.local):
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                json.dumps({"source": "gpx", "source_path": str(gpx_file)}),
+            ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["MAPDeviceMake"] == "GoPro"
+    assert descs[0]["MAPDeviceModel"] == "GoPro Max"

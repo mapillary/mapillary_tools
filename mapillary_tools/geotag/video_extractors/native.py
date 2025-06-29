@@ -17,7 +17,7 @@ from .base import BaseVideoExtractor
 
 class GoProVideoExtractor(BaseVideoExtractor):
     @override
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         with self.video_path.open("rb") as fp:
             gopro_info = gpmf_parser.extract_gopro_info(fp)
 
@@ -29,23 +29,13 @@ class GoProVideoExtractor(BaseVideoExtractor):
         gps_points = gopro_info.gps
         assert gps_points is not None, "must have GPS data extracted"
         if not gps_points:
-            # Instead of raising an exception, return error metadata to tell the file type
-            ex: exceptions.MapillaryDescriptionError = (
-                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-            )
-            return types.describe_error_metadata(
-                ex, self.video_path, filetype=types.FileType.GOPRO
-            )
+            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         gps_points = T.cast(
             T.List[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
         )
         if not gps_points:
-            # Instead of raising an exception, return error metadata to tell the file type
-            ex = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
-            return types.describe_error_metadata(
-                ex, self.video_path, filetype=types.FileType.GOPRO
-            )
+            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
@@ -61,7 +51,7 @@ class GoProVideoExtractor(BaseVideoExtractor):
 
 class CAMMVideoExtractor(BaseVideoExtractor):
     @override
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         with self.video_path.open("rb") as fp:
             camm_info = camm_parser.extract_camm_info(fp)
 
@@ -71,13 +61,7 @@ class CAMMVideoExtractor(BaseVideoExtractor):
             )
 
         if not camm_info.gps and not camm_info.mini_gps:
-            # Instead of raising an exception, return error metadata to tell the file type
-            ex: exceptions.MapillaryDescriptionError = (
-                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-            )
-            return types.describe_error_metadata(
-                ex, self.video_path, filetype=types.FileType.CAMM
-            )
+            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         return types.VideoMetadata(
             filename=self.video_path,
@@ -91,7 +75,7 @@ class CAMMVideoExtractor(BaseVideoExtractor):
 
 class BlackVueVideoExtractor(BaseVideoExtractor):
     @override
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         with self.video_path.open("rb") as fp:
             blackvue_info = blackvue_parser.extract_blackvue_info(fp)
 
@@ -101,19 +85,13 @@ class BlackVueVideoExtractor(BaseVideoExtractor):
             )
 
         if not blackvue_info.gps:
-            # Instead of raising an exception, return error metadata to tell the file type
-            ex: exceptions.MapillaryDescriptionError = (
-                exceptions.MapillaryGPXEmptyError("Empty GPS data found")
-            )
-            return types.describe_error_metadata(
-                ex, self.video_path, filetype=types.FileType.BLACKVUE
-            )
+            raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=types.FileType.BLACKVUE,
-            points=blackvue_info.gps or [],
+            points=blackvue_info.gps,
             make=blackvue_info.make,
             model=blackvue_info.model,
         )
@@ -127,7 +105,7 @@ class NativeVideoExtractor(BaseVideoExtractor):
         self.filetypes = filetypes
 
     @override
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         ft = self.filetypes
         extractor: BaseVideoExtractor
 
