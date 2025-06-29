@@ -8,7 +8,7 @@ import pytest
 
 from .fixtures import (
     assert_same_image_descs,
-    IS_FFMPEG_INSTALLED,
+    pytest_skip_if_not_ffmpeg_installed,
     run_exiftool_and_generate_geotag_args,
     run_process_for_descs,
     setup_config,
@@ -136,8 +136,8 @@ def test_process_gopro_hero8(
     setup_data: py.path.local,
     use_exiftool: bool = False,
 ):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
+
     video_path = setup_data.join("hero8.mp4")
 
     if use_exiftool:

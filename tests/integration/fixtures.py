@@ -118,7 +118,9 @@ def _exiftool_installed():
 IS_EXIFTOOL_INSTALLED = _exiftool_installed()
 
 
-def run_exiftool(setup_data: py.path.local) -> py.path.local:
+def run_exiftool_dir(setup_data: py.path.local) -> py.path.local:
+    pytest_skip_if_not_exiftool_installed()
+
     exiftool_outuput_dir = setup_data.join("exiftool_outuput_dir")
     # The "-w %c" option in exiftool will produce duplicated XML files therefore clean up the folder first
     shutil.rmtree(exiftool_outuput_dir, ignore_errors=True)
@@ -145,9 +147,21 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
     # The solution is to use %c which suffixes the original filenames with an increasing number
     # -w C%c.txt       # C.txt, C1.txt, C2.txt ...
     # -w C%.c.txt       # C0.txt, C1.txt, C2.txt ...
-    subprocess.check_call(
-        f"{EXIFTOOL_EXECUTABLE} -r -ee -n -X -api LargeFileSupport=1 -w! {exiftool_outuput_dir}/%f%c.xml {setup_data}",
-        shell=True,
+    # TODO: Maybe replace with exiftool_runner
+    subprocess.run(
+        [
+            EXIFTOOL_EXECUTABLE,
+            "-fast",  # Fast processing
+            "-q",  # Quiet mode
+            "-r",  # Recursive
+            "-n",  # Disable print conversion
+            "-X",  # XML output
+            "-ee",
+            *["-api", "LargeFileSupport=1"],
+            *["-w!", str(exiftool_outuput_dir.join("%f%c.xml"))],
+            str(setup_data),
+        ],
+        check=True,
     )
     return exiftool_outuput_dir
 
@@ -155,20 +169,15 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
 def run_exiftool_and_generate_geotag_args(
     test_data_dir: py.path.local, run_args: list[str]
 ) -> list[str]:
-    if not IS_EXIFTOOL_INSTALLED:
-        pytest.skip("exiftool not installed")
+    pytest_skip_if_not_exiftool_installed()
 
-    exiftool_outuput_dir = run_exiftool(test_data_dir)
+    exiftool_outuput_dir = run_exiftool_dir(test_data_dir)
     return [
         *run_args,
         "--geotag_source=exiftool_xml",
         "--geotag_source_path",
         str(exiftool_outuput_dir),
     ]
-
-
-with open("schema/image_description_schema.json") as fp:
-    IMAGE_DESCRIPTION_SCHEMA = json.load(fp)
 
 
 def validate_and_extract_image(image_path: Path):
@@ -359,6 +368,22 @@ def assert_same_image_descs(left: Path | list[dict], right: Path | list[dict]):
     assert_contains_image_descs(right, left)
 
 
+def assert_descs_exact_equal(left: list[dict], right: list[dict]):
+    assert len(left) == len(right)
+
+    # TODO: make sure groups are the same too
+    for d in left:
+        d.pop("MAPSequenceUUID", None)
+
+    for d in right:
+        d.pop("MAPSequenceUUID", None)
+
+    left.sort(key=lambda d: d["filename"])
+    right.sort(key=lambda d: d["filename"])
+
+    assert left == right
+
+
 def run_command(params: list[str], command: str, **kwargs):
     subprocess.run([*shlex.split(EXECUTABLE), command, *params], check=True, **kwargs)
 
@@ -392,3 +417,17 @@ def run_upload(params: list[str], **kwargs):
     return run_command(
         ["--dry_run", *["--user_name", USERNAME], *params], command="upload", **kwargs
     )
+
+
+def pytest_skip_if_not_ffmpeg_installed():
+    if not IS_FFMPEG_INSTALLED:
+        pytest.skip("ffmpeg is not installed, skipping the test")
+
+
+def pytest_skip_if_not_exiftool_installed():
+    if not IS_EXIFTOOL_INSTALLED:
+        pytest.skip("exiftool is not installed, skipping the test")
+
+
+with open("schema/image_description_schema.json") as fp:
+    IMAGE_DESCRIPTION_SCHEMA = json.load(fp)

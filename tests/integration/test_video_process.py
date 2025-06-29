@@ -10,7 +10,7 @@ import pytest
 
 from .fixtures import (
     assert_contains_image_descs,
-    IS_FFMPEG_INSTALLED,
+    pytest_skip_if_not_ffmpeg_installed,
     run_command,
     run_process_for_descs,
     setup_data,
@@ -25,8 +25,7 @@ run_sample_video = functools.partial(run_command, command="sample_video")
 
 
 def test_sample_video_relpath():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     with tempfile.TemporaryDirectory() as dir:
         run_sample_video(["--rerun", "tests/data/gopro_data/hero8.mp4", str(dir)])
@@ -44,8 +43,7 @@ def test_sample_video_relpath():
 
 
 def test_sample_video_without_video_time(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("videos")
     root_sample_dir = video_dir.join("mapillary_sampled_video_frames")
@@ -79,8 +77,7 @@ def test_sample_video_without_video_time(setup_data: py.path.local):
 
 
 def test_sample_video_specify_video_start_time(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("videos")
     root_sample_dir = video_dir.join("mapillary_sampled_video_frames")
@@ -110,8 +107,7 @@ def test_sample_video_specify_video_start_time(setup_data: py.path.local):
 
 
 def test_video_process(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("videos")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
@@ -135,8 +131,7 @@ def test_video_process(setup_data: py.path.local):
 
 
 def test_video_process_sample_with_multiple_distances(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("gopro_data")
     for distance in [0, 2.4, 100]:
@@ -156,8 +151,7 @@ def test_video_process_sample_with_multiple_distances(setup_data: py.path.local)
 
 
 def test_video_process_sample_with_distance(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("gopro_data")
     sample_dir = Path(setup_data, "gopro_data", "my_samples")
@@ -247,8 +241,7 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
 
 
 def test_video_process_multiple_videos(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     sub_folder = setup_data.join("video_sub_folder").mkdir()
     video_path = setup_data.join("videos").join("sample-5s.mp4")

@@ -8,7 +8,7 @@ from .fixtures import (
     assert_contains_image_descs,
     assert_same_image_descs,
     extract_all_uploaded_descs,
-    IS_FFMPEG_INSTALLED,
+    pytest_skip_if_not_ffmpeg_installed,
     run_process_and_upload_for_descs,
     setup_config,
     setup_data,
@@ -170,8 +170,7 @@ def test_process_and_upload_images_only(
 def test_video_process_and_upload(
     setup_upload: py.path.local, setup_data: py.path.local
 ):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("videos")
     gpx_start_time = "2025_03_14_07_00_00_000"
@@ -243,8 +242,7 @@ def test_video_process_and_upload(
 def test_video_process_and_upload_after_gpx(
     setup_upload: py.path.local, setup_data: py.path.local
 ):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_dir = setup_data.join("videos")
     gpx_start_time = "2025_03_14_07_00_00_000"

@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -7,9 +8,12 @@ import py.path
 
 from .fixtures import (
     assert_contains_image_descs,
+    assert_descs_exact_equal,
     EXECUTABLE,
+    pytest_skip_if_not_exiftool_installed,
     run_command,
     run_exiftool_and_generate_geotag_args,
+    run_exiftool_dir,
     run_process_for_descs,
     setup_data,
     validate_and_extract_zip,
@@ -571,7 +575,7 @@ def test_process_unsupported_filetypes(setup_data: py.path.local):
         assert 0 == len(descs)
 
 
-def test_process_video_geotag_source_gpx_specified(setup_data: py.path.local):
+def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.local):
     video_path = setup_data.join("videos").join("sample-5s.mp4")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
 
@@ -602,7 +606,9 @@ def test_process_video_geotag_source_gpx_not_found(setup_data: py.path.local):
     assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
 
 
-def test_process_video_geotag_source_gopro_gpx_specified(setup_data: py.path.local):
+def test_process_video_geotag_source_with_gopro_gpx_specified(
+    setup_data: py.path.local,
+):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
 
@@ -622,12 +628,28 @@ def test_process_video_geotag_source_gopro_gpx_specified(setup_data: py.path.loc
     assert len(descs[0]["MAPGPSTrack"]) > 0
 
 
-def test_process_video_geotag_source_exiftool_runtime(setup_data: py.path.local):
+def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
 
     descs = run_process_for_descs(
         [
-            *["--video_geotag_source", json.dumps({"source": "exiftool"})],
+            *["--video_geotag_source", "gpx"],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
+
+
+def test_process_geotag_with_gpx_pattern(setup_data: py.path.local):
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    gpx_file.copy(setup_data.join("gopro_data").join("max-360mode.gpx"))
+
+    descs = run_process_for_descs(
+        [
+            *["--video_geotag_source", "gpx"],
             str(video_path),
         ]
     )
@@ -636,3 +658,148 @@ def test_process_video_geotag_source_exiftool_runtime(setup_data: py.path.local)
     assert descs[0]["MAPDeviceMake"] == "GoPro"
     assert descs[0]["MAPDeviceModel"] == "GoPro Max"
     assert len(descs[0]["MAPGPSTrack"]) > 0
+
+
+def test_process_video_geotag_source_with_exiftool_runtime(setup_data: py.path.local):
+    pytest_skip_if_not_exiftool_installed()
+
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    exiftool_descs = run_process_for_descs(
+        [
+            *["--video_geotag_source", json.dumps({"source": "exiftool"})],
+            str(video_path),
+        ]
+    )
+
+    assert len(exiftool_descs) == 1
+    assert exiftool_descs[0]["MAPDeviceMake"] == "GoPro"
+    assert exiftool_descs[0]["MAPDeviceModel"] == "GoPro Max"
+    assert len(exiftool_descs[0]["MAPGPSTrack"]) > 0
+
+    native_descs = run_process_for_descs(
+        [
+            *["--video_geotag_source", json.dumps({"source": "native"})],
+            str(video_path),
+        ]
+    )
+
+    assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_everything_with_exiftool_runtime(setup_data: py.path.local):
+    pytest_skip_if_not_exiftool_installed()
+
+    exiftool_descs = run_process_for_descs(
+        [*["--geotag_source", "exiftool_runtime"], str(setup_data)]
+    )
+
+    native_descs = run_process_for_descs(
+        [*["--geotag_source", "native"], str(setup_data)]
+    )
+
+    assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_everything_with_exiftool_not_found(setup_data: py.path.local):
+    pytest_skip_if_not_exiftool_installed()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "MAPILLARY_TOOLS_EXIFTOOL_PATH": "exiftool_not_found",
+        }
+    )
+
+    exiftool_descs = run_process_for_descs(
+        [*["--geotag_source", "exiftool_runtime"], str(setup_data)], env=env
+    )
+
+    assert len(exiftool_descs) > 0
+    for d in exiftool_descs:
+        assert "error" in d
+        assert d["error"]["type"] == "MapillaryExiftoolNotFoundError"
+
+
+def test_process_geotag_everything_with_exiftool_not_found_overriden(
+    setup_data: py.path.local,
+):
+    pytest_skip_if_not_exiftool_installed()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "MAPILLARY_TOOLS_EXIFTOOL_PATH": "exiftool_not_found",
+        }
+    )
+
+    exiftool_descs = run_process_for_descs(
+        [
+            *["--geotag_source", "exiftool_runtime"],
+            *["--geotag_source", "native"],
+            str(setup_data),
+        ],
+        env=env,
+    )
+
+    native_descs = run_process_for_descs(
+        [
+            *["--geotag_source", "exiftool_runtime"],
+            *["--geotag_source", "native"],
+            str(setup_data),
+        ],
+        env=env,
+    )
+
+    assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_with_exiftool_xml(setup_data: py.path.local):
+    pytest_skip_if_not_exiftool_installed()
+
+    exiftool_output_dir = run_exiftool_dir(setup_data)
+
+    exiftool_descs = run_process_for_descs(
+        [
+            *[
+                "--geotag_source",
+                json.dumps(
+                    {"source": "exiftool_xml", "source_path": str(exiftool_output_dir)}
+                ),
+            ],
+            str(setup_data),
+        ]
+    )
+
+    native_descs = run_process_for_descs(
+        [*["--geotag_source", "native"], str(setup_data)]
+    )
+
+    assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_with_exiftool_xml_pattern(setup_data: py.path.local):
+    pytest_skip_if_not_exiftool_installed()
+
+    exiftool_output_dir = run_exiftool_dir(setup_data)
+
+    exiftool_descs = run_process_for_descs(
+        [
+            *[
+                "--geotag_source",
+                json.dumps(
+                    {
+                        "source": "exiftool_xml",
+                        "pattern": str(exiftool_output_dir.join("%g.xml")),
+                    }
+                ),
+            ],
+            str(setup_data),
+        ]
+    )
+
+    native_descs = run_process_for_descs(
+        [*["--geotag_source", "native"], str(setup_data)]
+    )
+
+    assert_descs_exact_equal(exiftool_descs, native_descs)

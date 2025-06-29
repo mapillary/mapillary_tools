@@ -113,6 +113,7 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
             (
                 exceptions.MapillaryGeoTaggingError,
                 exceptions.MapillaryVideoGPSNotFoundError,
+                exceptions.MapillaryExiftoolNotFoundError,
             ),
         ):
             return True
@@ -175,8 +176,12 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
     elif option.source is SourceType.EXIFTOOL_XML:
         # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
         # to work
+        if option.source_path is None:
+            raise exceptions.MapillaryBadParameterError(
+                "source_path must be provided for EXIFTOOL_XML source"
+            )
         return geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
-            xml_path=_ensure_source_path(option),
+            source_path=option.source_path,
             num_processes=option.num_processes,
         )
 
@@ -219,13 +224,17 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         )
 
     elif option.source is SourceType.EXIFTOOL_XML:
+        if option.source_path is None:
+            raise exceptions.MapillaryBadParameterError(
+                "source_path must be provided for EXIFTOOL_XML source"
+            )
         return geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
-            xml_path=_ensure_source_path(option),
+            source_path=option.source_path,
         )
 
     elif option.source is SourceType.GPX:
         return geotag_videos_from_gpx.GeotagVideosFromGPX(
-            option=option.source_path, num_processes=option.num_processes
+            source_path=option.source_path, num_processes=option.num_processes
         )
 
     elif option.source is SourceType.NMEA:
