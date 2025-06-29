@@ -10,7 +10,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import types, exceptions
+from .. import exceptions, types
 from . import options
 from .base import GeotagVideosFromGeneric
 from .video_extractors.gpx import GPXVideoExtractor

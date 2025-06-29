@@ -378,6 +378,9 @@ class ZipImageSequence:
         if progress is None:
             progress = {}
 
+        # FIXME: This is a hack to disable the event emitter inside the uploader
+        uploader_without_emitter = uploader.copy_uploader_without_emitter()
+
         lock = threading.Lock()
 
         def _upload_image(image_metadata: types.ImageMetadata) -> str:
@@ -387,7 +390,7 @@ class ZipImageSequence:
             }
 
             bytes = cls._dump_image_bytes(image_metadata)
-            file_handle = uploader.upload_stream(
+            file_handle = uploader_without_emitter.upload_stream(
                 io.BytesIO(bytes), progress=mutable_progress
             )
 
@@ -403,9 +406,6 @@ class ZipImageSequence:
         progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
 
         # TODO: assert sequence is sorted
-
-        # FIXME: This is a hack to disable the event emitter inside the uploader
-        uploader.emittion_disabled = True
 
         uploader.emitter.emit("upload_start", progress)
 
@@ -423,14 +423,11 @@ class ZipImageSequence:
         with io.BytesIO() as manifest_fp:
             manifest_fp.write(json.dumps(manifest).encode("utf-8"))
             manifest_fp.seek(0, io.SEEK_SET)
-            manifest_file_handle = uploader.upload_stream(
+            manifest_file_handle = uploader_without_emitter.upload_stream(
                 manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
             )
 
         uploader.emitter.emit("upload_end", progress)
-
-        # FIXME: This is a hack to disable the event emitter inside the uploader
-        uploader.emittion_disabled = False
 
         cluster_id = uploader.finish_upload(
             manifest_file_handle,
@@ -485,7 +482,6 @@ class Uploader:
         dry_run=False,
     ):
         self.user_items = user_items
-        self.emittion_disabled = False
         if emitter is None:
             # An empty event emitter that does nothing
             self.emitter = EventEmitter()
@@ -522,7 +518,7 @@ class Uploader:
         progress["retries"] = 0
         progress["begin_offset"] = None
 
-        self._maybe_emit("upload_start", progress)
+        self.emitter.emit("upload_start", progress)
 
         while True:
             try:
@@ -536,9 +532,47 @@ class Uploader:
 
             progress["retries"] += 1
 
-        self._maybe_emit("upload_end", progress)
+        self.emitter.emit("upload_end", progress)
 
         return file_handle
+
+    def finish_upload(
+        self,
+        file_handle: str,
+        cluster_filetype: api_v4.ClusterFileType,
+        progress: dict[str, T.Any] | None = None,
+    ) -> str:
+        """Finish upload with safe retries guraranteed"""
+        if progress is None:
+            progress = {}
+
+        if self.dry_run:
+            cluster_id = "0"
+        else:
+            resp = api_v4.finish_upload(
+                self.user_items["user_upload_token"],
+                file_handle,
+                cluster_filetype,
+                organization_id=self.user_items.get("MAPOrganizationKey"),
+            )
+
+            data = resp.json()
+            cluster_id = data.get("cluster_id")
+
+            # TODO: validate cluster_id
+
+        progress["cluster_id"] = cluster_id
+        self.emitter.emit("upload_finished", progress)
+
+        return cluster_id
+
+    def copy_uploader_without_emitter(self) -> Uploader:
+        return Uploader(
+            self.user_items,
+            emitter=None,
+            chunk_size=self.chunk_size,
+            dry_run=self.dry_run,
+        )
 
     def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:
         upload_service: upload_api_v4.UploadService
@@ -570,7 +604,7 @@ class Uploader:
         chunk_size = progress["chunk_size"]
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-            self._maybe_emit("upload_interrupted", progress)
+            self.emitter.emit("upload_interrupted", progress)
             LOG.warning(
                 # use %s instead of %d because offset could be None
                 "Error uploading chunk_size %d at begin_offset %s: %s: %s",
@@ -611,7 +645,7 @@ class Uploader:
             # Whenever a chunk is uploaded, reset retries
             progress["retries"] = 0
 
-            self._maybe_emit("upload_progress", progress)
+            self.emitter.emit("upload_progress", progress)
 
     def _upload_stream_retryable(
         self,
@@ -626,49 +660,13 @@ class Uploader:
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
 
-        self._maybe_emit("upload_fetch_offset", progress)
+        self.emitter.emit("upload_fetch_offset", progress)
 
         fp.seek(begin_offset, io.SEEK_SET)
 
         shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
 
         return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
-
-    def finish_upload(
-        self,
-        file_handle: str,
-        cluster_filetype: api_v4.ClusterFileType,
-        progress: dict[str, T.Any] | None = None,
-    ) -> str:
-        """Finish upload with safe retries guraranteed"""
-        if progress is None:
-            progress = {}
-
-        if self.dry_run:
-            cluster_id = "0"
-        else:
-            resp = api_v4.finish_upload(
-                self.user_items["user_upload_token"],
-                file_handle,
-                cluster_filetype,
-                organization_id=self.user_items.get("MAPOrganizationKey"),
-            )
-
-            data = resp.json()
-            cluster_id = data.get("cluster_id")
-
-            # TODO: validate cluster_id
-
-        progress["cluster_id"] = cluster_id
-        self._maybe_emit("upload_finished", progress)
-
-        return cluster_id
-
-    def _maybe_emit(
-        self, event: EventName, progress: dict[str, T.Any] | UploaderProgress
-    ):
-        if not self.emittion_disabled:
-            return self.emitter.emit(event, progress)
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):

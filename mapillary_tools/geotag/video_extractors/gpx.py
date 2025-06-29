@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 import logging
 import sys
-import enum
 import typing as T
 from pathlib import Path
 
@@ -12,7 +12,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import geo, telemetry, types, exceptions
+from ... import exceptions, geo, telemetry, types
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor

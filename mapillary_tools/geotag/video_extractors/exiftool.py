@@ -21,7 +21,7 @@ class VideoExifToolExtractor(BaseVideoExtractor):
         self.element = element
 
     @override
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         exif = exiftool_read_video.ExifToolReadVideo(ET.ElementTree(self.element))
 
         make = exif.extract_make()
