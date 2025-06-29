@@ -1,26 +1,21 @@
 import datetime
+import functools
 import json
 import subprocess
-import tempfile
 from pathlib import Path
 
-import exifread
 import py.path
-import pytest
-import shlex
 
 from .fixtures import (
     assert_contains_image_descs,
     EXECUTABLE,
-    IS_FFMPEG_INSTALLED,
+    run_command,
+    run_command_for_descs,
     run_exiftool_and_generate_geotag_args,
-    setup_config,
     setup_data,
     validate_and_extract_zip,
 )
 
-
-PROCESS_FLAGS = ""
 
 _DEFAULT_EXPECTED_DESCS = {
     "DSC00001.JPG": {
@@ -76,6 +71,9 @@ _DEFAULT_EXPECTED_DESCS = {
 }
 
 
+run_process_for_descs = functools.partial(run_command_for_descs, command="process")
+
+
 def _local_to_utc(ct: str):
     return (
         datetime.datetime.fromisoformat(ct)
@@ -91,17 +89,16 @@ def test_basic():
 
 
 def test_process_images_with_defaults(
-    setup_data: py.path.local,
-    use_exiftool: bool = False,
+    setup_data: py.path.local, use_exiftool: bool = False
 ):
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
+    args = ["--file_types=image", str(setup_data)]
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
 
-    assert x.returncode == 0, x.stderr
+    descs = run_process_for_descs(args)
+
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -122,13 +119,15 @@ def test_process_images_with_defaults_with_exiftool(setup_data: py.path.local):
 
 
 def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False):
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=2.5"
+    args = ["--file_types=image", "--offset_time=2.5", str(setup_data)]
+
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
-    assert x.returncode == 0, x.stderr
+
+    descs = run_process_for_descs(args)
+
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -148,13 +147,13 @@ def test_time_with_offset(setup_data: py.path.local, use_exiftool: bool = False)
         ],
     )
 
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_time=-1.0"
+    args = ["--file_types=image", str(setup_data), "--offset_time=-1.0"]
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
-    assert x.returncode == 0, x.stderr
+
+    descs = run_process_for_descs(args)
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -182,11 +181,17 @@ def test_time_with_offset_with_exiftool(setup_data: py.path.local):
 def test_process_images_with_overwrite_all_EXIF_tags(
     setup_data: py.path.local, use_exiftool: bool = False
 ):
-    args = f"{EXECUTABLE} process --file_types=image --overwrite_all_EXIF_tags --offset_time=2.5 {PROCESS_FLAGS} {setup_data}"
+    args = [
+        "--file_types=image",
+        "--overwrite_all_EXIF_tags",
+        "--offset_time=2.5",
+        str(setup_data),
+    ]
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
-    assert x.returncode == 0, x.stderr
+
+    actual_descs = run_process_for_descs(args)
+
     expected_descs = [
         {
             **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],  # type: ignore
@@ -205,19 +210,15 @@ def test_process_images_with_overwrite_all_EXIF_tags(
         },
     ]
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        actual_descs,
         expected_descs,
     )
 
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}"
+    args = ["--file_types=image", str(setup_data)]
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
-    assert x.returncode == 0, x.stderr
-    assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
-        expected_descs,
-    )
+    descs = run_process_for_descs(args)
+    assert_contains_image_descs(descs, expected_descs)
 
 
 def test_process_images_with_overwrite_all_EXIF_tags_with_exiftool(
@@ -229,14 +230,15 @@ def test_process_images_with_overwrite_all_EXIF_tags_with_exiftool(
 
 
 def test_angle_with_offset(setup_data: py.path.local, use_exiftool: bool = False):
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --offset_angle=2.5"
+    args = ["--file_types=image", str(setup_data), "--offset_angle=2.5"]
+
     if use_exiftool:
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
-    x = subprocess.run(args, shell=True)
-    assert x.returncode == 0, x.stderr
+
+    descs = run_process_for_descs(args)
 
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -272,10 +274,10 @@ def test_angle_with_offset_with_exiftool(setup_data: py.path.local):
 
 
 def test_parse_adobe_coordinates(setup_data: py.path.local):
-    args = f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}/adobe_coords"
-    x = subprocess.run(args, shell=True)
+    args = ["--file_types=image", str(setup_data.join("adobe_coords"))]
+    descs = run_process_for_descs(args)
     assert_contains_image_descs(
-        Path(setup_data, "adobe_coords/mapillary_image_description.json"),
+        descs,
         [
             {
                 "filename": str(Path(setup_data, "adobe_coords", "adobe_coords.jpg")),
@@ -294,22 +296,12 @@ def test_parse_adobe_coordinates(setup_data: py.path.local):
 
 def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
     zip_dir = tmpdir.mkdir("zip_dir")
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    x = subprocess.run(
-        f"{EXECUTABLE} zip {setup_data} {zip_dir}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
+    run_command([str(setup_data), str(zip_dir)], command="zip")
     assert 0 < len(zip_dir.listdir())
     for file in zip_dir.listdir():
         validate_and_extract_zip(Path(file))
 
 
-@pytest.mark.usefixtures("setup_config")
 def test_process_boolean_options(setup_data: py.path.local):
     boolean_options = [
         "--interpolate_directions",
@@ -321,17 +313,20 @@ def test_process_boolean_options(setup_data: py.path.local):
         "--skip_subfolders",
     ]
     for option in boolean_options:
-        x = subprocess.run(
-            f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {option} {setup_data}",
-            shell=True,
+        run_process_for_descs(
+            [
+                "--file_types=image",
+                option,
+                str(setup_data),
+            ]
         )
-        assert x.returncode == 0, x.stderr
-    all_options = " ".join(boolean_options)
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {all_options} {setup_data}",
-        shell=True,
+    run_process_for_descs(
+        [
+            "--file_types=image",
+            *boolean_options,
+            str(setup_data),
+        ]
     )
-    assert x.returncode == 0, x.stderr
 
 
 GPX_CONTENT = """
@@ -378,18 +373,18 @@ def test_geotagging_images_from_gpx(setup_data: py.path.local):
         fp.write(GPX_CONTENT)
     images = setup_data.join("images")
 
-    x = subprocess.run(
-        f"""{EXECUTABLE} process {PROCESS_FLAGS} \
-    --file_types=image \
-    --geotag_source=gpx \
-    --geotag_source_path={gpx_file} \
-    --skip_process_errors \
-    {images}
-""",
-        shell=True,
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            "--geotag_source=gpx",
+            "--geotag_source_path",
+            str(gpx_file),
+            str(images),
+        ]
     )
+
     assert_contains_image_descs(
-        Path(images, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -422,13 +417,18 @@ def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
 
-    x = subprocess.run(
-        f"{EXECUTABLE} --verbose process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --geotag_source_path {gpx_file} --interpolation_offset_time=-20 --skip_process_errors",
-        shell=True,
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            "--geotag_source=gpx",
+            "--geotag_source_path",
+            str(gpx_file),
+            str(setup_data),
+            "--interpolation_offset_time=-20",
+        ]
     )
-    assert x.returncode == 0, x.stderr
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -462,13 +462,18 @@ def test_geotagging_images_from_gpx_use_gpx_start_time(setup_data: py.path.local
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --skip_process_errors",
-        shell=True,
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            *["--geotag_source", "gpx"],
+            "--interpolation_use_gpx_start_time",
+            "--geotag_source_path",
+            str(gpx_file),
+            str(setup_data),
+        ]
     )
-    assert x.returncode == 0, x.stderr
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -504,13 +509,19 @@ def test_geotagging_images_from_gpx_use_gpx_start_time_with_offset(
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
         fp.write(GPX_CONTENT)
-    x = subprocess.run(
-        f"{EXECUTABLE} process --file_types=image {PROCESS_FLAGS} {setup_data} --geotag_source gpx --interpolation_use_gpx_start_time --geotag_source_path {gpx_file} --interpolation_offset_time=100 --skip_process_errors",
-        shell=True,
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            str(setup_data),
+            *["--geotag_source", "gpx"],
+            "--interpolation_use_gpx_start_time",
+            "--geotag_source_path",
+            str(gpx_file),
+            "--interpolation_offset_time=100",
+        ]
     )
-    assert x.returncode == 0, x.stderr
     assert_contains_image_descs(
-        Path(setup_data, "mapillary_image_description.json"),
+        descs,
         [
             {
                 **_DEFAULT_EXPECTED_DESCS["DSC00001.JPG"],
@@ -542,14 +553,7 @@ def test_geotagging_images_from_gpx_use_gpx_start_time_with_offset(
 
 def test_process_filetypes(setup_data: py.path.local):
     video_dir = setup_data.join("gopro_data")
-    x = subprocess.run(
-        f"{EXECUTABLE} --verbose process {PROCESS_FLAGS} --skip_process_errors {video_dir}",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    desc_path = video_dir.join("mapillary_image_description.json")
-    with open(desc_path) as fp:
-        descs = json.load(fp)
+    descs = run_process_for_descs([str(video_dir)])
     assert 2 == len(descs)
     assert 1 == len(find_desc_errors(descs))
     assert 1 == len(filter_out_errors(descs))
@@ -558,287 +562,17 @@ def test_process_filetypes(setup_data: py.path.local):
 def test_process_unsupported_filetypes(setup_data: py.path.local):
     video_dir = setup_data.join("gopro_data")
     for filetypes in ["blackvue"]:
-        x = subprocess.run(
-            f"{EXECUTABLE} --verbose process --filetypes={filetypes} --geotag_source=native {PROCESS_FLAGS} --skip_process_errors {video_dir}",
-            shell=True,
+        descs = run_process_for_descs(
+            ["--filetypes", filetypes, "--geotag_source=native", str(video_dir)]
         )
-        assert x.returncode == 0, x.stderr
-        desc_path = video_dir.join("mapillary_image_description.json")
-        with open(desc_path) as fp:
-            descs = json.load(fp)
         assert 2 == len(descs)
         assert 2 == len(find_desc_errors(descs))
 
     for filetypes in ["image"]:
-        x = subprocess.run(
-            f"{EXECUTABLE} --verbose process --filetypes={filetypes} --geotag_source=native {PROCESS_FLAGS} --skip_process_errors {video_dir}",
-            shell=True,
+        descs = run_process_for_descs(
+            ["--filetypes", filetypes, "--geotag_source=native", str(video_dir)]
         )
-        assert x.returncode == 0, x.stderr
-        desc_path = video_dir.join("mapillary_image_description.json")
-        with open(desc_path) as fp:
-            descs = json.load(fp)
         assert 0 == len(descs)
-
-
-def test_sample_video_relpath():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    with tempfile.TemporaryDirectory() as dir:
-        x = subprocess.run(
-            f"{EXECUTABLE} sample_video --rerun tests/data/gopro_data/hero8.mp4 {dir}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-
-
-def test_sample_video_relpath_dir():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    with tempfile.TemporaryDirectory() as dir:
-        x = subprocess.run(
-            f"{EXECUTABLE} sample_video --rerun --video_start_time 2021_10_10_10_10_10_123 tests/integration {dir}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-
-
-def test_sample_video_without_video_time(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    video_dir = setup_data.join("videos")
-    root_sample_dir = video_dir.join("mapillary_sampled_video_frames")
-
-    for input_path in [video_dir, video_dir.join("sample-5s.mp4")]:
-        x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --video_sample_distance=-1 --rerun {input_path}",
-            shell=True,
-        )
-        assert x.returncode == 7, x.stderr
-        if root_sample_dir.exists():
-            assert len(root_sample_dir.listdir()) == 0
-
-        x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --skip_sample_errors --rerun {input_path}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-        if root_sample_dir.exists():
-            assert len(root_sample_dir.listdir()) == 0
-
-        x = subprocess.run(
-            f"{EXECUTABLE} sample_video --video_sample_interval=2 --video_sample_distance=-1 --video_start_time 2021_10_10_10_10_10_123 --rerun {input_path}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-        assert len(root_sample_dir.listdir()) == 1
-        samples = root_sample_dir.join("sample-5s.mp4").listdir()
-        samples.sort()
-        times = []
-        for s in samples:
-            with s.open("rb") as fp:
-                tags = exifread.process_file(fp)
-                times.append(tags["EXIF DateTimeOriginal"].values)
-        assert (
-            "2021:10:10 10:10:10",
-            "2021:10:10 10:10:12",
-            "2021:10:10 10:10:14",
-        ) == tuple(times)
-
-
-def test_video_process(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    video_dir = setup_data.join("videos")
-    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    gpx_start_time = "2025_03_14_07_00_00_000"
-    gpx_end_time = "2025_03_14_07_01_33_624"
-    video_start_time = "2025_03_14_07_00_00_000"
-    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
-    x = subprocess.run(
-        f"""{EXECUTABLE} --verbose video_process \
-    {PROCESS_FLAGS} \
-    --video_sample_interval=2 \
-    --video_sample_distance=-1 \
-    --skip_process_errors \
-    --video_start_time {video_start_time} \
-    --geotag_source gpx \
-    --geotag_source_path {gpx_file} {video_dir} {video_dir.join("my_samples")}
-""",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    assert 0 == len(find_desc_errors(descs))
-    assert 3 == len(filter_out_errors(descs))
-
-
-def test_video_process_sample_with_multiple_distances(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    video_dir = setup_data.join("gopro_data")
-    desc_path = video_dir.join("my_samples").join("mapillary_image_description.json")
-    for distance in [0, 2.4, 100]:
-        x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process --video_sample_distance={distance} --rerun {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-        with open(desc_path) as fp:
-            descs = json.load(fp)
-        if distance == 100:
-            assert 1 == len(descs)
-        else:
-            assert len(descs) > 1
-
-
-def test_video_process_sample_with_distance(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    video_dir = setup_data.join("gopro_data")
-    sample_dir = Path(setup_data, "gopro_data", "my_samples")
-    desc_path = Path(sample_dir, "mapillary_image_description.json")
-    for option in [
-        "--video_sample_distance=6",
-        "--video_sample_distance=6 --video_sample_interval=-2",
-    ]:
-        x = subprocess.run(
-            f"{EXECUTABLE} --verbose video_process {option} {PROCESS_FLAGS} {video_dir} {video_dir.join('my_samples')}",
-            shell=True,
-        )
-        assert x.returncode == 0, x.stderr
-        assert_contains_image_descs(
-            desc_path,
-            [
-                {
-                    "filename": str(
-                        Path(
-                            sample_dir,
-                            "max-360mode.mp4",
-                            "max-360mode_0_000001.jpg",
-                        )
-                    ),
-                    "filetype": "image",
-                    "MAPLatitude": 33.1266719,
-                    "MAPLongitude": -117.3273063,
-                    "MAPCaptureTime": "2019_11_18_15_44_47_862",
-                    "MAPAltitude": -22.18,
-                    "MAPCompassHeading": {
-                        "TrueHeading": 313.68,
-                        "MagneticHeading": 313.68,
-                    },
-                    "MAPSequenceUUID": "0",
-                    "MAPDeviceMake": "GoPro",
-                    "MAPDeviceModel": "GoPro Max",
-                    "MAPOrientation": 1,
-                },
-                {
-                    "filename": str(
-                        Path(
-                            sample_dir,
-                            "max-360mode.mp4",
-                            "max-360mode_0_000002.jpg",
-                        )
-                    ),
-                    "filetype": "image",
-                    "MAPLatitude": 33.1267206,
-                    "MAPLongitude": -117.3273345,
-                    "MAPCaptureTime": "2019_11_18_15_44_53_159",
-                    "MAPAltitude": -21.91,
-                    "MAPCompassHeading": {
-                        "TrueHeading": 330.82,
-                        "MagneticHeading": 330.82,
-                    },
-                    "MAPSequenceUUID": "0",
-                    "MAPDeviceMake": "GoPro",
-                    "MAPDeviceModel": "GoPro Max",
-                    "MAPOrientation": 1,
-                },
-                {
-                    "filename": str(
-                        Path(
-                            sample_dir,
-                            "max-360mode.mp4",
-                            "max-360mode_0_000003.jpg",
-                        )
-                    ),
-                    "filetype": "image",
-                    "MAPLatitude": 33.1267702,
-                    "MAPLongitude": -117.3273612,
-                    "MAPCaptureTime": "2019_11_18_15_44_58_289",
-                    "MAPAltitude": -22.58,
-                    "MAPCompassHeading": {
-                        "TrueHeading": 10.54,
-                        "MagneticHeading": 10.54,
-                    },
-                    "MAPSequenceUUID": "0",
-                    "MAPDeviceMake": "GoPro",
-                    "MAPDeviceModel": "GoPro Max",
-                    "MAPOrientation": 1,
-                },
-            ],
-        )
-
-
-def test_video_process_multiple_videos(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
-
-    desc_path = setup_data.join("my_samples").join("mapillary_image_description.json")
-    sub_folder = setup_data.join("video_sub_folder").mkdir()
-    video_path = setup_data.join("videos").join("sample-5s.mp4")
-    video_path.copy(sub_folder)
-    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    gpx_start_time = "2025_03_14_07_00_00_000"
-    gpx_end_time = "2025_03_14_07_01_33_624"
-    x = subprocess.run(
-        f"""{EXECUTABLE} video_process {PROCESS_FLAGS} \
-            --video_sample_interval=2 \
-            --video_sample_distance=-1 \
-            --video_start_time={gpx_start_time} \
-            --geotag_source=gpx \
-            --geotag_source_path={gpx_file} \
-            {video_path} {setup_data.join("my_samples")}
-""",
-        shell=True,
-    )
-    assert x.returncode == 0, x.stderr
-    with open(desc_path) as fp:
-        descs = json.load(fp)
-    for d in descs:
-        assert Path(d["filename"]).is_file(), d["filename"]
-        assert "sample-5s.mp4" in d["filename"]
-    assert 0 == len(find_desc_errors(descs))
-    assert 3 == len(filter_out_errors(descs))
-
-
-def run_process(params: list[str]):
-    subprocess.run(
-        [*shlex.split(EXECUTABLE), "process", *params],
-        check=True,
-    )
-
-
-def run_process_for_descs(params: list[str]):
-    with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
-        run_process(
-            [
-                "--skip_process_errors",
-                *["--desc_path", str(desc_file.name)],
-                *params,
-            ],
-        )
-
-        with open(desc_file.name, "r") as fp:
-            fp.seek(0)
-            return json.load(fp)
 
 
 def test_process_video_geotag_source_gpx_specified(setup_data: py.path.local):
@@ -889,3 +623,4 @@ def test_process_video_geotag_source_gopro_gpx_specified(setup_data: py.path.loc
     assert len(descs) == 1
     assert descs[0]["MAPDeviceMake"] == "GoPro"
     assert descs[0]["MAPDeviceModel"] == "GoPro Max"
+    assert len(descs[0]["MAPGPSTrack"]) > 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -148,15 +149,18 @@ def run_exiftool(setup_data: py.path.local) -> py.path.local:
 
 
 def run_exiftool_and_generate_geotag_args(
-    test_data_dir: py.path.local, run_args: str
-) -> str:
+    test_data_dir: py.path.local, run_args: list[str]
+) -> list[str]:
     if not IS_EXIFTOOL_INSTALLED:
         pytest.skip("exiftool not installed")
+
     exiftool_outuput_dir = run_exiftool(test_data_dir)
-    exiftool_params = (
-        f"--geotag_source exiftool_xml --geotag_source_path {exiftool_outuput_dir}"
-    )
-    return f"{run_args} {exiftool_params}"
+    return [
+        *run_args,
+        "--geotag_source=exiftool_xml",
+        "--geotag_source_path",
+        str(exiftool_outuput_dir),
+    ]
 
 
 with open("schema/image_description_schema.json") as fp:
@@ -362,3 +366,23 @@ def assert_contains_image_descs(haystack: Path | list[dict], needle: Path | list
 def assert_same_image_descs(left: Path | list[dict], right: Path | list[dict]):
     assert_contains_image_descs(left, right)
     assert_contains_image_descs(right, left)
+
+
+def run_command(params: list[str], command: str):
+    subprocess.run([*shlex.split(EXECUTABLE), command, *params], check=True)
+
+
+def run_command_for_descs(params: list[str], command: str):
+    with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
+        run_command(
+            [
+                "--skip_process_errors",
+                *["--desc_path", str(desc_file.name)],
+                *params,
+            ],
+            command,
+        )
+
+        with open(desc_file.name, "r") as fp:
+            fp.seek(0)
+            return json.load(fp)
