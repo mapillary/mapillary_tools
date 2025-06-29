@@ -368,11 +368,15 @@ def assert_same_image_descs(left: Path | list[dict], right: Path | list[dict]):
     assert_contains_image_descs(right, left)
 
 
-def run_command(params: list[str], command: str):
-    subprocess.run([*shlex.split(EXECUTABLE), command, *params], check=True)
+def run_command(params: list[str], command: str, **kwargs):
+    subprocess.run(
+        [*shlex.split(EXECUTABLE), command, *params],
+        check=True,
+        **kwargs,
+    )
 
 
-def run_command_for_descs(params: list[str], command: str):
+def run_command_for_descs(params: list[str], command: str, **kwargs):
     with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
         run_command(
             [
@@ -381,6 +385,7 @@ def run_command_for_descs(params: list[str], command: str):
                 *params,
             ],
             command,
+            **kwargs,
         )
 
         with open(desc_file.name, "r") as fp:
