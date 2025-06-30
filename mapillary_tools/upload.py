@@ -680,7 +680,9 @@ def _load_valid_metadatas_from_desc_path(
 
     else:
         if not os.path.isfile(desc_path):
-            raise exceptions.MapillaryFileNotFoundError(f"Description file not found: {desc_path}")
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Description file not found: {desc_path}"
+            )
         with open(desc_path, "rb") as fp:
             try:
                 metadatas = DescriptionJSONSerializer.deserialize_stream(fp)
