@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import py.path
+import pytest
 
 from .fixtures import (
     assert_contains_image_descs,
@@ -294,12 +295,22 @@ def test_parse_adobe_coordinates(setup_data: py.path.local):
     )
 
 
-def test_zip(tmpdir: py.path.local, setup_data: py.path.local):
+def test_zip_ok(tmpdir: py.path.local, setup_data: py.path.local):
+    # Generate description file in the setup_data directory
+    run_command(["--file_types=image", str(setup_data)], command="process")
+
     zip_dir = tmpdir.mkdir("zip_dir")
     run_command([str(setup_data), str(zip_dir)], command="zip")
     assert 0 < len(zip_dir.listdir())
     for file in zip_dir.listdir():
         validate_and_extract_zip(Path(file))
+
+
+def test_zip_desc_not_found(tmpdir: py.path.local, setup_data: py.path.local):
+    zip_dir = tmpdir.mkdir("zip_dir")
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        run_command([str(setup_data), str(zip_dir)], command="zip")
+    assert exc_info.value.returncode == 3
 
 
 def test_process_boolean_options(setup_data: py.path.local):
