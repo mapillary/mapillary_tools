@@ -5,6 +5,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -390,6 +391,11 @@ def run_command(params: list[str], command: str, **kwargs):
 
 def run_process_for_descs(params: list[str], command: str = "process", **kwargs):
     # Make windows happy with delete=False
+    # https://github.com/mapillary/mapillary_tools/issues/503
+    if sys.platform in ["win32"]:
+        delete = False
+    else:
+        delete = True
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as desc_file:
         try:
             run_command(
@@ -406,11 +412,14 @@ def run_process_for_descs(params: list[str], command: str = "process", **kwargs)
                 fp.seek(0)
                 return json.load(fp)
 
+            if not delete:
+                desc_file.close()
         finally:
-            try:
-                os.remove(desc_file.name)
-            except FileNotFoundError:
-                pass
+            if not delete:
+                try:
+                    os.remove(desc_file.name)
+                except FileNotFoundError:
+                    pass
 
 
 def run_process_and_upload_for_descs(
