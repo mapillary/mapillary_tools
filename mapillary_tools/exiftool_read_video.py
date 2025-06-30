@@ -82,6 +82,32 @@ def _extract_alternative_fields(
     return None
 
 
+def _same_gps_point(left: GPSPoint, right: GPSPoint) -> bool:
+    """
+    >>> left =  GPSPoint(time=56.0, lat=36.741385, lon=29.021274, alt=141.6, angle=1.54, epoch_time=None, fix=None, precision=None, ground_speed=None)
+    >>> right = GPSPoint(time=56.0, lat=36.741385, lon=29.021274, alt=142.4, angle=1.54, epoch_time=None, fix=None, precision=None, ground_speed=None)
+    >>> _same_gps_point(left, right)
+    True
+    """
+    return (
+        left.time == right.time
+        and left.lon == right.lon
+        and left.lat == right.lat
+        and left.epoch_time == right.epoch_time
+        and left.angle == right.angle
+    )
+
+
+def _deduplicate_gps_points(
+    track: list[GPSPoint], same_gps_point: T.Callable[[GPSPoint, GPSPoint], bool]
+) -> list[GPSPoint]:
+    deduplicated_track: list[GPSPoint] = []
+    for point in track:
+        if not deduplicated_track or not same_gps_point(deduplicated_track[-1], point):
+            deduplicated_track.append(point)
+    return deduplicated_track
+
+
 def _aggregate_gps_track(
     texts_by_tag: dict[str, list[str]],
     time_tag: str | None,
@@ -174,7 +200,7 @@ def _aggregate_gps_track(
                 epoch_time = geo.as_unix_time(dt)
 
     # build track
-    track = []
+    track: list[GPSPoint] = []
     for timestamp, lon, lat, alt, direction, ground_speed in zip(
         timestamps,
         lons,
@@ -185,21 +211,25 @@ def _aggregate_gps_track(
     ):
         if timestamp is None or lon is None or lat is None:
             continue
-        track.append(
-            GPSPoint(
-                time=timestamp,
-                lon=lon,
-                lat=lat,
-                alt=alt,
-                angle=direction,
-                epoch_time=epoch_time,
-                fix=None,
-                precision=None,
-                ground_speed=ground_speed,
-            )
+
+        point = GPSPoint(
+            time=timestamp,
+            lon=lon,
+            lat=lat,
+            alt=alt,
+            angle=direction,
+            epoch_time=epoch_time,
+            fix=None,
+            precision=None,
+            ground_speed=ground_speed,
         )
 
+        if not track or not _same_gps_point(track[-1], point):
+            track.append(point)
+
     track.sort(key=lambda point: point.time)
+
+    track = _deduplicate_gps_points(track, same_gps_point=_same_gps_point)
 
     if time_tag is not None:
         if track:

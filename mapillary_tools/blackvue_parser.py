@@ -46,7 +46,7 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
     if gps_data is None:
         return None
 
-    points = list(_parse_gps_box(gps_data))
+    points = _parse_gps_box(gps_data)
     points.sort(key=lambda p: p.time)
 
     if points:
@@ -114,7 +114,7 @@ def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
         return ""
 
 
-def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
+def _parse_gps_box(gps_data: bytes) -> list[geo.Point]:
     """
     >>> list(_parse_gps_box(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"))
     [Point(time=1623057074211, lat=51.150436666666664, lon=-114.03067833333333, alt=1097.36, angle=None)]
@@ -131,6 +131,8 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
     >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
     []
     """
+    points_by_sentence_type: dict[str, list[geo.Point]] = {}
+
     for line_bytes in gps_data.splitlines():
         match = NMEA_LINE_REGEX.match(line_bytes)
         if match is None:
@@ -159,20 +161,35 @@ def _parse_gps_box(gps_data: bytes) -> T.Generator[geo.Point, None, None]:
         if message.sentence_type in ["GGA"]:
             if not message.is_valid:
                 continue
-            yield geo.Point(
+            point = geo.Point(
                 time=epoch_ms,
                 lat=message.latitude,
                 lon=message.longitude,
                 alt=message.altitude,
                 angle=None,
             )
+            points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
+
         elif message.sentence_type in ["RMC", "GLL"]:
             if not message.is_valid:
                 continue
-            yield geo.Point(
+            point = geo.Point(
                 time=epoch_ms,
                 lat=message.latitude,
                 lon=message.longitude,
                 alt=None,
                 angle=None,
             )
+            points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
+
+    # This is the extraction order in exiftool
+    if "RMC" in points_by_sentence_type:
+        return points_by_sentence_type["RMC"]
+
+    if "GGA" in points_by_sentence_type:
+        return points_by_sentence_type["GGA"]
+
+    if "GLL" in points_by_sentence_type:
+        return points_by_sentence_type["GLL"]
+
+    return []
