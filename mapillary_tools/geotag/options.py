@@ -89,6 +89,24 @@ class SourcePathOption:
             raise ValueError("Either pattern or source_path must be provided")
 
     def resolve(self, path: Path) -> Path:
+        """
+        Resolve the source path or pattern against the given path.
+
+        Examples:
+            >>> from pathlib import Path
+            >>> opt = SourcePathOption(source_path=Path("/foo/bar.mp4"))
+            >>> opt.resolve(Path("/baz/qux.mp4"))
+            PosixPath('/foo/bar.mp4')
+
+            >>> opt = SourcePathOption(pattern="videos/%g_sub%e")
+            >>> opt.resolve(Path("/data/video1.mp4"))
+            PosixPath('/data/videos/video1_sub.mp4')
+
+            >>> opt = SourcePathOption(pattern="/abs/path/%f")
+            >>> opt.resolve(Path("/tmp/abc.mov"))
+            PosixPath('/abs/path/abc.mov')
+        """
+
         if self.source_path is not None:
             return self.source_path
 
