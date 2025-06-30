@@ -389,20 +389,28 @@ def run_command(params: list[str], command: str, **kwargs):
 
 
 def run_process_for_descs(params: list[str], command: str = "process", **kwargs):
-    with tempfile.NamedTemporaryFile(suffix=".json") as desc_file:
-        run_command(
-            [
-                "--skip_process_errors",
-                *["--desc_path", str(desc_file.name)],
-                *params,
-            ],
-            command,
-            **kwargs,
-        )
+    # Make windows happy with delete=False
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as desc_file:
+        try:
+            run_command(
+                [
+                    "--skip_process_errors",
+                    *["--desc_path", str(desc_file.name)],
+                    *params,
+                ],
+                command,
+                **kwargs,
+            )
 
-        with open(desc_file.name, "r") as fp:
-            fp.seek(0)
-            return json.load(fp)
+            with open(desc_file.name, "r") as fp:
+                fp.seek(0)
+                return json.load(fp)
+
+        finally:
+            try:
+                os.remove(desc_file.name)
+            except FileNotFoundError:
+                pass
 
 
 def run_process_and_upload_for_descs(
