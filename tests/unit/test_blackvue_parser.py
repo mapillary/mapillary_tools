@@ -39,29 +39,12 @@ def test_parse_points():
     box = {"type": b"free", "data": [{"type": b"gps ", "data": gps_data}]}
     data = cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
     info = blackvue_parser.extract_blackvue_info(io.BytesIO(data))
-    assert info is not None
-    assert [
-        geo.Point(
-            time=0.0, lat=38.8861575, lon=-76.99239516666667, alt=10.2, angle=None
-        ),
-        geo.Point(
-            time=0.002,
-            lat=38.8861575,
-            lon=-76.99239516666667,
-            alt=None,
-            angle=None,
-        ),
-        geo.Point(
-            time=0.003,
-            lat=38.88615816666667,
-            lon=-76.992434,
-            alt=None,
-            angle=None,
-        ),
-        geo.Point(
-            time=0.968, lat=38.88615816666667, lon=-76.992434, alt=7.7, angle=None
-        ),
-        geo.Point(
-            time=1.005, lat=38.88615816666667, lon=-76.992434, alt=7.7, angle=None
-        ),
-    ] == list(info.gps or [])
+    assert info == blackvue_parser.BlackVueInfo(
+        gps=[
+            geo.Point(
+                time=0.0, lat=38.88615816666667, lon=-76.992434, alt=None, angle=None
+            )
+        ],
+        make="BlackVue",
+        model="",
+    )
