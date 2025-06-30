@@ -13,29 +13,25 @@ else:
 
 from .. import constants, exceptions, exiftool_read, types, utils
 from ..exiftool_runner import ExiftoolRunner
+from . import options
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_video import GeotagImagesFromVideo
 from .geotag_videos_from_exiftool import GeotagVideosFromExifToolXML
 from .image_extractors.exiftool import ImageExifToolExtractor
-from .utils import index_rdf_description_by_path
 
 LOG = logging.getLogger(__name__)
 
 
 class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
     def __init__(
-        self,
-        xml_path: Path,
-        num_processes: int | None = None,
+        self, source_path: options.SourcePathOption, num_processes: int | None = None
     ):
-        self.xml_path = xml_path
+        self.source_path = source_path
         super().__init__(num_processes=num_processes)
 
     @classmethod
     def build_image_extractors(
-        cls,
-        rdf_by_path: dict[str, ET.Element],
-        image_paths: T.Iterable[Path],
+        cls, rdf_by_path: dict[str, ET.Element], image_paths: T.Iterable[Path]
     ) -> list[ImageExifToolExtractor | types.ErrorMetadata]:
         results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
 
@@ -59,7 +55,9 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
-        rdf_by_path = index_rdf_description_by_path([self.xml_path])
+        rdf_by_path = GeotagVideosFromExifToolXML.find_rdf_by_path(
+            self.source_path, image_paths
+        )
         return self.build_image_extractors(rdf_by_path, image_paths)
 
 
@@ -68,7 +66,10 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
-        runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+        if constants.EXIFTOOL_PATH is None:
+            runner = ExiftoolRunner()
+        else:
+            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
             "Extracting XML from %d images with ExifTool command: %s",
@@ -78,7 +79,13 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
         try:
             xml = runner.extract_xml(image_paths)
         except FileNotFoundError as ex:
-            raise exceptions.MapillaryExiftoolNotFoundError(ex) from ex
+            exiftool_ex = exceptions.MapillaryExiftoolNotFoundError(ex)
+            return [
+                types.describe_error_metadata(
+                    exiftool_ex, image_path, filetype=types.FileType.IMAGE
+                )
+                for image_path in image_paths
+            ]
 
         try:
             xml_element = ET.fromstring(xml)
@@ -102,29 +109,30 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
 class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
     def __init__(
         self,
-        xml_path: Path,
+        source_path: options.SourcePathOption,
         offset_time: float = 0.0,
         num_processes: int | None = None,
     ):
         super().__init__(num_processes=num_processes)
-        self.xml_path = xml_path
+        self.source_path = source_path
         self.offset_time = offset_time
 
     def geotag_samples(
         self, image_paths: T.Sequence[Path]
     ) -> list[types.ImageMetadataOrError]:
         # Find all video paths in self.xml_path
-        rdf_by_path = index_rdf_description_by_path([self.xml_path])
+        rdf_by_path = GeotagVideosFromExifToolXML.find_rdf_by_path(
+            self.source_path, image_paths
+        )
         video_paths = utils.find_videos(
-            [Path(pathstr) for pathstr in rdf_by_path.keys()],
+            [Path(canonical_path) for canonical_path in rdf_by_path.keys()],
             skip_subfolders=True,
         )
         # Find all video paths that have sample images
         samples_by_video = utils.find_all_image_samples(image_paths, video_paths)
 
         video_metadata_or_errors = GeotagVideosFromExifToolXML(
-            self.xml_path,
-            num_processes=self.num_processes,
+            self.source_path, num_processes=self.num_processes
         ).to_description(list(samples_by_video.keys()))
         sample_paths = sum(samples_by_video.values(), [])
         sample_metadata_or_errors = GeotagImagesFromVideo(
@@ -146,8 +154,7 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
         non_sample_paths = [path for path in image_paths if path not in sample_paths]
 
         non_sample_metadata_or_errors = GeotagImagesFromExifToolXML(
-            self.xml_path,
-            num_processes=self.num_processes,
+            self.source_path, num_processes=self.num_processes
         ).to_description(non_sample_paths)
 
         return sample_metadata_or_errors + non_sample_metadata_or_errors

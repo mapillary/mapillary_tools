@@ -1,21 +1,23 @@
 import copy
+import functools
 import os
-import subprocess
 import typing as T
-from pathlib import Path
 
 import py.path
 import pytest
 
 from .fixtures import (
     assert_same_image_descs,
-    EXECUTABLE,
-    IS_FFMPEG_INSTALLED,
+    pytest_skip_if_not_ffmpeg_installed,
     run_exiftool_and_generate_geotag_args,
+    run_process_for_descs,
     setup_config,
     setup_upload,
 )
 
+run_video_process_for_descs = functools.partial(
+    run_process_for_descs, command="video_process"
+)
 
 IMPORT_PATH = "tests/data/gopro_data"
 TEST_ENVS = {
@@ -134,25 +136,34 @@ def test_process_gopro_hero8(
     setup_data: py.path.local,
     use_exiftool: bool = False,
 ):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("skip because ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
+
     video_path = setup_data.join("hero8.mp4")
+
     if use_exiftool:
-        args = f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 {str(video_path)}"
+        args = [
+            "--video_sample_interval=2",
+            "--video_sample_distance=-1",
+            str(video_path),
+        ]
         args = run_exiftool_and_generate_geotag_args(setup_data, args)
     else:
-        args = f"{EXECUTABLE} --verbose video_process --video_sample_interval=2 --video_sample_distance=-1 --geotag_source=gopro_videos {str(video_path)}"
+        args = [
+            "--video_sample_interval=2",
+            "--video_sample_distance=-1",
+            "--geotag_source=gopro_videos",
+            str(video_path),
+        ]
+
     env = os.environ.copy()
     env.update(TEST_ENVS)
-    x = subprocess.run(args, shell=True, env=env)
-    assert x.returncode == 0, x.stderr
+    descs = run_video_process_for_descs(args, env=env)
     sample_dir = setup_data.join("mapillary_sampled_video_frames")
-    desc_path = sample_dir.join("mapillary_image_description.json")
     expected_descs = copy.deepcopy(EXPECTED_DESCS)
     for expected_desc in expected_descs:
         expected_desc["filename"] = str(sample_dir.join(expected_desc["filename"]))
 
-    assert_same_image_descs(Path(desc_path), expected_descs)
+    assert_same_image_descs(descs, expected_descs)
 
 
 @pytest.mark.usefixtures("setup_config")

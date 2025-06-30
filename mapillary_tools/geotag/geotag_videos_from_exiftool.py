@@ -13,6 +13,7 @@ else:
 
 from .. import constants, exceptions, exiftool_read, types
 from ..exiftool_runner import ExiftoolRunner
+from . import options
 from .base import GeotagVideosFromGeneric
 from .utils import index_rdf_description_by_path
 from .video_extractors.exiftool import VideoExifToolExtractor
@@ -22,18 +23,14 @@ LOG = logging.getLogger(__name__)
 
 class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
     def __init__(
-        self,
-        xml_path: Path,
-        num_processes: int | None = None,
+        self, source_path: options.SourcePathOption, num_processes: int | None = None
     ):
         super().__init__(num_processes=num_processes)
-        self.xml_path = xml_path
+        self.source_path = source_path
 
     @classmethod
-    def build_image_extractors(
-        cls,
-        rdf_by_path: dict[str, ET.Element],
-        video_paths: T.Iterable[Path],
+    def build_video_extractors_from_etree(
+        cls, rdf_by_path: dict[str, ET.Element], video_paths: T.Iterable[Path]
     ) -> list[VideoExifToolExtractor | types.ErrorMetadata]:
         results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
 
@@ -57,8 +54,28 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
-        rdf_by_path = index_rdf_description_by_path([self.xml_path])
-        return self.build_image_extractors(rdf_by_path, video_paths)
+        rdf_by_path = self.find_rdf_by_path(self.source_path, video_paths)
+        return self.build_video_extractors_from_etree(rdf_by_path, video_paths)
+
+    @classmethod
+    def find_rdf_by_path(
+        cls, option: options.SourcePathOption, paths: T.Iterable[Path]
+    ) -> dict[str, ET.Element]:
+        if option.source_path is not None:
+            return index_rdf_description_by_path([option.source_path])
+
+        elif option.pattern is not None:
+            rdf_by_path = {}
+            for path in paths:
+                source_path = option.resolve(path)
+                r = index_rdf_description_by_path([source_path])
+                rdfs = list(r.values())
+                if rdfs:
+                    rdf_by_path[exiftool_read.canonical_path(path)] = rdfs[0]
+            return rdf_by_path
+
+        else:
+            assert False, "Either source_path or pattern must be provided"
 
 
 class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
@@ -66,7 +83,10 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
-        runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+        if constants.EXIFTOOL_PATH is None:
+            runner = ExiftoolRunner()
+        else:
+            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
 
         LOG.debug(
             "Extracting XML from %d videos with ExifTool command: %s",
@@ -76,7 +96,13 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
         try:
             xml = runner.extract_xml(video_paths)
         except FileNotFoundError as ex:
-            raise exceptions.MapillaryExiftoolNotFoundError(ex) from ex
+            exiftool_ex = exceptions.MapillaryExiftoolNotFoundError(ex)
+            return [
+                types.describe_error_metadata(
+                    exiftool_ex, video_path, filetype=types.FileType.VIDEO
+                )
+                for video_path in video_paths
+            ]
 
         try:
             xml_element = ET.fromstring(xml)
@@ -92,6 +118,6 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
                 xml_element
             )
 
-        return GeotagVideosFromExifToolXML.build_image_extractors(
+        return GeotagVideosFromExifToolXML.build_video_extractors_from_etree(
             rdf_by_path, video_paths
         )

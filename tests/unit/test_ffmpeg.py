@@ -8,12 +8,12 @@ import pytest
 
 from mapillary_tools import ffmpeg
 
-from ..integration.fixtures import IS_FFMPEG_INSTALLED, setup_data
+from ..integration.fixtures import pytest_skip_if_not_ffmpeg_installed, setup_data
 
 
 def test_ffmpeg_run_ok():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
+
     ff = ffmpeg.FFMPEG()
     ff.run_ffmpeg_non_interactive(["-version"])
 
@@ -23,15 +23,14 @@ def test_ffmpeg_run_ok():
     raises=ffmpeg.FFmpegCalledProcessError,
 )
 def test_ffmpeg_run_raise():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
+
     ff = ffmpeg.FFMPEG()
     ff.run_ffmpeg_non_interactive(["foo"])
 
 
 def test_ffmpeg_extract_frames_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
 
@@ -59,8 +58,7 @@ def test_ffmpeg_extract_frames_ok(setup_data: py.path.local):
 
 
 def test_ffmpeg_extract_frames_with_specifier_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
 
@@ -93,8 +91,7 @@ def test_ffmpeg_extract_frames_with_specifier_ok(setup_data: py.path.local):
 
 
 def test_ffmpeg_extract_specified_frames_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
 
@@ -115,8 +112,7 @@ def test_ffmpeg_extract_specified_frames_ok(setup_data: py.path.local):
 
 
 def test_ffmpeg_extract_specified_frames_empty_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
 
@@ -132,8 +128,7 @@ def test_ffmpeg_extract_specified_frames_empty_ok(setup_data: py.path.local):
 
 
 def test_probe_format_and_streams_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_path = Path(setup_data.join("videos/sample-5s.mp4"))
 
@@ -150,8 +145,7 @@ def test_probe_format_and_streams_ok(setup_data: py.path.local):
 
 
 def test_probe_format_and_streams_gopro_ok(setup_data: py.path.local):
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     video_path = Path(setup_data.join("gopro_data/hero8.mp4"))
 
@@ -169,8 +163,7 @@ def test_probe_format_and_streams_gopro_ok(setup_data: py.path.local):
 
 
 def test_ffmpeg_not_exists():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
     try:
@@ -194,8 +187,7 @@ def test_ffmpeg_not_exists():
 
 
 def test_ffprobe_not_exists():
-    if not IS_FFMPEG_INSTALLED:
-        pytest.skip("ffmpeg not installed")
+    pytest_skip_if_not_ffmpeg_installed()
 
     ff = ffmpeg.FFMPEG()
     try:

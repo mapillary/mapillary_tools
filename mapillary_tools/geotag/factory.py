@@ -6,7 +6,6 @@ import typing as T
 from pathlib import Path
 
 from .. import exceptions, types, utils
-from ..types import FileType
 from . import (
     base,
     geotag_images_from_exif,
@@ -70,8 +69,25 @@ def process(
     for idx, option in enumerate(options):
         LOG.debug("Processing %d files with %s", len(reprocessable_paths), option)
 
-        image_metadata_or_errors = _geotag_images(reprocessable_paths, option)
-        video_metadata_or_errors = _geotag_videos(reprocessable_paths, option)
+        image_videos, video_paths = _filter_images_and_videos(
+            reprocessable_paths, option.filetypes
+        )
+
+        if image_videos:
+            image_geotag = _build_image_geotag(option)
+            image_metadata_or_errors = (
+                image_geotag.to_description(image_videos) if image_geotag else []
+            )
+        else:
+            image_metadata_or_errors = []
+
+        if video_paths:
+            video_geotag = _build_video_geotag(option)
+            video_metadata_or_errors = (
+                video_geotag.to_description(video_paths) if video_geotag else []
+            )
+        else:
+            video_metadata_or_errors = []
 
         more_option = idx < len(options) - 1
 
@@ -97,6 +113,7 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
             (
                 exceptions.MapillaryGeoTaggingError,
                 exceptions.MapillaryVideoGPSNotFoundError,
+                exceptions.MapillaryExiftoolNotFoundError,
             ),
         ):
             return True
@@ -140,152 +157,144 @@ def _ensure_source_path(option: SourceOption) -> Path:
     return option.source_path.source_path
 
 
-def _geotag_images(
-    paths: T.Iterable[Path], option: SourceOption
-) -> list[types.ImageMetadataOrError]:
-    image_paths, _ = _filter_images_and_videos(paths, option.filetypes)
-
-    if not image_paths:
-        return []
-
+def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | None:
+    """
+    Build a GeotagImagesFromGeneric object based on the provided option.
+    """
     if option.interpolation is None:
         interpolation = InterpolationOption()
     else:
         interpolation = option.interpolation
 
-    geotag: base.GeotagImagesFromGeneric
-
-    if option.source is SourceType.NATIVE:
-        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
+    if option.source in [SourceType.EXIF, SourceType.NATIVE]:
+        return geotag_images_from_exif.GeotagImagesFromEXIF(
             num_processes=option.num_processes
         )
-        return geotag.to_description(image_paths)
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
-        geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
+        return geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
             num_processes=option.num_processes
         )
-        try:
-            return geotag.to_description(image_paths)
-        except exceptions.MapillaryExiftoolNotFoundError as ex:
-            LOG.warning('Skip "%s" because: %s', option.source.value, ex)
-            return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
         # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
         # to work
-        geotag = geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
-            xml_path=_ensure_source_path(option),
+        if option.source_path is None:
+            raise exceptions.MapillaryBadParameterError(
+                "source_path must be provided for EXIFTOOL_XML source"
+            )
+        return geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
+            source_path=option.source_path,
             num_processes=option.num_processes,
         )
-        return geotag.to_description(image_paths)
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
+        return geotag_images_from_gpx_file.GeotagImagesFromGPXFile(
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag.to_description(image_paths)
 
     elif option.source is SourceType.NMEA:
-        geotag = geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
+        return geotag_images_from_nmea_file.GeotagImagesFromNMEAFile(
             source_path=_ensure_source_path(option),
             use_gpx_start_time=interpolation.use_gpx_start_time,
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
 
-        return geotag.to_description(image_paths)
-
-    elif option.source is SourceType.EXIF:
-        geotag = geotag_images_from_exif.GeotagImagesFromEXIF(
-            num_processes=option.num_processes
-        )
-        return geotag.to_description(image_paths)
-
-    elif option.source in [
-        SourceType.GOPRO,
-        SourceType.BLACKVUE,
-        SourceType.CAMM,
-    ]:
-        map_geotag_source_to_filetype: dict[SourceType, FileType] = {
-            SourceType.GOPRO: FileType.GOPRO,
-            SourceType.BLACKVUE: FileType.BLACKVUE,
-            SourceType.CAMM: FileType.CAMM,
-        }
-        video_paths = utils.find_videos([_ensure_source_path(option)])
-        image_samples_by_video_path = utils.find_all_image_samples(
-            image_paths, video_paths
-        )
-        video_paths_with_image_samples = list(image_samples_by_video_path.keys())
-        video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
-            filetypes={map_geotag_source_to_filetype[option.source]},
-            num_processes=option.num_processes,
-        ).to_description(video_paths_with_image_samples)
-        geotag = geotag_images_from_video.GeotagImagesFromVideo(
-            video_metadatas,
+    elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
+        return geotag_images_from_video.GeotagImageSamplesFromVideo(
+            _ensure_source_path(option),
             offset_time=interpolation.offset_time,
             num_processes=option.num_processes,
         )
-        return geotag.to_description(image_paths)
 
     else:
         raise ValueError(f"Invalid geotag source {option.source}")
 
 
-def _geotag_videos(
-    paths: T.Iterable[Path], option: SourceOption
-) -> list[types.VideoMetadataOrError]:
-    _, video_paths = _filter_images_and_videos(paths, option.filetypes)
+def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | None:
+    """
+    Build a GeotagVideosFromGeneric object based on the provided option.
 
-    if not video_paths:
-        return []
+    Examples:
+        >>> from pathlib import Path
+        >>> from mapillary_tools.geotag.options import SourceOption, SourceType
+        >>> opt = SourceOption(SourceType.NATIVE)
+        >>> geotagger = _build_video_geotag(opt)
+        >>> geotagger.__class__.__name__
+        'GeotagVideosFromVideo'
 
-    geotag: base.GeotagVideosFromGeneric
+        >>> opt = SourceOption(SourceType.EXIFTOOL_RUNTIME)
+        >>> geotagger = _build_video_geotag(opt)
+        >>> geotagger.__class__.__name__
+        'GeotagVideosFromExifToolRunner'
 
+        >>> opt = SourceOption(SourceType.EXIFTOOL_XML, source_path=Path("/tmp/test.xml"))
+        >>> geotagger = _build_video_geotag(opt)
+        >>> geotagger.__class__.__name__
+        'GeotagVideosFromExifToolXML'
+
+        >>> opt = SourceOption(SourceType.GPX, source_path=Path("/tmp/test.gpx"))
+        >>> geotagger = _build_video_geotag(opt)
+        >>> geotagger.__class__.__name__
+        'GeotagVideosFromGPX'
+
+        >>> opt = SourceOption(SourceType.NMEA, source_path=Path("/tmp/test.nmea"))
+        >>> _build_video_geotag(opt) is None
+        True
+
+        >>> opt = SourceOption(SourceType.EXIF)
+        >>> _build_video_geotag(opt) is None
+        True
+
+        >>> opt = SourceOption(SourceType.GOPRO)
+        >>> _build_video_geotag(opt) is None
+        True
+
+        >>> try:
+        ...     _build_video_geotag(SourceOption("invalid"))
+        ... except ValueError as e:
+        ...     "Invalid geotag source" in str(e)
+        True
+    """
     if option.source is SourceType.NATIVE:
-        geotag = geotag_videos_from_video.GeotagVideosFromVideo(
+        return geotag_videos_from_video.GeotagVideosFromVideo(
             num_processes=option.num_processes, filetypes=option.filetypes
         )
-        return geotag.to_description(video_paths)
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
-        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
+        return geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
             num_processes=option.num_processes
         )
-        try:
-            return geotag.to_description(video_paths)
-        except exceptions.MapillaryExiftoolNotFoundError as ex:
-            LOG.warning('Skip "%s" because: %s', option.source.value, ex)
-            return []
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        geotag = geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
-            xml_path=_ensure_source_path(option),
+        if option.source_path is None:
+            raise exceptions.MapillaryBadParameterError(
+                "source_path must be provided for EXIFTOOL_XML source"
+            )
+        return geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
+            source_path=option.source_path,
         )
-        return geotag.to_description(video_paths)
 
     elif option.source is SourceType.GPX:
-        geotag = geotag_videos_from_gpx.GeotagVideosFromGPX()
-        return geotag.to_description(video_paths)
+        return geotag_videos_from_gpx.GeotagVideosFromGPX(
+            source_path=option.source_path, num_processes=option.num_processes
+        )
 
     elif option.source is SourceType.NMEA:
         # TODO: geotag videos from NMEA
-        return []
+        return None
 
     elif option.source is SourceType.EXIF:
         # Legacy image-specific geotag types
-        return []
+        return None
 
-    elif option.source in [
-        SourceType.GOPRO,
-        SourceType.BLACKVUE,
-        SourceType.CAMM,
-    ]:
+    elif option.source in [SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM]:
         # Legacy image-specific geotag types
-        return []
+        return None
 
     else:
         raise ValueError(f"Invalid geotag source {option.source}")

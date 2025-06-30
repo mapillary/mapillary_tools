@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
-import datetime
+import enum
 import logging
 import sys
 import typing as T
@@ -12,7 +12,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import geo, telemetry, types
+from ... import exceptions, geo, telemetry, types
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
@@ -21,106 +21,96 @@ from .native import NativeVideoExtractor
 LOG = logging.getLogger(__name__)
 
 
+class SyncMode(enum.Enum):
+    # Sync by video GPS timestamps if found, otherwise rebase
+    SYNC = "sync"
+    # Sync by video GPS timestamps, and throw if not found
+    STRICT_SYNC = "strict_sync"
+    # Rebase all GPX timestamps to start from 0
+    REBASE = "rebase"
+
+
 class GPXVideoExtractor(BaseVideoExtractor):
-    def __init__(self, video_path: Path, gpx_path: Path):
+    def __init__(
+        self, video_path: Path, gpx_path: Path, sync_mode: SyncMode = SyncMode.SYNC
+    ):
         self.video_path = video_path
         self.gpx_path = gpx_path
+        self.sync_mode = sync_mode
 
     @override
-    def extract(self) -> types.VideoMetadataOrError:
-        try:
-            gpx_tracks = parse_gpx(self.gpx_path)
-        except Exception as ex:
-            raise RuntimeError(
-                f"Error parsing GPX {self.gpx_path}: {ex.__class__.__name__}: {ex}"
-            )
+    def extract(self) -> types.VideoMetadata:
+        gpx_tracks = parse_gpx(self.gpx_path)
 
         if 1 < len(gpx_tracks):
             LOG.warning(
-                "Found %s tracks in the GPX file %s. Will merge points in all the tracks as a single track for interpolation",
-                len(gpx_tracks),
-                self.gpx_path,
+                f"Found {len(gpx_tracks)} tracks in the GPX file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
             )
 
         gpx_points: T.Sequence[geo.Point] = sum(gpx_tracks, [])
 
         native_extractor = NativeVideoExtractor(self.video_path)
 
-        video_metadata_or_error = native_extractor.extract()
-
-        if isinstance(video_metadata_or_error, types.ErrorMetadata):
+        try:
+            native_video_metadata = native_extractor.extract()
+        except exceptions.MapillaryVideoGPSNotFoundError as ex:
+            if self.sync_mode is SyncMode.STRICT_SYNC:
+                raise ex
             self._rebase_times(gpx_points)
             return types.VideoMetadata(
-                filename=video_metadata_or_error.filename,
-                filetype=video_metadata_or_error.filetype or types.FileType.VIDEO,
+                filename=self.video_path,
+                filetype=types.FileType.VIDEO,
                 points=gpx_points,
             )
 
-        video_metadata = video_metadata_or_error
+        if self.sync_mode is SyncMode.REBASE:
+            self._rebase_times(gpx_points)
+        else:
+            offset = self._gpx_offset(gpx_points, native_video_metadata.points)
+            self._rebase_times(gpx_points, offset=offset)
 
-        offset = self._synx_gpx_by_first_gps_timestamp(
-            gpx_points, video_metadata.points
-        )
+        return dataclasses.replace(native_video_metadata, points=gpx_points)
 
-        self._rebase_times(gpx_points, offset=offset)
-
-        return dataclasses.replace(video_metadata_or_error, points=gpx_points)
-
-    @staticmethod
-    def _rebase_times(points: T.Sequence[geo.Point], offset: float = 0.0):
+    @classmethod
+    def _rebase_times(cls, points: T.Sequence[geo.Point], offset: float = 0.0) -> None:
         """
-        Make point times start from 0
+        Rebase point times to start from **offset**
         """
         if points:
             first_timestamp = points[0].time
             for p in points:
                 p.time = (p.time - first_timestamp) + offset
-        return points
 
-    def _synx_gpx_by_first_gps_timestamp(
-        self, gpx_points: T.Sequence[geo.Point], video_gps_points: T.Sequence[geo.Point]
+    @classmethod
+    def _gpx_offset(
+        cls, gpx_points: T.Sequence[geo.Point], video_gps_points: T.Sequence[geo.Point]
     ) -> float:
+        """
+        Calculate the offset that needs to be applied to the GPX points to sync with the video GPS points.
+
+        >>> gpx_points = [geo.Point(time=5, lat=1, lon=1, alt=None, angle=None)]
+        >>> GPXVideoExtractor._gpx_offset(gpx_points, gpx_points)
+        0.0
+        >>> GPXVideoExtractor._gpx_offset(gpx_points, [])
+        0.0
+        >>> GPXVideoExtractor._gpx_offset([], gpx_points)
+        0.0
+        """
         offset: float = 0.0
 
-        if not gpx_points:
+        if not gpx_points or not video_gps_points:
             return offset
 
-        first_gpx_dt = datetime.datetime.fromtimestamp(
-            gpx_points[0].time, tz=datetime.timezone.utc
-        )
-        LOG.info("First GPX timestamp: %s", first_gpx_dt)
+        gps_epoch_time: float | None = None
+        gps_point = video_gps_points[0]
+        if isinstance(gps_point, telemetry.GPSPoint):
+            if gps_point.epoch_time is not None:
+                gps_epoch_time = gps_point.epoch_time
+        elif isinstance(gps_point, telemetry.CAMMGPSPoint):
+            if gps_point.time_gps_epoch is not None:
+                gps_epoch_time = gps_point.time_gps_epoch
 
-        if not video_gps_points:
-            LOG.warning(
-                "Skip GPX synchronization because no GPS found in video %s",
-                self.video_path,
-            )
-            return offset
-
-        first_gps_point = video_gps_points[0]
-        if isinstance(first_gps_point, telemetry.GPSPoint):
-            if first_gps_point.epoch_time is not None:
-                first_gps_dt = datetime.datetime.fromtimestamp(
-                    first_gps_point.epoch_time, tz=datetime.timezone.utc
-                )
-                LOG.info("First GPS timestamp: %s", first_gps_dt)
-                offset = gpx_points[0].time - first_gps_point.epoch_time
-                if offset:
-                    LOG.warning(
-                        "Found offset between GPX %s and video GPS timestamps %s: %s seconds",
-                        first_gpx_dt,
-                        first_gps_dt,
-                        offset,
-                    )
-                else:
-                    LOG.info(
-                        "GPX and GPS are perfectly synchronized (all starts from %s)",
-                        first_gpx_dt,
-                    )
-            else:
-                LOG.warning(
-                    "Skip GPX synchronization because no GPS epoch time found in video %s",
-                    self.video_path,
-                )
+        if gps_epoch_time is not None:
+            offset = gpx_points[0].time - gps_epoch_time
 
         return offset

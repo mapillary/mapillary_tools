@@ -14,5 +14,5 @@ class BaseVideoExtractor(abc.ABC):
     def __init__(self, video_path: Path):
         self.video_path = video_path
 
-    def extract(self) -> types.VideoMetadataOrError:
+    def extract(self) -> types.VideoMetadata:
         raise NotImplementedError

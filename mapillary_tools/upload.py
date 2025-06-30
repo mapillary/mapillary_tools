@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -671,17 +670,26 @@ def _load_valid_metadatas_from_desc_path(
     if desc_path is None:
         desc_path = _find_desc_path(import_paths)
 
-    with (
-        contextlib.nullcontext(sys.stdin.buffer)
-        if desc_path == "-"
-        else open(desc_path, "rb")
-    ) as fp:
+    if desc_path == "-":
         try:
-            metadatas = DescriptionJSONSerializer.deserialize_stream(fp)
+            metadatas = DescriptionJSONSerializer.deserialize_stream(sys.stdin.buffer)
         except json.JSONDecodeError as ex:
             raise exceptions.MapillaryInvalidDescriptionFile(
                 f"Invalid JSON stream from {desc_path}: {ex}"
             ) from ex
+
+    else:
+        if not os.path.isfile(desc_path):
+            raise exceptions.MapillaryFileNotFoundError(
+                f"Description file not found: {desc_path}"
+            )
+        with open(desc_path, "rb") as fp:
+            try:
+                metadatas = DescriptionJSONSerializer.deserialize_stream(fp)
+            except json.JSONDecodeError as ex:
+                raise exceptions.MapillaryInvalidDescriptionFile(
+                    f"Invalid JSON stream from {desc_path}: {ex}"
+                ) from ex
 
     return metadatas
 

@@ -60,9 +60,13 @@ class SourceOption:
             elif k == "filetypes":
                 kwargs[k] = {types.FileType(t) for t in v}
             elif k == "source_path":
-                kwargs.setdefault("source_path", SourcePathOption()).source_path = v
+                kwargs.setdefault(
+                    "source_path", SourcePathOption(source_path=Path(v))
+                ).sourthe_path = Path(v)
             elif k == "pattern":
-                kwargs.setdefault("source_path", SourcePathOption()).pattern = v
+                kwargs.setdefault(
+                    "source_path", SourcePathOption(pattern=v)
+                ).pattern = v
             elif k == "interpolation_offset_time":
                 kwargs.setdefault(
                     "interpolation", InterpolationOption()
@@ -85,6 +89,24 @@ class SourcePathOption:
             raise ValueError("Either pattern or source_path must be provided")
 
     def resolve(self, path: Path) -> Path:
+        """
+        Resolve the source path or pattern against the given path.
+
+        Examples:
+            >>> from pathlib import Path
+            >>> opt = SourcePathOption(source_path=Path("/foo/bar.mp4"))
+            >>> opt.resolve(Path("/baz/qux.mp4"))
+            PosixPath('/foo/bar.mp4')
+
+            >>> opt = SourcePathOption(pattern="videos/%g_sub%e")
+            >>> opt.resolve(Path("/data/video1.mp4"))
+            PosixPath('/data/videos/video1_sub.mp4')
+
+            >>> opt = SourcePathOption(pattern="/abs/path/%f")
+            >>> opt.resolve(Path("/tmp/abc.mov"))
+            PosixPath('/abs/path/abc.mov')
+        """
+
         if self.source_path is not None:
             return self.source_path
 
@@ -140,7 +162,7 @@ SourceOptionSchema = {
             "type": "integer",
         },
         "interpolation_offset_time": {
-            "type": "float",
+            "type": "number",
         },
         "interpolation_use_gpx_start_time": {
             "type": "boolean",
