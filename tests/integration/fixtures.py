@@ -410,16 +410,19 @@ def run_process_for_descs(params: list[str], command: str = "process", **kwargs)
 
             with open(desc_file.name, "r") as fp:
                 fp.seek(0)
-                return json.load(fp)
+                descs = json.load(fp)
 
             if not delete:
                 desc_file.close()
+
         finally:
             if not delete:
                 try:
                     os.remove(desc_file.name)
                 except FileNotFoundError:
                     pass
+
+    return descs
 
 
 def run_process_and_upload_for_descs(
