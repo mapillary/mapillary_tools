@@ -423,7 +423,7 @@ def _split_sequences_by_cutoff_time(
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
     LOG.info(
-        "Found %s sequences after split by cutoff_time %d seconds",
+        "Found %s sequences after split by cutoff_time %s seconds",
         len(output_sequences),
         cutoff_time,
     )
@@ -462,7 +462,7 @@ def _split_sequences_by_cutoff_distance(
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
     LOG.info(
-        "Found %s sequences after split by cutoff_distance %d meters",
+        "Found %s sequences after split by cutoff_distance %s meters",
         len(output_sequences),
         cutoff_distance,
     )
