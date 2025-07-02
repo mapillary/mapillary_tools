@@ -12,71 +12,38 @@ from .serializer.description import DescriptionJSONSerializer
 LOG = logging.getLogger(__name__)
 
 
-SeqItem = T.TypeVar("SeqItem")
+S = T.TypeVar("S")
+R = T.TypeVar("R")
 PointSequence = T.List[geo.PointLike]
 
 
 def split_sequence_by(
-    sequence: T.Sequence[SeqItem],
-    should_split: T.Callable[[SeqItem, SeqItem], bool],
-) -> list[list[SeqItem]]:
+    sequence: T.Iterable[S], reduce: T.Callable[[R, S], tuple[R, bool]], initial: R
+) -> list[list[S]]:
     """
     Split a sequence into multiple sequences by should_split(prev, cur) => True
     """
-    output_sequences: list[list[SeqItem]] = []
 
-    if sequence:
-        output_sequences.append([sequence[0]])
+    output_sequences: list[list[S]] = []
 
-    for prev, cur in geo.pairwise(sequence):
-        # invariant: prev is processed
-        if should_split(prev, cur):
-            output_sequences.append([cur])
+    value = initial
+
+    for element in sequence:
+        value, should = reduce(value, element)
+
+        if should:
+            output_sequences.append([element])
         else:
-            output_sequences[-1].append(cur)
-        # invariant: cur is processed
-
-    assert sum(len(s) for s in output_sequences) == len(sequence), (
-        output_sequences,
-        sequence,
-    )
-
-    return output_sequences
-
-
-def split_sequence_by_agg(
-    sequence: T.Sequence[SeqItem],
-    should_split_with_sequence_state: T.Callable[[SeqItem, dict], bool],
-) -> list[list[SeqItem]]:
-    """
-    Split a sequence by should_split_with_sequence_state(cur, sequence_state) => True
-    """
-    output_sequences: list[list[SeqItem]] = []
-    sequence_state: dict = {}
-
-    for cur in sequence:
-        start_new_sequence = should_split_with_sequence_state(cur, sequence_state)
-
-        if not output_sequences:
-            output_sequences.append([])
-
-        if start_new_sequence:
-            # DO NOT reset the state because it contains the information of current item
-            # sequence_state = {}
-            if output_sequences[-1]:
-                output_sequences.append([])
-
-        output_sequences[-1].append(cur)
-
-    assert sum(len(s) for s in output_sequences) == len(sequence)
+            if output_sequences:
+                output_sequences[-1].append(element)
+            else:
+                output_sequences.append([element])
 
     return output_sequences
 
 
 def duplication_check(
-    sequence: PointSequence,
-    max_duplicate_distance: float,
-    max_duplicate_angle: float,
+    sequence: PointSequence, max_duplicate_distance: float, max_duplicate_angle: float
 ) -> tuple[PointSequence, list[types.ErrorMetadata]]:
     dedups: PointSequence = []
     dups: list[types.ErrorMetadata] = []
@@ -299,11 +266,12 @@ def _check_video_limits(
         else:
             output_video_metadatas.append(video_metadata)
 
-    LOG.info(
-        "Found %s videos and %s errors after video limit checks",
-        len(output_video_metadatas),
-        len(error_metadatas),
-    )
+    if error_metadatas:
+        LOG.info(
+            "Found %s videos and %s errors after video limit checks",
+            len(output_video_metadatas),
+            len(error_metadatas),
+        )
 
     return output_video_metadatas, error_metadatas
 
@@ -360,11 +328,12 @@ def _check_sequences_by_limits(
         len(s) for s in input_sequences
     )
 
-    LOG.info(
-        "Found %s sequences and %s errors after sequence limit checks",
-        len(output_sequences),
-        len(output_errors),
-    )
+    if output_errors:
+        LOG.info(
+            "Found %s sequences and %s errors after sequence limit checks",
+            len(output_sequences),
+            len(output_errors),
+        )
 
     return output_sequences, output_errors
 
@@ -394,82 +363,6 @@ def _group_by_folder_and_camera(
     return output_sequences
 
 
-def _split_sequences_by_cutoff_time(
-    input_sequences: T.Sequence[PointSequence], cutoff_time: float
-) -> list[PointSequence]:
-    def _should_split_by_cutoff_time(
-        prev: types.ImageMetadata, cur: types.ImageMetadata
-    ) -> bool:
-        time_diff = cur.time - prev.time
-        assert 0 <= time_diff, "sequence must be sorted by capture times"
-        should = cutoff_time < time_diff
-        if should:
-            LOG.debug(
-                "Split because the capture time gap %s seconds exceeds cutoff_time (%s seconds): %s: %s -> %s",
-                round(time_diff, 2),
-                round(cutoff_time, 2),
-                prev.filename.parent,
-                prev.filename.name,
-                cur.filename.name,
-            )
-        return should
-
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequences.extend(
-            split_sequence_by(sequence, should_split=_should_split_by_cutoff_time)
-        )
-
-    assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
-
-    LOG.info(
-        "Found %s sequences after split by cutoff_time %s seconds",
-        len(output_sequences),
-        cutoff_time,
-    )
-
-    return output_sequences
-
-
-def _split_sequences_by_cutoff_distance(
-    input_sequences: T.Sequence[PointSequence], cutoff_distance: float
-) -> list[PointSequence]:
-    def _should_split_by_cutoff_distance(
-        prev: types.ImageMetadata, cur: types.ImageMetadata
-    ) -> bool:
-        distance = geo.gps_distance(
-            (prev.lat, prev.lon),
-            (cur.lat, cur.lon),
-        )
-        should = cutoff_distance < distance
-        if should:
-            LOG.debug(
-                "Split because the distance gap %s meters exceeds cutoff_distance (%s meters): %s: %s -> %s",
-                round(distance, 2),
-                round(cutoff_distance, 2),
-                prev.filename.parent,
-                prev.filename.name,
-                cur.filename.name,
-            )
-        return should
-
-    output_sequences = []
-    for sequence in input_sequences:
-        output_sequences.extend(
-            split_sequence_by(sequence, _should_split_by_cutoff_distance)
-        )
-
-    assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
-
-    LOG.info(
-        "Found %s sequences after split by cutoff_distance %s meters",
-        len(output_sequences),
-        cutoff_distance,
-    )
-
-    return output_sequences
-
-
 def _check_sequences_duplication(
     input_sequences: T.Sequence[PointSequence],
     duplicate_distance: float,
@@ -492,88 +385,188 @@ def _check_sequences_duplication(
         len(s) for s in input_sequences
     )
 
-    LOG.info(
-        "Found %s sequences and %s errors after duplication check",
-        len(output_sequences),
-        len(output_errors),
-    )
+    if output_errors:
+        LOG.info(
+            "Found %s sequences and %s errors after duplication check",
+            len(output_sequences),
+            len(output_errors),
+        )
 
     return output_sequences, output_errors
 
 
+class SplitState(T.TypedDict, total=False):
+    sequence_images: int
+    sequence_file_size: int
+    sequence_pixels: int
+    split: bool
+    image: types.ImageMetadata
+
+
 def _split_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
-    max_sequence_filesize_in_bytes: float,
-    max_sequence_pixels: float,
+    max_sequence_filesize_in_bytes: float | None = None,
+    max_sequence_pixels: float | None = None,
+    max_sequence_images: int | None = None,
+    cutoff_time: float | None = None,
+    cutoff_distance: float | None = None,
 ) -> list[PointSequence]:
-    max_sequence_images = constants.MAX_SEQUENCE_LENGTH
-    max_sequence_filesize = max_sequence_filesize_in_bytes
+    def _should_split_by_max_sequence_images(
+        state: SplitState, _: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        if max_sequence_images is None:
+            return state, False
 
-    def _should_split(image: types.ImageMetadata, sequence_state: dict) -> bool:
-        last_sequence_images = sequence_state.get("last_sequence_images", 0)
-        last_sequence_file_size = sequence_state.get("last_sequence_file_size", 0)
-        last_sequence_pixels = sequence_state.get("last_sequence_pixels", 0)
+        split = state.get("split", False)
 
-        # decent default values if width/height not available
-        width = 1024 if image.width is None else image.width
-        height = 1024 if image.height is None else image.height
-        pixels = width * height
+        if split:
+            new_sequence_images = 1
+        else:
+            new_sequence_images = state.get("sequence_images", 0) + 1
+            split = max_sequence_images < new_sequence_images
+            if split:
+                LOG.debug(
+                    f"Split because {new_sequence_images=} < {max_sequence_images=}"
+                )
+
+        state["sequence_images"] = new_sequence_images
+
+        return state, split
+
+    def _should_split_by_cutoff_time(
+        state: SplitState, image: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        if cutoff_time is None:
+            return state, False
+
+        split = state.get("split", False)
+
+        if split:
+            pass
+        else:
+            last_image = state.get("image")
+            if last_image is not None:
+                diff = image.time - last_image.time
+                split = cutoff_time < diff
+                if split:
+                    LOG.debug(f"Split because {cutoff_time=}  < {diff=}")
+
+        state["image"] = image
+
+        return state, split
+
+    def _should_split_by_cutoff_distance(
+        state: SplitState, image: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        if cutoff_distance is None:
+            return state, False
+
+        split = state.get("split", False)
+
+        if split:
+            pass
+        else:
+            last_image = state.get("image")
+            if last_image is not None:
+                diff = geo.gps_distance(
+                    (last_image.lat, last_image.lon), (image.lat, image.lon)
+                )
+                split = cutoff_distance < diff
+                if split:
+                    LOG.debug(f"Split because {cutoff_distance=} < {diff=}")
+
+        state["image"] = image
+
+        return state, split
+
+    def _should_split_by_max_sequence_filesize(
+        state: SplitState, image: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        if max_sequence_filesize_in_bytes is None:
+            return state, False
+
+        split = state.get("split", False)
 
         if image.filesize is None:
             filesize = os.path.getsize(image.filename)
         else:
             filesize = image.filesize
 
-        new_sequence_images = last_sequence_images + 1
-        new_sequence_file_size = last_sequence_file_size + filesize
-        new_sequence_pixels = last_sequence_pixels + pixels
-
-        if max_sequence_images < new_sequence_images:
-            LOG.debug(
-                "Split because the current sequence (%s) reaches the max number of images (%s)",
-                new_sequence_images,
-                max_sequence_images,
-            )
-            start_new_sequence = True
-        elif max_sequence_filesize < new_sequence_file_size:
-            LOG.debug(
-                "Split because the current sequence (%s) reaches the max filesize (%s)",
-                new_sequence_file_size,
-                max_sequence_filesize,
-            )
-            start_new_sequence = True
-        elif max_sequence_pixels < new_sequence_pixels:
-            LOG.debug(
-                "Split because the current sequence (%s) reaches the max pixels (%s)",
-                new_sequence_pixels,
-                max_sequence_pixels,
-            )
-            start_new_sequence = True
+        if split:
+            new_sequence_file_size = filesize
         else:
-            start_new_sequence = False
+            sequence_file_size = state.get("sequence_file_size", 0)
+            new_sequence_file_size = sequence_file_size + filesize
+            split = max_sequence_filesize_in_bytes < new_sequence_file_size
+            if split:
+                LOG.debug(
+                    f"Split because {max_sequence_filesize_in_bytes=} < {new_sequence_file_size=}"
+                )
 
-        if not start_new_sequence:
-            sequence_state["last_sequence_images"] = new_sequence_images
-            sequence_state["last_sequence_file_size"] = new_sequence_file_size
-            sequence_state["last_sequence_pixels"] = new_sequence_pixels
+        state["sequence_file_size"] = new_sequence_file_size
+
+        return state, split
+
+    def _should_split_by_max_sequence_pixels(
+        state: SplitState, image: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        if max_sequence_pixels is None:
+            return state, False
+
+        split = state.get("split", False)
+
+        # Decent default values if width/height not available
+        width = 1024 if image.width is None else image.width
+        height = 1024 if image.height is None else image.height
+        pixels = width * height
+
+        if split:
+            new_sequence_pixels = pixels
         else:
-            sequence_state["last_sequence_images"] = 1
-            sequence_state["last_sequence_file_size"] = filesize
-            sequence_state["last_sequence_pixels"] = pixels
+            sequence_pixels = state.get("sequence_pixels", 0)
+            new_sequence_pixels = sequence_pixels + pixels
+            split = max_sequence_pixels < new_sequence_pixels
+            if split:
+                LOG.debug(
+                    f"Split because {max_sequence_pixels=} < {new_sequence_pixels=}"
+                )
 
-        return start_new_sequence
+        state["sequence_pixels"] = new_sequence_pixels
+
+        return state, split
+
+    def _should_split_agg(
+        state: SplitState, image: types.ImageMetadata
+    ) -> tuple[SplitState, bool]:
+        split = False
+
+        for should_split in [
+            _should_split_by_max_sequence_images,
+            _should_split_by_cutoff_time,
+            _should_split_by_cutoff_distance,
+            _should_split_by_max_sequence_filesize,
+            _should_split_by_max_sequence_pixels,
+        ]:
+            state, split = should_split(state, image)
+            if split:
+                state["split"] = True
+
+        return state, split
 
     output_sequences = []
     for sequence in input_sequences:
         output_sequences.extend(
-            split_sequence_by_agg(
-                sequence, should_split_with_sequence_state=_should_split
+            split_sequence_by(
+                sequence, _should_split_agg, initial=T.cast(SplitState, {})
             )
         )
 
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
-    LOG.info("Found %s sequences after split by sequence limits", len(output_sequences))
+    if len(input_sequences) != len(output_sequences):
+        LOG.info(
+            f"Split {len(input_sequences)} into {len(output_sequences)} sequences by limits"
+        )
 
     return output_sequences
 
@@ -632,9 +625,15 @@ def process_sequence_properties(
         for sequence in sequences:
             _interpolate_subsecs_for_sorting(sequence)
 
-        # Split sequences by cutoff time
+        # Split sequences by max number of images, max filesize, max pixels, and cutoff time
         # NOTE: Do not split by distance here because it affects the speed limit check
-        sequences = _split_sequences_by_cutoff_time(sequences, cutoff_time=cutoff_time)
+        sequences = _split_sequences_by_limits(
+            sequences,
+            max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
+            max_sequence_pixels=max_sequence_pixels,
+            max_sequence_images=constants.MAX_SEQUENCE_LENGTH,
+            cutoff_time=cutoff_time,
+        )
 
         # Duplication check
         sequences, errors = _check_sequences_duplication(
@@ -651,13 +650,6 @@ def process_sequence_properties(
                     image.angle = None
             geo.interpolate_directions_if_none(sequence)
 
-        # Split sequences by max number of images, max filesize, and max pixels
-        sequences = _split_sequences_by_limits(
-            sequences,
-            max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
-            max_sequence_pixels=max_sequence_pixels,
-        )
-
         # Check limits for sequences
         sequences, errors = _check_sequences_by_limits(
             sequences,
@@ -668,7 +660,7 @@ def process_sequence_properties(
 
         # Split sequences by cutoff distance
         # NOTE: The speed limit check probably rejects most of anomalies
-        sequences = _split_sequences_by_cutoff_distance(
+        sequences = _split_sequences_by_limits(
             sequences, cutoff_distance=cutoff_distance
         )
 
