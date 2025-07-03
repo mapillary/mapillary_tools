@@ -86,10 +86,13 @@ def split_sequence_by(
 
 
 def duplication_check(
-    sequence: PointSequence, max_duplicate_distance: float, max_duplicate_angle: float
+    sequence: PointSequence,
+    *,
+    max_duplicate_distance: float,
+    max_duplicate_angle: float,
 ) -> tuple[PointSequence, list[types.ErrorMetadata]]:
     """
-    >>> duplication_check([], 1, 2)
+    >>> duplication_check([], max_duplicate_distance=1, max_duplicate_angle=2)
     ([], [])
     """
 
@@ -136,9 +139,9 @@ def duplication_check(
     return dedups, dups
 
 
-def _group_by(
+def _group_images_by(
     image_metadatas: T.Iterable[types.ImageMetadata],
-    group_key_func=T.Callable[[types.ImageMetadata], T.Hashable],
+    group_key_func: T.Callable[[types.ImageMetadata], T.Hashable],
 ) -> dict[T.Hashable, list[types.ImageMetadata]]:
     grouped: dict[T.Hashable, list[types.ImageMetadata]] = {}
     for metadata in image_metadatas:
@@ -148,7 +151,7 @@ def _group_by(
 
 def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
     """
-    Update the timestamps make sure they are unique and sorted
+    Update the timestamps to make sure they are unique and sorted
     in the same order by interpolating subseconds
 
     Examples:
@@ -158,6 +161,11 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         >>> _interpolate_subsecs_for_sorting(points)
         >>> [p.time for p in points]
         [1.0, 1.2, 1.4, 1.6, 1.8, 2]
+
+        >>> points = [make_point(t) for t in [1.1]]
+        >>> _interpolate_subsecs_for_sorting(points)
+        >>> [p.time for p in points]
+        [1.1]
     """
 
     gidx = 0
@@ -329,7 +337,7 @@ def _check_sequences_by_limits(
 def _group_by_folder_and_camera(
     image_metadatas: list[types.ImageMetadata],
 ) -> list[list[types.ImageMetadata]]:
-    grouped = _group_by(
+    grouped = _group_images_by(
         image_metadatas,
         lambda metadata: (
             str(metadata.filename.parent),
@@ -486,7 +494,7 @@ def _should_split_by_max_sequence_pixels(
     max_sequence_pixels: int,
     split: bool = False,
 ) -> tuple[SplitState, bool]:
-    # Decent default values if width/height not available
+    # Default values if width/height not available
     width = 1024 if image.width is None else image.width
     height = 1024 if image.height is None else image.height
     pixels = width * height
@@ -665,7 +673,7 @@ def process_sequence_properties(
         error_metadatas.extend(errors)
 
         # Split sequences by cutoff distance
-        # NOTE: The speed limit check probably rejects most of anomalies
+        # NOTE: The speed limit check probably rejects most anomalies
         sequences = _split_sequences_by_limits(
             sequences, cutoff_distance=cutoff_distance
         )
