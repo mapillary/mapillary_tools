@@ -100,10 +100,7 @@ def duplication_check(
 
     for cur in it:
         # invariant: prev is processed
-        distance = geo.gps_distance(
-            (prev.lat, prev.lon),
-            (cur.lat, cur.lon),
-        )
+        distance = geo.gps_distance((prev.lat, prev.lon), (cur.lat, cur.lon))
 
         if prev.angle is not None and cur.angle is not None:
             angle_diff = geo.diff_bearing(prev.angle, cur.angle)
@@ -182,25 +179,6 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         )
 
 
-def _avg_speed(sequence: T.Sequence[geo.PointLike]) -> float:
-    total_distance = 0.0
-    for cur, nxt in geo.pairwise(sequence):
-        total_distance += geo.gps_distance(
-            (cur.lat, cur.lon),
-            (nxt.lat, nxt.lon),
-        )
-
-    if sequence:
-        time_diff = sequence[-1].time - sequence[0].time
-    else:
-        time_diff = 0.0
-
-    if time_diff == 0.0:
-        return float("inf")
-
-    return total_distance / time_diff
-
-
 def _is_video_stationary(
     sequence: T.Sequence[geo.PointLike], max_radius_in_meters: float
 ) -> bool:
@@ -250,12 +228,12 @@ def _check_video_limits(
             )
             if contains_null_island:
                 raise exceptions.MapillaryNullIslandError(
-                    "Found GPS coordinates in Null Island (0, 0)",
+                    "GPS coordinates in Null Island (0, 0)"
                 )
 
             too_fast = (
                 len(video_metadata.points) >= 2
-                and _avg_speed(video_metadata.points) > max_avg_speed
+                and geo.avg_speed(video_metadata.points) > max_avg_speed
             )
             if too_fast:
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
@@ -274,9 +252,7 @@ def _check_video_limits(
 
     if error_metadatas:
         LOG.info(
-            "Found %s videos and %s errors after video limit checks",
-            len(output_video_metadatas),
-            len(error_metadatas),
+            f"Video validation: {len(output_video_metadatas)} valid, {len(error_metadatas)} errors"
         )
 
     return output_video_metadatas, error_metadatas
@@ -291,15 +267,14 @@ def _check_sequences_by_limits(
     output_errors: list[types.ErrorMetadata] = []
 
     for sequence in input_sequences:
-        sequence_filesize = sum(
-            utils.get_file_size(image.filename)
-            if image.filesize is None
-            else image.filesize
-            for image in sequence
-        )
-
         try:
             if max_sequence_filesize_in_bytes is not None:
+                sequence_filesize = sum(
+                    utils.get_file_size(image.filename)
+                    if image.filesize is None
+                    else image.filesize
+                    for image in sequence
+                )
                 if sequence_filesize > max_sequence_filesize_in_bytes:
                     raise exceptions.MapillaryFileTooLargeError(
                         f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
@@ -310,10 +285,10 @@ def _check_sequences_by_limits(
             )
             if contains_null_island:
                 raise exceptions.MapillaryNullIslandError(
-                    "Found GPS coordinates in Null Island (0, 0)",
+                    "GPS coordinates in Null Island (0, 0)"
                 )
 
-            too_fast = len(sequence) >= 2 and _avg_speed(sequence) > max_avg_speed
+            too_fast = len(sequence) >= 2 and geo.avg_speed(sequence) > max_avg_speed
             if too_fast:
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
                     f"Capture speed too fast (exceeds {round(max_avg_speed, 3)} m/s)",
@@ -335,9 +310,7 @@ def _check_sequences_by_limits(
 
     if output_errors:
         LOG.info(
-            "Found %s image sequences and %s errors after sequence limit checks",
-            len(output_sequences),
-            len(output_errors),
+            f"Sequence validation: {output_sequences} valid, {len(output_errors)} errors"
         )
 
     return output_sequences, output_errors
@@ -357,13 +330,10 @@ def _group_by_folder_and_camera(
         ),
     )
     for key in grouped:
-        LOG.debug("Group image sequences by %s: %s images", key, len(grouped[key]))
+        LOG.debug(f"Grouped {len(grouped[key])} images by {key}")
     output_sequences = list(grouped.values())
 
-    LOG.info(
-        "Found %s image sequences from different folders and cameras",
-        len(output_sequences),
-    )
+    LOG.info(f"Created {len(output_sequences)} sequences by folders and cameras")
 
     return output_sequences
 
@@ -392,9 +362,7 @@ def _check_sequences_duplication(
 
     if output_errors:
         LOG.info(
-            "Found %s image sequences and %s errors after duplication check",
-            len(output_sequences),
-            len(output_errors),
+            f"Duplication check: {len(output_sequences)} sequences with {len(output_errors)} image duplicates removed"
         )
 
     return output_sequences, output_errors
@@ -409,7 +377,7 @@ class SplitState(T.TypedDict, total=False):
 
 def _should_split_by_max_sequence_images(
     state: SplitState,
-    _: types.ImageMetadata,
+    image: types.ImageMetadata,
     max_sequence_images: int,
     split: bool = False,
 ) -> tuple[SplitState, bool]:
@@ -417,7 +385,9 @@ def _should_split_by_max_sequence_images(
         new_sequence_images = state.get("sequence_images", 0) + 1
         split = max_sequence_images < new_sequence_images
         if split:
-            LOG.info(f"Split because {new_sequence_images=} < {max_sequence_images=}")
+            LOG.info(
+                f"Split sequence at {image.filename.name}: too many images ({new_sequence_images} > {max_sequence_images})"
+            )
 
     if split:
         new_sequence_images = 1
@@ -439,7 +409,9 @@ def _should_split_by_cutoff_time(
             diff = image.time - last_image.time
             split = cutoff_time < diff
             if split:
-                LOG.info(f"Split because {cutoff_time=:.3f} < {diff=:.3f}")
+                LOG.info(
+                    f"Split sequence at {image.filename.name}: time gap too large ({diff:.6g} seconds > {cutoff_time:.6g} seconds)"
+                )
 
     state["image"] = image
 
@@ -460,7 +432,9 @@ def _should_split_by_cutoff_distance(
             )
             split = cutoff_distance < diff
             if split:
-                LOG.info(f"Split because {cutoff_distance=:.3f} < {diff=:.3f}")
+                LOG.info(
+                    f"Split sequence at {image.filename.name}: distance gap too large ({diff:.6g} meters > {cutoff_distance:.6g} meters)"
+                )
 
     state["image"] = image
 
@@ -482,8 +456,8 @@ def _should_split_by_max_sequence_filesize(
         new_sequence_file_size = state.get("sequence_file_size", 0) + filesize
         split = max_sequence_filesize_in_bytes < new_sequence_file_size
         if split:
-            LOG.debug(
-                f"Split because {max_sequence_filesize_in_bytes=} < {new_sequence_file_size=}"
+            LOG.info(
+                f"Split sequence at {image.filename.name}: filesize too large ({new_sequence_file_size} > {max_sequence_filesize_in_bytes})"
             )
 
     if split:
@@ -509,7 +483,9 @@ def _should_split_by_max_sequence_pixels(
         new_sequence_pixels = state.get("sequence_pixels", 0) + pixels
         split = max_sequence_pixels < new_sequence_pixels
         if split:
-            LOG.debug(f"Split because {max_sequence_pixels=} < {new_sequence_pixels=}")
+            LOG.info(
+                f"Split sequence at {image.filename.name}: pixels too large ({max_sequence_pixels} < {new_sequence_pixels})"
+            )
 
     if split:
         new_sequence_pixels = pixels
@@ -586,9 +562,7 @@ def _split_sequences_by_limits(
     assert sum(len(s) for s in output_sequences) == sum(len(s) for s in input_sequences)
 
     if len(input_sequences) != len(output_sequences):
-        LOG.info(
-            f"Split {len(input_sequences)} into {len(output_sequences)} image sequences by limits"
-        )
+        LOG.info(f"Split sequences: {len(input_sequences)} -> {len(output_sequences)}")
 
     return output_sequences
 

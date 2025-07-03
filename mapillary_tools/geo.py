@@ -51,6 +51,22 @@ def gps_distance(latlon_1: tuple[float, float], latlon_2: tuple[float, float]) -
     return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
 
+def avg_speed(sequence: T.Sequence[PointLike]) -> float:
+    total_distance = 0.0
+    for cur, nxt in pairwise(sequence):
+        total_distance += gps_distance((cur.lat, cur.lon), (nxt.lat, nxt.lon))
+
+    if sequence:
+        time_diff = sequence[-1].time - sequence[0].time
+    else:
+        time_diff = 0.0
+
+    if time_diff == 0.0:
+        return float("inf")
+
+    return total_distance / time_diff
+
+
 def compute_bearing(
     latlon_1: tuple[float, float],
     latlon_2: tuple[float, float],
