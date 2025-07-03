@@ -182,8 +182,11 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         )
 
 
-def _parse_filesize_in_bytes(filesize_str: str) -> int:
+def _parse_filesize_in_bytes(filesize_str: str) -> int | None:
     filesize_str = filesize_str.strip().upper()
+
+    if filesize_str in ["INF", "INFINITY"]:
+        return None
 
     try:
         if filesize_str.endswith("B"):
@@ -202,8 +205,11 @@ def _parse_filesize_in_bytes(filesize_str: str) -> int:
         )
 
 
-def _parse_pixels(pixels_str: str) -> int:
+def _parse_pixels(pixels_str: str) -> int | None:
     pixels_str = pixels_str.strip().upper()
+
+    if pixels_str in ["INF", "INFINITY"]:
+        return None
 
     try:
         if pixels_str.endswith("K"):
@@ -256,7 +262,7 @@ def _is_video_stationary(
 
 def _check_video_limits(
     video_metadatas: T.Iterable[types.VideoMetadata],
-    max_sequence_filesize_in_bytes: int,
+    max_sequence_filesize_in_bytes: int | None,
     max_avg_speed: float,
     max_radius_for_stationary_check: float,
 ) -> tuple[list[types.VideoMetadata], list[types.ErrorMetadata]]:
@@ -272,15 +278,16 @@ def _check_video_limits(
             if is_stationary:
                 raise exceptions.MapillaryStationaryVideoError("Stationary video")
 
-            video_filesize = (
-                utils.get_file_size(video_metadata.filename)
-                if video_metadata.filesize is None
-                else video_metadata.filesize
-            )
-            if video_filesize > max_sequence_filesize_in_bytes:
-                raise exceptions.MapillaryFileTooLargeError(
-                    f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+            if max_sequence_filesize_in_bytes is not None:
+                video_filesize = (
+                    utils.get_file_size(video_metadata.filename)
+                    if video_metadata.filesize is None
+                    else video_metadata.filesize
                 )
+                if video_filesize > max_sequence_filesize_in_bytes:
+                    raise exceptions.MapillaryFileTooLargeError(
+                        f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                    )
 
             contains_null_island = any(
                 p.lat == 0 and p.lon == 0 for p in video_metadata.points
@@ -321,7 +328,7 @@ def _check_video_limits(
 
 def _check_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
-    max_sequence_filesize_in_bytes: int,
+    max_sequence_filesize_in_bytes: int | None,
     max_avg_speed: float,
 ) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
     output_sequences: list[PointSequence] = []
@@ -336,10 +343,11 @@ def _check_sequences_by_limits(
         )
 
         try:
-            if sequence_filesize > max_sequence_filesize_in_bytes:
-                raise exceptions.MapillaryFileTooLargeError(
-                    f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
-                )
+            if max_sequence_filesize_in_bytes is not None:
+                if sequence_filesize > max_sequence_filesize_in_bytes:
+                    raise exceptions.MapillaryFileTooLargeError(
+                        f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                    )
 
             contains_null_island = any(
                 image.lat == 0 and image.lon == 0 for image in sequence
@@ -358,9 +366,7 @@ def _check_sequences_by_limits(
             for image in sequence:
                 output_errors.append(
                     types.describe_error_metadata(
-                        exc=ex,
-                        filename=image.filename,
-                        filetype=types.FileType.IMAGE,
+                        exc=ex, filename=image.filename, filetype=types.FileType.IMAGE
                     )
                 )
 
@@ -508,7 +514,7 @@ def _should_split_by_cutoff_distance(
 def _should_split_by_max_sequence_filesize(
     state: SplitState,
     image: types.ImageMetadata,
-    max_sequence_filesize_in_bytes: float,
+    max_sequence_filesize_in_bytes: int,
     split: bool = False,
 ) -> tuple[SplitState, bool]:
     if image.filesize is None:
@@ -535,7 +541,7 @@ def _should_split_by_max_sequence_filesize(
 def _should_split_by_max_sequence_pixels(
     state: SplitState,
     image: types.ImageMetadata,
-    max_sequence_pixels: float,
+    max_sequence_pixels: int,
     split: bool = False,
 ) -> tuple[SplitState, bool]:
     # Decent default values if width/height not available
@@ -559,8 +565,8 @@ def _should_split_by_max_sequence_pixels(
 
 def _split_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
-    max_sequence_filesize_in_bytes: float | None = None,
-    max_sequence_pixels: float | None = None,
+    max_sequence_filesize_in_bytes: int | None = None,
+    max_sequence_pixels: int | None = None,
     max_sequence_images: int | None = None,
     cutoff_time: float | None = None,
     cutoff_distance: float | None = None,
