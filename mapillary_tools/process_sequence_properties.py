@@ -111,15 +111,14 @@ def duplication_check(
             angle_diff is None or angle_diff <= max_duplicate_angle
         ):
             msg = f"Duplicate of its previous image in terms of distance <= {max_duplicate_distance} and angle <= {max_duplicate_angle}"
+            ex = exceptions.MapillaryDuplicationError(
+                msg,
+                DescriptionJSONSerializer.as_desc(cur),
+                distance=distance,
+                angle_diff=angle_diff,
+            )
             dup = types.describe_error_metadata(
-                exceptions.MapillaryDuplicationError(
-                    msg,
-                    DescriptionJSONSerializer.as_desc(cur),
-                    distance=distance,
-                    angle_diff=angle_diff,
-                ),
-                cur.filename,
-                filetype=types.FileType.IMAGE,
+                ex, cur.filename, filetype=types.FileType.IMAGE
             )
             dups.append(dup)
             # prev does not change
@@ -353,7 +352,8 @@ def _check_sequences_duplication(
             max_duplicate_angle=duplicate_angle,
         )
         assert len(sequence) == len(output_sequence) + len(errors)
-        output_sequences.append(output_sequence)
+        if output_sequence:
+            output_sequences.append(output_sequence)
         output_errors.extend(errors)
 
     assert sum(len(s) for s in output_sequences) + len(output_errors) == sum(
@@ -362,7 +362,7 @@ def _check_sequences_duplication(
 
     if output_errors:
         LOG.info(
-            f"Duplication check: {len(output_sequences)} sequences with {len(output_errors)} image duplicates removed"
+            f"Duplication check: {len(output_errors)} image duplicates removed (with {duplicate_distance=} and {duplicate_angle=})"
         )
 
     return output_sequences, output_errors
