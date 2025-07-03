@@ -182,50 +182,6 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
         )
 
 
-def _parse_filesize_in_bytes(filesize_str: str) -> int | None:
-    filesize_str = filesize_str.strip().upper()
-
-    if filesize_str in ["INF", "INFINITY"]:
-        return None
-
-    try:
-        if filesize_str.endswith("B"):
-            return int(filesize_str[:-1])
-        elif filesize_str.endswith("K"):
-            return int(filesize_str[:-1]) * 1024
-        elif filesize_str.endswith("M"):
-            return int(filesize_str[:-1]) * 1024 * 1024
-        elif filesize_str.endswith("G"):
-            return int(filesize_str[:-1]) * 1024 * 1024 * 1024
-        else:
-            return int(filesize_str)
-    except ValueError:
-        raise exceptions.MapillaryBadParameterError(
-            f"Expect valid file size that ends with B, K, M, or G, but got {filesize_str}"
-        )
-
-
-def _parse_pixels(pixels_str: str) -> int | None:
-    pixels_str = pixels_str.strip().upper()
-
-    if pixels_str in ["INF", "INFINITY"]:
-        return None
-
-    try:
-        if pixels_str.endswith("K"):
-            return int(pixels_str[:-1]) * 1000
-        elif pixels_str.endswith("M"):
-            return int(pixels_str[:-1]) * 1000 * 1000
-        elif pixels_str.endswith("G"):
-            return int(pixels_str[:-1]) * 1000 * 1000 * 1000
-        else:
-            return int(pixels_str)
-    except ValueError:
-        raise exceptions.MapillaryBadParameterError(
-            f"Expect valid number of pixels that ends with K, M, or G, but got {pixels_str}"
-        )
-
-
 def _avg_speed(sequence: T.Sequence[geo.PointLike]) -> float:
     total_distance = 0.0
     for cur, nxt in geo.pairwise(sequence):
@@ -379,7 +335,7 @@ def _check_sequences_by_limits(
 
     if output_errors:
         LOG.info(
-            "Found %s sequences and %s errors after sequence limit checks",
+            "Found %s image sequences and %s errors after sequence limit checks",
             len(output_sequences),
             len(output_errors),
         )
@@ -401,11 +357,11 @@ def _group_by_folder_and_camera(
         ),
     )
     for key in grouped:
-        LOG.debug("Group sequences by %s: %s images", key, len(grouped[key]))
+        LOG.debug("Group image sequences by %s: %s images", key, len(grouped[key]))
     output_sequences = list(grouped.values())
 
     LOG.info(
-        "Found %s sequences from different folders and cameras",
+        "Found %s image sequences from different folders and cameras",
         len(output_sequences),
     )
 
@@ -436,7 +392,7 @@ def _check_sequences_duplication(
 
     if output_errors:
         LOG.info(
-            "Found %s sequences and %s errors after duplication check",
+            "Found %s image sequences and %s errors after duplication check",
             len(output_sequences),
             len(output_errors),
         )
@@ -461,7 +417,7 @@ def _should_split_by_max_sequence_images(
         new_sequence_images = state.get("sequence_images", 0) + 1
         split = max_sequence_images < new_sequence_images
         if split:
-            LOG.debug(f"Split because {new_sequence_images=} < {max_sequence_images=}")
+            LOG.info(f"Split because {new_sequence_images=} < {max_sequence_images=}")
 
     if split:
         new_sequence_images = 1
@@ -483,7 +439,7 @@ def _should_split_by_cutoff_time(
             diff = image.time - last_image.time
             split = cutoff_time < diff
             if split:
-                LOG.debug(f"Split because {cutoff_time=}  < {diff=}")
+                LOG.info(f"Split because {cutoff_time=:.3f} < {diff=:.3f}")
 
     state["image"] = image
 
@@ -504,7 +460,7 @@ def _should_split_by_cutoff_distance(
             )
             split = cutoff_distance < diff
             if split:
-                LOG.debug(f"Split because {cutoff_distance=} < {diff=}")
+                LOG.info(f"Split because {cutoff_distance=:.3f} < {diff=:.3f}")
 
     state["image"] = image
 
@@ -631,7 +587,7 @@ def _split_sequences_by_limits(
 
     if len(input_sequences) != len(output_sequences):
         LOG.info(
-            f"Split {len(input_sequences)} into {len(output_sequences)} sequences by limits"
+            f"Split {len(input_sequences)} into {len(output_sequences)} image sequences by limits"
         )
 
     return output_sequences
@@ -646,10 +602,8 @@ def process_sequence_properties(
     duplicate_angle: float = constants.DUPLICATE_ANGLE,
     max_avg_speed: float = constants.MAX_AVG_SPEED,
 ) -> list[types.MetadataOrError]:
-    max_sequence_filesize_in_bytes = _parse_filesize_in_bytes(
-        constants.MAX_SEQUENCE_FILESIZE
-    )
-    max_sequence_pixels = _parse_pixels(constants.MAX_SEQUENCE_PIXELS)
+    max_sequence_filesize_in_bytes = constants.MAX_SEQUENCE_FILESIZE
+    max_sequence_pixels = constants.MAX_SEQUENCE_PIXELS
 
     error_metadatas: list[types.ErrorMetadata] = []
     image_metadatas: list[types.ImageMetadata] = []
@@ -749,7 +703,7 @@ def process_sequence_properties(
     results = error_metadatas + image_metadatas + video_metadatas
 
     assert len(metadatas) == len(results), (
-        f"expected {len(metadatas)} results but got {len(results)}"
+        f"Expected {len(metadatas)} results but got {len(results)}"
     )
 
     return results

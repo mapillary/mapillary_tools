@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import os
 
 import appdirs
@@ -10,6 +11,65 @@ _ENV_PREFIX = "MAPILLARY_TOOLS_"
 def _yes_or_no(val: str) -> bool:
     return val.strip().upper() in ["1", "TRUE", "YES"]
 
+
+def _parse_scaled_integers(
+    value: str, scale: dict[str, int] | None = None
+) -> int | None:
+    """
+    >>> scale = {"": 1, "b": 1, "K": 1024, "M": 1024 * 1024, "G": 1024 * 1024 * 1024}
+    >>> _parse_scaled_integers("0", scale=scale)
+    0
+    >>> _parse_scaled_integers("10", scale=scale)
+    10
+    >>> _parse_scaled_integers("100B", scale=scale)
+    100
+    >>> _parse_scaled_integers("100k", scale=scale)
+    102400
+    >>> _parse_scaled_integers("100t", scale=scale)
+    Traceback (most recent call last):
+    ValueError: Expect valid integer ends with , b, K, M, G, but got 100T
+    """
+
+    if scale is None:
+        scale = {"": 1}
+
+    value = value.strip().upper()
+
+    if value in ["INF", "INFINITY"]:
+        return None
+
+    try:
+        for k, v in scale.items():
+            k = k.upper()
+            if k and value.endswith(k):
+                return int(value[: -len(k)]) * v
+
+        if "" in scale:
+            return int(value) * scale[""]
+    except ValueError:
+        pass
+
+    raise ValueError(
+        f"Expect valid integer ends with {', '.join(scale.keys())}, but got {value}"
+    )
+
+
+_parse_pixels = functools.partial(
+    _parse_scaled_integers,
+    scale={
+        "": 1,
+        "K": 1000,
+        "M": 1000 * 1000,
+        "MP": 1000 * 1000,
+        "G": 1000 * 1000 * 1000,
+        "GP": 1000 * 1000 * 1000,
+    },
+)
+
+_parse_filesize = functools.partial(
+    _parse_scaled_integers,
+    scale={"B": 1, "K": 1024, "M": 1024 * 1024, "G": 1024 * 1024 * 1024},
+)
 
 ###################
 ##### GENERAL #####
@@ -64,11 +124,17 @@ MAX_AVG_SPEED = float(
 )  # 400 KM/h
 # WARNING: Changing the following envvars might result in failed uploads
 # Max number of images per sequence
-MAX_SEQUENCE_LENGTH = int(os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", 1000))
+MAX_SEQUENCE_LENGTH: int | None = _parse_scaled_integers(
+    os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_LENGTH", "1000")
+)
 # Max file size per sequence (sum of image filesizes in the sequence)
-MAX_SEQUENCE_FILESIZE: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "110G")
+MAX_SEQUENCE_FILESIZE: int | None = _parse_filesize(
+    os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_FILESIZE", "110G")
+)
 # Max number of pixels per sequence (sum of image pixels in the sequence)
-MAX_SEQUENCE_PIXELS: str = os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
+MAX_SEQUENCE_PIXELS: int | None = _parse_pixels(
+    os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
+)
 
 
 ##################
