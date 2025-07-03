@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import typing as T
 from pathlib import Path
@@ -6,7 +8,6 @@ import py.path
 import pytest
 
 from mapillary_tools import (
-    constants,
     exceptions,
     geo,
     process_geotag_properties as pgp,
@@ -21,22 +22,19 @@ def _make_image_metadata(
     lng: float,
     lat: float,
     time: float,
-    angle: T.Optional[float] = None,
+    angle: float | None = None,
+    filesize: int = 0,
     **kwargs,
 ) -> types.ImageMetadata:
-    filename = filename.resolve()
-    if not filename.exists():
-        filename.parent.mkdir(parents=True, exist_ok=True)
-        with filename.open("w"):
-            pass
     return types.ImageMetadata(
-        filename=filename,
+        filename=filename.resolve(),
+        filesize=filesize,
         lon=lng,
         lat=lat,
         time=time,
         alt=None,
-        **kwargs,
         angle=angle,
+        **kwargs,
     )
 
 
@@ -349,7 +347,6 @@ def test_interpolation(tmpdir: py.path.local):
 
 
 def test_subsec_interpolation(tmpdir: py.path.local):
-    constants.MAX_SEQUENCE_LENGTH = 2
     curdir = tmpdir.mkdir("hello222").mkdir("world333")
     sequence: T.List[types.Metadata] = [
         # s1
@@ -449,7 +446,7 @@ def test_process_finalize(setup_data):
         {
             "filename": str(test_exif),
             "filetype": "image",
-            "filesize": None,
+            "filesize": 0,
             "MAPFilename": "test_exif.jpg",
             "MAPLatitude": 1,
             "MAPLongitude": 1,
@@ -488,11 +485,10 @@ def test_process_finalize(setup_data):
 
 
 def test_cut_by_pixels(tmpdir: py.path.local):
-    curdir = tmpdir.mkdir("hello77").mkdir("world88")
     sequence: T.List[types.Metadata] = [
         # s2
         _make_image_metadata(
-            Path(curdir) / Path("./a.jpg"),
+            Path(tmpdir) / Path("./a.jpg"),
             2,
             2,
             1,
@@ -501,7 +497,7 @@ def test_cut_by_pixels(tmpdir: py.path.local):
             height=2,
         ),
         _make_image_metadata(
-            Path(curdir) / Path("./b.jpg"),
+            Path(tmpdir) / Path("./b.jpg"),
             2.00001,
             2.00001,
             20,
@@ -511,7 +507,7 @@ def test_cut_by_pixels(tmpdir: py.path.local):
         ),
         # s1
         _make_image_metadata(
-            Path(curdir) / Path("./c.jpg"),
+            Path(tmpdir) / Path("./c.jpg"),
             2.00002,
             2.00002,
             30,
@@ -541,10 +537,9 @@ def test_cut_by_pixels(tmpdir: py.path.local):
 
 
 def test_video_error(tmpdir: py.path.local):
-    curdir = tmpdir.mkdir("hello222").mkdir("videos")
     sequence: T.List[types.Metadata] = [
         types.VideoMetadata(
-            Path(curdir) / Path("test_video_null_island.mp4"),
+            Path(tmpdir) / Path("test_video_null_island.mp4"),
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, -0.00001, -0.00001, 1, angle=None),
@@ -556,7 +551,7 @@ def test_video_error(tmpdir: py.path.local):
             filesize=123,
         ),
         types.VideoMetadata(
-            Path(curdir) / Path("test_video_too_fast.mp4"),
+            Path(tmpdir) / Path("test_video_too_fast.mp4"),
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, 1, 1, 1, angle=None),
@@ -568,7 +563,7 @@ def test_video_error(tmpdir: py.path.local):
             filesize=123,
         ),
         types.VideoMetadata(
-            Path(curdir) / Path("test_video_file_too_large.mp4"),
+            Path(tmpdir) / Path("test_video_file_too_large.mp4"),
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, 1, 1, 1, angle=None),
@@ -579,7 +574,7 @@ def test_video_error(tmpdir: py.path.local):
             filesize=1024 * 1024 * 1024 * 200,
         ),
         types.VideoMetadata(
-            Path(curdir) / Path("test_good.mp4"),
+            Path(tmpdir) / Path("test_good.mp4"),
             types.FileType.VIDEO,
             points=[
                 geo.Point(1, 1, 1, 1, angle=None),
@@ -620,101 +615,87 @@ def test_video_error(tmpdir: py.path.local):
     )
 
 
-def test_split_sequence_by():
-    """Test split_sequence_by function."""
-    # Create test points
-    p1 = geo.Point(1, 1.00000, 1.00000, 1, angle=0)
-    p2 = geo.Point(2, 1.00001, 1.00001, 2, angle=0)
-    p3 = geo.Point(3, 1.00002, 1.00002, 3, angle=0)
-    p4 = geo.Point(10, 1.00003, 1.00003, 4, angle=0)  # Large time gap
-    p5 = geo.Point(11, 1.00004, 1.00004, 5, angle=0)
-    p6 = geo.Point(12, 1.10000, 1.10000, 6, angle=0)  # Large distance gap
-    p7 = geo.Point(13, 1.10001, 1.10001, 7, angle=0)
-
-    # Create a sequence of points
-    sequence = [p1, p2, p3, p4, p5, p6, p7]
-
-    # Test split by time gaps (> 5 seconds)
-    split_by_time = lambda prev, cur: cur.time - prev.time > 5
-    sequences = psp.split_sequence_by(sequence, split_by_time)
-
-    # Should be split into two sequences [p1,p2,p3], [p4,p5,p6,p7]
-    assert len(sequences) == 2
-    assert sequences[0] == [p1, p2, p3]
-    assert sequences[1] == [p4, p5, p6, p7]
-
-    # Test split by large distance gaps
-    def split_by_distance(prev, cur):
-        distance = geo.gps_distance(
-            (prev.lat, prev.lon),
-            (cur.lat, cur.lon),
-        )
-        should = distance > 1000  # Split if distance > 1000 meters
-        return should
-
-    sequences = psp.split_sequence_by(sequence, split_by_distance)
-
-    # Should be split into two sequences [p1,p2,p3,p4,p5], [p6,p7]
-    assert len(sequences) == 2
-    assert sequences[0] == [p1, p2, p3, p4, p5]
-    assert sequences[1] == [p6, p7]
-
-    # Test empty sequence
-    empty_sequences = psp.split_sequence_by([], split_by_time)
-    assert len(empty_sequences) == 0
-
-    # Test single point sequence
-    single_point = [p1]
-    single_sequences = psp.split_sequence_by(single_point, split_by_time)
-    assert len(single_sequences) == 1
-    assert single_sequences[0] == [p1]
-
-    sequences = psp.split_sequence_by([], split_by_time)
-    assert len(sequences) == 0
-
-
-def test_split_sequence_by_agg(tmpdir):
-    curdir = tmpdir.mkdir("hello77").mkdir("world88")
+def test_split_sequence_by_filesize(tmpdir):
     sequence: T.List[types.Metadata] = [
         # s1
         _make_image_metadata(
-            Path(curdir) / Path("./a.jpg"),
-            2,
-            2,
-            1,
-            filesize=110 * 1024 * 1024 * 1024,
+            Path(tmpdir) / Path("./a.jpg"), 2, 2, 1, filesize=110 * 1024 * 1024 * 1024
         ),
         # s2
         _make_image_metadata(
-            Path(curdir) / Path("./b.jpg"),
-            2.00001,
-            2.00001,
-            2,
-            filesize=1,
-        ),
-        # s3
-        _make_image_metadata(
-            Path(curdir) / Path("./c.jpg"),
-            2.00002,
-            2.00002,
-            3,
-            filesize=110 * 1024 * 1024 * 1024 - 1,
+            Path(tmpdir) / Path("./b.jpg"), 2.00001, 2.00001, 2, filesize=1
         ),
         _make_image_metadata(
-            Path(curdir) / Path("./c.jpg"),
-            2.00003,
-            2.00003,
-            4,
-            filesize=1,
+            Path(tmpdir) / Path("./c.jpg"), 2.00002, 2.00002, 2, filesize=1
         ),
     ]
 
-    metadatas = psp.process_sequence_properties(
-        sequence,
-        cutoff_distance=1000000000,
-        cutoff_time=100,
-        interpolate_directions=True,
-        duplicate_distance=0.1,
-        duplicate_angle=0.1,
-    )
-    assert 3 == len({m.MAPSequenceUUID for m in metadatas})  # type: ignore
+    metadatas = psp.process_sequence_properties(sequence)
+    assert 2 == len({m.MAPSequenceUUID for m in metadatas})  # type: ignore
+
+
+def test_split_sequence_by_image_count(tmpdir):
+    max_allowed_images = 1000
+
+    sequence = []
+    for i in range(1, max_allowed_images + 1):
+        image = _make_image_metadata(
+            Path(tmpdir) / Path(f"./a{i}.jpg"),
+            1 + i * 0.00001,
+            1 + i * 0.00001,
+            i,
+            filesize=1,
+        )
+        sequence.append(image)
+
+    metadatas = psp.process_sequence_properties(sequence)
+    assert 1 == len({m.MAPSequenceUUID for m in metadatas}), metadatas  # type: ignore
+
+
+def test_split_sequence_by_image_count_split(tmpdir):
+    max_allowed_images = 1000
+
+    sequence = []
+    for i in range(1, max_allowed_images + 2):
+        image = _make_image_metadata(
+            Path(tmpdir) / Path(f"./a{i}.jpg"),
+            1 + i * 0.00001,
+            1 + i * 0.00001,
+            i,
+            filesize=1,
+        )
+        sequence.append(image)
+
+    metadatas = psp.process_sequence_properties(sequence)
+    assert 2 == len({m.MAPSequenceUUID for m in metadatas}), metadatas  # type: ignore
+
+
+def test_split_sequence_by_cutoff_time(tmpdir):
+    sequence: T.List[types.Metadata] = [
+        # s1
+        _make_image_metadata(Path(tmpdir) / Path("./a.jpg"), 1, 1, 1, filesize=1),
+        # s2
+        _make_image_metadata(
+            Path(tmpdir) / Path("./b.jpg"), 1.00001, 1.00001, 600, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./c.jpg"), 1.00002, 1.00002, 601, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    assert 2 == len({m.MAPSequenceUUID for m in metadatas}), metadatas  # type: ignore
+
+
+def test_split_sequence_no_split(tmpdir):
+    sequence: T.List[types.Metadata] = [
+        # s1
+        _make_image_metadata(Path(tmpdir) / Path("./a.jpg"), 1, 1, 1),
+        # s2
+        _make_image_metadata(Path(tmpdir) / Path("./b.jpg"), 1.00001, 1.00001, 2),
+        # s3
+        _make_image_metadata(Path(tmpdir) / Path("./c.jpg"), 1.00002, 1.00002, 3),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    assert 1 == len({m.MAPSequenceUUID for m in metadatas}), metadatas  # type: ignore
