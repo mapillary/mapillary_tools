@@ -88,11 +88,17 @@ def split_sequence_by(
 def duplication_check(
     sequence: PointSequence, max_duplicate_distance: float, max_duplicate_angle: float
 ) -> tuple[PointSequence, list[types.ErrorMetadata]]:
+    """
+    >>> duplication_check([], 1, 2)
+    ([], [])
+    """
+
     dedups: PointSequence = []
     dups: list[types.ErrorMetadata] = []
 
     it = iter(sequence)
-    prev = next(it)
+    prev = next(it, None)
+
     if prev is None:
         return dedups, dups
 
@@ -144,9 +150,14 @@ def _interpolate_subsecs_for_sorting(sequence: PointSequence) -> None:
     """
     Update the timestamps make sure they are unique and sorted
     in the same order by interpolating subseconds
+
     Examples:
-    - Input: 1, 1, 1, 1, 1, 2
-    - Output: 1, 1.2, 1.4, 1.6, 1.8, 2
+        >>> def make_point(t):
+        ...     return geo.Point(lat=0, lon=0, time=t, alt=None, angle=None)
+        >>> points = [make_point(t) for t in [1, 1, 1, 1, 1, 2]]
+        >>> _interpolate_subsecs_for_sorting(points)
+        >>> [p.time for p in points]
+        [1.0, 1.2, 1.4, 1.6, 1.8, 2]
     """
 
     gidx = 0
@@ -309,7 +320,7 @@ def _check_sequences_by_limits(
 
     if output_errors:
         LOG.info(
-            f"Sequence validation: {output_sequences} valid, {len(output_errors)} errors"
+            f"Sequence validation: {len(output_sequences)} valid, {len(output_errors)} errors"
         )
 
     return output_sequences, output_errors
@@ -356,6 +367,7 @@ def _check_sequences_duplication(
             output_sequences.append(output_sequence)
         output_errors.extend(errors)
 
+    # All input images should be accounted for either in output sequences or errors
     assert sum(len(s) for s in output_sequences) + len(output_errors) == sum(
         len(s) for s in input_sequences
     )
@@ -484,7 +496,7 @@ def _should_split_by_max_sequence_pixels(
         split = max_sequence_pixels < new_sequence_pixels
         if split:
             LOG.info(
-                f"Split sequence at {image.filename.name}: pixels too large ({max_sequence_pixels} < {new_sequence_pixels})"
+                f"Split sequence at {image.filename.name}: pixels too large ({new_sequence_pixels} > {max_sequence_pixels})"
             )
 
     if split:
