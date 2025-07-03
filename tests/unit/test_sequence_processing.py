@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import typing as T
 from pathlib import Path
