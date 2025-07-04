@@ -159,10 +159,7 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
 
 def request_post(
-    url: str,
-    data: T.Any | None = None,
-    json: dict | None = None,
-    **kwargs,
+    url: str, data: T.Any | None = None, json: dict | None = None, **kwargs
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
 
@@ -198,11 +195,7 @@ def request_post(
     return resp
 
 
-def request_get(
-    url: str,
-    params: dict | None = None,
-    **kwargs,
-) -> requests.Response:
+def request_get(url: str, params: dict | None = None, **kwargs) -> requests.Response:
     global USE_SYSTEM_CERTS
 
     _log_debug_request(
@@ -302,8 +295,7 @@ def fetch_organization(
 
 
 def fetch_user_or_me(
-    user_access_token: str,
-    user_id: int | str | None = None,
+    user_access_token: str, user_id: int | str | None = None
 ) -> requests.Response:
     if user_id is None:
         url = f"{MAPILLARY_GRAPH_API_ENDPOINT}/me"

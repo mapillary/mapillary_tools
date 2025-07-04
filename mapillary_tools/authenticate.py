@@ -87,8 +87,7 @@ def authenticate(
 
 
 def fetch_user_items(
-    user_name: str | None = None,
-    organization_key: str | None = None,
+    user_name: str | None = None, organization_key: str | None = None
 ) -> config.UserItem:
     """
     Read user information from the config file,
