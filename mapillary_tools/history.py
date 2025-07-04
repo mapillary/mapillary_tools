@@ -53,10 +53,7 @@ def write_history(
     path = history_desc_path(md5sum)
     LOG.debug("Writing upload history: %s", path)
     path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    history: dict[str, T.Any] = {
-        "params": params,
-        "summary": summary,
-    }
+    history: dict[str, T.Any] = {"params": params, "summary": summary}
     if metadatas is not None:
         history["descs"] = [
             DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas

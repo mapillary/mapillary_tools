@@ -9,7 +9,6 @@ import logging
 import os
 import struct
 import sys
-import tempfile
 import threading
 import time
 import typing as T
@@ -319,56 +318,6 @@ class ZipImageSequence:
         return cluster_id
 
     @classmethod
-    def zip_images_and_upload(
-        cls,
-        uploader: Uploader,
-        image_metadatas: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
-    ) -> T.Generator[tuple[str, UploadResult], None, None]:
-        if progress is None:
-            progress = {}
-
-        sequences = types.group_and_sort_images(image_metadatas)
-
-        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            try:
-                _validate_metadatas(sequence)
-            except Exception as ex:
-                yield sequence_uuid, UploadResult(error=ex)
-                continue
-
-            with tempfile.NamedTemporaryFile() as fp:
-                try:
-                    sequence_md5sum = cls.zip_sequence_fp(sequence, fp)
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-                sequence_progress: SequenceProgress = {
-                    "sequence_idx": sequence_idx,
-                    "total_sequence_count": len(sequences),
-                    "sequence_image_count": len(sequence),
-                    "sequence_uuid": sequence_uuid,
-                    "file_type": types.FileType.ZIP.value,
-                    "sequence_md5sum": sequence_md5sum,
-                }
-
-                mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
-                try:
-                    file_handle = uploader.upload_stream(fp, progress=mutable_progress)
-                    cluster_id = uploader.finish_upload(
-                        file_handle,
-                        api_v4.ClusterFileType.ZIP,
-                        progress=mutable_progress,
-                    )
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-            yield sequence_uuid, UploadResult(result=cluster_id)
-
-    @classmethod
     def _upload_sequence(
         cls,
         uploader: Uploader,
@@ -439,14 +388,8 @@ class ZipImageSequence:
 
     @classmethod
     def upload_images(
-        cls,
-        uploader: Uploader,
-        image_metadatas: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
+        cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
     ) -> T.Generator[tuple[str, UploadResult], None, None]:
-        if progress is None:
-            progress = {}
-
         sequences = types.group_and_sort_images(image_metadatas)
 
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
@@ -461,11 +404,9 @@ class ZipImageSequence:
                 "sequence_md5sum": sequence_md5sum,
             }
 
-            mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
             try:
                 cluster_id = cls._upload_sequence(
-                    uploader, sequence, progress=mutable_progress
+                    uploader, sequence, progress=sequence_progress
                 )
             except Exception as ex:
                 yield sequence_uuid, UploadResult(error=ex)
@@ -479,7 +420,9 @@ class Uploader:
         user_items: config.UserItem,
         emitter: EventEmitter | None = None,
         chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
-        dry_run=False,
+        dry_run: bool = False,
+        nofinish: bool = False,
+        noresume: bool = False,
     ):
         self.user_items = user_items
         if emitter is None:
@@ -489,6 +432,8 @@ class Uploader:
             self.emitter = emitter
         self.chunk_size = chunk_size
         self.dry_run = dry_run
+        self.nofinish = nofinish
+        self.noresume = noresume
 
     def upload_stream(
         self,
@@ -546,7 +491,7 @@ class Uploader:
         if progress is None:
             progress = {}
 
-        if self.dry_run:
+        if self.dry_run or self.nofinish:
             cluster_id = "0"
         else:
             resp = api_v4.finish_upload(
@@ -572,6 +517,8 @@ class Uploader:
             emitter=None,
             chunk_size=self.chunk_size,
             dry_run=self.dry_run,
+            nofinish=self.nofinish,
+            noresume=self.noresume,
         )
 
     def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:

@@ -47,8 +47,11 @@ def upload(
     user_items: config.UserItem,
     desc_path: str | None = None,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
-    dry_run=False,
-    skip_subfolders=False,
+    reupload: bool = False,
+    dry_run: bool = False,
+    nofinish: bool = False,
+    noresume: bool = False,
+    skip_subfolders: bool = False,
 ) -> None:
     import_paths = _normalize_import_paths(import_path)
 
@@ -60,15 +63,20 @@ def upload(
 
     emitter = uploader.EventEmitter()
 
-    # When dry_run mode is on, we disable history by default.
-    # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
-    # and when it is on, we enable history regardless of dry_run
-    enable_history = constants.MAPILLARY_UPLOAD_HISTORY_PATH and (
-        not dry_run or constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
-    )
+    disable_history = False
+
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
+        disable_history = True
+
+    if dry_run:
+        # When dry_run mode is on, we disable history by default.
+        # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
+        # and when it is on, we enable history regardless of dry_run
+        if not constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN:
+            disable_history = True
 
     # Put it first one to check duplications first
-    if enable_history:
+    if not disable_history:
         upload_run_params: JSONDict = {
             # Null if multiple paths provided
             "import_path": str(import_path) if isinstance(import_path, Path) else None,
@@ -77,7 +85,7 @@ def upload(
             "version": VERSION,
             "run_at": time.time(),
         }
-        _setup_history(emitter, upload_run_params, metadatas)
+        _setup_history(emitter, upload_run_params, metadatas, reupload=reupload)
 
     # Set up tdqm
     _setup_tdqm(emitter)
@@ -88,7 +96,13 @@ def upload(
     # Send the progress via IPC, and log the progress in debug mode
     _setup_ipc(emitter)
 
-    mly_uploader = uploader.Uploader(user_items, emitter=emitter, dry_run=dry_run)
+    mly_uploader = uploader.Uploader(
+        user_items,
+        emitter=emitter,
+        dry_run=dry_run,
+        nofinish=nofinish,
+        noresume=noresume,
+    )
 
     results = _gen_upload_everything(
         mly_uploader, metadatas, import_paths, skip_subfolders
@@ -146,6 +160,7 @@ def _setup_history(
     emitter: uploader.EventEmitter,
     upload_run_params: JSONDict,
     metadatas: list[types.Metadata],
+    reupload: bool,
 ) -> None:
     @emitter.on("upload_start")
     def check_duplication(payload: uploader.Progress):
@@ -154,20 +169,21 @@ def _setup_history(
 
         if history.is_uploaded(md5sum):
             sequence_uuid = payload.get("sequence_uuid")
+            history_desc_path = history.history_desc_path(md5sum)
             if sequence_uuid is None:
                 basename = os.path.basename(payload.get("import_path", ""))
                 LOG.info(
-                    "File %s has been uploaded already. Check the upload history at %s",
-                    basename,
-                    history.history_desc_path(md5sum),
+                    f"File {basename} has been uploaded already. Check the upload history at {history_desc_path}"
                 )
             else:
                 LOG.info(
-                    "Sequence %s has been uploaded already. Check the upload history at %s",
-                    sequence_uuid,
-                    history.history_desc_path(md5sum),
+                    f"Sequence {sequence_uuid} has been uploaded already. Check the upload history at {history_desc_path}"
                 )
-            raise UploadedAlreadyError()
+
+            if reupload:
+                pass
+            else:
+                raise UploadedAlreadyError()
 
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
@@ -188,10 +204,7 @@ def _setup_history(
 
         try:
             history.write_history(
-                md5sum,
-                upload_run_params,
-                T.cast(JSONDict, payload),
-                sequence,
+                md5sum, upload_run_params, T.cast(JSONDict, payload), sequence
             )
         except OSError:
             LOG.warning("Error writing upload history %s", md5sum, exc_info=True)
@@ -374,6 +387,9 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
 
 
 def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
+    for error in errors:
+        LOG.error("Upload error: %s: %s", error.__class__.__name__, error)
+
     if not stats:
         LOG.info("Nothing uploaded. Bye.")
     else:
@@ -391,9 +407,6 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info("%8.1fM data in total", summary["size"])
         LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
         LOG.info("%8.1fs upload time", summary["time"])
-
-    for error in errors:
-        LOG.error("Upload error: %s: %s", error.__class__.__name__, error)
 
 
 def _api_logging_finished(summary: dict):
@@ -452,24 +465,18 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    for image_result in uploader.ZipImageSequence.upload_images(
-        mly_uploader,
-        image_metadatas,
-    ):
-        yield image_result
+    yield from uploader.ZipImageSequence.upload_images(mly_uploader, image_metadatas)
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(
         (m for m in metadatas if isinstance(m, types.VideoMetadata)),
         utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
     )
-    for video_result in _gen_upload_videos(mly_uploader, video_metadatas):
-        yield video_result
+    yield from _gen_upload_videos(mly_uploader, video_metadatas)
 
     # Upload zip files
     zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-    for zip_result in _gen_upload_zipfiles(mly_uploader, zip_paths):
-        yield zip_result
+    yield from _gen_upload_zipfiles(mly_uploader, zip_paths)
 
 
 def _gen_upload_videos(
@@ -700,9 +707,9 @@ def _find_desc_path(import_paths: T.Sequence[Path]) -> str:
 
     if 1 < len(import_paths):
         raise exceptions.MapillaryBadParameterError(
-            "The description path must be specified (with --desc_path) when uploading multiple paths",
+            "The description path must be specified (with --desc_path) when uploading multiple paths"
         )
     else:
         raise exceptions.MapillaryBadParameterError(
-            "The description path must be specified (with --desc_path) when uploading a single file",
+            "The description path must be specified (with --desc_path) when uploading a single file"
         )
