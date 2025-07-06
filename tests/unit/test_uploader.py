@@ -176,7 +176,7 @@ def test_upload_zip(
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
-        cluster = uploader.ZipUploader.upload_zipfile(mly_uploader, Path(zip_path))
+        cluster = uploader.ZipUploader._upload_zipfile(mly_uploader, Path(zip_path))
         assert cluster == "0"
     actual_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert 3 == len(actual_descs)

@@ -273,7 +273,7 @@ class ZipUploader:
                 "sequence_md5sum": "",  # Placeholder, will be set in upload_zipfile
             }
             try:
-                cluster_id = cls.upload_zipfile(
+                cluster_id = cls._upload_zipfile(
                     mly_uploader,
                     zip_path,
                     progress=T.cast(T.Dict[str, T.Any], progress),
@@ -304,7 +304,51 @@ class ZipUploader:
                     cls._zip_sequence_fp(sequence, wip_fp)
 
     @classmethod
-    def upload_zipfile(
+    def zip_images_and_upload(
+        cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
+    ) -> T.Generator[tuple[str, UploadResult], None, None]:
+        sequences = types.group_and_sort_images(image_metadatas)
+
+        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            try:
+                _validate_metadatas(sequence)
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+                continue
+
+            with tempfile.NamedTemporaryFile() as fp:
+                try:
+                    sequence_md5sum = cls._zip_sequence_fp(sequence, fp)
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
+
+                sequence_progress: SequenceProgress = {
+                    "sequence_idx": sequence_idx,
+                    "total_sequence_count": len(sequences),
+                    "sequence_image_count": len(sequence),
+                    "sequence_uuid": sequence_uuid,
+                    "file_type": types.FileType.ZIP.value,
+                    "sequence_md5sum": sequence_md5sum,
+                }
+
+                try:
+                    file_handle = uploader.upload_stream(
+                        fp, progress=T.cast(T.Dict[str, T.Any], sequence_progress)
+                    )
+                    cluster_id = uploader.finish_upload(
+                        file_handle,
+                        api_v4.ClusterFileType.ZIP,
+                        progress=T.cast(T.Dict[str, T.Any], sequence_progress),
+                    )
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
+
+            yield sequence_uuid, UploadResult(result=cluster_id)
+
+    @classmethod
+    def _upload_zipfile(
         cls,
         uploader: Uploader,
         zip_path: Path,
@@ -341,56 +385,6 @@ class ZipUploader:
         )
 
         return cluster_id
-
-    @classmethod
-    def zip_images_and_upload(
-        cls,
-        uploader: Uploader,
-        image_metadatas: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
-    ) -> T.Generator[tuple[str, UploadResult], None, None]:
-        if progress is None:
-            progress = {}
-
-        sequences = types.group_and_sort_images(image_metadatas)
-
-        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            try:
-                _validate_metadatas(sequence)
-            except Exception as ex:
-                yield sequence_uuid, UploadResult(error=ex)
-                continue
-
-            with tempfile.NamedTemporaryFile() as fp:
-                try:
-                    sequence_md5sum = cls._zip_sequence_fp(sequence, fp)
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-                sequence_progress: SequenceProgress = {
-                    "sequence_idx": sequence_idx,
-                    "total_sequence_count": len(sequences),
-                    "sequence_image_count": len(sequence),
-                    "sequence_uuid": sequence_uuid,
-                    "file_type": types.FileType.ZIP.value,
-                    "sequence_md5sum": sequence_md5sum,
-                }
-
-                mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
-                try:
-                    file_handle = uploader.upload_stream(fp, progress=mutable_progress)
-                    cluster_id = uploader.finish_upload(
-                        file_handle,
-                        api_v4.ClusterFileType.ZIP,
-                        progress=mutable_progress,
-                    )
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-            yield sequence_uuid, UploadResult(result=cluster_id)
 
     @classmethod
     def _zip_sequence_fp(
