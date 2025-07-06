@@ -48,7 +48,7 @@ def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path
         },
     ]
     results = list(
-        uploader.ZipImageSequence.zip_images_and_upload(
+        uploader.ZipUploader.zip_images_and_upload(
             mly_uploader,
             [
                 description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
@@ -106,7 +106,7 @@ def test_upload_images_multiple_sequences(
         dry_run=True,
     )
     results = list(
-        uploader.ZipImageSequence.zip_images_and_upload(
+        uploader.ZipUploader.zip_images_and_upload(
             mly_uploader,
             [
                 description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
@@ -157,7 +157,7 @@ def test_upload_zip(
         },
     ]
     zip_dir = setup_unittest_data.mkdir("zip_dir")
-    uploader.ZipImageSequence.zip_images(
+    uploader.ZipUploader.zip_images(
         [
             description.DescriptionJSONSerializer.from_desc(T.cast(T.Any, desc))
             for desc in descs
@@ -176,7 +176,7 @@ def test_upload_zip(
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
-        cluster = uploader.ZipImageSequence.upload_zipfile(mly_uploader, Path(zip_path))
+        cluster = uploader.ZipUploader.upload_zipfile(mly_uploader, Path(zip_path))
         assert cluster == "0"
     actual_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert 3 == len(actual_descs)

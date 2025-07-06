@@ -18,18 +18,13 @@ from . import (
     config,
     constants,
     exceptions,
-    geo,
     history,
     ipc,
-    telemetry,
     types,
     uploader,
     utils,
     VERSION,
 )
-from .camm import camm_builder, camm_parser
-from .gpmf import gpmf_parser
-from .mp4 import simple_mp4_builder
 from .serializer.description import DescriptionJSONSerializer
 from .types import FileType
 
@@ -63,20 +58,8 @@ def upload(
 
     emitter = uploader.EventEmitter()
 
-    disable_history = False
-
-    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
-        disable_history = True
-
-    if dry_run:
-        # When dry_run mode is on, we disable history by default.
-        # But we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
-        # and when it is on, we enable history regardless of dry_run
-        if not constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN:
-            disable_history = True
-
-    # Put it first one to check duplications first
-    if not disable_history:
+    # Check duplications first
+    if not _is_history_disabled(dry_run):
         upload_run_params: JSONDict = {
             # Null if multiple paths provided
             "import_path": str(import_path) if isinstance(import_path, Path) else None,
@@ -153,7 +136,24 @@ def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
         metadata for metadata in metadatas if isinstance(metadata, types.ImageMetadata)
     ]
 
-    uploader.ZipImageSequence.zip_images(image_metadatas, zip_dir)
+    uploader.ZipUploader.zip_images(image_metadatas, zip_dir)
+
+
+def _is_history_disabled(dry_run: bool) -> bool:
+    # There is no way to read/write history if the path is not set
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
+        return True
+
+    if dry_run:
+        # When dry_run mode is on, we disable history by default
+        # However, we need dry_run for tests, so we added MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN
+        # and when it is on, we enable history regardless of dry_run
+        if constants.MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN:
+            return False
+        else:
+            return True
+
+    return False
 
 
 def _setup_history(
@@ -465,103 +465,18 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from uploader.ZipImageSequence.upload_images(mly_uploader, image_metadatas)
+    yield from uploader.ImageUploader.upload_images(mly_uploader, image_metadatas)
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(
         (m for m in metadatas if isinstance(m, types.VideoMetadata)),
         utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from _gen_upload_videos(mly_uploader, video_metadatas)
+    yield from uploader.VideoUploader.upload_videos(mly_uploader, video_metadatas)
 
     # Upload zip files
     zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-    yield from _gen_upload_zipfiles(mly_uploader, zip_paths)
-
-
-def _gen_upload_videos(
-    mly_uploader: uploader.Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
-) -> T.Generator[tuple[types.VideoMetadata, uploader.UploadResult], None, None]:
-    for idx, video_metadata in enumerate(video_metadatas):
-        try:
-            video_metadata.update_md5sum()
-        except Exception as ex:
-            yield video_metadata, uploader.UploadResult(error=ex)
-            continue
-
-        assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
-
-        # Convert video metadata to CAMMInfo
-        camm_info = _prepare_camm_info(video_metadata)
-
-        # Create the CAMM sample generator
-        camm_sample_generator = camm_builder.camm_sample_generator2(camm_info)
-
-        progress: uploader.SequenceProgress = {
-            "total_sequence_count": len(video_metadatas),
-            "sequence_idx": idx,
-            "file_type": video_metadata.filetype.value,
-            "import_path": str(video_metadata.filename),
-            "sequence_md5sum": video_metadata.md5sum,
-        }
-
-        try:
-            with video_metadata.filename.open("rb") as src_fp:
-                # Build the mp4 stream with the CAMM samples
-                camm_fp = simple_mp4_builder.transform_mp4(
-                    src_fp, camm_sample_generator
-                )
-
-                # Upload the mp4 stream
-                file_handle = mly_uploader.upload_stream(
-                    T.cast(T.IO[bytes], camm_fp),
-                    progress=T.cast(T.Dict[str, T.Any], progress),
-                )
-            cluster_id = mly_uploader.finish_upload(
-                file_handle,
-                api_v4.ClusterFileType.CAMM,
-                progress=T.cast(T.Dict[str, T.Any], progress),
-            )
-        except Exception as ex:
-            yield video_metadata, uploader.UploadResult(error=ex)
-        else:
-            yield video_metadata, uploader.UploadResult(result=cluster_id)
-
-
-def _prepare_camm_info(video_metadata: types.VideoMetadata) -> camm_parser.CAMMInfo:
-    camm_info = camm_parser.CAMMInfo(
-        make=video_metadata.make or "", model=video_metadata.model or ""
-    )
-
-    for point in video_metadata.points:
-        if isinstance(point, telemetry.CAMMGPSPoint):
-            if camm_info.gps is None:
-                camm_info.gps = []
-            camm_info.gps.append(point)
-
-        elif isinstance(point, telemetry.GPSPoint):
-            # There is no proper CAMM entry for GoPro GPS
-            if camm_info.mini_gps is None:
-                camm_info.mini_gps = []
-            camm_info.mini_gps.append(point)
-
-        elif isinstance(point, geo.Point):
-            if camm_info.mini_gps is None:
-                camm_info.mini_gps = []
-            camm_info.mini_gps.append(point)
-        else:
-            raise ValueError(f"Unknown point type: {point}")
-
-    if constants.MAPILLARY__EXPERIMENTAL_ENABLE_IMU:
-        if video_metadata.filetype is FileType.GOPRO:
-            with video_metadata.filename.open("rb") as fp:
-                gopro_info = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
-            if gopro_info is not None:
-                camm_info.accl = gopro_info.accl or []
-                camm_info.gyro = gopro_info.gyro or []
-                camm_info.magn = gopro_info.magn or []
-
-    return camm_info
+    yield from uploader.ZipUploader.upload_zipfiles(mly_uploader, zip_paths)
 
 
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
@@ -620,27 +535,6 @@ def _continue_or_fail(ex: Exception) -> Exception:
         raise ex
 
     raise ex
-
-
-def _gen_upload_zipfiles(
-    mly_uploader: uploader.Uploader, zip_paths: T.Sequence[Path]
-) -> T.Generator[tuple[Path, uploader.UploadResult], None, None]:
-    for idx, zip_path in enumerate(zip_paths):
-        progress: uploader.SequenceProgress = {
-            "total_sequence_count": len(zip_paths),
-            "sequence_idx": idx,
-            "import_path": str(zip_path),
-            "file_type": types.FileType.ZIP.value,
-            "sequence_md5sum": "",  # Placeholder, will be set in upload_zipfile
-        }
-        try:
-            cluster_id = uploader.ZipImageSequence.upload_zipfile(
-                mly_uploader, zip_path, progress=T.cast(T.Dict[str, T.Any], progress)
-            )
-        except Exception as ex:
-            yield zip_path, uploader.UploadResult(error=ex)
-        else:
-            yield zip_path, uploader.UploadResult(result=cluster_id)
 
 
 def _load_descs(
