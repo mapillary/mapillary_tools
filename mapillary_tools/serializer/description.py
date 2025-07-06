@@ -573,10 +573,7 @@ def _describe_error_desc(
         if vars_json:
             err["vars"] = json.loads(vars_json)
 
-    desc: ImageDescriptionError = {
-        "error": err,
-        "filename": str(filename.resolve()),
-    }
+    desc: ImageDescriptionError = {"error": err, "filename": str(filename.resolve())}
     if filetype is not None:
         desc["filetype"] = filetype.value
 

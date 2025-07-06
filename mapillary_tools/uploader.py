@@ -181,12 +181,6 @@ class VideoUploader:
 
             assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
-            # Convert video metadata to CAMMInfo
-            camm_info = cls.prepare_camm_info(video_metadata)
-
-            # Create the CAMM sample generator
-            camm_sample_generator = camm_builder.camm_sample_generator2(camm_info)
-
             progress: SequenceProgress = {
                 "total_sequence_count": len(video_metadatas),
                 "sequence_idx": idx,
@@ -196,17 +190,13 @@ class VideoUploader:
             }
 
             try:
-                with video_metadata.filename.open("rb") as src_fp:
-                    # Build the mp4 stream with the CAMM samples
-                    camm_fp = simple_mp4_builder.transform_mp4(
-                        src_fp, camm_sample_generator
-                    )
-
+                with cls.build_camm_stream(video_metadata) as camm_fp:
                     # Upload the mp4 stream
                     file_handle = mly_uploader.upload_stream(
                         T.cast(T.IO[bytes], camm_fp),
                         progress=T.cast(T.Dict[str, T.Any], progress),
                     )
+
                 cluster_id = mly_uploader.finish_upload(
                     file_handle,
                     api_v4.ClusterFileType.CAMM,
@@ -216,6 +206,19 @@ class VideoUploader:
                 yield video_metadata, UploadResult(error=ex)
             else:
                 yield video_metadata, UploadResult(result=cluster_id)
+
+    @classmethod
+    @contextmanager
+    def build_camm_stream(cls, video_metadata: types.VideoMetadata):
+        # Convert video metadata to CAMMInfo
+        camm_info = cls.prepare_camm_info(video_metadata)
+
+        # Create the CAMM sample generator
+        camm_sample_generator = camm_builder.camm_sample_generator2(camm_info)
+
+        with video_metadata.filename.open("rb") as src_fp:
+            # Build the mp4 stream with the CAMM samples
+            yield simple_mp4_builder.transform_mp4(src_fp, camm_sample_generator)
 
     @classmethod
     def prepare_camm_info(
@@ -512,8 +515,7 @@ class ImageUploader:
         # The cast is to fix the type checker error
         edit.add_image_description(
             T.cast(
-                T.Dict,
-                desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata)),
+                T.Dict, desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata))
             )
         )
 
