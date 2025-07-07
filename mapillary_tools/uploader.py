@@ -30,11 +30,11 @@ from . import (
     config,
     constants,
     exif_write,
+    geo,
+    telemetry,
     types,
     upload_api_v4,
     utils,
-    geo,
-    telemetry,
 )
 from .camm import camm_builder, camm_parser
 from .gpmf import gpmf_parser
@@ -411,9 +411,11 @@ class ZipUploader:
                 zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
                 zipf.writestr(zipinfo, ImageUploader.dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
-            zipf.comment = json.dumps({"sequence_md5sum": sequence_md5sum}).encode(
-                "utf-8"
-            )
+            zipf.comment = json.dumps(
+                {"sequence_md5sum": sequence_md5sum},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
 
         return sequence_md5sum
 
@@ -573,7 +575,11 @@ class ImageUploader:
         }
 
         with io.BytesIO() as manifest_fp:
-            manifest_fp.write(json.dumps(manifest).encode("utf-8"))
+            manifest_fp.write(
+                json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
+                    "utf-8"
+                )
+            )
             manifest_fp.seek(0, io.SEEK_SET)
             manifest_file_handle = uploader_without_emitter.upload_stream(
                 manifest_fp, session_key=f"{uuid.uuid4().hex}.json"

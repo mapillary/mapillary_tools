@@ -129,4 +129,4 @@ class GPXSerializer(BaseSerializer):
         desc = T.cast(T.Dict, DescriptionJSONSerializer.as_desc(metadata))
         for prop in excluded_properties:
             desc.pop(prop, None)
-        return json.dumps(desc)
+        return json.dumps(desc, sort_keys=True, separators=(",", ":"))

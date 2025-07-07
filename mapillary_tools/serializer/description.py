@@ -305,7 +305,7 @@ class DescriptionJSONSerializer(BaseSerializer):
     @classmethod
     def serialize(cls, metadatas: T.Sequence[MetadataOrError]) -> bytes:
         descs = [cls.as_desc(m) for m in metadatas]
-        return json.dumps(descs, sort_keys=True).encode("utf-8")
+        return json.dumps(descs, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     @override
     @classmethod
@@ -359,7 +359,7 @@ class DescriptionJSONSerializer(BaseSerializer):
         if exc_vars:
             # handle unserializable exceptions
             try:
-                vars_json = json.dumps(exc_vars, sort_keys=True)
+                vars_json = json.dumps(exc_vars, sort_keys=True, separators=(",", ":"))
             except Exception:
                 vars_json = ""
             if vars_json:
