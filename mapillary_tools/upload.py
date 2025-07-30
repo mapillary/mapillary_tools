@@ -236,7 +236,6 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
     upload_pbar: tqdm | None = None
 
     @emitter.on("upload_start")
-    @emitter.on("upload_fetch_offset")
     def upload_start(payload: uploader.Progress) -> None:
         nonlocal upload_pbar
 
@@ -263,9 +262,22 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
             disable=LOG.getEffectiveLevel() <= logging.DEBUG,
         )
 
+    @emitter.on("upload_fetch_offset")
+    def upload_fetch_offset(payload: uploader.Progress) -> None:
+        assert upload_pbar is not None, (
+            "progress_bar must be initialized in upload_start"
+        )
+        offset = payload.get("offset", 0)
+        if offset > 0:
+            upload_pbar.reset()
+            upload_pbar.update(offset)
+
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress) -> None:
-        assert upload_pbar is not None, "progress_bar must be initialized"
+        assert upload_pbar is not None, (
+            "progress_bar must be initialized in upload_start"
+        )
+        upload_pbar.colour = "GREEN"
         upload_pbar.update(payload["chunk_size"])
 
     @emitter.on("upload_end")
