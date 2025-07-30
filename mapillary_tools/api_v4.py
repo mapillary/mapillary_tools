@@ -159,18 +159,23 @@ def readable_http_error(ex: requests.HTTPError) -> str:
 
 
 def request_post(
-    url: str, data: T.Any | None = None, json: dict | None = None, **kwargs
+    url: str,
+    data: T.Any | None = None,
+    json: dict | None = None,
+    disable_debug=False,
+    **kwargs,
 ) -> requests.Response:
     global USE_SYSTEM_CERTS
 
-    _log_debug_request(
-        "POST",
-        url,
-        json=json,
-        params=kwargs.get("params"),
-        headers=kwargs.get("headers"),
-        timeout=kwargs.get("timeout"),
-    )
+    if not disable_debug:
+        _log_debug_request(
+            "POST",
+            url,
+            json=json,
+            params=kwargs.get("params"),
+            headers=kwargs.get("headers"),
+            timeout=kwargs.get("timeout"),
+        )
 
     if USE_SYSTEM_CERTS:
         with requests.Session() as session:
@@ -190,21 +195,25 @@ def request_post(
             )
             return request_post(url, data=data, json=json, **kwargs)
 
-    _log_debug_response(resp)
+    if not disable_debug:
+        _log_debug_response(resp)
 
     return resp
 
 
-def request_get(url: str, params: dict | None = None, **kwargs) -> requests.Response:
+def request_get(
+    url: str, params: dict | None = None, disable_debug=False, **kwargs
+) -> requests.Response:
     global USE_SYSTEM_CERTS
 
-    _log_debug_request(
-        "GET",
-        url,
-        params=kwargs.get("params"),
-        headers=kwargs.get("headers"),
-        timeout=kwargs.get("timeout"),
-    )
+    if not disable_debug:
+        _log_debug_request(
+            "GET",
+            url,
+            params=kwargs.get("params"),
+            headers=kwargs.get("headers"),
+            timeout=kwargs.get("timeout"),
+        )
 
     if USE_SYSTEM_CERTS:
         with requests.Session() as session:
@@ -223,7 +232,8 @@ def request_get(url: str, params: dict | None = None, **kwargs) -> requests.Resp
             )
             resp = request_get(url, params=params, **kwargs)
 
-    _log_debug_response(resp)
+    if not disable_debug:
+        _log_debug_response(resp)
 
     return resp
 
@@ -333,6 +343,7 @@ def log_event(action_type: ActionType, properties: dict) -> requests.Response:
             "Authorization": f"OAuth {MAPILLARY_CLIENT_TOKEN}",
         },
         timeout=REQUESTS_TIMEOUT,
+        disable_debug=True,
     )
     resp.raise_for_status()
     return resp

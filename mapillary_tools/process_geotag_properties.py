@@ -227,6 +227,8 @@ def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: set[T.Type[Exception]],
 ) -> None:
+    LOG.info("========== Process summary ==========")
+
     metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
         if isinstance(metadata, types.ImageMetadata):
