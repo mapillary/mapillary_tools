@@ -25,5 +25,7 @@ def test_all():
             e = exc("hello")
         # should not raise
         json.dumps(
-            description._describe_error_desc(e, Path("test.jpg"), types.FileType.IMAGE)
+            description.DescriptionJSONSerializer._as_error_desc(
+                e, Path("test.jpg"), types.FileType.IMAGE
+            )
         )
