@@ -68,7 +68,9 @@ def upload(
             "version": VERSION,
             "run_at": time.time(),
         }
-        _setup_history(emitter, upload_run_params, metadatas, reupload=reupload)
+        _setup_history(
+            emitter, upload_run_params, metadatas, reupload=reupload, nofinish=nofinish
+        )
 
     # Set up tdqm
     _setup_tdqm(emitter)
@@ -161,32 +163,52 @@ def _setup_history(
     upload_run_params: JSONDict,
     metadatas: list[types.Metadata],
     reupload: bool,
+    nofinish: bool,
 ) -> None:
     @emitter.on("upload_start")
     def check_duplication(payload: uploader.Progress):
         md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
 
-        if history.is_uploaded(md5sum):
+        record = history.read_history_record(md5sum)
+
+        if record is not None:
             sequence_uuid = payload.get("sequence_uuid")
             history_desc_path = history.history_desc_path(md5sum)
+            uploaded_at = record.get("summary", {}).get("upload_end_time", None)
+
             if sequence_uuid is None:
                 basename = os.path.basename(payload.get("import_path", ""))
-                LOG.info(
-                    f"File {basename} has been uploaded already. Check the upload history at {history_desc_path}"
-                )
+                name = f"file {basename}"
+
             else:
-                LOG.info(
-                    f"Sequence {sequence_uuid} has been uploaded already. Check the upload history at {history_desc_path}"
-                )
+                name = f"sequence {sequence_uuid}"
 
             if reupload:
-                pass
+                if uploaded_at is not None:
+                    LOG.info(
+                        f"Reuploading {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                    )
+                else:
+                    LOG.info(
+                        f"Reuploading {name} (already uploaded, see {history_desc_path})"
+                    )
             else:
+                if uploaded_at is not None:
+                    LOG.info(
+                        f"Skipping {name} (already uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                    )
+                else:
+                    LOG.info(
+                        f"Skipping {name} (already uploaded, see {history_desc_path})"
+                    )
                 raise UploadedAlreadyError()
 
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
+        if nofinish:
+            return
+
         sequence_uuid = payload.get("sequence_uuid")
         md5sum = payload.get("sequence_md5sum")
         assert md5sum is not None, f"md5sum has to be set for {payload}"
