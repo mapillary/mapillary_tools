@@ -582,7 +582,7 @@ class ImageUploader:
             )
             manifest_fp.seek(0, io.SEEK_SET)
             manifest_file_handle = uploader_without_emitter.upload_stream(
-                manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
+                manifest_fp, session_key=f"uuid_{uuid.uuid4().hex}.json"
             )
 
         uploader.emitter.emit("upload_end", progress)
@@ -630,20 +630,14 @@ class Uploader:
             if self.noresume:
                 # Generate a unique UUID for session_key when noresume is True
                 # to prevent resuming from previous uploads
-                unique_id = "uuid_" + uuid.uuid4().hex
-                filetype = progress.get("file_type")
-                if filetype is not None:
-                    session_key = _session_key(unique_id, types.FileType(filetype))
-                else:
-                    session_key = unique_id
+                session_key = f"uuid_{uuid.uuid4().hex}"
             else:
                 fp.seek(0, io.SEEK_SET)
-                md5sum = utils.md5sum_fp(fp).hexdigest()
-                filetype = progress.get("file_type")
-                if filetype is not None:
-                    session_key = _session_key(md5sum, types.FileType(filetype))
-                else:
-                    session_key = md5sum
+                session_key = utils.md5sum_fp(fp).hexdigest()
+
+            filetype = progress.get("file_type")
+            if filetype is not None:
+                session_key = _session_key(session_key, types.FileType(filetype))
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
