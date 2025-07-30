@@ -627,13 +627,23 @@ class Uploader:
             progress = {}
 
         if session_key is None:
-            fp.seek(0, io.SEEK_SET)
-            md5sum = utils.md5sum_fp(fp).hexdigest()
-            filetype = progress.get("file_type")
-            if filetype is not None:
-                session_key = _session_key(md5sum, types.FileType(filetype))
+            if self.noresume:
+                # Generate a unique UUID for session_key when noresume is True
+                # to prevent resuming from previous uploads
+                unique_id = "uuid_" + uuid.uuid4().hex
+                filetype = progress.get("file_type")
+                if filetype is not None:
+                    session_key = _session_key(unique_id, types.FileType(filetype))
+                else:
+                    session_key = unique_id
             else:
-                session_key = md5sum
+                fp.seek(0, io.SEEK_SET)
+                md5sum = utils.md5sum_fp(fp).hexdigest()
+                filetype = progress.get("file_type")
+                if filetype is not None:
+                    session_key = _session_key(md5sum, types.FileType(filetype))
+                else:
+                    session_key = md5sum
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
