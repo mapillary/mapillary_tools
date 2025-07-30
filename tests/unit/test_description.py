@@ -97,18 +97,20 @@ def test_serialize_empty():
 def test_serialize_image_description_ok():
     desc = [
         {
-            "MAPLatitude": 1,
-            "MAPLongitude": 2,
-            "MAPCaptureTime": "2020_01_02_11_12_13_1",
+            "MAPLatitude": 1.2,
+            "MAPLongitude": 2.33,
+            "MAPCaptureTime": "2020_01_02_11_12_13_100",
             "filename": "foo你好",
             "filetype": "image",
         }
     ]
     metadatas = DescriptionJSONSerializer.deserialize(json.dumps(desc).encode("utf-8"))
-    actual = json.loads(DescriptionJSONSerializer.serialize(metadatas))
-    assert len(actual) == 1, actual
-    actual = actual[0]
-    assert "2020_01_02_11_12_13_100" == actual["MAPCaptureTime"]
-    assert "foo你好" == Path(actual["filename"]).name
-    assert 1 == actual["MAPLatitude"]
-    assert 2 == actual["MAPLongitude"]
+    s1 = DescriptionJSONSerializer.serialize(metadatas)
+    # Serialization should be deterministic
+    s2 = DescriptionJSONSerializer.serialize(metadatas)
+    assert s1 == s2
+    actual_descs = json.loads(s1)
+    assert {**desc[0], "md5sum": None, "filesize": None} == {
+        **actual_descs[0],
+        "filename": Path(actual_descs[0]["filename"]).name,
+    }

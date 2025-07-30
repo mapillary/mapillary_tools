@@ -36,10 +36,21 @@ def history_desc_path(md5sum: str) -> Path:
     )
 
 
-def is_uploaded(md5sum: str) -> bool:
+def read_history_record(md5sum: str) -> None | T.Dict[str, T.Any]:
     if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
-        return False
-    return history_desc_path(md5sum).is_file()
+        return None
+
+    path = history_desc_path(md5sum)
+
+    if not path.is_file():
+        return None
+
+    with path.open("r") as fp:
+        try:
+            return json.load(fp)
+        except json.JSONDecodeError as ex:
+            LOG.error(f"Failed to read upload history {path}: {ex}")
+            return None
 
 
 def write_history(
@@ -53,10 +64,7 @@ def write_history(
     path = history_desc_path(md5sum)
     LOG.debug("Writing upload history: %s", path)
     path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    history: dict[str, T.Any] = {
-        "params": params,
-        "summary": summary,
-    }
+    history: dict[str, T.Any] = {"params": params, "summary": summary}
     if metadatas is not None:
         history["descs"] = [
             DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas

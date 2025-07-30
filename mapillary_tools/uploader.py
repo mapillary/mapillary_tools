@@ -25,7 +25,20 @@ else:
 
 import requests
 
-from . import api_v4, config, constants, exif_write, types, upload_api_v4, utils
+from . import (
+    api_v4,
+    config,
+    constants,
+    exif_write,
+    geo,
+    telemetry,
+    types,
+    upload_api_v4,
+    utils,
+)
+from .camm import camm_builder, camm_parser
+from .gpmf import gpmf_parser
+from .mp4 import simple_mp4_builder
 from .serializer.description import (
     desc_file_to_exif,
     DescriptionJSONSerializer,
@@ -154,7 +167,122 @@ class UploadResult:
     error: Exception | None = None
 
 
-class ZipImageSequence:
+class VideoUploader:
+    @classmethod
+    def upload_videos(
+        cls, mly_uploader: Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
+    ) -> T.Generator[tuple[types.VideoMetadata, UploadResult], None, None]:
+        for idx, video_metadata in enumerate(video_metadatas):
+            try:
+                video_metadata.update_md5sum()
+            except Exception as ex:
+                yield video_metadata, UploadResult(error=ex)
+                continue
+
+            assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
+
+            progress: SequenceProgress = {
+                "total_sequence_count": len(video_metadatas),
+                "sequence_idx": idx,
+                "file_type": video_metadata.filetype.value,
+                "import_path": str(video_metadata.filename),
+                "sequence_md5sum": video_metadata.md5sum,
+            }
+
+            try:
+                with cls.build_camm_stream(video_metadata) as camm_fp:
+                    # Upload the mp4 stream
+                    file_handle = mly_uploader.upload_stream(
+                        T.cast(T.IO[bytes], camm_fp),
+                        progress=T.cast(T.Dict[str, T.Any], progress),
+                    )
+
+                cluster_id = mly_uploader.finish_upload(
+                    file_handle,
+                    api_v4.ClusterFileType.CAMM,
+                    progress=T.cast(T.Dict[str, T.Any], progress),
+                )
+            except Exception as ex:
+                yield video_metadata, UploadResult(error=ex)
+            else:
+                yield video_metadata, UploadResult(result=cluster_id)
+
+    @classmethod
+    @contextmanager
+    def build_camm_stream(cls, video_metadata: types.VideoMetadata):
+        # Convert video metadata to CAMMInfo
+        camm_info = cls.prepare_camm_info(video_metadata)
+
+        # Create the CAMM sample generator
+        camm_sample_generator = camm_builder.camm_sample_generator2(camm_info)
+
+        with video_metadata.filename.open("rb") as src_fp:
+            # Build the mp4 stream with the CAMM samples
+            yield simple_mp4_builder.transform_mp4(src_fp, camm_sample_generator)
+
+    @classmethod
+    def prepare_camm_info(
+        cls, video_metadata: types.VideoMetadata
+    ) -> camm_parser.CAMMInfo:
+        camm_info = camm_parser.CAMMInfo(
+            make=video_metadata.make or "", model=video_metadata.model or ""
+        )
+
+        for point in video_metadata.points:
+            if isinstance(point, telemetry.CAMMGPSPoint):
+                if camm_info.gps is None:
+                    camm_info.gps = []
+                camm_info.gps.append(point)
+
+            elif isinstance(point, telemetry.GPSPoint):
+                # There is no proper CAMM entry for GoPro GPS
+                if camm_info.mini_gps is None:
+                    camm_info.mini_gps = []
+                camm_info.mini_gps.append(point)
+
+            elif isinstance(point, geo.Point):
+                if camm_info.mini_gps is None:
+                    camm_info.mini_gps = []
+                camm_info.mini_gps.append(point)
+            else:
+                raise ValueError(f"Unknown point type: {point}")
+
+        if constants.MAPILLARY__EXPERIMENTAL_ENABLE_IMU:
+            if video_metadata.filetype is types.FileType.GOPRO:
+                with video_metadata.filename.open("rb") as fp:
+                    gopro_info = gpmf_parser.extract_gopro_info(fp, telemetry_only=True)
+                if gopro_info is not None:
+                    camm_info.accl = gopro_info.accl or []
+                    camm_info.gyro = gopro_info.gyro or []
+                    camm_info.magn = gopro_info.magn or []
+
+        return camm_info
+
+
+class ZipUploader:
+    @classmethod
+    def upload_zipfiles(
+        cls, mly_uploader: Uploader, zip_paths: T.Sequence[Path]
+    ) -> T.Generator[tuple[Path, UploadResult], None, None]:
+        for idx, zip_path in enumerate(zip_paths):
+            progress: SequenceProgress = {
+                "total_sequence_count": len(zip_paths),
+                "sequence_idx": idx,
+                "import_path": str(zip_path),
+                "file_type": types.FileType.ZIP.value,
+                "sequence_md5sum": "",  # Placeholder, will be set in upload_zipfile
+            }
+            try:
+                cluster_id = cls._upload_zipfile(
+                    mly_uploader,
+                    zip_path,
+                    progress=T.cast(T.Dict[str, T.Any], progress),
+                )
+            except Exception as ex:
+                yield zip_path, UploadResult(error=ex)
+            else:
+                yield zip_path, UploadResult(result=cluster_id)
+
     @classmethod
     def zip_images(
         cls, metadatas: T.Sequence[types.ImageMetadata], zip_dir: Path
@@ -173,7 +301,146 @@ class ZipImageSequence:
             )
             with cls._wip_file_context(wip_zip_filename) as wip_path:
                 with wip_path.open("wb") as wip_fp:
-                    cls.zip_sequence_fp(sequence, wip_fp)
+                    cls._zip_sequence_fp(sequence, wip_fp)
+
+    @classmethod
+    def zip_images_and_upload(
+        cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
+    ) -> T.Generator[tuple[str, UploadResult], None, None]:
+        sequences = types.group_and_sort_images(image_metadatas)
+
+        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            try:
+                _validate_metadatas(sequence)
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+                continue
+
+            with tempfile.NamedTemporaryFile() as fp:
+                try:
+                    sequence_md5sum = cls._zip_sequence_fp(sequence, fp)
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
+
+                sequence_progress: SequenceProgress = {
+                    "sequence_idx": sequence_idx,
+                    "total_sequence_count": len(sequences),
+                    "sequence_image_count": len(sequence),
+                    "sequence_uuid": sequence_uuid,
+                    "file_type": types.FileType.ZIP.value,
+                    "sequence_md5sum": sequence_md5sum,
+                }
+
+                try:
+                    file_handle = uploader.upload_stream(
+                        fp, progress=T.cast(T.Dict[str, T.Any], sequence_progress)
+                    )
+                    cluster_id = uploader.finish_upload(
+                        file_handle,
+                        api_v4.ClusterFileType.ZIP,
+                        progress=T.cast(T.Dict[str, T.Any], sequence_progress),
+                    )
+                except Exception as ex:
+                    yield sequence_uuid, UploadResult(error=ex)
+                    continue
+
+            yield sequence_uuid, UploadResult(result=cluster_id)
+
+    @classmethod
+    def _upload_zipfile(
+        cls,
+        uploader: Uploader,
+        zip_path: Path,
+        progress: dict[str, T.Any] | None = None,
+    ) -> str:
+        if progress is None:
+            progress = {}
+
+        with zipfile.ZipFile(zip_path) as ziph:
+            namelist = ziph.namelist()
+            if not namelist:
+                raise InvalidMapillaryZipFileError("Zipfile has no files")
+
+        with zip_path.open("rb") as zip_fp:
+            sequence_md5sum = cls._extract_sequence_md5sum(zip_fp)
+
+        # Send the copy of the input progress to each upload session, to avoid modifying the original one
+        mutable_progress: SequenceProgress = {
+            **T.cast(SequenceProgress, progress),
+            "sequence_image_count": len(namelist),
+            "sequence_md5sum": sequence_md5sum,
+            "file_type": types.FileType.ZIP.value,
+        }
+
+        with zip_path.open("rb") as zip_fp:
+            file_handle = uploader.upload_stream(
+                zip_fp, progress=T.cast(T.Dict[str, T.Any], mutable_progress)
+            )
+
+        cluster_id = uploader.finish_upload(
+            file_handle,
+            api_v4.ClusterFileType.ZIP,
+            progress=T.cast(T.Dict[str, T.Any], mutable_progress),
+        )
+
+        return cluster_id
+
+    @classmethod
+    def _zip_sequence_fp(
+        cls,
+        sequence: T.Sequence[types.ImageMetadata],
+        zip_fp: T.IO[bytes],
+    ) -> str:
+        """
+        Write a sequence of ImageMetadata into the zipfile handle.
+        The sequence has to be one sequence and sorted.
+        """
+
+        sequence_groups = types.group_and_sort_images(sequence)
+        assert len(sequence_groups) == 1, (
+            f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
+        )
+
+        sequence_md5sum = types.update_sequence_md5sum(sequence)
+
+        with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for idx, metadata in enumerate(sequence):
+                # Arcname should be unique, the name does not matter
+                arcname = f"{idx}.jpg"
+                zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
+                zipf.writestr(zipinfo, ImageUploader.dump_image_bytes(metadata))
+            assert len(sequence) == len(set(zipf.namelist()))
+            zipf.comment = json.dumps(
+                {"sequence_md5sum": sequence_md5sum},
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+
+        return sequence_md5sum
+
+    @classmethod
+    def _extract_sequence_md5sum(cls, zip_fp: T.IO[bytes]) -> str:
+        with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
+            comment = ziph.comment
+
+        if not comment:
+            raise InvalidMapillaryZipFileError("No comment found in the zipfile")
+
+        try:
+            decoded = comment.decode("utf-8")
+            zip_metadata = json.loads(decoded)
+        except UnicodeDecodeError as ex:
+            raise InvalidMapillaryZipFileError(str(ex)) from ex
+        except json.JSONDecodeError as ex:
+            raise InvalidMapillaryZipFileError(str(ex)) from ex
+
+        sequence_md5sum = zip_metadata.get("sequence_md5sum")
+
+        if not sequence_md5sum and not isinstance(sequence_md5sum, str):
+            raise InvalidMapillaryZipFileError("No sequence_md5sum found")
+
+        return sequence_md5sum
 
     @classmethod
     @contextmanager
@@ -203,62 +470,39 @@ class ZipImageSequence:
             except FileNotFoundError:
                 pass
 
+
+class ImageUploader:
     @classmethod
-    def zip_sequence_fp(
-        cls,
-        sequence: T.Sequence[types.ImageMetadata],
-        zip_fp: T.IO[bytes],
-    ) -> str:
-        """
-        Write a sequence of ImageMetadata into the zipfile handle.
-        The sequence has to be one sequence and sorted.
-        """
+    def upload_images(
+        cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
+    ) -> T.Generator[tuple[str, UploadResult], None, None]:
+        sequences = types.group_and_sort_images(image_metadatas)
 
-        sequence_groups = types.group_and_sort_images(sequence)
-        assert len(sequence_groups) == 1, (
-            f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
-        )
+        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            sequence_md5sum = types.update_sequence_md5sum(sequence)
 
-        sequence_md5sum = types.update_sequence_md5sum(sequence)
+            sequence_progress: SequenceProgress = {
+                "sequence_idx": sequence_idx,
+                "total_sequence_count": len(sequences),
+                "sequence_image_count": len(sequence),
+                "sequence_uuid": sequence_uuid,
+                "file_type": types.FileType.IMAGE.value,
+                "sequence_md5sum": sequence_md5sum,
+            }
 
-        with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for idx, metadata in enumerate(sequence):
-                # Arcname should be unique, the name does not matter
-                arcname = f"{idx}.jpg"
-                zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-                zipf.writestr(zipinfo, cls._dump_image_bytes(metadata))
-            assert len(sequence) == len(set(zipf.namelist()))
-            zipf.comment = json.dumps({"sequence_md5sum": sequence_md5sum}).encode(
-                "utf-8"
-            )
-
-        return sequence_md5sum
-
-    @classmethod
-    def extract_sequence_md5sum(cls, zip_fp: T.IO[bytes]) -> str:
-        with zipfile.ZipFile(zip_fp, "r", zipfile.ZIP_DEFLATED) as ziph:
-            comment = ziph.comment
-
-        if not comment:
-            raise InvalidMapillaryZipFileError("No comment found in the zipfile")
-
-        try:
-            decoded = comment.decode("utf-8")
-            zip_metadata = json.loads(decoded)
-        except UnicodeDecodeError as ex:
-            raise InvalidMapillaryZipFileError(str(ex)) from ex
-        except json.JSONDecodeError as ex:
-            raise InvalidMapillaryZipFileError(str(ex)) from ex
-
-        sequence_md5sum = zip_metadata.get("sequence_md5sum")
-
-        if not sequence_md5sum and not isinstance(sequence_md5sum, str):
-            raise InvalidMapillaryZipFileError("No sequence_md5sum found")
-
-        return sequence_md5sum
+            try:
+                cluster_id = cls._upload_sequence(
+                    uploader,
+                    sequence,
+                    progress=T.cast(dict[str, T.Any], sequence_progress),
+                )
+            except Exception as ex:
+                yield sequence_uuid, UploadResult(error=ex)
+            else:
+                yield sequence_uuid, UploadResult(result=cluster_id)
 
     @classmethod
-    def _dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
+    def dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
         try:
             edit = exif_write.ExifEdit(metadata.filename)
         except struct.error as ex:
@@ -267,8 +511,7 @@ class ZipImageSequence:
         # The cast is to fix the type checker error
         edit.add_image_description(
             T.cast(
-                T.Dict,
-                desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata)),
+                T.Dict, desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata))
             )
         )
 
@@ -278,95 +521,6 @@ class ZipImageSequence:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
-
-    @classmethod
-    def upload_zipfile(
-        cls,
-        uploader: Uploader,
-        zip_path: Path,
-        progress: dict[str, T.Any] | None = None,
-    ) -> str:
-        if progress is None:
-            progress = {}
-
-        with zipfile.ZipFile(zip_path) as ziph:
-            namelist = ziph.namelist()
-            if not namelist:
-                raise InvalidMapillaryZipFileError("Zipfile has no files")
-
-        with zip_path.open("rb") as zip_fp:
-            sequence_md5sum = cls.extract_sequence_md5sum(zip_fp)
-
-        # Send the copy of the input progress to each upload session, to avoid modifying the original one
-        mutable_progress: SequenceProgress = {
-            **T.cast(SequenceProgress, progress),
-            "sequence_image_count": len(namelist),
-            "sequence_md5sum": sequence_md5sum,
-            "file_type": types.FileType.ZIP.value,
-        }
-
-        with zip_path.open("rb") as zip_fp:
-            file_handle = uploader.upload_stream(
-                zip_fp, progress=T.cast(T.Dict[str, T.Any], mutable_progress)
-            )
-
-        cluster_id = uploader.finish_upload(
-            file_handle,
-            api_v4.ClusterFileType.ZIP,
-            progress=T.cast(T.Dict[str, T.Any], mutable_progress),
-        )
-
-        return cluster_id
-
-    @classmethod
-    def zip_images_and_upload(
-        cls,
-        uploader: Uploader,
-        image_metadatas: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
-    ) -> T.Generator[tuple[str, UploadResult], None, None]:
-        if progress is None:
-            progress = {}
-
-        sequences = types.group_and_sort_images(image_metadatas)
-
-        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            try:
-                _validate_metadatas(sequence)
-            except Exception as ex:
-                yield sequence_uuid, UploadResult(error=ex)
-                continue
-
-            with tempfile.NamedTemporaryFile() as fp:
-                try:
-                    sequence_md5sum = cls.zip_sequence_fp(sequence, fp)
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-                sequence_progress: SequenceProgress = {
-                    "sequence_idx": sequence_idx,
-                    "total_sequence_count": len(sequences),
-                    "sequence_image_count": len(sequence),
-                    "sequence_uuid": sequence_uuid,
-                    "file_type": types.FileType.ZIP.value,
-                    "sequence_md5sum": sequence_md5sum,
-                }
-
-                mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
-                try:
-                    file_handle = uploader.upload_stream(fp, progress=mutable_progress)
-                    cluster_id = uploader.finish_upload(
-                        file_handle,
-                        api_v4.ClusterFileType.ZIP,
-                        progress=mutable_progress,
-                    )
-                except Exception as ex:
-                    yield sequence_uuid, UploadResult(error=ex)
-                    continue
-
-            yield sequence_uuid, UploadResult(result=cluster_id)
 
     @classmethod
     def _upload_sequence(
@@ -389,7 +543,7 @@ class ZipImageSequence:
                 "filename": str(image_metadata.filename),
             }
 
-            bytes = cls._dump_image_bytes(image_metadata)
+            bytes = cls.dump_image_bytes(image_metadata)
             file_handle = uploader_without_emitter.upload_stream(
                 io.BytesIO(bytes), progress=mutable_progress
             )
@@ -421,10 +575,14 @@ class ZipImageSequence:
         }
 
         with io.BytesIO() as manifest_fp:
-            manifest_fp.write(json.dumps(manifest).encode("utf-8"))
+            manifest_fp.write(
+                json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
+                    "utf-8"
+                )
+            )
             manifest_fp.seek(0, io.SEEK_SET)
             manifest_file_handle = uploader_without_emitter.upload_stream(
-                manifest_fp, session_key=f"{uuid.uuid4().hex}.json"
+                manifest_fp, session_key=f"uuid_{uuid.uuid4().hex}.json"
             )
 
         uploader.emitter.emit("upload_end", progress)
@@ -437,41 +595,6 @@ class ZipImageSequence:
 
         return cluster_id
 
-    @classmethod
-    def upload_images(
-        cls,
-        uploader: Uploader,
-        image_metadatas: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
-    ) -> T.Generator[tuple[str, UploadResult], None, None]:
-        if progress is None:
-            progress = {}
-
-        sequences = types.group_and_sort_images(image_metadatas)
-
-        for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
-            sequence_md5sum = types.update_sequence_md5sum(sequence)
-
-            sequence_progress: SequenceProgress = {
-                "sequence_idx": sequence_idx,
-                "total_sequence_count": len(sequences),
-                "sequence_image_count": len(sequence),
-                "sequence_uuid": sequence_uuid,
-                "file_type": types.FileType.IMAGE.value,
-                "sequence_md5sum": sequence_md5sum,
-            }
-
-            mutable_progress: dict[str, T.Any] = {**progress, **sequence_progress}
-
-            try:
-                cluster_id = cls._upload_sequence(
-                    uploader, sequence, progress=mutable_progress
-                )
-            except Exception as ex:
-                yield sequence_uuid, UploadResult(error=ex)
-            else:
-                yield sequence_uuid, UploadResult(result=cluster_id)
-
 
 class Uploader:
     def __init__(
@@ -479,7 +602,9 @@ class Uploader:
         user_items: config.UserItem,
         emitter: EventEmitter | None = None,
         chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
-        dry_run=False,
+        dry_run: bool = False,
+        nofinish: bool = False,
+        noresume: bool = False,
     ):
         self.user_items = user_items
         if emitter is None:
@@ -489,6 +614,8 @@ class Uploader:
             self.emitter = emitter
         self.chunk_size = chunk_size
         self.dry_run = dry_run
+        self.nofinish = nofinish
+        self.noresume = noresume
 
     def upload_stream(
         self,
@@ -500,13 +627,17 @@ class Uploader:
             progress = {}
 
         if session_key is None:
-            fp.seek(0, io.SEEK_SET)
-            md5sum = utils.md5sum_fp(fp).hexdigest()
+            if self.noresume:
+                # Generate a unique UUID for session_key when noresume is True
+                # to prevent resuming from previous uploads
+                session_key = f"uuid_{uuid.uuid4().hex}"
+            else:
+                fp.seek(0, io.SEEK_SET)
+                session_key = utils.md5sum_fp(fp).hexdigest()
+
             filetype = progress.get("file_type")
             if filetype is not None:
-                session_key = _session_key(md5sum, types.FileType(filetype))
-            else:
-                session_key = md5sum
+                session_key = _session_key(session_key, types.FileType(filetype))
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
@@ -546,7 +677,7 @@ class Uploader:
         if progress is None:
             progress = {}
 
-        if self.dry_run:
+        if self.dry_run or self.nofinish:
             cluster_id = "0"
         else:
             resp = api_v4.finish_upload(
@@ -572,6 +703,8 @@ class Uploader:
             emitter=None,
             chunk_size=self.chunk_size,
             dry_run=self.dry_run,
+            nofinish=self.nofinish,
+            noresume=self.noresume,
         )
 
     def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:

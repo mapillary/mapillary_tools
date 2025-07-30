@@ -86,22 +86,20 @@ class VideoDescription(_SharedDescription, total=False):
     MAPDeviceModel: str
 
 
-class _ErrorDescription(TypedDict, total=False):
-    # type and message are required
+class _ErrorObject(TypedDict, total=False):
     type: Required[str]
-    message: str
-    # vars is optional
+    message: Required[str]
     vars: dict
 
 
-class ImageDescriptionError(TypedDict, total=False):
+class ErrorDescription(TypedDict, total=False):
     filename: Required[str]
-    error: Required[_ErrorDescription]
+    error: Required[_ErrorObject]
     filetype: str
 
 
 Description = T.Union[ImageDescription, VideoDescription]
-DescriptionOrError = T.Union[ImageDescription, VideoDescription, ImageDescriptionError]
+DescriptionOrError = T.Union[ImageDescription, VideoDescription, ErrorDescription]
 
 
 ImageDescriptionEXIFSchema = {
@@ -307,7 +305,7 @@ class DescriptionJSONSerializer(BaseSerializer):
     @classmethod
     def serialize(cls, metadatas: T.Sequence[MetadataOrError]) -> bytes:
         descs = [cls.as_desc(m) for m in metadatas]
-        return json.dumps(descs).encode("utf-8")
+        return json.dumps(descs, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     @override
     @classmethod
@@ -327,7 +325,7 @@ class DescriptionJSONSerializer(BaseSerializer):
 
     @T.overload
     @classmethod
-    def as_desc(cls, metadata: ErrorMetadata) -> ImageDescriptionError: ...
+    def as_desc(cls, metadata: ErrorMetadata) -> ErrorDescription: ...
 
     @T.overload
     @classmethod
@@ -336,7 +334,7 @@ class DescriptionJSONSerializer(BaseSerializer):
     @classmethod
     def as_desc(cls, metadata):
         if isinstance(metadata, ErrorMetadata):
-            return _describe_error_desc(
+            return cls._as_error_desc(
                 metadata.error, metadata.filename, metadata.filetype
             )
 
@@ -348,13 +346,42 @@ class DescriptionJSONSerializer(BaseSerializer):
             return cls._as_image_desc(metadata)
 
     @classmethod
+    def _as_error_desc(
+        cls, exc: Exception, filename: Path, filetype: FileType | None
+    ) -> ErrorDescription:
+        err: _ErrorObject = {
+            "type": exc.__class__.__name__,
+            "message": str(exc),
+        }
+
+        exc_vars = vars(exc)
+
+        if exc_vars:
+            # handle unserializable exceptions
+            try:
+                vars_json = json.dumps(exc_vars, sort_keys=True, separators=(",", ":"))
+            except Exception:
+                vars_json = ""
+            if vars_json:
+                err["vars"] = json.loads(vars_json)
+
+        desc: ErrorDescription = {
+            "error": err,
+            "filename": str(filename.resolve()),
+        }
+        if filetype is not None:
+            desc["filetype"] = filetype.value
+
+        return desc
+
+    @classmethod
     def _as_video_desc(cls, metadata: VideoMetadata) -> VideoDescription:
         desc: VideoDescription = {
             "filename": str(metadata.filename.resolve()),
             "md5sum": metadata.md5sum,
             "filetype": metadata.filetype.value,
             "filesize": metadata.filesize,
-            "MAPGPSTrack": [cls._encode_point(p) for p in metadata.points],
+            "MAPGPSTrack": [PointEncoder.encode(p) for p in metadata.points],
         }
         if metadata.make:
             desc["MAPDeviceMake"] = metadata.make
@@ -442,7 +469,23 @@ class DescriptionJSONSerializer(BaseSerializer):
         )
 
     @classmethod
-    def _encode_point(cls, p: geo.Point) -> T.Sequence[float | int | None]:
+    def _from_video_desc(cls, desc: VideoDescription) -> VideoMetadata:
+        validate_video_desc(desc)
+
+        return VideoMetadata(
+            filename=Path(desc["filename"]),
+            md5sum=desc.get("md5sum"),
+            filesize=desc.get("filesize"),
+            filetype=FileType(desc["filetype"]),
+            points=[PointEncoder.decode(entry) for entry in desc["MAPGPSTrack"]],
+            make=desc.get("MAPDeviceMake"),
+            model=desc.get("MAPDeviceModel"),
+        )
+
+
+class PointEncoder:
+    @classmethod
+    def encode(cls, p: geo.Point) -> T.Sequence[float | int | None]:
         entry = [
             int(p.time * 1000),
             round(p.lon, _COORDINATES_PRECISION),
@@ -453,23 +496,9 @@ class DescriptionJSONSerializer(BaseSerializer):
         return entry
 
     @classmethod
-    def _decode_point(cls, entry: T.Sequence[T.Any]) -> geo.Point:
+    def decode(cls, entry: T.Sequence[T.Any]) -> geo.Point:
         time_ms, lon, lat, alt, angle = entry
         return geo.Point(time=time_ms / 1000, lon=lon, lat=lat, alt=alt, angle=angle)
-
-    @classmethod
-    def _from_video_desc(cls, desc: VideoDescription) -> VideoMetadata:
-        validate_video_desc(desc)
-
-        return VideoMetadata(
-            filename=Path(desc["filename"]),
-            md5sum=desc.get("md5sum"),
-            filesize=desc.get("filesize"),
-            filetype=FileType(desc["filetype"]),
-            points=[cls._decode_point(entry) for entry in desc["MAPGPSTrack"]],
-            make=desc.get("MAPDeviceMake"),
-            model=desc.get("MAPDeviceModel"),
-        )
 
 
 def build_capture_time(time: datetime.datetime | int | float) -> str:
@@ -552,35 +581,6 @@ def desc_file_to_exif(desc: ImageDescription) -> ImageDescription:
         if key.startswith("MAP") and key not in not_needed
     }
     return T.cast(ImageDescription, removed)
-
-
-def _describe_error_desc(
-    exc: Exception, filename: Path, filetype: FileType | None
-) -> ImageDescriptionError:
-    err: _ErrorDescription = {
-        "type": exc.__class__.__name__,
-        "message": str(exc),
-    }
-
-    exc_vars = vars(exc)
-
-    if exc_vars:
-        # handle unserializable exceptions
-        try:
-            vars_json = json.dumps(exc_vars)
-        except Exception:
-            vars_json = ""
-        if vars_json:
-            err["vars"] = json.loads(vars_json)
-
-    desc: ImageDescriptionError = {
-        "error": err,
-        "filename": str(filename.resolve()),
-    }
-    if filetype is not None:
-        desc["filetype"] = filetype.value
-
-    return desc
 
 
 if __name__ == "__main__":

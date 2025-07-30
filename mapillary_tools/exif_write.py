@@ -42,7 +42,9 @@ class ExifEdit:
 
     def add_image_description(self, data: dict) -> None:
         """Add a dict to image description."""
-        self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(data)
+        self._ef["0th"][piexif.ImageIFD.ImageDescription] = json.dumps(
+            data, sort_keys=True, separators=(",", ":")
+        )
 
     def add_orientation(self, orientation: int) -> None:
         """Add image orientation to image."""

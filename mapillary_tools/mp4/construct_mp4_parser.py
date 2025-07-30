@@ -567,7 +567,9 @@ def _new_cmap_without_boxes(
 # pyre-ignore[9]: pyre does not support recursive type SwitchMapType
 MP4_WITHOUT_STBL_CMAP: SwitchMapType = {
     # pyre-ignore[6]: pyre does not support recursive type SwitchMapType
-    b"moov": _new_cmap_without_boxes(CMAP[b"moov"], [b"stbl"]),
+    b"moov": _new_cmap_without_boxes(
+        CMAP[b"moov"], T.cast(T.Sequence[BoxType], [b"stbl"])
+    ),
 }
 
 # for parsing mp4 only
