@@ -409,12 +409,19 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
 
 
 def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
-    for error in errors:
-        LOG.error("Upload error: %s: %s", error.__class__.__name__, error)
+    LOG.info("========== Upload summary ==========")
 
-    if not stats:
-        LOG.info("Nothing uploaded. Bye.")
-    else:
+    errors_by_type: dict[str, list[Exception]] = {}
+    for error in errors:
+        errors_by_type.setdefault(error.__class__.__name__, []).append(error)
+
+    for error_type, error_list in errors_by_type.items():
+        if error_type == UploadedAlreadyError.__name__:
+            LOG.info("Skipped %d already uploaded sequences", len(error_list))
+        else:
+            LOG.info(f"{len(error_list)} uploads failed due to {error_type}")
+
+    if stats:
         grouped: dict[str, list[_APIStats]] = {}
         for stat in stats:
             grouped.setdefault(stat.get("file_type", "unknown"), []).append(stat)
@@ -429,6 +436,8 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info("%8.1fM data in total", summary["size"])
         LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
         LOG.info("%8.1fs upload time", summary["time"])
+    else:
+        LOG.info("Nothing uploaded. Bye.")
 
 
 def _api_logging_finished(summary: dict):
