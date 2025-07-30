@@ -417,7 +417,10 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
 
     for error_type, error_list in errors_by_type.items():
         if error_type == UploadedAlreadyError.__name__:
-            LOG.info("Skipped %d already uploaded sequences", len(error_list))
+            LOG.info(
+                "Skipped %d already uploaded sequences (use --reupload to force re-upload)",
+                len(error_list),
+            )
         else:
             LOG.info(f"{len(error_list)} uploads failed due to {error_type}")
 
