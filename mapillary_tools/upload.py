@@ -271,14 +271,15 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         if offset > 0:
             upload_pbar.reset()
             upload_pbar.update(offset)
+            upload_pbar.refresh()
 
     @emitter.on("upload_progress")
     def upload_progress(payload: uploader.Progress) -> None:
         assert upload_pbar is not None, (
             "progress_bar must be initialized in upload_start"
         )
-        upload_pbar.colour = "GREEN"
         upload_pbar.update(payload["chunk_size"])
+        upload_pbar.refresh()
 
     @emitter.on("upload_end")
     def upload_end(_: uploader.Progress) -> None:
