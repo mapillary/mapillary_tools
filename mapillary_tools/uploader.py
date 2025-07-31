@@ -172,7 +172,11 @@ class VideoUploader:
     def upload_videos(
         cls, mly_uploader: Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
     ) -> T.Generator[tuple[types.VideoMetadata, UploadResult], None, None]:
-        for idx, video_metadata in enumerate(video_metadatas):
+        # If upload in a random order, then interrupted uploads has a higher chance to expire.
+        # Therefore sort videos to make sure interrupted uploads are resumed as early as possible
+        sorted_video_metadatas = sorted(video_metadatas, key=lambda m: m.filename)
+
+        for idx, video_metadata in enumerate(sorted_video_metadatas):
             try:
                 video_metadata.update_md5sum()
             except Exception as ex:
@@ -182,7 +186,7 @@ class VideoUploader:
             assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
             progress: SequenceProgress = {
-                "total_sequence_count": len(video_metadatas),
+                "total_sequence_count": len(sorted_video_metadatas),
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
                 "import_path": str(video_metadata.filename),
@@ -264,9 +268,13 @@ class ZipUploader:
     def upload_zipfiles(
         cls, mly_uploader: Uploader, zip_paths: T.Sequence[Path]
     ) -> T.Generator[tuple[Path, UploadResult], None, None]:
-        for idx, zip_path in enumerate(zip_paths):
+        # If upload in a random order, then interrupted uploads has a higher chance to expire.
+        # Therefore sort zipfiles to make sure interrupted uploads are resumed as early as possible
+        sorted_zip_paths = sorted(zip_paths)
+
+        for idx, zip_path in enumerate(sorted_zip_paths):
             progress: SequenceProgress = {
-                "total_sequence_count": len(zip_paths),
+                "total_sequence_count": len(sorted_zip_paths),
                 "sequence_idx": idx,
                 "import_path": str(zip_path),
                 "file_type": types.FileType.ZIP.value,

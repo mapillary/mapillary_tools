@@ -196,7 +196,7 @@ def _setup_history(
             else:
                 if uploaded_at is not None:
                     LOG.info(
-                        f"Skipping {name} (already uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                        f"Skipping {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                     )
                 else:
                     LOG.info(
