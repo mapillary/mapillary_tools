@@ -268,10 +268,20 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         assert upload_pbar is not None, (
             "progress_bar must be initialized in upload_start"
         )
-        offset = payload.get("offset", 0)
-        if offset > 0:
+        begin_offset = payload.get("begin_offset", 0)
+        if begin_offset is not None and begin_offset > 0:
+            if upload_pbar.total is not None:
+                progress_percent = (begin_offset / upload_pbar.total) * 100
+                upload_pbar.write(
+                    f"Resuming upload at {begin_offset=} ({progress_percent:3.0f}%)",
+                    file=sys.stderr,
+                )
+            else:
+                upload_pbar.write(
+                    f"Resuming upload at {begin_offset=}", file=sys.stderr
+                )
             upload_pbar.reset()
-            upload_pbar.update(offset)
+            upload_pbar.update(begin_offset)
             upload_pbar.refresh()
 
     @emitter.on("upload_progress")
