@@ -58,24 +58,25 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
 
 
 @T.overload
-def _truncate(s: bytes, limit: int = 512) -> bytes: ...
+def _truncate(s: bytes, limit: int = 256) -> bytes | str: ...
 
 
 @T.overload
-def _truncate(s: str, limit: int = 512) -> str: ...
+def _truncate(s: str, limit: int = 256) -> str: ...
 
 
-def _truncate(s, limit=512):
+def _truncate(s, limit=256):
     if limit < len(s):
+        if isinstance(s, bytes):
+            try:
+                s = s.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
         remaining = len(s) - limit
         if isinstance(s, bytes):
-            return (
-                s[:limit]
-                + b"..."
-                + f"({remaining} more bytes truncated)".encode("utf-8")
-            )
+            return s[:limit] + f"...({remaining} bytes truncated)".encode("utf-8")
         else:
-            return str(s[:limit]) + f"...({remaining} more chars truncated)"
+            return str(s[:limit]) + f"...({remaining} chars truncated)"
     else:
         return s
 
@@ -140,22 +141,29 @@ def _log_debug_response(resp: requests.Response):
     try:
         data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
-        data = _truncate(resp.content)
+        if resp.content is not None:
+            data = _truncate(resp.content)
+        else:
+            data = ""
 
     LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", data)
 
 
 def readable_http_error(ex: requests.HTTPError) -> str:
-    req = ex.request
     resp = ex.response
 
     data: str | bytes
     try:
         data = _truncate(dumps(_sanitize(resp.json())))
     except Exception:
-        data = _truncate(resp.content)
+        if resp.content is not None:
+            data = _truncate(resp.content)
+        else:
+            data = ""
 
-    return f"{req.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
+    msg = f"{ex.request.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
+
+    return msg.replace("\n", "\\n")
 
 
 def request_post(
