@@ -742,29 +742,21 @@ class Uploader:
     ) -> None:
         retries = progress["retries"]
         begin_offset = progress.get("begin_offset")
-        chunk_size = progress["chunk_size"]
+        offset = progress.get("offset")
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
             self.emitter.emit("upload_interrupted", progress)
             LOG.warning(
-                # use %s instead of %d because offset could be None
-                "Error uploading chunk_size %d at begin_offset %s: %s: %s",
-                chunk_size,
-                begin_offset,
-                ex.__class__.__name__,
-                str(ex),
+                f"Error uploading {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
             )
             # Keep things immutable here. Will increment retries in the caller
             retries += 1
-            if _is_immediate_retry(ex):
+            if _is_immediate_retriable_exception(ex):
                 sleep_for = 0
             else:
                 sleep_for = min(2**retries, 16)
             LOG.info(
-                "Retrying in %d seconds (%d/%d)",
-                sleep_for,
-                retries,
-                constants.MAX_UPLOAD_RETRIES,
+                f"Retrying in {sleep_for} seconds ({retries}/{constants.MAX_UPLOAD_RETRIES})"
             )
             if sleep_for:
                 time.sleep(sleep_for)
@@ -817,7 +809,7 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
             raise FileNotFoundError(f"No such file {metadata.filename}")
 
 
-def _is_immediate_retry(ex: Exception):
+def _is_immediate_retriable_exception(ex: Exception) -> bool:
     if (
         isinstance(ex, requests.HTTPError)
         and isinstance(ex.response, requests.Response)
@@ -830,8 +822,10 @@ def _is_immediate_retry(ex: Exception):
         # resp: {"debug_info":{"retriable":true,"type":"OffsetInvalidError","message":"Request starting offset is invalid"}}
         return resp.get("debug_info", {}).get("retriable", False)
 
+    return False
 
-def _is_retriable_exception(ex: Exception):
+
+def _is_retriable_exception(ex: Exception) -> bool:
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 
