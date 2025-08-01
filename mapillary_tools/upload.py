@@ -106,13 +106,11 @@ def upload(
 
     except Exception as ex:
         # Fatal error: log and raise
-        if not dry_run:
-            _api_logging_failed(_summarize(stats), ex)
+        _api_logging_failed(_summarize(stats), ex, dry_run=dry_run)
         raise ex
 
     else:
-        if not dry_run:
-            _api_logging_finished(_summarize(stats))
+        _api_logging_finished(_summarize(stats), dry_run=dry_run)
 
     finally:
         # We collected stats after every upload is finished
@@ -456,7 +454,10 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info("Nothing uploaded. Bye.")
 
 
-def _api_logging_finished(summary: dict):
+def _api_logging_finished(summary: dict, dry_run: bool = False):
+    if dry_run:
+        return
+
     if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -473,7 +474,10 @@ def _api_logging_finished(summary: dict):
         LOG.warning("Error from API Logging for action %s", action, exc_info=True)
 
 
-def _api_logging_failed(payload: dict, exc: Exception):
+def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
+    if dry_run:
+        return
+
     if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
