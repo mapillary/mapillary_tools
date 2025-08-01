@@ -130,6 +130,8 @@ def _log_debug_request(
     if timeout is not None:
         msg += f" TIMEOUT={timeout}"
 
+    msg = msg.replace("\n", "\\n")
+
     LOG.debug(msg)
 
 
@@ -146,7 +148,10 @@ def _log_debug_response(resp: requests.Response):
         else:
             data = ""
 
-    LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", data)
+    msg = f"HTTP {resp.status_code} ({resp.reason}): {str(data)}"
+    msg = msg.replace("\n", "\\n")
+
+    LOG.debug(msg)
 
 
 def readable_http_error(ex: requests.HTTPError) -> str:
@@ -343,10 +348,7 @@ ActionType = T.Literal[
 def log_event(action_type: ActionType, properties: dict) -> requests.Response:
     resp = request_post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/logging",
-        json={
-            "action_type": action_type,
-            "properties": properties,
-        },
+        json={"action_type": action_type, "properties": properties},
         headers={
             "Authorization": f"OAuth {MAPILLARY_CLIENT_TOKEN}",
         },
