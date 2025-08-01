@@ -667,6 +667,9 @@ class Uploader:
                 )
             except Exception as ex:
                 self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
+            except BaseException as ex:
+                self.emitter.emit("upload_failed", progress)
+                raise ex
             else:
                 break
 
@@ -741,7 +744,7 @@ class Uploader:
     def _handle_upload_exception(
         self, ex: Exception, progress: UploaderProgress
     ) -> None:
-        retries = progress["retries"]
+        retries = progress.get("retries", 0)
         begin_offset = progress.get("begin_offset")
         offset = progress.get("offset")
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import requests
 
 from .. import api_v4, constants, exceptions, VERSION
+from ..upload import log_exception
 from . import (
     authenticate,
     process,
@@ -162,14 +163,12 @@ def main():
     try:
         args.func(argvars)
     except requests.HTTPError as ex:
-        LOG.error("%s: %s", ex.__class__.__name__, api_v4.readable_http_error(ex))
+        log_exception(ex)
         # TODO: standardize exit codes as exceptions.MapillaryUserError
         sys.exit(16)
 
     except exceptions.MapillaryUserError as ex:
-        LOG.error(
-            "%s: %s", ex.__class__.__name__, ex, exc_info=log_level == logging.DEBUG
-        )
+        log_exception(ex)
         sys.exit(ex.exit_code)
 
 
