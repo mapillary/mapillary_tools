@@ -137,9 +137,10 @@ EventName = T.Literal[
     "upload_start",
     "upload_fetch_offset",
     "upload_progress",
-    "upload_end",
-    "upload_finished",
     "upload_interrupted",
+    "upload_end",
+    "upload_failed",
+    "upload_finished",
 ]
 
 
@@ -761,6 +762,7 @@ class Uploader:
             if sleep_for:
                 time.sleep(sleep_for)
         else:
+            self.emitter.emit("upload_failed", progress)
             raise ex
 
     def _chunk_with_progress_emitted(

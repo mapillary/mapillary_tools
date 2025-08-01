@@ -283,6 +283,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         upload_pbar.refresh()
 
     @emitter.on("upload_end")
+    @emitter.on("upload_failed")
     def upload_end(_: uploader.Progress) -> None:
         nonlocal upload_pbar
         if upload_pbar:
