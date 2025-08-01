@@ -33,7 +33,7 @@ JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 LOG = logging.getLogger(__name__)
 
 
-class UploadedAlreadyError(uploader.SequenceError):
+class UploadedAlready(uploader.SequenceError):
     pass
 
 
@@ -96,11 +96,13 @@ def upload(
     upload_successes = 0
     upload_errors: list[Exception] = []
 
-    # The real upload happens sequentially here
+    # The real uploading happens sequentially here
     try:
         for _, result in results:
             if result.error is not None:
-                upload_errors.append(_continue_or_fail(result.error))
+                upload_error = _continue_or_fail(result.error)
+                log_exception(upload_error)
+                upload_errors.append(upload_error)
             else:
                 upload_successes += 1
 
@@ -140,6 +142,22 @@ def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
     ]
 
     uploader.ZipUploader.zip_images(image_metadatas, zip_dir)
+
+
+def log_exception(ex: Exception) -> None:
+    if LOG.getEffectiveLevel() <= logging.DEBUG:
+        exc_info = ex
+    else:
+        exc_info = None
+
+    exc_name = ex.__class__.__name__
+
+    if isinstance(ex, UploadedAlready):
+        LOG.info(f"{exc_name}: {ex}")
+    elif isinstance(ex, requests.HTTPError):
+        LOG.error(f"{exc_name}: {api_v4.readable_http_error(ex)}", exc_info=exc_info)
+    else:
+        LOG.error(f"{exc_name}: {ex}", exc_info=exc_info)
 
 
 def _is_history_disabled(dry_run: bool) -> bool:
@@ -196,14 +214,10 @@ def _setup_history(
                     )
             else:
                 if uploaded_at is not None:
-                    LOG.info(
-                        f"Skipping {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
-                    )
+                    msg = f"Skipping {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                 else:
-                    LOG.info(
-                        f"Skipping {name} (already uploaded, see {history_desc_path})"
-                    )
-                raise UploadedAlreadyError()
+                    msg = f"Skipping {name} (already uploaded, see {history_desc_path})"
+                raise UploadedAlready(msg)
 
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
@@ -441,7 +455,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         errors_by_type.setdefault(error.__class__.__name__, []).append(error)
 
     for error_type, error_list in errors_by_type.items():
-        if error_type == UploadedAlreadyError.__name__:
+        if error_type == UploadedAlready.__name__:
             LOG.info(
                 "Skipped %d already uploaded sequences (use --reupload to force re-upload)",
                 len(error_list),
@@ -480,12 +494,10 @@ def _api_logging_finished(summary: dict, dry_run: bool = False):
         api_v4.log_event(action, summary)
     except requests.HTTPError as exc:
         LOG.warning(
-            "HTTPError from API Logging for action %s: %s",
-            action,
-            api_v4.readable_http_error(exc),
+            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
         )
     except Exception:
-        LOG.warning("Error from API Logging for action %s", action, exc_info=True)
+        LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
@@ -501,12 +513,10 @@ def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
         api_v4.log_event(action, payload_with_reason)
     except requests.HTTPError as exc:
         LOG.warning(
-            "HTTPError from API Logging for action %s: %s",
-            action,
-            api_v4.readable_http_error(exc),
+            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
         )
     except Exception:
-        LOG.warning("Error from API Logging for action %s", action, exc_info=True)
+        LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 _M = T.TypeVar("_M", bound=types.Metadata)
