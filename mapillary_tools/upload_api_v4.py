@@ -22,13 +22,6 @@ from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-# According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
-# (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
-# In my test, however, the connection_timeout rules both connection timeout and read timeout.
-# i.e. if your the server does not respond within this timeout, it will throw:
-# ConnectionError: ('Connection aborted.', timeout('The write operation timed out'))
-# So let us make sure the largest possible chunks can be uploaded before this timeout for now,
-UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
 class UploadService:
@@ -148,8 +141,13 @@ class UploadService:
             "X-Entity-Name": self.session_key,
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+        # TODO: Estimate read timeout based on the data size
+        read_timeout = None
         resp = request_post(
-            url, headers=headers, data=shifted_chunks, timeout=UPLOAD_REQUESTS_TIMEOUT
+            url,
+            headers=headers,
+            data=shifted_chunks,
+            timeout=(REQUESTS_TIMEOUT, read_timeout),
         )
 
         resp.raise_for_status()
