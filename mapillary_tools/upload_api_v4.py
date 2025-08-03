@@ -183,9 +183,9 @@ class FakeUploadService(UploadService):
 
     def __init__(
         self,
+        *args,
         upload_path: Path | None = None,
         transient_error_ratio: float = 0.0,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -195,10 +195,6 @@ class FakeUploadService(UploadService):
             )
         self._upload_path = upload_path
         self._transient_error_ratio = transient_error_ratio
-
-    @property
-    def upload_path(self) -> Path:
-        return self._upload_path
 
     @override
     def upload_shifted_chunks(
@@ -214,15 +210,9 @@ class FakeUploadService(UploadService):
         filename = self._upload_path.joinpath(self.session_key)
         with filename.open("ab") as fp:
             for chunk in shifted_chunks:
-                if random.random() <= self._transient_error_ratio:
-                    raise requests.ConnectionError(
-                        f"TEST ONLY: Failed to upload with error ratio {self._transient_error_ratio}"
-                    )
+                self._randomly_raise_transient_error()
                 fp.write(chunk)
-                if random.random() <= self._transient_error_ratio:
-                    raise requests.ConnectionError(
-                        f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
-                    )
+                self._randomly_raise_transient_error()
 
         file_handle_dir = self._upload_path.joinpath(self.FILE_HANDLE_DIR)
         file_handle_path = file_handle_dir.joinpath(self.session_key)
@@ -235,13 +225,24 @@ class FakeUploadService(UploadService):
 
     @override
     def fetch_offset(self) -> int:
-        if random.random() <= self._transient_error_ratio:
-            raise requests.ConnectionError(
-                f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
-            )
+        self._randomly_raise_transient_error()
         filename = self._upload_path.joinpath(self.session_key)
         if not filename.exists():
             return 0
         with open(filename, "rb") as fp:
             fp.seek(0, io.SEEK_END)
             return fp.tell()
+
+    @property
+    def upload_path(self) -> Path:
+        return self._upload_path
+
+    def _randomly_raise_transient_error(self):
+        """
+        Randomly raise a transient error based on the configured error ratio.
+        This is for testing purposes only.
+        """
+        if random.random() <= self._transient_error_ratio:
+            raise requests.ConnectionError(
+                f"[TEST ONLY]: Transient error with ratio {self._transient_error_ratio}"
+            )
