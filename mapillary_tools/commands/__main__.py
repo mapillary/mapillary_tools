@@ -167,6 +167,10 @@ def main():
         # TODO: standardize exit codes as exceptions.MapillaryUserError
         sys.exit(16)
 
+    except api_v4.HTTPContentError as ex:
+        log_exception(ex)
+        sys.exit(17)
+
     except exceptions.MapillaryUserError as ex:
         log_exception(ex)
         sys.exit(ex.exit_code)

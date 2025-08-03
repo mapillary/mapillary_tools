@@ -17,7 +17,13 @@ import tempfile
 
 import requests
 
-from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
+from .api_v4 import (
+    HTTPContentError,
+    jsonify_response,
+    request_get,
+    request_post,
+    REQUESTS_TIMEOUT,
+)
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
@@ -42,9 +48,15 @@ class UploadService:
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         resp = request_get(url, headers=headers, timeout=REQUESTS_TIMEOUT)
+
         resp.raise_for_status()
-        data = resp.json()
-        return data["offset"]
+
+        data = jsonify_response(resp)
+
+        try:
+            return data["offset"]
+        except KeyError:
+            raise HTTPContentError("Offset not found in the response", resp)
 
     @classmethod
     def chunkize_byte_stream(
@@ -152,13 +164,12 @@ class UploadService:
 
         resp.raise_for_status()
 
-        payload = resp.json()
+        data = jsonify_response(resp)
+
         try:
-            return payload["h"]
+            return data["h"]
         except KeyError:
-            raise RuntimeError(
-                f"Upload server error: File handle not found in the upload response {resp.text}"
-            )
+            raise HTTPContentError("File handle not found in the response", resp)
 
 
 # A mock class for testing only

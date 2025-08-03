@@ -156,6 +156,11 @@ def log_exception(ex: Exception) -> None:
         LOG.info(f"{exc_name}: {ex}")
     elif isinstance(ex, requests.HTTPError):
         LOG.error(f"{exc_name}: {api_v4.readable_http_error(ex)}", exc_info=exc_info)
+    elif isinstance(ex, api_v4.HTTPContentError):
+        LOG.error(
+            f"{exc_name}: {ex}: {api_v4.readable_http_response(ex.response)}",
+            exc_info=exc_info,
+        )
     else:
         LOG.error(f"{exc_name}: {ex}", exc_info=exc_info)
 

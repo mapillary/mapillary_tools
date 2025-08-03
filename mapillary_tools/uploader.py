@@ -699,10 +699,9 @@ class Uploader:
                 organization_id=self.user_items.get("MAPOrganizationKey"),
             )
 
-            data = resp.json()
-            cluster_id = data.get("cluster_id")
-
-            # TODO: validate cluster_id
+            body = api_v4.jsonify_response(resp)
+            # TODO: Validate cluster_id
+            cluster_id = body.get("cluster_id")
 
         progress["cluster_id"] = cluster_id
         self.emitter.emit("upload_finished", progress)

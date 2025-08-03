@@ -21,6 +21,17 @@ REQUESTS_TIMEOUT = 60  # 1 minutes
 USE_SYSTEM_CERTS: bool = False
 
 
+class HTTPContentError(Exception):
+    """
+    Raised when the HTTP response is ok (200) but the content is not as expected
+    e.g. not JSON or not a valid response.
+    """
+
+    def __init__(self, message: str, response: requests.Response):
+        self.response = response
+        super().__init__(message)
+
+
 class ClusterFileType(enum.Enum):
     ZIP = "zip"
     BLACKVUE = "mly_blackvue_video"
@@ -107,7 +118,6 @@ def _log_debug_request(
     json: dict | None = None,
     params: dict | None = None,
     headers: dict | None = None,
-    timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
@@ -127,9 +137,6 @@ def _log_debug_request(
     if headers:
         msg += f" HEADERS={_sanitize(headers)}"
 
-    if timeout is not None:
-        msg += f" TIMEOUT={timeout}"
-
     msg = msg.replace("\n", "\\n")
 
     LOG.debug(msg)
@@ -148,7 +155,7 @@ def _log_debug_response(resp: requests.Response):
         else:
             data = ""
 
-    msg = f"HTTP {resp.status_code} ({resp.reason}): {str(data)}"
+    msg = f"HTTP {resp.status_code} {resp.reason}: {str(data)}"
     msg = msg.replace("\n", "\\n")
 
     LOG.debug(msg)
@@ -166,7 +173,22 @@ def readable_http_error(ex: requests.HTTPError) -> str:
         else:
             data = ""
 
-    msg = f"{ex.request.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
+    msg = f"{ex.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(data)}"
+
+    return msg.replace("\n", "\\n")
+
+
+def readable_http_response(resp: requests.Response) -> str:
+    data: str | bytes
+    try:
+        data = _truncate(dumps(_sanitize(resp.json())))
+    except Exception:
+        if resp.content is not None:
+            data = _truncate(resp.content)
+        else:
+            data = ""
+
+    msg = f"{resp.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(data)}"
 
     return msg.replace("\n", "\\n")
 
@@ -187,7 +209,6 @@ def request_post(
             json=json,
             params=kwargs.get("params"),
             headers=kwargs.get("headers"),
-            timeout=kwargs.get("timeout"),
         )
 
     if USE_SYSTEM_CERTS:
@@ -221,11 +242,7 @@ def request_get(
 
     if not disable_debug:
         _log_debug_request(
-            "GET",
-            url,
-            params=kwargs.get("params"),
-            headers=kwargs.get("headers"),
-            timeout=kwargs.get("timeout"),
+            "GET", url, params=kwargs.get("params"), headers=kwargs.get("headers")
         )
 
     if USE_SYSTEM_CERTS:
@@ -384,3 +401,13 @@ def finish_upload(
     resp.raise_for_status()
 
     return resp
+
+
+def jsonify_response(resp: requests.Response) -> T.Any:
+    """
+    Convert the response to JSON, raising HTTPContentError if the response is not JSON.
+    """
+    try:
+        return resp.json()
+    except requests.JSONDecodeError as ex:
+        raise HTTPContentError("Invalid JSON response", resp) from ex

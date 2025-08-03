@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import getpass
-import json
 import logging
 import re
 import sys
@@ -131,15 +130,18 @@ def fetch_user_items(
     user_items = _verify_user_auth(_validate_profile(user_items))
 
     LOG.info(
-        'Uploading to profile "%s": %s', profile_name, api_v4._sanitize(user_items)
+        f'Uploading to profile "{profile_name}": {user_items.get("MAPSettingsUsername")} (ID: {user_items.get("MAPSettingsUserKey")})'
     )
 
     if organization_key is not None:
         resp = api_v4.fetch_organization(
             user_items["user_upload_token"], organization_key
         )
-        LOG.info("Uploading to Mapillary organization: %s", json.dumps(resp.json()))
-        user_items["MAPOrganizationKey"] = organization_key
+        data = api_v4.jsonify_response(resp)
+        LOG.info(
+            f"Uploading to organization: {data.get('name')} (ID: {data.get('id')})"
+        )
+        user_items["MAPOrganizationKey"] = data.get("id")
 
     return user_items
 
@@ -182,12 +184,12 @@ def _verify_user_auth(user_items: config.UserItem) -> config.UserItem:
         else:
             raise ex
 
-    user_json = resp.json()
+    data = api_v4.jsonify_response(resp)
 
     return {
         **user_items,
-        "MAPSettingsUsername": user_json.get("username"),
-        "MAPSettingsUserKey": user_json.get("id"),
+        "MAPSettingsUsername": data.get("username"),
+        "MAPSettingsUserKey": data.get("id"),
     }
 
 
@@ -285,7 +287,7 @@ def _prompt_login(
 
         raise ex
 
-    data = resp.json()
+    data = api_v4.jsonify_response(resp)
 
     user_items: config.UserItem = {
         "user_upload_token": str(data["access_token"]),
