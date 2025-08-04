@@ -31,6 +31,7 @@ from . import (
     constants,
     exif_write,
     geo,
+    history,
     telemetry,
     types,
     upload_api_v4,
@@ -137,9 +138,10 @@ EventName = T.Literal[
     "upload_start",
     "upload_fetch_offset",
     "upload_progress",
-    "upload_end",
-    "upload_finished",
     "upload_interrupted",
+    "upload_end",
+    "upload_failed",
+    "upload_finished",
 ]
 
 
@@ -172,7 +174,11 @@ class VideoUploader:
     def upload_videos(
         cls, mly_uploader: Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
     ) -> T.Generator[tuple[types.VideoMetadata, UploadResult], None, None]:
-        for idx, video_metadata in enumerate(video_metadatas):
+        # If upload in a random order, then interrupted uploads has a higher chance to expire.
+        # Therefore sort videos to make sure interrupted uploads are resumed as early as possible
+        sorted_video_metadatas = sorted(video_metadatas, key=lambda m: m.filename)
+
+        for idx, video_metadata in enumerate(sorted_video_metadatas):
             try:
                 video_metadata.update_md5sum()
             except Exception as ex:
@@ -182,7 +188,7 @@ class VideoUploader:
             assert isinstance(video_metadata.md5sum, str), "md5sum should be updated"
 
             progress: SequenceProgress = {
-                "total_sequence_count": len(video_metadatas),
+                "total_sequence_count": len(sorted_video_metadatas),
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
                 "import_path": str(video_metadata.filename),
@@ -264,9 +270,13 @@ class ZipUploader:
     def upload_zipfiles(
         cls, mly_uploader: Uploader, zip_paths: T.Sequence[Path]
     ) -> T.Generator[tuple[Path, UploadResult], None, None]:
-        for idx, zip_path in enumerate(zip_paths):
+        # If upload in a random order, then interrupted uploads has a higher chance to expire.
+        # Therefore sort zipfiles to make sure interrupted uploads are resumed as early as possible
+        sorted_zip_paths = sorted(zip_paths)
+
+        for idx, zip_path in enumerate(sorted_zip_paths):
             progress: SequenceProgress = {
-                "total_sequence_count": len(zip_paths),
+                "total_sequence_count": len(sorted_zip_paths),
                 "sequence_idx": idx,
                 "import_path": str(zip_path),
                 "file_type": types.FileType.ZIP.value,
@@ -409,7 +419,7 @@ class ZipUploader:
                 # Arcname should be unique, the name does not matter
                 arcname = f"{idx}.jpg"
                 zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-                zipf.writestr(zipinfo, ImageUploader.dump_image_bytes(metadata))
+                zipf.writestr(zipinfo, SingleImageUploader.dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps(
                 {"sequence_md5sum": sequence_md5sum},
@@ -471,7 +481,7 @@ class ZipUploader:
                 pass
 
 
-class ImageUploader:
+class ImageSequenceUploader:
     @classmethod
     def upload_images(
         cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
@@ -502,6 +512,117 @@ class ImageUploader:
                 yield sequence_uuid, UploadResult(result=cluster_id)
 
     @classmethod
+    def _upload_sequence(
+        cls,
+        uploader: Uploader,
+        sequence: T.Sequence[types.ImageMetadata],
+        progress: dict[str, T.Any] | None = None,
+    ) -> str:
+        if progress is None:
+            progress = {}
+
+        # FIXME: This is a hack to disable the event emitter inside the uploader
+        uploader_without_emitter = uploader.copy_uploader_without_emitter()
+
+        _validate_metadatas(sequence)
+
+        progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
+
+        # TODO: assert sequence is sorted
+
+        single_image_uploader = SingleImageUploader(
+            uploader, uploader_without_emitter, progress=progress
+        )
+
+        uploader.emitter.emit("upload_start", progress)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
+        ) as executor:
+            image_file_handles = list(
+                executor.map(single_image_uploader.upload, sequence)
+            )
+
+        manifest_file_handle = cls._upload_manifest(
+            uploader_without_emitter, image_file_handles
+        )
+
+        uploader.emitter.emit("upload_end", progress)
+
+        cluster_id = uploader.finish_upload(
+            manifest_file_handle,
+            api_v4.ClusterFileType.MLY_BUNDLE_MANIFEST,
+            progress=progress,
+        )
+
+        return cluster_id
+
+    @classmethod
+    def _upload_manifest(
+        cls, uploader_without_emitter: Uploader, image_file_handles: T.Sequence[str]
+    ) -> str:
+        manifest = {
+            "version": "1",
+            "upload_type": "images",
+            "image_handles": image_file_handles,
+        }
+
+        with io.BytesIO() as manifest_fp:
+            manifest_fp.write(
+                json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
+                    "utf-8"
+                )
+            )
+            manifest_fp.seek(0, io.SEEK_SET)
+            return uploader_without_emitter.upload_stream(
+                manifest_fp, session_key=f"{_prefixed_uuid4()}.json"
+            )
+
+
+class SingleImageUploader:
+    def __init__(
+        self,
+        uploader: Uploader,
+        uploader_without_emitter: Uploader,
+        progress: dict[str, T.Any] | None = None,
+    ):
+        self.uploader = uploader
+        self.uploader_without_emitter = uploader_without_emitter
+        self.progress = progress or {}
+        self.lock = threading.Lock()
+        self.cache = self._maybe_create_persistent_cache_instance(uploader.user_items)
+
+    def upload(self, image_metadata: types.ImageMetadata) -> str:
+        mutable_progress = {
+            **(self.progress or {}),
+            "filename": str(image_metadata.filename),
+        }
+
+        image_bytes = self.dump_image_bytes(image_metadata)
+
+        session_key = self.uploader_without_emitter._gen_session_key(
+            io.BytesIO(image_bytes), mutable_progress
+        )
+
+        file_handle = self._file_handle_cache_get(session_key)
+
+        if file_handle is None:
+            file_handle = self.uploader_without_emitter.upload_stream(
+                io.BytesIO(image_bytes),
+                session_key=session_key,
+                progress=mutable_progress,
+            )
+            self._file_handle_cache_set(session_key, file_handle)
+
+        # Override chunk_size with the actual filesize
+        mutable_progress["chunk_size"] = image_metadata.filesize
+
+        with self.lock:
+            self.uploader.emitter.emit("upload_progress", mutable_progress)
+
+        return file_handle
+
+    @classmethod
     def dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
         try:
             edit = exif_write.ExifEdit(metadata.filename)
@@ -523,77 +644,48 @@ class ImageUploader:
             ) from ex
 
     @classmethod
-    def _upload_sequence(
-        cls,
-        uploader: Uploader,
-        sequence: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
-    ) -> str:
-        if progress is None:
-            progress = {}
-
-        # FIXME: This is a hack to disable the event emitter inside the uploader
-        uploader_without_emitter = uploader.copy_uploader_without_emitter()
-
-        lock = threading.Lock()
-
-        def _upload_image(image_metadata: types.ImageMetadata) -> str:
-            mutable_progress = {
-                **(progress or {}),
-                "filename": str(image_metadata.filename),
-            }
-
-            bytes = cls.dump_image_bytes(image_metadata)
-            file_handle = uploader_without_emitter.upload_stream(
-                io.BytesIO(bytes), progress=mutable_progress
+    def _maybe_create_persistent_cache_instance(
+        cls, user_items: config.UserItem
+    ) -> history.PersistentCache | None:
+        if not constants.UPLOAD_CACHE_DIR:
+            LOG.debug(
+                "Upload cache directory is set empty, skipping caching upload file handles"
             )
+            return None
 
-            mutable_progress["chunk_size"] = image_metadata.filesize
-
-            with lock:
-                uploader.emitter.emit("upload_progress", mutable_progress)
-
-            return file_handle
-
-        _validate_metadatas(sequence)
-
-        progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
-
-        # TODO: assert sequence is sorted
-
-        uploader.emitter.emit("upload_start", progress)
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
-        ) as executor:
-            image_file_handles = list(executor.map(_upload_image, sequence))
-
-        manifest = {
-            "version": "1",
-            "upload_type": "images",
-            "image_handles": image_file_handles,
-        }
-
-        with io.BytesIO() as manifest_fp:
-            manifest_fp.write(
-                json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode(
-                    "utf-8"
-                )
+        cache_path_dir = (
+            Path(constants.UPLOAD_CACHE_DIR)
+            .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
+            .joinpath(
+                user_items.get("MAPSettingsUserKey", user_items["user_upload_token"])
             )
-            manifest_fp.seek(0, io.SEEK_SET)
-            manifest_file_handle = uploader_without_emitter.upload_stream(
-                manifest_fp, session_key=f"uuid_{uuid.uuid4().hex}.json"
-            )
-
-        uploader.emitter.emit("upload_end", progress)
-
-        cluster_id = uploader.finish_upload(
-            manifest_file_handle,
-            api_v4.ClusterFileType.MLY_BUNDLE_MANIFEST,
-            progress=progress,
         )
+        cache_path_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = cache_path_dir.joinpath("cached_file_handles")
+        LOG.debug(f"File handle cache path: {cache_path}")
 
-        return cluster_id
+        cache = history.PersistentCache(str(cache_path.resolve()))
+        cache.clear_expired()
+
+        return cache
+
+    def _file_handle_cache_get(self, key: str) -> str | None:
+        if self.cache is None:
+            return None
+
+        if _is_uuid(key):
+            return None
+
+        return self.cache.get(key)
+
+    def _file_handle_cache_set(self, key: str, value: str) -> None:
+        if self.cache is None:
+            return
+
+        if _is_uuid(key):
+            return
+
+        self.cache.set(key, value)
 
 
 class Uploader:
@@ -627,22 +719,10 @@ class Uploader:
             progress = {}
 
         if session_key is None:
-            if self.noresume:
-                # Generate a unique UUID for session_key when noresume is True
-                # to prevent resuming from previous uploads
-                session_key = f"uuid_{uuid.uuid4().hex}"
-            else:
-                fp.seek(0, io.SEEK_SET)
-                session_key = utils.md5sum_fp(fp).hexdigest()
-
-            filetype = progress.get("file_type")
-            if filetype is not None:
-                session_key = _session_key(session_key, types.FileType(filetype))
+            session_key = self._gen_session_key(fp, progress)
 
         fp.seek(0, io.SEEK_END)
         entity_size = fp.tell()
-
-        upload_service = self._create_upload_service(session_key)
 
         progress["entity_size"] = entity_size
         progress["chunk_size"] = self.chunk_size
@@ -651,6 +731,8 @@ class Uploader:
 
         self.emitter.emit("upload_start", progress)
 
+        upload_service = self._create_upload_service(session_key)
+
         while True:
             try:
                 file_handle = self._upload_stream_retryable(
@@ -658,6 +740,9 @@ class Uploader:
                 )
             except Exception as ex:
                 self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
+            except BaseException as ex:
+                self.emitter.emit("upload_failed", progress)
+                raise ex
             else:
                 break
 
@@ -687,10 +772,9 @@ class Uploader:
                 organization_id=self.user_items.get("MAPOrganizationKey"),
             )
 
-            data = resp.json()
-            cluster_id = data.get("cluster_id")
-
-            # TODO: validate cluster_id
+            body = api_v4.jsonify_response(resp)
+            # TODO: Validate cluster_id
+            cluster_id = body.get("cluster_id")
 
         progress["cluster_id"] = cluster_id
         self.emitter.emit("upload_finished", progress)
@@ -732,35 +816,28 @@ class Uploader:
     def _handle_upload_exception(
         self, ex: Exception, progress: UploaderProgress
     ) -> None:
-        retries = progress["retries"]
+        retries = progress.get("retries", 0)
         begin_offset = progress.get("begin_offset")
-        chunk_size = progress["chunk_size"]
+        offset = progress.get("offset")
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
             self.emitter.emit("upload_interrupted", progress)
             LOG.warning(
-                # use %s instead of %d because offset could be None
-                "Error uploading chunk_size %d at begin_offset %s: %s: %s",
-                chunk_size,
-                begin_offset,
-                ex.__class__.__name__,
-                str(ex),
+                f"Error uploading at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
             )
             # Keep things immutable here. Will increment retries in the caller
             retries += 1
-            if _is_immediate_retry(ex):
+            if _is_immediate_retriable_exception(ex):
                 sleep_for = 0
             else:
                 sleep_for = min(2**retries, 16)
             LOG.info(
-                "Retrying in %d seconds (%d/%d)",
-                sleep_for,
-                retries,
-                constants.MAX_UPLOAD_RETRIES,
+                f"Retrying in {sleep_for} seconds ({retries}/{constants.MAX_UPLOAD_RETRIES})"
             )
             if sleep_for:
                 time.sleep(sleep_for)
         else:
+            self.emitter.emit("upload_failed", progress)
             raise ex
 
     def _chunk_with_progress_emitted(
@@ -801,6 +878,21 @@ class Uploader:
 
         return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
 
+    def _gen_session_key(self, fp: T.IO[bytes], progress: dict[str, T.Any]) -> str:
+        if self.noresume:
+            # Generate a unique UUID for session_key when noresume is True
+            # to prevent resuming from previous uploads
+            session_key = f"{_prefixed_uuid4()}"
+        else:
+            fp.seek(0, io.SEEK_SET)
+            session_key = utils.md5sum_fp(fp).hexdigest()
+
+        filetype = progress.get("file_type")
+        if filetype is not None:
+            session_key = _session_key(session_key, types.FileType(filetype))
+
+        return session_key
+
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
     for metadata in metadatas:
@@ -809,7 +901,7 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
             raise FileNotFoundError(f"No such file {metadata.filename}")
 
 
-def _is_immediate_retry(ex: Exception):
+def _is_immediate_retriable_exception(ex: Exception) -> bool:
     if (
         isinstance(ex, requests.HTTPError)
         and isinstance(ex.response, requests.Response)
@@ -822,8 +914,10 @@ def _is_immediate_retry(ex: Exception):
         # resp: {"debug_info":{"retriable":true,"type":"OffsetInvalidError","message":"Request starting offset is invalid"}}
         return resp.get("debug_info", {}).get("retriable", False)
 
+    return False
 
-def _is_retriable_exception(ex: Exception):
+
+def _is_retriable_exception(ex: Exception) -> bool:
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 
@@ -858,3 +952,13 @@ def _session_key(
     }
 
     return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[filetype]}"
+
+
+def _prefixed_uuid4():
+    prefixed = f"uuid_{uuid.uuid4().hex}"
+    assert _is_uuid(prefixed)
+    return prefixed
+
+
+def _is_uuid(session_key: str) -> bool:
+    return session_key.startswith("uuid_")

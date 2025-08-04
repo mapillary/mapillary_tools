@@ -17,18 +17,17 @@ import tempfile
 
 import requests
 
-from .api_v4 import request_get, request_post, REQUESTS_TIMEOUT
+from .api_v4 import (
+    HTTPContentError,
+    jsonify_response,
+    request_get,
+    request_post,
+    REQUESTS_TIMEOUT,
+)
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
 )
-# According to the docs, UPLOAD_REQUESTS_TIMEOUT can be a tuple of
-# (connection_timeout, read_timeout): https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
-# In my test, however, the connection_timeout rules both connection timeout and read timeout.
-# i.e. if your the server does not respond within this timeout, it will throw:
-# ConnectionError: ('Connection aborted.', timeout('The write operation timed out'))
-# So let us make sure the largest possible chunks can be uploaded before this timeout for now,
-UPLOAD_REQUESTS_TIMEOUT = (30 * 60, 30 * 60)  # 30 minutes
 
 
 class UploadService:
@@ -49,9 +48,15 @@ class UploadService:
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         resp = request_get(url, headers=headers, timeout=REQUESTS_TIMEOUT)
+
         resp.raise_for_status()
-        data = resp.json()
-        return data["offset"]
+
+        data = jsonify_response(resp)
+
+        try:
+            return data["offset"]
+        except KeyError:
+            raise HTTPContentError("Offset not found in the response", resp)
 
     @classmethod
     def chunkize_byte_stream(
@@ -148,19 +153,23 @@ class UploadService:
             "X-Entity-Name": self.session_key,
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
+        # TODO: Estimate read timeout based on the data size
+        read_timeout = None
         resp = request_post(
-            url, headers=headers, data=shifted_chunks, timeout=UPLOAD_REQUESTS_TIMEOUT
+            url,
+            headers=headers,
+            data=shifted_chunks,
+            timeout=(REQUESTS_TIMEOUT, read_timeout),
         )
 
         resp.raise_for_status()
 
-        payload = resp.json()
+        data = jsonify_response(resp)
+
         try:
-            return payload["h"]
+            return data["h"]
         except KeyError:
-            raise RuntimeError(
-                f"Upload server error: File handle not found in the upload response {resp.text}"
-            )
+            raise HTTPContentError("File handle not found in the response", resp)
 
 
 # A mock class for testing only
@@ -174,9 +183,9 @@ class FakeUploadService(UploadService):
 
     def __init__(
         self,
+        *args,
         upload_path: Path | None = None,
         transient_error_ratio: float = 0.0,
-        *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -186,10 +195,6 @@ class FakeUploadService(UploadService):
             )
         self._upload_path = upload_path
         self._transient_error_ratio = transient_error_ratio
-
-    @property
-    def upload_path(self) -> Path:
-        return self._upload_path
 
     @override
     def upload_shifted_chunks(
@@ -205,15 +210,9 @@ class FakeUploadService(UploadService):
         filename = self._upload_path.joinpath(self.session_key)
         with filename.open("ab") as fp:
             for chunk in shifted_chunks:
-                if random.random() <= self._transient_error_ratio:
-                    raise requests.ConnectionError(
-                        f"TEST ONLY: Failed to upload with error ratio {self._transient_error_ratio}"
-                    )
+                self._randomly_raise_transient_error()
                 fp.write(chunk)
-                if random.random() <= self._transient_error_ratio:
-                    raise requests.ConnectionError(
-                        f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
-                    )
+                self._randomly_raise_transient_error()
 
         file_handle_dir = self._upload_path.joinpath(self.FILE_HANDLE_DIR)
         file_handle_path = file_handle_dir.joinpath(self.session_key)
@@ -226,13 +225,24 @@ class FakeUploadService(UploadService):
 
     @override
     def fetch_offset(self) -> int:
-        if random.random() <= self._transient_error_ratio:
-            raise requests.ConnectionError(
-                f"TEST ONLY: Partially uploaded with error ratio {self._transient_error_ratio}"
-            )
+        self._randomly_raise_transient_error()
         filename = self._upload_path.joinpath(self.session_key)
         if not filename.exists():
             return 0
         with open(filename, "rb") as fp:
             fp.seek(0, io.SEEK_END)
             return fp.tell()
+
+    @property
+    def upload_path(self) -> Path:
+        return self._upload_path
+
+    def _randomly_raise_transient_error(self):
+        """
+        Randomly raise a transient error based on the configured error ratio.
+        This is for testing purposes only.
+        """
+        if random.random() <= self._transient_error_ratio:
+            raise requests.ConnectionError(
+                f"[TEST ONLY]: Transient error with ratio {self._transient_error_ratio}"
+            )

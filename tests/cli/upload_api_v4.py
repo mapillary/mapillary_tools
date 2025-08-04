@@ -65,7 +65,7 @@ def main():
     user_access_token = user_items.get("user_upload_token", "")
 
     if parsed.dry_run:
-        service = FakeUploadService(user_access_token, session_key)
+        service = FakeUploadService(user_access_token="", session_key=session_key)
     else:
         service = UploadService(user_access_token, session_key)
 
@@ -78,6 +78,9 @@ def main():
     LOG.info("Initial offset: %s", initial_offset)
     LOG.info("Entity size: %d", entity_size)
     LOG.info("Chunk size: %s MB", chunk_size / (1024 * 1024))
+
+    if isinstance(service, FakeUploadService):
+        LOG.info(f"Uploading to {service.upload_path}")
 
     def _update_pbar(chunks, pbar):
         for chunk in chunks:

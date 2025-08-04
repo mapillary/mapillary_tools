@@ -33,7 +33,7 @@ JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 LOG = logging.getLogger(__name__)
 
 
-class UploadedAlreadyError(uploader.SequenceError):
+class UploadedAlready(uploader.SequenceError):
     pass
 
 
@@ -96,23 +96,26 @@ def upload(
     upload_successes = 0
     upload_errors: list[Exception] = []
 
-    # The real upload happens sequentially here
+    # The real uploading happens sequentially here
     try:
         for _, result in results:
             if result.error is not None:
-                upload_errors.append(_continue_or_fail(result.error))
+                upload_error = _continue_or_fail(result.error)
+                log_exception(upload_error)
+                upload_errors.append(upload_error)
             else:
                 upload_successes += 1
 
     except Exception as ex:
         # Fatal error: log and raise
-        if not dry_run:
-            _api_logging_failed(_summarize(stats), ex)
+        _api_logging_failed(_summarize(stats), ex, dry_run=dry_run)
         raise ex
 
+    except KeyboardInterrupt:
+        LOG.info("Upload interrupted by user...")
+
     else:
-        if not dry_run:
-            _api_logging_finished(_summarize(stats))
+        _api_logging_finished(_summarize(stats), dry_run=dry_run)
 
     finally:
         # We collected stats after every upload is finished
@@ -139,6 +142,27 @@ def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
     ]
 
     uploader.ZipUploader.zip_images(image_metadatas, zip_dir)
+
+
+def log_exception(ex: Exception) -> None:
+    if LOG.getEffectiveLevel() <= logging.DEBUG:
+        exc_info = ex
+    else:
+        exc_info = None
+
+    exc_name = ex.__class__.__name__
+
+    if isinstance(ex, UploadedAlready):
+        LOG.info(f"{exc_name}: {ex}")
+    elif isinstance(ex, requests.HTTPError):
+        LOG.error(f"{exc_name}: {api_v4.readable_http_error(ex)}", exc_info=exc_info)
+    elif isinstance(ex, api_v4.HTTPContentError):
+        LOG.error(
+            f"{exc_name}: {ex}: {api_v4.readable_http_response(ex.response)}",
+            exc_info=exc_info,
+        )
+    else:
+        LOG.error(f"{exc_name}: {ex}", exc_info=exc_info)
 
 
 def _is_history_disabled(dry_run: bool) -> bool:
@@ -195,14 +219,10 @@ def _setup_history(
                     )
             else:
                 if uploaded_at is not None:
-                    LOG.info(
-                        f"Skipping {name} (already uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
-                    )
+                    msg = f"Skipping {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                 else:
-                    LOG.info(
-                        f"Skipping {name} (already uploaded, see {history_desc_path})"
-                    )
-                raise UploadedAlreadyError()
+                    msg = f"Skipping {name} (already uploaded, see {history_desc_path})"
+                raise UploadedAlready(msg)
 
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
@@ -267,10 +287,20 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         assert upload_pbar is not None, (
             "progress_bar must be initialized in upload_start"
         )
-        offset = payload.get("offset", 0)
-        if offset > 0:
+        begin_offset = payload.get("begin_offset", 0)
+        if begin_offset is not None and begin_offset > 0:
+            if upload_pbar.total is not None:
+                progress_percent = (begin_offset / upload_pbar.total) * 100
+                upload_pbar.write(
+                    f"Resuming upload at {begin_offset=} ({progress_percent:3.0f}%)",
+                    file=sys.stderr,
+                )
+            else:
+                upload_pbar.write(
+                    f"Resuming upload at {begin_offset=}", file=sys.stderr
+                )
             upload_pbar.reset()
-            upload_pbar.update(offset)
+            upload_pbar.update(begin_offset)
             upload_pbar.refresh()
 
     @emitter.on("upload_progress")
@@ -282,6 +312,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
         upload_pbar.refresh()
 
     @emitter.on("upload_end")
+    @emitter.on("upload_failed")
     def upload_end(_: uploader.Progress) -> None:
         nonlocal upload_pbar
         if upload_pbar:
@@ -429,7 +460,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         errors_by_type.setdefault(error.__class__.__name__, []).append(error)
 
     for error_type, error_list in errors_by_type.items():
-        if error_type == UploadedAlreadyError.__name__:
+        if error_type == UploadedAlready.__name__:
             LOG.info(
                 "Skipped %d already uploaded sequences (use --reupload to force re-upload)",
                 len(error_list),
@@ -456,7 +487,10 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info("Nothing uploaded. Bye.")
 
 
-def _api_logging_finished(summary: dict):
+def _api_logging_finished(summary: dict, dry_run: bool = False):
+    if dry_run:
+        return
+
     if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -465,15 +499,16 @@ def _api_logging_finished(summary: dict):
         api_v4.log_event(action, summary)
     except requests.HTTPError as exc:
         LOG.warning(
-            "HTTPError from API Logging for action %s: %s",
-            action,
-            api_v4.readable_http_error(exc),
+            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
         )
     except Exception:
-        LOG.warning("Error from API Logging for action %s", action, exc_info=True)
+        LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
-def _api_logging_failed(payload: dict, exc: Exception):
+def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
+    if dry_run:
+        return
+
     if constants.MAPILLARY_DISABLE_API_LOGGING:
         return
 
@@ -483,12 +518,10 @@ def _api_logging_failed(payload: dict, exc: Exception):
         api_v4.log_event(action, payload_with_reason)
     except requests.HTTPError as exc:
         LOG.warning(
-            "HTTPError from API Logging for action %s: %s",
-            action,
-            api_v4.readable_http_error(exc),
+            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
         )
     except Exception:
-        LOG.warning("Error from API Logging for action %s", action, exc_info=True)
+        LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 _M = T.TypeVar("_M", bound=types.Metadata)
@@ -512,7 +545,9 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from uploader.ImageUploader.upload_images(mly_uploader, image_metadatas)
+    yield from uploader.ImageSequenceUploader.upload_images(
+        mly_uploader, image_metadatas
+    )
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(
@@ -556,7 +591,7 @@ def _continue_or_fail(ex: Exception) -> Exception:
         return ex
 
     # Certain files not found or no permission
-    if isinstance(ex, OSError):
+    if isinstance(ex, (FileNotFoundError, PermissionError)):
         return ex
 
     # Certain metadatas are not valid

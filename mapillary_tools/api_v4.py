@@ -21,6 +21,17 @@ REQUESTS_TIMEOUT = 60  # 1 minutes
 USE_SYSTEM_CERTS: bool = False
 
 
+class HTTPContentError(Exception):
+    """
+    Raised when the HTTP response is ok (200) but the content is not as expected
+    e.g. not JSON or not a valid response.
+    """
+
+    def __init__(self, message: str, response: requests.Response):
+        self.response = response
+        super().__init__(message)
+
+
 class ClusterFileType(enum.Enum):
     ZIP = "zip"
     BLACKVUE = "mly_blackvue_video"
@@ -58,24 +69,25 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
 
 
 @T.overload
-def _truncate(s: bytes, limit: int = 512) -> bytes: ...
+def _truncate(s: bytes, limit: int = 256) -> bytes | str: ...
 
 
 @T.overload
-def _truncate(s: str, limit: int = 512) -> str: ...
+def _truncate(s: str, limit: int = 256) -> str: ...
 
 
-def _truncate(s, limit=512):
+def _truncate(s, limit=256):
     if limit < len(s):
+        if isinstance(s, bytes):
+            try:
+                s = s.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
         remaining = len(s) - limit
         if isinstance(s, bytes):
-            return (
-                s[:limit]
-                + b"..."
-                + f"({remaining} more bytes truncated)".encode("utf-8")
-            )
+            return s[:limit] + f"...({remaining} bytes truncated)".encode("utf-8")
         else:
-            return str(s[:limit]) + f"...({remaining} more chars truncated)"
+            return str(s[:limit]) + f"...({remaining} chars truncated)"
     else:
         return s
 
@@ -95,7 +107,10 @@ def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
         ]:
             new_headers[k] = "[REDACTED]"
         else:
-            new_headers[k] = _truncate(v)
+            if isinstance(v, (str, bytes)):
+                new_headers[k] = T.cast(T.Any, _truncate(v))
+            else:
+                new_headers[k] = v
 
     return new_headers
 
@@ -106,7 +121,6 @@ def _log_debug_request(
     json: dict | None = None,
     params: dict | None = None,
     headers: dict | None = None,
-    timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
@@ -126,8 +140,7 @@ def _log_debug_request(
     if headers:
         msg += f" HEADERS={_sanitize(headers)}"
 
-    if timeout is not None:
-        msg += f" TIMEOUT={timeout}"
+    msg = msg.replace("\n", "\\n")
 
     LOG.debug(msg)
 
@@ -136,26 +149,41 @@ def _log_debug_response(resp: requests.Response):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
 
-    data: str | bytes
-    try:
-        data = _truncate(dumps(_sanitize(resp.json())))
-    except Exception:
-        data = _truncate(resp.content)
+    elapsed = resp.elapsed.total_seconds() * 1000  # Convert to milliseconds
+    msg = f"HTTP {resp.status_code} {resp.reason} ({elapsed:.0f} ms): {str(_truncate_response_content(resp))}"
 
-    LOG.debug(f"HTTP {resp.status_code} ({resp.reason}): %s", data)
+    LOG.debug(msg)
+
+
+def _truncate_response_content(resp: requests.Response) -> str | bytes:
+    try:
+        json_data = resp.json()
+    except requests.JSONDecodeError:
+        if resp.content is not None:
+            data = _truncate(resp.content)
+        else:
+            data = ""
+    else:
+        if isinstance(json_data, dict):
+            data = _truncate(dumps(_sanitize(json_data)))
+        else:
+            data = _truncate(str(json_data))
+
+    if isinstance(data, bytes):
+        return data.replace(b"\n", b"\\n")
+
+    elif isinstance(data, str):
+        return data.replace("\n", "\\n")
+
+    return data
 
 
 def readable_http_error(ex: requests.HTTPError) -> str:
-    req = ex.request
-    resp = ex.response
+    return readable_http_response(ex.response)
 
-    data: str | bytes
-    try:
-        data = _truncate(dumps(_sanitize(resp.json())))
-    except Exception:
-        data = _truncate(resp.content)
 
-    return f"{req.method} {resp.url} => {resp.status_code} ({resp.reason}): {str(data)}"
+def readable_http_response(resp: requests.Response) -> str:
+    return f"{resp.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(_truncate_response_content(resp))}"
 
 
 def request_post(
@@ -174,7 +202,6 @@ def request_post(
             json=json,
             params=kwargs.get("params"),
             headers=kwargs.get("headers"),
-            timeout=kwargs.get("timeout"),
         )
 
     if USE_SYSTEM_CERTS:
@@ -208,11 +235,7 @@ def request_get(
 
     if not disable_debug:
         _log_debug_request(
-            "GET",
-            url,
-            params=kwargs.get("params"),
-            headers=kwargs.get("headers"),
-            timeout=kwargs.get("timeout"),
+            "GET", url, params=kwargs.get("params"), headers=kwargs.get("headers")
         )
 
     if USE_SYSTEM_CERTS:
@@ -335,10 +358,7 @@ ActionType = T.Literal[
 def log_event(action_type: ActionType, properties: dict) -> requests.Response:
     resp = request_post(
         f"{MAPILLARY_GRAPH_API_ENDPOINT}/logging",
-        json={
-            "action_type": action_type,
-            "properties": properties,
-        },
+        json={"action_type": action_type, "properties": properties},
         headers={
             "Authorization": f"OAuth {MAPILLARY_CLIENT_TOKEN}",
         },
@@ -374,3 +394,13 @@ def finish_upload(
     resp.raise_for_status()
 
     return resp
+
+
+def jsonify_response(resp: requests.Response) -> T.Any:
+    """
+    Convert the response to JSON, raising HTTPContentError if the response is not JSON.
+    """
+    try:
+        return resp.json()
+    except requests.JSONDecodeError as ex:
+        raise HTTPContentError("Invalid JSON response", resp) from ex

@@ -66,6 +66,7 @@ def setup_upload(tmpdir: py.path.local):
     os.environ["MAPILLARY_TOOLS__AUTH_VERIFICATION_DISABLED"] = "YES"
     os.environ["MAPILLARY_TOOLS_PROMPT_DISABLED"] = "YES"
     os.environ["MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN"] = "YES"
+    os.environ["MAPILLARY_TOOLS_UPLOAD_CACHE_DIR"] = str(tmpdir.mkdir("upload_cache"))
     history_path = tmpdir.join("history")
     os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"] = str(history_path)
     yield upload_dir
@@ -386,7 +387,9 @@ def assert_descs_exact_equal(left: list[dict], right: list[dict]):
 
 
 def run_command(params: list[str], command: str, **kwargs):
-    subprocess.run([*shlex.split(EXECUTABLE), command, *params], check=True, **kwargs)
+    subprocess.run(
+        [*shlex.split(EXECUTABLE), "--verbose", command, *params], check=True, **kwargs
+    )
 
 
 def run_process_for_descs(params: list[str], command: str = "process", **kwargs):
