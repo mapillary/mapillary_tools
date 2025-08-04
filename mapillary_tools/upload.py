@@ -82,11 +82,13 @@ def upload(
     _setup_ipc(emitter)
 
     mly_uploader = uploader.Uploader(
-        user_items,
+        uploader.UploadOptions(
+            user_items,
+            dry_run=dry_run,
+            nofinish=nofinish,
+            noresume=noresume,
+        ),
         emitter=emitter,
-        dry_run=dry_run,
-        nofinish=nofinish,
-        noresume=noresume,
     )
 
     results = _gen_upload_everything(
