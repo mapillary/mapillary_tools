@@ -136,7 +136,12 @@ class PersistentCache:
 
         with self._lock:
             with dbm.open(self._file, flag="c") as db:
-                for key, value in db.items():
+                if hasattr(db, "items"):
+                    items: T.Iterable[tuple[str | bytes, bytes]] = db.items()
+                else:
+                    items = ((key, db[key]) for key in db.keys())
+
+                for key, value in items:
                     payload = self._decode(value)
                     if self._is_expired(payload):
                         del db[key]
