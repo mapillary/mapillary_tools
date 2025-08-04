@@ -326,13 +326,13 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_start")
     def upload_start(payload: uploader.Progress):
         type: uploader.EventName = "upload_start"
-        LOG.debug("IPC %s: %s", type.upper(), payload)
+        LOG.debug(f"{type.upper()}: {json.dumps(payload)}")
         ipc.send(type, payload)
 
     @emitter.on("upload_fetch_offset")
     def upload_fetch_offset(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_fetch_offset"
-        LOG.debug("IPC %s: %s", type.upper(), payload)
+        LOG.debug(f"{type.upper()}: {json.dumps(payload)}")
         ipc.send(type, payload)
 
     @emitter.on("upload_progress")
@@ -351,7 +351,7 @@ def _setup_ipc(emitter: uploader.EventEmitter):
                 last_upload_progress_debug_at is None
                 or last_upload_progress_debug_at + INTERVAL_SECONDS < now
             ):
-                LOG.debug("IPC %s: %s", type.upper(), payload)
+                LOG.debug(f"{type.upper()}: {json.dumps(payload)}")
                 T.cast(T.Dict, payload)["_last_upload_progress_debug_at"] = now
 
         ipc.send(type, payload)
@@ -359,7 +359,13 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     @emitter.on("upload_end")
     def upload_end(payload: uploader.Progress) -> None:
         type: uploader.EventName = "upload_end"
-        LOG.debug("IPC %s: %s", type.upper(), payload)
+        LOG.debug(f"{type.upper()}: {json.dumps(payload)}")
+        ipc.send(type, payload)
+
+    @emitter.on("upload_failed")
+    def upload_failed(payload: uploader.Progress) -> None:
+        type: uploader.EventName = "upload_failed"
+        LOG.debug(f"{type.upper()}: {json.dumps(payload)}")
         ipc.send(type, payload)
 
 
