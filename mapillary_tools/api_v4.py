@@ -121,6 +121,7 @@ def _log_debug_request(
     json: dict | None = None,
     params: dict | None = None,
     headers: dict | None = None,
+    timeout: T.Any = None,
 ):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
@@ -139,6 +140,9 @@ def _log_debug_request(
 
     if headers:
         msg += f" HEADERS={_sanitize(headers)}"
+
+    if timeout is not None:
+        msg += f" TIMEOUT={timeout}"
 
     msg = msg.replace("\n", "\\n")
 
@@ -202,6 +206,7 @@ def request_post(
             json=json,
             params=kwargs.get("params"),
             headers=kwargs.get("headers"),
+            timeout=kwargs.get("timeout"),
         )
 
     if USE_SYSTEM_CERTS:
@@ -235,7 +240,12 @@ def request_get(
 
     if not disable_debug:
         _log_debug_request(
-            "GET", url, params=kwargs.get("params"), headers=kwargs.get("headers")
+            "GET",
+            url,
+            params=kwargs.get("params"),
+            headers=kwargs.get("headers"),
+            # Do not log timeout here as it's always set to REQUESTS_TIMEOUT
+            timeout=None,
         )
 
     if USE_SYSTEM_CERTS:

@@ -26,7 +26,9 @@ def setup_unittest_data(tmpdir: py.path.local):
 
 def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
-        {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
+        uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
+        )
     )
     test_exif = setup_unittest_data.join("test_exif.jpg")
     descs: T.List[description.DescriptionOrError] = [
@@ -98,12 +100,14 @@ def test_upload_images_multiple_sequences(
         },
     ]
     mly_uploader = uploader.Uploader(
-        {
-            "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
-            # will call the API for real
-            # "MAPOrganizationKey": "3011753992432185",
-        },
-        dry_run=True,
+        uploader.UploadOptions(
+            {
+                "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
+                # will call the API for real
+                # "MAPOrganizationKey": "3011753992432185",
+            },
+            dry_run=True,
+        ),
     )
     results = list(
         uploader.ZipUploader.zip_images_and_upload(
@@ -167,12 +171,14 @@ def test_upload_zip(
     assert len(zip_dir.listdir()) == 2, list(zip_dir.listdir())
 
     mly_uploader = uploader.Uploader(
-        {
-            "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
-            # will call the API for real
-            # "MAPOrganizationKey": 3011753992432185,
-        },
-        dry_run=True,
+        uploader.UploadOptions(
+            {
+                "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
+                # will call the API for real
+                # "MAPOrganizationKey": 3011753992432185,
+            },
+            dry_run=True,
+        ),
         emitter=emitter,
     )
     for zip_path in zip_dir.listdir():
@@ -184,12 +190,14 @@ def test_upload_zip(
 
 def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
-        {
-            "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
-            # will call the API for real
-            # "MAPOrganizationKey": "3011753992432185",
-        },
-        dry_run=True,
+        uploader.UploadOptions(
+            {
+                "user_upload_token": "YOUR_USER_ACCESS_TOKEN",
+                # will call the API for real
+                # "MAPOrganizationKey": "3011753992432185",
+            },
+            dry_run=True,
+        )
     )
     blackvue_path = tmpdir.join("blackvue.mp4")
     with open(blackvue_path, "wb") as fp:

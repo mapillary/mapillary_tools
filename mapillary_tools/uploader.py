@@ -50,6 +50,15 @@ from .serializer.description import (
 LOG = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass(frozen=True)
+class UploadOptions:
+    user_items: config.UserItem
+    chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024)
+    dry_run: bool = False
+    nofinish: bool = False
+    noresume: bool = False
+
+
 class UploaderProgress(T.TypedDict, total=True):
     """
     Progress data that Uploader cares about.
@@ -516,26 +525,14 @@ class ImageSequenceUploader:
         cls,
         uploader: Uploader,
         sequence: T.Sequence[types.ImageMetadata],
-        progress: dict[str, T.Any] | None = None,
+        progress: dict[str, T.Any],
     ) -> str:
-        if progress is None:
-            progress = {}
-
-        # FIXME: This is a hack to disable the event emitter inside the uploader
-        uploader_without_emitter = uploader.copy_uploader_without_emitter()
-
         _validate_metadatas(sequence)
 
         progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
-
-        # TODO: assert sequence is sorted
-
-        single_image_uploader = SingleImageUploader(
-            uploader, uploader_without_emitter, progress=progress
-        )
-
         uploader.emitter.emit("upload_start", progress)
 
+        single_image_uploader = SingleImageUploader(uploader, progress=progress)
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
         ) as executor:
@@ -543,9 +540,7 @@ class ImageSequenceUploader:
                 executor.map(single_image_uploader.upload, sequence)
             )
 
-        manifest_file_handle = cls._upload_manifest(
-            uploader_without_emitter, image_file_handles
-        )
+        manifest_file_handle = cls._upload_manifest(uploader, image_file_handles)
 
         uploader.emitter.emit("upload_end", progress)
 
@@ -559,8 +554,10 @@ class ImageSequenceUploader:
 
     @classmethod
     def _upload_manifest(
-        cls, uploader_without_emitter: Uploader, image_file_handles: T.Sequence[str]
+        cls, uploader: Uploader, image_file_handles: T.Sequence[str]
     ) -> str:
+        uploader_without_emitter = Uploader(uploader.upload_options)
+
         manifest = {
             "version": "1",
             "upload_type": "images",
@@ -583,14 +580,14 @@ class SingleImageUploader:
     def __init__(
         self,
         uploader: Uploader,
-        uploader_without_emitter: Uploader,
         progress: dict[str, T.Any] | None = None,
     ):
         self.uploader = uploader
-        self.uploader_without_emitter = uploader_without_emitter
         self.progress = progress or {}
         self.lock = threading.Lock()
-        self.cache = self._maybe_create_persistent_cache_instance(uploader.user_items)
+        self.cache = self._maybe_create_persistent_cache_instance(
+            uploader.upload_options.user_items
+        )
 
     def upload(self, image_metadata: types.ImageMetadata) -> str:
         mutable_progress = {
@@ -600,14 +597,16 @@ class SingleImageUploader:
 
         image_bytes = self.dump_image_bytes(image_metadata)
 
-        session_key = self.uploader_without_emitter._gen_session_key(
+        uploader_without_emitter = Uploader(self.uploader.upload_options)
+
+        session_key = uploader_without_emitter._gen_session_key(
             io.BytesIO(image_bytes), mutable_progress
         )
 
         file_handle = self._file_handle_cache_get(session_key)
 
         if file_handle is None:
-            file_handle = self.uploader_without_emitter.upload_stream(
+            file_handle = uploader_without_emitter.upload_stream(
                 io.BytesIO(image_bytes),
                 session_key=session_key,
                 progress=mutable_progress,
@@ -690,24 +689,14 @@ class SingleImageUploader:
 
 class Uploader:
     def __init__(
-        self,
-        user_items: config.UserItem,
-        emitter: EventEmitter | None = None,
-        chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024),
-        dry_run: bool = False,
-        nofinish: bool = False,
-        noresume: bool = False,
+        self, upload_options: UploadOptions, emitter: EventEmitter | None = None
     ):
-        self.user_items = user_items
+        self.upload_options = upload_options
         if emitter is None:
             # An empty event emitter that does nothing
             self.emitter = EventEmitter()
         else:
             self.emitter = emitter
-        self.chunk_size = chunk_size
-        self.dry_run = dry_run
-        self.nofinish = nofinish
-        self.noresume = noresume
 
     def upload_stream(
         self,
@@ -725,7 +714,7 @@ class Uploader:
         entity_size = fp.tell()
 
         progress["entity_size"] = entity_size
-        progress["chunk_size"] = self.chunk_size
+        progress["chunk_size"] = self.upload_options.chunk_size
         progress["retries"] = 0
         progress["begin_offset"] = None
 
@@ -762,14 +751,16 @@ class Uploader:
         if progress is None:
             progress = {}
 
-        if self.dry_run or self.nofinish:
+        if self.upload_options.dry_run or self.upload_options.nofinish:
             cluster_id = "0"
         else:
             resp = api_v4.finish_upload(
-                self.user_items["user_upload_token"],
+                self.upload_options.user_items["user_upload_token"],
                 file_handle,
                 cluster_filetype,
-                organization_id=self.user_items.get("MAPOrganizationKey"),
+                organization_id=self.upload_options.user_items.get(
+                    "MAPOrganizationKey"
+                ),
             )
 
             body = api_v4.jsonify_response(resp)
@@ -781,23 +772,13 @@ class Uploader:
 
         return cluster_id
 
-    def copy_uploader_without_emitter(self) -> Uploader:
-        return Uploader(
-            self.user_items,
-            emitter=None,
-            chunk_size=self.chunk_size,
-            dry_run=self.dry_run,
-            nofinish=self.nofinish,
-            noresume=self.noresume,
-        )
-
     def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:
         upload_service: upload_api_v4.UploadService
 
-        if self.dry_run:
+        if self.upload_options.dry_run:
             upload_path = os.getenv("MAPILLARY_UPLOAD_ENDPOINT")
             upload_service = upload_api_v4.FakeUploadService(
-                user_access_token=self.user_items["user_upload_token"],
+                user_access_token=self.upload_options.user_items["user_upload_token"],
                 session_key=session_key,
                 upload_path=Path(upload_path) if upload_path is not None else None,
             )
@@ -807,7 +788,7 @@ class Uploader:
             )
         else:
             upload_service = upload_api_v4.UploadService(
-                user_access_token=self.user_items["user_upload_token"],
+                user_access_token=self.upload_options.user_items["user_upload_token"],
                 session_key=session_key,
             )
 
@@ -846,7 +827,7 @@ class Uploader:
         progress: UploaderProgress,
     ) -> T.Generator[bytes, None, None]:
         for chunk in upload_api_v4.UploadService.chunkize_byte_stream(
-            stream, self.chunk_size
+            stream, self.upload_options.chunk_size
         ):
             yield chunk
 
@@ -870,16 +851,26 @@ class Uploader:
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
 
+        if not constants.MIN_UPLOAD_SPEED:
+            read_timeout = None
+        else:
+            remaining_bytes = abs(progress["entity_size"] - begin_offset)
+            read_timeout = max(
+                api_v4.REQUESTS_TIMEOUT, remaining_bytes / constants.MIN_UPLOAD_SPEED
+            )
+
         self.emitter.emit("upload_fetch_offset", progress)
 
         fp.seek(begin_offset, io.SEEK_SET)
 
         shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
 
-        return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
+        return upload_service.upload_shifted_chunks(
+            shifted_chunks, begin_offset, read_timeout=read_timeout
+        )
 
     def _gen_session_key(self, fp: T.IO[bytes], progress: dict[str, T.Any]) -> str:
-        if self.noresume:
+        if self.upload_options.noresume:
             # Generate a unique UUID for session_key when noresume is True
             # to prevent resuming from previous uploads
             session_key = f"{_prefixed_uuid4()}"

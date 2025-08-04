@@ -125,23 +125,34 @@ class UploadService:
         stream: T.IO[bytes],
         offset: int | None = None,
         chunk_size: int = 2 * 1024 * 1024,  # 2MB
+        read_timeout: float | None = None,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
-        return self.upload_chunks(self.chunkize_byte_stream(stream, chunk_size), offset)
+        return self.upload_chunks(
+            self.chunkize_byte_stream(stream, chunk_size),
+            offset,
+            read_timeout=read_timeout,
+        )
 
     def upload_chunks(
         self,
         chunks: T.Iterable[bytes],
         offset: int | None = None,
+        read_timeout: float | None = None,
     ) -> str:
         if offset is None:
             offset = self.fetch_offset()
         shifted_chunks = self.shift_chunks(chunks, offset)
-        return self.upload_shifted_chunks(shifted_chunks, offset)
+        return self.upload_shifted_chunks(
+            shifted_chunks, offset, read_timeout=read_timeout
+        )
 
     def upload_shifted_chunks(
-        self, shifted_chunks: T.Iterable[bytes], offset: int
+        self,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
+        read_timeout: float | None = None,
     ) -> str:
         """
         Upload the chunks that must already be shifted by the offset (e.g. fp.seek(offset, io.SEEK_SET))
@@ -153,8 +164,6 @@ class UploadService:
             "X-Entity-Name": self.session_key,
         }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        # TODO: Estimate read timeout based on the data size
-        read_timeout = None
         resp = request_post(
             url,
             headers=headers,
@@ -198,7 +207,10 @@ class FakeUploadService(UploadService):
 
     @override
     def upload_shifted_chunks(
-        self, shifted_chunks: T.Iterable[bytes], offset: int
+        self,
+        shifted_chunks: T.Iterable[bytes],
+        offset: int,
+        read_timeout: float | None = None,
     ) -> str:
         expected_offset = self.fetch_offset()
         if offset != expected_offset:
