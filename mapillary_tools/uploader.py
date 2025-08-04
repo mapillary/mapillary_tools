@@ -418,7 +418,7 @@ class ZipUploader:
                 # Arcname should be unique, the name does not matter
                 arcname = f"{idx}.jpg"
                 zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-                zipf.writestr(zipinfo, ImageUploader.dump_image_bytes(metadata))
+                zipf.writestr(zipinfo, SingleImageUploader.dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps(
                 {"sequence_md5sum": sequence_md5sum},
@@ -511,27 +511,6 @@ class ImageUploader:
                 yield sequence_uuid, UploadResult(result=cluster_id)
 
     @classmethod
-    def dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
-        try:
-            edit = exif_write.ExifEdit(metadata.filename)
-        except struct.error as ex:
-            raise ExifError(f"Failed to load EXIF: {ex}", metadata.filename) from ex
-
-        # The cast is to fix the type checker error
-        edit.add_image_description(
-            T.cast(
-                T.Dict, desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata))
-            )
-        )
-
-        try:
-            return edit.dump_image_bytes()
-        except struct.error as ex:
-            raise ExifError(
-                f"Failed to dump EXIF bytes: {ex}", metadata.filename
-            ) from ex
-
-    @classmethod
     def _upload_sequence(
         cls,
         uploader: Uploader,
@@ -544,38 +523,24 @@ class ImageUploader:
         # FIXME: This is a hack to disable the event emitter inside the uploader
         uploader_without_emitter = uploader.copy_uploader_without_emitter()
 
-        lock = threading.Lock()
-
-        def _upload_image(image_metadata: types.ImageMetadata) -> str:
-            mutable_progress = {
-                **(progress or {}),
-                "filename": str(image_metadata.filename),
-            }
-
-            bytes = cls.dump_image_bytes(image_metadata)
-            file_handle = uploader_without_emitter.upload_stream(
-                io.BytesIO(bytes), progress=mutable_progress
-            )
-
-            mutable_progress["chunk_size"] = image_metadata.filesize
-
-            with lock:
-                uploader.emitter.emit("upload_progress", mutable_progress)
-
-            return file_handle
-
         _validate_metadatas(sequence)
 
         progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
 
         # TODO: assert sequence is sorted
 
+        single_image_uploader = SingleImageUploader(
+            uploader, uploader_without_emitter, progress=progress
+        )
+
         uploader.emitter.emit("upload_start", progress)
 
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
         ) as executor:
-            image_file_handles = list(executor.map(_upload_image, sequence))
+            image_file_handles = list(
+                executor.map(single_image_uploader.upload, sequence)
+            )
 
         manifest = {
             "version": "1",
@@ -603,6 +568,59 @@ class ImageUploader:
         )
 
         return cluster_id
+
+
+class SingleImageUploader:
+    def __init__(
+        self,
+        uploader: Uploader,
+        uploader_without_emitter: Uploader,
+        progress: dict[str, T.Any] | None = None,
+    ):
+        self.uploader = uploader
+        self.uploader_without_emitter = uploader_without_emitter
+        self.progress = progress or {}
+        self.lock = threading.Lock()
+
+    def upload(self, image_metadata: types.ImageMetadata) -> str:
+        mutable_progress = {
+            **(self.progress or {}),
+            "filename": str(image_metadata.filename),
+        }
+
+        bytes = self.dump_image_bytes(image_metadata)
+
+        file_handle = self.uploader_without_emitter.upload_stream(
+            io.BytesIO(bytes), progress=mutable_progress
+        )
+
+        mutable_progress["chunk_size"] = image_metadata.filesize
+
+        with self.lock:
+            self.uploader.emitter.emit("upload_progress", mutable_progress)
+
+        return file_handle
+
+    @classmethod
+    def dump_image_bytes(cls, metadata: types.ImageMetadata) -> bytes:
+        try:
+            edit = exif_write.ExifEdit(metadata.filename)
+        except struct.error as ex:
+            raise ExifError(f"Failed to load EXIF: {ex}", metadata.filename) from ex
+
+        # The cast is to fix the type checker error
+        edit.add_image_description(
+            T.cast(
+                T.Dict, desc_file_to_exif(DescriptionJSONSerializer.as_desc(metadata))
+            )
+        )
+
+        try:
+            return edit.dump_image_bytes()
+        except struct.error as ex:
+            raise ExifError(
+                f"Failed to dump EXIF bytes: {ex}", metadata.filename
+            ) from ex
 
 
 class Uploader:
