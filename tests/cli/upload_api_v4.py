@@ -79,6 +79,9 @@ def main():
     LOG.info("Entity size: %d", entity_size)
     LOG.info("Chunk size: %s MB", chunk_size / (1024 * 1024))
 
+    if isinstance(service, FakeUploadService):
+        LOG.info(f"Uploading to {service.upload_path}")
+
     def _update_pbar(chunks, pbar):
         for chunk in chunks:
             yield chunk

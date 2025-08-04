@@ -545,7 +545,9 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from uploader.ImageUploader.upload_images(mly_uploader, image_metadatas)
+    yield from uploader.ImageSequenceUploader.upload_images(
+        mly_uploader, image_metadatas
+    )
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(
@@ -589,7 +591,7 @@ def _continue_or_fail(ex: Exception) -> Exception:
         return ex
 
     # Certain files not found or no permission
-    if isinstance(ex, OSError):
+    if isinstance(ex, (FileNotFoundError, PermissionError)):
         return ex
 
     # Certain metadatas are not valid

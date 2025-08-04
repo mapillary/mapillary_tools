@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import os
+import tempfile
 
 import appdirs
 
@@ -145,6 +146,10 @@ MAPILLARY_DISABLE_API_LOGGING: bool = _yes_or_no(
 )
 MAPILLARY_UPLOAD_HISTORY_PATH: str = os.getenv(
     "MAPILLARY_UPLOAD_HISTORY_PATH", os.path.join(USER_DATA_DIR, "upload_history")
+)
+UPLOAD_CACHE_DIR: str = os.getenv(
+    _ENV_PREFIX + "UPLOAD_CACHE_DIR",
+    os.path.join(tempfile.gettempdir(), "mapillary_tools", "upload_cache"),
 )
 MAX_IMAGE_UPLOAD_WORKERS: int = int(
     os.getenv(_ENV_PREFIX + "MAX_IMAGE_UPLOAD_WORKERS", 64)

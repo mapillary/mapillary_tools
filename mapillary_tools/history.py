@@ -78,11 +78,12 @@ def write_history(
 
 
 class PersistentCache:
+    _lock: contextlib.nullcontext | threading.Lock
+
     def __init__(self, file: str):
+        # SQLite3 backend supports concurrent access without a lock
         if dbm.whichdb(file) == "dbm.sqlite3":
-            self._lock: contextlib.nullcontext | threading.Lock = (
-                contextlib.nullcontext()
-            )
+            self._lock = contextlib.nullcontext()
         else:
             self._lock = threading.Lock()
         self._file = file
