@@ -107,7 +107,10 @@ def _sanitize(headers: T.Mapping[T.Any, T.Any]) -> T.Mapping[T.Any, T.Any]:
         ]:
             new_headers[k] = "[REDACTED]"
         else:
-            new_headers[k] = _truncate(v)
+            if isinstance(v, (str, bytes)):
+                new_headers[k] = T.cast(T.Any, _truncate(v))
+            else:
+                new_headers[k] = v
 
     return new_headers
 
@@ -146,51 +149,41 @@ def _log_debug_response(resp: requests.Response):
     if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
         return
 
-    data: str | bytes
-    try:
-        data = _truncate(dumps(_sanitize(resp.json())))
-    except Exception:
-        if resp.content is not None:
-            data = _truncate(resp.content)
-        else:
-            data = ""
-
-    msg = f"HTTP {resp.status_code} {resp.reason}: {str(data)}"
-    msg = msg.replace("\n", "\\n")
+    elapsed = resp.elapsed.total_seconds() * 1000  # Convert to milliseconds
+    msg = f"HTTP {resp.status_code} {resp.reason} ({elapsed:.0f} ms): {str(_truncate_response_content(resp))}"
 
     LOG.debug(msg)
 
 
-def readable_http_error(ex: requests.HTTPError) -> str:
-    resp = ex.response
-
-    data: str | bytes
+def _truncate_response_content(resp: requests.Response) -> str | bytes:
     try:
-        data = _truncate(dumps(_sanitize(resp.json())))
-    except Exception:
+        json_data = resp.json()
+    except requests.JSONDecodeError:
         if resp.content is not None:
             data = _truncate(resp.content)
         else:
             data = ""
+    else:
+        if isinstance(json_data, dict):
+            data = _truncate(dumps(_sanitize(json_data)))
+        else:
+            data = _truncate(str(json_data))
 
-    msg = f"{ex.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(data)}"
+    if isinstance(data, bytes):
+        return data.replace(b"\n", b"\\n")
 
-    return msg.replace("\n", "\\n")
+    elif isinstance(data, str):
+        return data.replace("\n", "\\n")
+
+    return data
+
+
+def readable_http_error(ex: requests.HTTPError) -> str:
+    return readable_http_response(ex.response)
 
 
 def readable_http_response(resp: requests.Response) -> str:
-    data: str | bytes
-    try:
-        data = _truncate(dumps(_sanitize(resp.json())))
-    except Exception:
-        if resp.content is not None:
-            data = _truncate(resp.content)
-        else:
-            data = ""
-
-    msg = f"{resp.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(data)}"
-
-    return msg.replace("\n", "\\n")
+    return f"{resp.request.method} {resp.url} => {resp.status_code} {resp.reason}: {str(_truncate_response_content(resp))}"
 
 
 def request_post(
