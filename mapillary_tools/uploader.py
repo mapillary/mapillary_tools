@@ -851,13 +851,23 @@ class Uploader:
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
 
+        if not constants.MIN_UPLOAD_SPEED:
+            read_timeout = None
+        else:
+            remaining_bytes = abs(progress["entity_size"] - begin_offset)
+            read_timeout = max(
+                api_v4.REQUESTS_TIMEOUT, remaining_bytes / constants.MIN_UPLOAD_SPEED
+            )
+
         self.emitter.emit("upload_fetch_offset", progress)
 
         fp.seek(begin_offset, io.SEEK_SET)
 
         shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
 
-        return upload_service.upload_shifted_chunks(shifted_chunks, begin_offset)
+        return upload_service.upload_shifted_chunks(
+            shifted_chunks, begin_offset, read_timeout=read_timeout
+        )
 
     def _gen_session_key(self, fp: T.IO[bytes], progress: dict[str, T.Any]) -> str:
         if self.upload_options.noresume:

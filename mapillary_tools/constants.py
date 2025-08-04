@@ -151,6 +151,11 @@ UPLOAD_CACHE_DIR: str = os.getenv(
     _ENV_PREFIX + "UPLOAD_CACHE_DIR",
     os.path.join(tempfile.gettempdir(), "mapillary_tools", "upload_cache"),
 )
+# The minimal upload speed is used to calculate the read timeout to avoid upload hanging:
+# timeout = upload_size / MIN_UPLOAD_SPEED
+MIN_UPLOAD_SPEED: int | None = _parse_filesize(
+    os.getenv(_ENV_PREFIX + "MIN_UPLOAD_SPEED", "50K")  # 50 KiB/s
+)
 MAX_IMAGE_UPLOAD_WORKERS: int = int(
     os.getenv(_ENV_PREFIX + "MAX_IMAGE_UPLOAD_WORKERS", 64)
 )
