@@ -347,22 +347,22 @@ GPX_CONTENT = """
         <trkseg>
             <trkpt lat="0.02" lon="0.01">
             <ele>1</ele>
-            <time>2018-06-08T20:23:34.805</time>
+            <time>2018-06-08T20:23:34.805Z</time>
             </trkpt>
 
             <trkpt lat="2.02" lon="0.01">
             <ele>2</ele>
-            <time>2018-06-08T20:24:35.809</time>
+            <time>2018-06-08T20:24:35.809Z</time>
             </trkpt>
 
             <trkpt lat="2.02" lon="2.01">
             <ele>4</ele>
-            <time>2018-06-08T20:33:36.813</time>
+            <time>2018-06-08T20:33:36.813Z</time>
             </trkpt>
 
             <trkpt lat="4.02" lon="2.01">
             <ele>9</ele>
-            <time>2018-06-08T20:58:37.812</time>
+            <time>2018-06-08T20:58:37.812Z</time>
             </trkpt>
         </trkseg>
     </trk>

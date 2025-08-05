@@ -20,12 +20,6 @@ from .geotag_images_from_exif import ImageEXIFExtractor
 LOG = logging.getLogger(__name__)
 
 
-class SyncMode:
-    SYNC = "sync"
-    STRICT_SYNC = "strict_sync"
-    RESET = "reset"
-
-
 class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def __init__(
         self,
