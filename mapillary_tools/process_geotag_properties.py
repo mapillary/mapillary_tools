@@ -229,7 +229,7 @@ def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: set[T.Type[Exception]],
 ) -> None:
-    LOG.info("========== Process summary ==========")
+    LOG.info("==> Process summary")
 
     metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
@@ -290,7 +290,7 @@ def _show_stats_per_filetype(
 def _validate_metadatas(
     metadatas: T.Collection[types.MetadataOrError], num_processes: int | None
 ) -> list[types.MetadataOrError]:
-    LOG.debug("Validating %d metadatas", len(metadatas))
+    LOG.info(f"==> Validating {len(metadatas)} metadatas...")
 
     # validating metadatas is slow, hence multiprocessing
 

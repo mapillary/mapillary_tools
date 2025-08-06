@@ -48,6 +48,8 @@ def upload(
     noresume: bool = False,
     skip_subfolders: bool = False,
 ) -> None:
+    LOG.info("==> Uploading...")
+
     import_paths = _normalize_import_paths(import_path)
 
     metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
@@ -461,7 +463,7 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
 
 
 def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
-    LOG.info("========== Upload summary ==========")
+    LOG.info("==> Upload summary")
 
     errors_by_type: dict[str, list[Exception]] = {}
     for error in errors:

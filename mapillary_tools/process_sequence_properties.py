@@ -605,6 +605,8 @@ def process_sequence_properties(
     duplicate_angle: float = constants.DUPLICATE_ANGLE,
     max_capture_speed_kmh: float = constants.MAX_CAPTURE_SPEED_KMH,
 ) -> list[types.MetadataOrError]:
+    LOG.info("==> Processing sequences...")
+
     max_sequence_filesize_in_bytes = constants.MAX_SEQUENCE_FILESIZE
     max_sequence_pixels = constants.MAX_SEQUENCE_PIXELS
 
