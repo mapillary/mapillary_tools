@@ -61,6 +61,27 @@ jobs:
         with:
           path: main
 
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.architecture }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+          python -m pip install --group dev
+
+      - name: Validate version
+        run: |
+          EXPECTED_GITHUB_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
+          if [[ "$EXPECTED_GITHUB_REF" != "$GITHUB_REF" ]]; then
+            echo "Version mismatch: $EXPECTED_GITHUB_REF != $GITHUB_REF"
+            exit 1
+          fi
+        if: matrix.platform != 'windows-latest'
+
       # https://github.com/actions/checkout#Checkout-multiple-repos-side-by-side
       # pull into mapillary/mapillary_tools/exiftool
       - name: Setup ExifTool
@@ -82,29 +103,8 @@ jobs:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.architecture == 'x64'
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          architecture: ${{ matrix.architecture }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install .
-          python -m pip install --group dev
-
-      - name: Validate version
-        run: |
-          EXPECTED_GITHUB_REF=$(mapillary_tools --version | awk '{print "refs/tags/v" $3}')
-          if [[ "$EXPECTED_GITHUB_REF" != "$GITHUB_REF" ]]; then
-            echo "Version mismatch: $EXPECTED_GITHUB_REF != $GITHUB_REF"
-            exit 1
-          fi
-        if: matrix.platform != 'windows-latest'
-
       - name: Build and test with Pyinstaller on MacOS
-        # Enable for Python3.11 only because it often fails at codesign (subprocess timeout)
+        # Enable for Python3.13 only because it often fails at codesign (subprocess timeout)
         if: startsWith(matrix.platform, 'macos')
         run: |
           ./script/build_osx
