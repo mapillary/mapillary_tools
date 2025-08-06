@@ -370,6 +370,10 @@ BoxHeader64 = C.Struct(
 SwitchMapType = T.Dict[BoxType, T.Union[C.Construct, "SwitchMapType"]]
 
 
+class BoxNotFoundError(Exception):
+    pass
+
+
 class Box64ConstructBuilder:
     """
     Build a box struct that **parses** MP4 boxes with both 32-bit and 64-bit sizes.
@@ -591,7 +595,7 @@ def find_box_at_pathx(
 ) -> BoxDict:
     found = find_box_at_path(box, path)
     if found is None:
-        raise ValueError(f"box at path {path} not found")
+        raise BoxNotFoundError(f"box at path {path} not found")
     return found
 
 
