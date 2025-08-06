@@ -13,7 +13,7 @@ from pathlib import Path
 # dbm modules are dynamically imported, so here we explicitly import dbm.sqlite3 to make sure pyinstaller include it
 # Otherwise you will see: ImportError: no dbm clone found; tried ['dbm.sqlite3', 'dbm.gnu', 'dbm.ndbm', 'dbm.dumb']
 try:
-    import dbm.sqlite3
+    import dbm.sqlite3  # type: ignore
 except ImportError:
     pass
 
