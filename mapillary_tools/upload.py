@@ -9,6 +9,7 @@ import typing as T
 import uuid
 from pathlib import Path
 
+import humanize
 import jsonschema
 import requests
 from tqdm import tqdm
@@ -215,17 +216,17 @@ def _setup_history(
             if reupload:
                 if uploaded_at is not None:
                     LOG.info(
-                        f"Reuploading {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                        f"Reuploading {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                     )
                 else:
                     LOG.info(
-                        f"Reuploading {name} (already uploaded, see {history_desc_path})"
+                        f"Reuploading {name}: already uploaded, see {history_desc_path}"
                     )
             else:
                 if uploaded_at is not None:
-                    msg = f"Skipping {name} (previously uploaded at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                    msg = f"Skipping {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                 else:
-                    msg = f"Skipping {name} (already uploaded, see {history_desc_path})"
+                    msg = f"Skipping {name}: already uploaded, see {history_desc_path}"
                 raise UploadedAlready(msg)
 
     @emitter.on("upload_finished")
@@ -465,18 +466,17 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
 def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
     LOG.info("==> Upload summary")
 
-    errors_by_type: dict[str, list[Exception]] = {}
+    errors_by_type: dict[type[Exception], list[Exception]] = {}
     for error in errors:
-        errors_by_type.setdefault(error.__class__.__name__, []).append(error)
+        errors_by_type.setdefault(type(error), []).append(error)
 
     for error_type, error_list in errors_by_type.items():
-        if error_type == UploadedAlready.__name__:
+        if error_type is UploadedAlready:
             LOG.info(
-                "Skipped %d already uploaded sequences (use --reupload to force re-upload)",
-                len(error_list),
+                f"Skipped {len(error_list)} already uploaded sequences (use --reupload to force re-upload)",
             )
         else:
-            LOG.info(f"{len(error_list)} uploads failed due to {error_type}")
+            LOG.info(f"{len(error_list)} uploads failed due to {error_type.__name__}")
 
     if stats:
         grouped: dict[str, list[_APIStats]] = {}
@@ -485,14 +485,16 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
 
         for file_type, typed_stats in grouped.items():
             if file_type == FileType.IMAGE.value:
-                LOG.info("%8d image sequences uploaded", len(typed_stats))
+                LOG.info(f"{len(typed_stats)} sequences uploaded")
             else:
-                LOG.info("%8d  %s videos uploaded", len(typed_stats), file_type.upper())
+                LOG.info(f"{len(typed_stats)} {file_type} uploaded")
 
         summary = _summarize(stats)
-        LOG.info("%8.1fM data in total", summary["size"])
-        LOG.info("%8.1fM data uploaded", summary["uploaded_size"])
-        LOG.info("%8.1fs upload time", summary["time"])
+        LOG.info(f"{humanize.naturalsize(summary['size'] * 1024 * 1024)} read in total")
+        LOG.info(
+            f"{humanize.naturalsize(summary['uploaded_size'] * 1024 * 1024)} uploaded"
+        )
+        LOG.info(f"{summary['time']} upload time")
     else:
         LOG.info("Nothing uploaded. Bye.")
 
