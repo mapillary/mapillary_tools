@@ -120,8 +120,8 @@ CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
 CUTOFF_TIME = float(os.getenv(_ENV_PREFIX + "CUTOFF_TIME", 60))
 DUPLICATE_DISTANCE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_DISTANCE", 0.1))
 DUPLICATE_ANGLE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_ANGLE", 5))
-MAX_AVG_SPEED = float(
-    os.getenv(_ENV_PREFIX + "MAX_AVG_SPEED", 400_000 / 3600)
+MAX_CAPTURE_SPEED_KMH = float(
+    os.getenv(_ENV_PREFIX + "MAX_CAPTURE_SPEED_KMH", 400)
 )  # 400 KM/h
 # WARNING: Changing the following envvars might result in failed uploads
 # Max number of images per sequence

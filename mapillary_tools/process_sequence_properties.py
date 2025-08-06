@@ -7,6 +7,8 @@ import math
 import os
 import typing as T
 
+import humanize
+
 from . import constants, exceptions, geo, types, utils
 from .serializer.description import DescriptionJSONSerializer
 
@@ -215,7 +217,7 @@ def _is_video_stationary(
 def _check_video_limits(
     video_metadatas: T.Iterable[types.VideoMetadata],
     max_sequence_filesize_in_bytes: int | None,
-    max_avg_speed: float,
+    max_capture_speed_kmh: float,
     max_radius_for_stationary_check: float,
 ) -> tuple[list[types.VideoMetadata], list[types.ErrorMetadata]]:
     output_video_metadatas: list[types.VideoMetadata] = []
@@ -238,7 +240,7 @@ def _check_video_limits(
                 )
                 if video_filesize > max_sequence_filesize_in_bytes:
                     raise exceptions.MapillaryFileTooLargeError(
-                        f"Video file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                        f"Video file size {humanize.naturalsize(video_filesize)} exceeds max allowed {humanize.naturalsize(max_sequence_filesize_in_bytes)}",
                     )
 
             contains_null_island = any(
@@ -249,15 +251,19 @@ def _check_video_limits(
                     "GPS coordinates in Null Island (0, 0)"
                 )
 
+            avg_speed_kmh = (
+                geo.avg_speed(video_metadata.points) * 3.6
+            )  # Convert m/s to km/h
             too_fast = (
                 len(video_metadata.points) >= 2
-                and geo.avg_speed(video_metadata.points) > max_avg_speed
+                and avg_speed_kmh > max_capture_speed_kmh
             )
             if too_fast:
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
-                    f"Capture speed too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                    f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
                 )
         except exceptions.MapillaryDescriptionError as ex:
+            LOG.error(f"{_video_name(video_metadata)}: {ex}")
             error_metadatas.append(
                 types.describe_error_metadata(
                     exc=ex,
@@ -268,18 +274,17 @@ def _check_video_limits(
         else:
             output_video_metadatas.append(video_metadata)
 
-    if error_metadatas:
-        LOG.info(
-            f"Video validation: {len(output_video_metadatas)} valid, {len(error_metadatas)} errors"
-        )
-
     return output_video_metadatas, error_metadatas
+
+
+def _video_name(video_metadata: types.VideoMetadata) -> str:
+    return video_metadata.filename.name
 
 
 def _check_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
     max_sequence_filesize_in_bytes: int | None,
-    max_avg_speed: float,
+    max_capture_speed_kmh: float,
 ) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
     output_sequences: list[PointSequence] = []
     output_errors: list[types.ErrorMetadata] = []
@@ -295,7 +300,7 @@ def _check_sequences_by_limits(
                 )
                 if sequence_filesize > max_sequence_filesize_in_bytes:
                     raise exceptions.MapillaryFileTooLargeError(
-                        f"Sequence file size exceeds the maximum allowed file size ({max_sequence_filesize_in_bytes} bytes)",
+                        f"Sequence file size {humanize.naturalsize(sequence_filesize)} exceeds max allowed {humanize.naturalsize(max_sequence_filesize_in_bytes)}",
                     )
 
             contains_null_island = any(
@@ -306,12 +311,14 @@ def _check_sequences_by_limits(
                     "GPS coordinates in Null Island (0, 0)"
                 )
 
-            too_fast = len(sequence) >= 2 and geo.avg_speed(sequence) > max_avg_speed
+            avg_speed_kmh = geo.avg_speed(sequence) * 3.6  # Convert m/s to km/h
+            too_fast = len(sequence) >= 2 and avg_speed_kmh > max_capture_speed_kmh
             if too_fast:
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
-                    f"Capture speed too fast (exceeds {round(max_avg_speed, 3)} m/s)",
+                    f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
                 )
         except exceptions.MapillaryDescriptionError as ex:
+            LOG.error(f"{_sequence_name(sequence)}: {ex}")
             for image in sequence:
                 output_errors.append(
                     types.describe_error_metadata(
@@ -326,12 +333,14 @@ def _check_sequences_by_limits(
         len(s) for s in input_sequences
     )
 
-    if output_errors:
-        LOG.info(
-            f"Sequence validation: {len(output_sequences)} valid, {len(output_errors)} errors"
-        )
-
     return output_sequences, output_errors
+
+
+def _sequence_name(sequence: T.Sequence[types.ImageMetadata]) -> str:
+    if not sequence:
+        return "N/A"
+    image = sequence[0]
+    return f"{image.filename.parent.name}/{image.filename.name}"
 
 
 def _group_by_folder_and_camera(
@@ -594,7 +603,7 @@ def process_sequence_properties(
     interpolate_directions: bool = False,
     duplicate_distance: float = constants.DUPLICATE_DISTANCE,
     duplicate_angle: float = constants.DUPLICATE_ANGLE,
-    max_avg_speed: float = constants.MAX_AVG_SPEED,
+    max_capture_speed_kmh: float = constants.MAX_CAPTURE_SPEED_KMH,
 ) -> list[types.MetadataOrError]:
     max_sequence_filesize_in_bytes = constants.MAX_SEQUENCE_FILESIZE
     max_sequence_pixels = constants.MAX_SEQUENCE_PIXELS
@@ -611,14 +620,14 @@ def process_sequence_properties(
         elif isinstance(metadata, types.VideoMetadata):
             video_metadatas.append(metadata)
         else:
-            raise RuntimeError(f"invalid metadata type: {metadata}")
+            raise ValueError(f"invalid metadata type: {metadata}")
 
     if video_metadatas:
         # Check limits for videos
         video_metadatas, video_error_metadatas = _check_video_limits(
             video_metadatas,
             max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
-            max_avg_speed=max_avg_speed,
+            max_capture_speed_kmh=max_capture_speed_kmh,
             max_radius_for_stationary_check=10.0,
         )
         error_metadatas.extend(video_error_metadatas)
@@ -668,7 +677,7 @@ def process_sequence_properties(
         sequences, errors = _check_sequences_by_limits(
             sequences,
             max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
-            max_avg_speed=max_avg_speed,
+            max_capture_speed_kmh=max_capture_speed_kmh,
         )
         error_metadatas.extend(errors)
 
