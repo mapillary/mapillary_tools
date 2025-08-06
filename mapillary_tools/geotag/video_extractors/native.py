@@ -12,6 +12,7 @@ else:
 from ... import blackvue_parser, exceptions, geo, telemetry, types, utils
 from ...camm import camm_parser
 from ...gpmf import gpmf_gps_filter, gpmf_parser
+from ...mp4 import construct_mp4_parser, simple_mp4_parser
 from .base import BaseVideoExtractor
 
 
@@ -113,6 +114,14 @@ class NativeVideoExtractor(BaseVideoExtractor):
             extractor = GoProVideoExtractor(self.video_path)
             try:
                 return extractor.extract()
+            except simple_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
+            except construct_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
             except exceptions.MapillaryVideoGPSNotFoundError:
                 pass
 
@@ -120,6 +129,14 @@ class NativeVideoExtractor(BaseVideoExtractor):
             extractor = CAMMVideoExtractor(self.video_path)
             try:
                 return extractor.extract()
+            except simple_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
+            except construct_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
             except exceptions.MapillaryVideoGPSNotFoundError:
                 pass
 
@@ -127,6 +144,14 @@ class NativeVideoExtractor(BaseVideoExtractor):
             extractor = BlackVueVideoExtractor(self.video_path)
             try:
                 return extractor.extract()
+            except simple_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
+            except construct_mp4_parser.BoxNotFoundError as ex:
+                raise exceptions.MapillaryInvalidVideoError(
+                    f"Invalid video: {ex}"
+                ) from ex
             except exceptions.MapillaryVideoGPSNotFoundError:
                 pass
 

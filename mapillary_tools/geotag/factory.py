@@ -67,7 +67,14 @@ def process(
     reprocessable_paths = set(paths)
 
     for idx, option in enumerate(options):
-        LOG.debug("Processing %d files with %s", len(reprocessable_paths), option)
+        if LOG.getEffectiveLevel() <= logging.DEBUG:
+            LOG.info(
+                f"==> Processing {len(reprocessable_paths)} files with source {option}..."
+            )
+        else:
+            LOG.info(
+                f"==> Processing {len(reprocessable_paths)} files with source {option.source.value}..."
+            )
 
         image_videos, video_paths = _filter_images_and_videos(
             reprocessable_paths, option.filetypes

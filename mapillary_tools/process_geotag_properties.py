@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import collections
 import datetime
 import logging
 import typing as T
 from pathlib import Path
 
+import humanize
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, types, utils
@@ -217,17 +217,19 @@ def _write_metadatas(
         LOG.info("Check the description file for details: %s", desc_path)
 
 
-def _is_error_skipped(error_type: str, skipped_process_errors: set[T.Type[Exception]]):
-    skipped_process_error_names = set(err.__name__ for err in skipped_process_errors)
-    skip_all = Exception in skipped_process_errors
-    return skip_all or error_type in skipped_process_error_names
+def _is_error_skipped(
+    error_type: type[Exception], skipped_process_errors: set[type[Exception]]
+):
+    return (Exception in skipped_process_errors) or (
+        error_type in skipped_process_errors
+    )
 
 
 def _show_stats(
     metadatas: T.Sequence[types.MetadataOrError],
     skipped_process_errors: set[T.Type[Exception]],
 ) -> None:
-    LOG.info("========== Process summary ==========")
+    LOG.info("==> Process summary")
 
     metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
@@ -244,9 +246,7 @@ def _show_stats(
         metadata
         for metadata in metadatas
         if isinstance(metadata, types.ErrorMetadata)
-        and not _is_error_skipped(
-            metadata.error.__class__.__name__, skipped_process_errors
-        )
+        and not _is_error_skipped(type(metadata.error), skipped_process_errors)
     ]
     if critical_error_metadatas:
         raise exceptions.MapillaryProcessError(
@@ -262,38 +262,35 @@ def _show_stats_per_filetype(
     good_metadatas: list[types.Metadata]
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
 
-    filesize_to_upload = sum(
-        [0 if m.filesize is None else m.filesize for m in good_metadatas]
-    )
-
-    LOG.info("%8d %s(s) read in total", len(metadatas), filetype.value)
+    LOG.info(f"{len(metadatas)} {filetype.value} read in total")
     if good_metadatas:
+        total_filesize = sum(
+            [0 if m.filesize is None else m.filesize for m in good_metadatas]
+        )
         LOG.info(
-            "\t %8d %s(s) (%s MB) are ready to be uploaded",
-            len(good_metadatas),
-            filetype.value,
-            round(filesize_to_upload / 1024 / 1024, 1),
+            f"\t{len(good_metadatas)} ({humanize.naturalsize(total_filesize)}) ready"
         )
 
-    error_counter = collections.Counter(
-        metadata.error.__class__.__name__ for metadata in error_metadatas
-    )
+    errors_by_type: dict[type[Exception], list[types.ErrorMetadata]] = {}
+    for metadata in error_metadatas:
+        errors_by_type.setdefault(type(metadata.error), []).append(metadata)
 
-    for error_type, count in error_counter.items():
+    for error_type, errors in errors_by_type.items():
+        total_filesize = sum([utils.get_file_size_quietly(m.filename) for m in errors])
         if _is_error_skipped(error_type, skipped_process_errors):
             LOG.warning(
-                "\t %8d %s(s) skipped due to %s", count, filetype.value, error_type
+                f"\t{len(errors)} ({humanize.naturalsize(total_filesize)}) {error_type.__name__}"
             )
         else:
             LOG.error(
-                "\t %8d %s(s) failed due to %s", count, filetype.value, error_type
+                f"\t{len(errors)} ({humanize.naturalsize(total_filesize)}) {error_type.__name__}"
             )
 
 
 def _validate_metadatas(
     metadatas: T.Collection[types.MetadataOrError], num_processes: int | None
 ) -> list[types.MetadataOrError]:
-    LOG.debug("Validating %d metadatas", len(metadatas))
+    LOG.info(f"==> Validating {len(metadatas)} metadatas...")
 
     # validating metadatas is slow, hence multiprocessing
 

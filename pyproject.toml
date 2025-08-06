@@ -32,6 +32,7 @@ dependencies = [
     "construct~=2.10.0",
     "exifread~=3.0",
     "gpxpy~=1.6.0",
+    "humanize>=4.12.3",
     "jsonschema~=4.17.0",
     "piexif~=1.1",
     "pynmea2>=1.12.0,<2.0.0",

@@ -188,6 +188,7 @@ class VideoUploader:
         sorted_video_metadatas = sorted(video_metadatas, key=lambda m: m.filename)
 
         for idx, video_metadata in enumerate(sorted_video_metadatas):
+            LOG.debug(f"Checksum for video {video_metadata.filename}...")
             try:
                 video_metadata.update_md5sum()
             except Exception as ex:
@@ -421,6 +422,8 @@ class ZipUploader:
             f"Only one sequence is allowed but got {len(sequence_groups)}: {list(sequence_groups.keys())}"
         )
 
+        if sequence:
+            LOG.debug(f"Checksum for sequence {sequence[0].MAPSequenceUUID}...")
         sequence_md5sum = types.update_sequence_md5sum(sequence)
 
         with zipfile.ZipFile(zip_fp, "w", zipfile.ZIP_DEFLATED) as zipf:
@@ -498,6 +501,7 @@ class ImageSequenceUploader:
         sequences = types.group_and_sort_images(image_metadatas)
 
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+            LOG.debug(f"Checksum for image sequence {sequence_uuid}...")
             sequence_md5sum = types.update_sequence_md5sum(sequence)
 
             sequence_progress: SequenceProgress = {

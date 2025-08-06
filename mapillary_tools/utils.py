@@ -197,6 +197,13 @@ def get_file_size(path: Path) -> int:
     return os.path.getsize(path)
 
 
+def get_file_size_quietly(path: Path) -> int:
+    try:
+        return get_file_size(path)
+    except Exception:
+        return 0
+
+
 TMapIn = T.TypeVar("TMapIn")
 TMapOut = T.TypeVar("TMapOut")
 
