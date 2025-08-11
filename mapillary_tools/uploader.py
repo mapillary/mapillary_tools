@@ -785,8 +785,8 @@ class Uploader:
         if self.upload_options.dry_run:
             upload_path = os.getenv("MAPILLARY_UPLOAD_ENDPOINT")
             upload_service = upload_api_v4.FakeUploadService(
-                user_access_token=self.upload_options.user_items["user_upload_token"],
-                session_key=session_key,
+                user_session,
+                session_key,
                 upload_path=Path(upload_path) if upload_path is not None else None,
             )
             LOG.info(
@@ -794,9 +794,7 @@ class Uploader:
                 upload_service.upload_path.joinpath(session_key),
             )
         else:
-            upload_service = upload_api_v4.UploadService(
-                user_session, session_key=session_key
-            )
+            upload_service = upload_api_v4.UploadService(user_session, session_key)
 
         return upload_service
 
@@ -852,7 +850,10 @@ class Uploader:
         ) as user_session:
             upload_service = self._create_upload_service(user_session, session_key)
 
-            begin_offset = upload_service.fetch_offset()
+            if _is_uuid(session_key):
+                begin_offset = 0
+            else:
+                begin_offset = upload_service.fetch_offset()
 
             progress["begin_offset"] = begin_offset
             progress["offset"] = begin_offset
