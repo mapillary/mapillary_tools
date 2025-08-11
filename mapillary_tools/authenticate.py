@@ -10,7 +10,7 @@ import jsonschema
 
 import requests
 
-from . import api_v4, config, constants, exceptions
+from . import api_v4, config, constants, exceptions, http
 
 
 LOG = logging.getLogger(__name__)
@@ -77,11 +77,11 @@ def authenticate(
         # TODO: print more user information
         if profile_name in all_user_items:
             LOG.info(
-                'Profile "%s" updated: %s', profile_name, api_v4._sanitize(user_items)
+                'Profile "%s" updated: %s', profile_name, http._sanitize(user_items)
             )
         else:
             LOG.info(
-                'Profile "%s" created: %s', profile_name, api_v4._sanitize(user_items)
+                'Profile "%s" created: %s', profile_name, http._sanitize(user_items)
             )
 
 
@@ -134,9 +134,8 @@ def fetch_user_items(
     )
 
     if organization_key is not None:
-        resp = api_v4.fetch_organization(
-            user_items["user_upload_token"], organization_key
-        )
+        with api_v4.create_user_session(user_items["user_upload_token"]) as session:
+            resp = api_v4.fetch_organization(session, organization_key)
         data = api_v4.jsonify_response(resp)
         LOG.info(
             f"Uploading to organization: {data.get('name')} (ID: {data.get('id')})"
@@ -173,16 +172,15 @@ def _verify_user_auth(user_items: config.UserItem) -> config.UserItem:
     if constants._AUTH_VERIFICATION_DISABLED:
         return user_items
 
-    try:
-        resp = api_v4.fetch_user_or_me(
-            user_access_token=user_items["user_upload_token"]
-        )
-    except requests.HTTPError as ex:
-        if api_v4.is_auth_error(ex.response):
-            message = api_v4.extract_auth_error_message(ex.response)
-            raise exceptions.MapillaryUploadUnauthorizedError(message)
-        else:
-            raise ex
+    with api_v4.create_user_session(user_items["user_upload_token"]) as session:
+        try:
+            resp = api_v4.fetch_user_or_me(session)
+        except requests.HTTPError as ex:
+            if api_v4.is_auth_error(ex.response):
+                message = api_v4.extract_auth_error_message(ex.response)
+                raise exceptions.MapillaryUploadUnauthorizedError(message)
+            else:
+                raise ex
 
     data = api_v4.jsonify_response(resp)
 
@@ -276,16 +274,17 @@ def _prompt_login(
             if user_password:
                 break
 
-    try:
-        resp = api_v4.get_upload_token(user_email, user_password)
-    except requests.HTTPError as ex:
-        if not _enabled:
+    with api_v4.create_client_session() as session:
+        try:
+            resp = api_v4.get_upload_token(session, user_email, user_password)
+        except requests.HTTPError as ex:
+            if not _enabled:
+                raise ex
+
+            if _is_login_retryable(ex):
+                return _prompt_login()
+
             raise ex
-
-        if _is_login_retryable(ex):
-            return _prompt_login()
-
-        raise ex
 
     data = api_v4.jsonify_response(resp)
 

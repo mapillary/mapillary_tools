@@ -478,7 +478,7 @@ class ZipUploader:
                 upload_md5sum = utils.md5sum_fp(fp).hexdigest()
 
             done_path = wip_path.parent.joinpath(
-                _session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
+                _suffix_session_key(upload_md5sum, api_v4.ClusterFileType.ZIP)
             )
 
             try:
@@ -724,12 +724,10 @@ class Uploader:
 
         self.emitter.emit("upload_start", progress)
 
-        upload_service = self._create_upload_service(session_key)
-
         while True:
             try:
                 file_handle = self._upload_stream_retryable(
-                    upload_service, fp, T.cast(UploaderProgress, progress)
+                    fp, session_key, T.cast(UploaderProgress, progress)
                 )
             except Exception as ex:
                 self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
@@ -758,14 +756,17 @@ class Uploader:
         if self.upload_options.dry_run or self.upload_options.nofinish:
             cluster_id = "0"
         else:
-            resp = api_v4.finish_upload(
-                self.upload_options.user_items["user_upload_token"],
-                file_handle,
-                cluster_filetype,
-                organization_id=self.upload_options.user_items.get(
-                    "MAPOrganizationKey"
-                ),
-            )
+            organization_id = self.upload_options.user_items.get("MAPOrganizationKey")
+
+            with api_v4.create_user_session(
+                self.upload_options.user_items["user_upload_token"]
+            ) as user_session:
+                resp = api_v4.finish_upload(
+                    user_session,
+                    file_handle,
+                    cluster_filetype,
+                    organization_id=organization_id,
+                )
 
             body = api_v4.jsonify_response(resp)
             # TODO: Validate cluster_id
@@ -776,7 +777,9 @@ class Uploader:
 
         return cluster_id
 
-    def _create_upload_service(self, session_key: str) -> upload_api_v4.UploadService:
+    def _create_upload_service(
+        self, user_session: requests.Session, session_key: str
+    ) -> upload_api_v4.UploadService:
         upload_service: upload_api_v4.UploadService
 
         if self.upload_options.dry_run:
@@ -792,8 +795,7 @@ class Uploader:
             )
         else:
             upload_service = upload_api_v4.UploadService(
-                user_access_token=self.upload_options.user_items["user_upload_token"],
-                session_key=session_key,
+                user_session, session_key=session_key
             )
 
         return upload_service
@@ -826,9 +828,7 @@ class Uploader:
             raise ex
 
     def _chunk_with_progress_emitted(
-        self,
-        stream: T.IO[bytes],
-        progress: UploaderProgress,
+        self, stream: T.IO[bytes], progress: UploaderProgress
     ) -> T.Generator[bytes, None, None]:
         for chunk in upload_api_v4.UploadService.chunkize_byte_stream(
             stream, self.upload_options.chunk_size
@@ -843,35 +843,40 @@ class Uploader:
             self.emitter.emit("upload_progress", progress)
 
     def _upload_stream_retryable(
-        self,
-        upload_service: upload_api_v4.UploadService,
-        fp: T.IO[bytes],
-        progress: UploaderProgress,
+        self, fp: T.IO[bytes], session_key: str, progress: UploaderProgress
     ) -> str:
         """Upload the stream with safe retries guraranteed"""
 
-        begin_offset = upload_service.fetch_offset()
+        with api_v4.create_user_session(
+            self.upload_options.user_items["user_upload_token"]
+        ) as user_session:
+            upload_service = self._create_upload_service(user_session, session_key)
 
-        progress["begin_offset"] = begin_offset
-        progress["offset"] = begin_offset
+            begin_offset = upload_service.fetch_offset()
 
-        if not constants.MIN_UPLOAD_SPEED:
-            read_timeout = None
-        else:
-            remaining_bytes = abs(progress["entity_size"] - begin_offset)
-            read_timeout = max(
-                api_v4.REQUESTS_TIMEOUT, remaining_bytes / constants.MIN_UPLOAD_SPEED
+            progress["begin_offset"] = begin_offset
+            progress["offset"] = begin_offset
+
+            self.emitter.emit("upload_fetch_offset", progress)
+
+            # Estimate the read timeout
+            if not constants.MIN_UPLOAD_SPEED:
+                read_timeout = None
+            else:
+                remaining_bytes = abs(progress["entity_size"] - begin_offset)
+                read_timeout = max(
+                    api_v4.REQUESTS_TIMEOUT,
+                    remaining_bytes / constants.MIN_UPLOAD_SPEED,
+                )
+
+            # Upload from begin_offset
+            fp.seek(begin_offset, io.SEEK_SET)
+            shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
+
+            # Start uploading
+            return upload_service.upload_shifted_chunks(
+                shifted_chunks, begin_offset, read_timeout=read_timeout
             )
-
-        self.emitter.emit("upload_fetch_offset", progress)
-
-        fp.seek(begin_offset, io.SEEK_SET)
-
-        shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
-
-        return upload_service.upload_shifted_chunks(
-            shifted_chunks, begin_offset, read_timeout=read_timeout
-        )
 
     def _gen_session_key(self, fp: T.IO[bytes], progress: dict[str, T.Any]) -> str:
         if self.upload_options.noresume:
@@ -884,7 +889,7 @@ class Uploader:
 
         filetype = progress.get("file_type")
         if filetype is not None:
-            session_key = _session_key(session_key, types.FileType(filetype))
+            session_key = _suffix_session_key(session_key, types.FileType(filetype))
 
         return session_key
 
@@ -931,22 +936,29 @@ def _is_retriable_exception(ex: Exception) -> bool:
     return False
 
 
-def _session_key(
-    upload_md5sum: str, filetype: api_v4.ClusterFileType | types.FileType
-) -> str:
-    _SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
-        api_v4.ClusterFileType.ZIP: ".zip",
-        api_v4.ClusterFileType.CAMM: ".mp4",
-        api_v4.ClusterFileType.BLACKVUE: ".mp4",
-        types.FileType.IMAGE: ".jpg",
-        types.FileType.ZIP: ".zip",
-        types.FileType.BLACKVUE: ".mp4",
-        types.FileType.CAMM: ".mp4",
-        types.FileType.GOPRO: ".mp4",
-        types.FileType.VIDEO: ".mp4",
-    }
+_SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
+    api_v4.ClusterFileType.ZIP: ".zip",
+    api_v4.ClusterFileType.CAMM: ".mp4",
+    api_v4.ClusterFileType.BLACKVUE: ".mp4",
+    types.FileType.IMAGE: ".jpg",
+    types.FileType.ZIP: ".zip",
+    types.FileType.BLACKVUE: ".mp4",
+    types.FileType.CAMM: ".mp4",
+    types.FileType.GOPRO: ".mp4",
+    types.FileType.VIDEO: ".mp4",
+}
 
-    return f"mly_tools_{upload_md5sum}{_SUFFIX_MAP[filetype]}"
+
+def _suffix_session_key(
+    key: str, filetype: api_v4.ClusterFileType | types.FileType
+) -> str:
+    is_uuid_before = _is_uuid(key)
+
+    key = f"mly_tools_{key}{_SUFFIX_MAP[filetype]}"
+
+    assert _is_uuid(key) is is_uuid_before
+
+    return key
 
 
 def _prefixed_uuid4():
@@ -955,5 +967,5 @@ def _prefixed_uuid4():
     return prefixed
 
 
-def _is_uuid(session_key: str) -> bool:
-    return session_key.startswith("uuid_")
+def _is_uuid(key: str) -> bool:
+    return key.startswith("uuid_") or key.startswith("mly_tools_uuid_")

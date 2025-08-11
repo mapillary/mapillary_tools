@@ -20,6 +20,7 @@ from . import (
     constants,
     exceptions,
     history,
+    http,
     ipc,
     types,
     uploader,
@@ -160,10 +161,10 @@ def log_exception(ex: Exception) -> None:
     if isinstance(ex, UploadedAlready):
         LOG.info(f"{exc_name}: {ex}")
     elif isinstance(ex, requests.HTTPError):
-        LOG.error(f"{exc_name}: {api_v4.readable_http_error(ex)}", exc_info=exc_info)
+        LOG.error(f"{exc_name}: {http.readable_http_error(ex)}", exc_info=exc_info)
     elif isinstance(ex, api_v4.HTTPContentError):
         LOG.error(
-            f"{exc_name}: {ex}: {api_v4.readable_http_response(ex.response)}",
+            f"{exc_name}: {ex}: {http.readable_http_response(ex.response)}",
             exc_info=exc_info,
         )
     else:
@@ -507,14 +508,16 @@ def _api_logging_finished(summary: dict, dry_run: bool = False):
         return
 
     action: api_v4.ActionType = "upload_finished_upload"
-    try:
-        api_v4.log_event(action, summary)
-    except requests.HTTPError as exc:
-        LOG.warning(
-            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
-        )
-    except Exception:
-        LOG.warning(f"Error from logging action {action}", exc_info=True)
+
+    with api_v4.create_client_session(disable_logging=True) as client_session:
+        try:
+            api_v4.log_event(client_session, action, summary)
+        except requests.HTTPError as exc:
+            LOG.warning(
+                f"HTTPError from logging action {action}: {http.readable_http_error(exc)}"
+            )
+        except Exception:
+            LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
@@ -526,14 +529,16 @@ def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
 
     payload_with_reason = {**payload, "reason": exc.__class__.__name__}
     action: api_v4.ActionType = "upload_failed_upload"
-    try:
-        api_v4.log_event(action, payload_with_reason)
-    except requests.HTTPError as exc:
-        LOG.warning(
-            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
-        )
-    except Exception:
-        LOG.warning(f"Error from logging action {action}", exc_info=True)
+
+    with api_v4.create_client_session(disable_logging=True) as client_session:
+        try:
+            api_v4.log_event(client_session, action, payload_with_reason)
+        except requests.HTTPError as exc:
+            LOG.warning(
+                f"HTTPError from logging action {action}: {http.readable_http_error(exc)}"
+            )
+        except Exception:
+            LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 _M = T.TypeVar("_M", bound=types.Metadata)
