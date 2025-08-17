@@ -574,19 +574,22 @@ class ImageSequenceUploader:
     def _upload_sequence_parallel(
         self, sequence: T.Sequence[types.ImageMetadata], progress: dict[str, T.Any]
     ) -> list[str]:
+        if not sequence:
+            return []
+
+        single_image_uploader = SingleImageUploader(self.upload_options)
+
+        max_workers = min(constants.MAX_IMAGE_UPLOAD_WORKERS, len(sequence))
+
+        # Lock is used to synchronize event emission
+        lock = threading.Lock()
+
         # Push all images into the queue
         image_queue: queue.Queue[tuple[int, types.ImageMetadata]] = queue.Queue()
         for idx, image_metadata in enumerate(sequence):
             image_queue.put((idx, image_metadata))
 
-        # Lock is used to synchronize event emittion
-        lock = threading.Lock()
-
-        single_image_uploader = SingleImageUploader(self.upload_options)
-
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
-        ) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
                     self._upload_images_from_queue,
@@ -595,23 +598,27 @@ class ImageSequenceUploader:
                     single_image_uploader,
                     progress,
                 )
-                for _ in range(constants.MAX_IMAGE_UPLOAD_WORKERS)
+                for _ in range(max_workers)
             ]
 
             indexed_image_file_handles = []
             for future in futures:
                 indexed_image_file_handles.extend(future.result())
 
-        results: list[str] = []
+        # All tasks should be done here
+        image_queue.join()
+        image_queue.shutdown()
+
+        file_handles: list[str] = []
 
         indexed_image_file_handles.sort()
 
         assert len(indexed_image_file_handles) == len(sequence)
         for expected_idx, (idx, file_handle) in enumerate(indexed_image_file_handles):
             assert expected_idx == idx
-            results.append(file_handle)
+            file_handles.append(file_handle)
 
-        return results
+        return file_handles
 
     def _upload_images_from_queue(
         self,
@@ -621,10 +628,12 @@ class ImageSequenceUploader:
         progress: dict[str, T.Any],
     ) -> list[tuple[int, str]]:
         indexed_file_handles = []
+
         with api_v4.create_user_session(
             self.upload_options.user_items["user_upload_token"]
         ) as user_session:
             while True:
+                # Assert that all images are already pushed into the queue
                 try:
                     idx, image_metadata = image_queue.get_nowait()
                 except queue.Empty:
@@ -641,6 +650,9 @@ class ImageSequenceUploader:
                     self.emitter.emit("upload_progress", mutable_progress)
 
                 indexed_file_handles.append((idx, file_handle))
+
+                image_queue.task_done()
+
         return indexed_file_handles
 
 
@@ -666,8 +678,10 @@ class SingleImageUploader:
         file_handle = self._get_cached_file_handle(session_key)
 
         if file_handle is None:
-            file_handle = uploader.upload_stream_retryable(
-                user_session, io.BytesIO(image_bytes), session_key
+            file_handle = uploader.upload_stream(
+                io.BytesIO(image_bytes),
+                session_key=session_key,
+                user_session=user_session,
             )
             self._set_file_handle_cache(session_key, file_handle)
 
@@ -763,6 +777,7 @@ class Uploader:
         fp: T.IO[bytes],
         session_key: str | None = None,
         progress: dict[str, T.Any] | None = None,
+        user_session: requests.Session | None = None,
     ) -> str:
         if progress is None:
             progress = {}
@@ -782,20 +797,25 @@ class Uploader:
 
         while True:
             try:
-                with api_v4.create_user_session(
-                    self.upload_options.user_items["user_upload_token"]
-                ) as user_session:
+                if user_session is not None:
                     file_handle = self.upload_stream_retryable(
                         user_session,
                         fp,
                         session_key,
                         T.cast(UploaderProgress, progress),
                     )
-            except Exception as ex:
-                self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
+                else:
+                    with api_v4.create_user_session(
+                        self.upload_options.user_items["user_upload_token"]
+                    ) as user_session:
+                        file_handle = self.upload_stream_retryable(
+                            user_session,
+                            fp,
+                            session_key,
+                            T.cast(UploaderProgress, progress),
+                        )
             except BaseException as ex:
-                self.emitter.emit("upload_failed", progress)
-                raise ex
+                self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
             else:
                 break
 
@@ -861,7 +881,7 @@ class Uploader:
         return upload_service
 
     def _handle_upload_exception(
-        self, ex: Exception, progress: UploaderProgress
+        self, ex: BaseException, progress: UploaderProgress
     ) -> None:
         retries = progress.get("retries", 0)
         begin_offset = progress.get("begin_offset")
@@ -972,7 +992,7 @@ def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):
             raise FileNotFoundError(f"No such file {metadata.filename}")
 
 
-def _is_immediate_retriable_exception(ex: Exception) -> bool:
+def _is_immediate_retriable_exception(ex: BaseException) -> bool:
     if (
         isinstance(ex, requests.HTTPError)
         and isinstance(ex.response, requests.Response)
@@ -988,7 +1008,7 @@ def _is_immediate_retriable_exception(ex: Exception) -> bool:
     return False
 
 
-def _is_retriable_exception(ex: Exception) -> bool:
+def _is_retriable_exception(ex: BaseException) -> bool:
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True
 

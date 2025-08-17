@@ -154,16 +154,18 @@ UPLOAD_CACHE_DIR: str = os.getenv(
 # The minimal upload speed is used to calculate the read timeout to avoid upload hanging:
 # timeout = upload_size / MIN_UPLOAD_SPEED
 MIN_UPLOAD_SPEED: int | None = _parse_filesize(
-    os.getenv(_ENV_PREFIX + "MIN_UPLOAD_SPEED", "50K")  # 50 KiB/s
+    os.getenv(_ENV_PREFIX + "MIN_UPLOAD_SPEED", "50K")  # 50 Kb/s
 )
+# Maximum number of parallel workers for uploading images within a single sequence.
+# NOTE: Sequences themselves are uploaded sequentially, not in parallel.
 MAX_IMAGE_UPLOAD_WORKERS: int = int(
-    os.getenv(_ENV_PREFIX + "MAX_IMAGE_UPLOAD_WORKERS", 64)
+    os.getenv(_ENV_PREFIX + "MAX_IMAGE_UPLOAD_WORKERS", 4)
 )
 # The chunk size in MB (see chunked transfer encoding https://en.wikipedia.org/wiki/Chunked_transfer_encoding)
 # for uploading data to MLY upload service.
 # Changing this size does not change the number of requests nor affect upload performance,
 # but it affects the responsiveness of the upload progress bar
-UPLOAD_CHUNK_SIZE_MB: float = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 1))
+UPLOAD_CHUNK_SIZE_MB: float = float(os.getenv(_ENV_PREFIX + "UPLOAD_CHUNK_SIZE_MB", 2))
 MAX_UPLOAD_RETRIES: int = int(os.getenv(_ENV_PREFIX + "MAX_UPLOAD_RETRIES", 200))
 MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN: bool = _yes_or_no(
     os.getenv("MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN", "NO")
