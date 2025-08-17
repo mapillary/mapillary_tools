@@ -562,9 +562,10 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from uploader.ImageSequenceUploader.upload_images(
-        mly_uploader, image_metadatas
+    image_uploader = uploader.ImageSequenceUploader(
+        mly_uploader.upload_options, emitter=mly_uploader.emitter
     )
+    yield from image_uploader.upload_images(image_metadatas)
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(

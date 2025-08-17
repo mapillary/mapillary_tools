@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import os
+import queue
 import struct
 import sys
 import tempfile
@@ -494,9 +495,12 @@ class ZipUploader:
 
 
 class ImageSequenceUploader:
-    @classmethod
+    def __init__(self, upload_options: UploadOptions, emitter: EventEmitter):
+        self.upload_options = upload_options
+        self.emitter = emitter
+
     def upload_images(
-        cls, uploader: Uploader, image_metadatas: T.Sequence[types.ImageMetadata]
+        self, image_metadatas: T.Sequence[types.ImageMetadata]
     ) -> T.Generator[tuple[str, UploadResult], None, None]:
         sequences = types.group_and_sort_images(image_metadatas)
 
@@ -514,8 +518,7 @@ class ImageSequenceUploader:
             }
 
             try:
-                cluster_id = cls._upload_sequence(
-                    uploader,
+                cluster_id = self._upload_sequence_and_finish(
                     sequence,
                     progress=T.cast(dict[str, T.Any], sequence_progress),
                 )
@@ -524,30 +527,22 @@ class ImageSequenceUploader:
             else:
                 yield sequence_uuid, UploadResult(result=cluster_id)
 
-    @classmethod
-    def _upload_sequence(
-        cls,
-        uploader: Uploader,
+    def _upload_sequence_and_finish(
+        self,
         sequence: T.Sequence[types.ImageMetadata],
         progress: dict[str, T.Any],
     ) -> str:
         _validate_metadatas(sequence)
 
         progress["entity_size"] = sum(m.filesize or 0 for m in sequence)
-        uploader.emitter.emit("upload_start", progress)
+        self.emitter.emit("upload_start", progress)
 
-        single_image_uploader = SingleImageUploader(uploader, progress=progress)
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
-        ) as executor:
-            image_file_handles = list(
-                executor.map(single_image_uploader.upload, sequence)
-            )
+        image_file_handles = self._upload_sequence_parallel(sequence, progress)
+        manifest_file_handle = self._upload_manifest(image_file_handles)
 
-        manifest_file_handle = cls._upload_manifest(uploader, image_file_handles)
+        self.emitter.emit("upload_end", progress)
 
-        uploader.emitter.emit("upload_end", progress)
-
+        uploader = Uploader(self.upload_options, emitter=self.emitter)
         cluster_id = uploader.finish_upload(
             manifest_file_handle,
             api_v4.ClusterFileType.MLY_BUNDLE_MANIFEST,
@@ -556,11 +551,8 @@ class ImageSequenceUploader:
 
         return cluster_id
 
-    @classmethod
-    def _upload_manifest(
-        cls, uploader: Uploader, image_file_handles: T.Sequence[str]
-    ) -> str:
-        uploader_without_emitter = Uploader(uploader.upload_options)
+    def _upload_manifest(self, image_file_handles: T.Sequence[str]) -> str:
+        uploader = Uploader(self.upload_options)
 
         manifest = {
             "version": "1",
@@ -575,53 +567,109 @@ class ImageSequenceUploader:
                 )
             )
             manifest_fp.seek(0, io.SEEK_SET)
-            return uploader_without_emitter.upload_stream(
+            return uploader.upload_stream(
                 manifest_fp, session_key=f"{_prefixed_uuid4()}.json"
             )
+
+    def _upload_sequence_parallel(
+        self, sequence: T.Sequence[types.ImageMetadata], progress: dict[str, T.Any]
+    ) -> list[str]:
+        # Push all images into the queue
+        image_queue: queue.Queue[tuple[int, types.ImageMetadata]] = queue.Queue()
+        for idx, image_metadata in enumerate(sequence):
+            image_queue.put((idx, image_metadata))
+
+        # Lock is used to synchronize event emittion
+        lock = threading.Lock()
+
+        single_image_uploader = SingleImageUploader(self.upload_options)
+
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=constants.MAX_IMAGE_UPLOAD_WORKERS
+        ) as executor:
+            futures = [
+                executor.submit(
+                    self._upload_images_from_queue,
+                    image_queue,
+                    lock,
+                    single_image_uploader,
+                    progress,
+                )
+                for _ in range(constants.MAX_IMAGE_UPLOAD_WORKERS)
+            ]
+
+            indexed_image_file_handles = []
+            for future in futures:
+                indexed_image_file_handles.extend(future.result())
+
+        results: list[str] = []
+
+        indexed_image_file_handles.sort()
+
+        assert len(indexed_image_file_handles) == len(sequence)
+        for expected_idx, (idx, file_handle) in enumerate(indexed_image_file_handles):
+            assert expected_idx == idx
+            results.append(file_handle)
+
+        return results
+
+    def _upload_images_from_queue(
+        self,
+        image_queue: queue.Queue[tuple[int, types.ImageMetadata]],
+        lock: threading.Lock,
+        single_image_uploader: SingleImageUploader,
+        progress: dict[str, T.Any],
+    ) -> list[tuple[int, str]]:
+        indexed_file_handles = []
+        with api_v4.create_user_session(
+            self.upload_options.user_items["user_upload_token"]
+        ) as user_session:
+            while True:
+                try:
+                    idx, image_metadata = image_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+                file_handle = single_image_uploader.upload(user_session, image_metadata)
+
+                mutable_progress = {
+                    **progress,
+                    "filename": str(image_metadata.filename),
+                }
+                mutable_progress["chunk_size"] = image_metadata.filesize
+                with lock:
+                    self.emitter.emit("upload_progress", mutable_progress)
+
+                indexed_file_handles.append((idx, file_handle))
+        return indexed_file_handles
 
 
 class SingleImageUploader:
     def __init__(
         self,
-        uploader: Uploader,
-        progress: dict[str, T.Any] | None = None,
+        upload_options: UploadOptions,
     ):
-        self.uploader = uploader
-        self.progress = progress or {}
-        self.lock = threading.Lock()
+        self.upload_options = upload_options
         self.cache = self._maybe_create_persistent_cache_instance(
-            uploader.upload_options.user_items
+            self.upload_options.user_items
         )
 
-    def upload(self, image_metadata: types.ImageMetadata) -> str:
-        mutable_progress = {
-            **(self.progress or {}),
-            "filename": str(image_metadata.filename),
-        }
-
+    def upload(
+        self, user_session: requests.Session, image_metadata: types.ImageMetadata
+    ) -> str:
         image_bytes = self.dump_image_bytes(image_metadata)
 
-        uploader_without_emitter = Uploader(self.uploader.upload_options)
+        uploader = Uploader(self.upload_options)
 
-        session_key = uploader_without_emitter._gen_session_key(
-            io.BytesIO(image_bytes), mutable_progress
-        )
+        session_key = uploader._gen_session_key(io.BytesIO(image_bytes), {})
 
         file_handle = self._file_handle_cache_get(session_key)
 
         if file_handle is None:
-            file_handle = uploader_without_emitter.upload_stream(
-                io.BytesIO(image_bytes),
-                session_key=session_key,
-                progress=mutable_progress,
+            file_handle = uploader.upload_stream_retryable(
+                user_session, io.BytesIO(image_bytes), session_key
             )
             self._file_handle_cache_set(session_key, file_handle)
-
-        # Override chunk_size with the actual filesize
-        mutable_progress["chunk_size"] = image_metadata.filesize
-
-        with self.lock:
-            self.uploader.emitter.emit("upload_progress", mutable_progress)
 
         return file_handle
 
@@ -726,9 +774,15 @@ class Uploader:
 
         while True:
             try:
-                file_handle = self._upload_stream_retryable(
-                    fp, session_key, T.cast(UploaderProgress, progress)
-                )
+                with api_v4.create_user_session(
+                    self.upload_options.user_items["user_upload_token"]
+                ) as user_session:
+                    file_handle = self.upload_stream_retryable(
+                        user_session,
+                        fp,
+                        session_key,
+                        T.cast(UploaderProgress, progress),
+                    )
             except Exception as ex:
                 self._handle_upload_exception(ex, T.cast(UploaderProgress, progress))
             except BaseException as ex:
@@ -840,44 +894,52 @@ class Uploader:
 
             self.emitter.emit("upload_progress", progress)
 
-    def _upload_stream_retryable(
-        self, fp: T.IO[bytes], session_key: str, progress: UploaderProgress
+    def upload_stream_retryable(
+        self,
+        user_session: requests.Session,
+        fp: T.IO[bytes],
+        session_key: str,
+        progress: UploaderProgress | None = None,
     ) -> str:
         """Upload the stream with safe retries guraranteed"""
+        if progress is None:
+            progress = T.cast(UploaderProgress, {})
 
-        with api_v4.create_user_session(
-            self.upload_options.user_items["user_upload_token"]
-        ) as user_session:
-            upload_service = self._create_upload_service(user_session, session_key)
+        upload_service = self._create_upload_service(user_session, session_key)
 
-            if _is_uuid(session_key):
-                begin_offset = 0
-            else:
-                begin_offset = upload_service.fetch_offset()
+        if "entity_size" not in progress:
+            fp.seek(0, io.SEEK_END)
+            entity_size = fp.tell()
+            progress["entity_size"] = entity_size
 
-            progress["begin_offset"] = begin_offset
-            progress["offset"] = begin_offset
+        if _is_uuid(session_key):
+            begin_offset = 0
+        else:
+            begin_offset = upload_service.fetch_offset()
 
-            self.emitter.emit("upload_fetch_offset", progress)
+        progress["begin_offset"] = begin_offset
+        progress["offset"] = begin_offset
 
-            # Estimate the read timeout
-            if not constants.MIN_UPLOAD_SPEED:
-                read_timeout = None
-            else:
-                remaining_bytes = abs(progress["entity_size"] - begin_offset)
-                read_timeout = max(
-                    api_v4.REQUESTS_TIMEOUT,
-                    remaining_bytes / constants.MIN_UPLOAD_SPEED,
-                )
+        self.emitter.emit("upload_fetch_offset", progress)
 
-            # Upload from begin_offset
-            fp.seek(begin_offset, io.SEEK_SET)
-            shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
-
-            # Start uploading
-            return upload_service.upload_shifted_chunks(
-                shifted_chunks, begin_offset, read_timeout=read_timeout
+        # Estimate the read timeout
+        if not constants.MIN_UPLOAD_SPEED:
+            read_timeout = None
+        else:
+            remaining_bytes = abs(progress["entity_size"] - begin_offset)
+            read_timeout = max(
+                api_v4.REQUESTS_TIMEOUT,
+                remaining_bytes / constants.MIN_UPLOAD_SPEED,
             )
+
+        # Upload from begin_offset
+        fp.seek(begin_offset, io.SEEK_SET)
+        shifted_chunks = self._chunk_with_progress_emitted(fp, progress)
+
+        # Start uploading
+        return upload_service.upload_shifted_chunks(
+            shifted_chunks, begin_offset, read_timeout=read_timeout
+        )
 
     def _gen_session_key(self, fp: T.IO[bytes], progress: dict[str, T.Any]) -> str:
         if self.upload_options.noresume:
