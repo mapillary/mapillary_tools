@@ -663,13 +663,13 @@ class SingleImageUploader:
 
         session_key = uploader._gen_session_key(io.BytesIO(image_bytes), {})
 
-        file_handle = self._file_handle_cache_get(session_key)
+        file_handle = self._get_cached_file_handle(session_key)
 
         if file_handle is None:
             file_handle = uploader.upload_stream_retryable(
                 user_session, io.BytesIO(image_bytes), session_key
             )
-            self._file_handle_cache_set(session_key, file_handle)
+            self._set_file_handle_cache(session_key, file_handle)
 
         return file_handle
 
@@ -713,14 +713,22 @@ class SingleImageUploader:
         )
         cache_path_dir.mkdir(parents=True, exist_ok=True)
         cache_path = cache_path_dir.joinpath("cached_file_handles")
-        LOG.debug(f"File handle cache path: {cache_path}")
+
+        # Sanitize sensitive segments for logging
+        sanitized_cache_path = (
+            Path(constants.UPLOAD_CACHE_DIR)
+            .joinpath("***")
+            .joinpath("***")
+            .joinpath("cached_file_handles")
+        )
+        LOG.debug(f"File handle cache path: {sanitized_cache_path}")
 
         cache = history.PersistentCache(str(cache_path.resolve()))
         cache.clear_expired()
 
         return cache
 
-    def _file_handle_cache_get(self, key: str) -> str | None:
+    def _get_cached_file_handle(self, key: str) -> str | None:
         if self.cache is None:
             return None
 
@@ -729,7 +737,7 @@ class SingleImageUploader:
 
         return self.cache.get(key)
 
-    def _file_handle_cache_set(self, key: str, value: str) -> None:
+    def _set_file_handle_cache(self, key: str, value: str) -> None:
         if self.cache is None:
             return
 
