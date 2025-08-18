@@ -410,8 +410,8 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
             payload["offset"], payload.get("upload_first_offset", payload["offset"])
         )
 
-    @emitter.on("upload_interrupted")
-    def collect_interrupted(payload: _APIStats):
+    @emitter.on("upload_retrying")
+    def collect_retrying(payload: _APIStats):
         # could be None if it failed to fetch offset
         restart_time = payload.get("upload_last_restart_time")
         if restart_time is not None:
