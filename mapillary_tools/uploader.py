@@ -55,9 +55,19 @@ LOG = logging.getLogger(__name__)
 class UploadOptions:
     user_items: config.UserItem
     chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024)
+    num_upload_workers: int = constants.MAX_IMAGE_UPLOAD_WORKERS
     dry_run: bool = False
     nofinish: bool = False
     noresume: bool = False
+
+    def __post_init__(self):
+        if self.num_upload_workers <= 0:
+            raise ValueError(
+                f"Expect positive num_upload_workers but got {self.num_upload_workers}"
+            )
+
+        if self.chunk_size <= 0:
+            raise ValueError(f"Expect positive chunk_size but got {self.chunk_size}")
 
 
 class UploaderProgress(T.TypedDict, total=True):
@@ -614,7 +624,7 @@ class ImageSequenceUploader:
         if not sequence:
             return []
 
-        max_workers = min(constants.MAX_IMAGE_UPLOAD_WORKERS, len(sequence))
+        max_workers = min(self.upload_options.num_upload_workers, len(sequence))
 
         # Lock is used to synchronize event emission
         lock = threading.Lock()

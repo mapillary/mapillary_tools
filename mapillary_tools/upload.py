@@ -42,6 +42,7 @@ class UploadedAlready(uploader.SequenceError):
 def upload(
     import_path: Path | T.Sequence[Path],
     user_items: config.UserItem,
+    num_upload_workers: int,
     desc_path: str | None = None,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
     reupload: bool = False,
@@ -85,15 +86,18 @@ def upload(
     # Send the progress via IPC, and log the progress in debug mode
     _setup_ipc(emitter)
 
-    mly_uploader = uploader.Uploader(
-        uploader.UploadOptions(
+    try:
+        upload_options = uploader.UploadOptions(
             user_items,
             dry_run=dry_run,
             nofinish=nofinish,
             noresume=noresume,
-        ),
-        emitter=emitter,
-    )
+            num_upload_workers=num_upload_workers,
+        )
+    except ValueError as ex:
+        raise exceptions.MapillaryBadParameterError(str(ex)) from ex
+
+    mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
     results = _gen_upload_everything(
         mly_uploader, metadatas, import_paths, skip_subfolders
