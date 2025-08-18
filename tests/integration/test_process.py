@@ -587,7 +587,7 @@ def test_process_unsupported_filetypes(setup_data: py.path.local):
 
 
 def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.local):
-    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    video_path = setup_data.join("gopro_data").join("hero8.mp4")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
 
     descs = run_process_for_descs(
@@ -595,6 +595,24 @@ def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.loca
             *[
                 "--video_geotag_source",
                 json.dumps({"source": "gpx", "source_path": str(gpx_file)}),
+            ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert len(descs[0]["MAPGPSTrack"]) > 0
+
+
+def test_process_video_geotag_source_with_xml_specified(setup_data: py.path.local):
+    video_path = setup_data.join("gopro_data").join("hero8.mp4")
+    xml_file = setup_data.join("exiftool_xml").join("insta360.xml")
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                json.dumps({"source": "exiftool_xml", "source_path": str(xml_file)}),
             ],
             str(video_path),
         ]
