@@ -24,6 +24,13 @@ class Command:
             required=False,
         )
         group.add_argument(
+            "--num_upload_workers",
+            help="Number of concurrent upload workers for uploading images. [default: %(default)s]",
+            default=constants.MAX_IMAGE_UPLOAD_WORKERS,
+            type=int,
+            required=False,
+        )
+        group.add_argument(
             "--reupload",
             help="Re-upload data that has already been uploaded.",
             action="store_true",

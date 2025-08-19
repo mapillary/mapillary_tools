@@ -17,13 +17,7 @@ import tempfile
 
 import requests
 
-from .api_v4 import (
-    HTTPContentError,
-    jsonify_response,
-    request_get,
-    request_post,
-    REQUESTS_TIMEOUT,
-)
+from .api_v4 import HTTPContentError, jsonify_response, REQUESTS_TIMEOUT
 
 MAPILLARY_UPLOAD_ENDPOINT = os.getenv(
     "MAPILLARY_UPLOAD_ENDPOINT", "https://rupload.facebook.com/mapillary_public_uploads"
@@ -38,21 +32,17 @@ class UploadService:
     user_access_token: str
     session_key: str
 
-    def __init__(self, user_access_token: str, session_key: str):
-        self.user_access_token = user_access_token
+    def __init__(self, user_session: requests.Session, session_key: str):
+        self.user_session = user_session
         self.session_key = session_key
 
     def fetch_offset(self) -> int:
-        headers = {
-            "Authorization": f"OAuth {self.user_access_token}",
-        }
         url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        resp = request_get(url, headers=headers, timeout=REQUESTS_TIMEOUT)
 
+        resp = self.user_session.get(url, timeout=REQUESTS_TIMEOUT)
         resp.raise_for_status()
 
         data = jsonify_response(resp)
-
         try:
             return data["offset"]
         except KeyError:
@@ -158,23 +148,21 @@ class UploadService:
         Upload the chunks that must already be shifted by the offset (e.g. fp.seek(offset, io.SEEK_SET))
         """
 
+        url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
         headers = {
-            "Authorization": f"OAuth {self.user_access_token}",
             "Offset": f"{offset}",
             "X-Entity-Name": self.session_key,
         }
-        url = f"{MAPILLARY_UPLOAD_ENDPOINT}/{self.session_key}"
-        resp = request_post(
+
+        resp = self.user_session.post(
             url,
             headers=headers,
             data=shifted_chunks,
-            timeout=(REQUESTS_TIMEOUT, read_timeout),
+            timeout=(REQUESTS_TIMEOUT, read_timeout),  # type: ignore
         )
-
         resp.raise_for_status()
 
         data = jsonify_response(resp)
-
         try:
             return data["h"]
         except KeyError:

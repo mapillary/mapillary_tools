@@ -20,6 +20,7 @@ from . import (
     constants,
     exceptions,
     history,
+    http,
     ipc,
     types,
     uploader,
@@ -41,6 +42,7 @@ class UploadedAlready(uploader.SequenceError):
 def upload(
     import_path: Path | T.Sequence[Path],
     user_items: config.UserItem,
+    num_upload_workers: int,
     desc_path: str | None = None,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
     reupload: bool = False,
@@ -84,15 +86,18 @@ def upload(
     # Send the progress via IPC, and log the progress in debug mode
     _setup_ipc(emitter)
 
-    mly_uploader = uploader.Uploader(
-        uploader.UploadOptions(
+    try:
+        upload_options = uploader.UploadOptions(
             user_items,
             dry_run=dry_run,
             nofinish=nofinish,
             noresume=noresume,
-        ),
-        emitter=emitter,
-    )
+            num_upload_workers=num_upload_workers,
+        )
+    except ValueError as ex:
+        raise exceptions.MapillaryBadParameterError(str(ex)) from ex
+
+    mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
     results = _gen_upload_everything(
         mly_uploader, metadatas, import_paths, skip_subfolders
@@ -160,10 +165,10 @@ def log_exception(ex: Exception) -> None:
     if isinstance(ex, UploadedAlready):
         LOG.info(f"{exc_name}: {ex}")
     elif isinstance(ex, requests.HTTPError):
-        LOG.error(f"{exc_name}: {api_v4.readable_http_error(ex)}", exc_info=exc_info)
+        LOG.error(f"{exc_name}: {http.readable_http_error(ex)}", exc_info=exc_info)
     elif isinstance(ex, api_v4.HTTPContentError):
         LOG.error(
-            f"{exc_name}: {ex}: {api_v4.readable_http_response(ex.response)}",
+            f"{exc_name}: {ex}: {http.readable_http_response(ex.response)}",
             exc_info=exc_info,
         )
     else:
@@ -202,31 +207,25 @@ def _setup_history(
         record = history.read_history_record(md5sum)
 
         if record is not None:
-            sequence_uuid = payload.get("sequence_uuid")
             history_desc_path = history.history_desc_path(md5sum)
             uploaded_at = record.get("summary", {}).get("upload_end_time", None)
 
-            if sequence_uuid is None:
-                basename = os.path.basename(payload.get("import_path", ""))
-                name = f"file {basename}"
-
-            else:
-                name = f"sequence {sequence_uuid}"
+            upload_name = uploader.Uploader._upload_name(payload)
 
             if reupload:
                 if uploaded_at is not None:
                     LOG.info(
-                        f"Reuploading {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                        f"Reuploading {upload_name}, despite being uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                     )
                 else:
                     LOG.info(
-                        f"Reuploading {name}: already uploaded, see {history_desc_path}"
+                        f"Reuploading {upload_name}, despite already being uploaded (see {history_desc_path})"
                     )
             else:
                 if uploaded_at is not None:
-                    msg = f"Skipping {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                    msg = f"Skipping {upload_name}, already uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                 else:
-                    msg = f"Skipping {name}: already uploaded, see {history_desc_path}"
+                    msg = f"Skipping {upload_name}, already uploaded (see {history_desc_path})"
                 raise UploadedAlready(msg)
 
     @emitter.on("upload_finished")
@@ -409,8 +408,8 @@ def _setup_api_stats(emitter: uploader.EventEmitter):
             payload["offset"], payload.get("upload_first_offset", payload["offset"])
         )
 
-    @emitter.on("upload_interrupted")
-    def collect_interrupted(payload: _APIStats):
+    @emitter.on("upload_retrying")
+    def collect_retrying(payload: _APIStats):
         # could be None if it failed to fetch offset
         restart_time = payload.get("upload_last_restart_time")
         if restart_time is not None:
@@ -494,7 +493,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info(
             f"{humanize.naturalsize(summary['uploaded_size'] * 1024 * 1024)} uploaded"
         )
-        LOG.info(f"{summary['time']} upload time")
+        LOG.info(f"{summary['time']:.3f} seconds upload time")
     else:
         LOG.info("Nothing uploaded. Bye.")
 
@@ -507,14 +506,16 @@ def _api_logging_finished(summary: dict, dry_run: bool = False):
         return
 
     action: api_v4.ActionType = "upload_finished_upload"
-    try:
-        api_v4.log_event(action, summary)
-    except requests.HTTPError as exc:
-        LOG.warning(
-            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
-        )
-    except Exception:
-        LOG.warning(f"Error from logging action {action}", exc_info=True)
+
+    with api_v4.create_client_session(disable_logging=True) as client_session:
+        try:
+            api_v4.log_event(client_session, action, summary)
+        except requests.HTTPError as exc:
+            LOG.warning(
+                f"HTTPError from logging action {action}: {http.readable_http_error(exc)}"
+            )
+        except Exception:
+            LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
@@ -526,14 +527,16 @@ def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
 
     payload_with_reason = {**payload, "reason": exc.__class__.__name__}
     action: api_v4.ActionType = "upload_failed_upload"
-    try:
-        api_v4.log_event(action, payload_with_reason)
-    except requests.HTTPError as exc:
-        LOG.warning(
-            f"HTTPError from logging action {action}: {api_v4.readable_http_error(exc)}"
-        )
-    except Exception:
-        LOG.warning(f"Error from logging action {action}", exc_info=True)
+
+    with api_v4.create_client_session(disable_logging=True) as client_session:
+        try:
+            api_v4.log_event(client_session, action, payload_with_reason)
+        except requests.HTTPError as exc:
+            LOG.warning(
+                f"HTTPError from logging action {action}: {http.readable_http_error(exc)}"
+            )
+        except Exception:
+            LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
 _M = T.TypeVar("_M", bound=types.Metadata)
@@ -557,9 +560,10 @@ def _gen_upload_everything(
         (m for m in metadatas if isinstance(m, types.ImageMetadata)),
         utils.find_images(import_paths, skip_subfolders=skip_subfolders),
     )
-    yield from uploader.ImageSequenceUploader.upload_images(
-        mly_uploader, image_metadatas
+    image_uploader = uploader.ImageSequenceUploader(
+        mly_uploader.upload_options, emitter=mly_uploader.emitter
     )
+    yield from image_uploader.upload_images(image_metadatas)
 
     # Upload videos
     video_metadatas = _find_metadata_with_filename_existed_in(

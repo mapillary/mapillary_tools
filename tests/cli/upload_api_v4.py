@@ -6,7 +6,7 @@ import typing as T
 
 import requests
 import tqdm
-from mapillary_tools import api_v4, authenticate
+from mapillary_tools import api_v4, authenticate, http
 
 from mapillary_tools.upload_api_v4 import FakeUploadService, UploadService
 
@@ -64,15 +64,16 @@ def main():
     chunk_size = int(parsed.chunk_size * 1024 * 1024)
     user_access_token = user_items.get("user_upload_token", "")
 
+    session = api_v4.create_user_session(user_access_token)
     if parsed.dry_run:
-        service = FakeUploadService(user_access_token="", session_key=session_key)
+        service = FakeUploadService(session, session_key)
     else:
-        service = UploadService(user_access_token, session_key)
+        service = UploadService(session, session_key)
 
     try:
         initial_offset = service.fetch_offset()
     except requests.HTTPError as ex:
-        raise RuntimeError(api_v4.readable_http_error(ex))
+        raise RuntimeError(http.readable_http_error(ex))
 
     LOG.info("Session key: %s", session_key)
     LOG.info("Initial offset: %s", initial_offset)
@@ -105,7 +106,7 @@ def main():
                     _update_pbar(shifted_chunks, pbar), initial_offset
                 )
             except requests.HTTPError as ex:
-                raise RuntimeError(api_v4.readable_http_error(ex))
+                raise RuntimeError(http.readable_http_error(ex))
             except KeyboardInterrupt:
                 file_handle = None
                 LOG.warning("Upload interrupted")
@@ -113,7 +114,7 @@ def main():
     try:
         final_offset = service.fetch_offset()
     except requests.HTTPError as ex:
-        raise RuntimeError(api_v4.readable_http_error(ex))
+        raise RuntimeError(http.readable_http_error(ex))
 
     LOG.info("Final offset: %s", final_offset)
     LOG.info("Entity size: %d", entity_size)
