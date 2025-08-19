@@ -493,7 +493,7 @@ def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Except
         LOG.info(
             f"{humanize.naturalsize(summary['uploaded_size'] * 1024 * 1024)} uploaded"
         )
-        LOG.info(f"{summary['time']} upload time")
+        LOG.info(f"{summary['time']:.3f} seconds upload time")
     else:
         LOG.info("Nothing uploaded. Bye.")
 
