@@ -110,7 +110,7 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
             LOG.warning(
                 "Failed to parse ExifTool XML: %s",
                 str(ex),
-                exc_info=LOG.getEffectiveLevel() <= logging.DEBUG,
+                exc_info=LOG.isEnabledFor(logging.DEBUG),
             )
             rdf_by_path = {}
         else:

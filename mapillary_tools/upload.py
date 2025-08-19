@@ -152,7 +152,7 @@ def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
 
 
 def log_exception(ex: Exception) -> None:
-    if LOG.getEffectiveLevel() <= logging.DEBUG:
+    if LOG.isEnabledFor(logging.DEBUG):
         exc_info = ex
     else:
         exc_info = None
@@ -280,7 +280,7 @@ def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
             unit_scale=True,
             unit_divisor=1024,
             initial=payload.get("offset", 0),
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+            disable=LOG.isEnabledFor(logging.DEBUG),
         )
 
     @emitter.on("upload_fetch_offset")
@@ -338,7 +338,7 @@ def _setup_ipc(emitter: uploader.EventEmitter):
     def upload_progress(payload: uploader.Progress):
         type: uploader.EventName = "upload_progress"
 
-        if LOG.getEffectiveLevel() <= logging.DEBUG:
+        if LOG.isEnabledFor(logging.DEBUG):
             # In debug mode, we want to see the progress every 30 seconds
             # instead of every chunk (which is too verbose)
             INTERVAL_SECONDS = 30

@@ -88,7 +88,7 @@ class Session(requests.Session):
         if self.disable_logging_request:
             return
 
-        if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+        if not LOG.isEnabledFor(logging.DEBUG):
             return
 
         if isinstance(method, str) and isinstance(url, str):
@@ -124,7 +124,7 @@ class Session(requests.Session):
         if self.disable_logging_response:
             return
 
-        if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+        if not LOG.isEnabledFor(logging.DEBUG):
             return
 
         elapsed = resp.elapsed.total_seconds() * 1000  # Convert to milliseconds

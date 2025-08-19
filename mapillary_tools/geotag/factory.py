@@ -67,7 +67,7 @@ def process(
     reprocessable_paths = set(paths)
 
     for idx, option in enumerate(options):
-        if LOG.getEffectiveLevel() <= logging.DEBUG:
+        if LOG.isEnabledFor(logging.DEBUG):
             LOG.info(
                 f"==> Processing {len(reprocessable_paths)} files with source {option}..."
             )

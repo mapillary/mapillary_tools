@@ -167,7 +167,7 @@ def _overwrite_exif_tags(
         metadatas,
         desc="Overwriting EXIF",
         unit="images",
-        disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+        disable=LOG.isEnabledFor(logging.DEBUG),
     ):
         dt = datetime.datetime.fromtimestamp(metadata.time, datetime.timezone.utc)
         dt = dt.replace(tzinfo=datetime.timezone.utc)
