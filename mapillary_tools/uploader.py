@@ -730,7 +730,7 @@ class SingleImageUploader:
         self.upload_options = upload_options
         self.user_session = user_session
         self.cache = self._maybe_create_persistent_cache_instance(
-            self.upload_options.user_items
+            self.upload_options.user_items, upload_options
         )
 
     def upload(self, image_metadata: types.ImageMetadata) -> str:
@@ -773,12 +773,16 @@ class SingleImageUploader:
 
     @classmethod
     def _maybe_create_persistent_cache_instance(
-        cls, user_items: config.UserItem
+        cls, user_items: config.UserItem, upload_options: UploadOptions
     ) -> history.PersistentCache | None:
         if not constants.UPLOAD_CACHE_DIR:
             LOG.debug(
                 "Upload cache directory is set empty, skipping caching upload file handles"
             )
+            return None
+
+        if upload_options.dry_run:
+            LOG.debug("Dry-run mode enabled, skipping caching upload file handles")
             return None
 
         cache_path_dir = (
