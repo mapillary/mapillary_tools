@@ -127,20 +127,28 @@ def fetch_user_items(
 
     assert profile_name is not None, "profile_name should be set"
 
-    user_items = _verify_user_auth(_validate_profile(user_items))
+    try:
+        LOG.info(f'Verifying profile "{profile_name}"...')
+        user_items = _verify_user_auth(_validate_profile(user_items))
 
-    LOG.info(
-        f'Uploading to profile "{profile_name}": {user_items.get("MAPSettingsUsername")} (ID: {user_items.get("MAPSettingsUserKey")})'
-    )
-
-    if organization_key is not None:
-        with api_v4.create_user_session(user_items["user_upload_token"]) as session:
-            resp = api_v4.fetch_organization(session, organization_key)
-        data = api_v4.jsonify_response(resp)
         LOG.info(
-            f"Uploading to organization: {data.get('name')} (ID: {data.get('id')})"
+            f'Uploading to profile "{profile_name}": {user_items.get("MAPSettingsUsername")} (ID: {user_items.get("MAPSettingsUserKey")})'
         )
-        user_items["MAPOrganizationKey"] = data.get("id")
+
+        if organization_key is not None:
+            with api_v4.create_user_session(user_items["user_upload_token"]) as session:
+                resp = api_v4.fetch_organization(session, organization_key)
+            data = api_v4.jsonify_response(resp)
+            LOG.info(
+                f"Uploading to organization: {data.get('name')} (ID: {data.get('id')})"
+            )
+            user_items["MAPOrganizationKey"] = data.get("id")
+
+    except requests.Timeout as ex:
+        raise exceptions.MapillaryUploadTimeoutError(str(ex)) from ex
+
+    except requests.ConnectionError as ex:
+        raise exceptions.MapillaryUploadConnectionError(str(ex)) from ex
 
     return user_items
 
