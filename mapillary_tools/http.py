@@ -3,8 +3,14 @@ from __future__ import annotations
 import logging
 
 import ssl
+import sys
 import typing as T
 from json import dumps
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -51,7 +57,7 @@ class Session(requests.Session):
     # Avoid mounting twice
     _mounted: bool = False
 
-    @T.override
+    @override
     def request(self, method: str | bytes, url: str | bytes, *args, **kwargs):
         self._log_debug_request(method, url, *args, **kwargs)
 
