@@ -659,7 +659,8 @@ class ImageSequenceUploader:
 
         # All tasks should be done here, so below is more like assertion
         image_queue.join()
-        image_queue.shutdown()
+        if sys.version_info >= (3, 13):
+            image_queue.shutdown()
 
         file_handles: list[str] = []
 
