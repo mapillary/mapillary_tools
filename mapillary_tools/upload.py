@@ -207,31 +207,25 @@ def _setup_history(
         record = history.read_history_record(md5sum)
 
         if record is not None:
-            sequence_uuid = payload.get("sequence_uuid")
             history_desc_path = history.history_desc_path(md5sum)
             uploaded_at = record.get("summary", {}).get("upload_end_time", None)
 
-            if sequence_uuid is None:
-                basename = os.path.basename(payload.get("import_path", ""))
-                name = f"file {basename}"
-
-            else:
-                name = f"sequence {sequence_uuid}"
+            upload_name = uploader.Uploader._upload_name(payload)
 
             if reupload:
                 if uploaded_at is not None:
                     LOG.info(
-                        f"Reuploading {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                        f"Reuploading {upload_name}, despite being uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                     )
                 else:
                     LOG.info(
-                        f"Reuploading {name}: already uploaded, see {history_desc_path}"
+                        f"Reuploading {upload_name}, despite already being uploaded (see {history_desc_path})"
                     )
             else:
                 if uploaded_at is not None:
-                    msg = f"Skipping {name}: previously uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+                    msg = f"Skipping {upload_name}, already uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
                 else:
-                    msg = f"Skipping {name}: already uploaded, see {history_desc_path}"
+                    msg = f"Skipping {upload_name}, already uploaded (see {history_desc_path})"
                 raise UploadedAlready(msg)
 
     @emitter.on("upload_finished")

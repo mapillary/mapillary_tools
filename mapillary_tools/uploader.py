@@ -955,10 +955,11 @@ class Uploader:
 
         if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
             self.emitter.emit("upload_retrying", progress)
-            # TODO: log the current filename
+
             LOG.warning(
-                f"Error uploading at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
+                f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
             )
+
             # Keep things immutable here. Will increment retries in the caller
             retries += 1
             if _is_immediate_retriable_exception(ex):
@@ -973,6 +974,21 @@ class Uploader:
         else:
             self.emitter.emit("upload_failed", progress)
             raise ex
+
+    @classmethod
+    def _upload_name(cls, progress: UploaderProgress):
+        # Strictly speaking these sequence properties should not be exposed in this context
+        # TODO: Maybe move these logging statements to event handlers
+        sequence_uuid: str | None = T.cast(str | None, progress.get("sequence_uuid"))
+        import_path = T.cast(str | None, progress.get("import_path"))
+        if sequence_uuid is not None:
+            if import_path is None:
+                name: str = f"sequence_{sequence_uuid}"
+            else:
+                name = f"sequence_{sequence_uuid}/{Path(import_path).name}"
+        else:
+            name = Path(import_path or "unknown").name
+        return name
 
     def _chunk_with_progress_emitted(
         self, stream: T.IO[bytes], progress: UploaderProgress
