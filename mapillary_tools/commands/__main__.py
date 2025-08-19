@@ -175,6 +175,10 @@ def main():
         log_exception(ex)
         sys.exit(ex.exit_code)
 
+    except KeyboardInterrupt:
+        LOG.info("Interrupted by user...")
+        sys.exit(130)
+
 
 if __name__ == "__main__":
     main()

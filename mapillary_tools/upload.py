@@ -121,9 +121,6 @@ def upload(
         _api_logging_failed(_summarize(stats), ex, dry_run=dry_run)
         raise ex
 
-    except KeyboardInterrupt:
-        LOG.info("Upload interrupted by user...")
-
     else:
         _api_logging_finished(_summarize(stats), dry_run=dry_run)
 
