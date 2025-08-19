@@ -700,19 +700,26 @@ class ImageSequenceUploader:
                 if upload_interrupted.is_set():
                     break
 
-                file_handle = single_image_uploader.upload(image_metadata)
+                # Create a new mutatble progress to keep the sequence_progress immutable
+                image_progress = {
+                    **sequence_progress,
+                    "import_path": str(image_metadata.filename),
+                }
+
+                # image_progress will be updated during uploading
+                file_handle = single_image_uploader.upload(
+                    image_metadata, image_progress
+                )
+
+                # Update chunk_size (it was constant if set)
+                image_progress["chunk_size"] = image_metadata.filesize
 
                 # Main thread will handle the interruption
                 if upload_interrupted.is_set():
                     break
 
-                mutable_image_progress = {
-                    **sequence_progress,
-                    "import_path": str(image_metadata.filename),
-                }
-                mutable_image_progress["chunk_size"] = image_metadata.filesize
                 with lock:
-                    self.emitter.emit("upload_progress", mutable_image_progress)
+                    self.emitter.emit("upload_progress", image_progress)
 
                 indexed_file_handles.append((idx, file_handle))
 
@@ -733,18 +740,23 @@ class SingleImageUploader:
             self.upload_options.user_items, upload_options
         )
 
-    def upload(self, image_metadata: types.ImageMetadata) -> str:
+    def upload(
+        self, image_metadata: types.ImageMetadata, image_progress: dict[str, T.Any]
+    ) -> str:
         image_bytes = self.dump_image_bytes(image_metadata)
 
         uploader = Uploader(self.upload_options, user_session=self.user_session)
 
-        session_key = uploader._gen_session_key(io.BytesIO(image_bytes), {})
+        session_key = uploader._gen_session_key(io.BytesIO(image_bytes), image_progress)
 
         file_handle = self._get_cached_file_handle(session_key)
 
         if file_handle is None:
+            # image_progress will be updated during uploading
             file_handle = uploader.upload_stream(
-                io.BytesIO(image_bytes), session_key=session_key
+                io.BytesIO(image_bytes),
+                session_key=session_key,
+                progress=image_progress,
             )
             self._set_file_handle_cache(session_key, file_handle)
 
@@ -942,7 +954,7 @@ class Uploader:
                 upload_path=Path(upload_path) if upload_path is not None else None,
             )
             LOG.info(
-                "Dry run mode enabled. Data will be uploaded to %s",
+                "Dry-run mode enabled, uploading to %s",
                 upload_service.upload_path.joinpath(session_key),
             )
         else:
