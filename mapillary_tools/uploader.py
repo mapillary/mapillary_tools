@@ -1042,10 +1042,7 @@ class Uploader:
             entity_size = fp.tell()
             progress["entity_size"] = entity_size
 
-        if _is_uuid(session_key):
-            begin_offset = 0
-        else:
-            begin_offset = upload_service.fetch_offset()
+        begin_offset = upload_service.fetch_offset()
 
         progress["begin_offset"] = begin_offset
         progress["offset"] = begin_offset
