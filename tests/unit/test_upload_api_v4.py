@@ -8,7 +8,7 @@ from mapillary_tools import upload_api_v4
 
 def test_upload(tmpdir: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
-        user_access_token="TEST",
+        user_session=None,
         session_key="FOOBAR.txt",
         upload_path=Path(tmpdir),
         transient_error_ratio=0.02,
@@ -26,7 +26,7 @@ def test_upload(tmpdir: py.path.local):
 
 def test_upload_big_chunksize(tmpdir: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
-        user_access_token="TEST",
+        user_session=None,
         session_key="FOOBAR.txt",
         upload_path=Path(tmpdir),
         transient_error_ratio=0.02,
@@ -44,7 +44,7 @@ def test_upload_big_chunksize(tmpdir: py.path.local):
 
 def test_upload_chunks(tmpdir: py.path.local):
     upload_service = upload_api_v4.FakeUploadService(
-        user_access_token="TEST",
+        user_session=None,
         session_key="FOOBAR2.txt",
         upload_path=Path(tmpdir),
         transient_error_ratio=0.02,
