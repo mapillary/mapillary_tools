@@ -996,8 +996,10 @@ class Uploader:
     def _upload_name(cls, progress: UploaderProgress):
         # Strictly speaking these sequence properties should not be exposed in this context
         # TODO: Maybe move these logging statements to event handlers
-        sequence_uuid: str | None = T.cast(str | None, progress.get("sequence_uuid"))
-        import_path = T.cast(str | None, progress.get("import_path"))
+        sequence_uuid: str | None = T.cast(
+            T.Union[str, None], progress.get("sequence_uuid")
+        )
+        import_path = T.cast(T.Union[str, None], progress.get("import_path"))
         if sequence_uuid is not None:
             if import_path is None:
                 name: str = f"sequence_{sequence_uuid}"
