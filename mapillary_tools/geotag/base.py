@@ -46,7 +46,7 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
                 map_results,
                 desc="Extracting images",
                 unit="images",
-                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                disable=LOG.isEnabledFor(logging.DEBUG),
                 total=len(extractors),
             )
         )
@@ -62,6 +62,8 @@ class GeotagImagesFromGeneric(abc.ABC, T.Generic[TImageExtractor]):
         try:
             return extractor.extract()
         except exceptions.MapillaryDescriptionError as ex:
+            if LOG.isEnabledFor(logging.DEBUG):
+                LOG.error(f"{cls.__name__}({image_path.name}): {ex}")
             return types.describe_error_metadata(
                 ex, image_path, filetype=types.FileType.IMAGE
             )
@@ -112,7 +114,7 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
                 map_results,
                 desc="Extracting videos",
                 unit="videos",
-                disable=LOG.getEffectiveLevel() <= logging.DEBUG,
+                disable=LOG.isEnabledFor(logging.DEBUG),
                 total=len(extractors),
             )
         )
@@ -128,6 +130,8 @@ class GeotagVideosFromGeneric(abc.ABC, T.Generic[TVideoExtractor]):
         try:
             return extractor.extract()
         except exceptions.MapillaryDescriptionError as ex:
+            if LOG.isEnabledFor(logging.DEBUG):
+                LOG.error(f"{cls.__name__}({video_path.name}): {ex}")
             return types.describe_error_metadata(
                 ex, video_path, filetype=types.FileType.VIDEO
             )

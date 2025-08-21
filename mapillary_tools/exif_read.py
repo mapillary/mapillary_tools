@@ -871,7 +871,8 @@ class ExifRead(ExifReadFromEXIF):
 
     def _xmp_with_reason(self, reason: str) -> ExifReadFromXMP | None:
         if not self._xml_extracted:
-            LOG.debug('Extracting XMP for "%s"', reason)
+            # TODO Disabled because too verbose but still useful to know
+            # LOG.debug('Extracting XMP for "%s"', reason)
             self._cached_xml = self._extract_xmp()
             self._xml_extracted = True
 

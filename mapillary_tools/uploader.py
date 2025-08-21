@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import concurrent.futures
-
 import dataclasses
 import io
 import json

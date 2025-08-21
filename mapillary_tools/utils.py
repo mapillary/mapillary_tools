@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import concurrent.futures
+
 import hashlib
+import logging
 import os
 import typing as T
-from multiprocessing import Pool
 from pathlib import Path
 
 
@@ -214,14 +216,57 @@ def mp_map_maybe(
     num_processes: int | None = None,
 ) -> T.Generator[TMapOut, None, None]:
     if num_processes is None:
-        pool_num_processes = None
+        max_workers = None
         disable_multiprocessing = False
     else:
-        pool_num_processes = max(num_processes, 1)
+        max_workers = max(num_processes, 1)
         disable_multiprocessing = num_processes <= 0
 
     if disable_multiprocessing:
         yield from map(func, iterable)
     else:
-        with Pool(processes=pool_num_processes) as pool:
-            yield from pool.imap(func, iterable)
+        app_logger = logging.getLogger(get_app_name())
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=configure_logger,
+            initargs=(None, app_logger.getEffectiveLevel()),
+        ) as executor:
+            yield from executor.map(func, iterable)
+
+
+def configure_logger(
+    logger: logging.Logger | None = None, level: int = logging.INFO
+) -> logging.Logger:
+    """Configure logging in each worker process"""
+    if logger is None:
+        # Root logger if app name is ""
+        logger = logging.getLogger(get_app_name())
+
+    logger.setLevel(level)
+
+    try:
+        # Disable globally for now. TODO Disable it in non-interactive mode only
+        raise ImportError
+        from rich.console import Console  # type: ignore
+        from rich.logging import RichHandler  # type: ignore
+    except ImportError:
+        formatter = logging.Formatter(
+            "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        handler: logging.Handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+    else:
+        handler = RichHandler(console=Console(stderr=True), rich_tracebacks=True)  # type: ignore
+
+    logger.addHandler(handler)
+
+    return logger
+
+
+def get_app_name() -> str:
+    if __name__:
+        return __name__.split(".")[0]
+    else:
+        # Rare case
+        return ""

@@ -125,12 +125,11 @@ def sample_video(
 
         except Exception as ex:
             if skip_sample_errors:
-                exc_info = LOG.getEffectiveLevel() <= logging.DEBUG
                 LOG.warning(
                     "Skipping the error sampling %s: %s",
                     video_path,
                     str(ex),
-                    exc_info=exc_info,
+                    exc_info=LOG.isEnabledFor(logging.DEBUG),
                 )
             else:
                 raise
