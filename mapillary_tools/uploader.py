@@ -156,17 +156,19 @@ class InvalidMapillaryZipFileError(SequenceError):
 # BELOW demonstrates the pseudocode for a typical upload workflow
 # and when upload events are emitted
 #################################################################
-# def pseudo_upload(data):
+# def pseudo_upload(metadata):
 #     emit("upload_start")
 #     while True:
 #         try:
-#             if is_sequence(data):
-#                 for image in data:
-#                     upload_image(image)
+#             if is_sequence(metadata):
+#                 for image in metadata:
+#                     upload_stream(image.read())
 #                     emit("upload_progress")
-#             elif is_video(data):
-#                 for chunk in data:
-#                     upload_chunk(chunk)
+#             elif is_video(metadata):
+#                 offset = fetch_offset()
+#                 emit("upload_fetch_offset")
+#                 for chunk in metadata.read()[offset:]:
+#                     upload_stream(chunk)
 #                     emit("upload_progress")
 #         except BaseException as ex:  # Include KeyboardInterrupt
 #             if retryable(ex):
