@@ -602,6 +602,7 @@ def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.loca
 
     assert len(descs) == 1
     assert len(descs[0]["MAPGPSTrack"]) > 0
+    assert descs[0]["filesize"] == 2848208
 
 
 def test_process_video_geotag_source_gpx_not_found(setup_data: py.path.local):

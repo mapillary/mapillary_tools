@@ -12,7 +12,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, geo, telemetry, types
+from ... import exceptions, geo, telemetry, types, utils
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
@@ -59,6 +59,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._rebase_times(gpx_points)
             return types.VideoMetadata(
                 filename=self.video_path,
+                filesize=utils.get_file_size(self.video_path),
                 filetype=types.FileType.VIDEO,
                 points=gpx_points,
             )
