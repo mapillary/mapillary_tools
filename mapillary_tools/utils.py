@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import typing as T
 from multiprocessing import Pool
@@ -223,5 +224,48 @@ def mp_map_maybe(
     if disable_multiprocessing:
         yield from map(func, iterable)
     else:
-        with Pool(processes=pool_num_processes) as pool:
+        app_logger = logging.getLogger(get_app_name())
+
+        with Pool(
+            initializer=configure_logger,
+            initargs=(None, app_logger.getEffectiveLevel()),
+            processes=pool_num_processes,
+        ) as pool:
             yield from pool.imap(func, iterable)
+
+
+def configure_logger(
+    logger: logging.Logger | None = None, level: int = logging.INFO
+) -> logging.Logger:
+    """Configure logging in each worker process"""
+    if logger is None:
+        # Root logger if app name is ""
+        logger = logging.getLogger(get_app_name())
+
+    logger.setLevel(level)
+
+    try:
+        raise ImportError  # Disable for now
+        from rich.console import Console
+        from rich.logging import RichHandler
+    except ImportError:
+        formatter = logging.Formatter(
+            "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+        handler: logging.Handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+    else:
+        handler = RichHandler(console=Console(stderr=True), rich_tracebacks=True)
+
+    logger.addHandler(handler)
+
+    return logger
+
+
+def get_app_name() -> str:
+    if __name__:
+        return __name__.split(".")[0]
+    else:
+        # Rare case
+        return ""

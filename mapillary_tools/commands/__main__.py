@@ -8,6 +8,7 @@ import requests
 
 from .. import api_v4, constants, exceptions, VERSION
 from ..upload import log_exception
+from ..utils import configure_logger, get_app_name
 from . import (
     authenticate,
     process,
@@ -31,8 +32,8 @@ mapillary_tools_commands = [
 ]
 
 
-# do not use __name__ here is because if you run tools as a module, __name__ will be "__main__"
-LOG = logging.getLogger("mapillary_tools")
+# Root logger of mapillary_tools (not including third-party libraries)
+LOG = logging.getLogger(get_app_name())
 
 
 # Handle shared arguments/options here
@@ -77,13 +78,6 @@ def add_general_arguments(parser, command):
             default=False,
             required=False,
         )
-
-
-def configure_logger(logger: logging.Logger, stream=None) -> None:
-    formatter = logging.Formatter("%(asctime)s - %(levelname)-7s - %(message)s")
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
 
 
 def _log_params(argvars: dict) -> None:
@@ -152,9 +146,7 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    configure_logger(LOG, sys.stderr)
-    LOG.setLevel(log_level)
+    configure_logger(LOG, level=logging.DEBUG if args.verbose else logging.INFO)
 
     LOG.debug("%s", version_text)
     argvars = vars(args)
