@@ -22,12 +22,14 @@ pyi-archive_viewer --list "$SOURCE"
 mkdir -p dist/releases
 cp "$SOURCE" "$TARGET"
 
-# sha256
-TARGET_BASENAME=$(basename "$TARGET")
-# to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
-cd dist/releases
-shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
-cd ../../
+# sha256 (disabled because github release page shows checksums)
+if [ "" ]; then
+    TARGET_BASENAME=$(basename "$TARGET")
+    # to produce "HASH mapillary_toos" instead of "HASH dist/releases/mapillary_tools"
+    cd dist/releases
+    shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
+    cd ../../
+fi
 
 # check
 FOLDER=dist/${OS}/mapillary_tools_folder
@@ -43,12 +45,14 @@ cd dist/${OS}/
 zip -r ../../"$TARGET" mapillary_tools_folder
 cd ../../
 
-# sha256
-TARGET_BASENAME=$(basename "$TARGET")
-# to produce "HASH mapillary_tools" instead of "HASH dist/releases/mapillary_tools"
-cd dist/releases
-shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
-cd ../../
+# sha256 (disabled because github release page shows checksums)
+if [ "" ]; then
+    TARGET_BASENAME=$(basename "$TARGET")
+    # to produce "HASH mapillary_tools" instead of "HASH dist/releases/mapillary_tools"
+    cd dist/releases
+    shasum -a256 "$TARGET_BASENAME" | tee "${TARGET_BASENAME}.sha256.txt"
+    cd ../../
+fi
 
 # summary
 ls -l dist/releases

@@ -27,8 +27,8 @@ pyi-archive_viewer --list "$SOURCE"
 mkdir -Force dist\releases
 Copy-Item "$SOURCE" "$TARGET"
 
-# sha256
-Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
+# sha256 (disabled because github release page shows checksums)
+# Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
 
 # check
 $FOLDER="dist\win\mapillary_tools_folder"
@@ -44,8 +44,8 @@ cd dist\win
 Compress-Archive -Path mapillary_tools_folder -DestinationPath ..\..\"$TARGET"
 cd ..\..\
 
-# sha256
-Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
+# sha256 (disabled because github release page shows checksums)
+# Get-FileHash $TARGET -Algorithm SHA256 | Select-Object Hash > "$TARGET.sha256.txt"
 
 # summary
 Get-ChildItem dist\releases
