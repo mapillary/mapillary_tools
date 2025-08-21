@@ -61,21 +61,42 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
     def find_rdf_by_path(
         cls, option: options.SourcePathOption, paths: T.Iterable[Path]
     ) -> dict[str, ET.Element]:
+        # Find RDF descriptions by path in RDF description
+        # Sources are matched based on the paths in "rdf:about" in XML elements
+        # {"source_path": "/path/to/exiftool.xml"}
+        # {"source_path": "/path/to/exiftool_xmls/"}
         if option.source_path is not None:
             return index_rdf_description_by_path([option.source_path])
 
-        elif option.pattern is not None:
+        # Find RDF descriptions by pattern matching
+        # i.e. "video.mp4" matches "/path/to/video.xml" regardless of "rdf:about"
+        # {"pattern": "/path/to/%g.xml"}
+        if option.pattern is not None:
             rdf_by_path = {}
             for path in paths:
-                source_path = option.resolve(path)
-                r = index_rdf_description_by_path([source_path])
-                rdfs = list(r.values())
-                if rdfs:
-                    rdf_by_path[exiftool_read.canonical_path(path)] = rdfs[0]
+                canonical_path = exiftool_read.canonical_path(path)
+
+                # Skip non-existent resolved source paths to avoid verbose warnings
+                resolved_source_path = option.resolve(path)
+                if not resolved_source_path.exists():
+                    continue
+
+                rdf_by_about = index_rdf_description_by_path([resolved_source_path])
+                if not rdf_by_about:
+                    continue
+
+                rdf = rdf_by_about.get(canonical_path)
+                if rdf is None:
+                    about, rdf = list(rdf_by_about.items())[0]
+                    if len(rdf_by_about) > 1:
+                        LOG.warning(
+                            f"Found {len(rdf_by_about)} RDFs in the XML source {resolved_source_path}. Using the first RDF (with rdf:about={about}) for {path}"
+                        )
+                rdf_by_path[canonical_path] = rdf
+
             return rdf_by_path
 
-        else:
-            assert False, "Either source_path or pattern must be provided"
+        raise AssertionError("Either source_path or pattern must be provided")
 
 
 class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):

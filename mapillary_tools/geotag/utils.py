@@ -37,26 +37,23 @@ def parse_gpx(gpx_file: Path) -> list[Track]:
     return tracks
 
 
-def index_rdf_description_by_path(
-    xml_paths: T.Sequence[Path],
-) -> dict[str, ET.Element]:
-    rdf_description_by_path: dict[str, ET.Element] = {}
+def index_rdf_description_by_path(xml_paths: T.Sequence[Path]) -> dict[str, ET.Element]:
+    rdf_by_path: dict[str, ET.Element] = {}
 
     for xml_path in utils.find_xml_files(xml_paths):
         try:
             etree = ET.parse(xml_path)
         except Exception as ex:
-            verbose = LOG.isEnabledFor(logging.DEBUG)
-            if verbose:
-                LOG.warning("Failed to parse %s", xml_path, exc_info=True)
-            else:
-                LOG.warning("Failed to parse %s: %s", xml_path, ex)
+            LOG.warning(
+                f"Failed to parse {xml_path}: {ex}",
+                exc_info=LOG.isEnabledFor(logging.DEBUG),
+            )
             continue
 
-        rdf_description_by_path.update(
+        rdf_by_path.update(
             exiftool_read.index_rdf_description_by_path_from_xml_element(
                 etree.getroot()
             )
         )
 
-    return rdf_description_by_path
+    return rdf_by_path
