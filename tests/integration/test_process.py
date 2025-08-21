@@ -814,3 +814,26 @@ def test_process_geotag_with_exiftool_xml_pattern(setup_data: py.path.local):
     )
 
     assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_with_exiftool_xml_pattern_missing_file(
+    setup_data: py.path.local,
+):
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    descs = run_process_for_descs(
+        [
+            *[
+                "--geotag_source",
+                json.dumps(
+                    {
+                        "source": "exiftool_xml",
+                        "pattern": str(setup_data.join("gpx").join("%g.xml")),
+                    }
+                ),
+            ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["error"]["type"] == "MapillaryExifToolXMLNotFoundError"
