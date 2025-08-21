@@ -46,8 +46,10 @@ def _parse_source_options(
 ) -> list[SourceOption]:
     parsed_options: list[SourceOption] = []
 
-    for s in geotag_source:
-        parsed_options.extend(parse_source_option(s))
+    if video_geotag_source and geotag_source:
+        LOG.warning(
+            "Video source options will be processed BEFORE the generic source options"
+        )
 
     for s in video_geotag_source:
         for video_option in parse_source_option(s):
@@ -55,6 +57,9 @@ def _parse_source_options(
                 video_option.filetypes, {types.FileType.VIDEO}
             )
             parsed_options.append(video_option)
+
+    for s in geotag_source:
+        parsed_options.extend(parse_source_option(s))
 
     if geotag_source_path is not None:
         for parsed_option in parsed_options:
