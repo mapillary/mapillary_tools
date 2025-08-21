@@ -245,7 +245,8 @@ def configure_logger(
     logger.setLevel(level)
 
     try:
-        raise ImportError  # Disable for now
+        # Disable globally for now. TODO Disable it in non-interactive mode only
+        raise ImportError
         from rich.console import Console
         from rich.logging import RichHandler
     except ImportError:
