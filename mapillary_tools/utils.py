@@ -231,9 +231,7 @@ def mp_map_maybe(
             initializer=configure_logger,
             initargs=(None, app_logger.getEffectiveLevel()),
         ) as executor:
-            futures = [executor.submit(func, item) for item in iterable]
-            for future in concurrent.futures.as_completed(futures):
-                yield future.result()
+            yield from executor.map(func, iterable)
 
 
 def configure_logger(
