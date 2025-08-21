@@ -45,7 +45,7 @@ def index_rdf_description_by_path(
     for xml_path in utils.find_xml_files(xml_paths):
         try:
             etree = ET.parse(xml_path)
-        except ET.ParseError as ex:
+        except Exception as ex:
             verbose = LOG.isEnabledFor(logging.DEBUG)
             if verbose:
                 LOG.warning("Failed to parse %s", xml_path, exc_info=True)

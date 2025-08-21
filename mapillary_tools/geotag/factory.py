@@ -121,6 +121,7 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
                 exceptions.MapillaryGeoTaggingError,
                 exceptions.MapillaryVideoGPSNotFoundError,
                 exceptions.MapillaryExiftoolNotFoundError,
+                exceptions.MapillaryExifToolXMLNotFoundError,
             ),
         ):
             return True
