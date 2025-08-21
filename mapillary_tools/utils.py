@@ -4,7 +4,7 @@ import hashlib
 import logging
 import os
 import typing as T
-from multiprocessing import Pool
+from concurrent.futures import as_completed, ProcessPoolExecutor
 from pathlib import Path
 
 
@@ -215,23 +215,24 @@ def mp_map_maybe(
     num_processes: int | None = None,
 ) -> T.Generator[TMapOut, None, None]:
     if num_processes is None:
-        pool_num_processes = None
+        max_workers = None
         disable_multiprocessing = False
     else:
-        pool_num_processes = max(num_processes, 1)
+        max_workers = max(num_processes, 1)
         disable_multiprocessing = num_processes <= 0
 
     if disable_multiprocessing:
         yield from map(func, iterable)
     else:
         app_logger = logging.getLogger(get_app_name())
-
-        with Pool(
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
             initializer=configure_logger,
             initargs=(None, app_logger.getEffectiveLevel()),
-            processes=pool_num_processes,
-        ) as pool:
-            yield from pool.imap(func, iterable)
+        ) as executor:
+            futures = [executor.submit(func, item) for item in iterable]
+            for future in as_completed(futures):
+                yield future.result()
 
 
 def configure_logger(
