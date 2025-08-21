@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import concurrent.futures
+
 import hashlib
 import logging
 import os
 import typing as T
-from concurrent.futures import as_completed, ProcessPoolExecutor
 from pathlib import Path
 
 
@@ -225,13 +226,13 @@ def mp_map_maybe(
         yield from map(func, iterable)
     else:
         app_logger = logging.getLogger(get_app_name())
-        with ProcessPoolExecutor(
+        with concurrent.futures.ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=configure_logger,
             initargs=(None, app_logger.getEffectiveLevel()),
         ) as executor:
             futures = [executor.submit(func, item) for item in iterable]
-            for future in as_completed(futures):
+            for future in concurrent.futures.as_completed(futures):
                 yield future.result()
 
 
