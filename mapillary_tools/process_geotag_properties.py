@@ -304,19 +304,12 @@ def _validate_metadatas(
     # TypeError: __init__() missing 3 required positional arguments: 'image_time', 'gpx_start_time', and 'gpx_end_time'
     # See https://stackoverflow.com/a/61432070
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
-    map_results = utils.mp_map_maybe(
-        validate_and_fail_metadata,
-        T.cast(T.Iterable[types.Metadata], good_metadatas),
-        num_processes=num_processes,
-    )
 
     validated_metadatas = list(
-        tqdm(
-            map_results,
-            desc="Validating metadatas",
-            unit="metadata",
-            disable=LOG.getEffectiveLevel() <= logging.DEBUG,
-            total=len(good_metadatas),
+        utils.mp_map_maybe(
+            validate_and_fail_metadata,
+            T.cast(T.Iterable[types.Metadata], good_metadatas),
+            num_processes=num_processes,
         )
     )
 
