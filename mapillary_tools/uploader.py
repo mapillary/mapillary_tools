@@ -802,7 +802,8 @@ class SingleImageUploader:
 
         # Different python/CLI versions use different cache (dbm) formats.
         # Separate them to avoid conflicts
-        version = f"py_{'_'.join(map(str, sys.version_info))}_{VERSION}"
+        py_version_parts = [str(part) for part in sys.version_info[:3]]
+        version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
 
         cache_path_dir = (
             Path(constants.UPLOAD_CACHE_DIR)
