@@ -36,6 +36,7 @@ from . import (
     types,
     upload_api_v4,
     utils,
+    VERSION,
 )
 from .camm import camm_builder, camm_parser
 from .gpmf import gpmf_parser
@@ -799,8 +800,14 @@ class SingleImageUploader:
             LOG.debug("Dry-run mode enabled, skipping caching upload file handles")
             return None
 
+        # Different python/CLI versions use different cache (dbm) formats.
+        # Separate them to avoid conflicts
+        py_version_parts = [str(part) for part in sys.version_info[:3]]
+        version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
+
         cache_path_dir = (
             Path(constants.UPLOAD_CACHE_DIR)
+            .joinpath(version)
             .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
             .joinpath(
                 user_items.get("MAPSettingsUserKey", user_items["user_upload_token"])
@@ -812,6 +819,7 @@ class SingleImageUploader:
         # Sanitize sensitive segments for logging
         sanitized_cache_path = (
             Path(constants.UPLOAD_CACHE_DIR)
+            .joinpath(version)
             .joinpath("***")
             .joinpath("***")
             .joinpath("cached_file_handles")
