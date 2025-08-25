@@ -10,7 +10,6 @@ import uuid
 from pathlib import Path
 
 import humanize
-import jsonschema
 import requests
 from tqdm import tqdm
 
@@ -57,7 +56,7 @@ def upload(
 
     metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
 
-    jsonschema.validate(instance=user_items, schema=config.UserItemSchema)
+    config.UserItemSchemaValidator.validate(user_items)
 
     # Setup the emitter -- the order matters here
 

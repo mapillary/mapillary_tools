@@ -173,8 +173,11 @@ SourceOptionSchema = {
 }
 
 
+SourceOptionSchemaValidator = jsonschema.Draft202012Validator(SourceOptionSchema)
+
+
 def validate_option(instance):
-    jsonschema.validate(instance=instance, schema=SourceOptionSchema)
+    SourceOptionSchemaValidator.validate(instance=instance)
 
 
 if __name__ == "__main__":

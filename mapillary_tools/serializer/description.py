@@ -259,6 +259,11 @@ ImageDescriptionFileSchema = _merge_schema(
 )
 
 
+ImageDescriptionFileSchemaValidator = jsonschema.Draft202012Validator(
+    ImageDescriptionFileSchema
+)
+
+
 VideoDescriptionFileSchema = _merge_schema(
     VideoDescriptionSchema,
     {
@@ -292,6 +297,11 @@ VideoDescriptionFileSchema = _merge_schema(
             "filetype",
         ],
     },
+)
+
+
+VideoDescriptionFileSchemaValidator = jsonschema.Draft202012Validator(
+    VideoDescriptionFileSchema
 )
 
 
@@ -520,7 +530,7 @@ def parse_capture_time(time: str) -> datetime.datetime:
 
 def validate_image_desc(desc: T.Any) -> None:
     try:
-        jsonschema.validate(instance=desc, schema=ImageDescriptionFileSchema)
+        ImageDescriptionFileSchemaValidator.validate(desc)
     except jsonschema.ValidationError as ex:
         # do not use str(ex) which is more verbose
         raise exceptions.MapillaryMetadataValidationError(ex.message) from ex
@@ -533,7 +543,7 @@ def validate_image_desc(desc: T.Any) -> None:
 
 def validate_video_desc(desc: T.Any) -> None:
     try:
-        jsonschema.validate(instance=desc, schema=VideoDescriptionFileSchema)
+        VideoDescriptionFileSchemaValidator.validate(desc)
     except jsonschema.ValidationError as ex:
         # do not use str(ex) which is more verbose
         raise exceptions.MapillaryMetadataValidationError(ex.message) from ex

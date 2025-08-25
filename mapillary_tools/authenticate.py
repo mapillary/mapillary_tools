@@ -165,7 +165,7 @@ def _prompt(message: str) -> str:
 
 def _validate_profile(user_items: config.UserItem) -> config.UserItem:
     try:
-        jsonschema.validate(user_items, config.UserItemSchema)
+        config.UserItemSchemaValidator.validate(user_items)
     except jsonschema.ValidationError as ex:
         raise exceptions.MapillaryBadParameterError(
             f"Invalid profile format: {ex.message}"

@@ -6,6 +6,8 @@ import sys
 import typing as T
 from typing import TypedDict
 
+import jsonschema
+
 if sys.version_info >= (3, 11):
     from typing import Required
 else:
@@ -48,6 +50,9 @@ UserItemSchema = {
     "required": ["user_upload_token"],
     "additionalProperties": True,
 }
+
+
+UserItemSchemaValidator = jsonschema.Draft202012Validator(UserItemSchema)
 
 
 def _load_config(config_path: str) -> configparser.ConfigParser:
