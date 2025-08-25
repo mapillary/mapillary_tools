@@ -305,6 +305,11 @@ VideoDescriptionFileSchemaValidator = jsonschema.Draft202012Validator(
 )
 
 
+ImageVideoDescriptionFileSchema = {
+    "oneOf": [VideoDescriptionFileSchema, ImageDescriptionFileSchema]
+}
+
+
 class DescriptionJSONSerializer(BaseSerializer):
     @override
     @classmethod
@@ -589,7 +594,4 @@ def desc_file_to_exif(desc: ImageDescription) -> ImageDescription:
 
 
 if __name__ == "__main__":
-    ImageVideoDescriptionFileSchema = {
-        "oneOf": [VideoDescriptionFileSchema, ImageDescriptionFileSchema]
-    }
     print(json.dumps(ImageVideoDescriptionFileSchema, indent=4))
