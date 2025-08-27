@@ -548,7 +548,12 @@ class TestImageSequenceUploader:
         results_1 = list(
             sequence_uploader.upload_images([images["a"], images["b"], images["c"]])
         )
-        assert len(list(sequence_uploader.cached_image_uploader.cache.keys())) == 3
+
+        # Capture cache keys after first upload
+        first_upload_cache_keys = set(
+            sequence_uploader.cached_image_uploader.cache.keys()
+        )
+        assert len(first_upload_cache_keys) == 3
 
         results_2 = list(
             sequence_uploader.upload_images(
@@ -559,7 +564,18 @@ class TestImageSequenceUploader:
                 ]
             )
         )
-        assert len(list(sequence_uploader.cached_image_uploader.cache.keys())) == 5
+
+        # Capture cache keys after second upload
+        second_upload_cache_keys = set(
+            sequence_uploader.cached_image_uploader.cache.keys()
+        )
+        assert len(second_upload_cache_keys) == 5
+
+        # Assert that all keys from first upload are still present in second upload
+        assert first_upload_cache_keys.issubset(second_upload_cache_keys), (
+            f"Cache keys from first upload {first_upload_cache_keys} should be "
+            f"contained in second upload cache keys {second_upload_cache_keys}"
+        )
 
     def test_image_sequence_uploader_multiple_sequences(
         self, setup_unittest_data: py.path.local
