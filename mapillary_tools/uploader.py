@@ -946,27 +946,33 @@ class Uploader:
         begin_offset = progress.get("begin_offset")
         offset = progress.get("offset")
 
-        if retries <= constants.MAX_UPLOAD_RETRIES and _is_retriable_exception(ex):
-            self.emitter.emit("upload_retrying", progress)
+        if retries <= constants.MAX_UPLOAD_RETRIES:
+            retriable, retry_after_sec = _is_retriable_exception(ex)
+            if retriable:
+                self.emitter.emit("upload_retrying", progress)
 
-            LOG.warning(
-                f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
-            )
+                LOG.warning(
+                    f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
+                )
 
-            # Keep things immutable here. Will increment retries in the caller
-            retries += 1
-            if _is_immediate_retriable_exception(ex):
-                sleep_for = 0
-            else:
-                sleep_for = min(2**retries, 16)
-            LOG.info(
-                f"Retrying in {sleep_for} seconds ({retries}/{constants.MAX_UPLOAD_RETRIES})"
-            )
-            if sleep_for:
-                time.sleep(sleep_for)
-        else:
-            self.emitter.emit("upload_failed", progress)
-            raise ex
+                # Keep things immutable here. Will increment retries in the caller
+                retries += 1
+                if _is_immediate_retriable_exception(ex):
+                    sleep_for = 0
+                else:
+                    sleep_for = min(2**retries, 16)
+                sleep_for += retry_after_sec
+
+                LOG.info(
+                    f"Retrying in {sleep_for} seconds ({retries}/{constants.MAX_UPLOAD_RETRIES})"
+                )
+                if sleep_for:
+                    time.sleep(sleep_for)
+
+                return
+
+        self.emitter.emit("upload_failed", progress)
+        raise ex
 
     @classmethod
     def _upload_name(cls, progress: UploaderProgress):
@@ -1083,23 +1089,63 @@ def _is_immediate_retriable_exception(ex: BaseException) -> bool:
     return False
 
 
-def _is_retriable_exception(ex: BaseException) -> bool:
+def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
+    """Return tuple(retriable, retry_after_sec) where retry_after_sec is what the server recommends to wait for retrying in seconds."""
+
+    DEFAULT_RETRY_AFTER_SEC = 10
+
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
-        return True
+        return True, 0
 
     if isinstance(ex, requests.HTTPError) and isinstance(
         ex.response, requests.Response
     ):
-        if 400 <= ex.response.status_code < 500:
-            try:
-                resp = ex.response.json()
-            except json.JSONDecodeError:
-                return False
-            return resp.get("debug_info", {}).get("retriable", False)
-        else:
-            return True
+        status_code = ex.response.status_code
 
-    return False
+        if status_code == 429:
+            retry_after_sec = ex.response.headers.get("Retry-After")
+
+            try:
+                data = ex.response.json()
+            except requests.JSONDecodeError:
+                return True, int(retry_after_sec or DEFAULT_RETRY_AFTER_SEC)
+
+            backoff_ms = data.get("backoff")
+            if backoff_ms is not None:
+                return True, int(int(backoff_ms) / 1000)
+            else:
+                return True, int(retry_after_sec or DEFAULT_RETRY_AFTER_SEC)
+
+        if 400 <= status_code < 500:
+            try:
+                data = ex.response.json()
+            except requests.JSONDecodeError:
+                return False, 0
+
+            debug_info = data.get("debug_info", {})
+
+            if isinstance(debug_info, dict):
+                error_type = debug_info.get("type")
+            else:
+                error_type = None
+
+            # The server may respond 429 RequestRateLimitedError but with retryable=False
+            # We should retry for this case regardless
+            # For example: HTTP 429
+            # {"backoff": 10000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}
+            if error_type == "RequestRateLimitedError":
+                backoff_ms = data.get("backoff")
+                if backoff_ms is not None:
+                    return True, int(int(backoff_ms) / 1000)
+                else:
+                    return True, DEFAULT_RETRY_AFTER_SEC
+
+            return debug_info.get("retriable", False), 0
+
+        if status_code >= 500:
+            return True, 0
+
+    return False, 0
 
 
 _SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
