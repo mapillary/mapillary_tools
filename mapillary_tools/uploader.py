@@ -475,7 +475,7 @@ class ZipUploader:
                 # Arcname should be unique, the name does not matter
                 arcname = f"{idx}.jpg"
                 zipinfo = zipfile.ZipInfo(arcname, date_time=(1980, 1, 1, 0, 0, 0))
-                zipf.writestr(zipinfo, SingleImageUploader.dump_image_bytes(metadata))
+                zipf.writestr(zipinfo, CachedImageUploader.dump_image_bytes(metadata))
             assert len(sequence) == len(set(zipf.namelist()))
             zipf.comment = json.dumps(
                 {"sequence_md5sum": sequence_md5sum},
@@ -545,7 +545,7 @@ class ImageSequenceUploader:
         cache = _maybe_create_persistent_cache_instance(self.upload_options)
         if cache:
             cache.clear_expired()
-        self.single_image_uploader = SingleImageUploader(
+        self.cached_image_uploader = CachedImageUploader(
             self.upload_options, cache=cache
         )
 
@@ -717,7 +717,7 @@ class ImageSequenceUploader:
                 }
 
                 # image_progress will be updated during uploading
-                file_handle = self.single_image_uploader.upload(
+                file_handle = self.cached_image_uploader.upload(
                     user_session, image_metadata, image_progress
                 )
 
@@ -738,7 +738,7 @@ class ImageSequenceUploader:
         return indexed_file_handles
 
 
-class SingleImageUploader:
+class CachedImageUploader:
     def __init__(
         self,
         upload_options: UploadOptions,

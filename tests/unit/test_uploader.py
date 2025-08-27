@@ -321,12 +321,12 @@ class TestImageSequenceUploader:
         sequence_uploader.upload_options = dataclasses.replace(
             upload_options_with_cache, dry_run=True
         )
-        sequence_uploader.single_image_uploader.upload_options = dataclasses.replace(
+        sequence_uploader.cached_image_uploader.upload_options = dataclasses.replace(
             upload_options_with_cache, dry_run=True
         )
 
         # Verify cache is available and shared
-        assert sequence_uploader.single_image_uploader.cache is not None, (
+        assert sequence_uploader.cached_image_uploader.cache is not None, (
             "SingleImageUploader should share the same cache instance"
         )
 
@@ -378,7 +378,7 @@ class TestImageSequenceUploader:
             sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
 
             # Verify cache is disabled for both instances
-            assert sequence_uploader.single_image_uploader.cache is None, (
+            assert sequence_uploader.cached_image_uploader.cache is None, (
                 "Should have cache disabled"
             )
 
@@ -421,7 +421,7 @@ class TestImageSequenceUploader:
 
             # Should safely return None without error
             retrieved_value = (
-                sequence_uploader.single_image_uploader._get_cached_file_handle(
+                sequence_uploader.cached_image_uploader._get_cached_file_handle(
                     test_key
                 )
             )
@@ -430,13 +430,13 @@ class TestImageSequenceUploader:
             )
 
             # Should safely do nothing without error
-            sequence_uploader.single_image_uploader._set_file_handle_cache(
+            sequence_uploader.cached_image_uploader._set_file_handle_cache(
                 test_key, test_value
             )
 
             # Verify the value is still None after attempted set
             retrieved_value_after_set = (
-                sequence_uploader.single_image_uploader._get_cached_file_handle(
+                sequence_uploader.cached_image_uploader._get_cached_file_handle(
                     test_key
                 )
             )
@@ -468,12 +468,12 @@ class TestImageSequenceUploader:
         sequence_uploader.upload_options = dataclasses.replace(
             cache_enabled_options, dry_run=True
         )
-        sequence_uploader.single_image_uploader.upload_options = dataclasses.replace(
+        sequence_uploader.cached_image_uploader.upload_options = dataclasses.replace(
             cache_enabled_options, dry_run=True
         )
 
         # 1. Make sure cache is enabled
-        assert sequence_uploader.single_image_uploader.cache is not None, (
+        assert sequence_uploader.cached_image_uploader.cache is not None, (
             "Cache should be enabled"
         )
 
@@ -544,11 +544,11 @@ class TestImageSequenceUploader:
             ),
         }
 
-        assert list(sequence_uploader.single_image_uploader.cache.keys()) == []
+        assert list(sequence_uploader.cached_image_uploader.cache.keys()) == []
         results_1 = list(
             sequence_uploader.upload_images([images["a"], images["b"], images["c"]])
         )
-        assert len(list(sequence_uploader.single_image_uploader.cache.keys())) == 3
+        assert len(list(sequence_uploader.cached_image_uploader.cache.keys())) == 3
 
         results_2 = list(
             sequence_uploader.upload_images(
@@ -559,7 +559,7 @@ class TestImageSequenceUploader:
                 ]
             )
         )
-        assert len(list(sequence_uploader.single_image_uploader.cache.keys())) == 5
+        assert len(list(sequence_uploader.cached_image_uploader.cache.keys())) == 5
 
     def test_image_sequence_uploader_multiple_sequences(
         self, setup_unittest_data: py.path.local
