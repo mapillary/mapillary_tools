@@ -549,6 +549,14 @@ class TestImageSequenceUploader:
             sequence_uploader.upload_images([images["a"], images["b"], images["c"]])
         )
 
+        # Assert that first upload has no errors
+        assert len(results_1) == 1
+        sequence_uuid_1, upload_result_1 = results_1[0]
+        assert upload_result_1.error is None, (
+            f"First upload failed with error: {upload_result_1.error}"
+        )
+        assert upload_result_1.result is not None
+
         # Capture cache keys after first upload
         first_upload_cache_keys = set(
             sequence_uploader.cached_image_uploader.cache.keys()
@@ -564,6 +572,16 @@ class TestImageSequenceUploader:
                 ]
             )
         )
+
+        # Assert that second upload has no errors
+        assert (
+            len(results_2) == 2
+        )  # Two sequences: cache_test_sequence_1 and cache_test_sequence_2
+        for sequence_uuid, upload_result in results_2:
+            assert upload_result.error is None, (
+                f"Second upload failed with error: {upload_result.error}"
+            )
+            assert upload_result.result is not None
 
         # Capture cache keys after second upload
         second_upload_cache_keys = set(
