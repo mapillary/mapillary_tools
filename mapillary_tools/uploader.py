@@ -537,6 +537,11 @@ class ImageSequenceUploader:
     def __init__(self, upload_options: UploadOptions, emitter: EventEmitter):
         self.upload_options = upload_options
         self.emitter = emitter
+        self.cache = _maybe_create_persistent_cache_instance(upload_options)
+        # Create a single shared SingleImageUploader instance that will be used across all uploads
+        self.single_image_uploader = SingleImageUploader(
+            upload_options, cache=self.cache
+        )
 
     def upload_images(
         self, image_metadatas: T.Sequence[types.ImageMetadata]
@@ -626,9 +631,6 @@ class ImageSequenceUploader:
         if not sequence:
             return []
 
-        # This instance will be shared in multiple threads
-        single_image_uploader = SingleImageUploader(self.upload_options)
-
         max_workers = min(self.upload_options.num_upload_workers, len(sequence))
 
         # Lock is used to synchronize event emission
@@ -645,7 +647,6 @@ class ImageSequenceUploader:
             futures = [
                 executor.submit(
                     self._upload_images_from_queue,
-                    single_image_uploader,
                     image_queue,
                     lock,
                     upload_interrupted,
@@ -682,7 +683,6 @@ class ImageSequenceUploader:
 
     def _upload_images_from_queue(
         self,
-        single_image_uploader: SingleImageUploader,
         image_queue: queue.Queue[tuple[int, types.ImageMetadata]],
         lock: threading.Lock,
         upload_interrupted: threading.Event,
@@ -711,7 +711,7 @@ class ImageSequenceUploader:
                 }
 
                 # image_progress will be updated during uploading
-                file_handle = single_image_uploader.upload(
+                file_handle = self.single_image_uploader.upload(
                     user_session, image_metadata, image_progress
                 )
 
@@ -736,10 +736,15 @@ class SingleImageUploader:
     def __init__(
         self,
         upload_options: UploadOptions,
+        cache: history.PersistentCache | None = None,
     ):
         self.upload_options = upload_options
-        # NOTE: cache instance is thread-safe, but construction of the cache instance is not
-        self.cache = self._maybe_create_persistent_cache_instance(self.upload_options)
+        # Accept cache instance from caller, or create one if none provided (for backward compatibility)
+        if cache is not None:
+            self.cache: history.PersistentCache | None = cache
+        else:
+            # Backward compatibility: create cache if not provided
+            self.cache = _maybe_create_persistent_cache_instance(upload_options)
 
     # Thread-safe
     def upload(
@@ -787,54 +792,6 @@ class SingleImageUploader:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
-
-    # NOT thread-safe
-    @classmethod
-    def _maybe_create_persistent_cache_instance(
-        cls, upload_options: UploadOptions
-    ) -> history.PersistentCache | None:
-        if not constants.UPLOAD_CACHE_DIR:
-            LOG.debug(
-                "Upload cache directory is set empty, skipping caching upload file handles"
-            )
-            return None
-
-        if upload_options.dry_run:
-            LOG.debug("Dry-run mode enabled, skipping caching upload file handles")
-            return None
-
-        # Different python/CLI versions use different cache (dbm) formats.
-        # Separate them to avoid conflicts
-        py_version_parts = [str(part) for part in sys.version_info[:3]]
-        version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
-
-        cache_path_dir = (
-            Path(constants.UPLOAD_CACHE_DIR)
-            .joinpath(version)
-            .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
-            .joinpath(
-                upload_options.user_items.get(
-                    "MAPSettingsUserKey", upload_options.user_items["user_upload_token"]
-                )
-            )
-        )
-        cache_path_dir.mkdir(parents=True, exist_ok=True)
-        cache_path = cache_path_dir.joinpath("cached_file_handles")
-
-        # Sanitize sensitive segments for logging
-        sanitized_cache_path = (
-            Path(constants.UPLOAD_CACHE_DIR)
-            .joinpath(version)
-            .joinpath("***")
-            .joinpath("***")
-            .joinpath("cached_file_handles")
-        )
-        LOG.debug(f"File handle cache path: {sanitized_cache_path}")
-
-        cache = history.PersistentCache(str(cache_path.resolve()))
-        cache.clear_expired()
-
-        return cache
 
     # Thread-safe
     def _get_cached_file_handle(self, key: str) -> str | None:
@@ -1175,3 +1132,54 @@ def _prefixed_uuid4():
 
 def _is_uuid(key: str) -> bool:
     return key.startswith("uuid_") or key.startswith("mly_tools_uuid_")
+
+
+def _maybe_create_persistent_cache_instance(
+    upload_options: UploadOptions,
+) -> history.PersistentCache | None:
+    """Create a persistent cache instance if caching is enabled.
+
+    NOT thread-safe - should only be called during initialization.
+    """
+    if not constants.UPLOAD_CACHE_DIR:
+        LOG.debug(
+            "Upload cache directory is set empty, skipping caching upload file handles"
+        )
+        return None
+
+    if upload_options.dry_run:
+        LOG.debug("Dry-run mode enabled, skipping caching upload file handles")
+        return None
+
+    # Different python/CLI versions use different cache (dbm) formats.
+    # Separate them to avoid conflicts
+    py_version_parts = [str(part) for part in sys.version_info[:3]]
+    version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
+
+    cache_path_dir = (
+        Path(constants.UPLOAD_CACHE_DIR)
+        .joinpath(version)
+        .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
+        .joinpath(
+            upload_options.user_items.get(
+                "MAPSettingsUserKey", upload_options.user_items["user_upload_token"]
+            )
+        )
+    )
+    cache_path_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_path_dir.joinpath("cached_file_handles")
+
+    # Sanitize sensitive segments for logging
+    sanitized_cache_path = (
+        Path(constants.UPLOAD_CACHE_DIR)
+        .joinpath(version)
+        .joinpath("***")
+        .joinpath("***")
+        .joinpath("cached_file_handles")
+    )
+    LOG.debug(f"File handle cache path: {sanitized_cache_path}")
+
+    cache = history.PersistentCache(str(cache_path.resolve()))
+    cache.clear_expired()
+
+    return cache
