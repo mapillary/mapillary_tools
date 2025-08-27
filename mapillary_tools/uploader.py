@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import dataclasses
+import hashlib
 import io
 import json
 import logging
@@ -56,6 +57,7 @@ class UploadOptions:
     user_items: config.UserItem
     chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024)
     num_upload_workers: int = constants.MAX_IMAGE_UPLOAD_WORKERS
+    upload_cache_path: Path | None = None
     dry_run: bool = False
     nofinish: bool = False
     noresume: bool = False
@@ -539,9 +541,8 @@ class ImageSequenceUploader:
         self.emitter = emitter
         # Create a single shared SingleImageUploader instance that will be used across all uploads
         cache = _maybe_create_persistent_cache_instance(self.upload_options)
-        self.cache: history.PersistentCache | None = (
-            cache  # Expose cache instance for testing and external access
-        )
+        if cache:
+            cache.clear_expired()
         self.single_image_uploader = SingleImageUploader(
             self.upload_options, cache=cache
         )
@@ -748,6 +749,8 @@ class SingleImageUploader:
         else:
             # Backward compatibility: create cache if not provided
             self.cache = _maybe_create_persistent_cache_instance(upload_options)
+            if self.cache:
+                self.cache.clear_expired()
 
     # Thread-safe
     def upload(
@@ -1137,52 +1140,55 @@ def _is_uuid(key: str) -> bool:
     return key.startswith("uuid_") or key.startswith("mly_tools_uuid_")
 
 
+def _build_upload_cache_path(upload_options: UploadOptions) -> Path:
+    # Different python/CLI versions use different cache (dbm) formats.
+    # Separate them to avoid conflicts
+    py_version_parts = [str(part) for part in sys.version_info[:3]]
+    version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
+    # File handles are not sharable between different users
+    user_id = str(
+        upload_options.user_items.get(
+            "MAPSettingsUserKey", upload_options.user_items["user_upload_token"]
+        )
+    )
+    # Use hash to avoid log sensitive data
+    user_fingerprint = utils.md5sum_fp(
+        io.BytesIO((api_v4.MAPILLARY_CLIENT_TOKEN + user_id).encode("utf-8")),
+        md5=hashlib.sha256(),
+    ).hexdigest()[:24]
+
+    cache_path = (
+        Path(constants.UPLOAD_CACHE_DIR)
+        .joinpath(version)
+        .joinpath(user_fingerprint)
+        .joinpath("cached_file_handles")
+    )
+
+    return cache_path
+
+
 def _maybe_create_persistent_cache_instance(
     upload_options: UploadOptions,
 ) -> history.PersistentCache | None:
-    """Create a persistent cache instance if caching is enabled.
-
-    NOT thread-safe - should only be called during initialization.
-    """
-    if not constants.UPLOAD_CACHE_DIR:
-        LOG.debug(
-            "Upload cache directory is set empty, skipping caching upload file handles"
-        )
-        return None
+    """Create a persistent cache instance if caching is enabled."""
 
     if upload_options.dry_run:
         LOG.debug("Dry-run mode enabled, skipping caching upload file handles")
         return None
 
-    # Different python/CLI versions use different cache (dbm) formats.
-    # Separate them to avoid conflicts
-    py_version_parts = [str(part) for part in sys.version_info[:3]]
-    version = f"py_{'_'.join(py_version_parts)}_{VERSION}"
-
-    cache_path_dir = (
-        Path(constants.UPLOAD_CACHE_DIR)
-        .joinpath(version)
-        .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
-        .joinpath(
-            upload_options.user_items.get(
-                "MAPSettingsUserKey", upload_options.user_items["user_upload_token"]
+    if upload_options.upload_cache_path is None:
+        if not constants.UPLOAD_CACHE_DIR:
+            LOG.debug(
+                "Upload cache directory is set empty, skipping caching upload file handles"
             )
-        )
-    )
-    cache_path_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_path_dir.joinpath("cached_file_handles")
+            return None
 
-    # Sanitize sensitive segments for logging
-    sanitized_cache_path = (
-        Path(constants.UPLOAD_CACHE_DIR)
-        .joinpath(version)
-        .joinpath("***")
-        .joinpath("***")
-        .joinpath("cached_file_handles")
-    )
-    LOG.debug(f"File handle cache path: {sanitized_cache_path}")
+        cache_path = _build_upload_cache_path(upload_options)
+    else:
+        cache_path = upload_options.upload_cache_path
 
-    cache = history.PersistentCache(str(cache_path.resolve()))
-    cache.clear_expired()
+    LOG.debug(f"File handle cache path: {cache_path}")
 
-    return cache
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    return history.PersistentCache(str(cache_path.resolve()))
