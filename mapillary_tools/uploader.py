@@ -626,6 +626,9 @@ class ImageSequenceUploader:
         if not sequence:
             return []
 
+        # This instance will be shared in multiple threads
+        single_image_uploader = SingleImageUploader(self.upload_options)
+
         max_workers = min(self.upload_options.num_upload_workers, len(sequence))
 
         # Lock is used to synchronize event emission
@@ -642,6 +645,7 @@ class ImageSequenceUploader:
             futures = [
                 executor.submit(
                     self._upload_images_from_queue,
+                    single_image_uploader,
                     image_queue,
                     lock,
                     upload_interrupted,
@@ -678,6 +682,7 @@ class ImageSequenceUploader:
 
     def _upload_images_from_queue(
         self,
+        single_image_uploader: SingleImageUploader,
         image_queue: queue.Queue[tuple[int, types.ImageMetadata]],
         lock: threading.Lock,
         upload_interrupted: threading.Event,
@@ -688,10 +693,6 @@ class ImageSequenceUploader:
         with api_v4.create_user_session(
             self.upload_options.user_items["user_upload_token"]
         ) as user_session:
-            single_image_uploader = SingleImageUploader(
-                self.upload_options, user_session=user_session
-            )
-
             while True:
                 # Assert that all images are already pushed into the queue
                 try:
@@ -711,7 +712,7 @@ class ImageSequenceUploader:
 
                 # image_progress will be updated during uploading
                 file_handle = single_image_uploader.upload(
-                    image_metadata, image_progress
+                    user_session, image_metadata, image_progress
                 )
 
                 # Update chunk_size (it was constant if set)
@@ -735,20 +736,21 @@ class SingleImageUploader:
     def __init__(
         self,
         upload_options: UploadOptions,
-        user_session: requests.Session | None = None,
     ):
         self.upload_options = upload_options
-        self.user_session = user_session
-        self.cache = self._maybe_create_persistent_cache_instance(
-            self.upload_options.user_items, upload_options
-        )
+        # NOTE: cache instance is thread-safe, but construction of the cache instance is not
+        self.cache = self._maybe_create_persistent_cache_instance(self.upload_options)
 
+    # Thread-safe
     def upload(
-        self, image_metadata: types.ImageMetadata, image_progress: dict[str, T.Any]
+        self,
+        user_session: requests.Session,
+        image_metadata: types.ImageMetadata,
+        image_progress: dict[str, T.Any],
     ) -> str:
         image_bytes = self.dump_image_bytes(image_metadata)
 
-        uploader = Uploader(self.upload_options, user_session=self.user_session)
+        uploader = Uploader(self.upload_options, user_session=user_session)
 
         session_key = uploader._gen_session_key(io.BytesIO(image_bytes), image_progress)
 
@@ -786,9 +788,10 @@ class SingleImageUploader:
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
 
+    # NOT thread-safe
     @classmethod
     def _maybe_create_persistent_cache_instance(
-        cls, user_items: config.UserItem, upload_options: UploadOptions
+        cls, upload_options: UploadOptions
     ) -> history.PersistentCache | None:
         if not constants.UPLOAD_CACHE_DIR:
             LOG.debug(
@@ -810,7 +813,9 @@ class SingleImageUploader:
             .joinpath(version)
             .joinpath(api_v4.MAPILLARY_CLIENT_TOKEN.replace("|", "_"))
             .joinpath(
-                user_items.get("MAPSettingsUserKey", user_items["user_upload_token"])
+                upload_options.user_items.get(
+                    "MAPSettingsUserKey", upload_options.user_items["user_upload_token"]
+                )
             )
         )
         cache_path_dir.mkdir(parents=True, exist_ok=True)
@@ -831,6 +836,7 @@ class SingleImageUploader:
 
         return cache
 
+    # Thread-safe
     def _get_cached_file_handle(self, key: str) -> str | None:
         if self.cache is None:
             return None
@@ -840,6 +846,7 @@ class SingleImageUploader:
 
         return self.cache.get(key)
 
+    # Thread-safe
     def _set_file_handle_cache(self, key: str, value: str) -> None:
         if self.cache is None:
             return
