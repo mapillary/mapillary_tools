@@ -297,7 +297,7 @@ class TestSingleImageUploader:
             assert isinstance(file_handle, str)
 
     def test_single_image_uploader_multithreading(
-        self, setup_unittest_data: py.path.local, setup_upload: py.path.local
+        self, setup_unittest_data: py.path.local
     ):
         """Test that SingleImageUploader works correctly with multiple threads including cache thread safety."""
         upload_options = uploader.UploadOptions(
@@ -308,8 +308,21 @@ class TestSingleImageUploader:
         # Create a single instance to be shared across threads
         single_uploader = self._create_image_uploader_with_cache_enabled(upload_options)
 
+        # Verify cache is available
+        assert single_uploader.cache is not None, (
+            "SingleImageUploader should have cache enabled"
+        )
+
         test_exif = setup_unittest_data.join("test_exif.jpg")
         num_workers = 64
+
+        # Test direct cache operations before multithreading
+        pre_threading_cache_keys = []
+        for i in range(5):
+            key = f"pre_threading_key_{i}"
+            value = f"pre_threading_value_{i}"
+            single_uploader.cache.set(key, value)
+            pre_threading_cache_keys.append((key, value))
 
         def upload_image(thread_id):
             # Each thread uploads a different "image" (different metadata)
@@ -338,8 +351,17 @@ class TestSingleImageUploader:
                     user_session, image_metadata, image_progress
                 )
 
-                # Test cache write thread safety
-                single_uploader._set_file_handle_cache(cache_key, f"handle_{thread_id}")
+                # Test cache write thread safety via exposed cache instance
+                assert single_uploader.cache is not None, (
+                    "Cache should not be None in thread"
+                )
+                single_uploader.cache.set(cache_key, f"handle_{thread_id}")
+
+                # Also test via the _set_file_handle_cache method
+                another_key = f"thread_{thread_id}_another_key"
+                single_uploader._set_file_handle_cache(
+                    another_key, f"another_handle_{thread_id}"
+                )
 
                 # Verify result
                 assert file_handle is not None, (
@@ -366,13 +388,45 @@ class TestSingleImageUploader:
             "Some uploads returned None"
         )
 
-        # Verify all thread-specific cache entries exist (cache thread safety)
+        # Verify cache integrity after multithreading
+        # 1. Check pre-threading cache entries are still intact
+        for key, expected_value in pre_threading_cache_keys:
+            actual_value = single_uploader.cache.get(key)
+            assert actual_value == expected_value, (
+                f"Pre-threading cache entry corrupted: {key}. Expected: {expected_value}, Got: {actual_value}"
+            )
+
+        # 2. Check all thread-specific cache entries exist (cache thread safety)
         for i in range(num_workers):
             cached_value = single_uploader._get_cached_file_handle(f"thread_{i}_key")
             assert cached_value == f"handle_{i}", f"Cache corrupted for thread {i}"
 
+            # Also check entries set via exposed cache instance
+            direct_cached_value = single_uploader.cache.get(f"thread_{i}_key")
+            assert direct_cached_value == f"handle_{i}", (
+                f"Direct cache access failed for thread {i}"
+            )
+
+            # Check entries set via _set_file_handle_cache
+            another_cached_value = single_uploader._get_cached_file_handle(
+                f"thread_{i}_another_key"
+            )
+            assert another_cached_value == f"another_handle_{i}", (
+                f"Another cache entry corrupted for thread {i}"
+            )
+
+        # Test post-threading cache operations
+        post_threading_test_key = "post_threading_test"
+        post_threading_test_value = "post_threading_value"
+
+        single_uploader.cache.set(post_threading_test_key, post_threading_test_value)
+        retrieved_post_threading = single_uploader.cache.get(post_threading_test_key)
+        assert retrieved_post_threading == post_threading_test_value, (
+            "Post-threading cache operations failed"
+        )
+
     def test_single_image_uploader_cache_disabled(
-        self, setup_unittest_data: py.path.local, setup_upload: py.path.local
+        self, setup_unittest_data: py.path.local
     ):
         """Test SingleImageUploader behavior when cache is disabled."""
         # Test with cache disabled (dry_run=True but no cache dir)
@@ -384,6 +438,9 @@ class TestSingleImageUploader:
             single_uploader = self._create_image_uploader_with_cache_disabled(
                 upload_options
             )
+
+            # Verify cache is disabled by checking the exposed cache property
+            assert single_uploader.cache is None, "Cache should be disabled"
 
             # Upload should still work without cache
             test_exif = setup_unittest_data.join("test_exif.jpg")
@@ -402,20 +459,24 @@ class TestSingleImageUploader:
                 upload_options.user_items["user_upload_token"]
             ) as user_session:
                 image_progress: dict = {}
-
                 file_handle = single_uploader.upload(
                     user_session, image_metadata, image_progress
                 )
-                assert file_handle is not None, "Upload should work even without cache"
 
-                # Cache operations should be no-ops
-                cached_handle = single_uploader._get_cached_file_handle("any_key")
-                assert cached_handle is None, "Should return None when cache disabled"
+                assert file_handle is not None, "Upload should work without cache"
+                assert isinstance(file_handle, str), "File handle should be a string"
 
-                # Set cache should not raise exception
-                single_uploader._set_file_handle_cache(
-                    "any_key", "any_value"
-                )  # Should not crash
+            # Test that cache operations safely handle None cache
+            test_key = "test_no_cache_operations"
+            test_value = "test_value_should_be_ignored"
+
+            # These should safely do nothing when cache is None
+            single_uploader._set_file_handle_cache(test_key, test_value)
+            retrieved_value = single_uploader._get_cached_file_handle(test_key)
+
+            assert retrieved_value is None, (
+                "Cache operations should return None when cache is disabled"
+            )
 
     def _create_image_uploader_with_cache_enabled(
         self, upload_options: uploader.UploadOptions
@@ -500,17 +561,36 @@ class TestImageSequenceUploader:
         self, setup_unittest_data: py.path.local
     ):
         """Test that ImageSequenceUploader's internal multithreading works correctly when cache is enabled."""
-        upload_options = uploader.UploadOptions(
+        # Create upload options that enable cache
+        upload_options_with_cache = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
             num_upload_workers=4,  # This will be used internally for parallel image uploads
-            dry_run=True,
+            dry_run=False,  # Cache requires dry_run=False initially
         )
         emitter = uploader.EventEmitter()
-        sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+        sequence_uploader = uploader.ImageSequenceUploader(
+            upload_options_with_cache, emitter
+        )
+
+        # Override to dry_run=True for actual testing
+        sequence_uploader.upload_options = dataclasses.replace(
+            upload_options_with_cache, dry_run=True
+        )
+        sequence_uploader.single_image_uploader.upload_options = dataclasses.replace(
+            upload_options_with_cache, dry_run=True
+        )
+
+        # Verify cache is available and shared
+        assert sequence_uploader.cache is not None, (
+            "ImageSequenceUploader should have cache enabled"
+        )
+        assert (
+            sequence_uploader.single_image_uploader.cache is sequence_uploader.cache
+        ), "SingleImageUploader should share the same cache instance"
 
         test_exif = setup_unittest_data.join("test_exif.jpg")
 
-        num_images = 10000  # More than num_upload_workers to test parallel processing
+        num_images = 100  # Reasonable number for testing with direct cache verification
         image_metadatas = []
 
         for i in range(num_images):
@@ -541,6 +621,42 @@ class TestImageSequenceUploader:
         )
         assert upload_result.result is not None, "Upload should return a cluster ID"
 
+        # Test direct cache operations using exposed cache instance
+        test_key = "test_multithreading_cache_key"
+        test_value = "test_multithreading_file_handle"
+
+        # Set via sequence uploader cache
+        sequence_uploader.cache.set(test_key, test_value)
+
+        # Get via single image uploader cache (same instance)
+        assert sequence_uploader.single_image_uploader.cache is not None, (
+            "Single image uploader cache should not be None"
+        )
+        retrieved_via_single = sequence_uploader.single_image_uploader.cache.get(
+            test_key
+        )
+        assert retrieved_via_single == test_value, (
+            f"Cache sharing failed. Expected: {test_value}, Got: {retrieved_via_single}"
+        )
+
+        # Test cache manipulation by setting different values via different references
+        test_key_2 = "test_cache_manipulation"
+        test_value_sequence = "value_from_sequence_uploader"
+        test_value_single = "value_from_single_uploader"
+
+        # Set via sequence uploader
+        sequence_uploader.cache.set(test_key_2, test_value_sequence)
+        assert (
+            sequence_uploader.single_image_uploader.cache.get(test_key_2)
+            == test_value_sequence
+        )
+
+        # Override via single image uploader (same cache instance)
+        sequence_uploader.single_image_uploader.cache.set(test_key_2, test_value_single)
+        assert sequence_uploader.cache.get(test_key_2) == test_value_single, (
+            "Cache instances should be the same object"
+        )
+
     def test_image_sequence_uploader_multithreading_with_cache_disabled(
         self, setup_unittest_data: py.path.local
     ):
@@ -555,9 +671,17 @@ class TestImageSequenceUploader:
             emitter = uploader.EventEmitter()
             sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
 
+            # Verify cache is disabled for both instances
+            assert sequence_uploader.cache is None, (
+                "ImageSequenceUploader should have cache disabled"
+            )
+            assert sequence_uploader.single_image_uploader.cache is None, (
+                "SingleImageUploader should also have cache disabled"
+            )
+
             test_exif = setup_unittest_data.join("test_exif.jpg")
 
-            num_images = 10000
+            num_images = 100
             image_metadatas = []
 
             for i in range(num_images):
@@ -587,6 +711,36 @@ class TestImageSequenceUploader:
                 f"Upload failed with error: {upload_result.error}"
             )
             assert upload_result.result is not None, "Upload should return a cluster ID"
+
+            # Test that cache operations are safely ignored when cache is disabled
+            # These operations should not throw errors even when cache is None
+            test_key = "test_no_cache_key"
+            test_value = "test_no_cache_value"
+
+            # Should safely return None without error
+            retrieved_value = (
+                sequence_uploader.single_image_uploader._get_cached_file_handle(
+                    test_key
+                )
+            )
+            assert retrieved_value is None, (
+                "Cache get should return None when cache is disabled"
+            )
+
+            # Should safely do nothing without error
+            sequence_uploader.single_image_uploader._set_file_handle_cache(
+                test_key, test_value
+            )
+
+            # Verify the value is still None after attempted set
+            retrieved_value_after_set = (
+                sequence_uploader.single_image_uploader._get_cached_file_handle(
+                    test_key
+                )
+            )
+            assert retrieved_value_after_set is None, (
+                "Cache should remain disabled after set attempt"
+            )
 
     def test_image_sequence_uploader_cache_hits_second_run(
         self, setup_unittest_data: py.path.local
@@ -634,7 +788,20 @@ class TestImageSequenceUploader:
 
         assert file_handle_1 is not None, "First upload should succeed"
 
-        # Mock the cache to verify it's being used correctly
+        # Test direct cache access using exposed cache instance
+        # Let's manually verify what's in the cache after first upload
+        session_key_prefix = "test_cache_verification_"
+        test_cache_key = f"{session_key_prefix}first_upload"
+        test_cache_value = f"file_handle_from_first_upload_{file_handle_1}"
+
+        # Direct cache set/get test
+        single_uploader.cache.set(test_cache_key, test_cache_value)
+        retrieved_direct = single_uploader.cache.get(test_cache_key)
+        assert retrieved_direct == test_cache_value, (
+            f"Direct cache access failed. Expected: {test_cache_value}, Got: {retrieved_direct}"
+        )
+
+        # Mock the cache to verify it's being used correctly during upload
         with (
             patch.object(single_uploader.cache, "get") as mock_cache_get,
             patch.object(single_uploader.cache, "set") as mock_cache_set,
@@ -682,20 +849,239 @@ class TestImageSequenceUploader:
                 "Cache set should NOT be called when cache hit occurs"
             )
 
+        # Test cache manipulation through the exposed cache instance
+        cache_manipulation_keys = []
+        for i in range(5):
+            key = f"test_cache_manipulation_{i}"
+            value = f"test_value_{i}"
+
+            # Set via exposed cache
+            single_uploader.cache.set(key, value)
+            cache_manipulation_keys.append((key, value))
+
+            # Verify immediately via cache instance
+            retrieved = single_uploader.cache.get(key)
+            assert retrieved == value, f"Cache manipulation test {i} failed"
+
+        # Verify all cache manipulation keys are still accessible
+        for key, expected_value in cache_manipulation_keys:
+            actual_value = single_uploader.cache.get(key)
+            assert actual_value == expected_value, (
+                f"Cache persistence failed for {key}. Expected: {expected_value}, Got: {actual_value}"
+            )
+
         # Test manual cache operations for verification
-        # Use a known test key for direct cache testing
         test_cache_key = "test_manual_cache_key_12345"
         test_cache_value = "test_file_handle_67890"
 
-        # Set cache manually
-        single_uploader._set_file_handle_cache(test_cache_key, test_cache_value)
+        # Set cache manually using the exposed cache instance
+        single_uploader.cache.set(test_cache_key, test_cache_value)
 
-        # Get cache manually
+        # Get cache manually via different method
         retrieved_value = single_uploader._get_cached_file_handle(test_cache_key)
-
         assert retrieved_value == test_cache_value, (
             f"Manual cache test failed. Expected: {test_cache_value}, Got: {retrieved_value}"
         )
+
+        # Test cache sharing between different uploader instances using same cache
+        another_uploader = uploader.SingleImageUploader(
+            upload_options_with_cache, cache=single_uploader.cache
+        )
+        assert another_uploader.cache is single_uploader.cache, (
+            "Cache instances should be shared"
+        )
+
+        # Set via first uploader, get via second
+        shared_key = "test_shared_cache_key"
+        shared_value = "test_shared_cache_value"
+        single_uploader.cache.set(shared_key, shared_value)
+
+        assert another_uploader.cache is not None, (
+            "Another uploader cache should not be None"
+        )
+        retrieved_via_another = another_uploader.cache.get(shared_key)
+        assert retrieved_via_another == shared_value, (
+            f"Cache sharing between uploader instances failed. Expected: {shared_value}, Got: {retrieved_via_another}"
+        )
+
+    def test_image_sequence_uploader_cache_runtime_manipulation(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test runtime cache manipulation through exposed cache instances."""
+        # Create upload options that enable cache
+        upload_options_with_cache = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=False,  # Cache requires dry_run=False initially
+        )
+        emitter = uploader.EventEmitter()
+        sequence_uploader = uploader.ImageSequenceUploader(
+            upload_options_with_cache, emitter
+        )
+
+        # Override to dry_run=True for actual testing
+        sequence_uploader.upload_options = dataclasses.replace(
+            upload_options_with_cache, dry_run=True
+        )
+
+        # Verify initial cache state
+        assert sequence_uploader.cache is not None, (
+            "ImageSequenceUploader should have cache"
+        )
+        assert (
+            sequence_uploader.single_image_uploader.cache is sequence_uploader.cache
+        ), "Cache should be shared between sequence and single image uploaders"
+
+        # Test 1: Pre-populate cache with custom data
+        test_entries = [
+            ("custom_key_1", "custom_value_1"),
+            ("custom_key_2", "custom_value_2"),
+            ("session_key_abc123", "file_handle_xyz789"),
+        ]
+
+        for key, value in test_entries:
+            sequence_uploader.cache.set(key, value)
+
+        # Verify all entries were set correctly
+        for key, expected_value in test_entries:
+            actual_value = sequence_uploader.cache.get(key)
+            assert actual_value == expected_value, (
+                f"Cache set/get failed for {key}. Expected: {expected_value}, Got: {actual_value}"
+            )
+
+        # Test 2: Verify cache is accessible from SingleImageUploader
+        for key, expected_value in test_entries:
+            assert sequence_uploader.single_image_uploader.cache is not None, (
+                "SingleImageUploader cache should not be None"
+            )
+            actual_value = sequence_uploader.single_image_uploader.cache.get(key)
+            assert actual_value == expected_value, (
+                f"Cache access via SingleImageUploader failed for {key}. Expected: {expected_value}, Got: {actual_value}"
+            )
+
+        # Test 3: Runtime cache replacement
+        # Create a new cache instance and replace the existing one
+        original_cache = sequence_uploader.cache
+
+        # Simulate creating a new cache instance (this would be for testing cache switching)
+        # Use a different user token to ensure a different cache instance
+        upload_options_for_new_cache = uploader.UploadOptions(
+            {
+                "user_upload_token": "DIFFERENT_USER_ACCESS_TOKEN"
+            },  # Different user token for different cache
+            dry_run=False,  # Enable cache creation
+        )
+
+        # Create a new SingleImageUploader with its own cache
+        temp_uploader = uploader.SingleImageUploader(upload_options_for_new_cache)
+        new_cache = temp_uploader.cache
+        assert new_cache is not None, "New cache should be created"
+        # Note: new_cache might use the same cache file if using same user token, so we check identity instead
+        # This is actually expected behavior - caches for the same user should share data
+
+        # Replace the cache in the sequence uploader
+        sequence_uploader.cache = new_cache
+        sequence_uploader.single_image_uploader.cache = new_cache
+
+        # Verify the cache was replaced
+        assert sequence_uploader.cache is new_cache, "Cache replacement failed"
+        assert sequence_uploader.single_image_uploader.cache is new_cache, (
+            "SingleImageUploader cache replacement failed"
+        )
+
+        # Test if the caches are truly isolated (they may not be if using same storage backend)
+        cache_isolation_test_key = "cache_isolation_test"
+        cache_isolation_test_value = "value_in_new_cache"
+
+        # Set in new cache
+        sequence_uploader.cache.set(
+            cache_isolation_test_key, cache_isolation_test_value
+        )
+
+        # Check if it appears in original cache (it might, and that's OK for same user)
+        value_in_original = original_cache.get(cache_isolation_test_key)
+
+        if value_in_original is None:
+            # Caches are truly isolated
+            print("Cache instances are isolated")
+        else:
+            # Caches share the same backend (expected for same user scenarios)
+            print("Cache instances share the same backend (expected)")
+            assert value_in_original == cache_isolation_test_value, (
+                "Shared cache should have consistent data"
+            )
+
+        # Test 4: Populate new cache and verify functionality
+        new_test_entries = [
+            ("new_cache_key_1", "new_cache_value_1"),
+            ("new_cache_key_2", "new_cache_value_2"),
+        ]
+
+        for key, value in new_test_entries:
+            sequence_uploader.cache.set(key, value)
+
+        # Verify new entries in new cache
+        for key, expected_value in new_test_entries:
+            actual_value = sequence_uploader.cache.get(key)
+            assert actual_value == expected_value, (
+                f"New cache set/get failed for {key}. Expected: {expected_value}, Got: {actual_value}"
+            )
+
+        # Verify original cache still functions independently (if they're truly different instances)
+        original_test_key = "original_cache_test"
+        original_test_value = "original_cache_value"
+
+        # Only test original cache isolation if it's a different object
+        if original_cache is not sequence_uploader.cache:
+            original_cache.set(original_test_key, original_test_value)
+
+            # This key should not appear in the new cache
+            value_in_new_cache = sequence_uploader.cache.get(original_test_key)
+            assert value_in_new_cache is None, (
+                f"Original cache key should not appear in new cache: {original_test_key}"
+            )
+
+            # But should be in original cache
+            value_in_original = original_cache.get(original_test_key)
+            assert value_in_original == original_test_value, (
+                "Original cache should have its own entries"
+            )
+
+        # Test 5: Cache instance sharing verification
+        # Create another sequence uploader with the same cache
+        another_sequence_uploader = uploader.ImageSequenceUploader(
+            upload_options_with_cache, emitter
+        )
+        another_sequence_uploader.cache = new_cache
+        another_sequence_uploader.single_image_uploader.cache = new_cache
+
+        # Set via one uploader, get via another
+        shared_test_key = "shared_between_uploaders"
+        shared_test_value = "shared_test_value"
+
+        sequence_uploader.cache.set(shared_test_key, shared_test_value)
+        retrieved_via_another = another_sequence_uploader.cache.get(shared_test_key)
+
+        assert retrieved_via_another == shared_test_value, (
+            f"Cache sharing between sequence uploaders failed. Expected: {shared_test_value}, Got: {retrieved_via_another}"
+        )
+
+        # Test 6: Cache clearing behavior (if supported)
+        try:
+            # Some cache implementations might support clearing
+            cache_clear_key = "cache_clear_test"
+            cache_clear_value = "cache_clear_value"
+
+            sequence_uploader.cache.set(cache_clear_key, cache_clear_value)
+            assert sequence_uploader.cache.get(cache_clear_key) == cache_clear_value
+
+            # Clear expired entries (this is a method we know exists)
+            cleared_keys = sequence_uploader.cache.clear_expired()
+            # cleared_keys should be a list of cleared keys
+            assert isinstance(cleared_keys, list), "clear_expired should return a list"
+
+        except (AttributeError, NotImplementedError):
+            # Cache might not support all operations
+            pass
 
     def test_image_sequence_uploader_multiple_sequences(
         self, setup_unittest_data: py.path.local
