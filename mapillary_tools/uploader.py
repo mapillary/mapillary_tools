@@ -537,10 +537,13 @@ class ImageSequenceUploader:
     def __init__(self, upload_options: UploadOptions, emitter: EventEmitter):
         self.upload_options = upload_options
         self.emitter = emitter
-        self.cache = _maybe_create_persistent_cache_instance(upload_options)
         # Create a single shared SingleImageUploader instance that will be used across all uploads
+        cache = _maybe_create_persistent_cache_instance(self.upload_options)
+        self.cache: history.PersistentCache | None = (
+            cache  # Expose cache instance for testing and external access
+        )
         self.single_image_uploader = SingleImageUploader(
-            upload_options, cache=self.cache
+            self.upload_options, cache=cache
         )
 
     def upload_images(

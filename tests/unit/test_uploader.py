@@ -749,34 +749,30 @@ class TestImageSequenceUploader:
         # Create upload options that enable cache but use dry_run for testing
         # We need to create the cache instance separately to avoid the dry_run check
 
-        # First create cache-enabled options to initialize the cache
+        # Create cache-enabled options to initialize the cache
         cache_enabled_options = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
             dry_run=False,  # Cache requires dry_run=False initially
             noresume=False,  # Ensure we use md5-based session keys for caching
         )
 
-        # Create the sequence uploader to get the cache instance
+        # Create the sequence uploader - your changes now automatically expose cache
         emitter = uploader.EventEmitter()
-        temp_sequence_uploader = uploader.ImageSequenceUploader(
+        sequence_uploader = uploader.ImageSequenceUploader(
             cache_enabled_options, emitter
         )
-        cache_instance = temp_sequence_uploader.cache
 
-        # Now create the actual test options with dry_run=True for testing
-        test_upload_options = uploader.UploadOptions(
-            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
-            dry_run=True,  # This is what we want for testing
-            noresume=False,
+        # Verify the cache property is now available through your changes
+        assert sequence_uploader.cache is not None, (
+            "Cache should be available through ImageSequenceUploader.cache property"
         )
 
-        # Create a new sequence uploader with the test options but inject the cache
-        sequence_uploader = uploader.ImageSequenceUploader(test_upload_options, emitter)
-        sequence_uploader.cache = cache_instance  # Manually inject the cache
-
-        # Also update the SingleImageUploader to use the same cache
-        sequence_uploader.single_image_uploader = uploader.SingleImageUploader(
-            test_upload_options, cache=cache_instance
+        # Override to dry_run=True for actual testing (cache remains intact)
+        sequence_uploader.upload_options = dataclasses.replace(
+            cache_enabled_options, dry_run=True
+        )
+        sequence_uploader.single_image_uploader.upload_options = dataclasses.replace(
+            cache_enabled_options, dry_run=True
         )
 
         # 1. Make sure cache is enabled
