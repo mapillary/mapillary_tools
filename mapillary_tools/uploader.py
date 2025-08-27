@@ -57,6 +57,8 @@ class UploadOptions:
     user_items: config.UserItem
     chunk_size: int = int(constants.UPLOAD_CHUNK_SIZE_MB * 1024 * 1024)
     num_upload_workers: int = constants.MAX_IMAGE_UPLOAD_WORKERS
+    # When set, upload cache will be read/write there
+    # This option is exposed for testing purpose. In PROD, the path is calculated based on envvar and user_items
     upload_cache_path: Path | None = None
     dry_run: bool = False
     nofinish: bool = False
@@ -743,14 +745,9 @@ class SingleImageUploader:
         cache: history.PersistentCache | None = None,
     ):
         self.upload_options = upload_options
-        # Accept cache instance from caller, or create one if none provided (for backward compatibility)
-        if cache is not None:
-            self.cache: history.PersistentCache | None = cache
-        else:
-            # Backward compatibility: create cache if not provided
-            self.cache = _maybe_create_persistent_cache_instance(upload_options)
-            if self.cache:
-                self.cache.clear_expired()
+        self.cache = cache
+        if self.cache:
+            self.cache.clear_expired()
 
     # Thread-safe
     def upload(

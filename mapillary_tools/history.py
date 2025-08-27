@@ -162,6 +162,11 @@ class PersistentCache:
 
         return expired_keys
 
+    def keys(self):
+        with self._lock:
+            with dbm.open(self._file, flag="c") as db:
+                return db.keys()
+
     def _is_expired(self, payload: JSONDict) -> bool:
         expires_at = payload.get("expires_at")
         if isinstance(expires_at, (int, float)):
