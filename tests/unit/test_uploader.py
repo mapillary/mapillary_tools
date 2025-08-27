@@ -500,161 +500,98 @@ class TestImageSequenceUploader:
     def test_image_sequence_uploader_multithreading_with_cache_enabled(
         self, setup_unittest_data: py.path.local
     ):
-        """Test that ImageSequenceUploader works correctly with multiple threads when cache is enabled."""
+        """Test that ImageSequenceUploader's internal multithreading works correctly when cache is enabled."""
         upload_options = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
-            num_upload_workers=4,
+            num_upload_workers=4,  # This will be used internally for parallel image uploads
             dry_run=True,
         )
         emitter = uploader.EventEmitter()
+        sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
 
         test_exif = setup_unittest_data.join("test_exif.jpg")
-        num_workers = 8
 
-        def upload_sequence(thread_id):
-            # Each thread uploads a different sequence
-            sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+        # Create a larger sequence with multiple images to test internal multithreading
+        # This will trigger the internal _upload_images_parallel method with multiple workers
+        num_images = 12  # More than num_upload_workers to test parallel processing
+        image_metadatas = []
 
-            image_metadatas = [
+        for i in range(num_images):
+            image_metadatas.append(
                 description.DescriptionJSONSerializer.from_desc(
                     {
-                        "MAPLatitude": 58.5927694 + thread_id * 0.001,
-                        "MAPLongitude": 16.1840944 + thread_id * 0.001,
-                        "MAPCaptureTime": f"2021_02_13_13_{(24 + thread_id) % 60:02d}_41_140",
+                        "MAPLatitude": 58.5927694 + i * 0.0001,
+                        "MAPLongitude": 16.1840944 + i * 0.0001,
+                        "MAPCaptureTime": f"2021_02_13_13_{(24 + i) % 60:02d}_{(41 + i) % 60:02d}_140",
                         "filename": str(test_exif),
-                        "md5sum": f"test_md5_{thread_id}_1",
+                        "md5sum": f"multi_thread_test_md5_{i}",
                         "filetype": "image",
-                        "MAPSequenceUUID": f"sequence_{thread_id}",
+                        "MAPSequenceUUID": "multi_thread_sequence",
                     }
-                ),
-                description.DescriptionJSONSerializer.from_desc(
-                    {
-                        "MAPLatitude": 58.5927694 + thread_id * 0.001 + 0.0001,
-                        "MAPLongitude": 16.1840944 + thread_id * 0.001 + 0.0001,
-                        "MAPCaptureTime": f"2021_02_13_13_{(24 + thread_id) % 60:02d}_42_140",
-                        "filename": str(test_exif),
-                        "md5sum": f"test_md5_{thread_id}_2",
-                        "filetype": "image",
-                        "MAPSequenceUUID": f"sequence_{thread_id}",
-                    }
-                ),
-            ]
-
-            # Test upload
-            results = list(sequence_uploader.upload_images(image_metadatas))
-
-            assert len(results) == 1, f"Thread {thread_id} got wrong number of results"
-            sequence_uuid, upload_result = results[0]
-            assert sequence_uuid == f"sequence_{thread_id}", (
-                f"Thread {thread_id} got wrong sequence UUID"
-            )
-            assert upload_result.error is None, (
-                f"Thread {thread_id} got error: {upload_result.error}"
-            )
-            assert upload_result.result is not None, (
-                f"Thread {thread_id} got None result"
+                )
             )
 
-            return upload_result.result
+        # Test upload - this will internally use multithreading via _upload_images_parallel
+        results = list(sequence_uploader.upload_images(image_metadatas))
 
-        # Use ThreadPoolExecutor
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(upload_sequence, i) for i in range(num_workers)]
-
-            # Collect results - let exceptions propagate
-            cluster_ids = [future.result() for future in futures]
-
-        # Verify all uploads succeeded
-        assert len(cluster_ids) == num_workers, (
-            f"Expected {num_workers} results, got {len(cluster_ids)}"
+        assert len(results) == 1, f"Expected 1 sequence result, got {len(results)}"
+        sequence_uuid, upload_result = results[0]
+        assert sequence_uuid == "multi_thread_sequence", (
+            f"Got wrong sequence UUID: {sequence_uuid}"
         )
-        assert all(cluster_id is not None for cluster_id in cluster_ids), (
-            "Some uploads returned None"
+        assert upload_result.error is None, (
+            f"Upload failed with error: {upload_result.error}"
         )
+        assert upload_result.result is not None, "Upload should return a cluster ID"
 
     def test_image_sequence_uploader_multithreading_with_cache_disabled(
         self, setup_unittest_data: py.path.local
     ):
-        """Test that ImageSequenceUploader works correctly with multiple threads when cache is disabled."""
+        """Test that ImageSequenceUploader's internal multithreading works correctly when cache is disabled."""
         # Test with cache disabled via constants patch
         with patch("mapillary_tools.constants.UPLOAD_CACHE_DIR", None):
             upload_options = uploader.UploadOptions(
                 {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
-                num_upload_workers=4,
+                num_upload_workers=4,  # This will be used internally for parallel image uploads
                 dry_run=True,
             )
             emitter = uploader.EventEmitter()
+            sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
 
             test_exif = setup_unittest_data.join("test_exif.jpg")
-            num_workers = 6
 
-            def upload_sequence_no_cache(thread_id):
-                # Each thread uploads a different sequence
-                sequence_uploader = uploader.ImageSequenceUploader(
-                    upload_options, emitter
-                )
+            # Create a larger sequence with multiple images to test internal multithreading
+            # This will trigger the internal _upload_images_parallel method with multiple workers
+            num_images = 10  # More than num_upload_workers to test parallel processing
+            image_metadatas = []
 
-                image_metadatas = [
+            for i in range(num_images):
+                image_metadatas.append(
                     description.DescriptionJSONSerializer.from_desc(
                         {
-                            "MAPLatitude": 59.5927694 + thread_id * 0.001,
-                            "MAPLongitude": 17.1840944 + thread_id * 0.001,
-                            "MAPCaptureTime": f"2021_02_13_14_{(24 + thread_id) % 60:02d}_41_140",
+                            "MAPLatitude": 59.5927694 + i * 0.0001,
+                            "MAPLongitude": 17.1840944 + i * 0.0001,
+                            "MAPCaptureTime": f"2021_02_13_14_{(24 + i) % 60:02d}_{(41 + i) % 60:02d}_140",
                             "filename": str(test_exif),
-                            "md5sum": f"no_cache_test_md5_{thread_id}_1",
+                            "md5sum": f"no_cache_multi_thread_md5_{i}",
                             "filetype": "image",
-                            "MAPSequenceUUID": f"no_cache_sequence_{thread_id}",
+                            "MAPSequenceUUID": "no_cache_multi_thread_sequence",
                         }
-                    ),
-                    description.DescriptionJSONSerializer.from_desc(
-                        {
-                            "MAPLatitude": 59.5927694 + thread_id * 0.001 + 0.0001,
-                            "MAPLongitude": 17.1840944 + thread_id * 0.001 + 0.0001,
-                            "MAPCaptureTime": f"2021_02_13_14_{(24 + thread_id) % 60:02d}_42_140",
-                            "filename": str(test_exif),
-                            "md5sum": f"no_cache_test_md5_{thread_id}_2",
-                            "filetype": "image",
-                            "MAPSequenceUUID": f"no_cache_sequence_{thread_id}",
-                        }
-                    ),
-                ]
-
-                # Test upload
-                results = list(sequence_uploader.upload_images(image_metadatas))
-
-                assert len(results) == 1, (
-                    f"Thread {thread_id} got wrong number of results"
-                )
-                sequence_uuid, upload_result = results[0]
-                assert sequence_uuid == f"no_cache_sequence_{thread_id}", (
-                    f"Thread {thread_id} got wrong sequence UUID"
-                )
-                assert upload_result.error is None, (
-                    f"Thread {thread_id} got error: {upload_result.error}"
-                )
-                assert upload_result.result is not None, (
-                    f"Thread {thread_id} got None result"
+                    )
                 )
 
-                return upload_result.result
+            # Test upload - this will internally use multithreading via _upload_images_parallel
+            results = list(sequence_uploader.upload_images(image_metadatas))
 
-            # Use ThreadPoolExecutor
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [
-                    executor.submit(upload_sequence_no_cache, i)
-                    for i in range(num_workers)
-                ]
-
-                # Collect results - let exceptions propagate
-                cluster_ids = [future.result() for future in futures]
-
-            # Verify all uploads succeeded
-            assert len(cluster_ids) == num_workers, (
-                f"Expected {num_workers} results, got {len(cluster_ids)}"
+            assert len(results) == 1, f"Expected 1 sequence result, got {len(results)}"
+            sequence_uuid, upload_result = results[0]
+            assert sequence_uuid == "no_cache_multi_thread_sequence", (
+                f"Got wrong sequence UUID: {sequence_uuid}"
             )
-            assert all(cluster_id is not None for cluster_id in cluster_ids), (
-                "Some uploads returned None"
+            assert upload_result.error is None, (
+                f"Upload failed with error: {upload_result.error}"
             )
+            assert upload_result.result is not None, "Upload should return a cluster ID"
 
     def test_image_sequence_uploader_cache_hits_second_run(
         self, setup_unittest_data: py.path.local
