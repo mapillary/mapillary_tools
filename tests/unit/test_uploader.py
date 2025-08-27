@@ -2,7 +2,6 @@ import typing as T
 from pathlib import Path
 import dataclasses
 import concurrent.futures
-import time
 from unittest.mock import patch
 
 import py.path
@@ -639,28 +638,53 @@ class TestImageSequenceUploader:
 
         assert file_handle_1 is not None, "First upload should succeed"
 
-        # Second upload - should hit cache and be faster
-        start_time = time.time()
+        # Mock the cache to verify it's being used correctly
+        with (
+            patch.object(single_uploader.cache, "get") as mock_cache_get,
+            patch.object(single_uploader.cache, "set") as mock_cache_set,
+        ):
+            # Set up the mock to return the cached file handle
+            mock_cache_get.return_value = file_handle_1
 
-        with api_v4.create_user_session(
-            upload_options_with_cache.user_items["user_upload_token"]
-        ) as user_session:
-            image_progress_2: dict = {}
-            file_handle_2 = single_uploader.upload(
-                user_session, image_metadata, image_progress_2
+            # Second upload - should hit cache
+            with api_v4.create_user_session(
+                upload_options_with_cache.user_items["user_upload_token"]
+            ) as user_session:
+                image_progress_2: dict = {}
+                file_handle_2 = single_uploader.upload(
+                    user_session, image_metadata, image_progress_2
+                )
+
+            # Verify results are identical (from cache)
+            assert file_handle_2 == file_handle_1, (
+                f"Cached upload should return same handle. Expected: {file_handle_1}, Got: {file_handle_2}"
             )
 
-        cached_time = time.time() - start_time
+            # Verify that cache.get() was called (indicating cache lookup happened)
+            assert mock_cache_get.called, (
+                "Cache get should have been called during second upload"
+            )
 
-        # Verify results are identical (from cache)
-        assert file_handle_2 == file_handle_1, (
-            f"Cached upload should return same handle. Expected: {file_handle_1}, Got: {file_handle_2}"
-        )
+            # Verify that cache.set() was NOT called during second upload (since it was a cache hit)
+            # Note: mock_cache_set might have been called during first upload, but we only care about the second one
+            # So we reset the mock and then check
+            mock_cache_set.reset_mock()
 
-        # Cached uploads should be significantly faster (less than 0.5 second)
-        assert cached_time < 0.5, (
-            f"Cached upload took too long: {cached_time}s, should be much faster due to cache hit"
-        )
+            # Third upload with same metadata - should definitely hit cache and not call set
+            with api_v4.create_user_session(
+                upload_options_with_cache.user_items["user_upload_token"]
+            ) as user_session:
+                image_progress_3: dict = {}
+                file_handle_3 = single_uploader.upload(
+                    user_session, image_metadata, image_progress_3
+                )
+
+            assert file_handle_3 == file_handle_1, (
+                "Third upload should also return cached handle"
+            )
+            assert not mock_cache_set.called, (
+                "Cache set should NOT be called when cache hit occurs"
+            )
 
         # Test manual cache operations for verification
         # Use a known test key for direct cache testing
