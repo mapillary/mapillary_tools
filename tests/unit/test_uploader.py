@@ -510,9 +510,7 @@ class TestImageSequenceUploader:
 
         test_exif = setup_unittest_data.join("test_exif.jpg")
 
-        # Create a larger sequence with multiple images to test internal multithreading
-        # This will trigger the internal _upload_images_parallel method with multiple workers
-        num_images = 12  # More than num_upload_workers to test parallel processing
+        num_images = 10000  # More than num_upload_workers to test parallel processing
         image_metadatas = []
 
         for i in range(num_images):
@@ -559,9 +557,7 @@ class TestImageSequenceUploader:
 
             test_exif = setup_unittest_data.join("test_exif.jpg")
 
-            # Create a larger sequence with multiple images to test internal multithreading
-            # This will trigger the internal _upload_images_parallel method with multiple workers
-            num_images = 10  # More than num_upload_workers to test parallel processing
+            num_images = 10000
             image_metadatas = []
 
             for i in range(num_images):
