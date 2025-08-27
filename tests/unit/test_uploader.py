@@ -2,6 +2,7 @@ import typing as T
 from pathlib import Path
 import dataclasses
 import concurrent.futures
+import time
 from unittest.mock import patch
 
 import py.path
@@ -332,7 +333,7 @@ class TestSingleImageUploader:
 
                 # Test cache operations for thread safety
                 cache_key = f"thread_{thread_id}_key"
-                cached_handle = single_uploader._get_cached_file_handle(cache_key)
+                single_uploader._get_cached_file_handle(cache_key)
 
                 file_handle = single_uploader.upload(
                     user_session, image_metadata, image_progress
@@ -446,3 +447,444 @@ class TestSingleImageUploader:
         assert single_uploader.cache is None, "Cache should be disabled"
 
         return single_uploader
+
+
+class TestImageSequenceUploader:
+    """Test suite for ImageSequenceUploader with focus on multithreading scenarios and caching."""
+
+    def test_image_sequence_uploader_basic(self, setup_unittest_data: py.path.local):
+        """Test basic functionality of ImageSequenceUploader."""
+        upload_options = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=True,
+        )
+        emitter = uploader.EventEmitter()
+        sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+
+        # Create mock image metadata for a single sequence
+        test_exif = setup_unittest_data.join("test_exif.jpg")
+        image_metadatas = [
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927694,
+                    "MAPLongitude": 16.1840944,
+                    "MAPCaptureTime": "2021_02_13_13_24_41_140",
+                    "filename": str(test_exif),
+                    "md5sum": "test_md5_1",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "sequence_1",
+                }
+            ),
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927695,
+                    "MAPLongitude": 16.1840945,
+                    "MAPCaptureTime": "2021_02_13_13_24_42_140",
+                    "filename": str(test_exif),
+                    "md5sum": "test_md5_2",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "sequence_1",
+                }
+            ),
+        ]
+
+        # Test upload
+        results = list(sequence_uploader.upload_images(image_metadatas))
+
+        assert len(results) == 1
+        sequence_uuid, upload_result = results[0]
+        assert sequence_uuid == "sequence_1"
+        assert upload_result.error is None
+        assert upload_result.result is not None
+
+    def test_image_sequence_uploader_multithreading_with_cache_enabled(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test that ImageSequenceUploader works correctly with multiple threads when cache is enabled."""
+        upload_options = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            num_upload_workers=4,
+            dry_run=True,
+        )
+        emitter = uploader.EventEmitter()
+
+        test_exif = setup_unittest_data.join("test_exif.jpg")
+        num_workers = 8
+
+        def upload_sequence(thread_id):
+            # Each thread uploads a different sequence
+            sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+
+            image_metadatas = [
+                description.DescriptionJSONSerializer.from_desc(
+                    {
+                        "MAPLatitude": 58.5927694 + thread_id * 0.001,
+                        "MAPLongitude": 16.1840944 + thread_id * 0.001,
+                        "MAPCaptureTime": f"2021_02_13_13_{(24 + thread_id) % 60:02d}_41_140",
+                        "filename": str(test_exif),
+                        "md5sum": f"test_md5_{thread_id}_1",
+                        "filetype": "image",
+                        "MAPSequenceUUID": f"sequence_{thread_id}",
+                    }
+                ),
+                description.DescriptionJSONSerializer.from_desc(
+                    {
+                        "MAPLatitude": 58.5927694 + thread_id * 0.001 + 0.0001,
+                        "MAPLongitude": 16.1840944 + thread_id * 0.001 + 0.0001,
+                        "MAPCaptureTime": f"2021_02_13_13_{(24 + thread_id) % 60:02d}_42_140",
+                        "filename": str(test_exif),
+                        "md5sum": f"test_md5_{thread_id}_2",
+                        "filetype": "image",
+                        "MAPSequenceUUID": f"sequence_{thread_id}",
+                    }
+                ),
+            ]
+
+            # Test upload
+            results = list(sequence_uploader.upload_images(image_metadatas))
+
+            assert len(results) == 1, f"Thread {thread_id} got wrong number of results"
+            sequence_uuid, upload_result = results[0]
+            assert sequence_uuid == f"sequence_{thread_id}", (
+                f"Thread {thread_id} got wrong sequence UUID"
+            )
+            assert upload_result.error is None, (
+                f"Thread {thread_id} got error: {upload_result.error}"
+            )
+            assert upload_result.result is not None, (
+                f"Thread {thread_id} got None result"
+            )
+
+            return upload_result.result
+
+        # Use ThreadPoolExecutor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(upload_sequence, i) for i in range(num_workers)]
+
+            # Collect results - let exceptions propagate
+            cluster_ids = [future.result() for future in futures]
+
+        # Verify all uploads succeeded
+        assert len(cluster_ids) == num_workers, (
+            f"Expected {num_workers} results, got {len(cluster_ids)}"
+        )
+        assert all(cluster_id is not None for cluster_id in cluster_ids), (
+            "Some uploads returned None"
+        )
+
+    def test_image_sequence_uploader_multithreading_with_cache_disabled(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test that ImageSequenceUploader works correctly with multiple threads when cache is disabled."""
+        # Test with cache disabled via constants patch
+        with patch("mapillary_tools.constants.UPLOAD_CACHE_DIR", None):
+            upload_options = uploader.UploadOptions(
+                {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+                num_upload_workers=4,
+                dry_run=True,
+            )
+            emitter = uploader.EventEmitter()
+
+            test_exif = setup_unittest_data.join("test_exif.jpg")
+            num_workers = 6
+
+            def upload_sequence_no_cache(thread_id):
+                # Each thread uploads a different sequence
+                sequence_uploader = uploader.ImageSequenceUploader(
+                    upload_options, emitter
+                )
+
+                image_metadatas = [
+                    description.DescriptionJSONSerializer.from_desc(
+                        {
+                            "MAPLatitude": 59.5927694 + thread_id * 0.001,
+                            "MAPLongitude": 17.1840944 + thread_id * 0.001,
+                            "MAPCaptureTime": f"2021_02_13_14_{(24 + thread_id) % 60:02d}_41_140",
+                            "filename": str(test_exif),
+                            "md5sum": f"no_cache_test_md5_{thread_id}_1",
+                            "filetype": "image",
+                            "MAPSequenceUUID": f"no_cache_sequence_{thread_id}",
+                        }
+                    ),
+                    description.DescriptionJSONSerializer.from_desc(
+                        {
+                            "MAPLatitude": 59.5927694 + thread_id * 0.001 + 0.0001,
+                            "MAPLongitude": 17.1840944 + thread_id * 0.001 + 0.0001,
+                            "MAPCaptureTime": f"2021_02_13_14_{(24 + thread_id) % 60:02d}_42_140",
+                            "filename": str(test_exif),
+                            "md5sum": f"no_cache_test_md5_{thread_id}_2",
+                            "filetype": "image",
+                            "MAPSequenceUUID": f"no_cache_sequence_{thread_id}",
+                        }
+                    ),
+                ]
+
+                # Test upload
+                results = list(sequence_uploader.upload_images(image_metadatas))
+
+                assert len(results) == 1, (
+                    f"Thread {thread_id} got wrong number of results"
+                )
+                sequence_uuid, upload_result = results[0]
+                assert sequence_uuid == f"no_cache_sequence_{thread_id}", (
+                    f"Thread {thread_id} got wrong sequence UUID"
+                )
+                assert upload_result.error is None, (
+                    f"Thread {thread_id} got error: {upload_result.error}"
+                )
+                assert upload_result.result is not None, (
+                    f"Thread {thread_id} got None result"
+                )
+
+                return upload_result.result
+
+            # Use ThreadPoolExecutor
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [
+                    executor.submit(upload_sequence_no_cache, i)
+                    for i in range(num_workers)
+                ]
+
+                # Collect results - let exceptions propagate
+                cluster_ids = [future.result() for future in futures]
+
+            # Verify all uploads succeeded
+            assert len(cluster_ids) == num_workers, (
+                f"Expected {num_workers} results, got {len(cluster_ids)}"
+            )
+            assert all(cluster_id is not None for cluster_id in cluster_ids), (
+                "Some uploads returned None"
+            )
+
+    def test_image_sequence_uploader_cache_hits_second_run(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test that cache hits work correctly for the second run when cache is enabled."""
+        # Create upload options that enable cache
+        upload_options_with_cache = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=False,  # Cache requires dry_run=False initially
+            noresume=False,  # Ensure we use md5-based session keys for caching
+        )
+
+        # Create a shared single image uploader to simulate cached behavior
+        single_uploader = uploader.SingleImageUploader(upload_options_with_cache)
+        assert single_uploader.cache is not None, "Cache should be enabled"
+
+        # Override to dry_run=True for actual testing
+        single_uploader.upload_options = dataclasses.replace(
+            upload_options_with_cache, dry_run=True, noresume=False
+        )
+
+        test_exif = setup_unittest_data.join("test_exif.jpg")
+
+        # Use the exact same image metadata for both uploads to test caching
+        image_metadata = description.DescriptionJSONSerializer.from_desc(
+            {
+                "MAPLatitude": 58.5927694,
+                "MAPLongitude": 16.1840944,
+                "MAPCaptureTime": "2021_02_13_13_24_41_140",
+                "filename": str(test_exif),
+                "md5sum": "cache_test_md5_identical",
+                "filetype": "image",
+                "MAPSequenceUUID": "cache_test_sequence",
+            }
+        )
+
+        # First upload - should populate cache
+        with api_v4.create_user_session(
+            upload_options_with_cache.user_items["user_upload_token"]
+        ) as user_session:
+            image_progress_1: dict = {}
+            file_handle_1 = single_uploader.upload(
+                user_session, image_metadata, image_progress_1
+            )
+
+        assert file_handle_1 is not None, "First upload should succeed"
+
+        # Second upload - should hit cache and be faster
+        start_time = time.time()
+
+        with api_v4.create_user_session(
+            upload_options_with_cache.user_items["user_upload_token"]
+        ) as user_session:
+            image_progress_2: dict = {}
+            file_handle_2 = single_uploader.upload(
+                user_session, image_metadata, image_progress_2
+            )
+
+        cached_time = time.time() - start_time
+
+        # Verify results are identical (from cache)
+        assert file_handle_2 == file_handle_1, (
+            f"Cached upload should return same handle. Expected: {file_handle_1}, Got: {file_handle_2}"
+        )
+
+        # Cached uploads should be significantly faster (less than 0.5 second)
+        assert cached_time < 0.5, (
+            f"Cached upload took too long: {cached_time}s, should be much faster due to cache hit"
+        )
+
+        # Test manual cache operations for verification
+        # Use a known test key for direct cache testing
+        test_cache_key = "test_manual_cache_key_12345"
+        test_cache_value = "test_file_handle_67890"
+
+        # Set cache manually
+        single_uploader._set_file_handle_cache(test_cache_key, test_cache_value)
+
+        # Get cache manually
+        retrieved_value = single_uploader._get_cached_file_handle(test_cache_key)
+
+        assert retrieved_value == test_cache_value, (
+            f"Manual cache test failed. Expected: {test_cache_value}, Got: {retrieved_value}"
+        )
+
+    def test_image_sequence_uploader_multiple_sequences(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test ImageSequenceUploader with multiple sequences."""
+        upload_options = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=True,
+        )
+        emitter = uploader.EventEmitter()
+        sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+
+        test_exif = setup_unittest_data.join("test_exif.jpg")
+        fixed_exif = setup_unittest_data.join("fixed_exif.jpg")
+
+        # Create metadata for multiple sequences
+        image_metadatas = [
+            # Sequence 1 - 2 images
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927694,
+                    "MAPLongitude": 16.1840944,
+                    "MAPCaptureTime": "2021_02_13_13_24_41_140",
+                    "filename": str(test_exif),
+                    "md5sum": "multi_seq_md5_1_1",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "multi_sequence_1",
+                }
+            ),
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927695,
+                    "MAPLongitude": 16.1840945,
+                    "MAPCaptureTime": "2021_02_13_13_24_42_140",
+                    "filename": str(test_exif),
+                    "md5sum": "multi_seq_md5_1_2",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "multi_sequence_1",
+                }
+            ),
+            # Sequence 2 - 1 image
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 59.5927694,
+                    "MAPLongitude": 17.1840944,
+                    "MAPCaptureTime": "2021_02_13_13_25_41_140",
+                    "filename": str(fixed_exif),
+                    "md5sum": "multi_seq_md5_2_1",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "multi_sequence_2",
+                }
+            ),
+        ]
+
+        # Test upload
+        results = list(sequence_uploader.upload_images(image_metadatas))
+
+        assert len(results) == 2, f"Expected 2 sequences, got {len(results)}"
+
+        # Verify both sequences uploaded successfully
+        sequence_results = {seq_uuid: result for seq_uuid, result in results}
+
+        assert "multi_sequence_1" in sequence_results, "Sequence 1 should be present"
+        assert "multi_sequence_2" in sequence_results, "Sequence 2 should be present"
+
+        result_1 = sequence_results["multi_sequence_1"]
+        result_2 = sequence_results["multi_sequence_2"]
+
+        assert result_1.error is None, (
+            f"Sequence 1 should not have error: {result_1.error}"
+        )
+        assert result_1.result is not None, "Sequence 1 should have result"
+
+        assert result_2.error is None, (
+            f"Sequence 2 should not have error: {result_2.error}"
+        )
+        assert result_2.result is not None, "Sequence 2 should have result"
+
+    def test_image_sequence_uploader_event_emission(
+        self, setup_unittest_data: py.path.local
+    ):
+        """Test that ImageSequenceUploader properly emits events during upload."""
+        upload_options = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=True,
+        )
+        emitter = uploader.EventEmitter()
+        sequence_uploader = uploader.ImageSequenceUploader(upload_options, emitter)
+
+        # Track emitted events
+        emitted_events = []
+
+        @emitter.on("upload_start")
+        def on_upload_start(payload):
+            emitted_events.append(("upload_start", payload.copy()))
+
+        @emitter.on("upload_end")
+        def on_upload_end(payload):
+            emitted_events.append(("upload_end", payload.copy()))
+
+        @emitter.on("upload_finished")
+        def on_upload_finished(payload):
+            emitted_events.append(("upload_finished", payload.copy()))
+
+        test_exif = setup_unittest_data.join("test_exif.jpg")
+        image_metadatas = [
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927694,
+                    "MAPLongitude": 16.1840944,
+                    "MAPCaptureTime": "2021_02_13_13_24_41_140",
+                    "filename": str(test_exif),
+                    "md5sum": "event_test_md5_1",
+                    "filetype": "image",
+                    "MAPSequenceUUID": "event_test_sequence",
+                }
+            ),
+        ]
+
+        # Test upload
+        results = list(sequence_uploader.upload_images(image_metadatas))
+
+        assert len(results) == 1
+        sequence_uuid, upload_result = results[0]
+        assert upload_result.error is None
+
+        # Verify events were emitted
+        assert len(emitted_events) >= 3, (
+            f"Expected at least 3 events, got {len(emitted_events)}"
+        )
+
+        event_types = [event[0] for event in emitted_events]
+        assert "upload_start" in event_types, "upload_start event should be emitted"
+        assert "upload_end" in event_types, "upload_end event should be emitted"
+        assert "upload_finished" in event_types, (
+            "upload_finished event should be emitted"
+        )
+
+        # Verify event payload structure
+        start_event = next(
+            event for event in emitted_events if event[0] == "upload_start"
+        )
+        start_payload = start_event[1]
+
+        assert "sequence_uuid" in start_payload, (
+            "upload_start should contain sequence_uuid"
+        )
+        assert "entity_size" in start_payload, "upload_start should contain entity_size"
+        assert start_payload["sequence_uuid"] == "event_test_sequence"
