@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import py.path
-
 import pytest
 
 from mapillary_tools import api_v4, uploader
@@ -29,7 +28,9 @@ def setup_unittest_data(tmpdir: py.path.local):
 def test_upload_images(setup_unittest_data: py.path.local, setup_upload: py.path.local):
     mly_uploader = uploader.Uploader(
         uploader.UploadOptions(
-            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            dry_run=True,
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
         )
     )
     test_exif = setup_unittest_data.join("test_exif.jpg")
@@ -108,6 +109,7 @@ def test_upload_images_multiple_sequences(
                 # will call the API for real
                 # "MAPOrganizationKey": "3011753992432185",
             },
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             dry_run=True,
         ),
     )
@@ -179,6 +181,7 @@ def test_upload_zip(
                 # will call the API for real
                 # "MAPOrganizationKey": 3011753992432185,
             },
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             dry_run=True,
         ),
         emitter=emitter,
@@ -263,6 +266,7 @@ class TestImageSequenceUploader:
         """Test basic functionality of ImageSequenceUploader."""
         upload_options = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             dry_run=True,
         )
         emitter = uploader.EventEmitter()
@@ -309,6 +313,7 @@ class TestImageSequenceUploader:
         # Create upload options that enable cache
         upload_options_with_cache = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             num_upload_workers=4,  # This will be used internally for parallel image uploads
             dry_run=False,  # Cache requires dry_run=False initially
         )
@@ -601,6 +606,7 @@ class TestImageSequenceUploader:
         """Test ImageSequenceUploader with multiple sequences."""
         upload_options = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             dry_run=True,
         )
         emitter = uploader.EventEmitter()
@@ -681,6 +687,7 @@ class TestImageSequenceUploader:
         """Test that ImageSequenceUploader properly emits events during upload."""
         upload_options = uploader.UploadOptions(
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
             dry_run=True,
         )
         emitter = uploader.EventEmitter()
