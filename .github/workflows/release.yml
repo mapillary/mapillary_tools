@@ -102,6 +102,8 @@ jobs:
         # ffmpeg is not supported in the latest macOS arch:
         # Error: setup-ffmpeg can only be run on 64-bit systems
         if: matrix.architecture == 'x64'
+        # Allow this step to fail (it frequently fails)
+        continue-on-error: true
 
       - name: Build and test with Pyinstaller on MacOS
         # Enable for Python3.13 only because it often fails at codesign (subprocess timeout)
