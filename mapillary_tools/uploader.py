@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import dataclasses
+import datetime
+import email.utils
 import hashlib
 import io
 import json
@@ -946,14 +948,15 @@ class Uploader:
         begin_offset = progress.get("begin_offset")
         offset = progress.get("offset")
 
+        if not isinstance(ex, KeyboardInterrupt):
+            LOG.warning(
+                f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
+            )
+
         if retries <= constants.MAX_UPLOAD_RETRIES:
             retriable, retry_after_sec = _is_retriable_exception(ex)
             if retriable:
                 self.emitter.emit("upload_retrying", progress)
-
-                LOG.warning(
-                    f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
-                )
 
                 # Keep things immutable here. Will increment retries in the caller
                 retries += 1
@@ -1090,9 +1093,58 @@ def _is_immediate_retriable_exception(ex: BaseException) -> bool:
 
 
 def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
-    """Return tuple(retriable, retry_after_sec) where retry_after_sec is what the server recommends to wait for retrying in seconds."""
+    """
+    Determine if an exception should be retried and how long to wait.
 
-    DEFAULT_RETRY_AFTER_SEC = 10
+    Args:
+        ex: Exception to check for retryability
+
+    Returns:
+        Tuple of (retriable, retry_after_sec) where:
+        - retriable: True if the exception should be retried
+        - retry_after_sec: Seconds to wait before retry (>= 0)
+
+    Examples:
+    >>> resp = requests.Response()
+    >>> resp._content = b"foo"
+    >>> resp.status_code = 400
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (False, 0)
+    >>> resp._content = b'{"backoff": 13000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
+    >>> resp.status_code = 400
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 13)
+    >>> resp._content = b'{"debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
+    >>> resp.status_code = 400
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 10)
+    >>> resp._content = b"foo"
+    >>> resp.status_code = 429
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 10)
+    >>> resp._content = b"foo"
+    >>> resp.status_code = 429
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 10)
+    >>> resp._content = b'{"backoff": 12000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
+    >>> resp.status_code = 429
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 12)
+    >>> resp._content = b'{"backoff": 12000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
+    >>> resp.headers = {"Retry-After": "1"}
+    >>> resp.status_code = 503
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 1)
+    """
+
+    DEFAULT_RETRY_AFTER_RATE_LIMIT_SEC = 10
 
     if isinstance(ex, (requests.ConnectionError, requests.Timeout)):
         return True, 0
@@ -1102,25 +1154,29 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
     ):
         status_code = ex.response.status_code
 
+        # Always retry with some delay
         if status_code == 429:
-            retry_after_sec = ex.response.headers.get("Retry-After")
+            retry_after_sec = (
+                _parse_retry_after_from_header(ex.response)
+                or DEFAULT_RETRY_AFTER_RATE_LIMIT_SEC
+            )
 
             try:
                 data = ex.response.json()
             except requests.JSONDecodeError:
-                return True, int(retry_after_sec or DEFAULT_RETRY_AFTER_SEC)
+                return True, retry_after_sec
 
             backoff_ms = data.get("backoff")
-            if backoff_ms is not None:
-                return True, int(int(backoff_ms) / 1000)
+            if backoff_ms is None:
+                return True, retry_after_sec
             else:
-                return True, int(retry_after_sec or DEFAULT_RETRY_AFTER_SEC)
+                return True, max(0, int(int(backoff_ms) / 1000))
 
         if 400 <= status_code < 500:
             try:
                 data = ex.response.json()
             except requests.JSONDecodeError:
-                return False, 0
+                return False, (_parse_retry_after_from_header(ex.response) or 0)
 
             debug_info = data.get("debug_info", {})
 
@@ -1135,17 +1191,74 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
             # {"backoff": 10000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}
             if error_type == "RequestRateLimitedError":
                 backoff_ms = data.get("backoff")
-                if backoff_ms is not None:
-                    return True, int(int(backoff_ms) / 1000)
+                if backoff_ms is None:
+                    return True, (
+                        _parse_retry_after_from_header(ex.response)
+                        or DEFAULT_RETRY_AFTER_RATE_LIMIT_SEC
+                    )
                 else:
-                    return True, DEFAULT_RETRY_AFTER_SEC
+                    return True, max(0, int(int(backoff_ms) / 1000))
 
             return debug_info.get("retriable", False), 0
 
-        if status_code >= 500:
-            return True, 0
+        if 500 <= status_code < 600:
+            return True, (_parse_retry_after_from_header(ex.response) or 0)
 
     return False, 0
+
+
+def _parse_retry_after_from_header(resp: requests.Response) -> int | None:
+    """
+    Parse Retry-After header from HTTP response.
+    See See https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Retry-After
+
+    Args:
+        resp: HTTP response object with headers
+
+    Returns:
+        Number of seconds to wait (>= 0) or None if header missing/invalid.
+
+    Examples:
+    >>> resp = requests.Response()
+    >>> resp.headers = {"Retry-After": "1"}
+    >>> _parse_retry_after_from_header(resp)
+    1
+    >>> resp.headers = {"Retry-After": "-1"}
+    >>> _parse_retry_after_from_header(resp)
+    0
+    >>> resp.headers = {"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"}
+    >>> _parse_retry_after_from_header(resp)
+    0
+    >>> resp.headers = {"Retry-After": "Wed, 21 Oct 2315 07:28:00"}
+    >>> _parse_retry_after_from_header(resp)
+    """
+
+    value = resp.headers.get("Retry-After")
+    if value is None:
+        return None
+
+    try:
+        return max(0, int(value))
+    except (ValueError, TypeError):
+        pass
+
+    # e.g. "Wed, 21 Oct 2015 07:28:00 GMT"
+    try:
+        dt = email.utils.parsedate_to_datetime(value)
+    except (ValueError, TypeError):
+        dt = None
+
+    if dt is None:
+        LOG.warning(f"Error parsing Retry-After: {value}")
+        return None
+
+    try:
+        delta = dt - datetime.datetime.now(datetime.UTC)
+    except (TypeError, ValueError):
+        # e.g. TypeError: can't subtract offset-naive and offset-aware datetimes
+        return None
+
+    return max(0, int(delta.total_seconds()))
 
 
 _SUFFIX_MAP: dict[api_v4.ClusterFileType | types.FileType, str] = {
