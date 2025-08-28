@@ -948,10 +948,9 @@ class Uploader:
         begin_offset = progress.get("begin_offset")
         offset = progress.get("offset")
 
-        if not isinstance(ex, KeyboardInterrupt):
-            LOG.warning(
-                f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
-            )
+        LOG.warning(
+            f"Error uploading {self._upload_name(progress)} at {offset=} since {begin_offset=}: {ex.__class__.__name__}: {ex}"
+        )
 
         if retries <= constants.MAX_UPLOAD_RETRIES:
             retriable, retry_after_sec = _is_retriable_exception(ex)
