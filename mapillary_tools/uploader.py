@@ -1116,6 +1116,11 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
     >>> ex = requests.HTTPError("error", response=resp)
     >>> _is_retriable_exception(ex)
     (True, 13)
+    >>> resp._content = b'{"backoff": "foo", "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
+    >>> resp.status_code = 400
+    >>> ex = requests.HTTPError("error", response=resp)
+    >>> _is_retriable_exception(ex)
+    (True, 10)
     >>> resp._content = b'{"debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}'
     >>> resp.status_code = 400
     >>> ex = requests.HTTPError("error", response=resp)
@@ -1166,7 +1171,7 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
             except requests.JSONDecodeError:
                 return True, retry_after_sec
 
-            backoff_ms = data.get("backoff")
+            backoff_ms = _parse_backoff(data.get("backoff"))
             if backoff_ms is None:
                 return True, retry_after_sec
             else:
@@ -1187,10 +1192,9 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
 
             # The server may respond 429 RequestRateLimitedError but with retryable=False
             # We should retry for this case regardless
-            # For example: HTTP 429
-            # {"backoff": 10000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}
+            # e.g. HTTP 429 {"backoff": 10000, "debug_info": {"retriable": false, "type": "RequestRateLimitedError", "message": "Request rate limit has been exceeded"}}
             if error_type == "RequestRateLimitedError":
-                backoff_ms = data.get("backoff")
+                backoff_ms = _parse_backoff(data.get("backoff"))
                 if backoff_ms is None:
                     return True, (
                         _parse_retry_after_from_header(ex.response)
@@ -1205,6 +1209,17 @@ def _is_retriable_exception(ex: BaseException) -> tuple[bool, int]:
             return True, (_parse_retry_after_from_header(ex.response) or 0)
 
     return False, 0
+
+
+def _parse_backoff(backoff: T.Any) -> int | None:
+    if backoff is not None:
+        try:
+            backoff_ms = int(backoff)
+        except (ValueError, TypeError):
+            backoff_ms = None
+    else:
+        backoff_ms = None
+    return backoff_ms
 
 
 def _parse_retry_after_from_header(resp: requests.Response) -> int | None:
@@ -1253,7 +1268,7 @@ def _parse_retry_after_from_header(resp: requests.Response) -> int | None:
         return None
 
     try:
-        delta = dt - datetime.datetime.now(datetime.UTC)
+        delta = dt - datetime.datetime.now(datetime.timezone.utc)
     except (TypeError, ValueError):
         # e.g. TypeError: can't subtract offset-naive and offset-aware datetimes
         return None
