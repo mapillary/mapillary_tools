@@ -81,5 +81,6 @@ module = [
     "exifread.*",
     "construct.*",
     "py.*",
+    "humanize.*",
 ]
 ignore_missing_imports = true

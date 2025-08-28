@@ -247,8 +247,8 @@ def configure_logger(
     try:
         # Disable globally for now. TODO Disable it in non-interactive mode only
         raise ImportError
-        from rich.console import Console  # type: ignore
-        from rich.logging import RichHandler  # type: ignore
+        from rich.console import Console  # type: ignore[import]
+        from rich.logging import RichHandler  # type: ignore[import]
     except ImportError:
         formatter = logging.Formatter(
             "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
