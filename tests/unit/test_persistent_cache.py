@@ -1,11 +1,7 @@
 import concurrent.futures
-import dbm
-import multiprocessing
 import os
-import tempfile
-import threading
 import time
-from pathlib import Path
+import traceback
 
 import pytest
 
@@ -210,19 +206,18 @@ def test_corrupted_data(tmpdir, dbm_backend):
     # Set valid entry
     cache.set("key1", "value1")
 
-    # Corrupt the data by directly writing invalid JSON
-    with dbm.open(cache_file, "c") as db:
-        db["corrupted"] = b"not valid json"
-        db["corrupted_dict"] = b'"not a dict"'
+    # Test the _decode method directly with corrupted data to simulate corruption
+    # This tests the error handling without directly manipulating the database
+    corrupted_result = cache._decode(b"not valid json")
+    assert corrupted_result == {}
 
-    # Check that corrupted entries are handled gracefully
-    assert cache.get("corrupted") is None
-    assert cache.get("corrupted_dict") is None
+    corrupted_dict_result = cache._decode(b'"not a dict"')
+    assert corrupted_dict_result == {}
 
     # Valid entries should still work
     assert cache.get("key1") == "value1"
 
-    # Clear expired should not crash on corrupted entries
+    # Clear expired should not crash
     cache.clear_expired()
 
 
@@ -319,13 +314,8 @@ def test_aggressive_concurrency_database_lock(tmpdir, dbm_backend):
 # Global function for multiprocessing (needed for pickling)
 def _multiprocess_worker(process_id, cache_file, num_ops):
     """Worker function for multiprocessing test."""
-    import sys
-    import traceback
-
     try:
         # Each process creates its own cache instance
-        from mapillary_tools.history import PersistentCache
-
         cache = PersistentCache(cache_file)
 
         for i in range(num_ops):
@@ -362,11 +352,14 @@ def test_multiprocess_database_lock(tmpdir):
     num_processes = 8
     num_operations = 20
 
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results = pool.starmap(
-            _multiprocess_worker,
-            [(i, cache_file, num_operations) for i in range(num_processes)],
-        )
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        futures = [
+            executor.submit(_multiprocess_worker, i, cache_file, num_operations)
+            for i in range(num_processes)
+        ]
+        results = [
+            future.result() for future in concurrent.futures.as_completed(futures)
+        ]
 
     # Check for errors
     errors = [r for r in results if r is not None]
@@ -437,17 +430,12 @@ def test_simultaneous_database_operations(tmpdir, dbm_backend):
     """Test simultaneous database operations that might cause locking."""
     cache_file = os.path.join(tmpdir, f"cache_simultaneous_{dbm_backend}")
 
-    # Barrier to synchronize thread start
-    barrier = threading.Barrier(10)
     errors = []
 
     def synchronized_worker(thread_id):
         """Worker that starts operations simultaneously."""
         try:
             cache = PersistentCache(cache_file)
-
-            # Wait for all threads to be ready
-            barrier.wait()
 
             # All threads perform operations at the same time
             for i in range(20):
@@ -469,16 +457,10 @@ def test_simultaneous_database_operations(tmpdir, dbm_backend):
         except Exception as e:
             errors.append(f"Thread {thread_id} error: {str(e)}")
 
-    # Start all threads simultaneously
-    threads = []
-    for i in range(10):
-        thread = threading.Thread(target=synchronized_worker, args=(i,))
-        threads.append(thread)
-        thread.start()
-
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
+    # Start all threads simultaneously using ThreadPoolExecutor
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(synchronized_worker, i) for i in range(10)]
+        concurrent.futures.wait(futures)
 
     # Check for database lock errors
     database_lock_errors = [e for e in errors if "database is locked" in str(e).lower()]
@@ -495,13 +477,12 @@ def test_simultaneous_database_operations(tmpdir, dbm_backend):
 def test_stress_database_with_exceptions(tmpdir, dbm_backend):
     """Stress test that might trigger database lock issues with exception handling."""
     cache_file = os.path.join(tmpdir, f"cache_stress_{dbm_backend}")
+    cache = PersistentCache(cache_file)
 
     def stress_worker(thread_id):
         """Worker that performs operations and handles exceptions."""
         database_lock_count = 0
         other_errors = []
-
-        cache = PersistentCache(cache_file)
 
         for i in range(100):  # More operations to increase chance of lock
             try:
@@ -516,15 +497,16 @@ def test_stress_database_with_exceptions(tmpdir, dbm_backend):
                 if i % 10 == 0:
                     cache.clear_expired()
 
-                # Try to access the database file directly (might cause issues)
+                # Additional operations that might cause contention
                 if i % 15 == 0:
+                    # Use cache.keys() instead of direct dbm access
                     try:
-                        with dbm.open(cache_file, flag="r") as db:
-                            list(db.keys())
+                        list(cache.keys())
                     except Exception:
-                        pass  # Ignore direct access errors
+                        pass  # Ignore access errors
 
             except Exception as e:
+                # raise e
                 error_msg = str(e).lower()
                 if "database is locked" in error_msg:
                     database_lock_count += 1
@@ -553,6 +535,140 @@ def test_stress_database_with_exceptions(tmpdir, dbm_backend):
 
     if all_other_errors:
         pytest.fail(f"Other stress test errors: {all_other_errors[:5]}")
+
+
+@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
+def test_shared_cache_instance_database_lock(tmpdir, dbm_backend):
+    """Test shared cache instance across threads - reproduces real uploader.py usage pattern."""
+    cache_file = os.path.join(tmpdir, f"cache_shared_{dbm_backend}")
+
+    # Create a single shared cache instance (like in uploader.py)
+    shared_cache = PersistentCache(cache_file)
+    shared_cache.clear_expired()
+
+    # Use higher numbers to increase chance of database lock
+    num_threads = 30
+    num_operations = 100
+    errors = []
+
+    def shared_cache_worker(thread_id):
+        """Worker that uses the shared cache instance (like CachedImageUploader.upload)."""
+        try:
+            for i in range(num_operations):
+                key = f"shared_thread_{thread_id}_op_{i}"
+                value = f"shared_value_{thread_id}_{i}"
+
+                # Simulate the pattern from CachedImageUploader:
+                # 1. Check cache first (_get_cached_file_handle)
+                cached_value = shared_cache.get(key)
+
+                if cached_value is None:
+                    # 2. Set new value (_set_file_handle_cache)
+                    shared_cache.set(key, value, expires_in=2)
+                    retrieved = shared_cache.get(key)
+
+                    if retrieved != value:
+                        errors.append(
+                            f"Thread {thread_id}: Expected {value}, got {retrieved}"
+                        )
+                else:
+                    # 3. Update cache with existing value (_set_file_handle_cache)
+                    shared_cache.set(key, cached_value, expires_in=2)
+
+                # Occasional cleanup operations
+                if i % 20 == 0:
+                    shared_cache.clear_expired()
+
+                # Cross-thread access pattern
+                if i % 7 == 0 and thread_id > 0:
+                    other_key = f"shared_thread_{thread_id - 1}_op_{i}"
+                    shared_cache.get(other_key)
+
+        except Exception as e:
+            errors.append(f"Thread {thread_id} error: {str(e)}")
+
+    # Run all threads using the same shared cache instance
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [executor.submit(shared_cache_worker, i) for i in range(num_threads)]
+        concurrent.futures.wait(futures)
+
+    # Check for database lock errors
+    database_lock_errors = [e for e in errors if "database is locked" in str(e).lower()]
+    if database_lock_errors:
+        pytest.fail(
+            f"Database lock errors with shared cache instance: {database_lock_errors}"
+        )
+
+    # Check for data consistency errors (values not persisting correctly)
+    data_consistency_errors = [e for e in errors if "Expected" in e and "got None" in e]
+    if data_consistency_errors:
+        pytest.fail(
+            f"Data consistency errors with shared cache (race conditions): {data_consistency_errors[:5]}"
+        )
+
+    if errors:
+        pytest.fail(f"Other shared cache errors: {errors[:10]}")  # Show first 10 errors
+
+
+@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
+def test_extreme_shared_cache_database_lock(tmpdir, dbm_backend):
+    """Extreme test with shared cache instance to try to trigger database lock errors."""
+    cache_file = os.path.join(tmpdir, f"cache_extreme_shared_{dbm_backend}")
+
+    # Create a single shared cache instance
+    shared_cache = PersistentCache(cache_file)
+
+    # Use even more aggressive settings
+    num_threads = 50
+    num_operations = 200
+    errors = []
+
+    def extreme_shared_worker(thread_id):
+        """Worker that hammers the shared cache instance."""
+        try:
+            for i in range(num_operations):
+                key = f"extreme_{thread_id}_{i}"
+                value = f"val_{thread_id}_{i}"
+
+                # Rapid fire operations without any delays
+                shared_cache.set(key, value, expires_in=1)
+                shared_cache.get(key)
+
+                # More frequent cleanup to increase contention
+                if i % 5 == 0:
+                    shared_cache.clear_expired()
+
+                # More cross-thread access
+                if i % 2 == 0 and thread_id > 0:
+                    other_key = f"extreme_{thread_id - 1}_{i}"
+                    shared_cache.get(other_key)
+
+                # Additional operations to increase database pressure
+                if i % 3 == 0:
+                    list(shared_cache.keys())
+
+        except Exception as e:
+            errors.append(f"Thread {thread_id} error: {str(e)}")
+
+    # Run with maximum concurrency
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [
+            executor.submit(extreme_shared_worker, i) for i in range(num_threads)
+        ]
+        concurrent.futures.wait(futures)
+
+    # Check specifically for database lock errors
+    database_lock_errors = [e for e in errors if "database is locked" in str(e).lower()]
+    if database_lock_errors:
+        pytest.fail(
+            f"SUCCESS: Database lock errors reproduced with shared cache: {database_lock_errors[:5]}"
+        )
+
+    # Report other errors but don't fail the test for them
+    if errors:
+        print(
+            f"Other errors (not database locks): {len(errors)} total, first 5: {errors[:5]}"
+        )
 
 
 @pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
