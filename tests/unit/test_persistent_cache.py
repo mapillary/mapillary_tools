@@ -8,19 +8,13 @@ import pytest
 from mapillary_tools.history import PersistentCache
 
 
-# DBM backends to test with
-DBM_BACKENDS = ["dbm.sqlite3"]
-# , "dbm.gnu", "dbm.ndbm", "dbm.dumb"]
-
-
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_basic_operations_with_backend(tmpdir, dbm_backend):
+def test_basic_operations_with_backend(tmpdir):
     """Test basic operations with different DBM backends.
 
     Note: This is a demonstration of pytest's parametrize feature.
     The actual PersistentCache class might not support specifying backends.
     """
-    cache_file = os.path.join(tmpdir, dbm_backend)
+    cache_file = os.path.join(tmpdir, "cache")
     # Here you would use the backend if the cache implementation supported it
     cache = PersistentCache(cache_file)
 
@@ -32,20 +26,18 @@ def test_basic_operations_with_backend(tmpdir, dbm_backend):
     # This is just a placeholder to demonstrate pytest's parametrization
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_get_set(tmpdir, dbm_backend):
+def test_get_set(tmpdir):
     """Test basic get and set operations."""
-    cache_file = os.path.join(tmpdir, f"cache_get_set_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, "cache")
     cache = PersistentCache(cache_file)
     cache.set("key1", "value1")
     assert cache.get("key1") == "value1"
     assert cache.get("nonexistent_key") is None
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_expiration(tmpdir, dbm_backend):
+def test_expiration(tmpdir):
     """Test that entries expire correctly."""
-    cache_file = os.path.join(tmpdir, f"cache_expiration_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, "cache")
     cache = PersistentCache(cache_file)
 
     # Set with short expiration
@@ -65,7 +57,6 @@ def test_expiration(tmpdir, dbm_backend):
     assert cache.get("long_lived") == "value"
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
 @pytest.mark.parametrize(
     "expire_time,sleep_time,should_exist",
     [
@@ -74,13 +65,9 @@ def test_expiration(tmpdir, dbm_backend):
         (5, 2, True),  # Should not expire yet
     ],
 )
-def test_parametrized_expiration(
-    tmpdir, dbm_backend, expire_time, sleep_time, should_exist
-):
+def test_parametrized_expiration(tmpdir, expire_time, sleep_time, should_exist):
     """Test expiration with different timing combinations."""
-    cache_file = os.path.join(
-        tmpdir, f"cache_param_exp_{dbm_backend}_{expire_time}_{sleep_time}"
-    )
+    cache_file = os.path.join(tmpdir, f"cache_param_exp_{expire_time}_{sleep_time}")
     cache = PersistentCache(cache_file)
 
     key = f"key_expires_in_{expire_time}_sleeps_{sleep_time}"
@@ -94,10 +81,9 @@ def test_parametrized_expiration(
         assert cache.get(key) is None
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_clear_expired(tmpdir, dbm_backend):
+def test_clear_expired(tmpdir):
     """Test clearing expired entries."""
-    cache_file = os.path.join(tmpdir, f"cache_clear_expired_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_clear_expired")
     cache = PersistentCache(cache_file)
 
     # Test 1: Single expired key
@@ -117,10 +103,9 @@ def test_clear_expired(tmpdir, dbm_backend):
     assert cache.get("not_expired") == "value2"
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_clear_expired_multiple(tmpdir, dbm_backend):
+def test_clear_expired_multiple(tmpdir):
     """Test clearing multiple expired entries."""
-    cache_file = os.path.join(tmpdir, f"cache_clear_multiple_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_clear_multiple")
     cache = PersistentCache(cache_file)
 
     # Test 2: Multiple expired keys
@@ -143,10 +128,9 @@ def test_clear_expired_multiple(tmpdir, dbm_backend):
     assert cache.get("not_expired") == "value3"
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_clear_expired_all(tmpdir, dbm_backend):
+def test_clear_expired_all(tmpdir):
     """Test clearing all expired entries."""
-    cache_file = os.path.join(tmpdir, f"cache_clear_all_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_clear_all")
     cache = PersistentCache(cache_file)
 
     # Test 3: All entries expired
@@ -165,10 +149,9 @@ def test_clear_expired_all(tmpdir, dbm_backend):
     assert b"key2" in expired_keys
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_clear_expired_none(tmpdir, dbm_backend):
+def test_clear_expired_none(tmpdir):
     """Test clearing when no entries are expired."""
-    cache_file = os.path.join(tmpdir, f"cache_clear_none_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_clear_none")
     cache = PersistentCache(cache_file)
 
     # Test 4: No entries expired
@@ -184,10 +167,9 @@ def test_clear_expired_none(tmpdir, dbm_backend):
     assert cache.get("key2") == "value2"
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_clear_expired_empty(tmpdir, dbm_backend):
+def test_clear_expired_empty(tmpdir):
     """Test clearing expired entries on an empty cache."""
-    cache_file = os.path.join(tmpdir, f"cache_clear_empty_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_clear_empty")
     cache = PersistentCache(cache_file)
 
     # Test 5: Empty cache
@@ -197,10 +179,9 @@ def test_clear_expired_empty(tmpdir, dbm_backend):
     assert len(expired_keys) == 0
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_corrupted_data(tmpdir, dbm_backend):
+def test_corrupted_data(tmpdir):
     """Test handling of corrupted data."""
-    cache_file = os.path.join(tmpdir, f"cache_corrupted_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_corrupted")
     cache = PersistentCache(cache_file)
 
     # Set valid entry
@@ -221,10 +202,10 @@ def test_corrupted_data(tmpdir, dbm_backend):
     cache.clear_expired()
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_concurrency(tmpdir, dbm_backend):
+def test_concurrency(tmpdir):
     """Test concurrent access to the cache - fixed version."""
-    cache_file = os.path.join(tmpdir, f"cache_concurrency_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_concurrency")
+
     cache = PersistentCache(cache_file)
     num_threads = 20
     num_operations = 10
@@ -252,63 +233,6 @@ def test_concurrency(tmpdir, dbm_backend):
 
     # Check for any failures in threads
     assert not results, f"Thread assertions failed: {results}"
-
-
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_aggressive_concurrency_database_lock(tmpdir, dbm_backend):
-    """Test aggressive concurrent access that might trigger database lock issues."""
-    cache_file = os.path.join(tmpdir, f"cache_aggressive_{dbm_backend}")
-
-    # Use a higher number of threads and operations to stress test
-    num_threads = 50
-    num_operations = 50
-    errors = []
-
-    def aggressive_worker(thread_id):
-        """Worker that performs rapid database operations."""
-        try:
-            # Create a new cache instance per thread to simulate real-world usage
-            thread_cache = PersistentCache(cache_file)
-
-            for i in range(num_operations):
-                key = f"thread_{thread_id}_op_{i}"
-                value = f"value_{thread_id}_{i}"
-
-                # Rapid set/get operations
-                thread_cache.set(key, value, expires_in=1)
-                retrieved = thread_cache.get(key)
-
-                if retrieved != value:
-                    errors.append(
-                        f"Thread {thread_id}: Expected {value}, got {retrieved}"
-                    )
-
-                # Perform some operations that might cause contention
-                if i % 5 == 0:
-                    thread_cache.clear_expired()
-
-                # Try to access keys from other threads
-                if i % 3 == 0 and thread_id > 0:
-                    other_key = f"thread_{thread_id - 1}_op_{i}"
-                    thread_cache.get(other_key)
-
-        except Exception as e:
-            errors.append(f"Thread {thread_id} error: {str(e)}")
-
-    # Run with high concurrency
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [executor.submit(aggressive_worker, i) for i in range(num_threads)]
-        concurrent.futures.wait(futures)
-
-    # Check for database lock errors or other issues
-    database_lock_errors = [e for e in errors if "database is locked" in str(e).lower()]
-    if database_lock_errors:
-        pytest.fail(f"Database lock errors detected: {database_lock_errors}")
-
-    if errors:
-        pytest.fail(
-            f"Concurrency errors detected: {errors[:10]}"
-        )  # Show first 10 errors
 
 
 # Global function for multiprocessing (needed for pickling)
@@ -374,10 +298,9 @@ def test_multiprocess_database_lock(tmpdir):
         pytest.fail(f"Multiprocess errors: {errors}")
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_rapid_file_creation_database_lock(tmpdir, dbm_backend):
+def test_rapid_file_creation_database_lock(tmpdir):
     """Test rapid database file creation that might trigger lock issues."""
-    base_path = os.path.join(tmpdir, f"rapid_creation_{dbm_backend}")
+    base_path = os.path.join(tmpdir, f"rapid_creation")
 
     def rapid_creator(thread_id):
         """Create and use cache files rapidly."""
@@ -425,10 +348,9 @@ def test_rapid_file_creation_database_lock(tmpdir, dbm_backend):
         pytest.fail(f"Rapid creation errors: {all_errors[:5]}")  # Show first 5 errors
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_simultaneous_database_operations(tmpdir, dbm_backend):
+def test_simultaneous_database_operations(tmpdir):
     """Test simultaneous database operations that might cause locking."""
-    cache_file = os.path.join(tmpdir, f"cache_simultaneous_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_simultaneous")
 
     errors = []
 
@@ -473,10 +395,9 @@ def test_simultaneous_database_operations(tmpdir, dbm_backend):
         pytest.fail(f"Simultaneous operation errors: {errors[:10]}")
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_stress_database_with_exceptions(tmpdir, dbm_backend):
+def test_stress_database_with_exceptions(tmpdir):
     """Stress test that might trigger database lock issues with exception handling."""
-    cache_file = os.path.join(tmpdir, f"cache_stress_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_stress")
     cache = PersistentCache(cache_file)
 
     def stress_worker(thread_id):
@@ -537,10 +458,9 @@ def test_stress_database_with_exceptions(tmpdir, dbm_backend):
         pytest.fail(f"Other stress test errors: {all_other_errors[:5]}")
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_shared_cache_instance_database_lock(tmpdir, dbm_backend):
+def test_shared_cache_instance_database_lock(tmpdir):
     """Test shared cache instance across threads - reproduces real uploader.py usage pattern."""
-    cache_file = os.path.join(tmpdir, f"cache_shared_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_shared")
 
     # Create a single shared cache instance (like in uploader.py)
     shared_cache = PersistentCache(cache_file)
@@ -586,6 +506,7 @@ def test_shared_cache_instance_database_lock(tmpdir, dbm_backend):
 
         except Exception as e:
             errors.append(f"Thread {thread_id} error: {str(e)}")
+            print(e, traceback.format_exc())
 
     # Run all threads using the same shared cache instance
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -610,71 +531,9 @@ def test_shared_cache_instance_database_lock(tmpdir, dbm_backend):
         pytest.fail(f"Other shared cache errors: {errors[:10]}")  # Show first 10 errors
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_extreme_shared_cache_database_lock(tmpdir, dbm_backend):
-    """Extreme test with shared cache instance to try to trigger database lock errors."""
-    cache_file = os.path.join(tmpdir, f"cache_extreme_shared_{dbm_backend}")
-
-    # Create a single shared cache instance
-    shared_cache = PersistentCache(cache_file)
-
-    # Use even more aggressive settings
-    num_threads = 50
-    num_operations = 200
-    errors = []
-
-    def extreme_shared_worker(thread_id):
-        """Worker that hammers the shared cache instance."""
-        try:
-            for i in range(num_operations):
-                key = f"extreme_{thread_id}_{i}"
-                value = f"val_{thread_id}_{i}"
-
-                # Rapid fire operations without any delays
-                shared_cache.set(key, value, expires_in=1)
-                shared_cache.get(key)
-
-                # More frequent cleanup to increase contention
-                if i % 5 == 0:
-                    shared_cache.clear_expired()
-
-                # More cross-thread access
-                if i % 2 == 0 and thread_id > 0:
-                    other_key = f"extreme_{thread_id - 1}_{i}"
-                    shared_cache.get(other_key)
-
-                # Additional operations to increase database pressure
-                if i % 3 == 0:
-                    list(shared_cache.keys())
-
-        except Exception as e:
-            errors.append(f"Thread {thread_id} error: {str(e)}")
-
-    # Run with maximum concurrency
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [
-            executor.submit(extreme_shared_worker, i) for i in range(num_threads)
-        ]
-        concurrent.futures.wait(futures)
-
-    # Check specifically for database lock errors
-    database_lock_errors = [e for e in errors if "database is locked" in str(e).lower()]
-    if database_lock_errors:
-        pytest.fail(
-            f"SUCCESS: Database lock errors reproduced with shared cache: {database_lock_errors[:5]}"
-        )
-
-    # Report other errors but don't fail the test for them
-    if errors:
-        print(
-            f"Other errors (not database locks): {len(errors)} total, first 5: {errors[:5]}"
-        )
-
-
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_decode_invalid_data(tmpdir, dbm_backend):
+def test_decode_invalid_data(tmpdir):
     """Test _decode method with invalid data."""
-    cache_file = os.path.join(tmpdir, f"cache_decode_invalid_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_decode_invalid")
     cache = PersistentCache(cache_file)
 
     # Test with various invalid inputs
@@ -685,10 +544,9 @@ def test_decode_invalid_data(tmpdir, dbm_backend):
     assert result == {}
 
 
-@pytest.mark.parametrize("dbm_backend", DBM_BACKENDS)
-def test_is_expired(tmpdir, dbm_backend):
+def test_is_expired(tmpdir):
     """Test _is_expired method."""
-    cache_file = os.path.join(tmpdir, f"cache_is_expired_{dbm_backend}")
+    cache_file = os.path.join(tmpdir, f"cache_is_expired")
     cache = PersistentCache(cache_file)
 
     # Test with various payloads
@@ -697,3 +555,389 @@ def test_is_expired(tmpdir, dbm_backend):
     assert cache._is_expired({}) is False
     assert cache._is_expired({"expires_at": "not a number"}) is False
     assert cache._is_expired({"expires_at": None}) is False
+
+
+# Shared worker functions for concurrency tests
+def _shared_worker_get_set_pattern(
+    worker_id, cache, num_operations, key_prefix="worker"
+):
+    """Shared worker implementation: get key -> if not exist then set key=value."""
+    errors = []
+    try:
+        for i in range(num_operations):
+            key = f"{key_prefix}_{worker_id}_{i}"
+            value = f"value_{worker_id}_{i}"
+
+            # Pattern: get a key -> if not exist then set key=value
+            existing_value = cache.get(key)
+            if existing_value is None:
+                cache.set(key, value, expires_in=10)
+
+            # Verify the value was set correctly
+            retrieved_value = cache.get(key)
+            if retrieved_value != value:
+                errors.append(
+                    f"Worker {worker_id}: Expected {value}, got {retrieved_value}"
+                )
+
+    except Exception as e:
+        errors.append(f"Worker {worker_id} error: {str(e)}")
+
+    return errors
+
+
+def _multiprocess_worker_get_set_pattern(args):
+    """Multiprocess worker wrapper for the shared worker pattern."""
+    worker_id, cache_file, num_operations, key_prefix = args
+    try:
+        # Each process creates its own cache instance pointing to the same file
+        cache = PersistentCache(cache_file)
+        return _shared_worker_get_set_pattern(
+            worker_id, cache, num_operations, key_prefix
+        )
+    except Exception as e:
+        return [f"Process {worker_id} error: {str(e)} - {traceback.format_exc()}"]
+
+
+def _mixed_operations_worker(args):
+    """Worker that performs mixed operations with get->set pattern."""
+    worker_id, cache_file, num_operations, run_prefix = args
+    errors = []
+    try:
+        cache = PersistentCache(cache_file)
+
+        for i in range(num_operations):
+            key = f"{run_prefix}_mixed_{worker_id}_{i}"
+            value = f"mixed_value_{worker_id}_{i}"
+
+            # Pattern: get a key -> if not exist then set key=value
+            existing_value = cache.get(key)
+            if existing_value is None:
+                cache.set(key, value, expires_in=15)
+
+            # Mixed operations: also try to read from other workers
+            if i % 5 == 0 and worker_id > 0:
+                other_key = f"{run_prefix}_mixed_{worker_id - 1}_{i}"
+                cache.get(other_key)
+
+            # Periodic cleanup
+            if i % 10 == 0:
+                cache.clear_expired()
+
+    except Exception as e:
+        errors.append(f"Process {worker_id} error: {str(e)}")
+
+    return errors
+
+
+def test_multithread_shared_cache_get_set_pattern(tmpdir):
+    """Test multithreaded access with shared cache instance using get->set pattern."""
+    cache_file = os.path.join(tmpdir, "cache_multithread_shared")
+
+    # Initialize cache once and share across all workers
+    shared_cache = PersistentCache(cache_file)
+
+    # Clear expired before first concurrent run
+    shared_cache.clear_expired()
+
+    num_threads = 10
+    num_operations = 20
+    all_errors = []
+
+    # First concurrent run
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [
+            executor.submit(
+                _shared_worker_get_set_pattern, i, shared_cache, num_operations, "run1"
+            )
+            for i in range(num_threads)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            errors = future.result()
+            all_errors.extend(errors)
+
+    # Clear expired between concurrent runs
+    expired_keys_1 = shared_cache.clear_expired()
+    assert isinstance(expired_keys_1, list), "clear_expired should return a list"
+
+    # Second concurrent run
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [
+            executor.submit(
+                _shared_worker_get_set_pattern, i, shared_cache, num_operations, "run2"
+            )
+            for i in range(num_threads)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            errors = future.result()
+            all_errors.extend(errors)
+
+    # Clear expired after second concurrent run
+    expired_keys_2 = shared_cache.clear_expired()
+    assert isinstance(expired_keys_2, list), "clear_expired should return a list"
+
+    # Assertions using keys() and counts
+    all_keys = list(shared_cache.keys())
+    expected_keys_count = num_threads * num_operations * 2  # Two runs
+
+    assert (
+        len(all_keys) == expected_keys_count
+    ), f"Expected {expected_keys_count} keys, got {len(all_keys)}"
+
+    # Verify key patterns
+    run1_keys = [k for k in all_keys if b"run1" in k]
+    run2_keys = [k for k in all_keys if b"run2" in k]
+
+    assert len(run1_keys) == num_threads * num_operations
+    assert len(run2_keys) == num_threads * num_operations
+
+    # Check for any worker errors
+    assert not all_errors, f"Worker errors occurred: {all_errors}"
+
+
+def test_multiprocess_shared_file_get_set_pattern(tmpdir):
+    """Test multiprocess access with shared cache file using get->set pattern."""
+    cache_file = os.path.join(tmpdir, "cache_multiprocess_shared")
+
+    # Initialize cache and clear expired before first concurrent run
+    init_cache = PersistentCache(cache_file)
+    init_cache.clear_expired()
+
+    num_processes = 6
+    num_operations = 15
+
+    # First concurrent run
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        args_list = [
+            (i, cache_file, num_operations, "proc_run1") for i in range(num_processes)
+        ]
+        futures = [
+            executor.submit(_multiprocess_worker_get_set_pattern, args)
+            for args in args_list
+        ]
+        results_1 = [
+            future.result() for future in concurrent.futures.as_completed(futures)
+        ]
+
+    # Clear expired between concurrent runs
+    expired_keys_1 = init_cache.clear_expired()
+    assert isinstance(expired_keys_1, list), "clear_expired should return a list"
+
+    # Second concurrent run
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        args_list = [
+            (i, cache_file, num_operations, "proc_run2") for i in range(num_processes)
+        ]
+        futures = [
+            executor.submit(_multiprocess_worker_get_set_pattern, args)
+            for args in args_list
+        ]
+        results_2 = [
+            future.result() for future in concurrent.futures.as_completed(futures)
+        ]
+
+    # Clear expired after second concurrent run
+    expired_keys_2 = init_cache.clear_expired()
+    assert isinstance(expired_keys_2, list), "clear_expired should return a list"
+
+    # Collect all errors from both runs
+    all_errors = []
+    for result in results_1 + results_2:
+        all_errors.extend(result)
+
+    # Assertions using keys() and counts
+    all_keys = list(init_cache.keys())
+    expected_keys_count = num_processes * num_operations * 2  # Two runs
+
+    assert (
+        len(all_keys) == expected_keys_count
+    ), f"Expected {expected_keys_count} keys, got {len(all_keys)}"
+
+    # Verify key patterns
+    run1_keys = [k for k in all_keys if b"proc_run1" in k]
+    run2_keys = [k for k in all_keys if b"proc_run2" in k]
+
+    assert len(run1_keys) == num_processes * num_operations
+    assert len(run2_keys) == num_processes * num_operations
+
+    # Check for database lock errors specifically
+    database_lock_errors = [
+        e for e in all_errors if "database is locked" in str(e).lower()
+    ]
+    if database_lock_errors:
+        pytest.fail(
+            f"Database lock errors in multiprocess test: {database_lock_errors}"
+        )
+
+    # Check for any other errors
+    assert not all_errors, f"Process errors occurred: {all_errors}"
+
+
+def test_multithread_high_contention_get_set_pattern(tmpdir):
+    """Test high contention multithreaded access with shared cache using get->set pattern."""
+    cache_file = os.path.join(tmpdir, "cache_multithread_contention")
+
+    # Initialize cache once and share across all workers
+    shared_cache = PersistentCache(cache_file)
+
+    # Clear expired before first concurrent run
+    shared_cache.clear_expired()
+
+    num_threads = 20
+    num_operations = 50
+    all_errors = []
+
+    def high_contention_worker(worker_id, run_prefix):
+        """Worker with higher contention - accessing overlapping keys."""
+        errors = []
+        try:
+            for i in range(num_operations):
+                # Use overlapping keys to increase contention
+                key = f"{run_prefix}_shared_{i % 10}"  # Only 10 unique keys per run
+                value = f"value_{worker_id}_{i}"
+
+                # Pattern: get a key -> if not exist then set key=value
+                existing_value = shared_cache.get(key)
+                if existing_value is None:
+                    shared_cache.set(key, value, expires_in=10)
+
+                # Occasional clear_expired to add more contention
+                if i % 25 == 0:
+                    shared_cache.clear_expired()
+
+        except Exception as e:
+            errors.append(f"Worker {worker_id} error: {str(e)}")
+
+        return errors
+
+    # First concurrent run with high contention
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [
+            executor.submit(high_contention_worker, i, "contention_run1")
+            for i in range(num_threads)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            errors = future.result()
+            all_errors.extend(errors)
+
+    # Clear expired between concurrent runs
+    expired_keys_1 = shared_cache.clear_expired()
+    assert isinstance(expired_keys_1, list), "clear_expired should return a list"
+    keys_after_run1 = list(shared_cache.keys())
+
+    # Second concurrent run with high contention
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [
+            executor.submit(high_contention_worker, i, "contention_run2")
+            for i in range(num_threads)
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            errors = future.result()
+            all_errors.extend(errors)
+
+    # Clear expired after second concurrent run
+    expired_keys_2 = shared_cache.clear_expired()
+    assert isinstance(expired_keys_2, list), "clear_expired should return a list"
+    keys_after_run2 = list(shared_cache.keys())
+
+    # Assertions using keys() and counts
+    # With overlapping keys, we expect at most 10 keys per run (due to key overlap)
+    assert (
+        len(keys_after_run1) <= 10
+    ), f"Expected at most 10 keys after run1, got {len(keys_after_run1)}"
+    assert (
+        len(keys_after_run2) <= 20
+    ), f"Expected at most 20 keys after run2, got {len(keys_after_run2)}"
+
+    # Verify key patterns exist
+    run1_keys = [k for k in keys_after_run2 if b"contention_run1" in k]
+    run2_keys = [k for k in keys_after_run2 if b"contention_run2" in k]
+
+    assert len(run1_keys) > 0, "Should have some keys from run1"
+    assert len(run2_keys) > 0, "Should have some keys from run2"
+
+    # Check for any worker errors
+    assert not all_errors, f"Worker errors occurred: {all_errors}"
+
+
+def test_multiprocess_mixed_operations_get_set_pattern(tmpdir):
+    """Test multiprocess with mixed operations using get->set pattern."""
+    cache_file = os.path.join(tmpdir, "cache_multiprocess_mixed")
+
+    # Initialize cache and clear expired before first concurrent run
+    init_cache = PersistentCache(cache_file)
+    init_cache.clear_expired()
+
+    num_processes = 8
+    num_operations = 25
+
+    # First concurrent run
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        args_list = [
+            (i, cache_file, num_operations, "mixed_run1") for i in range(num_processes)
+        ]
+        futures = [
+            executor.submit(_mixed_operations_worker, args) for args in args_list
+        ]
+        results_1 = [
+            future.result() for future in concurrent.futures.as_completed(futures)
+        ]
+
+    # Clear expired between concurrent runs
+    expired_keys_1 = init_cache.clear_expired()
+    assert isinstance(expired_keys_1, list), "clear_expired should return a list"
+    keys_after_run1 = list(init_cache.keys())
+
+    # Verify first run results
+    expected_keys_run1 = num_processes * num_operations
+    assert (
+        len(keys_after_run1) == expected_keys_run1
+    ), f"Expected {expected_keys_run1} keys after run1, got {len(keys_after_run1)}"
+
+    # Second concurrent run
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        args_list = [
+            (i, cache_file, num_operations, "mixed_run2") for i in range(num_processes)
+        ]
+        futures = [
+            executor.submit(_mixed_operations_worker, args) for args in args_list
+        ]
+        results_2 = [
+            future.result() for future in concurrent.futures.as_completed(futures)
+        ]
+
+    # Clear expired after second concurrent run
+    expired_keys_2 = init_cache.clear_expired()
+    assert isinstance(expired_keys_2, list), "clear_expired should return a list"
+    keys_after_run2 = list(init_cache.keys())
+
+    # Collect all errors from both runs
+    all_errors = []
+    for result in results_1 + results_2:
+        all_errors.extend(result)
+
+    # Assertions using keys() and counts
+    expected_keys_count = num_processes * num_operations * 2  # Two runs
+
+    assert (
+        len(keys_after_run2) == expected_keys_count
+    ), f"Expected {expected_keys_count} keys, got {len(keys_after_run2)}"
+
+    # Verify key patterns
+    run1_keys = [k for k in keys_after_run2 if b"mixed_run1" in k]
+    run2_keys = [k for k in keys_after_run2 if b"mixed_run2" in k]
+
+    assert len(run1_keys) == num_processes * num_operations
+    assert len(run2_keys) == num_processes * num_operations
+
+    # Check for database lock errors specifically
+    database_lock_errors = [
+        e for e in all_errors if "database is locked" in str(e).lower()
+    ]
+    if database_lock_errors:
+        pytest.fail(
+            f"Database lock errors in mixed operations test: {database_lock_errors}"
+        )
+
+    # Check for any other errors
+    assert not all_errors, f"Mixed operations errors occurred: {all_errors}"
