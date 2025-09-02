@@ -68,11 +68,10 @@ def add_date_time_original_general(test_obj, filename: Path):
 def add_lat_lon_general(test_obj, filename):
     test_latitude = 50.5475894785
     test_longitude = 15.595866685
-    precision = 1e7
 
     empty_exifedit = ExifEdit(filename)
 
-    empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
+    empty_exifedit.add_lat_lon(test_latitude, test_longitude)
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
@@ -82,11 +81,10 @@ def add_lat_lon_general(test_obj, filename):
 
 def add_altitude_general(test_obj, filename: Path):
     test_altitude = 15.5
-    test_altitude_precision = 100
 
     empty_exifedit = ExifEdit(filename)
 
-    empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
+    empty_exifedit.add_altitude(test_altitude)
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
@@ -118,13 +116,10 @@ def add_repeatedly_time_original_general(test_obj, filename):
 def add_direction_general(test_obj, filename):
     test_direction = 1
     test_direction_ref = "T"
-    test_direction_precision = 100
 
     empty_exifedit = ExifEdit(filename)
 
-    empty_exifedit.add_direction(
-        test_direction, test_direction_ref, test_direction_precision
-    )
+    empty_exifedit.add_direction(test_direction, test_direction_ref)
     empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
     exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
@@ -181,11 +176,10 @@ class ExifEditTests(unittest.TestCase):
 
     def test_add_time_original_to_existing_exif(self):
         test_altitude = 15.5
-        test_altitude_precision = 100
 
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
 
-        empty_exifedit.add_altitude(test_altitude, test_altitude_precision)
+        empty_exifedit.add_altitude(test_altitude)
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
         test_datetime = datetime.datetime(2016, 9, 30, 8, 29, 26, 249000)
@@ -205,11 +199,10 @@ class ExifEditTests(unittest.TestCase):
     def test_add_negative_lat_lon(self):
         test_latitude = -50.5
         test_longitude = -15.5
-        precision = 1e7
 
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
 
-        empty_exifedit.add_lat_lon(test_latitude, test_longitude, precision)
+        empty_exifedit.add_lat_lon(test_latitude, test_longitude)
         empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
 
         exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
