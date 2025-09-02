@@ -1,24 +1,17 @@
 from __future__ import annotations
 
-import contextlib
-import dbm
 import json
 import logging
+import os
+
+import sqlite3
 import string
 import threading
 import time
 import typing as T
 from pathlib import Path
 
-# dbm modules are dynamically imported, so here we explicitly import dbm.sqlite3 to make sure pyinstaller include it
-# Otherwise you will see: ImportError: no dbm clone found; tried ['dbm.sqlite3', 'dbm.gnu', 'dbm.ndbm', 'dbm.dumb']
-try:
-    import dbm.sqlite3  # type: ignore
-except ImportError:
-    pass
-
-
-from . import constants, types
+from . import constants, store, types
 from .serializer.description import DescriptionJSONSerializer
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
@@ -86,102 +79,131 @@ def write_history(
 
 
 class PersistentCache:
-    _lock: contextlib.nullcontext | threading.Lock
+    _lock: threading.Lock
 
     def __init__(self, file: str):
-        # SQLite3 backend supports concurrent access without a lock
-        if dbm.whichdb(file) == "dbm.sqlite3":
-            self._lock = contextlib.nullcontext()
-        else:
-            self._lock = threading.Lock()
         self._file = file
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> str | None:
+        if not self._does_db_exist():
+            return None
+
         s = time.perf_counter()
 
-        with self._lock:
-            with dbm.open(self._file, flag="c") as db:
-                value: bytes | None = db.get(key)
+        with store.KeyValueStore(self._file, flag="r") as db:
+            try:
+                raw_payload: bytes | None = db.get(key)  # data retrieved from db[key]
+            except Exception as ex:
+                if self._does_table_exist(ex):
+                    return None
+                raise ex
 
-        if value is None:
+        if raw_payload is None:
             return None
 
-        payload = self._decode(value)
+        data: JSONDict = self._decode(raw_payload)  # JSON dict decoded from db[key]
 
-        if self._is_expired(payload):
+        if self._is_expired(data):
             return None
 
-        file_handle = payload.get("file_handle")
+        cached_value = data.get("value")  # value in the JSON dict decoded from db[key]
 
         LOG.debug(
             f"Found file handle for {key} in cache ({(time.perf_counter() - s) * 1000:.0f} ms)"
         )
 
-        return T.cast(str, file_handle)
+        return T.cast(str, cached_value)
 
-    def set(self, key: str, file_handle: str, expires_in: int = 3600 * 24 * 2) -> None:
+    def set(self, key: str, value: str, expires_in: int = 3600 * 24 * 2) -> None:
         s = time.perf_counter()
 
-        payload = {
+        data = {
             "expires_at": time.time() + expires_in,
-            "file_handle": file_handle,
+            "value": value,
         }
 
-        value: bytes = json.dumps(payload).encode("utf-8")
+        payload: bytes = json.dumps(data).encode("utf-8")
 
-        with self._lock:
-            with dbm.open(self._file, flag="c") as db:
-                db[key] = value
+        while True:
+            try:
+                with self._lock:
+                    with store.KeyValueStore(self._file, flag="c") as db:
+                        # Assume db exists
+                        db[key] = payload
+            except sqlite3.OperationalError as ex:
+                if "database is locked" in str(ex).lower():
+                    LOG.warning(
+                        f"{str(ex)}: {self._file} (are you running multiple instances?)"
+                    )
+                    LOG.info("Retrying in 1 second...")
+                    time.sleep(1)
+                    continue
+                else:
+                    raise ex
+            else:
+                break
 
         LOG.debug(
             f"Cached file handle for {key} ({(time.perf_counter() - s) * 1000:.0f} ms)"
         )
 
     def clear_expired(self) -> list[str]:
-        s = time.perf_counter()
-
         expired_keys: list[str] = []
 
-        with self._lock:
-            with dbm.open(self._file, flag="c") as db:
-                if hasattr(db, "items"):
-                    items: T.Iterable[tuple[str | bytes, bytes]] = db.items()
-                else:
-                    items = ((key, db[key]) for key in db.keys())
+        s = time.perf_counter()
 
-                for key, value in items:
-                    payload = self._decode(value)
-                    if self._is_expired(payload):
+        with self._lock:
+            with store.KeyValueStore(self._file, flag="c") as db:
+                # Assume db and table exist here
+                for key, raw_payload in db.items():
+                    data = self._decode(raw_payload)
+                    if self._is_expired(data):
                         del db[key]
                         expired_keys.append(T.cast(str, key))
 
-        if expired_keys:
-            LOG.debug(
-                f"Cleared {len(expired_keys)} expired entries from the cache ({(time.perf_counter() - s) * 1000:.0f} ms)"
-            )
+        LOG.debug(
+            f"Cleared {len(expired_keys)} expired entries from the cache ({(time.perf_counter() - s) * 1000:.0f} ms)"
+        )
 
         return expired_keys
 
-    def keys(self):
-        with self._lock:
-            with dbm.open(self._file, flag="c") as db:
-                return db.keys()
+    def keys(self) -> list[str]:
+        if not self._does_db_exist():
+            return []
 
-    def _is_expired(self, payload: JSONDict) -> bool:
-        expires_at = payload.get("expires_at")
+        try:
+            with store.KeyValueStore(self._file, flag="r") as db:
+                return [key.decode("utf-8") for key in db.keys()]
+        except Exception as ex:
+            if self._does_table_exist(ex):
+                return []
+            raise ex
+
+    def _is_expired(self, data: JSONDict) -> bool:
+        expires_at = data.get("expires_at")
         if isinstance(expires_at, (int, float)):
             return expires_at is None or expires_at <= time.time()
         return False
 
-    def _decode(self, value: bytes) -> JSONDict:
+    def _decode(self, raw_payload: bytes) -> JSONDict:
         try:
-            payload = json.loads(value.decode("utf-8"))
+            data = json.loads(raw_payload.decode("utf-8"))
         except json.JSONDecodeError as ex:
             LOG.warning(f"Failed to decode cache value: {ex}")
             return {}
 
-        if not isinstance(payload, dict):
-            LOG.warning(f"Invalid cache value format: {payload}")
+        if not isinstance(data, dict):
+            LOG.warning(f"Invalid cache value format: {raw_payload}")
             return {}
 
-        return payload
+        return data
+
+    def _does_db_exist(self) -> bool:
+        return os.path.exists(self._file)
+
+    def _does_table_exist(self, ex: Exception) -> bool:
+        if isinstance(ex, sqlite3.OperationalError):
+            if "no such table" in str(ex):
+                return True
+        return False
