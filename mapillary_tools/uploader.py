@@ -1311,7 +1311,7 @@ def _is_uuid(key: str) -> bool:
 
 
 def _build_upload_cache_path(upload_options: UploadOptions) -> Path:
-    # Different python/CLI versions use different cache (dbm) formats.
+    # Different python/CLI versions use different cache formats.
     # Separate them to avoid conflicts
     py_version_parts = [str(part) for part in sys.version_info[:3]]
     version = f"py_{'_'.join(py_version_parts)}_{VERSION}"

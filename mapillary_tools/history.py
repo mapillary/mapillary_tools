@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import os
-
 import sqlite3
 import string
 import threading
 import time
 import typing as T
+from functools import wraps
 from pathlib import Path
 
 from . import constants, store, types
@@ -78,6 +78,28 @@ def write_history(
         fp.write(json.dumps(history))
 
 
+def _retry_on_database_lock_error(fn):
+    """
+    Decorator to retry a function if it raises a sqlite3.OperationalError with
+    "database is locked" in the message.
+    """
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        while True:
+            try:
+                return fn(*args, **kwargs)
+            except sqlite3.OperationalError as ex:
+                if "database is locked" in str(ex).lower():
+                    LOG.warning(f"{str(ex)}")
+                    LOG.info("Retrying in 1 second...")
+                    time.sleep(1)
+                else:
+                    raise ex
+
+    return wrapper
+
+
 class PersistentCache:
     _lock: threading.Lock
 
@@ -86,7 +108,7 @@ class PersistentCache:
         self._lock = threading.Lock()
 
     def get(self, key: str) -> str | None:
-        if not self._does_db_exist():
+        if not self._db_existed():
             return None
 
         s = time.perf_counter()
@@ -95,7 +117,7 @@ class PersistentCache:
             try:
                 raw_payload: bytes | None = db.get(key)  # data retrieved from db[key]
             except Exception as ex:
-                if self._does_table_exist(ex):
+                if self._table_not_found(ex):
                     return None
                 raise ex
 
@@ -115,6 +137,7 @@ class PersistentCache:
 
         return T.cast(str, cached_value)
 
+    @_retry_on_database_lock_error
     def set(self, key: str, value: str, expires_in: int = 3600 * 24 * 2) -> None:
         s = time.perf_counter()
 
@@ -125,29 +148,15 @@ class PersistentCache:
 
         payload: bytes = json.dumps(data).encode("utf-8")
 
-        while True:
-            try:
-                with self._lock:
-                    with store.KeyValueStore(self._file, flag="c") as db:
-                        # Assume db exists
-                        db[key] = payload
-            except sqlite3.OperationalError as ex:
-                if "database is locked" in str(ex).lower():
-                    LOG.warning(
-                        f"{str(ex)}: {self._file} (are you running multiple instances?)"
-                    )
-                    LOG.info("Retrying in 1 second...")
-                    time.sleep(1)
-                    continue
-                else:
-                    raise ex
-            else:
-                break
+        with self._lock:
+            with store.KeyValueStore(self._file, flag="c") as db:
+                db[key] = payload
 
         LOG.debug(
             f"Cached file handle for {key} ({(time.perf_counter() - s) * 1000:.0f} ms)"
         )
 
+    @_retry_on_database_lock_error
     def clear_expired(self) -> list[str]:
         expired_keys: list[str] = []
 
@@ -155,7 +164,6 @@ class PersistentCache:
 
         with self._lock:
             with store.KeyValueStore(self._file, flag="c") as db:
-                # Assume db and table exist here
                 for key, raw_payload in db.items():
                     data = self._decode(raw_payload)
                     if self._is_expired(data):
@@ -169,14 +177,14 @@ class PersistentCache:
         return expired_keys
 
     def keys(self) -> list[str]:
-        if not self._does_db_exist():
+        if not self._db_existed():
             return []
 
         try:
             with store.KeyValueStore(self._file, flag="r") as db:
                 return [key.decode("utf-8") for key in db.keys()]
         except Exception as ex:
-            if self._does_table_exist(ex):
+            if self._table_not_found(ex):
                 return []
             raise ex
 
@@ -199,10 +207,10 @@ class PersistentCache:
 
         return data
 
-    def _does_db_exist(self) -> bool:
+    def _db_existed(self) -> bool:
         return os.path.exists(self._file)
 
-    def _does_table_exist(self, ex: Exception) -> bool:
+    def _table_not_found(self, ex: Exception) -> bool:
         if isinstance(ex, sqlite3.OperationalError):
             if "no such table" in str(ex):
                 return True

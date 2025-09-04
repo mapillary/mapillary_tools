@@ -1,5 +1,15 @@
+"""
+This module provides a persistent key-value store based on SQLite.
+
+This implementation is mostly copied from dbm.sqlite3 in the Python standard library,
+but works for Python >= 3.9, whereas dbm.sqlite3 is only available for Python 3.13.
+
+Source: https://github.com/python/cpython/blob/3.13/Lib/dbm/sqlite3.py
+"""
+
 import os
 import sqlite3
+import sys
 from collections.abc import MutableMapping
 from contextlib import closing, suppress
 from pathlib import Path
@@ -15,9 +25,6 @@ LOOKUP_KEY = "SELECT value FROM Dict WHERE key = CAST(? AS BLOB)"
 STORE_KV = "REPLACE INTO Dict (key, value) VALUES (CAST(? AS BLOB), CAST(? AS BLOB))"
 DELETE_KEY = "DELETE FROM Dict WHERE key = CAST(? AS BLOB)"
 ITER_KEYS = "SELECT key FROM Dict"
-
-
-_ERR_CLOSED = "KeyValueStore object has already been closed"
 
 
 def _normalize_uri(path):
@@ -62,7 +69,11 @@ class KeyValueStore(MutableMapping):
         uri = _normalize_uri(path)
         uri = f"{uri}?mode={flag}"
 
-        self._cx = sqlite3.connect(uri, autocommit=True, uri=True)
+        if sys.version_info >= (3, 12):
+            # This is the preferred way, but only available in Python 3.10 and newer.
+            self._cx = sqlite3.connect(uri, autocommit=True, uri=True)
+        else:
+            self._cx = sqlite3.connect(uri, uri=True)
 
         # This is an optimization only; it's ok if it fails.
         with suppress(sqlite3.OperationalError):
@@ -72,7 +83,12 @@ class KeyValueStore(MutableMapping):
             self._execute(BUILD_TABLE)
 
     def _execute(self, *args, **kwargs):
-        return closing(self._cx.execute(*args, **kwargs))
+        if sys.version_info >= (3, 12):
+            return closing(self._cx.execute(*args, **kwargs))
+        else:
+            # Use a context manager to commit the changes
+            with self._cx:
+                return closing(self._cx.execute(*args, **kwargs))
 
     def __len__(self):
         with self._execute(GET_SIZE) as cu:
