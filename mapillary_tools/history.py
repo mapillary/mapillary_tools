@@ -202,7 +202,7 @@ class PersistentCache:
             return {}
 
         if not isinstance(data, dict):
-            LOG.warning(f"Invalid cache value format: {raw_payload}")
+            LOG.warning(f"Invalid cache value format: {raw_payload!r}")
             return {}
 
         return data
