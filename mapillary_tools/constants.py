@@ -137,6 +137,33 @@ MAX_SEQUENCE_PIXELS: int | None = _parse_pixels(
     os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
 )
 
+# Max amount of `MAPAltitude` value decimal digit positions written to image description file
+ALTITUDE_BASE10_DIGIT_PLACES_PRECISION: int = int(
+    os.getenv(_ENV_PREFIX + "ALTITUDE_PRECISION_BASE10_DIGITS", 10)
+)
+# http://wiki.gis.com/wiki/index.php/Decimal_degrees
+# decimal places	degrees	    distance
+# 0	                 1.0	    111 km
+# 1	                 0.1	    11.1 km
+# 2	                 0.01	    1.11 km
+# 3	                 0.001	    111 m
+# 4	                 0.0001	    11.1 m
+# 5	                 0.00001	1.11 m
+# 6	                 0.000001	0.111 m
+# 7	                 0.0000001	1.11 cm
+# 8	                 0.00000001	1.11 mm
+# Max amount of `MAPLatitude` and `MAPLongitude` value decimal digit positions
+# written to image description file
+COORDINATE_BASE10_DIGIT_PLACES_PRECISION: int = int(
+    os.getenv(_ENV_PREFIX + "COORDINATES_PRECISION_BASE10_DIGITS", 10)
+)
+# Max amount of `MAPCompassHeading` value decimal digit positions written to
+# image description file
+DIRECTION_BASE10_DIGIT_PLACES_PRECISION: int = int(
+    os.getenv(_ENV_PREFIX + "DIRECTION_PRECISION_BASE10_DIGITS", 10)
+)
+# Smallest time delta in seconds (must not be user customized due to `datetime`’s fixed ε)
+_TIME_EPSILON: float = 1e-6
 
 ##################
 ##### UPLOAD #####
