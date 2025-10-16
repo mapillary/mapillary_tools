@@ -31,6 +31,7 @@ def is_image_file(path: Path) -> bool:
         ".tiff",
         ".pgm",
         ".pnm",
+        ".36p",
     )
 
 
