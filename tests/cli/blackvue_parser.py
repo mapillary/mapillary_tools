@@ -7,7 +7,6 @@ import typing as T
 
 import gpxpy
 import gpxpy.gpx
-
 from mapillary_tools import blackvue_parser, geo, utils
 
 

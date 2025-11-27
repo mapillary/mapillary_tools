@@ -5,7 +5,6 @@ import sys
 import typing as T
 
 import gpxpy
-
 from mapillary_tools import constants, geo, telemetry
 from mapillary_tools.gpmf import gps_filter
 

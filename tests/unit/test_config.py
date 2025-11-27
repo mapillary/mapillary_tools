@@ -1,7 +1,6 @@
 import typing as T
 
 import py.path
-
 from mapillary_tools import config
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-
 import json
 import logging
 import re

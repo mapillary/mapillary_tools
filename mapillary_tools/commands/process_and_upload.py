@@ -1,7 +1,6 @@
 import inspect
 
 from ..authenticate import fetch_user_items
-
 from .process import Command as ProcessCommand
 from .upload import Command as UploadCommand
 

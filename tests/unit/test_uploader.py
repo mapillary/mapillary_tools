@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import py.path
 import pytest
-
 from mapillary_tools import api_v4, uploader
 from mapillary_tools.serializer import description
 
@@ -619,7 +618,6 @@ class TestImageSequenceUploader:
         test_exif.copy(test_exif2)
         test_exif3 = setup_unittest_data.join("test_exif_3.jpg")
         test_exif.copy(test_exif3)
-        fixed_exif = setup_unittest_data.join("fixed_exif.jpg")
 
         # Create metadata for multiple sequences
         image_metadatas = [

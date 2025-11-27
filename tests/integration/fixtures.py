@@ -12,10 +12,8 @@ from pathlib import Path
 
 import exifread
 import jsonschema
-
 import py.path
 import pytest
-
 from mapillary_tools import upload_api_v4, utils
 
 EXECUTABLE = os.getenv(

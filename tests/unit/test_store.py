@@ -3,7 +3,6 @@ import sqlite3
 import tempfile
 
 import pytest
-
 from mapillary_tools.store import KeyValueStore
 
 

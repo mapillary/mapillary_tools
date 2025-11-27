@@ -6,7 +6,6 @@ from pathlib import Path
 
 import py.path
 import pytest
-
 from mapillary_tools import (
     exceptions,
     geo,

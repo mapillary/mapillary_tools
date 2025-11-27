@@ -7,7 +7,6 @@ from pathlib import Path
 
 import piexif
 import py.path
-
 from mapillary_tools.exif_read import ExifRead
 from mapillary_tools.exif_write import ExifEdit
 from PIL import Image
@@ -314,8 +313,7 @@ class ExifEditTests(unittest.TestCase):
             piexif.ImageIFD.JPEGInterchangeFormatLength: len(thumbnail_data),
         }
 
-        # Without the fix, this would raise: ValueError: Given thumbnail is too large. max 64kB
-        # With the fix, it should remove the thumbnail and succeed
+        # Given thumbnail is too large, max 64kB, thumbnail and 1st metadata should be removed.
         image_bytes = exif_edit.dump_image_bytes()
 
         # Verify the output is valid
@@ -341,14 +339,12 @@ class ExifEditTests(unittest.TestCase):
             thumbnail_value is None or thumbnail_value == b"",
             f"Large thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
         )
-        # If 1st exists, it should be empty or not contain thumbnail reference data
-        if "1st" in output_exif:
-            # If 1st exists, it should be empty or minimal
-            self.assertNotIn(
-                piexif.ImageIFD.JPEGInterchangeFormat,
-                output_exif.get("1st", {}),
-                "Thumbnail metadata should have been removed",
-            )
+
+        first_value = output_exif.get("1st")
+        self.assertTrue(
+            first_value is None or first_value == {} or len(first_value) == 0,
+            f"1st metadata should have been removed but got: {first_value}",
+        )
 
 
 def test_exif_write(tmpdir: py.path.local):

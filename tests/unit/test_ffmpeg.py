@@ -3,9 +3,7 @@ import subprocess
 from pathlib import Path
 
 import py.path
-
 import pytest
-
 from mapillary_tools import ffmpeg
 
 from ..integration.fixtures import pytest_skip_if_not_ffmpeg_installed, setup_data

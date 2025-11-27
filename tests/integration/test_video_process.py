@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 
 import exifread
-
 import py.path
 import pytest
 
