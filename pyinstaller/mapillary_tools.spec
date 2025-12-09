@@ -4,9 +4,12 @@ block_cipher = None
 
 options = [("u", None, "OPTION")]
 
+import os
+parent_dir = os.path.dirname(SPECPATH)
+
 a = Analysis(
     ["./main.py"],
-    pathex=[SPECPATH],
+    pathex=[SPECPATH, parent_dir],
     binaries=[],
     datas=[],
     hiddenimports=[],

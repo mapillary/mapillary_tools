@@ -6,6 +6,7 @@ OS=osx
 # build
 mkdir -p dist
 rm -rf dist/${OS}
+rm -rf build
 pyinstaller --version
 pyinstaller --noconfirm --distpath dist/${OS} pyinstaller/mapillary_tools.spec
 pyinstaller --noconfirm --distpath dist/${OS} pyinstaller/mapillary_tools_folder.spec
