@@ -5,6 +5,7 @@ from mapillary_tools.camm import camm_builder
 
 from mapillary_tools.geotag import geotag_videos_from_video
 from mapillary_tools.mp4 import simple_mp4_builder as builder
+from mapillary_tools.uploader import VideoUploader
 
 
 def _parse_args():
@@ -16,10 +17,12 @@ def _parse_args():
 
 def main():
     parsed_args = _parse_args()
-    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo(
+    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo().to_description(
         [Path(parsed_args.source_mp4_path)]
-    ).to_description()
-    generator = camm_builder.camm_sample_generator2(video_metadatas[0])
+    )
+    generator = camm_builder.camm_sample_generator2(
+        VideoUploader.prepare_camm_info(video_metadatas[0])
+    )
     with open(parsed_args.source_mp4_path, "rb") as src_fp:
         with open(parsed_args.target_mp4_path, "wb") as tar_fp:
             reader = builder.transform_mp4(
