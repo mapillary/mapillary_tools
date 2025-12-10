@@ -1,13 +1,15 @@
 import datetime
+import io
 import os
 import shutil
 import unittest
 from pathlib import Path
 
+import piexif
 import py.path
-
 from mapillary_tools.exif_read import ExifRead
 from mapillary_tools.exif_write import ExifEdit
+from PIL import Image
 
 this_file = Path(__file__)
 this_file_dir = this_file.parent
@@ -259,6 +261,90 @@ class ExifEditTests(unittest.TestCase):
 
     def test_add_repeatedly_time_original_corrupt_exif_2(self):
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
+
+    def test_large_thumbnail_handling(self):
+        """Test that images with thumbnails larger than 64kB are handled gracefully."""
+        # Create a test image with a large thumbnail (>64kB)
+        test_image_path = data_dir.joinpath("tmp", "large_thumbnail.jpg")
+
+        # Create a simple test image
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(test_image_path, "JPEG")
+
+        # Create a large thumbnail (>64kB) by creating a high-quality large thumbnail
+        # Use a larger size and add noise to make it incompressible
+        large_thumbnail = Image.new("RGB", (2048, 2048))
+        # Fill with random-like data to prevent compression
+        pixels = large_thumbnail.load()
+        for i in range(2048):
+            for j in range(2048):
+                pixels[i, j] = (
+                    (i * 7 + j * 13) % 256,
+                    (i * 11 + j * 17) % 256,
+                    (i * 19 + j * 23) % 256,
+                )
+
+        thumbnail_bytes = io.BytesIO()
+        large_thumbnail.save(thumbnail_bytes, "JPEG", quality=100)
+        thumbnail_data = thumbnail_bytes.getvalue()
+
+        # Verify thumbnail is larger than 64kB
+        self.assertGreater(
+            len(thumbnail_data),
+            64 * 1024,
+            f"Test thumbnail should be larger than 64kB but got {len(thumbnail_data)} bytes",
+        )
+
+        # Load the image and add GPS data first
+        exif_edit = ExifEdit(test_image_path)
+        test_latitude = 50.5475894785
+        test_longitude = 15.595866685
+        exif_edit.add_lat_lon(test_latitude, test_longitude)
+
+        # Manually insert the large thumbnail into the internal EXIF structure
+        # This simulates what would happen if an image came in with a large thumbnail
+        exif_edit._ef["thumbnail"] = thumbnail_data
+        exif_edit._ef["1st"] = {
+            piexif.ImageIFD.Compression: 6,
+            piexif.ImageIFD.XResolution: (72, 1),
+            piexif.ImageIFD.YResolution: (72, 1),
+            piexif.ImageIFD.ResolutionUnit: 2,
+            piexif.ImageIFD.JPEGInterchangeFormat: 0,
+            piexif.ImageIFD.JPEGInterchangeFormatLength: len(thumbnail_data),
+        }
+
+        # Given thumbnail is too large, max 64kB, thumbnail and 1st metadata should be removed.
+        image_bytes = exif_edit.dump_image_bytes()
+
+        # Verify the output is valid
+        self.assertIsNotNone(image_bytes)
+        self.assertGreater(len(image_bytes), 0)
+
+        # Verify the resulting image is a valid JPEG
+        result_image = Image.open(io.BytesIO(image_bytes))
+        self.assertEqual(result_image.format, "JPEG")
+        self.assertEqual(result_image.size, (100, 100))
+
+        # Verify we can read the GPS data from the result
+        output_exif = piexif.load(image_bytes)
+        self.assertIn("GPS", output_exif)
+        self.assertIn(piexif.GPSIFD.GPSLatitude, output_exif["GPS"])
+        self.assertIn(piexif.GPSIFD.GPSLongitude, output_exif["GPS"])
+
+        # CRITICAL: Verify the large thumbnail was actually removed
+        # The fix should have deleted both "thumbnail" and "1st" to handle the error
+        # piexif.load() may include "thumbnail": None after removal
+        thumbnail_value = output_exif.get("thumbnail")
+        self.assertTrue(
+            thumbnail_value is None or thumbnail_value == b"",
+            f"Large thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
+        )
+
+        first_value = output_exif.get("1st")
+        self.assertTrue(
+            first_value is None or first_value == {} or len(first_value) == 0,
+            f"1st metadata should have been removed but got: {first_value}",
+        )
 
 
 def test_exif_write(tmpdir: py.path.local):

@@ -214,6 +214,18 @@ class ExifEdit:
                     else:
                         del self._ef[ifd][tag]
                         # retry later
+                elif "thumbnail is too large" in message.lower():
+                    # Handle oversized thumbnails (max 64kB per EXIF spec)
+                    if thumbnail_removed:
+                        raise exc
+                    LOG.debug(
+                        "Thumbnail too large (max 64kB) -- removing thumbnail and 1st: %s",
+                        exc,
+                    )
+                    del self._ef["thumbnail"]
+                    del self._ef["1st"]
+                    thumbnail_removed = True
+                    # retry later
                 else:
                     raise exc
             except Exception as exc:

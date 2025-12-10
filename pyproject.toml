@@ -58,6 +58,7 @@ include = ["mapillary_tools*"]
 [dependency-groups]
 dev = [
     "mypy",
+    "Pillow",
     "pyinstaller",
     "pyre-check",
     "pytest",

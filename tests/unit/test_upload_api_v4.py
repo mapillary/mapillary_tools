@@ -2,7 +2,6 @@ import io
 from pathlib import Path
 
 import py
-
 from mapillary_tools import upload_api_v4
 
 

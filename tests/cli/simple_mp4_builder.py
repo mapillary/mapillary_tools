@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 
 from mapillary_tools.camm import camm_builder
-
 from mapillary_tools.geotag import geotag_videos_from_video
 from mapillary_tools.mp4 import simple_mp4_builder as builder
 from mapillary_tools.uploader import VideoUploader

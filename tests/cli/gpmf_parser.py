@@ -11,7 +11,6 @@ import typing as T
 import gpxpy
 import gpxpy.gpx
 import mapillary_tools.geo as geo
-
 import mapillary_tools.gpmf.gpmf_parser as gpmf_parser
 import mapillary_tools.gpmf.gps_filter as gps_filter
 import mapillary_tools.telemetry as telemetry

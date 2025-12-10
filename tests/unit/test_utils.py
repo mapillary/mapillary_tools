@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 
 import py.path
-
 from mapillary_tools import utils
 
 

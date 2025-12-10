@@ -1,7 +1,6 @@
 import inspect
 
 from ..authenticate import fetch_user_items
-
 from .upload import Command as UploadCommand
 from .video_process import Command as VideoProcessCommand
 

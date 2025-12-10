@@ -7,7 +7,6 @@ import typing as T
 
 import gpxpy
 import gpxpy.gpx
-
 from mapillary_tools import geo, utils
 from mapillary_tools.camm import camm_parser
 

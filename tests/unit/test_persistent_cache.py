@@ -6,7 +6,6 @@ import time
 import traceback
 
 import pytest
-
 from mapillary_tools.history import PersistentCache
 
 

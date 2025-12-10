@@ -12,7 +12,6 @@ import gpxpy
 import gpxpy.gpx
 
 from .. import geo, types
-
 from ..telemetry import CAMMGPSPoint, GPSPoint
 from ..types import (
     BaseSerializer,

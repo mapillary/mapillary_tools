@@ -9,7 +9,6 @@ from pathlib import Path
 
 import py.path
 import pytest
-
 from mapillary_tools import exif_read, ffmpeg, sample_video
 from mapillary_tools.serializer import description
 

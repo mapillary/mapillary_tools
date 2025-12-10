@@ -797,6 +797,10 @@ class CachedImageUploader:
             raise ExifError(
                 f"Failed to dump EXIF bytes: {ex}", metadata.filename
             ) from ex
+        except ValueError as ex:
+            raise ExifError(
+                f"Failed to dump EXIF bytes: {ex}", metadata.filename
+            ) from ex
 
     # Thread-safe
     def _get_cached_file_handle(self, key: str) -> str | None:

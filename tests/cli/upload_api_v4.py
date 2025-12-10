@@ -7,7 +7,6 @@ import typing as T
 import requests
 import tqdm
 from mapillary_tools import api_v4, authenticate, http
-
 from mapillary_tools.upload_api_v4 import FakeUploadService, UploadService
 
 

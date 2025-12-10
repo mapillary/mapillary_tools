@@ -1,14 +1,11 @@
 import datetime
 import os
-
 import typing as T
 from pathlib import Path
 
 import py.path
-
 import pytest
 from mapillary_tools import geo
-
 from mapillary_tools.exif_read import (
     _parse_coord,
     ExifRead,
