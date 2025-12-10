@@ -20,10 +20,8 @@ def main():
     video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo().to_description(
         [Path(parsed_args.source_mp4_path)]
     )
-    metadata = video_metadatas[0]
-    #print(metadata)
     generator = camm_builder.camm_sample_generator2(
-        VideoUploader.prepare_camm_info(metadata)
+        VideoUploader.prepare_camm_info(video_metadatas[0])
     )
     with open(parsed_args.source_mp4_path, "rb") as src_fp:
         with open(parsed_args.target_mp4_path, "wb") as tar_fp:
