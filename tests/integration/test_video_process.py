@@ -125,7 +125,7 @@ def test_video_process(setup_data: py.path.local):
             str(video_dir.join("my_samples")),
         ]
     )
-    assert 3 == len(descs)
+    assert 6 == len(descs)
     assert 0 == len([d for d in descs if "error" in d])
 
 

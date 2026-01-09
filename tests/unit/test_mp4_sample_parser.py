@@ -52,3 +52,16 @@ def test_movie_box_parser():
         assert sample.raw_sample.offset == raw_sample.offset
         assert sample.raw_sample.is_sync == raw_sample.is_sync
         assert sample.raw_sample.size == raw_sample.size
+
+
+def test_movie_box_parser_negative_composition_offset():
+    moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(
+        Path("tests/data/videos/sample-5s_h265.mp4")
+    )
+    assert 2 == len(list(moov_parser.extract_tracks()))
+    video_track = moov_parser.extract_track_at(0)
+    assert video_track.is_video_track()
+    raw_samples = list(video_track.extract_raw_samples())
+    assert 146 == len(raw_samples)
+    # Make sure the parser can parse negative composition offsets
+    assert 0 < len([s for s in raw_samples if s.composition_offset < 0])
