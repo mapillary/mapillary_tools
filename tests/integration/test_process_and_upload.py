@@ -233,6 +233,48 @@ def test_video_process_and_upload(
             "MAPOrientation": 1,
             "filetype": "image",
         },
+        "sample-5s_h265_v_000001.jpg": {
+            "filename": "sample-5s_h265_v_000001.jpg",
+            "MAPFilename": "sample-5s_h265_v_000001.jpg",
+            "MAPAltitude": 94.75,
+            "MAPCaptureTime": "2025_03_14_07_00_00_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 0.484,
+                "TrueHeading": 0.484,
+            },
+            "MAPLatitude": 37.793585,
+            "MAPLongitude": -122.461396,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
+        "sample-5s_h265_v_000002.jpg": {
+            "filename": "sample-5s_h265_v_000002.jpg",
+            "MAPFilename": "sample-5s_h265_v_000002.jpg",
+            "MAPAltitude": 93.347,
+            "MAPCaptureTime": "2025_03_14_07_00_02_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 0.484,
+                "TrueHeading": 0.484,
+            },
+            "MAPLatitude": 37.7937349,
+            "MAPLongitude": -122.4613944,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
+        "sample-5s_h265_v_000003.jpg": {
+            "filename": "sample-5s_h265_v_000003.jpg",
+            "MAPFilename": "sample-5s_h265_v_000003.jpg",
+            "MAPAltitude": 92.492,
+            "MAPCaptureTime": "2025_03_14_07_00_04_000",
+            "MAPCompassHeading": {
+                "MagneticHeading": 343.286,
+                "TrueHeading": 343.286,
+            },
+            "MAPLatitude": 37.7938825,
+            "MAPLongitude": -122.4614226,
+            "MAPOrientation": 1,
+            "filetype": "image",
+        },
     }
     uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert_same_image_descs(uploaded_descs, list(expected.values()))

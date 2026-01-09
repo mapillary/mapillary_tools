@@ -7,6 +7,14 @@ from pathlib import Path
 from . import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 
 
+def _convert_to_signed_int32(unsigned_int32: int) -> int:
+    """Interpret an unsigned 32-bit value as negative if high bit is set."""
+    if (unsigned_int32 & (1 << 31)) == 0:
+        return unsigned_int32
+    else:
+        return unsigned_int32 - (1 << 32)
+
+
 class RawSample(T.NamedTuple):
     # 1-based index
     description_idx: int
@@ -192,7 +200,13 @@ def extract_raw_samples_from_stbl_data(
             composition_offsets = []
             for entry in data["entries"]:
                 for _ in range(entry["sample_count"]):
-                    composition_offsets.append(entry["sample_offset"])
+                    # Some encodings like H.264 and H.265 support negative offsets.
+                    # We cannot rely on the version field since some encoders incorrectly set
+                    # ctts version to 0 instead of 1 even when using signed offsets.
+                    # Leigitimate positive values are relatively small so we can assume the value is signed.
+                    composition_offsets.append(
+                        _convert_to_signed_int32(entry["sample_offset"])
+                    )
         elif box["type"] == b"stss":
             syncs = set(data["entries"])
 
