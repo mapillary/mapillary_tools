@@ -1,7 +1,7 @@
 import io
 
 import mapillary_tools.geo as geo
-from mapillary_tools import blackvue_parser
+from mapillary_tools import blackvue_parser, telemetry
 from mapillary_tools.mp4 import construct_mp4_parser as cparser
 
 
@@ -41,10 +41,43 @@ def test_parse_points():
     info = blackvue_parser.extract_blackvue_info(io.BytesIO(data))
     assert info == blackvue_parser.BlackVueInfo(
         gps=[
-            geo.Point(
-                time=0.0, lat=38.88615816666667, lon=-76.992434, alt=None, angle=None
+            telemetry.GPSPoint(
+                time=0.0,
+                lat=38.88615816666667,
+                lon=-76.992434,
+                alt=None,
+                angle=None,
+                epoch_time=1623057129.256,
+                fix=None,
+                precision=None,
+                ground_speed=None,
             )
         ],
         make="BlackVue",
         model="",
     )
+
+
+def test_gpspoint_gga():
+    gps_data = b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"
+    points = blackvue_parser._parse_gps_box(gps_data)
+
+    assert len(points) == 1
+    point = points[0]
+    assert point.time == 1623057074.211
+    assert point.lat == 51.150436666666664
+    assert point.lon == -114.03067833333333
+    assert point.epoch_time == 1623057074.211
+    assert point.fix == telemetry.GPSFix.FIX_3D
+
+
+def test_gpspoint_gll():
+    gps_data = b"[1629874404069]$GNGLL,4404.14012,N,12118.85993,W,001037.00,A,A*67"
+    points = blackvue_parser._parse_gps_box(gps_data)
+
+    assert len(points) == 1
+    point = points[0]
+    assert point.time == 1629874404.069
+    assert point.lat == 44.069002
+    assert point.lon == -121.31433216666667
+    assert point.epoch_time == 1629874404.069
