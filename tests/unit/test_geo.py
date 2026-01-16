@@ -759,3 +759,465 @@ class TestInterpolator(unittest.TestCase):
         self.assertAlmostEqual(point.lat, 3.05)
         self.assertAlmostEqual(point.lon, 3.05)
         self.assertAlmostEqual(point.alt, 305)
+
+
+class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
+    """Test cases for avg_speed using GPS epoch time from GPSPoint and CAMMGPSPoint."""
+
+    def test_avg_speed_with_base_points(self):
+        """Test avg_speed with base Point types (uses time field)."""
+        points = [
+            Point(time=0.0, lat=0.0, lon=0.0, alt=0.0, angle=None),
+            Point(time=10.0, lat=0.001, lon=0.0, alt=0.0, angle=None),
+        ]
+        speed = geo.avg_speed(points)
+        # Distance is approximately 111 meters (0.001 degree of latitude)
+        # Time is 10 seconds
+        # Speed should be approximately 11.1 m/s
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_with_gps_points_using_epoch_time(self):
+        """Test avg_speed with GPSPoint using epoch_time field."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        # Video time is 0-10 seconds, but GPS epoch time spans 100 seconds
+        # This simulates timelapse where video time != GPS time
+        points = [
+            GPSPoint(
+                time=0.0,  # Video time
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=1000.0,  # GPS epoch time
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+            GPSPoint(
+                time=10.0,  # Video time (10 sec in video)
+                lat=0.01,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=1100.0,  # GPS epoch time (100 sec in real world)
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+        ]
+        speed = geo.avg_speed(points)
+        # Distance is approximately 1111 meters (0.01 degree of latitude)
+        # Using GPS epoch time: 1100 - 1000 = 100 seconds
+        # Speed should be approximately 11.1 m/s
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_with_gps_points_fallback_to_time(self):
+        """Test avg_speed with GPSPoint falls back to time when epoch_time is None."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        points = [
+            GPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=None,  # No epoch time
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+            GPSPoint(
+                time=10.0,
+                lat=0.001,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=None,  # No epoch time
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+        ]
+        speed = geo.avg_speed(points)
+        # Should use time field: 10 - 0 = 10 seconds
+        # Distance ~111 meters, speed ~11.1 m/s
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_with_gps_points_zero_epoch_time_fallback(self):
+        """Test avg_speed falls back to time when epoch_time is 0."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        points = [
+            GPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=0.0,  # Zero epoch time should trigger fallback
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+            GPSPoint(
+                time=10.0,
+                lat=0.001,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                epoch_time=0.0,  # Zero epoch time should trigger fallback
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+        ]
+        speed = geo.avg_speed(points)
+        # Should fall back to time field
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_with_camm_gps_points(self):
+        """Test avg_speed with CAMMGPSPoint using time_gps_epoch field."""
+        from mapillary_tools.telemetry import CAMMGPSPoint
+
+        # Video time is 0-10 seconds, but GPS epoch time spans 50 seconds
+        points = [
+            CAMMGPSPoint(
+                time=0.0,  # Video time
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                time_gps_epoch=2000.0,  # GPS epoch time
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=1.0,
+                velocity_east=0.0,
+                velocity_north=10.0,
+                velocity_up=0.0,
+                speed_accuracy=0.5,
+            ),
+            CAMMGPSPoint(
+                time=10.0,  # Video time
+                lat=0.005,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                time_gps_epoch=2050.0,  # GPS epoch time (50 sec elapsed)
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=1.0,
+                velocity_east=0.0,
+                velocity_north=10.0,
+                velocity_up=0.0,
+                speed_accuracy=0.5,
+            ),
+        ]
+        speed = geo.avg_speed(points)
+        # Distance is approximately 555 meters (0.005 degree of latitude)
+        # Using GPS epoch time: 2050 - 2000 = 50 seconds
+        # Speed should be approximately 11.1 m/s
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_with_camm_gps_points_zero_epoch_fallback(self):
+        """Test avg_speed with CAMMGPSPoint falls back when time_gps_epoch is 0."""
+        from mapillary_tools.telemetry import CAMMGPSPoint
+
+        points = [
+            CAMMGPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                time_gps_epoch=0.0,  # Zero triggers fallback
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=1.0,
+                velocity_east=0.0,
+                velocity_north=10.0,
+                velocity_up=0.0,
+                speed_accuracy=0.5,
+            ),
+            CAMMGPSPoint(
+                time=10.0,
+                lat=0.001,
+                lon=0.0,
+                alt=0.0,
+                angle=None,
+                time_gps_epoch=0.0,  # Zero triggers fallback
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=1.0,
+                velocity_east=0.0,
+                velocity_north=10.0,
+                velocity_up=0.0,
+                speed_accuracy=0.5,
+            ),
+        ]
+        speed = geo.avg_speed(points)
+        # Should fall back to time field
+        self.assertAlmostEqual(speed, 11.1, delta=0.5)
+
+    def test_avg_speed_empty_sequence(self):
+        """Test avg_speed with empty sequence returns 0."""
+        speed = geo.avg_speed([])
+        self.assertEqual(speed, 0.0)
+
+    def test_avg_speed_single_point(self):
+        """Test avg_speed with single point returns 0."""
+        points = [Point(time=0.0, lat=0.0, lon=0.0, alt=0.0, angle=None)]
+        speed = geo.avg_speed(points)
+        self.assertEqual(speed, 0.0)
+
+    def test_avg_speed_zero_time_diff_returns_nan(self):
+        """Test avg_speed returns NaN when time difference is zero."""
+        import math
+
+        # Two points at the same timestamp
+        points = [
+            Point(time=100.0, lat=0.0, lon=0.0, alt=0.0, angle=None),
+            Point(time=100.0, lat=1.0, lon=1.0, alt=0.0, angle=None),
+        ]
+        speed = geo.avg_speed(points)
+        self.assertTrue(math.isnan(speed))
+
+
+class TestInterpolatePreservesPointType(unittest.TestCase):
+    """Test that interpolation preserves point types (GPSPoint, CAMMGPSPoint)."""
+
+    def test_interpolate_gps_points_returns_gps_point(self):
+        """Test that interpolating GPSPoints returns a GPSPoint."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        points = [
+            GPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=100.0,
+                angle=0.0,
+                epoch_time=1000.0,
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+            GPSPoint(
+                time=10.0,
+                lat=1.0,
+                lon=1.0,
+                alt=200.0,
+                angle=45.0,
+                epoch_time=1010.0,
+                fix=GPSFix.FIX_3D,
+                precision=2.0,
+                ground_speed=20.0,
+            ),
+        ]
+
+        result = geo.interpolate(points, 5.0)
+
+        # Check type is preserved
+        self.assertIsInstance(result, GPSPoint)
+
+        # Check base fields are interpolated
+        self.assertEqual(result.time, 5.0)
+        self.assertAlmostEqual(result.lat, 0.5)
+        self.assertAlmostEqual(result.lon, 0.5)
+        self.assertAlmostEqual(result.alt, 150.0)
+
+        # Check GPSPoint-specific fields are interpolated
+        self.assertAlmostEqual(result.epoch_time, 1005.0)
+        self.assertAlmostEqual(result.precision, 1.5)
+        self.assertAlmostEqual(result.ground_speed, 15.0)
+        self.assertEqual(result.fix, GPSFix.FIX_3D)  # Fix is taken from start point
+
+    def test_interpolate_gps_points_with_none_epoch_time(self):
+        """Test interpolating GPSPoints when epoch_time is None."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        points = [
+            GPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=100.0,
+                angle=0.0,
+                epoch_time=None,
+                fix=GPSFix.FIX_2D,
+                precision=None,
+                ground_speed=None,
+            ),
+            GPSPoint(
+                time=10.0,
+                lat=1.0,
+                lon=1.0,
+                alt=200.0,
+                angle=45.0,
+                epoch_time=None,
+                fix=GPSFix.FIX_2D,
+                precision=None,
+                ground_speed=None,
+            ),
+        ]
+
+        result = geo.interpolate(points, 5.0)
+
+        self.assertIsInstance(result, GPSPoint)
+        self.assertIsNone(result.epoch_time)
+        self.assertIsNone(result.precision)
+        self.assertIsNone(result.ground_speed)
+
+    def test_interpolate_camm_gps_points_returns_camm_gps_point(self):
+        """Test that interpolating CAMMGPSPoints returns a CAMMGPSPoint."""
+        from mapillary_tools.telemetry import CAMMGPSPoint
+
+        points = [
+            CAMMGPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=100.0,
+                angle=0.0,
+                time_gps_epoch=2000.0,
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=2.0,
+                velocity_east=10.0,
+                velocity_north=20.0,
+                velocity_up=5.0,
+                speed_accuracy=0.5,
+            ),
+            CAMMGPSPoint(
+                time=10.0,
+                lat=1.0,
+                lon=1.0,
+                alt=200.0,
+                angle=45.0,
+                time_gps_epoch=2010.0,
+                gps_fix_type=3,
+                horizontal_accuracy=3.0,
+                vertical_accuracy=4.0,
+                velocity_east=20.0,
+                velocity_north=30.0,
+                velocity_up=10.0,
+                speed_accuracy=1.0,
+            ),
+        ]
+
+        result = geo.interpolate(points, 5.0)
+
+        # Check type is preserved
+        self.assertIsInstance(result, CAMMGPSPoint)
+
+        # Check base fields are interpolated
+        self.assertEqual(result.time, 5.0)
+        self.assertAlmostEqual(result.lat, 0.5)
+        self.assertAlmostEqual(result.lon, 0.5)
+        self.assertAlmostEqual(result.alt, 150.0)
+
+        # Check CAMMGPSPoint-specific fields are interpolated
+        self.assertAlmostEqual(result.time_gps_epoch, 2005.0)
+        self.assertEqual(result.gps_fix_type, 3)  # Taken from start point
+        self.assertAlmostEqual(result.horizontal_accuracy, 2.0)
+        self.assertAlmostEqual(result.vertical_accuracy, 3.0)
+        self.assertAlmostEqual(result.velocity_east, 15.0)
+        self.assertAlmostEqual(result.velocity_north, 25.0)
+        self.assertAlmostEqual(result.velocity_up, 7.5)
+        self.assertAlmostEqual(result.speed_accuracy, 0.75)
+
+    def test_interpolate_base_points_returns_base_point(self):
+        """Test that interpolating base Points returns a Point."""
+        points = [
+            Point(time=0.0, lat=0.0, lon=0.0, alt=100.0, angle=0.0),
+            Point(time=10.0, lat=1.0, lon=1.0, alt=200.0, angle=45.0),
+        ]
+
+        result = geo.interpolate(points, 5.0)
+
+        # Should return base Point type
+        self.assertIsInstance(result, Point)
+        self.assertEqual(result.time, 5.0)
+        self.assertAlmostEqual(result.lat, 0.5)
+        self.assertAlmostEqual(result.lon, 0.5)
+        self.assertAlmostEqual(result.alt, 150.0)
+
+    def test_interpolator_preserves_gps_point_type(self):
+        """Test that Interpolator preserves GPSPoint type."""
+        from mapillary_tools.telemetry import GPSPoint, GPSFix
+
+        track = [
+            GPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=100.0,
+                angle=0.0,
+                epoch_time=1000.0,
+                fix=GPSFix.FIX_3D,
+                precision=1.0,
+                ground_speed=10.0,
+            ),
+            GPSPoint(
+                time=10.0,
+                lat=1.0,
+                lon=1.0,
+                alt=200.0,
+                angle=45.0,
+                epoch_time=1010.0,
+                fix=GPSFix.FIX_3D,
+                precision=2.0,
+                ground_speed=20.0,
+            ),
+        ]
+
+        interpolator = geo.Interpolator([track])
+        result = interpolator.interpolate(5.0)
+
+        self.assertIsInstance(result, GPSPoint)
+        self.assertAlmostEqual(result.epoch_time, 1005.0)
+
+    def test_interpolator_preserves_camm_gps_point_type(self):
+        """Test that Interpolator preserves CAMMGPSPoint type."""
+        from mapillary_tools.telemetry import CAMMGPSPoint
+
+        track = [
+            CAMMGPSPoint(
+                time=0.0,
+                lat=0.0,
+                lon=0.0,
+                alt=100.0,
+                angle=0.0,
+                time_gps_epoch=2000.0,
+                gps_fix_type=3,
+                horizontal_accuracy=1.0,
+                vertical_accuracy=2.0,
+                velocity_east=10.0,
+                velocity_north=20.0,
+                velocity_up=5.0,
+                speed_accuracy=0.5,
+            ),
+            CAMMGPSPoint(
+                time=10.0,
+                lat=1.0,
+                lon=1.0,
+                alt=200.0,
+                angle=45.0,
+                time_gps_epoch=2010.0,
+                gps_fix_type=3,
+                horizontal_accuracy=3.0,
+                vertical_accuracy=4.0,
+                velocity_east=20.0,
+                velocity_north=30.0,
+                velocity_up=10.0,
+                speed_accuracy=1.0,
+            ),
+        ]
+
+        interpolator = geo.Interpolator([track])
+        result = interpolator.interpolate(5.0)
+
+        self.assertIsInstance(result, CAMMGPSPoint)
+        self.assertAlmostEqual(result.time_gps_epoch, 2005.0)
+        self.assertAlmostEqual(result.velocity_east, 15.0)
