@@ -12,20 +12,26 @@ import typing as T
 
 import gpxpy
 import gpxpy.gpx
-from mapillary_tools import blackvue_parser, geo, utils
+from mapillary_tools import blackvue_parser, telemetry, utils
 
 
 def _convert_points_to_gpx_segment(
-    points: T.Sequence[geo.Point],
+    points: T.Sequence[telemetry.GPSPoint],
 ) -> gpxpy.gpx.GPXTrackSegment:
     gpx_segment = gpxpy.gpx.GPXTrackSegment()
     for point in points:
+        # Use epoch_time for the timestamp if available, otherwise fall back to time
+        timestamp = (
+            point.epoch_time
+            if (point.epoch_time is not None and point.epoch_time > 0)
+            else point.time
+        )
         gpx_segment.points.append(
             gpxpy.gpx.GPXTrackPoint(
                 point.lat,
                 point.lon,
                 elevation=point.alt,
-                time=datetime.datetime.fromtimestamp(point.time, datetime.timezone.utc),
+                time=datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc),
             )
         )
     return gpx_segment

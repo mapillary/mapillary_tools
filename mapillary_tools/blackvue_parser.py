@@ -13,7 +13,7 @@ import typing as T
 
 import pynmea2
 
-from . import geo
+from . import telemetry
 from .mp4 import simple_mp4_parser as sparser
 
 
@@ -36,7 +36,7 @@ NMEA_LINE_REGEX = re.compile(
 class BlackVueInfo:
     # None and [] are equivalent here. Use None as default because:
     # ValueError: mutable default <class 'list'> for field gps is not allowed: use default_factory
-    gps: list[geo.Point] | None = None
+    gps: list[telemetry.GPSPoint] | None = None
     make: str = "BlackVue"
     model: str = ""
 
@@ -54,9 +54,11 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
     points.sort(key=lambda p: p.time)
 
     if points:
+        # Convert the time field to relative time to the first point
+        # epoch_time stays as the original time in seconds
         first_point_time = points[0].time
         for p in points:
-            p.time = (p.time - first_point_time) / 1000
+            p.time = p.time - first_point_time
 
     # Camera model
     try:
@@ -118,24 +120,24 @@ def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
         return ""
 
 
-def _parse_gps_box(gps_data: bytes) -> list[geo.Point]:
+def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
     """
     >>> list(_parse_gps_box(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"))
-    [Point(time=1623057074211, lat=51.150436666666664, lon=-114.03067833333333, alt=1097.36, angle=None)]
+    [GPSPoint(time=1623057074.211, lat=51.150436666666664, lon=-114.03067833333333, alt=1097.36, angle=None, epoch_time=1623057074.211, fix=<GPSFix.FIX_3D: 3>, precision=None, ground_speed=None)]
 
     >>> list(_parse_gps_box(b"[1629874404069]$GNGGA,175322.00,3244.53126,N,11710.97811,W,1,12,0.84,17.4,M,-34.0,M,,*45"))
-    [Point(time=1629874404069, lat=32.742187666666666, lon=-117.1829685, alt=17.4, angle=None)]
+    [GPSPoint(time=1629874404.069, lat=32.742187666666666, lon=-117.1829685, alt=17.4, angle=None, epoch_time=1629874404.069, fix=<GPSFix.FIX_3D: 3>, precision=None, ground_speed=None)]
 
     >>> list(_parse_gps_box(b"[1629874404069]$GNGLL,4404.14012,N,12118.85993,W,001037.00,A,A*67"))
-    [Point(time=1629874404069, lat=44.069002, lon=-121.31433216666667, alt=None, angle=None)]
+    [GPSPoint(time=1629874404.069, lat=44.069002, lon=-121.31433216666667, alt=None, angle=None, epoch_time=1629874404.069, fix=None, precision=None, ground_speed=None)]
 
     >>> list(_parse_gps_box(b"[1629874404069]$GNRMC,001031.00,A,4404.13993,N,12118.86023,W,0.146,,100117,,,A*7B"))
-    [Point(time=1629874404069, lat=44.06899883333333, lon=-121.31433716666666, alt=None, angle=None)]
+    [GPSPoint(time=1629874404.069, lat=44.06899883333333, lon=-121.31433716666666, alt=None, angle=None, epoch_time=1629874404.069, fix=None, precision=None, ground_speed=None)]
 
     >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
     []
     """
-    points_by_sentence_type: dict[str, list[geo.Point]] = {}
+    points_by_sentence_type: dict[str, list[telemetry.GPSPoint]] = {}
 
     for line_bytes in gps_data.splitlines():
         match = NMEA_LINE_REGEX.match(line_bytes)
@@ -165,24 +167,32 @@ def _parse_gps_box(gps_data: bytes) -> list[geo.Point]:
         if message.sentence_type in ["GGA"]:
             if not message.is_valid:
                 continue
-            point = geo.Point(
-                time=epoch_ms,
+            point = telemetry.GPSPoint(
+                time=epoch_ms / 1000,
                 lat=message.latitude,
                 lon=message.longitude,
                 alt=message.altitude,
                 angle=None,
+                epoch_time=epoch_ms / 1000,
+                fix=telemetry.GPSFix.FIX_3D if message.gps_qual >= 1 else None,
+                precision=None,
+                ground_speed=None,
             )
             points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
 
         elif message.sentence_type in ["RMC", "GLL"]:
             if not message.is_valid:
                 continue
-            point = geo.Point(
-                time=epoch_ms,
+            point = telemetry.GPSPoint(
+                time=epoch_ms / 1000,
                 lat=message.latitude,
                 lon=message.longitude,
                 alt=None,
                 angle=None,
+                epoch_time=epoch_ms / 1000,
+                fix=None,
+                precision=None,
+                ground_speed=None,
             )
             points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
 
