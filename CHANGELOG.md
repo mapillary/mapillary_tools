@@ -1,3 +1,10 @@
+<!--
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+This source code is licensed under the BSD license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
 # Changelog
 
 Check the release page for changelogs: https://github.com/mapillary/mapillary_tools/releases
@@ -199,7 +206,7 @@ All notable changes to this project will be documented in this file. See [standa
 * Improved and added features for post_process command
 
 ### Breaking changes
-* Argument `--video_import_path` can be single video or a directory of videos  
+* Argument `--video_import_path` can be single video or a directory of videos
 * Duplicate flagging is now done automatically with the default duplicate thresholds. To keep duplicates, argument `--keep_duplicates` must be passed.
 
 ### Bug fixes
@@ -219,7 +226,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### Features and improvements
 * Added command to upload Blackvue DR900S videos directly to Mapillary
-* Added download of blurred images uploaded by the authenticated user 
+* Added download of blurred images uploaded by the authenticated user
 * Allow GPX files without altitude data
 * More robust support of irregular time formats in EXIF
 * Add argument to skip subfolders to all commands

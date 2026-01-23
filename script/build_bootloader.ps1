@@ -1,3 +1,8 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the BSD license found in the
+# LICENSE file in the root directory of this source tree.
+
 # build bootloaders
 # to fix the virus false detection e.g. https://www.virustotal.com/gui/file/a2e8d8287f53e1691e44352b7fbc93038b36ad677d1faacfc1aa875de92af5a6
 python3 -m pip uninstall -y pyinstaller

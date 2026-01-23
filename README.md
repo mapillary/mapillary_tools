@@ -1,3 +1,10 @@
+<!--
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+This source code is licensed under the BSD license found in the
+LICENSE file in the root directory of this source tree.
+-->
+
 <p align="center">
   <a href="https://github.com/mapillary/mapillary_tools/">
     <img src="https://raw.githubusercontent.com/mapillary/mapillary_tools/main/docs/images/logo.png">
