@@ -1,3 +1,8 @@
+Copyright (c) Meta Platforms, Inc. and affiliates.
+
+This source code is licensed under the BSD license found in the
+LICENSE file in the root directory of this source tree.
+
 Thank you for downloading Mapillary tools for OSX!!
 
 This is binary, ready to use. You just need to give execution permissions to it with chmod:

@@ -1,3 +1,8 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the BSD license found in the
+# LICENSE file in the root directory of this source tree.
+
 # Build system configuration - tells Python packaging tools how to build this package
 # This section is required for modern Python packaging with pyproject.toml
 [build-system]

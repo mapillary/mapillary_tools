@@ -1,3 +1,8 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the BSD license found in the
+# LICENSE file in the root directory of this source tree.
+
 $OS="win"
 # this is OS arch
 # $ARCH=(wmic OS get OSArchitecture)[2]
