@@ -60,6 +60,7 @@ class ImageEXIFExtractor(BaseImageExtractor):
                 MAPOrientation=exif.extract_orientation(),
                 MAPDeviceMake=exif.extract_make(),
                 MAPDeviceModel=exif.extract_model(),
+                MAPCameraUUID=exif.extract_camera_uuid(),
             )
 
         return image_metadata
