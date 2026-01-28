@@ -426,6 +426,44 @@ class ExifToolRead(exif_read.ExifReadABC):
             return 1
         return orientation
 
+    def extract_camera_uuid(self) -> str | None:
+        """
+        Extract camera UUID from serial numbers.
+        Returns a composite ID from body serial and lens serial if available.
+        """
+        # Try body serial number from various sources
+        body_serial = self._extract_alternative_fields(
+            [
+                "ExifIFD:BodySerialNumber",
+                "ExifIFD:SerialNumber",
+                "IFD0:SerialNumber",
+                "XMP-exifEX:BodySerialNumber",
+                "XMP-exif:BodySerialNumber",
+                "XMP-aux:SerialNumber",
+            ],
+            str,
+        )
+
+        # Try lens serial number
+        lens_serial = self._extract_alternative_fields(
+            [
+                "ExifIFD:LensSerialNumber",
+                "XMP-exifEX:LensSerialNumber",
+                "XMP-aux:LensSerialNumber",
+            ],
+            str,
+        )
+
+        parts = []
+        if body_serial:
+            parts.append(body_serial.strip())
+        if lens_serial:
+            parts.append(lens_serial.strip())
+
+        if parts:
+            return "_".join(parts)
+        return None
+
     def _extract_alternative_fields(
         self,
         fields: T.Sequence[str],

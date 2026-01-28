@@ -29,6 +29,7 @@ XMP_NAMESPACES = {
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "x": "adobe:ns:meta/",
     "GPano": "http://ns.google.com/photos/1.0/panorama/",
+    "aux": "http://ns.adobe.com/exif/1.0/aux/",
 }
 # https://github.com/ianare/exif-py/issues/167
 EXIFREAD_LOG = logging.getLogger("exifread")
@@ -334,6 +335,10 @@ class ExifReadABC(abc.ABC):
     def extract_orientation(self) -> int:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def extract_camera_uuid(self) -> str | None:
+        raise NotImplementedError
+
 
 class ExifReadFromXMP(ExifReadABC):
     def __init__(self, etree: et.ElementTree):
@@ -481,6 +486,39 @@ class ExifReadFromXMP(ExifReadABC):
         if orientation is None or orientation not in range(1, 9):
             return 1
         return orientation
+
+    def extract_camera_uuid(self) -> str | None:
+        """
+        Extract camera unique identifier from serial number tags in XMP.
+        Builds a composite ID from body and lens serial numbers.
+        """
+        body_serial = self._extract_alternative_fields(
+            [
+                "exif:BodySerialNumber",
+                "exifEX:BodySerialNumber",
+                "exif:CameraSerialNumber",
+                "aux:SerialNumber",
+            ],
+            str,
+        )
+        lens_serial = self._extract_alternative_fields(
+            [
+                "exif:LensSerialNumber",
+                "exifEX:LensSerialNumber",
+                "aux:LensSerialNumber",
+            ],
+            str,
+        )
+
+        parts = []
+        if body_serial:
+            parts.append(body_serial.strip())
+        if lens_serial:
+            parts.append(lens_serial.strip())
+
+        if parts:
+            return "_".join(parts)
+        return None
 
     def _extract_alternative_fields(
         self,
@@ -816,6 +854,41 @@ class ExifReadFromEXIF(ExifReadABC):
             return 1
         return orientation
 
+    def extract_camera_uuid(self) -> str | None:
+        """
+        Extract camera unique identifier from serial number EXIF tags.
+        Builds a composite ID from body and lens serial numbers.
+
+        Supported tags:
+        - EXIF BodySerialNumber (0xA431): Camera body serial number
+        - EXIF LensSerialNumber (0xA435): Lens serial number
+        - EXIF SerialNumber (0xFDE9): Generic serial number fallback
+        - MakerNote SerialNumber: Manufacturer-specific serial number
+        """
+        body_serial = self._extract_alternative_fields(
+            [
+                "EXIF BodySerialNumber",
+                "EXIF SerialNumber",
+                "MakerNote SerialNumber",
+                "MakerNote InternalSerialNumber",
+            ],
+            str,
+        )
+        lens_serial = self._extract_alternative_fields(
+            ["EXIF LensSerialNumber"],
+            str,
+        )
+
+        parts = []
+        if body_serial:
+            parts.append(body_serial.strip())
+        if lens_serial:
+            parts.append(lens_serial.strip())
+
+        if parts:
+            return "_".join(parts)
+        return None
+
     def _extract_alternative_fields(
         self,
         fields: T.Iterable[str],
@@ -984,6 +1057,18 @@ class ExifRead(ExifReadFromEXIF):
         if xmp is None:
             return None
         val = xmp.extract_height()
+        if val is not None:
+            return val
+        return None
+
+    def extract_camera_uuid(self) -> str | None:
+        val = super().extract_camera_uuid()
+        if val is not None:
+            return val
+        xmp = self._xmp_with_reason("camera_uuid")
+        if xmp is None:
+            return None
+        val = xmp.extract_camera_uuid()
         if val is not None:
             return val
         return None

@@ -87,6 +87,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 if isinstance(metadata, types.ImageMetadata):
                     metadata.MAPDeviceMake = video_metadata.make
                     metadata.MAPDeviceModel = video_metadata.model
+                    metadata.MAPCameraUUID = video_metadata.camera_uuid
 
             final_image_metadatas.extend(image_metadatas)
 

@@ -19,6 +19,7 @@ MAX_TRACK_ID = 10
 EXIFTOOL_NAMESPACES: dict[str, str] = {
     "Keys": "http://ns.exiftool.org/QuickTime/Keys/1.0/",
     "IFD0": "http://ns.exiftool.org/EXIF/IFD0/1.0/",
+    "ExifIFD": "http://ns.exiftool.org/EXIF/ExifIFD/1.0/",
     "QuickTime": "http://ns.exiftool.org/QuickTime/QuickTime/1.0/",
     "UserData": "http://ns.exiftool.org/QuickTime/UserData/1.0/",
     "Insta360": "http://ns.exiftool.org/Trailer/Insta360/1.0/",
@@ -407,6 +408,42 @@ class ExifToolReadVideo:
     def extract_model(self) -> str | None:
         _, model = self._extract_make_and_model()
         return model
+
+    def extract_camera_uuid(self) -> str | None:
+        """
+        Extract camera unique identifier from serial number tags in video metadata.
+        Builds a composite ID from body and lens serial numbers.
+
+        Supported tags:
+        - GoPro:SerialNumber, Insta360:SerialNumber: Camera-specific serials
+        - IFD0:SerialNumber, UserData:SerialNumber: Generic serial number tags
+        - ExifIFD:BodySerialNumber, ExifIFD:LensSerialNumber: Standard EXIF tags
+        """
+        # Try camera-specific serial numbers first
+        body_serial = self._extract_alternative_fields(
+            [
+                "GoPro:SerialNumber",
+                "Insta360:SerialNumber",
+                "ExifIFD:BodySerialNumber",
+                "IFD0:SerialNumber",
+                "UserData:SerialNumber",
+            ],
+            str,
+        )
+        lens_serial = self._extract_alternative_fields(
+            ["ExifIFD:LensSerialNumber"],
+            str,
+        )
+
+        parts = []
+        if body_serial:
+            parts.append(body_serial.strip())
+        if lens_serial:
+            parts.append(lens_serial.strip())
+
+        if parts:
+            return "_".join(parts)
+        return None
 
     def _extract_gps_track_from_track(self) -> list[GPSPoint]:
         root = self.etree.getroot()
