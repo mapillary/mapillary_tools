@@ -176,6 +176,100 @@ def test_find_sequences_by_camera(tmpdir: py.path.local):
     assert len(uuids) == 3
 
 
+def test_find_sequences_by_camera_uuid(tmpdir: py.path.local):
+    """Test that images are grouped by MAPCameraUUID when available."""
+    curdir = tmpdir.mkdir("camera_uuid_test")
+    sequence: T.List[types.MetadataOrError] = [
+        # s1 - camera with UUID "CAMERA_A"
+        _make_image_metadata(
+            Path(curdir) / Path("img1.jpg"),
+            1.00001,
+            1.00001,
+            1,
+            11,
+            MAPDeviceMake="Canon",
+            MAPDeviceModel="EOS R5",
+            MAPCameraUUID="CAMERA_A_SERIAL",
+            width=1920,
+            height=1080,
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("img2.jpg"),
+            1.00002,
+            1.00002,
+            2,
+            22,
+            MAPDeviceMake="Canon",
+            MAPDeviceModel="EOS R5",
+            MAPCameraUUID="CAMERA_A_SERIAL",
+            width=1920,
+            height=1080,
+        ),
+        # s2 - different camera with UUID "CAMERA_B" but same make/model
+        _make_image_metadata(
+            Path(curdir) / Path("img3.jpg"),
+            1.00003,
+            1.00003,
+            3,
+            33,
+            MAPDeviceMake="Canon",
+            MAPDeviceModel="EOS R5",
+            MAPCameraUUID="CAMERA_B_SERIAL",
+            width=1920,
+            height=1080,
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("img4.jpg"),
+            1.00004,
+            1.00004,
+            4,
+            44,
+            MAPDeviceMake="Canon",
+            MAPDeviceModel="EOS R5",
+            MAPCameraUUID="CAMERA_B_SERIAL",
+            width=1920,
+            height=1080,
+        ),
+        # s3 - camera without UUID (should be grouped separately from cameras with UUIDs)
+        _make_image_metadata(
+            Path(curdir) / Path("img5.jpg"),
+            1.00005,
+            1.00005,
+            5,
+            55,
+            MAPDeviceMake="Canon",
+            MAPDeviceModel="EOS R5",
+            MAPCameraUUID=None,
+            width=1920,
+            height=1080,
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=1000000,
+        cutoff_time=10000,
+        interpolate_directions=False,
+        duplicate_distance=0,
+        duplicate_angle=0,
+    )
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+
+    # Group by sequence UUID to verify the sequences
+    sequences_by_uuid: T.Dict[str, T.List[types.ImageMetadata]] = {}
+    for d in image_metadatas:
+        sequences_by_uuid.setdefault(d.MAPSequenceUUID or "", []).append(d)
+
+    # Should have 3 sequences: CAMERA_A, CAMERA_B, and None
+    assert len(sequences_by_uuid) == 3
+
+    # Verify each sequence has images from only one camera
+    for seq in sequences_by_uuid.values():
+        camera_uuids = set(img.MAPCameraUUID for img in seq)
+        assert len(camera_uuids) == 1, (
+            f"Sequence contains images from multiple cameras: {camera_uuids}"
+        )
+
+
 def test_sequences_sorted(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello1").mkdir("world2")
     sequence: T.List[types.ImageMetadata] = [

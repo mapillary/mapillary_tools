@@ -31,6 +31,7 @@ class VideoExifToolExtractor(BaseVideoExtractor):
 
         make = exif.extract_make()
         model = exif.extract_model()
+        camera_uuid = exif.extract_camera_uuid()
 
         is_gopro = make is not None and make.upper() in ["GOPRO"]
 
@@ -70,6 +71,7 @@ class VideoExifToolExtractor(BaseVideoExtractor):
             points=points,
             make=make,
             model=model,
+            camera_uuid=camera_uuid,
         )
 
         return video_metadata

@@ -77,6 +77,7 @@ class VideoMetadata:
     make: str | None = None
     model: str | None = None
     filesize: int | None = None
+    camera_uuid: str | None = None
 
     def update_md5sum(self) -> None:
         if self.md5sum is None:
