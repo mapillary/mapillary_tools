@@ -89,6 +89,7 @@ class VideoDescription(_SharedDescription, total=False):
     MAPGPSTrack: Required[list[T.Sequence[float | int | None]]]
     MAPDeviceMake: str
     MAPDeviceModel: str
+    MAPCameraUUID: str
 
 
 class _ErrorObject(TypedDict, total=False):
@@ -205,6 +206,10 @@ VideoDescriptionSchema = {
         "MAPDeviceModel": {
             "type": "string",
             "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan",
+        },
+        "MAPCameraUUID": {
+            "type": "string",
+            "description": "Camera unique identifier, typically derived from camera serial number",
         },
     },
     "required": [
@@ -402,6 +407,8 @@ class DescriptionJSONSerializer(BaseSerializer):
             desc["MAPDeviceMake"] = metadata.make
         if metadata.model:
             desc["MAPDeviceModel"] = metadata.model
+        if metadata.camera_uuid:
+            desc["MAPCameraUUID"] = metadata.camera_uuid
         return desc
 
     @classmethod
@@ -495,6 +502,7 @@ class DescriptionJSONSerializer(BaseSerializer):
             points=[PointEncoder.decode(entry) for entry in desc["MAPGPSTrack"]],
             make=desc.get("MAPDeviceMake"),
             model=desc.get("MAPDeviceModel"),
+            camera_uuid=desc.get("MAPCameraUUID"),
         )
 
 

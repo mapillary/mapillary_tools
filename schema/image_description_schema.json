@@ -46,6 +46,10 @@
                     "type": "string",
                     "description": "Device model, e.g. HERO10 Black, DR900S-1CH, Insta360 Titan"
                 },
+                "MAPCameraUUID": {
+                    "type": "string",
+                    "description": "Camera unique identifier, typically derived from camera serial number"
+                },
                 "filename": {
                     "type": "string",
                     "description": "Absolute path of the video"

@@ -263,3 +263,356 @@ def test_read_and_write(setup_data: py.path.local):
         actual = read.extract_gps_datetime()
         assert actual
         assert geo.as_unix_time(dt) == geo.as_unix_time(actual)
+
+
+# Tests for extract_camera_uuid
+
+
+class MockExifTag:
+    """Mock class for exifread tag values"""
+
+    def __init__(self, values):
+        self.values = values
+
+
+class TestExtractCameraUuidFromEXIF:
+    """Test extract_camera_uuid from EXIF tags"""
+
+    def test_body_serial_only(self):
+        """Test with only body serial number present"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF BodySerialNumber": MockExifTag("ABC123"),
+        }
+        assert reader.extract_camera_uuid() == "ABC123"
+
+    def test_lens_serial_only(self):
+        """Test with only lens serial number present"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF LensSerialNumber": MockExifTag("LNS456"),
+        }
+        assert reader.extract_camera_uuid() == "LNS456"
+
+    def test_both_body_and_lens_serial(self):
+        """Test with both body and lens serial numbers present"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF BodySerialNumber": MockExifTag("BODY123"),
+            "EXIF LensSerialNumber": MockExifTag("LENS456"),
+        }
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+    def test_no_serial_numbers(self):
+        """Test with no serial numbers present"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {}
+        assert reader.extract_camera_uuid() is None
+
+    def test_generic_serial_fallback(self):
+        """Test fallback to generic EXIF SerialNumber"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF SerialNumber": MockExifTag("GENERIC789"),
+        }
+        assert reader.extract_camera_uuid() == "GENERIC789"
+
+    def test_makernote_serial_fallback(self):
+        """Test fallback to MakerNote SerialNumber"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "MakerNote SerialNumber": MockExifTag("MAKER123"),
+        }
+        assert reader.extract_camera_uuid() == "MAKER123"
+
+    def test_body_serial_priority_over_generic(self):
+        """Test that BodySerialNumber takes priority over generic SerialNumber"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF BodySerialNumber": MockExifTag("BODY123"),
+            "EXIF SerialNumber": MockExifTag("GENERIC789"),
+        }
+        assert reader.extract_camera_uuid() == "BODY123"
+
+    def test_whitespace_stripped(self):
+        """Test that whitespace is stripped from serial numbers"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF BodySerialNumber": MockExifTag("  BODY123  "),
+            "EXIF LensSerialNumber": MockExifTag("  LENS456  "),
+        }
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+
+class TestExtractCameraUuidFromXMP:
+    """Test extract_camera_uuid from XMP tags"""
+
+    def _create_xmp_reader(self, tags_dict: dict):
+        """Helper to create an ExifReadFromXMP with mocked tags"""
+        from mapillary_tools.exif_read import ExifReadFromXMP, XMP_NAMESPACES
+        import xml.etree.ElementTree as ET
+
+        # Build a minimal XMP document
+        rdf_ns = XMP_NAMESPACES["rdf"]
+        xmp_xml = f'''<?xml version="1.0"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+            <rdf:RDF xmlns:rdf="{rdf_ns}">
+                <rdf:Description'''
+
+        # Add namespace declarations
+        for prefix, uri in XMP_NAMESPACES.items():
+            if prefix in ["rdf", "x"]:
+                continue
+            xmp_xml += f' xmlns:{prefix}="{uri}"'
+
+        # Add attributes
+        for key, value in tags_dict.items():
+            xmp_xml += f' {key}="{value}"'
+
+        xmp_xml += """>
+                </rdf:Description>
+            </rdf:RDF>
+        </x:xmpmeta>"""
+
+        etree = ET.ElementTree(ET.fromstring(xmp_xml))
+        return ExifReadFromXMP(etree)
+
+    def test_xmp_body_serial_only(self):
+        """Test XMP with only body serial number"""
+        reader = self._create_xmp_reader({"exifEX:BodySerialNumber": "XMP_BODY123"})
+        assert reader.extract_camera_uuid() == "XMP_BODY123"
+
+    def test_xmp_lens_serial_only(self):
+        """Test XMP with only lens serial number"""
+        reader = self._create_xmp_reader({"exifEX:LensSerialNumber": "XMP_LENS456"})
+        assert reader.extract_camera_uuid() == "XMP_LENS456"
+
+    def test_xmp_both_serials(self):
+        """Test XMP with both body and lens serial numbers"""
+        reader = self._create_xmp_reader(
+            {
+                "exifEX:BodySerialNumber": "XMP_BODY",
+                "exifEX:LensSerialNumber": "XMP_LENS",
+            }
+        )
+        assert reader.extract_camera_uuid() == "XMP_BODY_XMP_LENS"
+
+    def test_xmp_no_serials(self):
+        """Test XMP with no serial numbers"""
+        reader = self._create_xmp_reader({})
+        assert reader.extract_camera_uuid() is None
+
+    def test_xmp_aux_serial_number(self):
+        """Test XMP with aux:SerialNumber (Adobe auxiliary namespace)"""
+        reader = self._create_xmp_reader({"aux:SerialNumber": "AUX_SERIAL123"})
+        assert reader.extract_camera_uuid() == "AUX_SERIAL123"
+
+    def test_xmp_aux_lens_serial_number(self):
+        """Test XMP with aux:LensSerialNumber"""
+        reader = self._create_xmp_reader({"aux:LensSerialNumber": "AUX_LENS456"})
+        assert reader.extract_camera_uuid() == "AUX_LENS456"
+
+
+class TestExtractCameraUuidIntegration:
+    """Integration tests using real image file"""
+
+    def test_real_image_camera_uuid(self):
+        """Test extract_camera_uuid on test image (likely returns None as test image may not have serial)"""
+        exif_data = ExifRead(TEST_EXIF_FILE)
+        # The test image likely doesn't have serial numbers, so we just verify it doesn't crash
+        result = exif_data.extract_camera_uuid()
+        assert result is None or isinstance(result, str)
+
+
+class TestVideoExtractCameraUuid:
+    """Test extract_camera_uuid for video EXIF reader"""
+
+    def _create_video_exif_reader(self, tags_dict: dict):
+        """Helper to create an ExifToolReadVideo with mocked tags"""
+        from mapillary_tools.exiftool_read_video import (
+            ExifToolReadVideo,
+            EXIFTOOL_NAMESPACES,
+        )
+        import xml.etree.ElementTree as ET
+
+        # Build XML with child elements (not attributes) - this is how ExifTool XML works
+        root = ET.Element(
+            "rdf:RDF", {"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}
+        )
+
+        # Add child elements for each tag
+        for key, value in tags_dict.items():
+            prefix, tag_name = key.split(":")
+            if prefix in EXIFTOOL_NAMESPACES:
+                full_tag = "{" + EXIFTOOL_NAMESPACES[prefix] + "}" + tag_name
+                child = ET.SubElement(root, full_tag)
+                child.text = value
+
+        etree = ET.ElementTree(root)
+        return ExifToolReadVideo(etree)
+
+    def test_gopro_serial(self):
+        """Test extraction of GoPro serial number"""
+        reader = self._create_video_exif_reader(
+            {"GoPro:SerialNumber": "C3456789012345"}
+        )
+        assert reader.extract_camera_uuid() == "C3456789012345"
+
+    def test_insta360_serial(self):
+        """Test extraction of Insta360 serial number"""
+        reader = self._create_video_exif_reader(
+            {"Insta360:SerialNumber": "INST360SERIAL"}
+        )
+        assert reader.extract_camera_uuid() == "INST360SERIAL"
+
+    def test_exif_body_serial(self):
+        """Test extraction of standard EXIF body serial number"""
+        reader = self._create_video_exif_reader({"ExifIFD:BodySerialNumber": "BODY123"})
+        assert reader.extract_camera_uuid() == "BODY123"
+
+    def test_exif_body_and_lens_serial(self):
+        """Test extraction of both body and lens serial numbers"""
+        reader = self._create_video_exif_reader(
+            {
+                "ExifIFD:BodySerialNumber": "BODY123",
+                "ExifIFD:LensSerialNumber": "LENS456",
+            }
+        )
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+    def test_no_serial(self):
+        """Test with no serial numbers present"""
+        reader = self._create_video_exif_reader({})
+        assert reader.extract_camera_uuid() is None
+
+    def test_gopro_priority(self):
+        """Test that GoPro serial takes priority over generic serial"""
+        reader = self._create_video_exif_reader(
+            {
+                "GoPro:SerialNumber": "GOPRO123",
+                "IFD0:SerialNumber": "GENERIC789",
+            }
+        )
+        assert reader.extract_camera_uuid() == "GOPRO123"
+
+
+class TestExifToolReadExtractCameraUuid:
+    """Test extract_camera_uuid for ExifToolRead (image EXIF via ExifTool XML)"""
+
+    def _create_exiftool_reader(self, tags_dict: dict):
+        """Helper to create an ExifToolRead with mocked tags"""
+        from mapillary_tools.exiftool_read import ExifToolRead, EXIFTOOL_NAMESPACES
+        import xml.etree.ElementTree as ET
+
+        # Build XML structure that ExifToolRead expects
+        root = ET.Element("rdf:Description")
+
+        for tag, value in tags_dict.items():
+            prefix, tag_name = tag.split(":", 1)
+            if prefix in EXIFTOOL_NAMESPACES:
+                full_tag = "{" + EXIFTOOL_NAMESPACES[prefix] + "}" + tag_name
+                child = ET.SubElement(root, full_tag)
+                child.text = value
+
+        etree = ET.ElementTree(root)
+        return ExifToolRead(etree)
+
+    def test_body_serial_only(self):
+        """Test extraction with only body serial number"""
+        reader = self._create_exiftool_reader({"ExifIFD:BodySerialNumber": "BODY12345"})
+        assert reader.extract_camera_uuid() == "BODY12345"
+
+    def test_lens_serial_only(self):
+        """Test extraction with only lens serial number"""
+        reader = self._create_exiftool_reader({"ExifIFD:LensSerialNumber": "LENS67890"})
+        assert reader.extract_camera_uuid() == "LENS67890"
+
+    def test_both_body_and_lens_serial(self):
+        """Test extraction with both body and lens serial numbers"""
+        reader = self._create_exiftool_reader(
+            {
+                "ExifIFD:BodySerialNumber": "BODY123",
+                "ExifIFD:LensSerialNumber": "LENS456",
+            }
+        )
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+    def test_no_serial_numbers(self):
+        """Test with no serial numbers present"""
+        reader = self._create_exiftool_reader({})
+        assert reader.extract_camera_uuid() is None
+
+    def test_generic_serial_fallback(self):
+        """Test that ExifIFD:SerialNumber is used as fallback for body serial"""
+        reader = self._create_exiftool_reader({"ExifIFD:SerialNumber": "GENERIC123"})
+        assert reader.extract_camera_uuid() == "GENERIC123"
+
+    def test_ifd0_serial_fallback(self):
+        """Test that IFD0:SerialNumber is used as fallback"""
+        reader = self._create_exiftool_reader({"IFD0:SerialNumber": "IFD0_SN_123"})
+        assert reader.extract_camera_uuid() == "IFD0_SN_123"
+
+    def test_body_serial_priority_over_generic(self):
+        """Test that BodySerialNumber takes priority over generic SerialNumber"""
+        reader = self._create_exiftool_reader(
+            {
+                "ExifIFD:BodySerialNumber": "BODY999",
+                "ExifIFD:SerialNumber": "GENERIC888",
+            }
+        )
+        assert reader.extract_camera_uuid() == "BODY999"
+
+    def test_xmp_exifex_body_serial(self):
+        """Test XMP-exifEX:BodySerialNumber extraction"""
+        reader = self._create_exiftool_reader(
+            {"XMP-exifEX:BodySerialNumber": "XMPBODY123"}
+        )
+        assert reader.extract_camera_uuid() == "XMPBODY123"
+
+    def test_xmp_aux_serial(self):
+        """Test XMP-aux:SerialNumber extraction"""
+        reader = self._create_exiftool_reader({"XMP-aux:SerialNumber": "AUX_SN_456"})
+        assert reader.extract_camera_uuid() == "AUX_SN_456"
+
+    def test_xmp_aux_lens_serial(self):
+        """Test XMP-aux:LensSerialNumber extraction"""
+        reader = self._create_exiftool_reader(
+            {"XMP-aux:LensSerialNumber": "AUX_LENS_789"}
+        )
+        assert reader.extract_camera_uuid() == "AUX_LENS_789"
+
+    def test_xmp_combined(self):
+        """Test XMP body and lens serial combined"""
+        reader = self._create_exiftool_reader(
+            {
+                "XMP-exifEX:BodySerialNumber": "XMP_BODY",
+                "XMP-exifEX:LensSerialNumber": "XMP_LENS",
+            }
+        )
+        assert reader.extract_camera_uuid() == "XMP_BODY_XMP_LENS"
+
+    def test_whitespace_stripped(self):
+        """Test that whitespace is stripped from serial numbers"""
+        reader = self._create_exiftool_reader(
+            {
+                "ExifIFD:BodySerialNumber": "  BODY123  ",
+                "ExifIFD:LensSerialNumber": "  LENS456  ",
+            }
+        )
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
