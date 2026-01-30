@@ -120,7 +120,7 @@ MAPILLARY__EXPERIMENTAL_ENABLE_IMU: bool = _yes_or_no(
 ###### SEQUENCE PROCESSING ######
 #################################
 # In meters
-CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 600))
+CUTOFF_DISTANCE = float(os.getenv(_ENV_PREFIX + "CUTOFF_DISTANCE", 150))
 # In seconds
 CUTOFF_TIME = float(os.getenv(_ENV_PREFIX + "CUTOFF_TIME", 60))
 DUPLICATE_DISTANCE = float(os.getenv(_ENV_PREFIX + "DUPLICATE_DISTANCE", 0.1))
