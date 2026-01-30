@@ -112,6 +112,10 @@ class MapillaryNullIslandError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryZigZagError(MapillaryDescriptionError):
+    pass
+
+
 class MapillaryUploadConnectionError(MapillaryUserError):
     exit_code = 12
 

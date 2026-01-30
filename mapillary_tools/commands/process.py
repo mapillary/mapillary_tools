@@ -208,6 +208,13 @@ class Command:
             default=constants.DUPLICATE_ANGLE,
             required=False,
         )
+        group_sequence.add_argument(
+            "--skip_zigzag_check",
+            help="Skip the GPS zig-zag pattern detection check.",
+            action="store_true",
+            default=False,
+            required=False,
+        )
 
     def run(self, vars_args: dict):
         metadatas = process_geotag_properties(
