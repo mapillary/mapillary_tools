@@ -298,9 +298,11 @@ def _check_sequences_by_limits(
         try:
             if max_sequence_filesize_in_bytes is not None:
                 sequence_filesize = sum(
-                    utils.get_file_size(image.filename)
-                    if image.filesize is None
-                    else image.filesize
+                    (
+                        utils.get_file_size(image.filename)
+                        if image.filesize is None
+                        else image.filesize
+                    )
                     for image in sequence
                 )
                 if sequence_filesize > max_sequence_filesize_in_bytes:
@@ -397,6 +399,102 @@ def _check_sequences_duplication(
     if output_errors:
         LOG.info(
             f"Duplication check: {len(output_errors)} image duplicates removed (with {duplicate_distance=} and {duplicate_angle=})"
+        )
+
+    return output_sequences, output_errors
+
+
+def _check_sequences_zigzag(
+    input_sequences: T.Sequence[PointSequence],
+    window_size: int = 5,
+    backtrack_threshold: float = 0.8,
+    min_backtracks: int = 1,
+    min_distance: float = 50.0,
+) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
+    """
+    Check for zig-zag GPS patterns where images jump back and forth between locations.
+
+    Detects spatial backtracking - when an image returns closer to earlier images
+    than the previous image was. This catches zig-zag patterns where the sequence
+    jumps to a different location and then returns.
+
+    Args:
+        input_sequences: List of image sequences to check
+        window_size: Number of images to look back when checking for backtracking
+        backtrack_threshold: Ratio threshold - if dist_curr < dist_prev * threshold,
+                            it's considered backtracking
+        min_backtracks: Minimum number of backtrack events to fail the sequence
+        min_distance: Minimum distance (in meters) between consecutive images (prev to curr)
+                     to consider for backtracking. This filters out small-scale
+                     movements like U-turns.
+    """
+    output_sequences: list[PointSequence] = []
+    output_errors: list[types.ErrorMetadata] = []
+
+    for sequence in input_sequences:
+        if len(sequence) < window_size + 1:
+            # Sequence too short to detect pattern
+            output_sequences.append(sequence)
+            continue
+
+        backtrack_count = 0
+        backtrack_locations: list[str] = []
+
+        for i in range(window_size, len(sequence)):
+            curr = sequence[i]
+            prev = sequence[i - 1]
+            ref = sequence[i - window_size]
+
+            # Distance between consecutive images (prev to curr)
+            dist_prev_curr = geo.gps_distance(
+                (prev.lat, prev.lon), (curr.lat, curr.lon)
+            )
+            # Distance from current image back to reference
+            dist_curr = geo.gps_distance((curr.lat, curr.lon), (ref.lat, ref.lon))
+            # Distance from previous image to reference
+            dist_prev = geo.gps_distance((prev.lat, prev.lon), (ref.lat, ref.lon))
+
+            # Backtracking: current is closer to reference than previous was
+            # Only check if the jump between prev and curr is above min_distance
+            if (
+                dist_prev_curr > min_distance
+                and dist_curr < dist_prev * backtrack_threshold
+            ):
+                backtrack_count += 1
+                backtrack_locations.append(curr.filename.name)
+                LOG.debug(
+                    f"Potential zigzag at {curr.filename.name}: "
+                    f"dist_curr={dist_curr:.1f}m < dist_prev={dist_prev:.1f}m * {backtrack_threshold}, "
+                    f"jump={dist_prev_curr:.1f}m"
+                )
+
+        if backtrack_count >= min_backtracks:
+            locations_preview = ", ".join(backtrack_locations[:5])
+            if len(backtrack_locations) > 5:
+                locations_preview += "..."
+
+            ex = exceptions.MapillaryZigZagError(
+                f"GPS zig-zag pattern detected: {backtrack_count} backtrack events "
+                f"found (at: {locations_preview})"
+            )
+            LOG.error(f"{_sequence_name(sequence)}: {ex}")
+            for image in sequence:
+                output_errors.append(
+                    types.describe_error_metadata(
+                        exc=ex, filename=image.filename, filetype=types.FileType.IMAGE
+                    )
+                )
+        else:
+            output_sequences.append(sequence)
+
+    # Assertion to ensure all images accounted for
+    assert sum(len(s) for s in output_sequences) + len(output_errors) == sum(
+        len(s) for s in input_sequences
+    )
+
+    if output_errors:
+        LOG.info(
+            f"Zig-zag check: {len(output_errors)} images rejected due to GPS zig-zag patterns"
         )
 
     return output_sequences, output_errors
@@ -609,6 +707,7 @@ def process_sequence_properties(
     duplicate_distance: float = constants.DUPLICATE_DISTANCE,
     duplicate_angle: float = constants.DUPLICATE_ANGLE,
     max_capture_speed_kmh: float = constants.MAX_CAPTURE_SPEED_KMH,
+    skip_zigzag_check: bool = False,
 ) -> list[types.MetadataOrError]:
     LOG.info("==> Processing sequences...")
 
@@ -687,6 +786,18 @@ def process_sequence_properties(
             max_capture_speed_kmh=max_capture_speed_kmh,
         )
         error_metadatas.extend(errors)
+
+        # Check for zig-zag GPS patterns
+        # NOTE: This is done after _check_sequences_by_limits to filter missing of zero coordinates
+        if not skip_zigzag_check:
+            sequences, errors = _check_sequences_zigzag(
+                sequences,
+                window_size=constants.ZIGZAG_WINDOW_SIZE,
+                backtrack_threshold=constants.ZIGZAG_BACKTRACK_THRESHOLD,
+                min_backtracks=constants.ZIGZAG_MIN_BACKTRACKS,
+                min_distance=constants.ZIGZAG_MIN_DISTANCE,
+            )
+            error_metadatas.extend(errors)
 
         # Split sequences by cutoff distance
         # NOTE: The speed limit check probably rejects most anomalies

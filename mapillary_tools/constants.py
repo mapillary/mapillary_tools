@@ -141,6 +141,13 @@ MAX_SEQUENCE_FILESIZE: int | None = _parse_filesize(
 MAX_SEQUENCE_PIXELS: int | None = _parse_pixels(
     os.getenv(_ENV_PREFIX + "MAX_SEQUENCE_PIXELS", "6G")
 )
+# Zig-zag detection parameters
+ZIGZAG_WINDOW_SIZE = int(os.getenv(_ENV_PREFIX + "ZIGZAG_WINDOW_SIZE", 5))
+ZIGZAG_BACKTRACK_THRESHOLD = float(
+    os.getenv(_ENV_PREFIX + "ZIGZAG_BACKTRACK_THRESHOLD", 0.8)
+)
+ZIGZAG_MIN_BACKTRACKS = int(os.getenv(_ENV_PREFIX + "ZIGZAG_MIN_BACKTRACKS", 1))
+ZIGZAG_MIN_DISTANCE = float(os.getenv(_ENV_PREFIX + "ZIGZAG_MIN_DISTANCE", 30))
 
 
 ##################

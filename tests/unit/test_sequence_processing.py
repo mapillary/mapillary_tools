@@ -703,3 +703,216 @@ def test_split_sequence_no_split(tmpdir):
 
     metadatas = psp.process_sequence_properties(sequence)
     assert 1 == len({m.MAPSequenceUUID for m in metadatas}), metadatas  # type: ignore
+
+
+def test_zigzag_detection_straight_path(tmpdir: py.path.local):
+    """Test that a straight path does not trigger zig-zag detection."""
+    # Create a sequence moving in a straight line (increasing lat)
+    sequence = [
+        _make_image_metadata(
+            Path(tmpdir) / Path(f"./img{i}.jpg"),
+            1.0,
+            1.0 + i * 0.0001,  # Moving north in a straight line
+            i,
+            filesize=1,
+        )
+        for i in range(10)
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+
+    # All images should pass (no zig-zag detected)
+    assert len(image_metadatas) == 10
+    assert len(error_metadatas) == 0
+
+
+def test_zigzag_detection_backtracking(tmpdir: py.path.local):
+    """Test that a zig-zag pattern with backtracking is detected."""
+    # Create a sequence that moves forward then jumps back
+    # Images 0-4: moving forward
+    # Images 5-6: jump to a different location
+    # Images 7-9: jump back near images 0-4 (backtracking)
+    sequence = [
+        # Moving forward on street 1
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img0.jpg"), 1.0, 1.0000, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img1.jpg"), 1.0, 1.0001, 1, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img2.jpg"), 1.0, 1.0002, 2, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img3.jpg"), 1.0, 1.0003, 3, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0004, 4, filesize=1
+        ),
+        # Jump to parallel street 2 (far away)
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img5.jpg"), 1.001, 1.0005, 5, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img6.jpg"), 1.001, 1.0006, 6, filesize=1
+        ),
+        # Jump back near street 1 (backtracking)
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img7.jpg"), 1.0, 1.0007, 7, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img8.jpg"), 1.0, 1.0008, 8, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img9.jpg"), 1.0, 1.0009, 9, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+
+    # Zig-zag should be detected
+    assert len(error_metadatas) == 10  # All images in sequence should be rejected
+    assert all(
+        isinstance(d.error, exceptions.MapillaryZigZagError) for d in error_metadatas
+    )
+
+
+def test_zigzag_detection_skip_flag(tmpdir: py.path.local):
+    """Test that skip_zigzag_check=True bypasses the check."""
+    # Same zig-zag pattern as above
+    sequence = [
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img0.jpg"), 1.0, 1.0000, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img1.jpg"), 1.0, 1.0001, 1, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img2.jpg"), 1.0, 1.0002, 2, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img3.jpg"), 1.0, 1.0003, 3, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0004, 4, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img5.jpg"), 1.001, 1.0005, 5, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img6.jpg"), 1.001, 1.0006, 6, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img7.jpg"), 1.0, 1.0007, 7, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img8.jpg"), 1.0, 1.0008, 8, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img9.jpg"), 1.0, 1.0009, 9, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence, skip_zigzag_check=True)
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    zigzag_errors = [
+        d
+        for d in metadatas
+        if isinstance(d, types.ErrorMetadata)
+        and isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # With skip flag, no zig-zag errors should be raised
+    assert len(zigzag_errors) == 0
+    # Note: duplication check may remove some images
+    assert len(image_metadatas) > 0
+
+
+def test_zigzag_detection_short_sequence(tmpdir: py.path.local):
+    """Test that sequences shorter than window_size+1 are skipped."""
+    # Create a short sequence (less than window_size + 1 = 6 images)
+    sequence = [
+        _make_image_metadata(
+            Path(tmpdir) / Path(f"./img{i}.jpg"),
+            1.0,
+            1.0 + i * 0.0001,
+            i,
+            filesize=1,
+        )
+        for i in range(5)
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    zigzag_errors = [
+        d
+        for d in metadatas
+        if isinstance(d, types.ErrorMetadata)
+        and isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # Short sequence should not be checked for zig-zag
+    assert len(zigzag_errors) == 0
+    assert len(image_metadatas) == 5
+
+
+def test_zigzag_detection_uturn_not_triggered(tmpdir: py.path.local):
+    """Test that a U-turn (small distance < 50m) does not trigger zig-zag detection.
+
+    U-turns are legitimate captures where the camera goes down a street,
+    turns around, and comes back. The min_distance threshold (50m) should
+    filter these out since the backtrack distances are small.
+
+    At the equator: 0.0001 degrees ≈ 11 meters
+    So the distances in this test are ~11-33m, below the 50m threshold.
+    """
+    sequence = [
+        # Going forward (each step ~11m)
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img0.jpg"), 1.0, 1.0000, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img1.jpg"), 1.0, 1.0001, 1, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img2.jpg"), 1.0, 1.0002, 2, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img3.jpg"), 1.0, 1.0003, 3, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0004, 4, filesize=1
+        ),
+        # U-turn - coming back (each step ~11m, total backtrack ~33m < 50m threshold)
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img5.jpg"), 1.0, 1.0003, 5, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img6.jpg"), 1.0, 1.0002, 6, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img7.jpg"), 1.0, 1.0001, 7, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img8.jpg"), 1.0, 1.0000, 8, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img9.jpg"), 1.0, 0.9999, 9, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    zigzag_errors = [
+        d
+        for d in metadatas
+        if isinstance(d, types.ErrorMetadata)
+        and isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # U-turn should NOT trigger zig-zag detection (distances < 50m threshold)
+    assert len(zigzag_errors) == 0
+    assert len(image_metadatas) > 0
