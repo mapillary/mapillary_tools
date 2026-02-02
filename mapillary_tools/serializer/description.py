@@ -8,6 +8,7 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import json
+import math
 import sys
 import typing as T
 from pathlib import Path
@@ -26,6 +27,11 @@ else:
 import jsonschema
 
 from .. import exceptions, geo
+from ..constants import (
+    ALTITUDE_BASE10_DIGIT_PLACES_PRECISION,
+    COORDINATE_BASE10_DIGIT_PLACES_PRECISION,
+    DIRECTION_BASE10_DIGIT_PLACES_PRECISION,
+)
 from ..types import (
     BaseSerializer,
     describe_error_metadata,
@@ -36,22 +42,6 @@ from ..types import (
     MetadataOrError,
     VideoMetadata,
 )
-
-
-# http://wiki.gis.com/wiki/index.php/Decimal_degrees
-# decimal places	degrees	    distance
-# 0	                 1.0	    111 km
-# 1	                 0.1	    11.1 km
-# 2	                 0.01	    1.11 km
-# 3	                 0.001	    111 m
-# 4	                 0.0001	    11.1 m
-# 5	                 0.00001	1.11 m
-# 6	                 0.000001	0.111 m
-# 7	                 0.0000001	1.11 cm
-# 8	                 0.00000001	1.11 mm
-_COORDINATES_PRECISION = 7
-_ALTITUDE_PRECISION = 3
-_ANGLE_PRECISION = 3
 
 
 class _CompassHeading(TypedDict, total=True):
@@ -217,6 +207,13 @@ VideoDescriptionSchema = {
     ],
     "additionalProperties": False,
 }
+
+
+def _fraction_decimal_digits(value: float, precision: int) -> int:
+    fraction_digits: int = precision - math.ceil(
+        math.log10(value if (value := int(math.fabs(value))) > 0 else 1)
+    )
+    return fraction_digits if fraction_digits >= 0 else 0
 
 
 def _merge_schema(*schemas: dict) -> dict:
@@ -418,16 +415,37 @@ class DescriptionJSONSerializer(BaseSerializer):
             "md5sum": metadata.md5sum,
             "filesize": metadata.filesize,
             "filetype": FileType.IMAGE.value,
-            "MAPLatitude": round(metadata.lat, _COORDINATES_PRECISION),
-            "MAPLongitude": round(metadata.lon, _COORDINATES_PRECISION),
+            "MAPLatitude": round(
+                metadata.lat,
+                _fraction_decimal_digits(
+                    metadata.lat, COORDINATE_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            ),
+            "MAPLongitude": round(
+                metadata.lon,
+                _fraction_decimal_digits(
+                    metadata.lon, COORDINATE_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            ),
             "MAPCaptureTime": build_capture_time(metadata.time),
         }
         if metadata.alt is not None:
-            desc["MAPAltitude"] = round(metadata.alt, _ALTITUDE_PRECISION)
+            desc["MAPAltitude"] = round(
+                metadata.alt,
+                _fraction_decimal_digits(
+                    metadata.alt, ALTITUDE_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            )
         if metadata.angle is not None:
+            direction: float = round(
+                metadata.angle,
+                _fraction_decimal_digits(
+                    metadata.angle, DIRECTION_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            )
             desc["MAPCompassHeading"] = {
-                "TrueHeading": round(metadata.angle, _ANGLE_PRECISION),
-                "MagneticHeading": round(metadata.angle, _ANGLE_PRECISION),
+                "TrueHeading": direction,
+                "MagneticHeading": direction,
             }
         fields = dataclasses.fields(metadata)
         for field in fields:
@@ -511,10 +529,32 @@ class PointEncoder:
     def encode(cls, p: geo.Point) -> T.Sequence[float | int | None]:
         entry = [
             int(p.time * 1000),
-            round(p.lon, _COORDINATES_PRECISION),
-            round(p.lat, _COORDINATES_PRECISION),
-            round(p.alt, _ALTITUDE_PRECISION) if p.alt is not None else None,
-            round(p.angle, _ANGLE_PRECISION) if p.angle is not None else None,
+            round(
+                p.lon,
+                _fraction_decimal_digits(
+                    p.lon, COORDINATE_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            ),
+            round(
+                p.lat,
+                _fraction_decimal_digits(
+                    p.lat, COORDINATE_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            ),
+            round(
+                p.alt,
+                _fraction_decimal_digits(p.alt, ALTITUDE_BASE10_DIGIT_PLACES_PRECISION),
+            )
+            if p.alt is not None
+            else None,
+            round(
+                p.angle,
+                _fraction_decimal_digits(
+                    p.angle, DIRECTION_BASE10_DIGIT_PLACES_PRECISION
+                ),
+            )
+            if p.angle is not None
+            else None,
         ]
         return entry
 
