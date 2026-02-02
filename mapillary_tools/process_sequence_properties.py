@@ -789,7 +789,7 @@ def process_sequence_properties(
         error_metadatas.extend(errors)
 
         # Check for zig-zag GPS patterns
-        # NOTE: This is done after _check_sequences_by_limits to filter missing of zero coordinates
+        # NOTE: This is done after _check_sequences_by_limits to filter missing or zero coordinates
         if not skip_zigzag_check:
             sequences, errors = _check_sequences_zigzag(
                 sequences,
