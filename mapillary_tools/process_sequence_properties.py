@@ -357,6 +357,7 @@ def _group_by_folder_and_camera(
         image_metadatas,
         lambda metadata: (
             str(metadata.filename.parent),
+            metadata.MAPCameraUUID,
             metadata.MAPDeviceMake,
             metadata.MAPDeviceModel,
             metadata.width,

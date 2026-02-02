@@ -17,10 +17,13 @@ from . import exif_read
 EXIFTOOL_NAMESPACES: dict[str, str] = {
     "Adobe": "http://ns.exiftool.org/APP14/Adobe/1.0/",
     "Apple": "http://ns.exiftool.org/MakerNotes/Apple/1.0/",
+    "Canon": "http://ns.exiftool.org/MakerNotes/Canon/1.0/",
     "Composite": "http://ns.exiftool.org/Composite/1.0/",
     "ExifIFD": "http://ns.exiftool.org/EXIF/ExifIFD/1.0/",
     "ExifTool": "http://ns.exiftool.org/ExifTool/1.0/",
     "File": "http://ns.exiftool.org/File/1.0/",
+    "FLIR": "http://ns.exiftool.org/APP1/FLIR/1.0/",
+    "FujiFilm": "http://ns.exiftool.org/MakerNotes/FujiFilm/1.0/",
     "GPS": "http://ns.exiftool.org/EXIF/GPS/1.0/",
     "GoPro": "http://ns.exiftool.org/APP6/GoPro/1.0/",
     "ICC-chrm": "http://ns.exiftool.org/ICC_Profile/ICC-chrm/1.0/",
@@ -33,11 +36,20 @@ EXIFTOOL_NAMESPACES: dict[str, str] = {
     "IPTC": "http://ns.exiftool.org/IPTC/IPTC/1.0/",
     "InteropIFD": "http://ns.exiftool.org/EXIF/InteropIFD/1.0/",
     "JFIF": "http://ns.exiftool.org/JFIF/JFIF/1.0/",
+    "Kodak": "http://ns.exiftool.org/MakerNotes/Kodak/1.0/",
+    "Leica": "http://ns.exiftool.org/MakerNotes/Leica/1.0/",
     "MPF0": "http://ns.exiftool.org/MPF/MPF0/1.0/",
     "MPImage1": "http://ns.exiftool.org/MPF/MPImage1/1.0/",
     "MPImage2": "http://ns.exiftool.org/MPF/MPImage2/1.0/",
+    "Nikon": "http://ns.exiftool.org/MakerNotes/Nikon/1.0/",
+    "Olympus": "http://ns.exiftool.org/MakerNotes/Olympus/1.0/",
+    "Panasonic": "http://ns.exiftool.org/MakerNotes/Panasonic/1.0/",
+    "Pentax": "http://ns.exiftool.org/MakerNotes/Pentax/1.0/",
     "Photoshop": "http://ns.exiftool.org/Photoshop/Photoshop/1.0/",
+    "Ricoh": "http://ns.exiftool.org/MakerNotes/Ricoh/1.0/",
     "Samsung": "http://ns.exiftool.org/MakerNotes/Samsung/1.0/",
+    "Sigma": "http://ns.exiftool.org/MakerNotes/Sigma/1.0/",
+    "Sony": "http://ns.exiftool.org/MakerNotes/Sony/1.0/",
     "System": "http://ns.exiftool.org/File/System/1.0/",
     "XMP-GAudio": "http://ns.exiftool.org/XMP/XMP-GAudio/1.0/",
     "XMP-GImage": "http://ns.exiftool.org/XMP/XMP-GImage/1.0/",
@@ -53,6 +65,8 @@ EXIFTOOL_NAMESPACES: dict[str, str] = {
     "XMP-xmp": "http://ns.exiftool.org/XMP/XMP-xmp/1.0/",
     "XMP-xmpMM": "http://ns.exiftool.org/XMP/XMP-xmpMM/1.0/",
     "XMP-xmpNote": "http://ns.exiftool.org/XMP/XMP-xmpNote/1.0/",
+    "XMP-drone-dji": "http://ns.exiftool.org/XMP/XMP-drone-dji/1.0/",
+    "DJI": "http://ns.exiftool.org/MakerNotes/DJI/1.0/",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
 }
 
@@ -425,6 +439,77 @@ class ExifToolRead(exif_read.ExifReadABC):
         if orientation not in range(1, 9):
             return 1
         return orientation
+
+    def extract_camera_uuid(self) -> str | None:
+        """
+        Extract camera UUID from serial numbers.
+        Returns a composite ID from body serial and lens serial if available.
+        """
+        # Try body serial number from various sources
+        body_serial = self._extract_alternative_fields(
+            [
+                # Standard EXIF tags (BodySerialNumber has priority over generic SerialNumber)
+                "ExifIFD:BodySerialNumber",
+                "ExifIFD:SerialNumber",
+                "IFD0:CameraSerialNumber",
+                "IFD0:SerialNumber",
+                # MakerNotes - camera specific
+                "Canon:SerialNumber",
+                "Canon:InternalSerialNumber",
+                "DJI:SerialNumber",
+                "XMP-drone-dji:CameraSerialNumber",
+                "XMP-drone-dji:DroneSerialNumber",
+                "FLIR:CameraSerialNumber",
+                "FujiFilm:InternalSerialNumber",
+                "GoPro:CameraSerialNumber",
+                "Kodak:SerialNumber",
+                "Leica:SerialNumber",
+                "Leica:InternalSerialNumber",
+                "Nikon:SerialNumber",
+                "Olympus:SerialNumber",
+                "Olympus:InternalSerialNumber",
+                "Panasonic:InternalSerialNumber",
+                "Pentax:SerialNumber",
+                "Pentax:InternalSerialNumber",
+                "Ricoh:SerialNumber",
+                "Ricoh:InternalSerialNumber",
+                "Ricoh:BodySerialNumber",
+                "Sigma:SerialNumber",
+                "Sony:InternalSerialNumber",
+                # XMP equivalents
+                "XMP-exif:SerialNumber",
+                "XMP-exif:BodySerialNumber",
+                "XMP-exifEX:SerialNumber",
+                "XMP-exif:CameraSerialNumber",
+                "XMP-exifEX:BodySerialNumber",
+                "XMP-aux:SerialNumber",
+            ],
+            str,
+        )
+
+        # Try lens serial number
+        lens_serial = self._extract_alternative_fields(
+            [
+                "ExifIFD:LensSerialNumber",
+                "FLIR:LensSerialNumber",
+                "Olympus:LensSerialNumber",
+                "Panasonic:LensSerialNumber",
+                "Ricoh:LensSerialNumber",
+                "XMP-exifEX:LensSerialNumber",
+                "XMP-aux:LensSerialNumber",
+            ],
+            str,
+        )
+
+        parts = []
+        if body_serial:
+            parts.append(body_serial.strip())
+        if lens_serial:
+            parts.append(lens_serial.strip())
+
+        if parts:
+            return "_".join(parts)
+        return None
 
     def _extract_alternative_fields(
         self,

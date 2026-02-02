@@ -73,6 +73,15 @@ def test_desc_video():
             filetype=types.FileType.CAMM,
             points=[],
         ),
+        types.VideoMetadata(
+            filename=Path("foo/bar.mp4").resolve(),
+            md5sum="789",
+            filetype=types.FileType.GOPRO,
+            points=[geo.Point(time=456, lat=2.0, lon=3.0, alt=100.0, angle=45)],
+            make="GoPro",
+            model="HERO10",
+            camera_uuid="ABC123_XYZ789",
+        ),
     ]
     for metadata in ds:
         desc = description.DescriptionJSONSerializer._as_video_desc(metadata)
