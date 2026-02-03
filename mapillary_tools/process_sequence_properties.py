@@ -146,6 +146,55 @@ def duplication_check(
     return dedups, dups
 
 
+def _check_null_island(
+    sequence: PointSequence,
+) -> tuple[PointSequence, list[types.ErrorMetadata]]:
+    """
+    Filter out images with null island (0, 0) GPS coordinates.
+
+    Returns:
+        Tuple of (valid images, error metadatas for null island images)
+    """
+    valid: PointSequence = []
+    errors: list[types.ErrorMetadata] = []
+
+    for image in sequence:
+        if image.lat == 0 and image.lon == 0:
+            ex = exceptions.MapillaryNullIslandError(
+                "GPS coordinates in Null Island (0, 0)"
+            )
+            errors.append(
+                types.describe_error_metadata(
+                    exc=ex, filename=image.filename, filetype=types.FileType.IMAGE
+                )
+            )
+        else:
+            valid.append(image)
+
+    return valid, errors
+
+
+def _check_sequences_null_island(
+    input_sequences: T.Sequence[PointSequence],
+) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
+    """Apply null island check to all sequences."""
+    output_sequences: list[PointSequence] = []
+    output_errors: list[types.ErrorMetadata] = []
+
+    for sequence in input_sequences:
+        output_sequence, errors = _check_null_island(sequence)
+        if output_sequence:
+            output_sequences.append(output_sequence)
+        output_errors.extend(errors)
+
+    if output_errors:
+        LOG.info(
+            f"Null island check: {len(output_errors)} images removed with (0, 0) coordinates"
+        )
+
+    return output_sequences, output_errors
+
+
 def _group_images_by(
     image_metadatas: T.Iterable[types.ImageMetadata],
     group_key_func: T.Callable[[types.ImageMetadata], T.Hashable],
@@ -309,14 +358,6 @@ def _check_sequences_by_limits(
                     raise exceptions.MapillaryFileTooLargeError(
                         f"Sequence file size {humanize.naturalsize(sequence_filesize)} exceeds max allowed {humanize.naturalsize(max_sequence_filesize_in_bytes)}",
                     )
-
-            contains_null_island = any(
-                image.lat == 0 and image.lon == 0 for image in sequence
-            )
-            if contains_null_island:
-                raise exceptions.MapillaryNullIslandError(
-                    "GPS coordinates in Null Island (0, 0)"
-                )
 
             avg_speed_kmh = geo.avg_speed(sequence) * 3.6  # Convert m/s to km/h
             too_fast = len(sequence) >= 2 and avg_speed_kmh > max_capture_speed_kmh
@@ -765,6 +806,10 @@ def process_sequence_properties(
             cutoff_time=cutoff_time,
         )
 
+        # Null island check
+        sequences, errors = _check_sequences_null_island(sequences)
+        error_metadatas.extend(errors)
+
         # Duplication check
         sequences, errors = _check_sequences_duplication(
             sequences,
@@ -789,7 +834,7 @@ def process_sequence_properties(
         error_metadatas.extend(errors)
 
         # Check for zig-zag GPS patterns
-        # NOTE: This is done after _check_sequences_by_limits to filter missing or zero coordinates
+        # NOTE: This is done after _check_sequences_null_island to filter zero coordinates
         if not skip_zigzag_check:
             sequences, errors = _check_sequences_zigzag(
                 sequences,
