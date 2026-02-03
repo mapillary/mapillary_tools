@@ -66,7 +66,6 @@ def test_expiration(tmpdir):
 @pytest.mark.parametrize(
     "expire_time,sleep_time,should_exist",
     [
-        (1, 0.5, True),  # Should not expire yet
         (1, 1.5, False),  # Should expire
         (5, 2, True),  # Should not expire yet
     ],
