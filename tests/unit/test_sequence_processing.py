@@ -1082,6 +1082,31 @@ def test_zigzag_detection_uturn_not_triggered(tmpdir: py.path.local):
     assert len(image_metadatas) > 0
 
 
+def test_capture_speed_exceeds_limit(tmpdir: py.path.local):
+    """Test that sequences with speed exceeding the limit are rejected."""
+    # Create a sequence that moves very fast (> 400 km/h)
+    # At the equator: 0.01 degrees ≈ 1.11 km
+    # Moving 0.01 degrees in 1 second = 1.11 km/s = 4000 km/h (well above 400 km/h limit)
+    sequence = [
+        _make_image_metadata(
+            Path(tmpdir) / Path("./fast1.jpg"), 1.0, 1.0, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./fast2.jpg"), 1.0, 1.01, 1, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+
+    # All images should be rejected due to speed limit
+    assert len(error_metadatas) == 2
+    assert all(
+        isinstance(d.error, exceptions.MapillaryCaptureSpeedTooFastError)
+        for d in error_metadatas
+    )
+
+
 def test_zigzag_backwards_walk_single_deviation(tmpdir: py.path.local):
     """Test backwards walk with a single deviation point.
 

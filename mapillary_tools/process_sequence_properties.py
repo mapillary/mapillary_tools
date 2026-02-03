@@ -337,43 +337,28 @@ def _video_name(video_metadata: types.VideoMetadata) -> str:
 
 def _check_sequences_by_limits(
     input_sequences: T.Sequence[PointSequence],
-    max_sequence_filesize_in_bytes: int | None,
     max_capture_speed_kmh: float,
 ) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
     output_sequences: list[PointSequence] = []
     output_errors: list[types.ErrorMetadata] = []
 
     for sequence in input_sequences:
-        try:
-            if max_sequence_filesize_in_bytes is not None:
-                sequence_filesize = sum(
-                    (
-                        utils.get_file_size(image.filename)
-                        if image.filesize is None
-                        else image.filesize
-                    )
-                    for image in sequence
-                )
-                if sequence_filesize > max_sequence_filesize_in_bytes:
-                    raise exceptions.MapillaryFileTooLargeError(
-                        f"Sequence file size {humanize.naturalsize(sequence_filesize)} exceeds max allowed {humanize.naturalsize(max_sequence_filesize_in_bytes)}",
-                    )
+        avg_speed_kmh = geo.avg_speed(sequence) * 3.6  # Convert m/s to km/h
+        too_fast = len(sequence) >= 2 and avg_speed_kmh > max_capture_speed_kmh
 
-            avg_speed_kmh = geo.avg_speed(sequence) * 3.6  # Convert m/s to km/h
-            too_fast = len(sequence) >= 2 and avg_speed_kmh > max_capture_speed_kmh
-            if too_fast:
-                raise exceptions.MapillaryCaptureSpeedTooFastError(
-                    f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
-                )
-        except exceptions.MapillaryDescriptionError as ex:
-            LOG.error(f"{_sequence_name(sequence)}: {ex}")
+        if too_fast:
+            error = exceptions.MapillaryCaptureSpeedTooFastError(
+                f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
+            )
+            LOG.error(f"{_sequence_name(sequence)}: {error}")
             for image in sequence:
                 output_errors.append(
                     types.describe_error_metadata(
-                        exc=ex, filename=image.filename, filetype=types.FileType.IMAGE
+                        exc=error,
+                        filename=image.filename,
+                        filetype=types.FileType.IMAGE,
                     )
                 )
-
         else:
             output_sequences.append(sequence)
 
@@ -864,7 +849,6 @@ def process_sequence_properties(
         # Check limits for sequences
         sequences, errors = _check_sequences_by_limits(
             sequences,
-            max_sequence_filesize_in_bytes=max_sequence_filesize_in_bytes,
             max_capture_speed_kmh=max_capture_speed_kmh,
         )
         error_metadatas.extend(errors)
