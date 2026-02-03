@@ -713,6 +713,48 @@ def test_video_error(tmpdir: py.path.local):
     )
 
 
+def test_image_null_island(tmpdir: py.path.local):
+    """Test that only images with (0,0) coordinates get errors, not the whole sequence."""
+    curdir = tmpdir.mkdir("null_island_test")
+    sequence: T.List[types.MetadataOrError] = [
+        # Image at null island - should get error
+        _make_image_metadata(Path(curdir) / Path("null_island.jpg"), 0, 0, 1, angle=10),
+        # Valid images in same folder - should pass through
+        _make_image_metadata(
+            Path(curdir) / Path("valid1.jpg"), 1.00001, 1.00001, 2, angle=20
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("valid2.jpg"), 1.00002, 1.00002, 3, angle=30
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=1000000,
+        cutoff_time=100,
+        interpolate_directions=False,
+        duplicate_distance=0.1,
+        duplicate_angle=5,
+    )
+    metadata_by_filename = {m.filename.name: m for m in metadatas}
+
+    # Null island image should have an error
+    assert isinstance(metadata_by_filename["null_island.jpg"], types.ErrorMetadata), (
+        "Null island image should be an ErrorMetadata"
+    )
+    assert isinstance(
+        metadata_by_filename["null_island.jpg"].error,
+        exceptions.MapillaryNullIslandError,
+    ), "Error should be MapillaryNullIslandError"
+
+    # Valid images should pass through as ImageMetadata
+    assert isinstance(metadata_by_filename["valid1.jpg"], types.ImageMetadata), (
+        "Valid image should pass through"
+    )
+    assert isinstance(metadata_by_filename["valid2.jpg"], types.ImageMetadata), (
+        "Valid image should pass through"
+    )
+
+
 def test_split_sequence_by_filesize(tmpdir):
     sequence: T.List[types.Metadata] = [
         # s1
