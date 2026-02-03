@@ -864,12 +864,15 @@ def test_zigzag_detection_straight_path(tmpdir: py.path.local):
     assert len(error_metadatas) == 0
 
 
-def test_zigzag_detection_backtracking(tmpdir: py.path.local):
-    """Test that a zig-zag pattern with backtracking is detected."""
+def test_zigzag_detection_deviation(tmpdir: py.path.local):
+    """Test that a zig-zag pattern with deviation is detected.
+
+    Only the deviation points should be marked as errors, not the entire sequence.
+    """
     # Create a sequence that moves forward then jumps back
-    # Images 0-4: moving forward
-    # Images 5-6: jump to a different location
-    # Images 7-9: jump back near images 0-4 (backtracking)
+    # Images 0-4: moving forward (normal path)
+    # Images 5-6: jump to a different location (deviations)
+    # Images 7-9: jump back near images 0-4 (normal path continues)
     sequence = [
         # Moving forward on street 1
         _make_image_metadata(
@@ -887,14 +890,14 @@ def test_zigzag_detection_backtracking(tmpdir: py.path.local):
         _make_image_metadata(
             Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0004, 4, filesize=1
         ),
-        # Jump to parallel street 2 (far away)
+        # Jump to parallel street 2 (far away) - these are deviations
         _make_image_metadata(
             Path(tmpdir) / Path("./img5.jpg"), 1.001, 1.0005, 5, filesize=1
         ),
         _make_image_metadata(
             Path(tmpdir) / Path("./img6.jpg"), 1.001, 1.0006, 6, filesize=1
         ),
-        # Jump back near street 1 (backtracking)
+        # Jump back near street 1 (normal path continues)
         _make_image_metadata(
             Path(tmpdir) / Path("./img7.jpg"), 1.0, 1.0007, 7, filesize=1
         ),
@@ -908,11 +911,36 @@ def test_zigzag_detection_backtracking(tmpdir: py.path.local):
 
     metadatas = psp.process_sequence_properties(sequence)
     error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
 
-    # Zig-zag should be detected
-    assert len(error_metadatas) == 10  # All images in sequence should be rejected
-    assert all(
-        isinstance(d.error, exceptions.MapillaryZigZagError) for d in error_metadatas
+    # Zig-zag should be detected - only deviation points should be errors
+    zigzag_errors = [
+        d
+        for d in error_metadatas
+        if isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # Exactly img5 and img6 should be errors (the deviation points)
+    error_filenames = {d.filename.name for d in zigzag_errors}
+    expected_errors = {"img5.jpg", "img6.jpg"}
+    assert error_filenames == expected_errors, (
+        f"Expected errors: {expected_errors}, got: {error_filenames}"
+    )
+
+    # Exactly img0-img4 and img7-img9 should be preserved (the normal path)
+    preserved_filenames = {d.filename.name for d in image_metadatas}
+    expected_preserved = {
+        "img0.jpg",
+        "img1.jpg",
+        "img2.jpg",
+        "img3.jpg",
+        "img4.jpg",
+        "img7.jpg",
+        "img8.jpg",
+        "img9.jpg",
+    }
+    assert preserved_filenames == expected_preserved, (
+        f"Expected preserved: {expected_preserved}, got: {preserved_filenames}"
     )
 
 
@@ -1000,7 +1028,7 @@ def test_zigzag_detection_uturn_not_triggered(tmpdir: py.path.local):
 
     U-turns are legitimate captures where the camera goes down a street,
     turns around, and comes back. The min_distance threshold (50m) should
-    filter these out since the backtrack distances are small.
+    filter these out since the deviation distances are small.
 
     At the equator: 0.0001 degrees ≈ 11 meters
     So the distances in this test are ~11-33m, below the 50m threshold.
@@ -1022,7 +1050,7 @@ def test_zigzag_detection_uturn_not_triggered(tmpdir: py.path.local):
         _make_image_metadata(
             Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0004, 4, filesize=1
         ),
-        # U-turn - coming back (each step ~11m, total backtrack ~33m < 50m threshold)
+        # U-turn - coming back (each step ~11m, total deviation ~33m < 50m threshold)
         _make_image_metadata(
             Path(tmpdir) / Path("./img5.jpg"), 1.0, 1.0003, 5, filesize=1
         ),
@@ -1052,3 +1080,162 @@ def test_zigzag_detection_uturn_not_triggered(tmpdir: py.path.local):
     # U-turn should NOT trigger zig-zag detection (distances < 50m threshold)
     assert len(zigzag_errors) == 0
     assert len(image_metadatas) > 0
+
+
+def test_zigzag_backwards_walk_single_deviation(tmpdir: py.path.local):
+    """Test backwards walk with a single deviation point.
+
+    When only one point deviates and comes back, only that point should be marked.
+    """
+    # 0.001 degrees ≈ 111 meters, well above 50m threshold
+    # Use 10 second gaps to stay under speed limit (111m / 10s = 11.1 m/s = 40 km/h)
+    sequence = [
+        # Normal path
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img0.jpg"), 1.0, 1.0000, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img1.jpg"), 1.0, 1.0010, 10, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img2.jpg"), 1.0, 1.0020, 20, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img3.jpg"), 1.0, 1.0030, 30, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0040, 40, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img5.jpg"), 1.0, 1.0050, 50, filesize=1
+        ),
+        # Single deviation - jumps far away
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img6.jpg"), 1.010, 1.0060, 60, filesize=1
+        ),
+        # Comes back to normal path
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img7.jpg"), 1.0, 1.0070, 70, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img8.jpg"), 1.0, 1.0080, 80, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img9.jpg"), 1.0, 1.0090, 90, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+
+    zigzag_errors = [
+        d
+        for d in error_metadatas
+        if isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # Exactly img6 should be an error (the single deviation point)
+    error_filenames = {d.filename.name for d in zigzag_errors}
+    expected_errors = {"img6.jpg"}
+    assert error_filenames == expected_errors, (
+        f"Expected errors: {expected_errors}, got: {error_filenames}"
+    )
+
+    # Exactly img0-img5 and img7-img9 should be preserved (the normal path)
+    preserved_filenames = {d.filename.name for d in image_metadatas}
+    expected_preserved = {
+        "img0.jpg",
+        "img1.jpg",
+        "img2.jpg",
+        "img3.jpg",
+        "img4.jpg",
+        "img5.jpg",
+        "img7.jpg",
+        "img8.jpg",
+        "img9.jpg",
+    }
+    assert preserved_filenames == expected_preserved, (
+        f"Expected preserved: {expected_preserved}, got: {preserved_filenames}"
+    )
+
+
+def test_zigzag_backwards_walk_multiple_deviations(tmpdir: py.path.local):
+    """Test backwards walk with multiple consecutive deviation points.
+
+    When multiple consecutive points deviate, the backwards walk should
+    identify all of them.
+    """
+    # 0.001 degrees ≈ 111 meters, well above 50m threshold
+    # Use 10 second gaps to stay under speed limit (111m / 10s = 11.1 m/s = 40 km/h)
+    sequence = [
+        # Normal path
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img0.jpg"), 1.0, 1.0000, 0, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img1.jpg"), 1.0, 1.0010, 10, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img2.jpg"), 1.0, 1.0020, 20, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img3.jpg"), 1.0, 1.0030, 30, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img4.jpg"), 1.0, 1.0040, 40, filesize=1
+        ),
+        # Multiple consecutive deviations - jump to different street
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img5.jpg"), 1.010, 1.0050, 50, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img6.jpg"), 1.010, 1.0060, 60, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img7.jpg"), 1.010, 1.0070, 70, filesize=1
+        ),
+        # Comes back to normal path
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img8.jpg"), 1.0, 1.0080, 80, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img9.jpg"), 1.0, 1.0090, 90, filesize=1
+        ),
+        _make_image_metadata(
+            Path(tmpdir) / Path("./img10.jpg"), 1.0, 1.0100, 100, filesize=1
+        ),
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+    error_metadatas = [d for d in metadatas if isinstance(d, types.ErrorMetadata)]
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+
+    zigzag_errors = [
+        d
+        for d in error_metadatas
+        if isinstance(d.error, exceptions.MapillaryZigZagError)
+    ]
+
+    # Exactly img5, img6, img7 should be errors (the deviation points)
+    error_filenames = {d.filename.name for d in zigzag_errors}
+    expected_errors = {"img5.jpg", "img6.jpg", "img7.jpg"}
+    assert error_filenames == expected_errors, (
+        f"Expected errors: {expected_errors}, got: {error_filenames}"
+    )
+
+    # Exactly img0-img4 and img8-img10 should be preserved (the normal path)
+    preserved_filenames = {d.filename.name for d in image_metadatas}
+    expected_preserved = {
+        "img0.jpg",
+        "img1.jpg",
+        "img2.jpg",
+        "img3.jpg",
+        "img4.jpg",
+        "img8.jpg",
+        "img9.jpg",
+        "img10.jpg",
+    }
+    assert preserved_filenames == expected_preserved, (
+        f"Expected preserved: {expected_preserved}, got: {preserved_filenames}"
+    )

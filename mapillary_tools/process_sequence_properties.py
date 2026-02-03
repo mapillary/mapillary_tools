@@ -449,25 +449,27 @@ def _check_sequences_duplication(
 def _check_sequences_zigzag(
     input_sequences: T.Sequence[PointSequence],
     window_size: int = 5,
-    backtrack_threshold: float = 0.8,
-    min_backtracks: int = 1,
+    deviation_threshold: float = 0.8,
+    min_deviations: int = 1,
     min_distance: float = 50.0,
 ) -> tuple[list[PointSequence], list[types.ErrorMetadata]]:
     """
     Check for zig-zag GPS patterns where images jump back and forth between locations.
 
-    Detects spatial backtracking - when an image returns closer to earlier images
+    Detects spatial deviations - when an image returns closer to earlier images
     than the previous image was. This catches zig-zag patterns where the sequence
     jumps to a different location and then returns.
 
+    Only marks deviation points as errors, keeping the main path intact.
+
     Args:
         input_sequences: List of image sequences to check
-        window_size: Number of images to look back when checking for backtracking
-        backtrack_threshold: Ratio threshold - if dist_curr < dist_prev * threshold,
-                            it's considered backtracking
-        min_backtracks: Minimum number of backtrack events to fail the sequence
+        window_size: Number of images to look back when checking for deviations
+        deviation_threshold: Ratio threshold - if dist_curr < dist_prev * threshold,
+                            it's considered a deviation
+        min_deviations: Minimum number of deviation events to mark errors
         min_distance: Minimum distance (in meters) between consecutive images (prev to curr)
-                     to consider for backtracking. This filters out small-scale
+                     to consider for deviation detection. This filters out small-scale
                      movements like U-turns.
     """
     output_sequences: list[PointSequence] = []
@@ -479,8 +481,8 @@ def _check_sequences_zigzag(
             output_sequences.append(sequence)
             continue
 
-        backtrack_count = 0
-        backtrack_locations: list[str] = []
+        # Track which indices are detected as deviations
+        deviation_indices: set[int] = set()
 
         for i in range(window_size, len(sequence)):
             curr = sequence[i]
@@ -496,36 +498,70 @@ def _check_sequences_zigzag(
             # Distance from previous image to reference
             dist_prev = geo.gps_distance((prev.lat, prev.lon), (ref.lat, ref.lon))
 
-            # Backtracking: current is closer to reference than previous was
+            # Deviation: current is closer to reference than previous was
             # Only check if the jump between prev and curr is above min_distance
             if (
                 dist_prev_curr > min_distance
-                and dist_curr < dist_prev * backtrack_threshold
+                and dist_curr < dist_prev * deviation_threshold
             ):
-                backtrack_count += 1
-                backtrack_locations.append(curr.filename.name)
                 LOG.debug(
-                    f"Potential zigzag at {curr.filename.name}: "
-                    f"dist_curr={dist_curr:.1f}m < dist_prev={dist_prev:.1f}m * {backtrack_threshold}, "
+                    f"Zigzag detected at {prev.filename.name}: "
+                    f"dist_curr={dist_curr:.1f}m < dist_prev={dist_prev:.1f}m * {deviation_threshold}, "
                     f"jump={dist_prev_curr:.1f}m"
                 )
 
-        if backtrack_count >= min_backtracks:
-            locations_preview = ", ".join(backtrack_locations[:5])
-            if len(backtrack_locations) > 5:
-                locations_preview += "..."
+                # Mark prev as deviation (it's the point that jumped away)
+                deviation_indices.add(i - 1)
 
-            ex = exceptions.MapillaryZigZagError(
-                f"GPS zig-zag pattern detected: {backtrack_count} backtrack events "
-                f"found (at: {locations_preview})"
-            )
-            LOG.error(f"{_sequence_name(sequence)}: {ex}")
-            for image in sequence:
+                # Walk backwards from prev to ref+1 to find more deviation points
+                # We're looking for deviations between prev and ref
+                # Use the same check as above: compare distance to ref and jump to curr
+                for j in range(i - 2, i - window_size, -1):  # Stop at ref+1
+                    point_j = sequence[j]
+
+                    # Distance from j to ref
+                    dist_j_to_ref = geo.gps_distance(
+                        (point_j.lat, point_j.lon), (ref.lat, ref.lon)
+                    )
+                    # Distance from j to curr
+                    dist_j_to_curr = geo.gps_distance(
+                        (point_j.lat, point_j.lon), (curr.lat, curr.lon)
+                    )
+
+                    # Same check as original: j is a deviation if it's farther from ref
+                    # than curr is, and the jump from j to curr is significant
+                    if (
+                        dist_j_to_curr > min_distance
+                        and dist_curr < dist_j_to_ref * deviation_threshold
+                    ):
+                        deviation_indices.add(j)
+                        LOG.debug(
+                            f"Backwards walk: {point_j.filename.name} also marked as deviation"
+                        )
+                    else:
+                        # j is on the normal path, stop walking backwards
+                        break
+
+        if len(deviation_indices) >= min_deviations:
+            # Create errors only for deviation points
+            for idx in sorted(deviation_indices):
+                image = sequence[idx]
+                ex = exceptions.MapillaryZigZagError("GPS zig-zag deviation detected")
+                LOG.error(f"{image.filename.name}: {ex}")
                 output_errors.append(
                     types.describe_error_metadata(
                         exc=ex, filename=image.filename, filetype=types.FileType.IMAGE
                     )
                 )
+
+            # Keep non-deviation points in output sequence
+            non_deviation_points = [
+                sequence[idx]
+                for idx in range(len(sequence))
+                if idx not in deviation_indices
+            ]
+            if non_deviation_points:
+                output_sequences.append(non_deviation_points)
         else:
             output_sequences.append(sequence)
 
@@ -839,8 +875,8 @@ def process_sequence_properties(
             sequences, errors = _check_sequences_zigzag(
                 sequences,
                 window_size=constants.ZIGZAG_WINDOW_SIZE,
-                backtrack_threshold=constants.ZIGZAG_BACKTRACK_THRESHOLD,
-                min_backtracks=constants.ZIGZAG_MIN_BACKTRACKS,
+                deviation_threshold=constants.ZIGZAG_DEVIATION_THRESHOLD,
+                min_deviations=constants.ZIGZAG_MIN_DEVIATIONS,
                 min_distance=constants.ZIGZAG_MIN_DISTANCE,
             )
             error_metadatas.extend(errors)
