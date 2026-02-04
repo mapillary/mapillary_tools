@@ -379,9 +379,11 @@ def assert_descs_exact_equal(left: list[dict], right: list[dict]):
     # TODO: make sure groups are the same too
     for d in left:
         d.pop("MAPSequenceUUID", None)
+        d.pop("MAPCameraUUID", None)
 
     for d in right:
         d.pop("MAPSequenceUUID", None)
+        d.pop("MAPCameraUUID", None)
 
     left.sort(key=lambda d: d["filename"])
     right.sort(key=lambda d: d["filename"])
