@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 
 from . import exif_read, exiftool_read, geo
 from .telemetry import GPSFix, GPSPoint
+from .utils import sanitize_serial
 
 
 MAX_TRACK_ID = 10
@@ -450,11 +451,9 @@ class ExifToolReadVideo:
             str,
         )
 
-        parts = []
-        if body_serial:
-            parts.append(body_serial.strip())
-        if lens_serial:
-            parts.append(lens_serial.strip())
+        parts = [
+            s for s in [sanitize_serial(body_serial), sanitize_serial(lens_serial)] if s
+        ]
 
         if parts:
             return "_".join(parts)

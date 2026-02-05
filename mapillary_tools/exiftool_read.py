@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import exif_read
+from .utils import sanitize_serial
 
 
 EXIFTOOL_NAMESPACES: dict[str, str] = {
@@ -501,11 +502,9 @@ class ExifToolRead(exif_read.ExifReadABC):
             str,
         )
 
-        parts = []
-        if body_serial:
-            parts.append(body_serial.strip())
-        if lens_serial:
-            parts.append(lens_serial.strip())
+        parts = [
+            s for s in [sanitize_serial(body_serial), sanitize_serial(lens_serial)] if s
+        ]
 
         if parts:
             return "_".join(parts)
