@@ -23,7 +23,7 @@ jobs:
           - platform: macos-latest # M1/M2
             os: macos
             architecture: arm64
-          - platform: macos-13 # Intel
+          - platform: macos-15-intel # Intel
             os: macos
             architecture: x64
 
