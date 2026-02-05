@@ -19,6 +19,8 @@ from pathlib import Path
 import exifread
 from exifread.utils import Ratio
 
+from .utils import sanitize_serial
+
 
 LOG = logging.getLogger(__name__)
 XMP_NAMESPACES = {
@@ -512,11 +514,9 @@ class ExifReadFromXMP(ExifReadABC):
             str,
         )
 
-        parts = []
-        if body_serial:
-            parts.append(body_serial.strip())
-        if lens_serial:
-            parts.append(lens_serial.strip())
+        parts = [
+            s for s in [sanitize_serial(body_serial), sanitize_serial(lens_serial)] if s
+        ]
 
         if parts:
             return "_".join(parts)
@@ -880,11 +880,9 @@ class ExifReadFromEXIF(ExifReadABC):
             str,
         )
 
-        parts = []
-        if body_serial:
-            parts.append(body_serial.strip())
-        if lens_serial:
-            parts.append(lens_serial.strip())
+        parts = [
+            s for s in [sanitize_serial(body_serial), sanitize_serial(lens_serial)] if s
+        ]
 
         if parts:
             return "_".join(parts)

@@ -359,6 +359,17 @@ class TestExtractCameraUuidFromEXIF:
         }
         assert reader.extract_camera_uuid() == "BODY123_LENS456"
 
+    def test_special_characters_removed(self):
+        """Test that special characters are removed from serial numbers"""
+        from mapillary_tools.exif_read import ExifReadFromEXIF
+
+        reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
+        reader.tags = {
+            "EXIF BodySerialNumber": MockExifTag("BODY-123:456"),
+            "EXIF LensSerialNumber": MockExifTag("LENS/789.ABC"),
+        }
+        assert reader.extract_camera_uuid() == "BODY123456_LENS789ABC"
+
 
 class TestExtractCameraUuidFromXMP:
     """Test extract_camera_uuid from XMP tags"""
@@ -395,23 +406,23 @@ class TestExtractCameraUuidFromXMP:
 
     def test_xmp_body_serial_only(self):
         """Test XMP with only body serial number"""
-        reader = self._create_xmp_reader({"exifEX:BodySerialNumber": "XMP_BODY123"})
-        assert reader.extract_camera_uuid() == "XMP_BODY123"
+        reader = self._create_xmp_reader({"exifEX:BodySerialNumber": "XMPBODY123"})
+        assert reader.extract_camera_uuid() == "XMPBODY123"
 
     def test_xmp_lens_serial_only(self):
         """Test XMP with only lens serial number"""
-        reader = self._create_xmp_reader({"exifEX:LensSerialNumber": "XMP_LENS456"})
-        assert reader.extract_camera_uuid() == "XMP_LENS456"
+        reader = self._create_xmp_reader({"exifEX:LensSerialNumber": "XMPLENS456"})
+        assert reader.extract_camera_uuid() == "XMPLENS456"
 
     def test_xmp_both_serials(self):
         """Test XMP with both body and lens serial numbers"""
         reader = self._create_xmp_reader(
             {
-                "exifEX:BodySerialNumber": "XMP_BODY",
-                "exifEX:LensSerialNumber": "XMP_LENS",
+                "exifEX:BodySerialNumber": "XMPBODY",
+                "exifEX:LensSerialNumber": "XMPLENS",
             }
         )
-        assert reader.extract_camera_uuid() == "XMP_BODY_XMP_LENS"
+        assert reader.extract_camera_uuid() == "XMPBODY_XMPLENS"
 
     def test_xmp_no_serials(self):
         """Test XMP with no serial numbers"""
@@ -420,13 +431,13 @@ class TestExtractCameraUuidFromXMP:
 
     def test_xmp_aux_serial_number(self):
         """Test XMP with aux:SerialNumber (Adobe auxiliary namespace)"""
-        reader = self._create_xmp_reader({"aux:SerialNumber": "AUX_SERIAL123"})
-        assert reader.extract_camera_uuid() == "AUX_SERIAL123"
+        reader = self._create_xmp_reader({"aux:SerialNumber": "AUXSERIAL123"})
+        assert reader.extract_camera_uuid() == "AUXSERIAL123"
 
     def test_xmp_aux_lens_serial_number(self):
         """Test XMP with aux:LensSerialNumber"""
-        reader = self._create_xmp_reader({"aux:LensSerialNumber": "AUX_LENS456"})
-        assert reader.extract_camera_uuid() == "AUX_LENS456"
+        reader = self._create_xmp_reader({"aux:LensSerialNumber": "AUXLENS456"})
+        assert reader.extract_camera_uuid() == "AUXLENS456"
 
 
 class TestExtractCameraUuidIntegration:
@@ -565,8 +576,8 @@ class TestExifToolReadExtractCameraUuid:
 
     def test_ifd0_serial_fallback(self):
         """Test that IFD0:SerialNumber is used as fallback"""
-        reader = self._create_exiftool_reader({"IFD0:SerialNumber": "IFD0_SN_123"})
-        assert reader.extract_camera_uuid() == "IFD0_SN_123"
+        reader = self._create_exiftool_reader({"IFD0:SerialNumber": "IFD0SN123"})
+        assert reader.extract_camera_uuid() == "IFD0SN123"
 
     def test_body_serial_priority_over_generic(self):
         """Test that BodySerialNumber takes priority over generic SerialNumber"""
@@ -587,25 +598,25 @@ class TestExifToolReadExtractCameraUuid:
 
     def test_xmp_aux_serial(self):
         """Test XMP-aux:SerialNumber extraction"""
-        reader = self._create_exiftool_reader({"XMP-aux:SerialNumber": "AUX_SN_456"})
-        assert reader.extract_camera_uuid() == "AUX_SN_456"
+        reader = self._create_exiftool_reader({"XMP-aux:SerialNumber": "AUXSN456"})
+        assert reader.extract_camera_uuid() == "AUXSN456"
 
     def test_xmp_aux_lens_serial(self):
         """Test XMP-aux:LensSerialNumber extraction"""
         reader = self._create_exiftool_reader(
-            {"XMP-aux:LensSerialNumber": "AUX_LENS_789"}
+            {"XMP-aux:LensSerialNumber": "AUXLENS789"}
         )
-        assert reader.extract_camera_uuid() == "AUX_LENS_789"
+        assert reader.extract_camera_uuid() == "AUXLENS789"
 
     def test_xmp_combined(self):
         """Test XMP body and lens serial combined"""
         reader = self._create_exiftool_reader(
             {
-                "XMP-exifEX:BodySerialNumber": "XMP_BODY",
-                "XMP-exifEX:LensSerialNumber": "XMP_LENS",
+                "XMP-exifEX:BodySerialNumber": "XMPBODY",
+                "XMP-exifEX:LensSerialNumber": "XMPLENS",
             }
         )
-        assert reader.extract_camera_uuid() == "XMP_BODY_XMP_LENS"
+        assert reader.extract_camera_uuid() == "XMPBODY_XMPLENS"
 
     def test_whitespace_stripped(self):
         """Test that whitespace is stripped from serial numbers"""

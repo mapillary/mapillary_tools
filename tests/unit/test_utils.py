@@ -124,3 +124,46 @@ def test_filter_all(tmpdir: py.path.local):
             or {"foo/world.mp4", "foo/world.MP4", "foo/world.ts"} == actual
             or {"foo/world.mp4", "foo/world.ts"} == actual
         )
+
+
+class TestSanitizeSerial:
+    """Tests for sanitize_serial function"""
+
+    def test_none_input(self):
+        """Test that None input returns None"""
+        assert utils.sanitize_serial(None) is None
+
+    def test_alphanumeric_unchanged(self):
+        """Test that alphanumeric strings are unchanged"""
+        assert utils.sanitize_serial("ABC123") == "ABC123"
+        assert utils.sanitize_serial("abc123xyz") == "abc123xyz"
+
+    def test_removes_whitespace(self):
+        """Test that whitespace is removed"""
+        assert utils.sanitize_serial("  ABC123  ") == "ABC123"
+        assert utils.sanitize_serial("ABC 123") == "ABC123"
+        assert utils.sanitize_serial(" A B C ") == "ABC"
+
+    def test_removes_special_characters(self):
+        """Test that special characters are removed"""
+        assert utils.sanitize_serial("ABC-123") == "ABC123"
+        assert utils.sanitize_serial("ABC_123") == "ABC123"
+        assert utils.sanitize_serial("ABC/123") == "ABC123"
+        assert utils.sanitize_serial("ABC:123") == "ABC123"
+        assert utils.sanitize_serial("ABC.123") == "ABC123"
+
+    def test_removes_mixed_special_chars(self):
+        """Test removal of various special characters"""
+        assert utils.sanitize_serial("SN:ABC-123/XYZ") == "SNABC123XYZ"
+        assert utils.sanitize_serial("(ABC)[123]{XYZ}") == "ABC123XYZ"
+
+    def test_empty_after_sanitize_returns_none(self):
+        """Test that empty result after sanitization returns None"""
+        assert utils.sanitize_serial("") is None
+        assert utils.sanitize_serial("   ") is None
+        assert utils.sanitize_serial("---") is None
+        assert utils.sanitize_serial("!@#$%^&*()") is None
+
+    def test_preserves_case(self):
+        """Test that case is preserved"""
+        assert utils.sanitize_serial("AbC123xYz") == "AbC123xYz"

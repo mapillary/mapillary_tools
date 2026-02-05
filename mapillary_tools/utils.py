@@ -59,6 +59,17 @@ def is_video_file(path: Path) -> bool:
     )
 
 
+def sanitize_serial(s: str | None) -> str | None:
+    """
+    Sanitize a serial number by removing all non-alphanumeric characters.
+    Returns None if the input is None or if the result is empty after cleaning.
+    """
+    if s is None:
+        return None
+    cleaned = "".join(c for c in s if c.isalnum())
+    return cleaned if cleaned else None
+
+
 def iterate_files(
     root: Path, recursive: bool = False, follow_hidden_dirs: bool = False
 ) -> T.Generator[Path, None, None]:
