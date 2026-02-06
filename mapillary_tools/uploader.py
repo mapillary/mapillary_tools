@@ -302,10 +302,33 @@ class VideoUploader:
                 camm_info.gps.append(point)
 
             elif isinstance(point, telemetry.GPSPoint):
-                # There is no proper CAMM entry for GoPro GPS
-                if camm_info.mini_gps is None:
-                    camm_info.mini_gps = []
-                camm_info.mini_gps.append(point)
+                # Convert GPSPoint to CAMMGPSPoint if it has a valid epoch_time,
+                # so the GPS timestamp is preserved in the CAMM type 6 entry
+                if point.epoch_time is not None and point.epoch_time > 0:
+                    camm_point = telemetry.CAMMGPSPoint(
+                        time=point.time,
+                        lat=point.lat,
+                        lon=point.lon,
+                        alt=point.alt,
+                        angle=point.angle,
+                        time_gps_epoch=point.epoch_time,
+                        gps_fix_type=point.fix.value
+                        if point.fix is not None
+                        else (3 if point.alt is not None else 2),
+                        horizontal_accuracy=0.0,
+                        vertical_accuracy=0.0,
+                        velocity_east=0.0,
+                        velocity_north=0.0,
+                        velocity_up=0.0,
+                        speed_accuracy=0.0,
+                    )
+                    if camm_info.gps is None:
+                        camm_info.gps = []
+                    camm_info.gps.append(camm_point)
+                else:
+                    if camm_info.mini_gps is None:
+                        camm_info.mini_gps = []
+                    camm_info.mini_gps.append(point)
 
             elif isinstance(point, geo.Point):
                 if camm_info.mini_gps is None:

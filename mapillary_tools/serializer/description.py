@@ -25,7 +25,7 @@ else:
 
 import jsonschema
 
-from .. import exceptions, geo
+from .. import exceptions, geo, telemetry
 from ..types import (
     BaseSerializer,
     describe_error_metadata,
@@ -195,6 +195,10 @@ VideoDescriptionSchema = {
                     {
                         "type": ["number", "null"],
                         "description": "Camera angle of the track point, in degrees. If null, the angle will be interpolated",
+                    },
+                    {
+                        "type": ["number", "null"],
+                        "description": "GPS epoch time of the track point, in seconds. If present, used as the authoritative timestamp",
                     },
                 ],
             },
@@ -509,18 +513,45 @@ class DescriptionJSONSerializer(BaseSerializer):
 class PointEncoder:
     @classmethod
     def encode(cls, p: geo.Point) -> T.Sequence[float | int | None]:
-        entry = [
+        entry: list[float | int | None] = [
             int(p.time * 1000),
             round(p.lon, _COORDINATES_PRECISION),
             round(p.lat, _COORDINATES_PRECISION),
             round(p.alt, _ALTITUDE_PRECISION) if p.alt is not None else None,
             round(p.angle, _ANGLE_PRECISION) if p.angle is not None else None,
         ]
+        gps_epoch_time = p.get_gps_epoch_time()
+        if gps_epoch_time is not None:
+            entry.append(gps_epoch_time)
         return entry
 
     @classmethod
     def decode(cls, entry: T.Sequence[T.Any]) -> geo.Point:
-        time_ms, lon, lat, alt, angle = entry
+        if len(entry) >= 6 and entry[5] is not None:
+            time_ms, lon, lat, alt, angle, time_gps_epoch = (
+                entry[0],
+                entry[1],
+                entry[2],
+                entry[3],
+                entry[4],
+                entry[5],
+            )
+            return telemetry.CAMMGPSPoint(
+                time=time_ms / 1000,
+                lat=lat,
+                lon=lon,
+                alt=alt,
+                angle=angle,
+                time_gps_epoch=time_gps_epoch,
+                gps_fix_type=3 if alt is not None else 2,
+                horizontal_accuracy=0.0,
+                vertical_accuracy=0.0,
+                velocity_east=0.0,
+                velocity_north=0.0,
+                velocity_up=0.0,
+                speed_accuracy=0.0,
+            )
+        time_ms, lon, lat, alt, angle = entry[0], entry[1], entry[2], entry[3], entry[4]
         return geo.Point(time=time_ms / 1000, lon=lon, lat=lat, alt=alt, angle=angle)
 
 
