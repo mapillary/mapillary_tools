@@ -3,7 +3,7 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
-# pyre-ignore-all-errors[4]
+# pyre-ignore-all-errors[4, 16]
 from __future__ import annotations
 
 import bisect
