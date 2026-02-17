@@ -202,24 +202,41 @@ def _aggregate_gps_track(
     # aggregate speeds (optional)
     ground_speeds = _aggregate_float_values_same_length(ground_speed_tag)
 
-    # GPS timestamp (optional)
-    epoch_time = None
+    # GPS epoch times (optional)
     if gps_time_tag is not None:
-        gps_time_text = _extract_alternative_fields(texts_by_tag, [gps_time_tag], str)
-        if gps_time_text is not None:
-            dt = exif_read.parse_gps_datetime(gps_time_text)
-            if dt is not None:
-                epoch_time = geo.as_unix_time(dt)
+        gps_epoch_times: list[float | None] = [
+            geo.as_unix_time(dt) if dt is not None else None
+            for dt in (
+                exif_read.parse_gps_datetime(text)
+                for text in _extract_alternative_fields(
+                    texts_by_tag, [gps_time_tag], list
+                )
+                or []
+            )
+        ]
+        if len(gps_epoch_times) != expected_length:
+            LOG.warning(
+                "Found different number of GPS epoch times %d and coordinates %d",
+                len(gps_epoch_times),
+                expected_length,
+            )
+            gps_epoch_times = [None] * expected_length
+    elif time_tag is not None:
+        # Use per-point GPS timestamps as epoch times
+        gps_epoch_times = [t for t in timestamps]
+    else:
+        gps_epoch_times = [None] * expected_length
 
     # build track
     track: list[GPSPoint] = []
-    for timestamp, lon, lat, alt, direction, ground_speed in zip(
+    for timestamp, lon, lat, alt, direction, ground_speed, epoch_time in zip(
         timestamps,
         lons,
         lats,
         alts,
         directions,
         ground_speeds,
+        gps_epoch_times,
     ):
         if timestamp is None or lon is None or lat is None:
             continue
@@ -329,6 +346,7 @@ def _aggregate_gps_track_by_sample_time(
             lon_tag=lon_tag,
             lat_tag=lat_tag,
             alt_tag=alt_tag,
+            gps_time_tag=gps_time_tag,
             direction_tag=direction_tag,
             ground_speed_tag=ground_speed_tag,
         )
@@ -484,6 +502,7 @@ class ExifToolReadVideo:
                     lon_tag=f"{track_ns}:GPSLongitude",
                     lat_tag=f"{track_ns}:GPSLatitude",
                     alt_tag=f"{track_ns}:GPSAltitude",
+                    gps_time_tag=f"{track_ns}:GPSDateTime",
                     direction_tag=f"{track_ns}:GPSTrack",
                     ground_speed_tag=f"{track_ns}:GPSSpeed",
                     gps_fix_tag=f"{track_ns}:GPSMeasureMode",
@@ -521,5 +540,6 @@ class ExifToolReadVideo:
             lon_tag=f"{namespace}:GPSLongitude",
             lat_tag=f"{namespace}:GPSLatitude",
             alt_tag=f"{namespace}:GPSAltitude",
+            gps_time_tag=f"{namespace}:GPSDateTime",
             direction_tag=f"{namespace}:GPSTrack",
         )
