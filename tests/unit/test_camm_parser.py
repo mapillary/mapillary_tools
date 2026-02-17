@@ -351,3 +351,62 @@ def test_build_and_parse3():
     )
     x = encode_decode_empty_camm_mp4(metadata)
     assert [] == x.points
+
+
+def test_camm_trak_carries_mvhd_timestamps():
+    """Verify that creation_time and modification_time from the source video's
+    mvhd are carried into the CAMM track's tkhd and mdhd boxes."""
+    from mapillary_tools.mp4 import mp4_sample_parser as sample_parser
+
+    movie_timescale = 1_000_000
+    src_creation_time = 3_692_845_200  # 2021-01-01 in MP4 epoch
+    src_modification_time = 3_692_845_300
+
+    mvhd: cparser.BoxDict = {
+        "type": b"mvhd",
+        "data": {
+            "creation_time": src_creation_time,
+            "modification_time": src_modification_time,
+            "timescale": movie_timescale,
+            "duration": int(36000 * movie_timescale),
+        },
+    }
+
+    empty_mp4: T.List[cparser.BoxDict] = [
+        {"type": b"ftyp", "data": b"test"},
+        {"type": b"moov", "data": [mvhd]},
+    ]
+    src = cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(empty_mp4)
+
+    points = [
+        geo.Point(time=0.1, lat=0.01, lon=0.2, alt=None, angle=None),
+        geo.Point(time=0.2, lat=0.02, lon=0.3, alt=None, angle=None),
+    ]
+    metadata = types.VideoMetadata(
+        Path(""),
+        filetype=types.FileType.CAMM,
+        points=points,
+    )
+    input_camm_info = uploader.VideoUploader.prepare_camm_info(metadata)
+    target_fp = simple_mp4_builder.transform_mp4(
+        io.BytesIO(src), camm_builder.camm_sample_generator2(input_camm_info)
+    )
+
+    # Parse the output MP4 and find the CAMM track
+    movie = sample_parser.MovieBoxParser.parse_stream(T.cast(T.BinaryIO, target_fp))
+    camm_track = None
+    for track in movie.extract_tracks():
+        descs = track.extract_sample_descriptions()
+        if any(d.get("format") == b"camm" for d in descs):
+            camm_track = track
+            break
+
+    assert camm_track is not None, "CAMM track not found in output MP4"
+
+    tkhd = camm_track.extract_tkhd_boxdata()
+    assert tkhd["creation_time"] == src_creation_time
+    assert tkhd["modification_time"] == src_modification_time
+
+    mdhd = camm_track.extract_mdhd_boxdata()
+    assert mdhd["creation_time"] == src_creation_time
+    assert mdhd["modification_time"] == src_modification_time

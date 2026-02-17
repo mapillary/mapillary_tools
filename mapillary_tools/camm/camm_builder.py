@@ -132,6 +132,8 @@ def _create_camm_stbl(
 def create_camm_trak(
     raw_samples: T.Sequence[sample_parser.RawSample],
     media_timescale: int,
+    creation_time: int = 0,
+    modification_time: int = 0,
 ) -> builder.BoxDict:
     stbl = _create_camm_stbl(raw_samples)
 
@@ -152,11 +154,8 @@ def create_camm_trak(
         "data": {
             # use 64-bit version
             "version": 1,
-            # TODO: find timestamps from mvhd?
-            # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
-            # make sure the md5 of the new mp4 file unchanged
-            "creation_time": 0,
-            "modification_time": 0,
+            "creation_time": creation_time,
+            "modification_time": modification_time,
             "timescale": media_timescale,
             "duration": media_duration,
             "language": 21956,
@@ -197,11 +196,8 @@ def create_camm_trak(
         "data": {
             # use 32-bit version of the box
             "version": 0,
-            # TODO: find timestamps from mvhd?
-            # do not set dynamic timestamps (e.g. time.time()) here because we'd like to
-            # make sure the md5 of the new mp4 file unchanged
-            "creation_time": 0,
-            "modification_time": 0,
+            "creation_time": creation_time,
+            "modification_time": modification_time,
             # will update the track ID later
             "track_ID": 0,
             # If the duration of this track cannot be determined then duration is set to all 1s (32-bit maxint).
@@ -237,6 +233,12 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
         # Make sure the precision of timedeltas not lower than 0.001 (1ms)
         media_timescale = max(1000, movie_timescale)
 
+        # Carry creation/modification times from the source video's mvhd
+        mvhd = cparser.find_box_at_pathx(moov_children, [b"mvhd"])
+        mvhd_data = T.cast(T.Dict[str, T.Any], mvhd["data"])
+        creation_time = mvhd_data.get("creation_time", 0)
+        modification_time = mvhd_data.get("modification_time", 0)
+
         # Multiplex points for creating elst
         track: list[geo.Point] = [
             *(camm_info.gps or []),
@@ -264,7 +266,9 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
             convert_telemetry_to_raw_samples(measurements, media_timescale)
         )
 
-        camm_trak = create_camm_trak(camm_samples, media_timescale)
+        camm_trak = create_camm_trak(
+            camm_samples, media_timescale, creation_time, modification_time
+        )
 
         if T.cast(T.Dict, elst["data"])["entries"]:
             T.cast(T.List[builder.BoxDict], camm_trak["data"]).append(
