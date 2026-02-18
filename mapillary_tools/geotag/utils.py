@@ -12,7 +12,7 @@ from pathlib import Path
 
 import gpxpy
 
-from .. import exiftool_read, geo, utils
+from .. import exiftool_read, geo, telemetry, utils
 
 Track = T.List[geo.Point]
 LOG = logging.getLogger(__name__)
@@ -29,13 +29,22 @@ def parse_gpx(gpx_file: Path) -> list[Track]:
             tracks.append([])
             for point in segment.points:
                 if point.time is not None:
+                    unix_time = geo.as_unix_time(point.time)
                     tracks[-1].append(
-                        geo.Point(
-                            time=geo.as_unix_time(point.time),
+                        telemetry.CAMMGPSPoint(
+                            time=unix_time,
                             lat=point.latitude,
                             lon=point.longitude,
                             alt=point.elevation,
                             angle=None,
+                            time_gps_epoch=unix_time,
+                            gps_fix_type=3 if point.elevation is not None else 2,
+                            horizontal_accuracy=0.0,
+                            vertical_accuracy=0.0,
+                            velocity_east=0.0,
+                            velocity_north=0.0,
+                            velocity_up=0.0,
+                            speed_accuracy=0.0,
                         )
                     )
 

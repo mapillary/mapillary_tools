@@ -34,6 +34,13 @@
                                     "null"
                                 ],
                                 "description": "Camera angle of the track point, in degrees. If null, the angle will be interpolated"
+                            },
+                            {
+                                "type": [
+                                    "number",
+                                    "null"
+                                ],
+                                "description": "GPS epoch time of the track point, in seconds. If present, used as the authoritative timestamp"
                             }
                         ]
                     }
