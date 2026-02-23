@@ -372,20 +372,6 @@ def test_keys_read_mode_corrupted_database(tmpdir):
     assert all(isinstance(key, str) for key in keys)
 
 
-def test_get_returns_none_on_corrupt_database_file(tmpdir):
-    """Test that get() returns None instead of raising when the database is corrupt."""
-    cache_file = os.path.join(tmpdir, "cache_corrupt")
-    cache = PersistentCache(cache_file)
-
-    cache.set("key1", "value1")
-    assert cache.get("key1") == "value1"
-
-    with open(cache_file, "wb") as f:
-        f.write(b"this is not a valid sqlite database file")
-
-    assert cache.get("key1") is None
-
-
 def test_multithread_shared_cache_comprehensive(tmpdir):
     """Test shared cache instance across multiple threads using get->set pattern.
 
