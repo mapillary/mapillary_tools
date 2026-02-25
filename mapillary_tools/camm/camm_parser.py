@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import datetime
 import io
 import logging
+import struct
 import typing as T
 from enum import Enum
 
@@ -58,16 +60,22 @@ class CAMMInfo:
     magn: list[telemetry.MagnetometerData] | None = None
     make: str = ""
     model: str = ""
+    # GPS datetime from RMKN (Ricoh Maker Note) EXIF data, if available.
+    # This is a true GPS-derived UTC timestamp corresponding to the
+    # first CAMM Type 5 GPS point in the video.
+    gps_datetime: datetime.datetime | None = None
 
 
 def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo | None:
     moov = MovieBoxParser.parse_stream(fp)
 
     make, model = "", ""
+    gps_datetime: datetime.datetime | None = None
     if not telemetry_only:
         udta_boxdata = moov.extract_udta_boxdata()
         if udta_boxdata is not None:
             make, model = _extract_camera_make_and_model_from_utda_boxdata(udta_boxdata)
+            gps_datetime = _extract_gps_datetime_from_udta_boxdata(udta_boxdata)
 
     gps_only_construct = _construct_with_selected_camm_types(
         [CAMMType.MIN_GPS, CAMMType.GPS]
@@ -121,7 +129,13 @@ def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo 
                     elif isinstance(measurement, telemetry.CAMMGPSPoint):
                         gps.append(measurement)
 
-                return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
+                return CAMMInfo(
+                    mini_gps=mini_gps,
+                    gps=gps,
+                    make=make,
+                    model=model,
+                    gps_datetime=gps_datetime,
+                )
 
     return None
 
@@ -549,6 +563,164 @@ def _parse_quietly(data: bytes, type: bytes) -> bytes:
         return b""
 
     return parsed["data"]
+
+
+def _extract_gps_datetime_from_udta_boxdata(
+    utda_boxdata: dict,
+) -> datetime.datetime | None:
+    """Extract GPS datetime from the RMKN (Ricoh Maker Note) box in udta."""
+    for box in utda_boxdata:
+        if box.type == b"RMKN":
+            gps_dt = _extract_gps_datetime_from_rmkn(box.data)
+            if gps_dt is not None:
+                return gps_dt
+    return None
+
+
+def _extract_gps_datetime_from_rmkn(rmkn_data: bytes) -> datetime.datetime | None:
+    """Extract GPS datetime from RMKN (Ricoh Maker Note) EXIF data.
+
+    The RMKN box contains TIFF/EXIF data with a GPS IFD that includes
+    GPSDateStamp and GPSTimeStamp tags. These are true GPS-derived UTC
+    timestamps recorded by the camera at the start of video recording.
+
+    Returns a timezone-aware UTC datetime, or None if not available.
+    """
+    if len(rmkn_data) < 8:
+        return None
+
+    # Parse TIFF header
+    byte_order = rmkn_data[:2]
+    if byte_order == b"MM":
+        endian = ">"
+    elif byte_order == b"II":
+        endian = "<"
+    else:
+        return None
+
+    magic = struct.unpack(f"{endian}H", rmkn_data[2:4])[0]
+    if magic != 42:
+        return None
+
+    ifd0_offset = struct.unpack(f"{endian}I", rmkn_data[4:8])[0]
+
+    # Parse IFD0 to find GPS IFD pointer (tag 0x8825)
+    gps_ifd_offset = _find_ifd_tag_long(rmkn_data, endian, ifd0_offset, 0x8825)
+    if gps_ifd_offset is None:
+        return None
+
+    # Parse GPS IFD to find GPSDateStamp (0x001D) and GPSTimeStamp (0x0007)
+    gps_date_str = _read_ifd_ascii_tag(rmkn_data, endian, gps_ifd_offset, 0x001D)
+    gps_time_rationals = _read_ifd_rational_tag(
+        rmkn_data, endian, gps_ifd_offset, 0x0007, count=3
+    )
+
+    if gps_date_str is None or gps_time_rationals is None:
+        return None
+
+    try:
+        # GPSDateStamp is "YYYY:MM:DD"
+        date_parts = gps_date_str.strip().split(":")
+        year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+
+        # GPSTimeStamp is 3 RATIONAL values: hours, minutes, seconds
+        hour = gps_time_rationals[0][0] // gps_time_rationals[0][1]
+        minute = gps_time_rationals[1][0] // gps_time_rationals[1][1]
+        sec_num, sec_den = gps_time_rationals[2]
+        second = sec_num // sec_den
+        microsecond = ((sec_num % sec_den) * 1_000_000) // sec_den if sec_den > 0 else 0
+
+        return datetime.datetime(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            microsecond,
+            tzinfo=datetime.timezone.utc,
+        )
+    except (ValueError, IndexError, ZeroDivisionError):
+        return None
+
+
+def _find_ifd_tag_long(
+    data: bytes, endian: str, ifd_offset: int, target_tag: int
+) -> int | None:
+    """Find a LONG (4-byte) value for a specific tag in a TIFF IFD."""
+    if ifd_offset + 2 > len(data):
+        return None
+    num_entries = struct.unpack(f"{endian}H", data[ifd_offset : ifd_offset + 2])[0]
+    for i in range(num_entries):
+        entry_offset = ifd_offset + 2 + i * 12
+        if entry_offset + 12 > len(data):
+            break
+        tag = struct.unpack(f"{endian}H", data[entry_offset : entry_offset + 2])[0]
+        if tag == target_tag:
+            value = struct.unpack(
+                f"{endian}I", data[entry_offset + 8 : entry_offset + 12]
+            )[0]
+            return value
+    return None
+
+
+def _read_ifd_ascii_tag(
+    data: bytes, endian: str, ifd_offset: int, target_tag: int
+) -> str | None:
+    """Read an ASCII string tag from a TIFF IFD."""
+    if ifd_offset + 2 > len(data):
+        return None
+    num_entries = struct.unpack(f"{endian}H", data[ifd_offset : ifd_offset + 2])[0]
+    for i in range(num_entries):
+        entry_offset = ifd_offset + 2 + i * 12
+        if entry_offset + 12 > len(data):
+            break
+        tag = struct.unpack(f"{endian}H", data[entry_offset : entry_offset + 2])[0]
+        if tag == target_tag:
+            count = struct.unpack(
+                f"{endian}I", data[entry_offset + 4 : entry_offset + 8]
+            )[0]
+            if count <= 4:
+                raw = data[entry_offset + 8 : entry_offset + 8 + count]
+            else:
+                offset = struct.unpack(
+                    f"{endian}I", data[entry_offset + 8 : entry_offset + 12]
+                )[0]
+                if offset + count > len(data):
+                    return None
+                raw = data[offset : offset + count]
+            return raw.rstrip(b"\x00").decode("ascii", errors="replace")
+    return None
+
+
+def _read_ifd_rational_tag(
+    data: bytes, endian: str, ifd_offset: int, target_tag: int, count: int = 1
+) -> list[tuple[int, int]] | None:
+    """Read RATIONAL values (numerator/denominator pairs) from a TIFF IFD tag."""
+    if ifd_offset + 2 > len(data):
+        return None
+    num_entries = struct.unpack(f"{endian}H", data[ifd_offset : ifd_offset + 2])[0]
+    for i in range(num_entries):
+        entry_offset = ifd_offset + 2 + i * 12
+        if entry_offset + 12 > len(data):
+            break
+        tag = struct.unpack(f"{endian}H", data[entry_offset : entry_offset + 2])[0]
+        if tag == target_tag:
+            offset = struct.unpack(
+                f"{endian}I", data[entry_offset + 8 : entry_offset + 12]
+            )[0]
+            rationals = []
+            for j in range(count):
+                rat_offset = offset + j * 8
+                if rat_offset + 8 > len(data):
+                    return None
+                num = struct.unpack(f"{endian}I", data[rat_offset : rat_offset + 4])[0]
+                den = struct.unpack(
+                    f"{endian}I", data[rat_offset + 4 : rat_offset + 8]
+                )[0]
+                rationals.append((num, den))
+            return rationals
+    return None
 
 
 def _extract_camera_make_and_model_from_utda_boxdata(
