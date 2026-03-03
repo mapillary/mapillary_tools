@@ -279,22 +279,11 @@ class FFMPEG:
                         *["-filter_script:v", select_file.name],
                         # Each frame is passed with its timestamp from the demuxer to the muxer
                         *["-vsync", "0"],
-                        # vsync is deprecated by fps_mode,
-                        # but fps_mode is not avaliable on some older versions ;(
-                        # *[f"-fps_mode:{stream_specifier}", "passthrough"],
                         # Set the number of video frames to output (this is an optimization to let ffmpeg stop early)
                         *["-frames:v", str(len(frame_indices))],
-                        # Disabled because it doesn't always name the sample images as expected
-                        # For example "select(n\,1)" we expected the first sample to be IMG_001.JPG
-                        # but it could be IMG_005.JPG
-                        # https://www.ffmpeg.org/ffmpeg-formats.html#Options-21
-                        # If set to 1, expand the filename with pts from pkt->pts. Default value is 0.
-                        # *["-frame_pts", "1"],
                     ],
                     # Video quality level (or the alias -q:v)
-                    # -q:v=1 is the best quality but larger image sizes
                     # see https://stackoverflow.com/a/10234065
-                    # *["-qscale:v", "1", "-qmin", "1"],
                     *["-qscale:v", "2"],
                     # output
                     output_template,

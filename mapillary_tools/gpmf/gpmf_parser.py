@@ -218,22 +218,6 @@ def extract_gopro_info(
     return None
 
 
-def extract_camera_model(fp: T.BinaryIO) -> str:
-    moov = MovieBoxParser.parse_stream(fp)
-    for track in moov.extract_tracks():
-        if _contains_gpmd_description(track):
-            gpmd_samples = _filter_gpmd_samples(track)
-            dvnm_by_dvid: dict[int, bytes] = {}
-            device_found = _load_telemetry_from_samples(
-                fp, gpmd_samples, dvnm_by_dvid=dvnm_by_dvid
-            )
-            if not device_found:
-                return ""
-            return _extract_camera_model_from_devices(dvnm_by_dvid)
-
-    return ""
-
-
 def _gps5_timestamp_to_epoch_time(dtstr: str):
     # yymmddhhmmss.sss
     dt = datetime.datetime.strptime(dtstr, "%y%m%d%H%M%S.%f").replace(

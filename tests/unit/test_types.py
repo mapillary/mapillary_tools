@@ -20,7 +20,6 @@ def test_desc():
             alt=3,
             angle=4,
             time=5,
-            MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPSequenceUUID="MAPSequenceUUID",
             MAPDeviceMake="MAPDeviceMake",
             MAPDeviceModel="MAPDeviceModel",
@@ -40,7 +39,6 @@ def test_desc():
             alt=3,
             angle=4,
             time=5,
-            MAPMetaTags={"foo": "bar", "baz": 1.2},
             MAPOrientation=1,
         ),
     ]

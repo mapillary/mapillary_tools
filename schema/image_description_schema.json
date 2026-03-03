@@ -139,9 +139,6 @@
                     "description": "Arbitrary key for grouping images",
                     "pattern": "[a-zA-Z0-9_-]+"
                 },
-                "MAPMetaTags": {
-                    "type": "object"
-                },
                 "MAPDeviceMake": {
                     "type": "string"
                 },

@@ -260,20 +260,12 @@ def configure_logger(
 
     logger.setLevel(level)
 
-    try:
-        # Disable globally for now. TODO Disable it in non-interactive mode only
-        raise ImportError
-        from rich.console import Console  # type: ignore[import]
-        from rich.logging import RichHandler  # type: ignore[import]
-    except ImportError:
-        formatter = logging.Formatter(
-            "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
-            datefmt="%H:%M:%S",
-        )
-        handler: logging.Handler = logging.StreamHandler()
-        handler.setFormatter(formatter)
-    else:
-        handler = RichHandler(console=Console(stderr=True), rich_tracebacks=True)  # type: ignore
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    handler: logging.Handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
 
     logger.addHandler(handler)
 
