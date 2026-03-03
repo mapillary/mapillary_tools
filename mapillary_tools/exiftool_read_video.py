@@ -120,6 +120,86 @@ def _deduplicate_gps_points(
     return deduplicated_track
 
 
+def _aggregate_float_values_same_length(
+    texts_by_tag: dict[str, list[str]],
+    tag: str | None,
+    expected_length: int,
+) -> list[float | None]:
+    if tag is not None:
+        vals = [
+            _maybe_float(val)
+            for val in _extract_alternative_fields(texts_by_tag, [tag], list) or []
+        ]
+    else:
+        vals = []
+    while len(vals) < expected_length:
+        vals.append(None)
+    return vals
+
+
+def _aggregate_epoch_times(
+    texts_by_tag: dict[str, list[str]],
+    gps_time_tag: str | None,
+    time_tag: str | None,
+    timestamps: list[float | None],
+    expected_length: int,
+) -> list[float | None]:
+    """Aggregate GPS epoch times from tags, with fallback to per-point timestamps."""
+    if gps_time_tag is not None:
+        gps_epoch_times: list[float | None] = [
+            geo.as_unix_time(dt) if dt is not None else None
+            for dt in (
+                exif_read.parse_gps_datetime(text)
+                for text in _extract_alternative_fields(
+                    texts_by_tag, [gps_time_tag], list
+                )
+                or []
+            )
+        ]
+        if len(gps_epoch_times) != expected_length:
+            LOG.warning(
+                "Found different number of GPS epoch times %d and coordinates %d",
+                len(gps_epoch_times),
+                expected_length,
+            )
+            gps_epoch_times = [None] * expected_length
+        return gps_epoch_times
+    elif time_tag is not None:
+        # Use per-point GPS timestamps as epoch times
+        return [t for t in timestamps]
+    else:
+        return [None] * expected_length
+
+
+def _aggregate_timestamps(
+    texts_by_tag: dict[str, list[str]],
+    time_tag: str | None,
+    expected_length: int,
+) -> list[float | None] | None:
+    """Aggregate timestamps from the time tag.
+
+    Returns the timestamp list, or None if the lengths don't match
+    (caller should return [] in that case).
+    """
+    if time_tag is not None:
+        dts = [
+            exif_read.parse_gps_datetime(text)
+            for text in _extract_alternative_fields(texts_by_tag, [time_tag], list)
+            or []
+        ]
+        timestamps = [geo.as_unix_time(dt) if dt is not None else None for dt in dts]
+        if expected_length != len(timestamps):
+            LOG.warning(
+                "Found different number of timestamps %d and coordinates %d",
+                len(timestamps),
+                expected_length,
+            )
+            return None
+    else:
+        timestamps = [0.0] * expected_length
+    return timestamps
+
+
 def _aggregate_gps_track(
     texts_by_tag: dict[str, list[str]],
     time_tag: str | None,
@@ -159,73 +239,29 @@ def _aggregate_gps_track(
     expected_length = len(lats)
 
     # aggregate timestamps (optional)
-    if time_tag is not None:
-        dts = [
-            exif_read.parse_gps_datetime(text)
-            for text in _extract_alternative_fields(texts_by_tag, [time_tag], list)
-            or []
-        ]
-        timestamps = [geo.as_unix_time(dt) if dt is not None else None for dt in dts]
-        if expected_length != len(timestamps):
-            # no idea what to do if we have different number of timestamps and coordinates
-            LOG.warning(
-                "Found different number of timestamps %d and coordinates %d",
-                len(timestamps),
-                expected_length,
-            )
-            return []
-    else:
-        timestamps = [0.0] * expected_length
+    timestamps = _aggregate_timestamps(texts_by_tag, time_tag, expected_length)
+    if timestamps is None:
+        return []
 
     assert len(timestamps) == expected_length
 
-    def _aggregate_float_values_same_length(
-        tag: str | None,
-    ) -> list[float | None]:
-        if tag is not None:
-            vals = [
-                _maybe_float(val)
-                for val in _extract_alternative_fields(texts_by_tag, [tag], list) or []
-            ]
-        else:
-            vals = []
-        while len(vals) < expected_length:
-            vals.append(None)
-        return vals
-
     # aggregate altitudes (optional)
-    alts = _aggregate_float_values_same_length(alt_tag)
+    alts = _aggregate_float_values_same_length(texts_by_tag, alt_tag, expected_length)
 
     # aggregate directions (optional)
-    directions = _aggregate_float_values_same_length(direction_tag)
+    directions = _aggregate_float_values_same_length(
+        texts_by_tag, direction_tag, expected_length
+    )
 
     # aggregate speeds (optional)
-    ground_speeds = _aggregate_float_values_same_length(ground_speed_tag)
+    ground_speeds = _aggregate_float_values_same_length(
+        texts_by_tag, ground_speed_tag, expected_length
+    )
 
     # GPS epoch times (optional)
-    if gps_time_tag is not None:
-        gps_epoch_times: list[float | None] = [
-            geo.as_unix_time(dt) if dt is not None else None
-            for dt in (
-                exif_read.parse_gps_datetime(text)
-                for text in _extract_alternative_fields(
-                    texts_by_tag, [gps_time_tag], list
-                )
-                or []
-            )
-        ]
-        if len(gps_epoch_times) != expected_length:
-            LOG.warning(
-                "Found different number of GPS epoch times %d and coordinates %d",
-                len(gps_epoch_times),
-                expected_length,
-            )
-            gps_epoch_times = [None] * expected_length
-    elif time_tag is not None:
-        # Use per-point GPS timestamps as epoch times
-        gps_epoch_times = [t for t in timestamps]
-    else:
-        gps_epoch_times = [None] * expected_length
+    gps_epoch_times = _aggregate_epoch_times(
+        texts_by_tag, gps_time_tag, time_tag, timestamps, expected_length
+    )
 
     # build track
     track: list[GPSPoint] = []
