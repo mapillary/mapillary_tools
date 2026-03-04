@@ -147,8 +147,6 @@ ImageDescriptionEXIFSchema = {
             "description": "Arbitrary key for grouping images",
             "pattern": "[a-zA-Z0-9_-]+",
         },
-        # deprecated since v0.10.0; keep here for compatibility
-        "MAPMetaTags": {"type": "object"},
         "MAPDeviceMake": {"type": "string"},
         "MAPDeviceModel": {"type": "string"},
         "MAPGPSAccuracyMeters": {"type": "number"},
@@ -439,7 +437,7 @@ class DescriptionJSONSerializer(BaseSerializer):
                 value = getattr(metadata, field.name)
                 if value is not None:
                     # ignore error: TypedDict key must be a string literal;
-                    # expected one of ("MAPMetaTags", "MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
+                    # expected one of ("MAPDeviceMake", "MAPDeviceModel", "MAPGPSAccuracyMeters", "MAPCameraUUID", ...)
                     desc[field.name] = value  # type: ignore
         return desc
 

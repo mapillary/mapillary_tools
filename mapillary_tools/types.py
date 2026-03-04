@@ -50,7 +50,6 @@ class ImageMetadata(geo.Point):
     MAPGPSAccuracyMeters: float | None = None
     MAPCameraUUID: str | None = None
     MAPOrientation: int | None = None
-    MAPMetaTags: dict | None = None
     MAPFilename: str | None = None
 
     def update_md5sum(self, image_data: T.BinaryIO | None = None) -> None:

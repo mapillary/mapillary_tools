@@ -76,18 +76,6 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
     return BlackVueInfo(model=model, gps=points)
 
 
-def extract_camera_model(fp: T.BinaryIO) -> str:
-    try:
-        cprt_bytes = sparser.parse_mp4_data_first(fp, [b"free", b"cprt"])
-    except sparser.ParsingError:
-        return ""
-
-    if cprt_bytes is None:
-        return ""
-
-    return _extract_camera_model_from_cprt(cprt_bytes)
-
-
 def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
     """
     >>> _extract_camera_model_from_cprt(b' {"model":"DR900X Plus","ver":0.918,"lang":"English","direct":1,"psn":"","temp":34,"GPS":1}')

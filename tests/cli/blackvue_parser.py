@@ -51,7 +51,8 @@ def _convert_to_track(path: pathlib.Path):
     segment = _convert_points_to_gpx_segment(blackvue_info.gps or [])
     track.segments.append(segment)
     with path.open("rb") as fp:
-        model = blackvue_parser.extract_camera_model(fp)
+        blackvue_info = blackvue_parser.extract_blackvue_info(fp)
+    model = blackvue_info.model if blackvue_info else ""
     track.description = f"Extracted from {model}"
 
     return track
