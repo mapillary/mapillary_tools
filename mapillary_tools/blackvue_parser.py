@@ -193,6 +193,50 @@ def _parse_nmea_lines(
         yield epoch_ms, message
 
 
+def _detect_timezone_offset(
+    parsed_lines: list[tuple[float, pynmea2.NMEASentence]],
+) -> float:
+    """
+    Detect timezone offset between camera clock and GPS time.
+
+    Tries RMC messages first (most reliable - has full date+time),
+    then falls back to GGA/GLL (less reliable - time only, no date).
+    Returns 0.0 if no offset could be determined.
+    """
+    first_valid_gga_gll: tuple[float, pynmea2.NMEASentence] | None = None
+
+    for epoch_sec, message in parsed_lines:
+        if message.sentence_type == "RMC":
+            if hasattr(message, "is_valid") and message.is_valid:
+                offset = _compute_timezone_offset_from_rmc(epoch_sec, message)
+                if offset is not None:
+                    LOG.debug(
+                        "Computed timezone offset %.1fs from RMC (%s %s)",
+                        offset,
+                        message.datestamp,
+                        message.timestamp,
+                    )
+                    return offset
+
+        if first_valid_gga_gll is None and message.sentence_type in ["GGA", "GLL"]:
+            if hasattr(message, "is_valid") and message.is_valid:
+                first_valid_gga_gll = (epoch_sec, message)
+
+    # Fallback: if no RMC found, try GGA/GLL (less reliable - no date info)
+    if first_valid_gga_gll is not None:
+        epoch_sec, message = first_valid_gga_gll
+        offset = _compute_timezone_offset_from_time_only(epoch_sec, message)
+        if offset is not None:
+            LOG.debug(
+                "Computed timezone offset %.1fs from %s (fallback, no date info)",
+                offset,
+                message.sentence_type,
+            )
+            return offset
+
+    return 0.0
+
+
 def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
     """
     >>> list(_parse_gps_box(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61"))
@@ -210,83 +254,47 @@ def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
     >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
     []
     """
-    timezone_offset: float | None = None
     parsed_lines: list[tuple[float, pynmea2.NMEASentence]] = []
-    first_valid_gga_gll: tuple[float, pynmea2.NMEASentence] | None = None
 
-    # First pass: collect parsed_lines and compute timezone offset from the first valid RMC message
+    # First pass: collect parsed_lines
     for epoch_ms, message in _parse_nmea_lines(gps_data):
         # Rounding needed to avoid floating point precision issues
         epoch_sec = round(epoch_ms / 1000, 3)
         parsed_lines.append((epoch_sec, message))
-        if timezone_offset is None and message.sentence_type == "RMC":
-            if hasattr(message, "is_valid") and message.is_valid:
-                timezone_offset = _compute_timezone_offset_from_rmc(epoch_sec, message)
-                if timezone_offset is not None:
-                    LOG.debug(
-                        "Computed timezone offset %.1fs from RMC (%s %s)",
-                        timezone_offset,
-                        message.datestamp,
-                        message.timestamp,
-                    )
-        # Track first valid GGA/GLL for fallback
-        if first_valid_gga_gll is None and message.sentence_type in ["GGA", "GLL"]:
-            if hasattr(message, "is_valid") and message.is_valid:
-                first_valid_gga_gll = (epoch_sec, message)
 
-    # Fallback: if no RMC found, try GGA/GLL (less reliable - no date info)
-    if timezone_offset is None and first_valid_gga_gll is not None:
-        epoch_sec, message = first_valid_gga_gll
-        timezone_offset = _compute_timezone_offset_from_time_only(epoch_sec, message)
-        if timezone_offset is not None:
-            LOG.debug(
-                "Computed timezone offset %.1fs from %s (fallback, no date info)",
-                timezone_offset,
-                message.sentence_type,
-            )
-
-    # If no offset could be determined, use 0 (camera clock assumed correct)
-    if timezone_offset is None:
-        timezone_offset = 0.0
+    timezone_offset = _detect_timezone_offset(parsed_lines)
 
     points_by_sentence_type: dict[str, list[telemetry.GPSPoint]] = {}
 
     # Second pass: apply offset to all GPS points
     for epoch_sec, message in parsed_lines:
+        if message.sentence_type not in ("GGA", "RMC", "GLL"):
+            continue
+        if not message.is_valid:
+            continue
+
         corrected_epoch = round(epoch_sec + timezone_offset, 3)
 
-        # https://tavotech.com/gps-nmea-sentence-structure/
-        if message.sentence_type in ["GGA"]:
-            if not message.is_valid:
-                continue
-            point = telemetry.GPSPoint(
-                time=corrected_epoch,
-                lat=message.latitude,
-                lon=message.longitude,
-                alt=message.altitude,
-                angle=None,
-                epoch_time=corrected_epoch,
-                fix=telemetry.GPSFix.FIX_3D if message.gps_qual >= 1 else None,
-                precision=None,
-                ground_speed=None,
-            )
-            points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
+        # GGA has altitude and fix; RMC and GLL do not
+        if message.sentence_type == "GGA":
+            alt = message.altitude
+            fix = telemetry.GPSFix.FIX_3D if message.gps_qual >= 1 else None
+        else:
+            alt = None
+            fix = None
 
-        elif message.sentence_type in ["RMC", "GLL"]:
-            if not message.is_valid:
-                continue
-            point = telemetry.GPSPoint(
-                time=corrected_epoch,
-                lat=message.latitude,
-                lon=message.longitude,
-                alt=None,
-                angle=None,
-                epoch_time=corrected_epoch,
-                fix=None,
-                precision=None,
-                ground_speed=None,
-            )
-            points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
+        point = telemetry.GPSPoint(
+            time=corrected_epoch,
+            lat=message.latitude,
+            lon=message.longitude,
+            alt=alt,
+            angle=None,
+            epoch_time=corrected_epoch,
+            fix=fix,
+            precision=None,
+            ground_speed=None,
+        )
+        points_by_sentence_type.setdefault(message.sentence_type, []).append(point)
 
     # This is the extraction order in exiftool
     if "RMC" in points_by_sentence_type:
