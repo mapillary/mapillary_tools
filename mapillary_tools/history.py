@@ -118,11 +118,20 @@ class PersistentCache:
 
         s = time.perf_counter()
 
-        with store.KeyValueStore(self._file, flag="r") as db:
+        try:
+            db_ctx = store.KeyValueStore(self._file, flag="r")
+        except sqlite3.DatabaseError as ex:
+            LOG.warning(f"Failed to open cache database: {ex}")
+            return None
+
+        with db_ctx as db:
             try:
                 raw_payload: bytes | None = db.get(key)  # data retrieved from db[key]
             except Exception as ex:
                 if self._table_not_found(ex):
+                    return None
+                if isinstance(ex, sqlite3.DatabaseError):
+                    LOG.warning(f"Cache read error for {key}: {ex}")
                     return None
                 raise ex
 
