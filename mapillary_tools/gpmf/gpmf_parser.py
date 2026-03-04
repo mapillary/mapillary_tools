@@ -561,6 +561,37 @@ def _find_first_telemetry_stream(stream: T.Sequence[KLVDict], key: bytes):
     return values
 
 
+_XYZDataT = T.TypeVar(
+    "_XYZDataT",
+    telemetry.AccelerationData,
+    telemetry.GyroscopeData,
+    telemetry.MagnetometerData,
+)
+
+
+def _accumulate_xyz_telemetry(
+    device_data: T.Sequence[KLVDict],
+    sample: Sample,
+    stream_key: bytes,
+    data_class: T.Type[_XYZDataT],
+    output_dict: dict[int, list[_XYZDataT]],
+    device_id: int,
+) -> None:
+    """Extract XYZ telemetry (ACCL/GYRO/MAGN) from a device and accumulate into output_dict."""
+    samples = _find_first_telemetry_stream(device_data, stream_key)
+    if samples:
+        avg_delta = sample.exact_timedelta / len(samples)
+        output_dict.setdefault(device_id, []).extend(
+            data_class(
+                time=sample.exact_time + avg_delta * idx,
+                x=x,
+                y=y,
+                z=z,
+            )
+            for idx, (z, x, y, *_) in enumerate(samples)
+        )
+
+
 def _backfill_gps_timestamps(gps_points: T.Iterable[telemetry.GPSPoint]) -> None:
     it = iter(gps_points)
 
@@ -626,49 +657,34 @@ def _load_telemetry_from_samples(
                     device_points.extend(sample_points)
 
             if accls_by_dvid is not None:
-                sample_accls = _find_first_telemetry_stream(device["data"], b"ACCL")
-                if sample_accls:
-                    # interpolate timestamps in between
-                    avg_delta = sample.exact_timedelta / len(sample_accls)
-                    accls_by_dvid.setdefault(device_id, []).extend(
-                        telemetry.AccelerationData(
-                            time=sample.exact_time + avg_delta * idx,
-                            x=x,
-                            y=y,
-                            z=z,
-                        )
-                        for idx, (z, x, y, *_) in enumerate(sample_accls)
-                    )
+                _accumulate_xyz_telemetry(
+                    device["data"],
+                    sample,
+                    b"ACCL",
+                    telemetry.AccelerationData,
+                    accls_by_dvid,
+                    device_id,
+                )
 
             if gyros_by_dvid is not None:
-                sample_gyros = _find_first_telemetry_stream(device["data"], b"GYRO")
-                if sample_gyros:
-                    # interpolate timestamps in between
-                    avg_delta = sample.exact_timedelta / len(sample_gyros)
-                    gyros_by_dvid.setdefault(device_id, []).extend(
-                        telemetry.GyroscopeData(
-                            time=sample.exact_time + avg_delta * idx,
-                            x=x,
-                            y=y,
-                            z=z,
-                        )
-                        for idx, (z, x, y, *_) in enumerate(sample_gyros)
-                    )
+                _accumulate_xyz_telemetry(
+                    device["data"],
+                    sample,
+                    b"GYRO",
+                    telemetry.GyroscopeData,
+                    gyros_by_dvid,
+                    device_id,
+                )
 
             if magns_by_dvid is not None:
-                sample_magns = _find_first_telemetry_stream(device["data"], b"MAGN")
-                if sample_magns:
-                    # interpolate timestamps in between
-                    avg_delta = sample.exact_timedelta / len(sample_magns)
-                    magns_by_dvid.setdefault(device_id, []).extend(
-                        telemetry.MagnetometerData(
-                            time=sample.exact_time + avg_delta * idx,
-                            x=x,
-                            y=y,
-                            z=z,
-                        )
-                        for idx, (z, x, y, *_) in enumerate(sample_magns)
-                    )
+                _accumulate_xyz_telemetry(
+                    device["data"],
+                    sample,
+                    b"MAGN",
+                    telemetry.MagnetometerData,
+                    magns_by_dvid,
+                    device_id,
+                )
 
     return device_found
 
