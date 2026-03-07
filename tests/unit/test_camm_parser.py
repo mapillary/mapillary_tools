@@ -4,12 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
+import datetime
 import io
+import struct
 import typing as T
 from pathlib import Path
 
 from mapillary_tools import geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder, camm_parser
+from mapillary_tools.geotag.video_extractors.native import CAMMVideoExtractor
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 
 
@@ -719,3 +722,136 @@ def test_prepare_camm_info_gpspoint_roundtrip():
         assert abs(original.epoch_time - decoded_camm.time_gps_epoch) < 10e-6
         assert abs(original.lat - decoded_camm.lat) < 10e-6
         assert abs(original.lon - decoded_camm.lon) < 10e-6
+
+
+def _build_rmkn_data(
+    date_str: str = "2024:01:15",
+    hour: int = 10,
+    minute: int = 30,
+    second: int = 45,
+    endian: str = ">",
+    include_gps_ifd: bool = True,
+) -> bytes:
+    """Build synthetic RMKN TIFF/EXIF binary data for testing."""
+    bo = b"MM" if endian == ">" else b"II"
+    header = bo + struct.pack(f"{endian}H", 42) + struct.pack(f"{endian}I", 8)
+
+    # IFD0 at offset 8
+    if include_gps_ifd:
+        gps_ifd_offset = 26  # 8 + 2 + 12 + 4
+        ifd0 = (
+            struct.pack(f"{endian}H", 1)
+            + struct.pack(f"{endian}HHII", 0x8825, 4, 1, gps_ifd_offset)
+            + struct.pack(f"{endian}I", 0)
+        )
+
+        # GPS IFD at offset 26, 2 entries
+        date_bytes = (date_str + "\x00").encode("ascii")
+        # Data area: offset 56 (26 + 2 + 24 + 4)
+        date_offset = 56
+        rationals_offset = date_offset + len(date_bytes)
+
+        gps_ifd = (
+            struct.pack(f"{endian}H", 2)
+            + struct.pack(f"{endian}HHII", 0x0007, 5, 3, rationals_offset)
+            + struct.pack(f"{endian}HHII", 0x001D, 2, len(date_bytes), date_offset)
+            + struct.pack(f"{endian}I", 0)
+        )
+
+        rationals = (
+            struct.pack(f"{endian}II", hour, 1)
+            + struct.pack(f"{endian}II", minute, 1)
+            + struct.pack(f"{endian}II", second, 1)
+        )
+
+        return header + ifd0 + gps_ifd + date_bytes + rationals
+    else:
+        # IFD0 with no GPS IFD pointer (use a different tag)
+        ifd0 = (
+            struct.pack(f"{endian}H", 1)
+            + struct.pack(f"{endian}HHII", 0x0100, 3, 1, 640)  # ImageWidth tag
+            + struct.pack(f"{endian}I", 0)
+        )
+        return header + ifd0
+
+
+def test_extract_gps_datetime_from_rmkn_valid():
+    """Valid RMKN data with GPS IFD should return a UTC datetime."""
+    rmkn_data = _build_rmkn_data(date_str="2024:01:15", hour=10, minute=30, second=45)
+    result = camm_parser._extract_gps_datetime_from_rmkn(rmkn_data)
+
+    assert result is not None
+    assert result == datetime.datetime(
+        2024, 1, 15, 10, 30, 45, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_extract_gps_datetime_from_rmkn_little_endian():
+    """RMKN with little-endian byte order should also parse correctly."""
+    rmkn_data = _build_rmkn_data(
+        date_str="2023:06:20", hour=14, minute=5, second=0, endian="<"
+    )
+    result = camm_parser._extract_gps_datetime_from_rmkn(rmkn_data)
+
+    assert result is not None
+    assert result == datetime.datetime(
+        2023, 6, 20, 14, 5, 0, tzinfo=datetime.timezone.utc
+    )
+
+
+def test_extract_gps_datetime_from_rmkn_no_gps_ifd():
+    """RMKN without GPS IFD pointer should return None."""
+    rmkn_data = _build_rmkn_data(include_gps_ifd=False)
+    result = camm_parser._extract_gps_datetime_from_rmkn(rmkn_data)
+    assert result is None
+
+
+def test_extract_gps_datetime_from_rmkn_too_short():
+    """Data shorter than TIFF header should return None."""
+    assert camm_parser._extract_gps_datetime_from_rmkn(b"") is None
+    assert camm_parser._extract_gps_datetime_from_rmkn(b"MM\x00\x2a") is None
+
+
+def test_extract_gps_datetime_from_rmkn_bad_magic():
+    """Invalid TIFF magic number should return None."""
+    data = b"MM" + struct.pack(">H", 99) + struct.pack(">I", 8)
+    assert camm_parser._extract_gps_datetime_from_rmkn(data) is None
+
+
+def test_enrich_with_gps_datetime():
+    """Type 5 points should be enriched with GPS epoch timestamps."""
+    gps_dt = datetime.datetime(2024, 1, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+    gps_epoch = gps_dt.timestamp()
+
+    points = [
+        geo.Point(time=0.0, lat=35.0, lon=139.0, alt=10.0, angle=None),
+        geo.Point(time=1.0, lat=35.001, lon=139.001, alt=11.0, angle=None),
+        geo.Point(time=2.5, lat=35.002, lon=139.002, alt=None, angle=None),
+    ]
+
+    enriched = CAMMVideoExtractor._enrich_with_gps_datetime(points, gps_dt)
+
+    assert len(enriched) == 3
+    for i, p in enumerate(enriched):
+        assert isinstance(p, telemetry.CAMMGPSPoint)
+        camm_p = T.cast(telemetry.CAMMGPSPoint, p)
+        # Epoch should be gps_epoch + (point.time - first_point.time)
+        expected_epoch = gps_epoch + (points[i].time - points[0].time)
+        assert abs(camm_p.time_gps_epoch - expected_epoch) < 1e-6
+        # Original fields preserved
+        assert camm_p.lat == points[i].lat
+        assert camm_p.lon == points[i].lon
+        assert camm_p.alt == points[i].alt
+        assert camm_p.time == points[i].time
+
+    # Point with altitude -> fix type 3, without -> fix type 2
+    assert T.cast(telemetry.CAMMGPSPoint, enriched[0]).gps_fix_type == 3
+    assert T.cast(telemetry.CAMMGPSPoint, enriched[1]).gps_fix_type == 3
+    assert T.cast(telemetry.CAMMGPSPoint, enriched[2]).gps_fix_type == 2
+
+
+def test_enrich_with_gps_datetime_empty():
+    """Empty point list should return empty list."""
+    gps_dt = datetime.datetime(2024, 1, 15, 10, 0, 0, tzinfo=datetime.timezone.utc)
+    result = CAMMVideoExtractor._enrich_with_gps_datetime([], gps_dt)
+    assert result == []

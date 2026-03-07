@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import datetime
+import logging
 import sys
 import typing as T
 from pathlib import Path
@@ -19,6 +21,8 @@ from ...camm import camm_parser
 from ...gpmf import gpmf_gps_filter, gpmf_parser
 from ...mp4 import construct_mp4_parser, simple_mp4_parser
 from .base import BaseVideoExtractor
+
+LOG = logging.getLogger(__name__)
 
 
 class GoProVideoExtractor(BaseVideoExtractor):
@@ -69,14 +73,74 @@ class CAMMVideoExtractor(BaseVideoExtractor):
         if not camm_info.gps and not camm_info.mini_gps:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
+        points: T.List[geo.Point]
+        if camm_info.gps:
+            points = T.cast(T.List[geo.Point], camm_info.gps)
+        elif camm_info.mini_gps and camm_info.gps_datetime:
+            # Type 5 points have no epoch timestamps, but the RMKN
+            # maker note contains a GPS-derived UTC timestamp for the
+            # first point. Use it to assign epoch times to all points.
+            points = self._enrich_with_gps_datetime(
+                camm_info.mini_gps, camm_info.gps_datetime
+            )
+        else:
+            points = camm_info.mini_gps or []
+
         return types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=types.FileType.CAMM,
-            points=T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps),
+            points=points,
             make=camm_info.make,
             model=camm_info.model,
         )
+
+    @staticmethod
+    def _enrich_with_gps_datetime(
+        points: T.List[geo.Point],
+        gps_datetime: "datetime.datetime",
+    ) -> T.List[geo.Point]:
+        """Assign GPS epoch timestamps to Type 5 points using an RMKN reference.
+
+        The gps_datetime (from the RMKN maker note) is a GPS-derived UTC
+        timestamp corresponding to the first CAMM Type 5 GPS point.
+        Each subsequent point's epoch is computed as:
+
+            epoch = gps_epoch + (point.time - first_point.time)
+        """
+
+        if not points:
+            return points
+
+        gps_epoch = gps_datetime.timestamp()
+        first_time = points[0].time
+
+        LOG.info(
+            "Enriching %d CAMM Type 5 points with GPS epoch from RMKN timestamp %s",
+            len(points),
+            gps_datetime.isoformat(),
+        )
+
+        enriched: T.List[geo.Point] = []
+        for p in points:
+            enriched.append(
+                telemetry.CAMMGPSPoint(
+                    time=p.time,
+                    lat=p.lat,
+                    lon=p.lon,
+                    alt=p.alt,
+                    angle=p.angle,
+                    time_gps_epoch=gps_epoch + (p.time - first_time),
+                    gps_fix_type=3 if p.alt is not None else 2,
+                    horizontal_accuracy=0.0,
+                    vertical_accuracy=0.0,
+                    velocity_east=0.0,
+                    velocity_north=0.0,
+                    velocity_up=0.0,
+                    speed_accuracy=0.0,
+                )
+            )
+        return enriched
 
 
 class BlackVueVideoExtractor(BaseVideoExtractor):
