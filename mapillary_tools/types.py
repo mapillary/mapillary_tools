@@ -82,6 +82,8 @@ class VideoMetadata:
         if self.md5sum is None:
             with self.filename.open("rb") as fp:
                 self.md5sum = utils.md5sum_fp(fp).hexdigest()
+    point_sigma_xys: list[float] | None = None
+    point_weights: list[float] | None = None
 
 
 @dataclasses.dataclass

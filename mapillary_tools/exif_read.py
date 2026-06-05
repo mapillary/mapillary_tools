@@ -679,6 +679,13 @@ class ExifReadFromEXIF(ExifReadABC):
         altitude_ref = {0: 1, 1: -1}
         return altitude * altitude_ref.get(ref, 1)
 
+    def extract_gps_accuracy(self) -> float | None:
+        """Extract GPS horizontal position accuracy from EXIF GPSHPositioningError tag."""
+        val = self._extract_alternative_fields(
+            ["GPS GPSHPositioningError", "GPS Tag 0x001F"], float
+        )
+        return val
+
     def extract_gps_datetime(self) -> datetime.datetime | None:
         """
         Extract timestamp from GPS field.
