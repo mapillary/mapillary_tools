@@ -8,7 +8,6 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 import pytest
-
 from mapillary_tools.exiftool_read_video import (
     _aggregate_gps_track,
     _aggregate_gps_track_by_sample_time,

@@ -8,7 +8,6 @@ from __future__ import annotations
 import statistics
 
 import pytest
-
 from mapillary_tools.geo import Point
 from mapillary_tools.gpmf import gps_filter
 from mapillary_tools.gpmf.gpmf_gps_filter import remove_noisy_points, remove_outliers

@@ -6,6 +6,7 @@
 import datetime
 import os
 import typing as T
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import py.path
@@ -14,9 +15,20 @@ from mapillary_tools import geo
 from mapillary_tools.exif_read import (
     _parse_coord,
     ExifRead,
+    ExifReadFromEXIF,
+    ExifReadFromXMP,
     parse_datetimestr_with_subsec_and_offset,
+    XMP_NAMESPACES,
 )
 from mapillary_tools.exif_write import ExifEdit
+from mapillary_tools.exiftool_read import (
+    EXIFTOOL_NAMESPACES as EXIFTOOL_READ_NAMESPACES,
+    ExifToolRead,
+)
+from mapillary_tools.exiftool_read_video import (
+    EXIFTOOL_NAMESPACES as EXIFTOOL_READ_VIDEO_NAMESPACES,
+    ExifToolReadVideo,
+)
 
 """Initialize all the neccessary data"""
 
@@ -280,7 +292,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_body_serial_only(self):
         """Test with only body serial number present"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -290,7 +301,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_lens_serial_only(self):
         """Test with only lens serial number present"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -300,7 +310,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_both_body_and_lens_serial(self):
         """Test with both body and lens serial numbers present"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -311,7 +320,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_no_serial_numbers(self):
         """Test with no serial numbers present"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {}
@@ -319,7 +327,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_generic_serial_fallback(self):
         """Test fallback to generic EXIF SerialNumber"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -329,7 +336,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_makernote_serial_fallback(self):
         """Test fallback to MakerNote SerialNumber"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -339,7 +345,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_body_serial_priority_over_generic(self):
         """Test that BodySerialNumber takes priority over generic SerialNumber"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -350,7 +355,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_whitespace_stripped(self):
         """Test that whitespace is stripped from serial numbers"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -361,7 +365,6 @@ class TestExtractCameraUuidFromEXIF:
 
     def test_special_characters_removed(self):
         """Test that special characters are removed from serial numbers"""
-        from mapillary_tools.exif_read import ExifReadFromEXIF
 
         reader = ExifReadFromEXIF.__new__(ExifReadFromEXIF)
         reader.tags = {
@@ -376,9 +379,6 @@ class TestExtractCameraUuidFromXMP:
 
     def _create_xmp_reader(self, tags_dict: dict):
         """Helper to create an ExifReadFromXMP with mocked tags"""
-        from mapillary_tools.exif_read import ExifReadFromXMP, XMP_NAMESPACES
-        import xml.etree.ElementTree as ET
-
         # Build a minimal XMP document
         rdf_ns = XMP_NAMESPACES["rdf"]
         xmp_xml = f'''<?xml version="1.0"?>
@@ -456,12 +456,6 @@ class TestVideoExtractCameraUuid:
 
     def _create_video_exif_reader(self, tags_dict: dict):
         """Helper to create an ExifToolReadVideo with mocked tags"""
-        from mapillary_tools.exiftool_read_video import (
-            ExifToolReadVideo,
-            EXIFTOOL_NAMESPACES,
-        )
-        import xml.etree.ElementTree as ET
-
         # Build XML with child elements (not attributes) - this is how ExifTool XML works
         root = ET.Element(
             "rdf:RDF", {"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}
@@ -470,8 +464,8 @@ class TestVideoExtractCameraUuid:
         # Add child elements for each tag
         for key, value in tags_dict.items():
             prefix, tag_name = key.split(":")
-            if prefix in EXIFTOOL_NAMESPACES:
-                full_tag = "{" + EXIFTOOL_NAMESPACES[prefix] + "}" + tag_name
+            if prefix in EXIFTOOL_READ_VIDEO_NAMESPACES:
+                full_tag = "{" + EXIFTOOL_READ_VIDEO_NAMESPACES[prefix] + "}" + tag_name
                 child = ET.SubElement(root, full_tag)
                 child.text = value
 
@@ -528,16 +522,13 @@ class TestExifToolReadExtractCameraUuid:
 
     def _create_exiftool_reader(self, tags_dict: dict):
         """Helper to create an ExifToolRead with mocked tags"""
-        from mapillary_tools.exiftool_read import ExifToolRead, EXIFTOOL_NAMESPACES
-        import xml.etree.ElementTree as ET
-
         # Build XML structure that ExifToolRead expects
         root = ET.Element("rdf:Description")
 
         for tag, value in tags_dict.items():
             prefix, tag_name = tag.split(":", 1)
-            if prefix in EXIFTOOL_NAMESPACES:
-                full_tag = "{" + EXIFTOOL_NAMESPACES[prefix] + "}" + tag_name
+            if prefix in EXIFTOOL_READ_NAMESPACES:
+                full_tag = "{" + EXIFTOOL_READ_NAMESPACES[prefix] + "}" + tag_name
                 child = ET.SubElement(root, full_tag)
                 child.text = value
 

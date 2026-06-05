@@ -10,7 +10,11 @@ from pathlib import Path
 
 from mapillary_tools import geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder, camm_parser
-from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
+from mapillary_tools.mp4 import (
+    construct_mp4_parser as cparser,
+    mp4_sample_parser as sample_parser,
+    simple_mp4_builder,
+)
 
 
 def test_filter_points_by_edit_list():
@@ -356,8 +360,6 @@ def test_build_and_parse3():
 def test_camm_trak_carries_mvhd_timestamps():
     """Verify that creation_time and modification_time from the source video's
     mvhd are carried into the CAMM track's tkhd and mdhd boxes."""
-    from mapillary_tools.mp4 import mp4_sample_parser as sample_parser
-
     movie_timescale = 1_000_000
     src_creation_time = 3_692_845_200  # 2021-01-01 in MP4 epoch
     src_modification_time = 3_692_845_300

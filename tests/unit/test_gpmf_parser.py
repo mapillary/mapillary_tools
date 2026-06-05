@@ -5,10 +5,10 @@
 
 import datetime
 import os
+import struct
 from pathlib import Path
 
 import pytest
-
 from mapillary_tools import telemetry
 from mapillary_tools.gpmf import gpmf_parser
 
@@ -331,8 +331,6 @@ class TestGps9FromStream:
         self, lat, lon, alt, speed2d, speed3d, days, secs_ms, dop, fix
     ):
         """Encode raw GPS9 values as bytes using the 'lllllllSS' format."""
-        import struct
-
         return struct.pack(
             ">iiiiiiiHH",
             lat,
@@ -566,8 +564,6 @@ class TestFindFirstGpsStream:
 
     def test_gps9_preferred_over_gps5(self):
         """GPS9 is tried first within each STRM; GPS5 is fallback."""
-        import struct
-
         sample_bytes = struct.pack(
             ">iiiiiiiHH",
             510776007,
