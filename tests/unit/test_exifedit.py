@@ -27,11 +27,12 @@ CORRUPT_EXIF_FILE = data_dir.joinpath("corrupt_exif.jpg")
 CORRUPT_EXIF_FILE_2 = data_dir.joinpath("corrupt_exif_2.jpg")
 FIXED_EXIF_FILE = data_dir.joinpath("fixed_exif.jpg")
 FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
-# JPEGs whose EXIF piexif can load but cannot re-dump (a tag stored with the
-# wrong type), used to exercise the ExifEdit._safe_dump recovery branches.
+# JPEGs whose EXIF can be read but cannot be written back out unchanged.
+# UNDUMPABLE_EXIF_FILE carries a non-essential tag that cannot be saved;
+# UNDUMPABLE_ESSENTIAL_EXIF_FILE carries an essential one.
 UNDUMPABLE_EXIF_FILE = data_dir.joinpath("corrupt_exif_wrong_type.jpg")
-UNDUMPABLE_TRUSTED_EXIF_FILE = data_dir.joinpath("corrupt_exif_trusted_wrong_type.jpg")
-# A JPEG whose EXIF carries a thumbnail above piexif's 64000-byte dump limit.
+UNDUMPABLE_ESSENTIAL_EXIF_FILE = data_dir.joinpath("corrupt_exif_trusted_wrong_type.jpg")
+# A JPEG whose embedded thumbnail is too large to be written back out.
 LARGE_THUMBNAIL_EXIF_FILE = data_dir.joinpath("corrupt_exif_large_thumbnail.jpg")
 
 
@@ -255,26 +256,18 @@ class ExifEditTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             edit.write()
 
-    def test_safe_dump_strips_untrusted_wrong_type_tag(self):
-        """A non-trusted tag piexif loads but can't re-dump is stripped, then dump succeeds.
-
-        The fixture stores Software (non-trusted) with a type piexif decodes as
-        an int but refuses to dump as ASCII; _safe_dump drops it and retries.
-        """
+    def test_unwritable_non_essential_tag_is_dropped(self):
+        """An image with an unsavable non-essential tag is still saved without it."""
         edit = ExifEdit(UNDUMPABLE_EXIF_FILE)
         image_bytes = edit.dump_image_bytes()
         self.assertGreater(len(image_bytes), 0)
-        # The offending Software tag is gone from the recovered output.
-        recovered = piexif.load(image_bytes)
-        self.assertNotIn(piexif.ImageIFD.Software, recovered["0th"])
+        # The unsavable tag is absent from the output.
+        saved = piexif.load(image_bytes)
+        self.assertNotIn(piexif.ImageIFD.Software, saved["0th"])
 
-    def test_safe_dump_reraises_trusted_wrong_type_tag(self):
-        """A trusted tag with a wrong value type must not be silently dropped.
-
-        The fixture stores ImageDescription (trusted) with the wrong type, so
-        _safe_dump re-raises rather than stripping it.
-        """
-        edit = ExifEdit(UNDUMPABLE_TRUSTED_EXIF_FILE)
+    def test_unwritable_essential_tag_raises(self):
+        """Saving fails if an essential tag cannot be written, rather than dropping it."""
+        edit = ExifEdit(UNDUMPABLE_ESSENTIAL_EXIF_FILE)
         with self.assertRaises(ValueError):
             edit.dump_image_bytes()
 
@@ -330,18 +323,17 @@ class ExifEditTests(unittest.TestCase):
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_large_thumbnail_handling(self):
-        """Test that images with thumbnails larger than 64kB are handled gracefully.
+        """An oversized embedded thumbnail is dropped on save; other EXIF survives.
 
-        The fixture carries a thumbnail above piexif's 64000-byte dump limit, so
-        _safe_dump must drop the thumbnail and 1st IFD and retry. GPS data added
-        through the public API must survive.
+        The image carries a thumbnail too large to be written back out. Saving
+        should still succeed, and GPS data added through the API is preserved.
         """
         exif_edit = ExifEdit(LARGE_THUMBNAIL_EXIF_FILE)
         test_latitude = 50.5475894785
         test_longitude = 15.595866685
         exif_edit.add_lat_lon(test_latitude, test_longitude)
 
-        # Given the thumbnail is too large, it and the 1st IFD should be removed.
+        # The oversized thumbnail should be dropped so the image can be saved.
         image_bytes = exif_edit.dump_image_bytes()
 
         # Verify the output is valid
@@ -353,25 +345,23 @@ class ExifEditTests(unittest.TestCase):
         self.assertEqual(result_image.format, "JPEG")
         self.assertEqual(result_image.size, (100, 100))
 
-        # Verify we can read the GPS data from the result
+        # The GPS data added before saving is still present.
         output_exif = piexif.load(image_bytes)
         self.assertIn("GPS", output_exif)
         self.assertIn(piexif.GPSIFD.GPSLatitude, output_exif["GPS"])
         self.assertIn(piexif.GPSIFD.GPSLongitude, output_exif["GPS"])
 
-        # CRITICAL: Verify the large thumbnail was actually removed
-        # The fix should have deleted both "thumbnail" and "1st" to handle the error
-        # piexif.load() may include "thumbnail": None after removal
+        # The oversized thumbnail is no longer present in the saved image.
         thumbnail_value = output_exif.get("thumbnail")
         self.assertTrue(
             thumbnail_value is None or thumbnail_value == b"",
-            f"Large thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
+            f"thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
         )
 
         first_value = output_exif.get("1st")
         self.assertTrue(
             first_value is None or first_value == {} or len(first_value) == 0,
-            f"1st metadata should have been removed but got: {first_value}",
+            f"thumbnail metadata should have been removed but got: {first_value}",
         )
 
 

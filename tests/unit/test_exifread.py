@@ -656,7 +656,7 @@ def _build_jpeg_with_xmp(xmp_xml: str) -> bytes:
 
 
 class TestExifReadFromXMPMetadata:
-    """Exercise the metadata extractors of ExifReadFromXMP (not just camera_uuid)."""
+    """Tests for reading metadata from XMP."""
 
     def test_extract_altitude(self):
         assert (
@@ -804,7 +804,7 @@ class TestExifReadFromXMPMetadata:
 
 
 class TestExtractXmpEfficiently:
-    """Cover the JPEG APP1/XMP segment scanner."""
+    """Tests for locating XMP metadata embedded in a JPEG."""
 
     def test_returns_xmp_when_present(self):
         xmp = _build_xmp_doc({"tiff:Make": "Canon"})
@@ -833,11 +833,7 @@ class TestExtractXmpEfficiently:
 
 
 class TestExifReadXmpFallback:
-    """ExifRead should fall back to XMP when EXIF lacks a field.
-
-    The JPEG built here has no parseable EXIF, so every extractor falls through
-    to the XMP packet embedded in the APP1 segment.
-    """
+    """Reading metadata from a JPEG whose values live in XMP, not EXIF."""
 
     def _make_reader(self, tags: T.Dict[str, str]) -> ExifRead:
         jpeg = _build_jpeg_with_xmp(_build_xmp_doc(tags))
