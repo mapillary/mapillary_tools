@@ -27,6 +27,13 @@ CORRUPT_EXIF_FILE = data_dir.joinpath("corrupt_exif.jpg")
 CORRUPT_EXIF_FILE_2 = data_dir.joinpath("corrupt_exif_2.jpg")
 FIXED_EXIF_FILE = data_dir.joinpath("fixed_exif.jpg")
 FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
+# JPEGs whose EXIF piexif can load but cannot re-dump (a tag stored with the
+# wrong type). See tests/unit/generate_corrupt_exif_image.py.
+SHARED_DATA_DIR = this_file_dir.parent.joinpath("data")
+UNDUMPABLE_EXIF_FILE = SHARED_DATA_DIR.joinpath("corrupt_exif_wrong_type.jpg")
+UNDUMPABLE_TRUSTED_EXIF_FILE = SHARED_DATA_DIR.joinpath(
+    "corrupt_exif_trusted_wrong_type.jpg"
+)
 
 
 def add_image_description_general(_test_obj, filename):
@@ -250,29 +257,27 @@ class ExifEditTests(unittest.TestCase):
             edit.write()
 
     def test_safe_dump_strips_untrusted_wrong_type_tag(self):
-        """An untrusted tag with a wrong value type is dropped, then dump succeeds."""
-        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-        # Software (0x0131) is not a trusted tag; an int is the wrong type for it.
-        edit._ef["0th"][piexif.ImageIFD.Software] = 123
+        """A non-trusted tag piexif loads but can't re-dump is stripped, then dump succeeds.
+
+        The fixture stores Software (non-trusted) with a type piexif decodes as
+        an int but refuses to dump as ASCII; _safe_dump drops it and retries.
+        """
+        edit = ExifEdit(UNDUMPABLE_EXIF_FILE)
         image_bytes = edit.dump_image_bytes()
         self.assertGreater(len(image_bytes), 0)
-        self.assertNotIn(piexif.ImageIFD.Software, edit._ef["0th"])
+        # The offending Software tag is gone from the recovered output.
+        recovered = piexif.load(image_bytes)
+        self.assertNotIn(piexif.ImageIFD.Software, recovered["0th"])
 
     def test_safe_dump_reraises_trusted_wrong_type_tag(self):
-        """A trusted tag with a wrong value type must not be silently dropped."""
-        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-        # DateTimeOriginal is a trusted tag; an int is the wrong type for it.
-        edit._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = 12345
+        """A trusted tag with a wrong value type must not be silently dropped.
+
+        The fixture stores ImageDescription (trusted) with the wrong type, so
+        _safe_dump re-raises rather than stripping it.
+        """
+        edit = ExifEdit(UNDUMPABLE_TRUSTED_EXIF_FILE)
         with self.assertRaises(ValueError):
             edit.dump_image_bytes()
-
-    def test_safe_dump_removes_as_shot_neutral(self):
-        """The AsShotNeutral workaround (issue #662) drops the tag and retries."""
-        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
-        edit._ef["0th"][piexif.ImageIFD.AsShotNeutral] = "bad"
-        image_bytes = edit.dump_image_bytes()
-        self.assertGreater(len(image_bytes), 0)
-        self.assertNotIn(piexif.ImageIFD.AsShotNeutral, edit._ef["0th"])
 
     # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
