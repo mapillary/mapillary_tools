@@ -216,6 +216,64 @@ class ExifEditTests(unittest.TestCase):
 
         assert (test_longitude, test_latitude) == exif_data.extract_lon_lat()
 
+    def test_add_make_and_model(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        empty_exifedit.add_make("Canon")
+        empty_exifedit.add_model("EOS 5D")
+        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+        exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
+        self.assertEqual("Canon", exif_data.extract_make())
+        self.assertEqual("EOS 5D", exif_data.extract_model())
+
+    def test_add_make_empty_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_make("")
+
+    def test_add_model_empty_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_model("")
+
+    def test_add_orientation_invalid_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_orientation(99)
+
+    def test_write_bytes_without_filename_raises(self):
+        with open(EMPTY_EXIF_FILE_TEST, "rb") as fp:
+            edit = ExifEdit(fp.read())
+        edit.add_orientation(1)
+        # The source is raw bytes, so write() has no filename to fall back on.
+        with self.assertRaises(ValueError):
+            edit.write()
+
+    def test_safe_dump_strips_untrusted_wrong_type_tag(self):
+        """An untrusted tag with a wrong value type is dropped, then dump succeeds."""
+        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        # Software (0x0131) is not a trusted tag; an int is the wrong type for it.
+        edit._ef["0th"][piexif.ImageIFD.Software] = 123
+        image_bytes = edit.dump_image_bytes()
+        self.assertGreater(len(image_bytes), 0)
+        self.assertNotIn(piexif.ImageIFD.Software, edit._ef["0th"])
+
+    def test_safe_dump_reraises_trusted_wrong_type_tag(self):
+        """A trusted tag with a wrong value type must not be silently dropped."""
+        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        # DateTimeOriginal is a trusted tag; an int is the wrong type for it.
+        edit._ef["Exif"][piexif.ExifIFD.DateTimeOriginal] = 12345
+        with self.assertRaises(ValueError):
+            edit.dump_image_bytes()
+
+    def test_safe_dump_removes_as_shot_neutral(self):
+        """The AsShotNeutral workaround (issue #662) drops the tag and retries."""
+        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        edit._ef["0th"][piexif.ImageIFD.AsShotNeutral] = "bad"
+        image_bytes = edit.dump_image_bytes()
+        self.assertGreater(len(image_bytes), 0)
+        self.assertNotIn(piexif.ImageIFD.AsShotNeutral, edit._ef["0th"])
+
     # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)

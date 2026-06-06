@@ -4,7 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 import datetime
+import io
 import os
+import struct
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -17,6 +19,7 @@ from mapillary_tools.exif_read import (
     ExifRead,
     ExifReadFromEXIF,
     ExifReadFromXMP,
+    extract_xmp_efficiently,
     parse_datetimestr_with_subsec_and_offset,
     XMP_NAMESPACES,
 )
@@ -618,3 +621,270 @@ class TestExifToolReadExtractCameraUuid:
             }
         )
         assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+
+def _build_xmp_doc(tags: T.Dict[str, str]) -> str:
+    """Build an XMP packet whose rdf:Description carries ``tags`` as attributes."""
+    rdf_ns = XMP_NAMESPACES["rdf"]
+    xml = (
+        '<?xml version="1.0"?>'
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        f'<rdf:RDF xmlns:rdf="{rdf_ns}">'
+        "<rdf:Description"
+    )
+    for prefix, uri in XMP_NAMESPACES.items():
+        if prefix in ("rdf", "x"):
+            continue
+        xml += f' xmlns:{prefix}="{uri}"'
+    for key, value in tags.items():
+        xml += f' {key}="{value}"'
+    xml += "></rdf:Description></rdf:RDF></x:xmpmeta>"
+    return xml
+
+
+def _make_xmp_reader(tags: T.Dict[str, str]) -> ExifReadFromXMP:
+    return ExifReadFromXMP(ET.ElementTree(ET.fromstring(_build_xmp_doc(tags))))
+
+
+def _build_jpeg_with_xmp(xmp_xml: str) -> bytes:
+    """Build a minimal JPEG containing ``xmp_xml`` in an APP1 XMP segment."""
+    identifier = b"http://ns.adobe.com/xap/1.0/\x00"
+    payload = identifier + xmp_xml.encode("utf-8")
+    # APP1 length field counts itself (2 bytes) plus the payload
+    app1 = b"\xff\xe1" + struct.pack(">H", len(payload) + 2) + payload
+    return b"\xff\xd8" + app1 + b"\xff\xd9"  # SOI ... EOI
+
+
+class TestExifReadFromXMPMetadata:
+    """Exercise the metadata extractors of ExifReadFromXMP (not just camera_uuid)."""
+
+    def test_extract_altitude(self):
+        assert (
+            _make_xmp_reader({"exif:GPSAltitude": "123.5"}).extract_altitude() == 123.5
+        )
+
+    def test_extract_altitude_missing(self):
+        assert _make_xmp_reader({}).extract_altitude() is None
+
+    def test_extract_lon_lat_numeric(self):
+        reader = _make_xmp_reader(
+            {
+                "exif:GPSLatitude": "50.5",
+                "exif:GPSLatitudeRef": "N",
+                "exif:GPSLongitude": "15.5",
+                "exif:GPSLongitudeRef": "E",
+            }
+        )
+        assert reader.extract_lon_lat() == (15.5, 50.5)
+
+    def test_extract_lon_lat_adobe_format(self):
+        reader = _make_xmp_reader(
+            {
+                "exif:GPSLatitude": "33,18.32N",
+                "exif:GPSLatitudeRef": "N",
+                "exif:GPSLongitude": "44,24.54E",
+                "exif:GPSLongitudeRef": "E",
+            }
+        )
+        lonlat = reader.extract_lon_lat()
+        assert lonlat is not None
+        lon, lat = lonlat
+        assert lat == pytest.approx(33.30533, abs=1e-4)
+        assert lon == pytest.approx(44.40900, abs=1e-4)
+
+    def test_extract_lon_lat_missing(self):
+        assert _make_xmp_reader({}).extract_lon_lat() is None
+
+    def test_extract_make_and_model_stripped(self):
+        reader = _make_xmp_reader({"tiff:Make": "Canon ", "tiff:Model": " EOS "})
+        assert reader.extract_make() == "Canon"
+        assert reader.extract_model() == "EOS"
+
+    def test_extract_make_lens_fallback(self):
+        assert (
+            _make_xmp_reader({"exifEX:LensMake": "LensCo"}).extract_make() == "LensCo"
+        )
+
+    def test_extract_make_missing(self):
+        assert _make_xmp_reader({}).extract_make() is None
+        assert _make_xmp_reader({}).extract_model() is None
+
+    def test_extract_width_height(self):
+        reader = _make_xmp_reader(
+            {"exif:PixelXDimension": "1920", "exif:PixelYDimension": "1080"}
+        )
+        assert reader.extract_width() == 1920
+        assert reader.extract_height() == 1080
+
+    def test_extract_width_height_gpano_fallback(self):
+        assert (
+            _make_xmp_reader({"GPano:FullPanoWidthPixels": "4096"}).extract_width()
+            == 4096
+        )
+        assert (
+            _make_xmp_reader(
+                {"GPano:CroppedAreaImageHeightPixels": "2048"}
+            ).extract_height()
+            == 2048
+        )
+
+    def test_extract_orientation(self):
+        assert _make_xmp_reader({"tiff:Orientation": "3"}).extract_orientation() == 3
+
+    def test_extract_orientation_invalid_defaults_to_1(self):
+        assert _make_xmp_reader({"tiff:Orientation": "99"}).extract_orientation() == 1
+
+    def test_extract_orientation_missing_defaults_to_1(self):
+        assert _make_xmp_reader({}).extract_orientation() == 1
+
+    def test_extract_direction(self):
+        assert (
+            _make_xmp_reader({"exif:GPSImgDirection": "180.5"}).extract_direction()
+            == 180.5
+        )
+
+    def test_extract_direction_track_fallback(self):
+        assert _make_xmp_reader({"exif:GPSTrack": "90.0"}).extract_direction() == 90.0
+
+    def test_extract_direction_missing(self):
+        assert _make_xmp_reader({}).extract_direction() is None
+
+    def test_extract_exif_datetime(self):
+        reader = _make_xmp_reader({"exif:DateTimeOriginal": "2021:07:15 15:37:30"})
+        assert reader.extract_exif_datetime() == datetime.datetime(
+            2021, 7, 15, 15, 37, 30
+        )
+
+    def test_extract_exif_datetime_digitized_fallback(self):
+        reader = _make_xmp_reader({"exif:DateTimeDigitized": "2020:01:02 03:04:05"})
+        assert reader.extract_exif_datetime() == datetime.datetime(2020, 1, 2, 3, 4, 5)
+
+    def test_extract_exif_datetime_missing(self):
+        assert _make_xmp_reader({}).extract_exif_datetime() is None
+
+    def test_extract_gps_datetime_iso(self):
+        reader = _make_xmp_reader({"exif:GPSTimeStamp": "2021-07-15T05:37:30Z"})
+        assert reader.extract_gps_datetime() == datetime.datetime(
+            2021, 7, 15, 5, 37, 30, tzinfo=datetime.timezone.utc
+        )
+
+    def test_extract_gps_datetime_separate_date_and_time(self):
+        reader = _make_xmp_reader(
+            {
+                "exif:GPSDateStamp": "2021:07:15",
+                "exif:GPSTimeStamp": "05:37:30",
+            }
+        )
+        assert reader.extract_gps_datetime() == datetime.datetime(
+            2021, 7, 15, 5, 37, 30, tzinfo=datetime.timezone.utc
+        )
+
+    def test_extract_gps_datetime_missing(self):
+        assert _make_xmp_reader({}).extract_gps_datetime() is None
+
+    def test_extract_capture_time_prefers_gps(self):
+        reader = _make_xmp_reader(
+            {
+                "exif:GPSTimeStamp": "2021-07-15T05:37:30Z",
+                "exif:DateTimeOriginal": "2000:01:01 00:00:00",
+            }
+        )
+        assert reader.extract_capture_time() == datetime.datetime(
+            2021, 7, 15, 5, 37, 30, tzinfo=datetime.timezone.utc
+        )
+
+    def test_extract_capture_time_falls_back_to_exif(self):
+        reader = _make_xmp_reader({"exif:DateTimeOriginal": "2021:07:15 15:37:30"})
+        assert reader.extract_capture_time() == datetime.datetime(
+            2021, 7, 15, 15, 37, 30
+        )
+
+    def test_extract_capture_time_missing(self):
+        assert _make_xmp_reader({}).extract_capture_time() is None
+
+
+class TestExtractXmpEfficiently:
+    """Cover the JPEG APP1/XMP segment scanner."""
+
+    def test_returns_xmp_when_present(self):
+        xmp = _build_xmp_doc({"tiff:Make": "Canon"})
+        result = extract_xmp_efficiently(io.BytesIO(_build_jpeg_with_xmp(xmp)))
+        assert result is not None
+        assert "<x:xmpmeta" in result
+        assert "</x:xmpmeta>" in result
+
+    def test_returns_none_without_soi(self):
+        assert extract_xmp_efficiently(io.BytesIO(b"not a jpeg")) is None
+
+    def test_returns_none_when_no_xmp_segment(self):
+        # SOI immediately followed by EOI: valid JPEG start, no APP1/XMP
+        assert extract_xmp_efficiently(io.BytesIO(b"\xff\xd8\xff\xd9")) is None
+
+    def test_skips_non_xmp_app1_segment(self):
+        # An APP1 segment that is not XMP (e.g. an EXIF identifier) is skipped,
+        # and the following XMP APP1 segment is still found.
+        exif_id = b"Exif\x00\x00rest-of-exif"
+        exif_app1 = b"\xff\xe1" + struct.pack(">H", len(exif_id) + 2) + exif_id
+        xmp_app1 = _build_jpeg_with_xmp(_build_xmp_doc({"tiff:Make": "Canon"}))[2:]
+        data = b"\xff\xd8" + exif_app1 + xmp_app1
+        result = extract_xmp_efficiently(io.BytesIO(data))
+        assert result is not None
+        assert "Canon" in result
+
+
+class TestExifReadXmpFallback:
+    """ExifRead should fall back to XMP when EXIF lacks a field.
+
+    The JPEG built here has no parseable EXIF, so every extractor falls through
+    to the XMP packet embedded in the APP1 segment.
+    """
+
+    def _make_reader(self, tags: T.Dict[str, str]) -> ExifRead:
+        jpeg = _build_jpeg_with_xmp(_build_xmp_doc(tags))
+        return ExifRead(io.BytesIO(jpeg))
+
+    def test_make_model_fallback(self):
+        reader = self._make_reader({"tiff:Make": "XMPMake", "tiff:Model": "XMPModel"})
+        assert reader.extract_make() == "XMPMake"
+        assert reader.extract_model() == "XMPModel"
+
+    def test_altitude_fallback(self):
+        assert (
+            self._make_reader({"exif:GPSAltitude": "123.5"}).extract_altitude() == 123.5
+        )
+
+    def test_lon_lat_fallback(self):
+        reader = self._make_reader(
+            {
+                "exif:GPSLatitude": "50.5",
+                "exif:GPSLatitudeRef": "N",
+                "exif:GPSLongitude": "15.5",
+                "exif:GPSLongitudeRef": "E",
+            }
+        )
+        assert reader.extract_lon_lat() == (15.5, 50.5)
+
+    def test_width_height_fallback(self):
+        reader = self._make_reader(
+            {"exif:PixelXDimension": "1920", "exif:PixelYDimension": "1080"}
+        )
+        assert reader.extract_width() == 1920
+        assert reader.extract_height() == 1080
+
+    def test_capture_time_fallback(self):
+        reader = self._make_reader({"exif:DateTimeOriginal": "2020:01:02 03:04:05"})
+        assert reader.extract_capture_time() == datetime.datetime(2020, 1, 2, 3, 4, 5)
+
+    def test_camera_uuid_fallback(self):
+        reader = self._make_reader(
+            {"exif:SerialNumber": "BODYX", "exif:LensSerialNumber": "LENSY"}
+        )
+        assert reader.extract_camera_uuid() == "BODYX_LENSY"
+
+    def test_no_xmp_and_no_exif_returns_none(self):
+        # A JPEG with neither EXIF nor XMP: every extractor returns None.
+        reader = ExifRead(io.BytesIO(b"\xff\xd8\xff\xd9"))
+        assert reader.extract_make() is None
+        assert reader.extract_lon_lat() is None
+        assert reader.extract_capture_time() is None
+        assert reader.extract_camera_uuid() is None
