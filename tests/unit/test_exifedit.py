@@ -31,6 +31,8 @@ FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
 # wrong type), used to exercise the ExifEdit._safe_dump recovery branches.
 UNDUMPABLE_EXIF_FILE = data_dir.joinpath("corrupt_exif_wrong_type.jpg")
 UNDUMPABLE_TRUSTED_EXIF_FILE = data_dir.joinpath("corrupt_exif_trusted_wrong_type.jpg")
+# A JPEG whose EXIF carries a thumbnail above piexif's 64000-byte dump limit.
+LARGE_THUMBNAIL_EXIF_FILE = data_dir.joinpath("corrupt_exif_large_thumbnail.jpg")
 
 
 def add_image_description_general(_test_obj, filename):
@@ -328,57 +330,18 @@ class ExifEditTests(unittest.TestCase):
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_large_thumbnail_handling(self):
-        """Test that images with thumbnails larger than 64kB are handled gracefully."""
-        # Create a test image with a large thumbnail (>64kB)
-        test_image_path = data_dir.joinpath("tmp", "large_thumbnail.jpg")
+        """Test that images with thumbnails larger than 64kB are handled gracefully.
 
-        # Create a simple test image
-        img = Image.new("RGB", (100, 100), color="red")
-        img.save(test_image_path, "JPEG")
-
-        # Create a large thumbnail (>64kB) by creating a high-quality large thumbnail
-        # Use a larger size and add noise to make it incompressible
-        large_thumbnail = Image.new("RGB", (2048, 2048))
-        # Fill with random-like data to prevent compression
-        pixels = large_thumbnail.load()
-        for i in range(2048):
-            for j in range(2048):
-                pixels[i, j] = (
-                    (i * 7 + j * 13) % 256,
-                    (i * 11 + j * 17) % 256,
-                    (i * 19 + j * 23) % 256,
-                )
-
-        thumbnail_bytes = io.BytesIO()
-        large_thumbnail.save(thumbnail_bytes, "JPEG", quality=100)
-        thumbnail_data = thumbnail_bytes.getvalue()
-
-        # Verify thumbnail is larger than 64kB
-        self.assertGreater(
-            len(thumbnail_data),
-            64 * 1024,
-            f"Test thumbnail should be larger than 64kB but got {len(thumbnail_data)} bytes",
-        )
-
-        # Load the image and add GPS data first
-        exif_edit = ExifEdit(test_image_path)
+        The fixture carries a thumbnail above piexif's 64000-byte dump limit, so
+        _safe_dump must drop the thumbnail and 1st IFD and retry. GPS data added
+        through the public API must survive.
+        """
+        exif_edit = ExifEdit(LARGE_THUMBNAIL_EXIF_FILE)
         test_latitude = 50.5475894785
         test_longitude = 15.595866685
         exif_edit.add_lat_lon(test_latitude, test_longitude)
 
-        # Manually insert the large thumbnail into the internal EXIF structure
-        # This simulates what would happen if an image came in with a large thumbnail
-        exif_edit._ef["thumbnail"] = thumbnail_data
-        exif_edit._ef["1st"] = {
-            piexif.ImageIFD.Compression: 6,
-            piexif.ImageIFD.XResolution: (72, 1),
-            piexif.ImageIFD.YResolution: (72, 1),
-            piexif.ImageIFD.ResolutionUnit: 2,
-            piexif.ImageIFD.JPEGInterchangeFormat: 0,
-            piexif.ImageIFD.JPEGInterchangeFormatLength: len(thumbnail_data),
-        }
-
-        # Given thumbnail is too large, max 64kB, thumbnail and 1st metadata should be removed.
+        # Given the thumbnail is too large, it and the 1st IFD should be removed.
         image_bytes = exif_edit.dump_image_bytes()
 
         # Verify the output is valid
