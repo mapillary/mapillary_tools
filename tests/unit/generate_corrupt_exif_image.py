@@ -66,8 +66,7 @@ def build_wrong_type_exif_jpeg(tag: int) -> bytes:
 
 
 def main() -> None:
-    # tests/unit/ -> tests/ -> tests/data
-    data_dir = Path(__file__).resolve().parents[1] / "data"
+    data_dir = Path(__file__).resolve().parent / "data"
     fixtures = {
         "corrupt_exif_wrong_type.jpg": _SOFTWARE_TAG,
         "corrupt_exif_trusted_wrong_type.jpg": _IMAGE_DESCRIPTION_TAG,

@@ -28,12 +28,9 @@ CORRUPT_EXIF_FILE_2 = data_dir.joinpath("corrupt_exif_2.jpg")
 FIXED_EXIF_FILE = data_dir.joinpath("fixed_exif.jpg")
 FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
 # JPEGs whose EXIF piexif can load but cannot re-dump (a tag stored with the
-# wrong type). See tests/unit/generate_corrupt_exif_image.py.
-SHARED_DATA_DIR = this_file_dir.parent.joinpath("data")
-UNDUMPABLE_EXIF_FILE = SHARED_DATA_DIR.joinpath("corrupt_exif_wrong_type.jpg")
-UNDUMPABLE_TRUSTED_EXIF_FILE = SHARED_DATA_DIR.joinpath(
-    "corrupt_exif_trusted_wrong_type.jpg"
-)
+# wrong type), used to exercise the ExifEdit._safe_dump recovery branches.
+UNDUMPABLE_EXIF_FILE = data_dir.joinpath("corrupt_exif_wrong_type.jpg")
+UNDUMPABLE_TRUSTED_EXIF_FILE = data_dir.joinpath("corrupt_exif_trusted_wrong_type.jpg")
 
 
 def add_image_description_general(_test_obj, filename):
