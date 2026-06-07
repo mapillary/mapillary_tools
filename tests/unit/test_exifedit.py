@@ -31,7 +31,9 @@ FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
 # UNDUMPABLE_EXIF_FILE carries a non-essential tag that cannot be saved;
 # UNDUMPABLE_ESSENTIAL_EXIF_FILE carries an essential one.
 UNDUMPABLE_EXIF_FILE = data_dir.joinpath("corrupt_exif_wrong_type.jpg")
-UNDUMPABLE_ESSENTIAL_EXIF_FILE = data_dir.joinpath("corrupt_exif_trusted_wrong_type.jpg")
+UNDUMPABLE_ESSENTIAL_EXIF_FILE = data_dir.joinpath(
+    "corrupt_exif_trusted_wrong_type.jpg"
+)
 # A JPEG whose embedded thumbnail is too large to be written back out.
 LARGE_THUMBNAIL_EXIF_FILE = data_dir.joinpath("corrupt_exif_large_thumbnail.jpg")
 
