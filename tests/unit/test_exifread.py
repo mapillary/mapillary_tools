@@ -14,7 +14,6 @@ from pathlib import Path
 import py.path
 import pytest
 from mapillary_tools.exif_read import (
-    _parse_coord,
     ExifRead,
     ExifReadFromEXIF,
     ExifReadFromXMP,
@@ -222,6 +221,9 @@ def test_parse():
     assert str(dt) == "2021-10-10 17:29:54.124000-02:00", dt
 
 
+# Coordinate parsing is exercised through the public ExifReadFromXMP.extract_lon_lat:
+# the raw value is supplied as the latitude (with a fixed, always-valid longitude so
+# the call returns), and the returned latitude reflects how the raw value was parsed.
 @pytest.mark.parametrize(
     "raw_coord,raw_ref,expected",
     [
@@ -244,7 +246,20 @@ def test_parse():
 def test_parse_coordinates(
     raw_coord: T.Optional[str], raw_ref: str, expected: T.Optional[float]
 ):
-    assert _parse_coord(raw_coord, raw_ref) == pytest.approx(expected)
+    tags = {"exif:GPSLongitude": "15.5", "exif:GPSLongitudeRef": "E"}
+    if raw_coord is not None:
+        tags["exif:GPSLatitude"] = raw_coord
+    tags["exif:GPSLatitudeRef"] = raw_ref
+
+    lonlat = _make_xmp_reader(tags).extract_lon_lat()
+
+    if expected is None:
+        assert lonlat is None
+    else:
+        assert lonlat is not None
+        lon, lat = lonlat
+        assert lon == pytest.approx(15.5)
+        assert lat == pytest.approx(expected)
 
 
 # test ExifWrite write a timestamp and ExifRead read it back
