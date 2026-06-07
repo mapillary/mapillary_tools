@@ -13,7 +13,6 @@ from pathlib import Path
 
 import py.path
 import pytest
-from mapillary_tools import geo
 from mapillary_tools.exif_read import (
     _parse_coord,
     ExifRead,
@@ -48,6 +47,19 @@ def gps_to_decimal(value, ref):
     sign = 1 if ref in "NE" else -1
     degrees, minutes, seconds = value
     return sign * (float(degrees) + float(minutes) / 60 + float(seconds) / 3600)
+
+
+def as_unix_time(dt: datetime.datetime) -> float:
+    try:
+        # if dt is naive, assume it's in local timezone
+        return dt.timestamp()
+    except ValueError:
+        # Some datetimes can't be converted to timestamp
+        # e.g. 0001-01-01 00:00:00 will throw ValueError: year 0 is out of range
+        try:
+            return dt.replace(year=1970).timestamp()
+        except ValueError:
+            return 0.0
 
 
 def test_read_orientation_general():
@@ -260,7 +272,7 @@ def test_read_and_write(setup_data: py.path.local):
         read = ExifRead(image_path)
         actual = read.extract_capture_time()
         assert actual
-        assert geo.as_unix_time(dt) == geo.as_unix_time(actual), (dt, actual)
+        assert as_unix_time(dt) == as_unix_time(actual), (dt, actual)
 
     for dt in dts:
         edit = ExifEdit(image_path)
@@ -269,7 +281,7 @@ def test_read_and_write(setup_data: py.path.local):
         read = ExifRead(image_path)
         actual = read.extract_gps_datetime()
         assert actual
-        assert geo.as_unix_time(dt) == geo.as_unix_time(actual)
+        assert as_unix_time(dt) == as_unix_time(actual)
 
 
 # Tests for extract_camera_uuid
