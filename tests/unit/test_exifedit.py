@@ -27,6 +27,15 @@ CORRUPT_EXIF_FILE = data_dir.joinpath("corrupt_exif.jpg")
 CORRUPT_EXIF_FILE_2 = data_dir.joinpath("corrupt_exif_2.jpg")
 FIXED_EXIF_FILE = data_dir.joinpath("fixed_exif.jpg")
 FIXED_EXIF_FILE_2 = data_dir.joinpath("fixed_exif_2.jpg")
+# JPEGs whose EXIF can be read but cannot be written back out unchanged.
+# UNDUMPABLE_EXIF_FILE carries a non-essential tag that cannot be saved;
+# UNDUMPABLE_ESSENTIAL_EXIF_FILE carries an essential one.
+UNDUMPABLE_EXIF_FILE = data_dir.joinpath("corrupt_exif_wrong_type.jpg")
+UNDUMPABLE_ESSENTIAL_EXIF_FILE = data_dir.joinpath(
+    "corrupt_exif_trusted_wrong_type.jpg"
+)
+# A JPEG whose embedded thumbnail is too large to be written back out.
+LARGE_THUMBNAIL_EXIF_FILE = data_dir.joinpath("corrupt_exif_large_thumbnail.jpg")
 
 
 def add_image_description_general(_test_obj, filename):
@@ -216,6 +225,54 @@ class ExifEditTests(unittest.TestCase):
 
         assert (test_longitude, test_latitude) == exif_data.extract_lon_lat()
 
+    def test_add_make_and_model(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        empty_exifedit.add_make("Canon")
+        empty_exifedit.add_model("EOS 5D")
+        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+        exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
+        self.assertEqual("Canon", exif_data.extract_make())
+        self.assertEqual("EOS 5D", exif_data.extract_model())
+
+    def test_add_make_empty_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_make("")
+
+    def test_add_model_empty_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_model("")
+
+    def test_add_orientation_invalid_raises(self):
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        with self.assertRaises(ValueError):
+            empty_exifedit.add_orientation(99)
+
+    def test_write_bytes_without_filename_raises(self):
+        with open(EMPTY_EXIF_FILE_TEST, "rb") as fp:
+            edit = ExifEdit(fp.read())
+        edit.add_orientation(1)
+        # The source is raw bytes, so write() has no filename to fall back on.
+        with self.assertRaises(ValueError):
+            edit.write()
+
+    def test_unwritable_non_essential_tag_is_dropped(self):
+        """An image with an unsavable non-essential tag is still saved without it."""
+        edit = ExifEdit(UNDUMPABLE_EXIF_FILE)
+        image_bytes = edit.dump_image_bytes()
+        self.assertGreater(len(image_bytes), 0)
+        # The unsavable tag is absent from the output.
+        saved = piexif.load(image_bytes)
+        self.assertNotIn(piexif.ImageIFD.Software, saved["0th"])
+
+    def test_unwritable_essential_tag_raises(self):
+        """Saving fails if an essential tag cannot be written, rather than dropping it."""
+        edit = ExifEdit(UNDUMPABLE_ESSENTIAL_EXIF_FILE)
+        with self.assertRaises(ValueError):
+            edit.dump_image_bytes()
+
     # REPEAT CERTAIN TESTS AND ADD ADDITIONAL TESTS FOR THE CORRUPT EXIF
     def test_load_and_dump_corrupt_exif(self):
         corrupt_exifedit = ExifEdit(CORRUPT_EXIF_FILE)
@@ -268,57 +325,17 @@ class ExifEditTests(unittest.TestCase):
         add_repeatedly_time_original_general(self, CORRUPT_EXIF_FILE_2)
 
     def test_large_thumbnail_handling(self):
-        """Test that images with thumbnails larger than 64kB are handled gracefully."""
-        # Create a test image with a large thumbnail (>64kB)
-        test_image_path = data_dir.joinpath("tmp", "large_thumbnail.jpg")
+        """An oversized embedded thumbnail is dropped on save; other EXIF survives.
 
-        # Create a simple test image
-        img = Image.new("RGB", (100, 100), color="red")
-        img.save(test_image_path, "JPEG")
-
-        # Create a large thumbnail (>64kB) by creating a high-quality large thumbnail
-        # Use a larger size and add noise to make it incompressible
-        large_thumbnail = Image.new("RGB", (2048, 2048))
-        # Fill with random-like data to prevent compression
-        pixels = large_thumbnail.load()
-        for i in range(2048):
-            for j in range(2048):
-                pixels[i, j] = (
-                    (i * 7 + j * 13) % 256,
-                    (i * 11 + j * 17) % 256,
-                    (i * 19 + j * 23) % 256,
-                )
-
-        thumbnail_bytes = io.BytesIO()
-        large_thumbnail.save(thumbnail_bytes, "JPEG", quality=100)
-        thumbnail_data = thumbnail_bytes.getvalue()
-
-        # Verify thumbnail is larger than 64kB
-        self.assertGreater(
-            len(thumbnail_data),
-            64 * 1024,
-            f"Test thumbnail should be larger than 64kB but got {len(thumbnail_data)} bytes",
-        )
-
-        # Load the image and add GPS data first
-        exif_edit = ExifEdit(test_image_path)
+        The image carries a thumbnail too large to be written back out. Saving
+        should still succeed, and GPS data added through the API is preserved.
+        """
+        exif_edit = ExifEdit(LARGE_THUMBNAIL_EXIF_FILE)
         test_latitude = 50.5475894785
         test_longitude = 15.595866685
         exif_edit.add_lat_lon(test_latitude, test_longitude)
 
-        # Manually insert the large thumbnail into the internal EXIF structure
-        # This simulates what would happen if an image came in with a large thumbnail
-        exif_edit._ef["thumbnail"] = thumbnail_data
-        exif_edit._ef["1st"] = {
-            piexif.ImageIFD.Compression: 6,
-            piexif.ImageIFD.XResolution: (72, 1),
-            piexif.ImageIFD.YResolution: (72, 1),
-            piexif.ImageIFD.ResolutionUnit: 2,
-            piexif.ImageIFD.JPEGInterchangeFormat: 0,
-            piexif.ImageIFD.JPEGInterchangeFormatLength: len(thumbnail_data),
-        }
-
-        # Given thumbnail is too large, max 64kB, thumbnail and 1st metadata should be removed.
+        # The oversized thumbnail should be dropped so the image can be saved.
         image_bytes = exif_edit.dump_image_bytes()
 
         # Verify the output is valid
@@ -330,25 +347,23 @@ class ExifEditTests(unittest.TestCase):
         self.assertEqual(result_image.format, "JPEG")
         self.assertEqual(result_image.size, (100, 100))
 
-        # Verify we can read the GPS data from the result
+        # The GPS data added before saving is still present.
         output_exif = piexif.load(image_bytes)
         self.assertIn("GPS", output_exif)
         self.assertIn(piexif.GPSIFD.GPSLatitude, output_exif["GPS"])
         self.assertIn(piexif.GPSIFD.GPSLongitude, output_exif["GPS"])
 
-        # CRITICAL: Verify the large thumbnail was actually removed
-        # The fix should have deleted both "thumbnail" and "1st" to handle the error
-        # piexif.load() may include "thumbnail": None after removal
+        # The oversized thumbnail is no longer present in the saved image.
         thumbnail_value = output_exif.get("thumbnail")
         self.assertTrue(
             thumbnail_value is None or thumbnail_value == b"",
-            f"Large thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
+            f"thumbnail should have been removed but got: {thumbnail_value[:100] if thumbnail_value else None}",
         )
 
         first_value = output_exif.get("1st")
         self.assertTrue(
             first_value is None or first_value == {} or len(first_value) == 0,
-            f"1st metadata should have been removed but got: {first_value}",
+            f"thumbnail metadata should have been removed but got: {first_value}",
         )
 
 

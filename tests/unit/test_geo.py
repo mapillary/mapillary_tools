@@ -5,12 +5,14 @@
 
 import dataclasses
 import datetime
+import math
 import random
 import typing as T
 import unittest
 
 from mapillary_tools import geo
 from mapillary_tools.geo import Point
+from mapillary_tools.telemetry import CAMMGPSPoint, GPSFix, GPSPoint
 
 
 # lat, lon, bearing, alt
@@ -778,7 +780,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_with_gps_points_using_epoch_time(self):
         """Test avg_speed with GPSPoint using epoch_time field."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         # Video time is 0-10 seconds, but GPS epoch time spans 100 seconds
         # This simulates timelapse where video time != GPS time
@@ -814,7 +815,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_with_gps_points_fallback_to_time(self):
         """Test avg_speed with GPSPoint falls back to time when epoch_time is None."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         points = [
             GPSPoint(
@@ -847,7 +847,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_with_gps_points_zero_epoch_time_fallback(self):
         """Test avg_speed falls back to time when epoch_time is 0."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         points = [
             GPSPoint(
@@ -879,7 +878,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_with_camm_gps_points(self):
         """Test avg_speed with CAMMGPSPoint using time_gps_epoch field."""
-        from mapillary_tools.telemetry import CAMMGPSPoint
 
         # Video time is 0-10 seconds, but GPS epoch time spans 50 seconds
         points = [
@@ -922,7 +920,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_with_camm_gps_points_zero_epoch_fallback(self):
         """Test avg_speed with CAMMGPSPoint falls back when time_gps_epoch is 0."""
-        from mapillary_tools.telemetry import CAMMGPSPoint
 
         points = [
             CAMMGPSPoint(
@@ -973,7 +970,6 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
 
     def test_avg_speed_zero_time_diff_returns_nan(self):
         """Test avg_speed returns NaN when time difference is zero."""
-        import math
 
         # Two points at the same timestamp
         points = [
@@ -989,7 +985,6 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
 
     def test_interpolate_gps_points_returns_gps_point(self):
         """Test that interpolating GPSPoints returns a GPSPoint."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         points = [
             GPSPoint(
@@ -1035,7 +1030,6 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
 
     def test_interpolate_gps_points_with_none_epoch_time(self):
         """Test interpolating GPSPoints when epoch_time is None."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         points = [
             GPSPoint(
@@ -1071,7 +1065,6 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
 
     def test_interpolate_camm_gps_points_returns_camm_gps_point(self):
         """Test that interpolating CAMMGPSPoints returns a CAMMGPSPoint."""
-        from mapillary_tools.telemetry import CAMMGPSPoint
 
         points = [
             CAMMGPSPoint(
@@ -1145,7 +1138,6 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
 
     def test_interpolator_preserves_gps_point_type(self):
         """Test that Interpolator preserves GPSPoint type."""
-        from mapillary_tools.telemetry import GPSPoint, GPSFix
 
         track = [
             GPSPoint(
@@ -1180,7 +1172,6 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
 
     def test_interpolator_preserves_camm_gps_point_type(self):
         """Test that Interpolator preserves CAMMGPSPoint type."""
-        from mapillary_tools.telemetry import CAMMGPSPoint
 
         track = [
             CAMMGPSPoint(

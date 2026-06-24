@@ -15,7 +15,6 @@ from unittest import mock
 
 import py.path
 import pytest
-
 from mapillary_tools import (
     exceptions,
     exif_read,

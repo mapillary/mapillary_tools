@@ -8,7 +8,6 @@ import struct
 from unittest.mock import patch
 
 import pytest
-
 from mapillary_tools import ipc
 
 

@@ -6,7 +6,6 @@
 from unittest.mock import MagicMock
 
 import requests
-
 from mapillary_tools import http
 
 

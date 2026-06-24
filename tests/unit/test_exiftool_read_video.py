@@ -8,7 +8,6 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 import pytest
-
 from mapillary_tools.exiftool_read_video import (
     _aggregate_gps_track,
     _aggregate_gps_track_by_sample_time,
@@ -17,6 +16,7 @@ from mapillary_tools.exiftool_read_video import (
     _extract_alternative_fields,
     _index_text_by_tag,
     _same_gps_point,
+    EXIFTOOL_NAMESPACES,
     ExifToolReadVideo,
     expand_tag,
 )
@@ -1338,3 +1338,74 @@ class TestEdgeCases:
         assert reader.extract_make() is None
         assert reader.extract_model() is None
         assert reader.extract_camera_uuid() is None
+
+
+# ---------------------------------------------------------------------------
+# ExifToolReadVideo.extract_camera_uuid (built from attribute-style tag dicts)
+# ---------------------------------------------------------------------------
+
+
+class TestVideoExtractCameraUuid:
+    """Test extract_camera_uuid for video EXIF reader"""
+
+    def _create_video_exif_reader(self, tags_dict: dict) -> ExifToolReadVideo:
+        """Helper to create an ExifToolReadVideo with mocked tags"""
+        # Build XML with child elements (not attributes) - this is how ExifTool XML works
+        root = ET.Element(
+            "rdf:RDF", {"xmlns:rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"}
+        )
+
+        # Add child elements for each tag
+        for key, value in tags_dict.items():
+            prefix, tag_name = key.split(":")
+            if prefix in EXIFTOOL_NAMESPACES:
+                full_tag = "{" + EXIFTOOL_NAMESPACES[prefix] + "}" + tag_name
+                child = ET.SubElement(root, full_tag)
+                child.text = value
+
+        etree = ET.ElementTree(root)
+        return ExifToolReadVideo(etree)
+
+    def test_gopro_serial(self):
+        """Test extraction of GoPro serial number"""
+        reader = self._create_video_exif_reader(
+            {"GoPro:SerialNumber": "C3456789012345"}
+        )
+        assert reader.extract_camera_uuid() == "C3456789012345"
+
+    def test_insta360_serial(self):
+        """Test extraction of Insta360 serial number"""
+        reader = self._create_video_exif_reader(
+            {"Insta360:SerialNumber": "INST360SERIAL"}
+        )
+        assert reader.extract_camera_uuid() == "INST360SERIAL"
+
+    def test_exif_body_serial(self):
+        """Test extraction of standard EXIF body serial number"""
+        reader = self._create_video_exif_reader({"ExifIFD:BodySerialNumber": "BODY123"})
+        assert reader.extract_camera_uuid() == "BODY123"
+
+    def test_exif_body_and_lens_serial(self):
+        """Test extraction of both body and lens serial numbers"""
+        reader = self._create_video_exif_reader(
+            {
+                "ExifIFD:BodySerialNumber": "BODY123",
+                "ExifIFD:LensSerialNumber": "LENS456",
+            }
+        )
+        assert reader.extract_camera_uuid() == "BODY123_LENS456"
+
+    def test_no_serial(self):
+        """Test with no serial numbers present"""
+        reader = self._create_video_exif_reader({})
+        assert reader.extract_camera_uuid() is None
+
+    def test_gopro_priority(self):
+        """Test that GoPro serial takes priority over generic serial"""
+        reader = self._create_video_exif_reader(
+            {
+                "GoPro:SerialNumber": "GOPRO123",
+                "IFD0:SerialNumber": "GENERIC789",
+            }
+        )
+        assert reader.extract_camera_uuid() == "GOPRO123"

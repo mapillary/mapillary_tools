@@ -11,12 +11,7 @@ from pathlib import Path
 from mapillary_tools.geo import Point
 from mapillary_tools.serializer.gpx import GPXSerializer
 from mapillary_tools.telemetry import CAMMGPSPoint, GPSFix, GPSPoint
-from mapillary_tools.types import (
-    ErrorMetadata,
-    FileType,
-    ImageMetadata,
-    VideoMetadata,
-)
+from mapillary_tools.types import ErrorMetadata, FileType, ImageMetadata, VideoMetadata
 
 
 def _make_image(
