@@ -516,7 +516,10 @@ class TestAggregateGpsTrack:
         assert len(track) == 1
         assert track[0].ground_speed == pytest.approx(52.7561)
 
-    def test_gps_time_tag_length_mismatch_falls_back_to_none(self):
+    def test_single_gps_time_tag_is_broadcast_to_all_points(self):
+        # Some cameras (e.g. GoPro MAX) store a single GPSDateTime per sample
+        # shared across all the GPS coordinates in that sample. The single epoch
+        # time should be broadcast to every coordinate.
         texts = {
             expand_tag("QuickTime:GPSLongitude"): ["28.0", "29.0"],
             expand_tag("QuickTime:GPSLatitude"): ["37.0", "38.0"],
@@ -536,7 +539,33 @@ class TestAggregateGpsTrack:
             gps_time_tag="QuickTime:GPSTimeStamp",
         )
         assert len(track) == 2
-        # Mismatch in gps_time_tag length: epoch_time falls back to None
+        # 2019:09:02 10:00:10Z broadcast to both points
+        for p in track:
+            assert p.epoch_time == pytest.approx(1567418410.0)
+
+    def test_gps_time_tag_length_mismatch_falls_back_to_none(self):
+        texts = {
+            expand_tag("QuickTime:GPSLongitude"): ["28.0", "29.0"],
+            expand_tag("QuickTime:GPSLatitude"): ["37.0", "38.0"],
+            expand_tag("QuickTime:GPSDateTime"): [
+                "2019:09:02 10:00:00Z",
+                "2019:09:02 10:00:01Z",
+            ],
+            expand_tag("QuickTime:GPSTimeStamp"): [
+                "2019:09:02 10:00:10Z",
+                "2019:09:02 10:00:11Z",
+                "2019:09:02 10:00:12Z",
+            ],
+        }
+        track = _aggregate_gps_track(
+            texts,
+            time_tag="QuickTime:GPSDateTime",
+            lon_tag="QuickTime:GPSLongitude",
+            lat_tag="QuickTime:GPSLatitude",
+            gps_time_tag="QuickTime:GPSTimeStamp",
+        )
+        assert len(track) == 2
+        # Genuine mismatch (3 vs 2) in gps_time_tag length: epoch_time falls back to None
         for p in track:
             assert p.epoch_time is None
 

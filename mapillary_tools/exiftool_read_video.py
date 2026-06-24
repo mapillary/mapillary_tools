@@ -156,7 +156,12 @@ def _aggregate_epoch_times(
                 or []
             )
         ]
-        if len(gps_epoch_times) != expected_length:
+        if len(gps_epoch_times) == 1 and expected_length > 1:
+            # Some cameras (e.g. GoPro MAX) store a single GPSDateTime per sample
+            # shared across all the GPS coordinates in that sample. Broadcast the
+            # single epoch time to every coordinate to match the native parser.
+            gps_epoch_times = gps_epoch_times * expected_length
+        elif len(gps_epoch_times) != expected_length:
             LOG.warning(
                 "Found different number of GPS epoch times %d and coordinates %d",
                 len(gps_epoch_times),
