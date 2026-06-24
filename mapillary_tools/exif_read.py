@@ -154,8 +154,10 @@ def parse_time_ratios_as_timedelta(
     if not isinstance(seconds, Ratio):
         return None
     try:
-        h: int = int(eval_frac(hours))
-        m: int = int(eval_frac(minutes))
+        # Keep fractional parts: a fractional minute/hour must carry into the
+        # total instead of being truncated away.
+        h: float = eval_frac(hours)
+        m: float = eval_frac(minutes)
         s: float = eval_frac(seconds)
     except (ValueError, ZeroDivisionError):
         return None
@@ -259,13 +261,17 @@ def parse_datetimestr_with_subsec_and_offset(
     # handle subsec
     if subsec is not None:
         subsec = subsec.strip()
-        if len(subsec) < 6:
-            subsec = subsec + ("0" * 6)
-        microseconds = int(subsec[:6])
-        # ValueError: microsecond must be in 0..999999
-        microseconds = microseconds % int(1e6)
-        # always overrides the microseconds
-        dt = dt.replace(microsecond=microseconds)
+        # Like exiftool, use only the leading run of digits and ignore any
+        # non-numeric remainder (sub-second metadata is sometimes malformed,
+        # e.g. spaces or other garbage). If there are no leading digits, the
+        # sub-second is simply not applied rather than crashing the read.
+        match = re.match(r"\d+", subsec)
+        if match is not None:
+            # interpret the digits as the fractional part of a second and
+            # normalize to exactly 6 digits (microseconds)
+            microseconds = int(match.group()[:6].ljust(6, "0"))
+            # always overrides the microseconds
+            dt = dt.replace(microsecond=microseconds)
 
     # handle tz_offset
     if tz_offset is not None:
@@ -688,7 +694,7 @@ class ExifReadFromEXIF(ExifReadABC):
             return None
 
         dt = strptime_alternative_formats(gpsdate, ["%Y:%m:%d", "%Y-%m-%d"])
-        if dt is None or dt == datetime.date(1970, 1, 1):
+        if dt is None or dt.date() == datetime.date(1970, 1, 1):
             return None
 
         gpstimestamp = self.tags.get("GPS GPSTimeStamp")
@@ -1052,7 +1058,7 @@ class ExifRead(ExifReadFromEXIF):
         val = super().extract_height()
         if val is not None:
             return val
-        xmp = self._xmp_with_reason("width")
+        xmp = self._xmp_with_reason("height")
         if xmp is None:
             return None
         val = xmp.extract_height()

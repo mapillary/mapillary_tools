@@ -22,6 +22,9 @@ from mapillary_tools.exif_read import (
     XMP_NAMESPACES,
 )
 from mapillary_tools.exif_write import ExifEdit
+from PIL import Image
+from PIL.ExifTags import GPS, IFD
+from PIL.TiffImagePlugin import IFDRational
 
 """Initialize all the neccessary data"""
 
@@ -221,6 +224,17 @@ def test_parse():
     assert str(dt) == "2021-10-10 17:29:54.124000-02:00", dt
 
 
+def test_parse_subsec_uses_leading_digits():
+    # Matching exiftool: a fully non-numeric subsec (untrusted metadata) is
+    # ignored rather than raising, and a partially-numeric subsec contributes
+    # only its leading digits.
+    dt = parse_datetimestr_with_subsec_and_offset("2019:01:01 12:00:00", subsec="abc")
+    assert dt == datetime.datetime(2019, 1, 1, 12, 0, 0)
+
+    dt = parse_datetimestr_with_subsec_and_offset("2019:01:01 12:00:00", subsec="12ab")
+    assert dt == datetime.datetime(2019, 1, 1, 12, 0, 0, 120000)
+
+
 # Coordinate parsing is exercised through the public ExifReadFromXMP.extract_lon_lat:
 # the raw value is supplied as the latitude (with a fixed, always-valid longitude so
 # the call returns), and the returned latitude reflects how the raw value was parsed.
@@ -299,14 +313,57 @@ def test_read_and_write(setup_data: py.path.local):
         assert as_unix_time(dt) == as_unix_time(actual)
 
 
-# Tests for extract_camera_uuid
-
-
 class MockExifTag:
     """Mock class for exifread tag values"""
 
     def __init__(self, values):
         self.values = values
+
+
+def _read_gps_datetime_image(
+    date_stamp: str, hms: T.List[T.Tuple[int, int]]
+) -> ExifRead:
+    """
+    Build an in-memory JPEG with the given GPSDateStamp/GPSTimeStamp and read it back.
+
+    ``hms`` holds (numerator, denominator) pairs for hour, minute, second.
+    """
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSDateStamp] = date_stamp
+    gps[GPS.GPSTimeStamp] = tuple(IFDRational(n, d) for n, d in hms)
+    exif[IFD.GPSInfo.value] = gps
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    return ExifRead(io.BytesIO(buf.getvalue()))
+
+
+class TestExtractGpsDatetimeFromEXIF:
+    """Test extract_gps_datetime from EXIF tags"""
+
+    def test_valid_date_and_time(self):
+        reader = _read_gps_datetime_image("2021:07:15", [(9, 1), (14, 1), (39, 1)])
+        assert reader.extract_gps_datetime() == datetime.datetime(
+            2021, 7, 15, 9, 14, 39, tzinfo=datetime.timezone.utc
+        )
+
+    def test_rejects_epoch_date(self):
+        # The epoch date (1970-01-01) is a common "no GPS fix" placeholder and
+        # must be rejected (-> None) rather than yielding a bogus 1970 timestamp.
+        reader = _read_gps_datetime_image("1970:01:01", [(9, 1), (14, 1), (39, 1)])
+        assert reader.extract_gps_datetime() is None
+
+    def test_keeps_fractional_minutes(self):
+        # 9h 30.5m 0s == 09:30:30: a fractional minute must carry into the total
+        # instead of being truncated away.
+        reader = _read_gps_datetime_image("2021:07:15", [(9, 1), (305, 10), (0, 1)])
+        assert reader.extract_gps_datetime() == datetime.datetime(
+            2021, 7, 15, 9, 30, 30, tzinfo=datetime.timezone.utc
+        )
+
+
+# Tests for extract_camera_uuid
 
 
 class TestExtractCameraUuidFromEXIF:
