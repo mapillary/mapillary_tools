@@ -46,12 +46,15 @@ def test_expiration(tmpdir):
     cache_file = os.path.join(tmpdir, "cache")
     cache = PersistentCache(cache_file)
 
-    # Set with short expiration
-    cache.set("short_lived", "value", expires_in=1)
+    # Set with short expiration. Use a generous window here so that the
+    # immediate read below cannot lose the set->get race on heavily loaded CI
+    # runners (e.g. Windows under SQLite lock contention), where opening the
+    # store and retrying can itself take over a second.
+    cache.set("short_lived", "value", expires_in=5)
     assert cache.get("short_lived") == "value"
 
     # Wait for expiration
-    time.sleep(1.1)
+    time.sleep(5.1)
     assert cache.get("short_lived") is None
 
     # Set with longer expiration
