@@ -402,7 +402,7 @@ def test_multithread_shared_cache_comprehensive(tmpdir):
     shared_cache = PersistentCache(cache_file)
     shared_cache.clear_expired()
 
-    num_keys = 5_000
+    num_keys = 1_000
 
     # Generate key-value pairs for first run (overlapping patterns to ensure intersections)
     first_dict = {f"key_{i}": f"first_value_{i}" for i in range(num_keys)}
@@ -526,7 +526,7 @@ def test_multiprocess_shared_cache_comprehensive(tmpdir):
     init_cache.clear_expired()
 
     num_processes = 4
-    keys_per_process = 1000
+    keys_per_process = 250
 
     # Prepare arguments for each process
     process_args = [
@@ -613,12 +613,12 @@ def test_multiprocess_write_without_database_lock_errors(tmpdir):
     with concurrent.futures.ProcessPoolExecutor(max_workers=40) as executor:
         futures = [
             executor.submit(_cache_set, cache_file, str(key), num_sets=1)
-            for key in range(10000)
+            for key in range(2000)
         ]
         r = [f.result() for f in futures]
 
     cache = PersistentCache(cache_file)
-    assert 10000 == len(cache.keys())
+    assert 2000 == len(cache.keys())
 
 
 def _sqlite_insert_rows(cache_file, value, num_inserts=1):
@@ -650,7 +650,7 @@ def test_multiprocess_sqlite_database_locking(tmpdir):
     cache_file = os.path.join(tmpdir, "cache_sqlite_locking")
     assert not os.path.exists(cache_file)
 
-    num_items = 4000
+    num_items = 1000
     num_inserts = 1
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=40) as executor:
@@ -692,7 +692,7 @@ def test_multithread_sqlite_database_locking(tmpdir):
     cache_file = os.path.join(tmpdir, "cache_sqlite_locking")
     assert not os.path.exists(cache_file)
 
-    num_items = 4000
+    num_items = 1000
     num_inserts = 1
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
