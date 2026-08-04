@@ -75,6 +75,14 @@ dev = [
     "usort",
 ]
 
+# Ruff configuration
+# Pin the linter to an explicit rule set so `ruff check` is deterministic
+# regardless of the installed ruff version. These are ruff's historical default
+# rules (pyflakes + a subset of pycodestyle); newer ruff versions expanded their
+# built-in defaults, which would otherwise flag hundreds of pre-existing issues.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
 # Mypy configuration
 [tool.mypy]
 # Global mypy settings
