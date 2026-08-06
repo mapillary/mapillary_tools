@@ -156,6 +156,14 @@ class ExifEdit:
                 self._ef["GPS"][piexif.GPSIFD.GPSImgDirection],
             )
 
+    def add_gps_accuracy(self, accuracy: float) -> None:
+        """Add GPS horizontal position accuracy in meters (EXIF GPSHPositioningError)."""
+        if math.isinf(accuracy) or math.isnan(accuracy) or accuracy <= 0:
+            accuracy = 99999.0
+        accuracy = min(accuracy, 99999.0)
+        num = round(accuracy * 100)
+        self._ef["GPS"][piexif.GPSIFD.GPSHPositioningError] = (num, 100)
+
     def add_make(self, make: str) -> None:
         if not make:
             raise ValueError("Make cannot be empty")
