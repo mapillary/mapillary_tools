@@ -151,14 +151,14 @@ class TestGPXSerializerAsGPXPoint:
         gpx_pt = GPXSerializer.as_gpx_point(img)
         assert gpx_pt.name == "photo.jpg"
 
-    def test_camm_gps_point_uses_gps_epoch_time(self):
+    def test_camm_gps_point_uses_gps_timestamp(self):
         p = CAMMGPSPoint(
             time=5.0,
             lat=48.0,
             lon=11.0,
             alt=100.0,
             angle=0.0,
-            time_gps_epoch=1700000000.0,
+            epoch_time=1700000000.0,
             gps_fix_type=3,
             horizontal_accuracy=1.0,
             vertical_accuracy=1.0,
@@ -168,7 +168,7 @@ class TestGPXSerializerAsGPXPoint:
             speed_accuracy=0.5,
         )
         gpx_pt = GPXSerializer.as_gpx_point(p)
-        # time should be based on time_gps_epoch, not the video time (5.0)
+        # time should be based on epoch_time, not the video time (5.0)
         assert gpx_pt.time is not None
         assert gpx_pt.time.timestamp() == 1700000000.0
 

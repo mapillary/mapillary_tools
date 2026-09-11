@@ -877,7 +877,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
         self.assertAlmostEqual(speed, 11.1, delta=0.5)
 
     def test_avg_speed_with_camm_gps_points(self):
-        """Test avg_speed with CAMMGPSPoint using time_gps_epoch field."""
+        """Test avg_speed with CAMMGPSPoint using epoch_time field."""
 
         # Video time is 0-10 seconds, but GPS epoch time spans 50 seconds
         points = [
@@ -887,7 +887,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
                 lon=0.0,
                 alt=0.0,
                 angle=None,
-                time_gps_epoch=2000.0,  # GPS epoch time
+                epoch_time=2000.0,  # GPS epoch time
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=1.0,
@@ -902,7 +902,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
                 lon=0.0,
                 alt=0.0,
                 angle=None,
-                time_gps_epoch=2050.0,  # GPS epoch time (50 sec elapsed)
+                epoch_time=2050.0,  # GPS epoch time (50 sec elapsed)
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=1.0,
@@ -919,7 +919,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
         self.assertAlmostEqual(speed, 11.1, delta=0.5)
 
     def test_avg_speed_with_camm_gps_points_zero_epoch_fallback(self):
-        """Test avg_speed with CAMMGPSPoint falls back when time_gps_epoch is 0."""
+        """Test avg_speed with CAMMGPSPoint falls back when epoch_time is 0."""
 
         points = [
             CAMMGPSPoint(
@@ -928,7 +928,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
                 lon=0.0,
                 alt=0.0,
                 angle=None,
-                time_gps_epoch=0.0,  # Zero triggers fallback
+                epoch_time=0.0,  # Zero triggers fallback
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=1.0,
@@ -943,7 +943,7 @@ class TestAvgSpeedWithGPSEpochTime(unittest.TestCase):
                 lon=0.0,
                 alt=0.0,
                 angle=None,
-                time_gps_epoch=0.0,  # Zero triggers fallback
+                epoch_time=0.0,  # Zero triggers fallback
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=1.0,
@@ -1073,7 +1073,7 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
                 lon=0.0,
                 alt=100.0,
                 angle=0.0,
-                time_gps_epoch=2000.0,
+                epoch_time=2000.0,
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=2.0,
@@ -1088,7 +1088,7 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
                 lon=1.0,
                 alt=200.0,
                 angle=45.0,
-                time_gps_epoch=2010.0,
+                epoch_time=2010.0,
                 gps_fix_type=3,
                 horizontal_accuracy=3.0,
                 vertical_accuracy=4.0,
@@ -1111,7 +1111,7 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
         self.assertAlmostEqual(result.alt, 150.0)
 
         # Check CAMMGPSPoint-specific fields are interpolated
-        self.assertAlmostEqual(result.time_gps_epoch, 2005.0)
+        self.assertAlmostEqual(result.epoch_time, 2005.0)
         self.assertEqual(result.gps_fix_type, 3)  # Taken from start point
         self.assertAlmostEqual(result.horizontal_accuracy, 2.0)
         self.assertAlmostEqual(result.vertical_accuracy, 3.0)
@@ -1180,7 +1180,7 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
                 lon=0.0,
                 alt=100.0,
                 angle=0.0,
-                time_gps_epoch=2000.0,
+                epoch_time=2000.0,
                 gps_fix_type=3,
                 horizontal_accuracy=1.0,
                 vertical_accuracy=2.0,
@@ -1195,7 +1195,7 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
                 lon=1.0,
                 alt=200.0,
                 angle=45.0,
-                time_gps_epoch=2010.0,
+                epoch_time=2010.0,
                 gps_fix_type=3,
                 horizontal_accuracy=3.0,
                 vertical_accuracy=4.0,
@@ -1210,5 +1210,5 @@ class TestInterpolatePreservesPointType(unittest.TestCase):
         result = interpolator.interpolate(5.0)
 
         self.assertIsInstance(result, CAMMGPSPoint)
-        self.assertAlmostEqual(result.time_gps_epoch, 2005.0)
+        self.assertAlmostEqual(result.epoch_time, 2005.0)
         self.assertAlmostEqual(result.velocity_east, 15.0)

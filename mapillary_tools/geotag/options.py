@@ -67,7 +67,7 @@ class SourceOption:
             elif k == "source_path":
                 kwargs.setdefault(
                     "source_path", SourcePathOption(source_path=Path(v))
-                ).sourthe_path = Path(v)
+                ).source_path = Path(v)
             elif k == "pattern":
                 kwargs.setdefault(
                     "source_path", SourcePathOption(pattern=v)

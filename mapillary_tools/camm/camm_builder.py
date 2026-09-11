@@ -28,6 +28,10 @@ def _build_camm_sample(measurement: camm_parser.TelemetryMeasurement) -> bytes:
     raise ValueError(f"Unsupported measurement type {type(measurement)}")
 
 
+INT32_MIN = -(2**31)
+INT32_MAX = 2**31 - 1
+
+
 def _create_edit_list_from_points(
     tracks: T.Sequence[T.Sequence[geo.Point]],
     movie_timescale: int,
@@ -68,9 +72,21 @@ def _create_edit_list_from_points(
                 }
             )
 
+    # A version 0 elst stores these as 32-bit signed integers. Fall back to
+    # version 1 (64-bit) rather than letting the build fail on overflow.
+    version = 0
+    for entry in entries:
+        if not (
+            INT32_MIN <= entry["segment_duration"] <= INT32_MAX
+            and INT32_MIN <= entry["media_time"] <= INT32_MAX
+        ):
+            version = 1
+            break
+
     return {
         "type": b"elst",
         "data": {
+            "version": version,
             "entries": entries,
         },
     }

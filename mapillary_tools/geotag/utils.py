@@ -37,7 +37,7 @@ def parse_gpx(gpx_file: Path) -> list[Track]:
                             lon=point.longitude,
                             alt=point.elevation,
                             angle=None,
-                            time_gps_epoch=unix_time,
+                            epoch_time=unix_time,
                             gps_fix_type=3 if point.elevation is not None else 2,
                             horizontal_accuracy=0.0,
                             vertical_accuracy=0.0,

@@ -77,14 +77,12 @@ class GPXSerializer(BaseSerializer):
 
         if isinstance(point, types.ImageMetadata):
             gpx_point.name = point.filename.name
-        elif isinstance(point, CAMMGPSPoint):
-            gpx_point.time = datetime.datetime.fromtimestamp(
-                point.time_gps_epoch, datetime.timezone.utc
-            )
-        elif isinstance(point, GPSPoint):
-            if point.epoch_time is not None:
+        elif isinstance(point, (CAMMGPSPoint, GPSPoint)):
+            # GPX timestamps are UTC, so normalize whatever epoch the point uses
+            unix_time = point.get_unix_time()
+            if unix_time is not None:
                 gpx_point.time = datetime.datetime.fromtimestamp(
-                    point.epoch_time, datetime.timezone.utc
+                    unix_time, datetime.timezone.utc
                 )
 
         return gpx_point

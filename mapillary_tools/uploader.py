@@ -304,14 +304,15 @@ class VideoUploader:
             elif isinstance(point, telemetry.GPSPoint):
                 # Convert GPSPoint to CAMMGPSPoint if it has a valid epoch_time,
                 # so the GPS timestamp is preserved in the CAMM type 6 entry
-                if point.epoch_time is not None and point.epoch_time > 0:
+                unix_time = point.get_unix_time()
+                if unix_time is not None:
                     camm_point = telemetry.CAMMGPSPoint(
                         time=point.time,
                         lat=point.lat,
                         lon=point.lon,
                         alt=point.alt,
                         angle=point.angle,
-                        time_gps_epoch=point.epoch_time,
+                        epoch_time=unix_time,
                         gps_fix_type=point.fix.value
                         if point.fix is not None
                         else (3 if point.alt is not None else 2),

@@ -354,11 +354,11 @@ def _sample_single_video_by_distance(
                 f"interpolated time {interp.time} should match the video sample time {video_sample.exact_composition_time}"
             )
 
-            # Try to use GPS epoch time if available (for timelapse videos)
-            gps_epoch_time = interp.get_gps_epoch_time()
-            if gps_epoch_time is not None:
+            # Try to use the GPS timestamp if available (for timelapse videos)
+            gps_unix_time = interp.get_unix_time()
+            if gps_unix_time is not None:
                 timestamp = datetime.datetime.fromtimestamp(
-                    gps_epoch_time, tz=datetime.timezone.utc
+                    gps_unix_time, tz=datetime.timezone.utc
                 )
             else:
                 timestamp = start_time + datetime.timedelta(seconds=interp.time)

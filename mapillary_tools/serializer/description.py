@@ -196,7 +196,7 @@ VideoDescriptionSchema = {
                     },
                     {
                         "type": ["number", "null"],
-                        "description": "GPS epoch time of the track point, in seconds. If present, used as the authoritative timestamp",
+                        "description": "Unix time (UTC) of the track point, in seconds. If present, used as the authoritative timestamp",
                     },
                 ],
             },
@@ -517,14 +517,14 @@ class PointEncoder:
             round(p.lat, _COORDINATES_PRECISION),
             round(p.alt, _ALTITUDE_PRECISION) if p.alt is not None else None,
             round(p.angle, _ANGLE_PRECISION) if p.angle is not None else None,
-            p.get_gps_epoch_time(),
+            p.get_unix_time(),
         ]
         return entry
 
     @classmethod
     def decode(cls, entry: T.Sequence[T.Any]) -> geo.Point:
         if len(entry) >= 6 and entry[5] is not None:
-            time_ms, lon, lat, alt, angle, time_gps_epoch = (
+            time_ms, lon, lat, alt, angle, unix_time = (
                 entry[0],
                 entry[1],
                 entry[2],
@@ -538,7 +538,7 @@ class PointEncoder:
                 lon=lon,
                 alt=alt,
                 angle=angle,
-                time_gps_epoch=time_gps_epoch,
+                epoch_time=unix_time,
                 gps_fix_type=3 if alt is not None else 2,
                 horizontal_accuracy=0.0,
                 vertical_accuracy=0.0,

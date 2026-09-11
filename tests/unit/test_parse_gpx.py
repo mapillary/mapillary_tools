@@ -23,7 +23,9 @@ def test_parse_gpx_creates_camm_gps_points():
 
     for point in track:
         assert isinstance(point, telemetry.CAMMGPSPoint)
-        assert point.time_gps_epoch == point.time
+        # GPX timestamps are UTC, and so is epoch_time
+        assert point.epoch_time == point.time
+        assert point.get_unix_time() == point.time
         assert point.gps_fix_type == 3  # all points have <ele>
         assert point.horizontal_accuracy == 0.0
         assert point.vertical_accuracy == 0.0

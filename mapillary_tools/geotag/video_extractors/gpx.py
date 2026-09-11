@@ -17,13 +17,18 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, geo, telemetry, types, utils
+from ... import exceptions, geo, types, utils
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
+
+# A GPX track and the video it is synced against should overlap in time. Warn
+# above a day, which no legitimate pairing needs and an epoch mix-up exceeds by
+# orders of magnitude.
+_IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 
 
 class SyncMode(enum.Enum):
@@ -73,6 +78,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._rebase_times(gpx_points)
         else:
             offset = self._gpx_offset(gpx_points, native_video_metadata.points)
+            if abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS:
+                LOG.warning(
+                    "Syncing %s against %s requires an offset of %.0f seconds (%.1f days). "
+                    "The GPX file probably does not belong to this video",
+                    self.video_path,
+                    self.gpx_path,
+                    offset,
+                    offset / 86400,
+                )
             self._rebase_times(gpx_points, offset=offset)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
@@ -107,16 +121,13 @@ class GPXVideoExtractor(BaseVideoExtractor):
         if not gpx_points or not video_gps_points:
             return offset
 
-        gps_epoch_time: float | None = None
-        gps_point = video_gps_points[0]
-        if isinstance(gps_point, telemetry.GPSPoint):
-            if gps_point.epoch_time is not None:
-                gps_epoch_time = gps_point.epoch_time
-        elif isinstance(gps_point, telemetry.CAMMGPSPoint):
-            if gps_point.time_gps_epoch is not None:
-                gps_epoch_time = gps_point.time_gps_epoch
+        # Both sides must be Unix time here. Video GPS timestamps are stored in
+        # whatever epoch their container uses (CAMM records GPS time, GoPro
+        # records Unix time), so go through get_unix_time() rather than reading
+        # the raw attributes -- that also skips zero/invalid timestamps.
+        video_unix_time = video_gps_points[0].get_unix_time()
 
-        if gps_epoch_time is not None:
-            offset = gpx_points[0].time - gps_epoch_time
+        if video_unix_time is not None:
+            offset = gpx_points[0].time - video_unix_time
 
         return offset

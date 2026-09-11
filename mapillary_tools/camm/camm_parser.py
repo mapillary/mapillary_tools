@@ -116,14 +116,74 @@ def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo 
                 gps: list[telemetry.CAMMGPSPoint] = []
 
                 for measurement in measurements:
-                    if isinstance(measurement, geo.Point):
-                        mini_gps.append(measurement)
-                    elif isinstance(measurement, telemetry.CAMMGPSPoint):
+                    # NOTE: CAMMGPSPoint is a subclass of geo.Point, so it has
+                    # to be tested first or every GPS point ends up in mini_gps
+                    if isinstance(measurement, telemetry.CAMMGPSPoint):
                         gps.append(measurement)
+                    elif isinstance(measurement, geo.Point):
+                        mini_gps.append(measurement)
+
+                _normalize_gps_epochs(gps, make, moov)
 
                 return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
 
     return None
+
+
+# Makes whose CAMM type 6 samples record GPS time (seconds since 1980-01-06),
+# as the CAMM spec describes. Everything else -- Insta360, and the CAMM tracks
+# mapillary_tools writes itself -- records Unix time in the same field, so
+# converting unconditionally would push those ~10 years into the future.
+_GPS_EPOCH_MAKES = frozenset(["labpano"])
+
+# Seconds between the mp4 epoch (1904-01-01) and the Unix epoch.
+_MP4_EPOCH_UNIX_OFFSET = 2082844800
+
+# Tolerance for recognizing a gap as "off by exactly one GPS epoch". Checking
+# for that specific distance rather than for general implausibility matters:
+# some cameras write a meaningless mvhd creation_time (a GoPro HERO7 recorded
+# in 2022 reports 2016), so a generic bound would fire constantly.
+_GPS_EPOCH_GAP_TOLERANCE = 30 * 24 * 3600
+
+
+def _normalize_gps_epochs(
+    gps: list[telemetry.CAMMGPSPoint], make: str, moov: MovieBoxParser | None = None
+) -> None:
+    """
+    Rewrite CAMMGPSPoint.epoch_time in place so it is Unix time regardless of
+    which epoch the producer used.
+
+    This is the only place CAMM GPS timestamps change epoch. Everything
+    downstream, including the serializer, treats them as Unix time.
+    """
+    if not gps:
+        return
+
+    if make.strip().lower() in _GPS_EPOCH_MAKES:
+        for point in gps:
+            if point.epoch_time > 0:
+                point.epoch_time = telemetry.gps_epoch_to_unix(point.epoch_time)
+
+    first = next((p.epoch_time for p in gps if p.epoch_time > 0), None)
+    if first is None or moov is None:
+        return
+
+    try:
+        creation_time = moov.extract_mvhd_boxdata().get("creation_time", 0)
+    except Exception:
+        return
+
+    if not creation_time:
+        return
+
+    gap = abs(first - (creation_time - _MP4_EPOCH_UNIX_OFFSET))
+    if abs(gap - telemetry.GPS_EPOCH_UNIX_OFFSET) < _GPS_EPOCH_GAP_TOLERANCE:
+        LOG.warning(
+            "CAMM GPS timestamps are one GPS epoch away from the creation time "
+            "of the video. The camera (make %r) may record GPS time where Unix "
+            "time is expected, or the reverse; please report this video",
+            make,
+        )
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
@@ -225,7 +285,9 @@ class GPSSampleEntry(CAMMSampleEntry):
             lon=data.longitude,
             alt=data.altitude,
             angle=None,
-            time_gps_epoch=data.time_gps_epoch,
+            # Raw, still in whatever epoch the producer used. Normalized to
+            # Unix time by _normalize_gps_epochs() once the make is known.
+            epoch_time=data.time_gps_epoch,
             gps_fix_type=data.gps_fix_type,
             horizontal_accuracy=data.horizontal_accuracy,
             vertical_accuracy=data.vertical_accuracy,
@@ -243,7 +305,10 @@ class GPSSampleEntry(CAMMSampleEntry):
             {
                 "type": cls.serialized_camm_type.value,
                 "data": {
-                    "time_gps_epoch": data.time_gps_epoch,
+                    # Written as Unix time, which is what every released
+                    # version of mapillary_tools has written and what readers
+                    # of our output expect. Do not convert here.
+                    "time_gps_epoch": data.epoch_time,
                     "gps_fix_type": data.gps_fix_type,
                     "latitude": data.lat,
                     "longitude": data.lon,
