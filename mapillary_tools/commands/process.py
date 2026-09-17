@@ -9,7 +9,7 @@ import argparse
 import inspect
 from pathlib import Path
 
-from .. import constants, types
+from .. import constants, process_report, types
 from ..process_geotag_properties import (
     DEFAULT_GEOTAG_SOURCE_OPTIONS,
     process_finalize,
@@ -43,6 +43,16 @@ class Command:
             help="Skip process errors.",
             action="store_true",
             default=False,
+            required=False,
+        )
+        parser.add_argument(
+            "--process_report_path",
+            help=(
+                "Optional path to write a versioned JSON report describing "
+                "recognized process inputs and unsupported files."
+            ),
+            type=Path,
+            default=None,
             required=False,
         )
         parser.add_argument(
@@ -217,6 +227,14 @@ class Command:
         )
 
     def run(self, vars_args: dict):
+        process_report_path = vars_args.get("process_report_path")
+        if process_report_path is not None:
+            report = process_report.build_process_report(
+                import_path=vars_args["import_path"],
+                skip_subfolders=vars_args.get("skip_subfolders", False),
+            )
+            process_report.write_process_report(process_report_path, report)
+
         metadatas = process_geotag_properties(
             **(
                 {

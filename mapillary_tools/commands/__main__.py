@@ -16,6 +16,7 @@ from ..upload import log_exception
 from ..utils import configure_logger, get_app_name
 from . import (
     authenticate,
+    check_upload_history,
     process,
     process_and_upload,
     sample_video,
@@ -27,6 +28,7 @@ from . import (
 
 mapillary_tools_commands = [
     process,
+    check_upload_history,
     upload,
     sample_video,
     video_process,
@@ -62,13 +64,24 @@ def add_general_arguments(parser, command):
             default=False,
             required=False,
         )
-    elif command in ["upload"]:
+    elif command in ["upload", "check_upload_history"]:
         parser.add_argument(
             "import_path",
             help="Paths to your images or videos.",
             nargs="+",
             type=Path,
         )
+        if command == "check_upload_history":
+            parser.add_argument(
+                "--skip_subfolders",
+                help=(
+                    "Skip all subfolders and import only files in the given "
+                    "IMPORT_PATH."
+                ),
+                action="store_true",
+                default=False,
+                required=False,
+            )
     elif command in ["process", "process_and_upload"]:
         parser.add_argument(
             "import_path",

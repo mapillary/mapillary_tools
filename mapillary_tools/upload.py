@@ -36,6 +36,16 @@ from .types import FileType
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
+
+class UploadHistoryCheckResult(T.TypedDict):
+    file_type: str
+    sequence_uuid: str | None
+    sequence_md5sum: str
+    filenames: list[str]
+    already_uploaded_filenames: list[str]
+    already_uploaded: bool
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -134,6 +144,135 @@ def upload(
             f"Expect {upload_successes} success but got {stats}"
         )
         _show_upload_summary(stats, upload_errors)
+
+
+def _history_check_result(
+    file_type: types.FileType,
+    sequence_uuid: str | None,
+    sequence_md5sum: str,
+    filenames: T.Iterable[Path],
+    already_uploaded_filenames: T.Iterable[Path],
+) -> UploadHistoryCheckResult:
+    filename_strings = [str(filename) for filename in filenames]
+    already_uploaded_filename_strings = [
+        str(filename) for filename in already_uploaded_filenames
+    ]
+    return {
+        "file_type": file_type.value,
+        "sequence_uuid": sequence_uuid,
+        "sequence_md5sum": sequence_md5sum,
+        "filenames": filename_strings,
+        "already_uploaded_filenames": already_uploaded_filename_strings,
+        "already_uploaded": (
+            bool(filename_strings)
+            and len(already_uploaded_filename_strings) == len(filename_strings)
+        ),
+    }
+
+
+def _has_upload_history_record(md5sum: str) -> bool:
+    try:
+        record = history.read_history_record(md5sum)
+    except (OSError, UnicodeError) as ex:
+        LOG.warning("Failed to read upload history %s: %s", md5sum, ex)
+        return False
+    return isinstance(record, dict)
+
+
+def check_upload_history(
+    import_path: Path | T.Sequence[Path],
+    desc_path: str | None = None,
+    skip_subfolders: bool = False,
+    _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
+) -> list[UploadHistoryCheckResult]:
+    """Return upload-history matches without uploading or changing history."""
+    import_paths = _normalize_import_paths(import_path)
+    metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
+    candidates = _find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=skip_subfolders
+    )
+
+    results: list[UploadHistoryCheckResult] = []
+    image_results_to_check: list[
+        tuple[UploadHistoryCheckResult, list[types.ImageMetadata]]
+    ] = []
+    image_md5sums_to_check: set[str] = set()
+
+    for sequence_uuid, sequence in types.group_and_sort_images(
+        candidates.image_metadatas
+    ).items():
+        sequence_md5sum = types.update_sequence_md5sum(sequence)
+        filenames = [metadata.filename for metadata in sequence]
+        sequence_already_uploaded = _has_upload_history_record(sequence_md5sum)
+        if sequence_already_uploaded:
+            already_uploaded_filenames = filenames
+        else:
+            already_uploaded_filenames = []
+            for metadata in sequence:
+                assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
+                image_md5sums_to_check.add(metadata.md5sum)
+
+        result = _history_check_result(
+            types.FileType.IMAGE,
+            sequence_uuid,
+            sequence_md5sum,
+            filenames,
+            already_uploaded_filenames,
+        )
+        results.append(result)
+
+        if not sequence_already_uploaded:
+            image_results_to_check.append((result, sequence))
+
+    uploaded_image_md5sums = history.find_uploaded_image_md5s(image_md5sums_to_check)
+    for result, sequence in image_results_to_check:
+        already_uploaded_filename_strings: list[str] = []
+        for metadata in sequence:
+            assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
+            if metadata.md5sum.lower() in uploaded_image_md5sums:
+                already_uploaded_filename_strings.append(str(metadata.filename))
+        result["already_uploaded_filenames"] = already_uploaded_filename_strings
+        result["already_uploaded"] = len(already_uploaded_filename_strings) == len(
+            result["filenames"]
+        )
+
+    for video_metadata in sorted(
+        candidates.video_metadatas, key=lambda metadata: metadata.filename
+    ):
+        video_metadata.update_md5sum()
+        assert isinstance(video_metadata.md5sum, str), "md5sum should be calculated"
+        filenames = [video_metadata.filename]
+        already_uploaded_filenames = (
+            filenames if _has_upload_history_record(video_metadata.md5sum) else []
+        )
+        results.append(
+            _history_check_result(
+                video_metadata.filetype,
+                None,
+                video_metadata.md5sum,
+                filenames,
+                already_uploaded_filenames,
+            )
+        )
+
+    for zip_path in sorted(candidates.zip_paths):
+        with zip_path.open("rb") as zip_fp:
+            sequence_md5sum = uploader.ZipUploader._extract_sequence_md5sum(zip_fp)
+        filenames = [zip_path]
+        already_uploaded_filenames = (
+            filenames if _has_upload_history_record(sequence_md5sum) else []
+        )
+        results.append(
+            _history_check_result(
+                types.FileType.ZIP,
+                None,
+                sequence_md5sum,
+                filenames,
+                already_uploaded_filenames,
+            )
+        )
+
+    return results
 
 
 def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
@@ -543,11 +682,34 @@ def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
 _M = T.TypeVar("_M", bound=types.Metadata)
 
 
+class _UploadCandidates(T.NamedTuple):
+    image_metadatas: list[types.ImageMetadata]
+    video_metadatas: list[types.VideoMetadata]
+    zip_paths: list[Path]
+
+
 def _find_metadata_with_filename_existed_in(
     metadatas: T.Iterable[_M], paths: T.Iterable[Path]
 ) -> list[_M]:
     resolved_image_paths = set(p.resolve() for p in paths)
     return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
+
+
+def _find_upload_candidates(
+    metadatas: T.Sequence[types.Metadata],
+    import_paths: T.Sequence[Path],
+    skip_subfolders: bool,
+) -> _UploadCandidates:
+    image_metadatas = _find_metadata_with_filename_existed_in(
+        (m for m in metadatas if isinstance(m, types.ImageMetadata)),
+        utils.find_images(import_paths, skip_subfolders=skip_subfolders),
+    )
+    video_metadatas = _find_metadata_with_filename_existed_in(
+        (m for m in metadatas if isinstance(m, types.VideoMetadata)),
+        utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
+    )
+    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+    return _UploadCandidates(image_metadatas, video_metadatas, zip_paths)
 
 
 def _gen_upload_everything(
@@ -556,26 +718,23 @@ def _gen_upload_everything(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool,
 ):
-    # Upload images
-    image_metadatas = _find_metadata_with_filename_existed_in(
-        (m for m in metadatas if isinstance(m, types.ImageMetadata)),
-        utils.find_images(import_paths, skip_subfolders=skip_subfolders),
+    candidates = _find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=skip_subfolders
     )
+
+    # Upload images
     image_uploader = uploader.ImageSequenceUploader(
         mly_uploader.upload_options, emitter=mly_uploader.emitter
     )
-    yield from image_uploader.upload_images(image_metadatas)
+    yield from image_uploader.upload_images(candidates.image_metadatas)
 
     # Upload videos
-    video_metadatas = _find_metadata_with_filename_existed_in(
-        (m for m in metadatas if isinstance(m, types.VideoMetadata)),
-        utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
+    yield from uploader.VideoUploader.upload_videos(
+        mly_uploader, candidates.video_metadatas
     )
-    yield from uploader.VideoUploader.upload_videos(mly_uploader, video_metadatas)
 
     # Upload zip files
-    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
-    yield from uploader.ZipUploader.upload_zipfiles(mly_uploader, zip_paths)
+    yield from uploader.ZipUploader.upload_zipfiles(mly_uploader, candidates.zip_paths)
 
 
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
