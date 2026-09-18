@@ -125,6 +125,10 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
             (
                 exceptions.MapillaryGeoTaggingError,
                 exceptions.MapillaryVideoGPSNotFoundError,
+                # Unusable GPS in this source is exactly what a later source
+                # (typically a user-supplied GPX) is there to replace
+                exceptions.MapillaryGPXEmptyError,
+                exceptions.MapillaryGPSNoiseError,
                 exceptions.MapillaryExiftoolNotFoundError,
                 exceptions.MapillaryExifToolXMLNotFoundError,
             ),

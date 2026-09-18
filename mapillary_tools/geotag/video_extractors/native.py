@@ -22,6 +22,15 @@ from .base import BaseVideoExtractor
 
 
 class GoProVideoExtractor(BaseVideoExtractor):
+    def __init__(self, video_path: Path, filter_noisy_points: bool = True):
+        super().__init__(video_path)
+        # The noise filter is a quality gate on the track we are about to
+        # publish. Callers that only need the video's make/model and its GPS
+        # clock (e.g. geotagging from a GPX file) pass False: discarding noisy
+        # points there would throw away a usable sync anchor and, if every
+        # point is dropped, fail the whole video over GPS we are not using.
+        self.filter_noisy_points = filter_noisy_points
+
     @override
     def extract(self) -> types.VideoMetadata:
         with self.video_path.open("rb") as fp:
@@ -37,11 +46,13 @@ class GoProVideoExtractor(BaseVideoExtractor):
         if not gps_points:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
-        gps_points = T.cast(
-            T.List[telemetry.GPSPoint], gpmf_gps_filter.remove_noisy_points(gps_points)
-        )
-        if not gps_points:
-            raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+        if self.filter_noisy_points:
+            gps_points = T.cast(
+                T.List[telemetry.GPSPoint],
+                gpmf_gps_filter.remove_noisy_points(gps_points),
+            )
+            if not gps_points:
+                raise exceptions.MapillaryGPSNoiseError("GPS is too noisy")
 
         video_metadata = types.VideoMetadata(
             filename=self.video_path,
@@ -106,9 +117,15 @@ class BlackVueVideoExtractor(BaseVideoExtractor):
 
 
 class NativeVideoExtractor(BaseVideoExtractor):
-    def __init__(self, video_path: Path, filetypes: set[types.FileType] | None = None):
+    def __init__(
+        self,
+        video_path: Path,
+        filetypes: set[types.FileType] | None = None,
+        filter_noisy_points: bool = True,
+    ):
         super().__init__(video_path)
         self.filetypes = filetypes
+        self.filter_noisy_points = filter_noisy_points
 
     @override
     def extract(self) -> types.VideoMetadata:
@@ -116,7 +133,9 @@ class NativeVideoExtractor(BaseVideoExtractor):
         extractor: BaseVideoExtractor
 
         if ft is None or types.FileType.VIDEO in ft or types.FileType.GOPRO in ft:
-            extractor = GoProVideoExtractor(self.video_path)
+            extractor = GoProVideoExtractor(
+                self.video_path, filter_noisy_points=self.filter_noisy_points
+            )
             try:
                 return extractor.extract()
             except simple_mp4_parser.BoxNotFoundError as ex:

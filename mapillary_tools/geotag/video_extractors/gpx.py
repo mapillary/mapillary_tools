@@ -59,11 +59,20 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         gpx_points: T.Sequence[geo.Point] = sum(gpx_tracks, [])
 
-        native_extractor = NativeVideoExtractor(self.video_path)
+        # The GPX track replaces the video's own GPS, so the native extractor is
+        # only a source of make/model and of a clock to sync against. Keep noisy
+        # points: they are never published, and their timestamps still sync.
+        native_extractor = NativeVideoExtractor(
+            self.video_path, filter_noisy_points=False
+        )
 
         try:
             native_video_metadata = native_extractor.extract()
-        except exceptions.MapillaryVideoGPSNotFoundError as ex:
+        except (
+            exceptions.MapillaryVideoGPSNotFoundError,
+            exceptions.MapillaryGPXEmptyError,
+            exceptions.MapillaryGPSNoiseError,
+        ) as ex:
             if self.sync_mode is SyncMode.STRICT_SYNC:
                 raise ex
             self._rebase_times(gpx_points)
