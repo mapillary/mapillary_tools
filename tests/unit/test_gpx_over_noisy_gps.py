@@ -24,9 +24,11 @@ import pytest
 
 from mapillary_tools import exceptions, types
 from mapillary_tools.geotag import factory
+from mapillary_tools.geotag.options import SourceOption, SourceType
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 from mapillary_tools.gpmf import gpmf_gps_filter, gpmf_parser
+from mapillary_tools.process_geotag_properties import DEFAULT_GEOTAG_SOURCE_OPTIONS
 from mapillary_tools.telemetry import GPSFix, GPSPoint
 
 
@@ -156,27 +158,79 @@ class TestEmptyGPSFallsBack:
             extractor.extract()
 
 
+def _error(error: Exception):
+    return types.describe_error_metadata(
+        error, filename=Path("/tmp/x.360"), filetype=types.FileType.VIDEO
+    )
+
+
+def _options(*sources: SourceType) -> list[SourceOption]:
+    return [SourceOption(source) for source in sources]
+
+
+UNUSABLE_GPS_ERRORS = [
+    exceptions.MapillaryGPSNoiseError("GPS is too noisy"),
+    exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
+]
+
+
 class TestChainedSourcesFallThrough:
     """'--geotag_source native --geotag_source gpx' must reach the gpx stage."""
 
-    @pytest.mark.parametrize(
-        "error",
-        [
-            exceptions.MapillaryGPSNoiseError("GPS is too noisy"),
-            exceptions.MapillaryGPXEmptyError("Empty GPS data found"),
-            exceptions.MapillaryVideoGPSNotFoundError("No GPS data found"),
-        ],
-    )
-    def test_unusable_gps_is_reprocessable(self, error):
-        metadata = types.describe_error_metadata(
-            error, filename=Path("/tmp/x.360"), filetype=types.FileType.VIDEO
+    @pytest.mark.parametrize("error", UNUSABLE_GPS_ERRORS)
+    def test_external_gps_source_can_rescue(self, error):
+        assert factory._is_reprocessable(_error(error), _options(SourceType.GPX))
+        assert factory._is_reprocessable(_error(error), _options(SourceType.NMEA))
+
+    def test_unreadable_gps_is_reprocessable_by_any_source(self):
+        """'could not read it' is a verdict on the reader, so retrying is fair."""
+        assert factory._is_reprocessable(
+            _error(exceptions.MapillaryVideoGPSNotFoundError("No GPS data found")),
+            _options(SourceType.EXIFTOOL_RUNTIME),
         )
-        assert factory._is_reprocessable(metadata)
 
     def test_unrelated_errors_are_not_reprocessable(self):
-        metadata = types.describe_error_metadata(
-            exceptions.MapillaryStationaryVideoError("Stationary"),
-            filename=Path("/tmp/x.360"),
-            filetype=types.FileType.VIDEO,
+        assert not factory._is_reprocessable(
+            _error(exceptions.MapillaryStationaryVideoError("Stationary")),
+            _options(SourceType.GPX),
         )
-        assert not factory._is_reprocessable(metadata)
+
+    def test_no_remaining_sources_is_not_reprocessable(self):
+        assert not factory._is_reprocessable(
+            _error(exceptions.MapillaryGPSNoiseError("GPS is too noisy")), []
+        )
+
+
+class TestNoiseVerdictIsNotLaunderedThroughAnotherReader:
+    """
+    Regression: making noise errors reprocessable made the *default* chain
+    (native, exiftool_runtime) accept a video that native had just rejected.
+
+    exiftool reports no DoP for GoPro tracks, so remove_noisy_points() cannot
+    see the very field that condemns the file -- the reported capture has a DoP
+    of ~2100 against a limit of 1000 -- and the second reader waves through what
+    the first refused. Re-reading the same embedded telemetry must never be
+    treated as a way to overturn a verdict on that telemetry's quality.
+    """
+
+    @pytest.mark.parametrize("error", UNUSABLE_GPS_ERRORS)
+    @pytest.mark.parametrize(
+        "source", [SourceType.EXIFTOOL_RUNTIME, SourceType.EXIFTOOL_XML]
+    )
+    def test_embedded_readers_cannot_overturn_it(self, error, source):
+        assert not factory._is_reprocessable(_error(error), _options(source))
+
+    @pytest.mark.parametrize("error", UNUSABLE_GPS_ERRORS)
+    def test_the_default_chain_does_not_fall_through(self, error):
+        """The exact chain `mapillary_tools process` runs with no flags."""
+        default = [
+            SourceType(source_type) for source_type in DEFAULT_GEOTAG_SOURCE_OPTIONS
+        ]
+        assert SourceType.NATIVE == default[0]
+        assert not factory._is_reprocessable(_error(error), _options(*default[1:]))
+
+    @pytest.mark.parametrize("error", UNUSABLE_GPS_ERRORS)
+    def test_a_later_gpx_still_rescues_it(self, error):
+        assert factory._is_reprocessable(
+            _error(error), _options(SourceType.EXIFTOOL_RUNTIME, SourceType.GPX)
+        )
