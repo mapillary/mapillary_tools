@@ -130,6 +130,59 @@ def test_ffmpeg_extract_specified_frames_empty_ok(setup_data: py.path.local):
     assert len(results) == 0
 
 
+def test_ffmpeg_extract_specified_frames_source_names(setup_data: py.path.local):
+    pytest_skip_if_not_ffmpeg_installed()
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/sample-5s.mp4"))
+
+    sample_dir = Path(setup_data.join("videos/samples_source_names"))
+    sample_dir.mkdir()
+
+    ff.extract_specified_frames(
+        video_path, sample_dir, frame_indices={2, 9}, source_frame_names=True
+    )
+
+    results = list(ff.sort_selected_samples(sample_dir, video_path))
+    assert [file_idx for file_idx, _ in results] == [2, 9]
+    for file_idx, frame_paths in results:
+        assert frame_paths[0] is not None
+        assert frame_paths[0].name.endswith(f"_{file_idx:06d}.jpg")
+
+
+def test_rename_extracted_to_source_indices(tmp_path: Path):
+    video_stem = "GX040129"
+    prefix = tmp_path / video_stem
+    spec = 0
+    sequential = [1, 2, 3]
+    source_frames = [0, 14, 33717]
+    for n in sequential:
+        (tmp_path / f"{video_stem}_{spec}_{n:06d}.jpg").write_bytes(b"x" * n)
+
+    ffmpeg.FFMPEG._rename_extracted_to_source_indices(prefix, spec, source_frames)
+
+    names = sorted(p.name for p in tmp_path.glob("*.jpg"))
+    assert names == [
+        f"{video_stem}_{spec}_{idx:06d}.jpg" for idx in source_frames
+    ]
+    assert (tmp_path / f"{video_stem}_{spec}_{14:06d}.jpg").read_bytes() == b"xx"
+
+
+def test_rename_extracted_to_source_indices_collision(tmp_path: Path):
+    video_stem = "clip"
+    prefix = tmp_path / video_stem
+    spec = "v"
+    (tmp_path / f"{video_stem}_{spec}_000001.jpg").write_bytes(b"a")
+    (tmp_path / f"{video_stem}_{spec}_000002.jpg").write_bytes(b"b")
+
+    ffmpeg.FFMPEG._rename_extracted_to_source_indices(prefix, spec, [2, 9])
+
+    assert (tmp_path / f"{video_stem}_{spec}_000002.jpg").read_bytes() == b"a"
+    assert (tmp_path / f"{video_stem}_{spec}_000009.jpg").read_bytes() == b"b"
+    assert not (tmp_path / f"{video_stem}_{spec}_000001.jpg").exists()
+
+
 def test_probe_format_and_streams_ok(setup_data: py.path.local):
     pytest_skip_if_not_ffmpeg_installed()
 

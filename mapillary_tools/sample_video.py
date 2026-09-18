@@ -60,8 +60,11 @@ def sample_video(
     video_start_time: str | None = None,
     skip_sample_errors: bool = False,
     rerun: bool = False,
+    source_frame_names: bool | None = None,
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
+    if source_frame_names is None:
+        source_frame_names = constants.SOURCE_FRAME_NAMES
 
     if not xor(0 <= video_sample_distance, 0 < video_sample_interval):
         raise exceptions.MapillaryBadParameterError(
@@ -112,6 +115,7 @@ def sample_video(
                     sample_dir,
                     sample_distance=video_sample_distance,
                     start_time=video_start_time_dt,
+                    source_frame_names=source_frame_names,
                 )
             else:
                 assert 0 < video_sample_interval, (
@@ -281,6 +285,7 @@ def _sample_single_video_by_distance(
     sample_dir: Path,
     sample_distance: float,
     start_time: datetime.datetime | None = None,
+    source_frame_names: bool = False,
 ) -> None:
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
@@ -327,6 +332,7 @@ def _sample_single_video_by_distance(
             wip_dir,
             frame_indices=set(sorted_sample_indices),
             stream_specifier=str(video_stream_idx),
+            source_frame_names=source_frame_names,
         )
 
         frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
@@ -336,14 +342,26 @@ def _sample_single_video_by_distance(
             raise exceptions.MapillaryVideoError(
                 f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
             )
-        for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
-            assert len(sample_paths) == 1, (
-                "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
-            )
-            if idx + 1 != frame_idx_1based:
-                raise exceptions.MapillaryVideoError(
-                    f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
+        if source_frame_names:
+            for (file_idx, sample_paths), sample_idx in zip(
+                frame_samples, sorted_sample_indices
+            ):
+                assert len(sample_paths) == 1, (
+                    f"Expect 1 sample path at {file_idx} but got {sample_paths}"
                 )
+                if file_idx != sample_idx:
+                    raise exceptions.MapillaryVideoError(
+                        f"Expect {sample_paths[0]} to be source frame {sample_idx} but got {file_idx}"
+                    )
+        else:
+            for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
+                assert len(sample_paths) == 1, (
+                    f"Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
+                )
+                if idx + 1 != frame_idx_1based:
+                    raise exceptions.MapillaryVideoError(
+                        f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
+                    )
 
         for (_, sample_paths), sample_idx in zip(frame_samples, sorted_sample_indices):
             if sample_paths[0] is None:
