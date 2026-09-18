@@ -69,3 +69,24 @@ def test_upload_chunks(tmpdir: py.path.local):
     # reupload should not affect the file
     upload_service.upload_chunks(_gen_chunks())
     assert (tmpdir.join("FOOBAR2.txt").read_binary()) == b"foobar"
+
+
+class _ReadSpy(io.BytesIO):
+    def __init__(self, data: bytes):
+        super().__init__(data)
+        self.read_sizes: list[int] = []
+
+    def read(self, size: int | None = -1) -> bytes:  # type: ignore[override]
+        if size is None:
+            size = -1
+        self.read_sizes.append(size)
+        return super().read(size)
+
+
+def test_chunkize_caps_read_to_remaining_bytes():
+    spy = _ReadSpy(b"hello world")
+    chunks = list(
+        upload_api_v4.UploadService.chunkize_byte_stream(spy, 1024 * 1024 * 1000)
+    )
+    assert b"".join(chunks) == b"hello world"
+    assert spy.read_sizes == [len(b"hello world")]
