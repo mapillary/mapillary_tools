@@ -126,6 +126,18 @@ def test_filter_all(tmpdir: py.path.local):
         )
 
 
+
+def test_expand_import_paths_glob(tmp_path: Path):
+    (tmp_path / "GS100130.360").mkdir()
+    (tmp_path / "GS110130.360").mkdir()
+    (tmp_path / "GS090130.360").mkdir()
+    (tmp_path / "skip.txt").write_text("x")
+    matches = utils.expand_import_paths([tmp_path / "GS1?0130.360"])
+    assert [p.name for p in matches] == ["GS100130.360", "GS110130.360"]
+    one = utils.expand_import_paths([tmp_path / "GS090130.360"])
+    assert [p.name for p in one] == ["GS090130.360"]
+
+
 class TestSanitizeSerial:
     """Tests for sanitize_serial function"""
 
