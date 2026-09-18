@@ -41,9 +41,9 @@ def gps_datetime_is_valid(epoch: float) -> bool:
 
     ``8000`` is a round threshold above those indoor defaults
     (2000-01-01 + 8000 d = 2021-11-26) and still before Hero 11
-    launched (2022-09-14). readmp4 ``valid`` is ``day >= 8000`` and
-    milliseconds-of-day agreeing when rounded to 100 ms and to 10 ms.
-    Fix and DOP are ignored.
+    launched (2022-09-14). Usable samples also need a time-of-day
+    that sits on a 10 ms grid (real GPS does; the indoor placeholder
+    often does not). Fix quality and DOP are ignored.
     """
     try:
         dt = datetime.datetime.fromtimestamp(epoch, tz=datetime.timezone.utc)
