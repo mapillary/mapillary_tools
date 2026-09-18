@@ -60,7 +60,11 @@ class CAMMInfo:
     model: str = ""
 
 
-def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo | None:
+def extract_camm_info(
+    fp: T.BinaryIO,
+    telemetry_only: bool = False,
+    first_gps_only: bool = False,
+) -> CAMMInfo | None:
     moov = MovieBoxParser.parse_stream(fp)
 
     make, model = "", ""
@@ -122,6 +126,8 @@ def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo 
                         gps.append(measurement)
                     elif isinstance(measurement, geo.Point):
                         mini_gps.append(measurement)
+                    if first_gps_only and geo.point_has_usable_gps_clock(measurement):
+                        break
 
                 _normalize_gps_epochs(gps, make, moov)
 

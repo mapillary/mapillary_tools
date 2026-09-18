@@ -19,6 +19,49 @@ WGS84_a_SQ = WGS84_a**2
 WGS84_b = 6356752.314245
 WGS84_b_SQ = WGS84_b**2
 
+# GPS9 days-since-2000-01-01. 8000 is a round lid above the indoor
+# default clock seen on Hero 11 (GX010081) and MAX 2 (GS010131):
+# both start at day 7736 (2021-03-07); MAX 2 then sits on 7742
+# (2021-03-13, time-of-day already right) before jumping to a real
+# date. 8000 d = 2021-11-26, still before Hero 11 launch (2022-09-14).
+GPS9_EPOCH = datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc)
+GPS9_MIN_DAYS = 8000
+
+
+def gps_datetime_is_valid(epoch: float) -> bool:
+    """True if the GPS clock is usable for back-calculating video t=0.
+
+    Empirically (Hero 11 GX010081 and MAX 2 GS010131: started indoors,
+    walked outside until the GPS indicator lit, walked back inside):
+    both cameras open on GPS9 day 7736 (2021-03-07). MAX 2 then parks
+    on day 7742 (2021-03-13) with a plausible time-of-day before the
+    calendar jumps. A usable date appears next; fix and DOP come later.
+    Back indoors, fix and DOP drop out while the time keeps running —
+    the camera then synthesizes it.
+
+    ``8000`` is a round threshold above those indoor defaults
+    (2000-01-01 + 8000 d = 2021-11-26) and still before Hero 11
+    launched (2022-09-14). readmp4 ``valid`` is ``day >= 8000`` and
+    milliseconds-of-day agreeing when rounded to 100 ms and to 10 ms.
+    Fix and DOP are ignored.
+    """
+    try:
+        dt = datetime.datetime.fromtimestamp(epoch, tz=datetime.timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return False
+    if (dt - GPS9_EPOCH).days < GPS9_MIN_DAYS:
+        return False
+    msec = (
+        ((dt.hour * 60 + dt.minute) * 60 + dt.second) * 1000
+        + dt.microsecond // 1000
+    )
+    return 100 * int(round(msec / 100.0)) == 10 * int(round(msec / 10.0))
+
+
+def point_has_usable_gps_clock(point: Point) -> bool:
+    epoch = point.get_gps_epoch_time()
+    return epoch is not None and gps_datetime_is_valid(epoch)
+
 
 @dataclasses.dataclass(order=True)
 class Point:
