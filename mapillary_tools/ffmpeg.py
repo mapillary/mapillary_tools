@@ -609,9 +609,8 @@ class Probe:
         """
         Determine the start time of the video by analyzing stream metadata.
 
-        Searches for creation time and duration information in video streams first,
-        then falls back to other stream types. Calculates start time as:
-        creation_time - duration
+        Searches for a creation time in video streams first, then falls back to
+        other stream types.
 
         Returns:
             Video start time as datetime object, or None if cannot be determined
@@ -673,34 +672,34 @@ class Probe:
     @classmethod
     def extract_stream_start_time(cls, stream: Stream) -> datetime.datetime | None:
         """
-        Calculate the start time of a specific stream.
+        Read the start time of a specific stream from its creation time.
 
-        Determines start time by subtracting stream duration from creation time:
-        start_time = creation_time - duration
+        ISO/IEC 14496-12 defines creation_time as the creation time of the
+        presentation, which for a recording is the moment it started, and that
+        is what cameras and ffmpeg write. We used to subtract the duration from
+        it, a workaround for BlackVue dashcams that really do stamp the time the
+        recording ended. That workaround put every other camera's video one full
+        duration into the past, so sampled frames landed that far back along the
+        GPS track. Cameras that stamp the end time embed GPS with absolute
+        timestamps, so callers sync against that clock instead (see
+        sample_video._extract_video_start_time).
 
         Args:
-            stream: Stream dictionary containing metadata including tags and duration
+            stream: Stream dictionary containing metadata including tags
 
         Returns:
-            Stream start time as datetime object, or None if required metadata is missing
+            Stream start time as datetime object, or None if the creation time is missing
 
         Note:
             Handles multiple datetime formats including ISO format and custom patterns.
         """
-        duration_str = stream.get("duration")
-        LOG.debug("Extracted video duration: %s", duration_str)
-        if duration_str is None:
-            return None
-        duration = float(duration_str)
-
         creation_time_str = stream.get("tags", {}).get("creation_time")
         LOG.debug("Extracted video creation time: %s", creation_time_str)
         if creation_time_str is None:
             return None
         try:
-            creation_time = datetime.datetime.fromisoformat(creation_time_str)
+            return datetime.datetime.fromisoformat(creation_time_str)
         except ValueError:
-            creation_time = datetime.datetime.strptime(
+            return datetime.datetime.strptime(
                 creation_time_str, "%Y-%m-%dT%H:%M:%S.%f%z"
             )
-        return creation_time - datetime.timedelta(seconds=duration)

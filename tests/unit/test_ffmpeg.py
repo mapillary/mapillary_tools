@@ -158,7 +158,7 @@ def test_probe_format_and_streams_gopro_ok(setup_data: py.path.local):
 
     start_time = probe.probe_video_start_time()
     assert start_time is not None
-    assert datetime.datetime.isoformat(start_time) == "2019-11-18T15:41:12.354033+00:00"
+    assert datetime.datetime.isoformat(start_time) == "2019-11-18T15:41:25+00:00"
     max_stream = probe.probe_video_with_max_resolution()
     assert max_stream is not None
     assert max_stream["index"] == 0
@@ -248,18 +248,20 @@ def test_probe():
         creation_time = probe.probe_video_start_time()
         assert expected == creation_time
 
+    # The creation time is the start of the recording, so the duration is not
+    # subtracted from it
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 190123, tzinfo=datetime.timezone.utc),
+        datetime.datetime(2023, 3, 7, 1, 35, 34, 123456, tzinfo=datetime.timezone.utc),
         "2023-03-07T01:35:34.123456Z",
         "4.933333",
     )
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 66667, tzinfo=datetime.timezone.utc),
+        datetime.datetime(2023, 3, 7, 1, 35, 34, tzinfo=datetime.timezone.utc),
         "2023-03-07T01:35:34.000000Z",
         "4.933333",
     )
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 66667),
+        datetime.datetime(2023, 3, 7, 1, 35, 34),
         "2023-03-07 01:35:34",
         "4.933333",
     )

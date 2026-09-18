@@ -21,12 +21,19 @@ from mapillary_tools import (
     ffmpeg as ffmpeglib,
     geo,
     sample_video,
+    telemetry,
 )
 from mapillary_tools.mp4 import mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import FileType, VideoMetadata
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
+
+# The creation time of the hello.mp4 probe fixture, which is where videos
+# without their own GPS clock get their start time from
+PROBE_START_TIME = datetime.datetime(
+    2021, 8, 10, 14, 38, 6, tzinfo=datetime.timezone.utc
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +92,7 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
-    _validate_interval([Path(s) for s in samples], video_start_time)
+    _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
 
 
 def test_sample_single_video(tmpdir: py.path.local, setup_mock):
@@ -101,8 +107,7 @@ def test_sample_single_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
-    _validate_interval([Path(s) for s in samples], video_start_time)
+    _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
 
 
 def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
@@ -123,18 +128,99 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
+def test_sample_video_from_gps_clock(tmpdir: py.path.local, setup_mock, monkeypatch):
+    """A video's own GPS clock wins over the container's creation time."""
+    root = _PWD.joinpath("data/mock_sample_video")
+    video_dir = root.joinpath("videos")
+    sample_dir = tmpdir.mkdir("sampled_video_frames")
+
+    # A camera that stamps the creation time at the end of the recording, or in
+    # local time, still has a correct absolute clock in its telemetry
+    gps_start_time = datetime.datetime(
+        2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+    )
+    points = [
+        telemetry.GPSPoint(
+            time=float(i),
+            lat=40.0 + i * 0.001,
+            lon=-74.0,
+            alt=None,
+            angle=None,
+            epoch_time=gps_start_time.timestamp() + i,
+            fix=None,
+            precision=None,
+            ground_speed=None,
+        )
+        for i in range(3)
+    ]
+    monkeypatch.setattr(
+        sample_video,
+        "NativeVideoExtractor",
+        lambda video_path: mock.Mock(
+            extract=lambda: VideoMetadata(
+                filename=video_path,
+                filetype=FileType.BLACKVUE,
+                points=T.cast(T.List[geo.Point], points),
+            )
+        ),
+    )
+
+    sample_video.sample_video(
+        video_dir,
+        Path(sample_dir),
+        video_sample_distance=-1,
+        video_sample_interval=2,
+        rerun=True,
+    )
+
+    samples = sample_dir.join("hello.mp4").listdir()
+    _validate_interval([Path(s) for s in samples], gps_start_time)
+
+
+class TestGPSClockStartTime:
+    """Tests for _gps_clock_start_time."""
+
+    @staticmethod
+    def _gps_point(time: float, epoch_time: float | None) -> telemetry.GPSPoint:
+        return telemetry.GPSPoint(
+            time=time,
+            lat=40.0,
+            lon=-74.0,
+            alt=None,
+            angle=None,
+            epoch_time=epoch_time,
+            fix=None,
+            precision=None,
+            ground_speed=None,
+        )
+
+    def test_maps_first_timestamp_back_to_video_start(self) -> None:
+        # The first point is 2.5s into the video, so the video started 2.5s
+        # before that point was recorded
+        points = [self._gps_point(2.5, 1628599086.0)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 3, 500000, tzinfo=datetime.timezone.utc
+        )
+
+    def test_skips_points_without_a_timestamp(self) -> None:
+        points = [self._gps_point(0.0, None), self._gps_point(1.0, 1628599086.0)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 5, tzinfo=datetime.timezone.utc
+        )
+
+    def test_no_absolute_timestamps(self) -> None:
+        assert sample_video._gps_clock_start_time(_make_gps_points(3)) is None
+
+    def test_no_points(self) -> None:
+        assert sample_video._gps_clock_start_time([]) is None
+
+
 # ---------------------------------------------------------------------------
 # Helpers for distance-based sampling tests
 # ---------------------------------------------------------------------------
 
 MOCK_PROBE_JSON = _PWD / "data" / "mock_sample_video" / "videos" / "hello.mp4"
 TEST_EXIF_JPG = _PWD / "data" / "test_exif.jpg"
-
-# Start time derived from the hello.mp4 probe fixture:
-# creation_time "2021-08-10T14:38:06.000000Z" - duration "60.977000"
-PROBE_START_TIME = datetime.datetime(
-    2021, 8, 10, 14, 36, 55, 23000, tzinfo=datetime.timezone.utc
-)
 
 
 def _load_probe_output() -> ffmpeglib.ProbeOutput:

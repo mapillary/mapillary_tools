@@ -17,6 +17,7 @@ from pathlib import Path
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
+from .geotag.video_extractors.native import NativeVideoExtractor
 from .mp4 import mp4_sample_parser
 from .serializer.description import parse_capture_time
 
@@ -179,6 +180,49 @@ def wip_sample_dir(sample_dir: Path) -> Path:
     )
 
 
+def _gps_clock_start_time(
+    points: T.Sequence[geo.Point],
+) -> datetime.datetime | None:
+    """
+    Map the first absolute GPS timestamp in a track back to the video's time 0.
+
+    Point times are relative to the start of the video, so subtracting one from
+    its own absolute timestamp gives the wall clock at which the video started.
+    """
+    for point in points:
+        unix_time = point.get_unix_time()
+        if unix_time is not None:
+            return datetime.datetime.fromtimestamp(
+                unix_time - point.time, tz=datetime.timezone.utc
+            )
+
+    return None
+
+
+def _extract_video_start_time(
+    video_path: Path, probe: ffmpeglib.Probe
+) -> datetime.datetime | None:
+    """
+    Determine the wall clock time at which a video started recording.
+
+    A video's own telemetry is the better clock: it is absolute UTC, so it is
+    immune both to cameras that stamp the container's creation time at the end
+    of the recording (BlackVue) and to cameras that stamp it in local time
+    (GoPro). Fall back to the creation time when there is no telemetry to sync
+    against, which is the case for the plain MP4s that get geotagged from a GPX.
+    """
+    try:
+        video_metadata = NativeVideoExtractor(video_path).extract()
+    except exceptions.MapillaryDescriptionError as ex:
+        LOG.debug("No video telemetry to read the start time from: %s", ex)
+    else:
+        start_time = _gps_clock_start_time(video_metadata.points)
+        if start_time is not None:
+            return start_time
+
+    return probe.probe_video_start_time()
+
+
 def _sample_single_video_by_interval(
     video_path: Path,
     sample_dir: Path,
@@ -189,9 +233,9 @@ def _sample_single_video_by_interval(
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
     if start_time is None:
-        start_time = ffmpeglib.Probe(
-            ffmpeg.probe_format_and_streams(video_path)
-        ).probe_video_start_time()
+        start_time = _extract_video_start_time(
+            video_path, ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+        )
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
@@ -287,6 +331,10 @@ def _sample_single_video_by_distance(
     probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
 
     if start_time is None:
+        # Unlike interval sampling, this is only a fallback for tracks whose
+        # points carry no absolute timestamp: the ones that do are timestamped
+        # from their own GPS clock below, so there is nothing to be gained by
+        # parsing the telemetry twice just to read that clock here
         start_time = probe.probe_video_start_time()
         if start_time is None:
             raise exceptions.MapillaryVideoError(
