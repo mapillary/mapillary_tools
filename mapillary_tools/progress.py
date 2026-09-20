@@ -14,7 +14,7 @@ import typing as T
 from contextlib import contextmanager
 
 from tqdm import tqdm
-from tqdm.utils import RE_ANSI, _term_move_up, disp_len, disp_trim
+from tqdm.utils import RE_ANSI, _term_move_up, disp_len, disp_trim  # type: ignore[attr-defined]
 
 from .utils import get_app_name
 
@@ -191,7 +191,7 @@ class ConsoleScreen:
         self._overall_bar: T.Callable[[], str] | None = None
         self._rows = 0
         self.disabled = disabled
-        self._log_restore: list[tuple[logging.Handler, T.Any]] = []
+        self._log_restore: list[tuple[logging.StreamHandler, T.Any]] = []
 
     def ncols(self) -> int:
         try:
