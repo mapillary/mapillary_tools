@@ -446,6 +446,7 @@ class TestSampleVideoDistanceIntegration:
             sample_dir: Path,
             frame_indices: set[int],
             stream_specifier: str = "v",
+            **_kwargs,
         ) -> None:
             _create_fake_frames(
                 sample_dir,
