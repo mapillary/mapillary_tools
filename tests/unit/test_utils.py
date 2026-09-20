@@ -126,7 +126,6 @@ def test_filter_all(tmpdir: py.path.local):
         )
 
 
-
 def test_expand_import_paths_glob(tmp_path: Path):
     (tmp_path / "GS100130.360").mkdir()
     (tmp_path / "GS110130.360").mkdir()
