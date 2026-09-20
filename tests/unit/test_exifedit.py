@@ -236,7 +236,10 @@ class ExifEditTests(unittest.TestCase):
         self.assertEqual("EOS 5D", exif_data.extract_model())
 
     def test_app1_segment_without_jpeg(self):
-        from mapillary_tools.exif_write import pack_jpeg_app_record, write_jpeg_app_sidecar
+        from mapillary_tools.exif_write import (
+            pack_jpeg_app_record,
+            write_jpeg_app_sidecar,
+        )
 
         dt = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
         edit = ExifEdit(None)
