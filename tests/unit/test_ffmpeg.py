@@ -163,9 +163,7 @@ def test_rename_extracted_to_source_indices(tmp_path: Path):
     ffmpeg.FFMPEG._rename_extracted_to_source_indices(prefix, spec, source_frames)
 
     names = sorted(p.name for p in tmp_path.glob("*.jpg"))
-    assert names == [
-        f"{video_stem}_{spec}_{idx:06d}.jpg" for idx in source_frames
-    ]
+    assert names == [f"{video_stem}_{spec}_{idx:06d}.jpg" for idx in source_frames]
     assert (tmp_path / f"{video_stem}_{spec}_{14:06d}.jpg").read_bytes() == b"xx"
 
 
