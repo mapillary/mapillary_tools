@@ -51,6 +51,7 @@ def test_align_progress_bars_shares_bar_columns():
     assert out[0].index("%|") == out[1].index("%|")
     assert out[0].rindex("|") == out[1].rindex("|")
 
+
 def test_pad_to_width_clears_previous_bar_tail():
     from mapillary_tools.progress import overlay_cr, pad_to_width, wrap_to_width
 
@@ -59,6 +60,7 @@ def test_pad_to_width_clears_previous_bar_tail():
     wrapped = wrap_to_width("abcdefghij", 4)
     assert wrapped == ["abcd", "efgh", "ij  "]
     assert wrap_to_width("abcd", 8) == ["abcd    "]
+
 
 def test_console_screen_commit_then_live():
     import io
@@ -71,6 +73,7 @@ def test_console_screen_commit_then_live():
     screen.set_live("frame=    1 fps=1.0")
     text = buf.getvalue()
     assert "Input #0, mov,mp4" in text
+
 
 def test_console_screen_wraps_long_commit(monkeypatch):
     import io
@@ -91,6 +94,7 @@ def test_console_screen_wraps_long_commit(monkeypatch):
     assert "abcdefghij" in text
     assert "klmnop" in text
 
+
 def test_file_bar_is_drawn_above_overall():
     from mapillary_tools.progress import ConsoleScreen
 
@@ -103,6 +107,7 @@ def test_file_bar_is_drawn_above_overall():
     ]
     screen.set_live("frame=    1")
     assert screen._live_lines()[0] == "frame=    1"
+
 
 def test_live_lines_align_file_and_overall_bars(monkeypatch):
     from mapillary_tools.progress import ConsoleScreen, align_progress_bars

@@ -234,9 +234,7 @@ class ConsoleScreen:
     def commit(self, text: str) -> None:
         """Write finished line(s) above the live block, then redraw progress once."""
         lines = [
-            raw.rstrip()
-            for raw in text.replace("\r", "\n").split("\n")
-            if raw.rstrip()
+            raw.rstrip() for raw in text.replace("\r", "\n").split("\n") if raw.rstrip()
         ]
         if not lines:
             return
@@ -247,9 +245,7 @@ class ConsoleScreen:
         """Apply a drained FFmpeg burst: all history lines, then one progress redraw."""
         with self._lock:
             if live is not None:
-                self._live = overlay_cr(
-                    self._live, live.replace("\r", "").rstrip()
-                )
+                self._live = overlay_cr(self._live, live.replace("\r", "").rstrip())
             self._paint(commits=list(history))
 
     def redraw(self) -> None:
@@ -397,9 +393,7 @@ def display_is_bound() -> bool:
     return _screen is not None
 
 
-def ingest_ffmpeg_stderr(
-    history: T.Sequence[str], live: str | None
-) -> None:
+def ingest_ffmpeg_stderr(history: T.Sequence[str], live: str | None) -> None:
     """Commit drained FFmpeg lines, then redraw progress once."""
     if _screen is None:
         for line in history:
