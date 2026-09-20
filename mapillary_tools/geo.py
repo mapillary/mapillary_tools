@@ -51,10 +51,7 @@ def gps_datetime_is_valid(epoch: float) -> bool:
         return False
     if (dt - GPS9_EPOCH).days < GPS9_MIN_DAYS:
         return False
-    msec = (
-        ((dt.hour * 60 + dt.minute) * 60 + dt.second) * 1000
-        + dt.microsecond // 1000
-    )
+    msec = ((dt.hour * 60 + dt.minute) * 60 + dt.second) * 1000 + dt.microsecond // 1000
     return 100 * int(round(msec / 100.0)) == 10 * int(round(msec / 10.0))
 
 
