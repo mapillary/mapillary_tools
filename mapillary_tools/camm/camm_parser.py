@@ -126,7 +126,11 @@ def extract_camm_info(
                         gps.append(measurement)
                     elif isinstance(measurement, geo.Point):
                         mini_gps.append(measurement)
-                    if first_gps_only and geo.point_has_usable_gps_clock(measurement):
+                    if (
+                        first_gps_only
+                        and isinstance(measurement, geo.Point)
+                        and geo.point_has_usable_gps_clock(measurement)
+                    ):
                         break
 
                 _normalize_gps_epochs(gps, make, moov)

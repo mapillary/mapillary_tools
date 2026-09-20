@@ -56,7 +56,7 @@ def gps_datetime_is_valid(epoch: float) -> bool:
 
 
 def point_has_usable_gps_clock(point: Point) -> bool:
-    epoch = point.get_gps_epoch_time()
+    epoch = point.get_unix_time()
     return epoch is not None and gps_datetime_is_valid(epoch)
 
 
