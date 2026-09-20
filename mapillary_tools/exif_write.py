@@ -14,7 +14,7 @@ import math
 import struct
 from fractions import Fraction
 from pathlib import Path
-from typing import BinaryIO, Sequence
+from typing import Any, BinaryIO, Sequence
 
 import piexif
 from piexif._common import merge_segments, split_into_segments
@@ -142,6 +142,7 @@ def write_jpeg_app_sidecar(path: Path, payloads: Sequence[bytes]) -> None:
 
 class ExifEdit:
     _filename_or_bytes: str | bytes
+    _ef: dict[str, Any]
 
     def __init__(self, filename_or_bytes: Path | bytes | None) -> None:
         """Initialize the object"""
@@ -162,7 +163,17 @@ class ExifEdit:
             self._filename_or_bytes = str(filename_or_bytes.resolve())
         else:
             self._filename_or_bytes = filename_or_bytes
-        self._ef: dict = piexif.load(self._filename_or_bytes)
+        loaded = piexif.load(self._filename_or_bytes)
+        if not loaded:
+            loaded = {
+                "0th": {},
+                "Exif": {},
+                "GPS": {},
+                "Interop": {},
+                "1st": {},
+                "thumbnail": None,
+            }
+        self._ef = loaded
 
     @staticmethod
     def decimal_to_dms(
