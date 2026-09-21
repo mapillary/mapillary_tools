@@ -11,27 +11,169 @@ import io
 import json
 import logging
 import math
+import struct
 from fractions import Fraction
 from pathlib import Path
+from typing import Any, BinaryIO, Sequence
 
 import piexif
+from piexif._common import merge_segments, split_into_segments
 
 
 LOG = logging.getLogger(__name__)
 
+# Matches FFmpeg jpegapp: u32be length does not include the 4-byte prefix.
+JPEGAPP_MAX_RECORD = 16 * 1024 * 1024
+_JPEG_HEADER_CHUNK = 64 * 1024
+_JPEG_HEADER_MAX = 2 * 1024 * 1024
+
+
+def _try_split_jpeg_segments(data: bytes) -> list[bytes] | None:
+    """None if *data* is not yet a complete JPEG prefix through SOS."""
+    try:
+        segments = split_into_segments(data)
+    except (piexif.InvalidImageDataError, struct.error, ValueError):
+        return None
+    if not segments or segments[-1][:2] != b"\xff\xda":
+        return None
+    return segments
+
+
+def jpeg_header_segments(fp: BinaryIO) -> tuple[list[bytes], int]:
+    """SOI..last marker before SOS via piexif, and file offset of SOS."""
+    buf = bytearray()
+    while True:
+        chunk = fp.read(_JPEG_HEADER_CHUNK)
+        if not chunk:
+            raise ValueError("Truncated JPEG: no SOS marker")
+        buf += chunk
+        segments = _try_split_jpeg_segments(bytes(buf))
+        if segments is not None:
+            header = segments[:-1]
+            return header, sum(len(s) for s in header)
+        if len(buf) >= _JPEG_HEADER_MAX:
+            raise ValueError("JPEG header too large to split before SOS")
+
+
+class JpegApp1RewriteStream(io.RawIOBase):
+    """Seekable JPEG: piexif-merged prefix (new APP1) plus original bytes from SOS."""
+
+    def __init__(self, path: Path, prefix: bytes, rest_offset: int, app1: bytes):
+        super().__init__()
+        self.prefix = prefix
+        self.app1 = app1
+        self._rest_offset = rest_offset
+        self._fp = path.open("rb")
+        rest_len = max(0, path.stat().st_size - rest_offset)
+        self._size = len(prefix) + rest_len
+        self._pos = 0
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def tell(self) -> int:
+        return self._pos
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        if whence == io.SEEK_SET:
+            pos = offset
+        elif whence == io.SEEK_CUR:
+            pos = self._pos + offset
+        elif whence == io.SEEK_END:
+            pos = self._size + offset
+        else:
+            raise ValueError(f"invalid whence {whence}")
+        if pos < 0:
+            raise ValueError("negative seek")
+        self._pos = pos
+        return self._pos
+
+    def read(self, size: int = -1) -> bytes:
+        if self.closed:
+            raise ValueError("read from closed stream")
+        remaining = self._size - self._pos
+        if remaining <= 0:
+            return b""
+        if size is None or size < 0:
+            size = remaining
+        size = min(size, remaining)
+        out = bytearray()
+        while size > 0:
+            if self._pos < len(self.prefix):
+                n = min(size, len(self.prefix) - self._pos)
+                out += self.prefix[self._pos : self._pos + n]
+                self._pos += n
+                size -= n
+                continue
+            file_pos = self._rest_offset + (self._pos - len(self.prefix))
+            self._fp.seek(file_pos)
+            chunk = self._fp.read(size)
+            if not chunk:
+                break
+            out += chunk
+            self._pos += len(chunk)
+            size -= len(chunk)
+        return bytes(out)
+
+    def close(self) -> None:
+        if not self.closed:
+            self._fp.close()
+        super().close()
+
+
+def pack_jpeg_app_record(payload: bytes) -> bytes:
+    """One sidecar record: big-endian length plus APP-segment bytes."""
+    if len(payload) > JPEGAPP_MAX_RECORD:
+        raise ValueError(
+            f"JPEG APP sidecar record is {len(payload)} bytes; max is {JPEGAPP_MAX_RECORD}"
+        )
+    return struct.pack(">I", len(payload)) + payload
+
+
+def write_jpeg_app_sidecar(path: Path, payloads: Sequence[bytes]) -> None:
+    """Write length-prefixed JPEG APP records, one per output JPEG, encode order."""
+    with open(path, "wb") as fp:
+        for payload in payloads:
+            fp.write(pack_jpeg_app_record(payload))
+
 
 class ExifEdit:
     _filename_or_bytes: str | bytes
+    _ef: dict[str, Any]
 
-    def __init__(self, filename_or_bytes: Path | bytes) -> None:
+    def __init__(self, filename_or_bytes: Path | bytes | None) -> None:
         """Initialize the object"""
+        if filename_or_bytes is None:
+            self._filename_or_bytes = b""
+            self._ef = {
+                "0th": {},
+                "Exif": {},
+                "GPS": {},
+                "Interop": {},
+                "1st": {},
+                "thumbnail": None,
+            }
+            return
         if isinstance(filename_or_bytes, Path):
             # make sure filename is resolved to avoid to be interpretted as bytes in piexif
             # see https://github.com/hMatoba/Piexif/issues/124
             self._filename_or_bytes = str(filename_or_bytes.resolve())
         else:
             self._filename_or_bytes = filename_or_bytes
-        self._ef: dict = piexif.load(self._filename_or_bytes)
+        loaded = piexif.load(self._filename_or_bytes)
+        if not loaded:
+            loaded = {
+                "0th": {},
+                "Exif": {},
+                "GPS": {},
+                "Interop": {},
+                "1st": {},
+                "thumbnail": None,
+            }
+        self._ef = loaded
 
     @staticmethod
     def decimal_to_dms(
@@ -246,7 +388,43 @@ class ExifEdit:
 
         return exif_bytes
 
-    def dump_image_bytes(self) -> bytes:
+    def app1_segment(self) -> bytes:
+        """EXIF as a JPEG APP1 segment (``FF E1`` + length + TIFF/Exif payload)."""
+        dump = self._safe_dump()
+        return self._wrap_exif_app1(dump)
+
+    @staticmethod
+    def _wrap_exif_app1(exif: bytes) -> bytes:
+        # JPEG APP length is 16-bit and includes the 2 length bytes, not the marker.
+        if len(exif) + 2 > 65535:
+            raise ValueError(f"EXIF APP1 segment too large: {len(exif) + 2} bytes")
+        return b"\xff\xe1" + struct.pack(">H", len(exif) + 2) + exif
+
+    def open_rewritten_stream(self) -> JpegApp1RewriteStream:
+        """APP1 via piexif merge; SOS..EOI read from the original file.
+
+        JPEG marker splitting stays in piexif (``split_into_segments`` /
+        ``merge_segments``). The entropy-coded scan is not copied in RAM.
+        """
+        if not isinstance(self._filename_or_bytes, str):
+            raise ValueError("APP1 stream rewrite needs a JPEG path")
+        path = Path(self._filename_or_bytes)
+        app1 = self._wrap_exif_app1(self._safe_dump())
+        with path.open("rb") as fp:
+            header_segs, rest_offset = jpeg_header_segments(fp)
+        prefix = merge_segments(list(header_segs), app1)
+        return JpegApp1RewriteStream(path, prefix, rest_offset, app1)
+
+    def dump_image_bytes(self, *, stream: bool = True) -> bytes:
+        if stream and isinstance(self._filename_or_bytes, str):
+            try:
+                with self.open_rewritten_stream() as fp:
+                    return fp.read()
+            except Exception:
+                LOG.debug(
+                    "APP1 stream rewrite failed, falling back to piexif.insert",
+                    exc_info=True,
+                )
         exif_bytes = self._safe_dump()
         with io.BytesIO() as output:
             piexif.insert(exif_bytes, self._filename_or_bytes, output)

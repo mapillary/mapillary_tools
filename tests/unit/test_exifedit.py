@@ -235,6 +235,29 @@ class ExifEditTests(unittest.TestCase):
         self.assertEqual("Canon", exif_data.extract_make())
         self.assertEqual("EOS 5D", exif_data.extract_model())
 
+    def test_app1_segment_without_jpeg(self):
+        from mapillary_tools.exif_write import (
+            pack_jpeg_app_record,
+            write_jpeg_app_sidecar,
+        )
+
+        dt = datetime.datetime(2016, 8, 31, 8, 29, 26, 249000)
+        edit = ExifEdit(None)
+        edit.add_date_time_original(dt)
+        edit.add_gps_datetime(dt)
+        segment = edit.app1_segment()
+        self.assertEqual(segment[:2], b"\xff\xe1")
+        length = int.from_bytes(segment[2:4], "big")
+        self.assertEqual(length, len(segment) - 2)
+        self.assertTrue(segment[4:].startswith(b"Exif\x00\x00"))
+
+        sidecar = Path(data_dir).joinpath("tmp", "jpegapp.bin")
+        write_jpeg_app_sidecar(sidecar, [b"", segment])
+        data = sidecar.read_bytes()
+        self.assertEqual(data[:4], b"\x00\x00\x00\x00")
+        rec = pack_jpeg_app_record(segment)
+        self.assertEqual(data[4:], rec)
+
     def test_add_make_empty_raises(self):
         empty_exifedit = ExifEdit(EMPTY_EXIF_FILE_TEST)
         with self.assertRaises(ValueError):
@@ -364,6 +387,58 @@ class ExifEditTests(unittest.TestCase):
         self.assertTrue(
             first_value is None or first_value == {} or len(first_value) == 0,
             f"thumbnail metadata should have been removed but got: {first_value}",
+        )
+
+    def test_app1_stream_matches_piexif_insert(self):
+        edit = ExifEdit(EMPTY_EXIF_FILE_TEST)
+        edit.add_image_description(
+            {
+                "MAPLatitude": 49.4,
+                "MAPLongitude": 12.46,
+                "MAPCaptureTime": "2026_09_11_13_59_00_000",
+            }
+        )
+        via_insert = edit.dump_image_bytes(stream=False)
+        via_stream = edit.dump_image_bytes(stream=True)
+        self.assertEqual(via_stream, via_insert)
+        with edit.open_rewritten_stream() as fp:
+            self.assertEqual(fp.app1[:2], b"\xff\xe1")
+            self.assertEqual(fp.app1, edit.app1_segment())
+            self.assertLess(len(fp.prefix), len(via_stream))
+            whole = fp.read()
+            self.assertEqual(whole, via_stream)
+            fp.seek(0)
+            self.assertEqual(fp.read(), whole)
+            mid = max(len(fp.prefix) + 1, len(whole) // 2)
+            fp.seek(mid)
+            self.assertEqual(fp.read(16), whole[mid : mid + 16])
+            fp.seek(-9, io.SEEK_END)
+            self.assertEqual(fp.read(), whole[-9:])
+            fp.seek(0, io.SEEK_END)
+            self.assertEqual(fp.tell(), len(whole))
+
+    def test_app1_first_layout_stream_matches_insert(self):
+        from piexif._common import split_into_segments
+
+        segs = split_into_segments(EMPTY_EXIF_FILE_TEST.read_bytes())
+        app0 = next((s for s in segs[1:] if s[:2] == b"\xff\xe0"), None)
+        app1 = next((s for s in segs[1:] if s[:2] == b"\xff\xe1"), None)
+        if app0 is None or app1 is None:
+            self.skipTest("need APP0 and APP1")
+        rest = [s for s in segs[1:] if s is not app0 and s is not app1]
+        path = Path(data_dir, "tmp", "app1_first.jpg")
+        path.write_bytes(b"".join([segs[0], app1, app0, *rest]))
+        edit = ExifEdit(path)
+        edit.add_image_description(
+            {
+                "MAPLatitude": 1.0,
+                "MAPLongitude": 2.0,
+                "MAPCaptureTime": "2020_01_02_03_04_05_000",
+            }
+        )
+        self.assertEqual(
+            edit.dump_image_bytes(stream=True),
+            edit.dump_image_bytes(stream=False),
         )
 
 
