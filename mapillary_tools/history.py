@@ -63,6 +63,77 @@ def read_history_record(md5sum: str) -> None | T.Dict[str, T.Any]:
             return None
 
 
+def _normalize_md5sum(value: T.Any) -> str | None:
+    if not isinstance(value, str) or len(value) != 32:
+        return None
+
+    try:
+        _validate_hexdigits(value)
+    except ValueError:
+        return None
+
+    return value.lower()
+
+
+def find_uploaded_image_md5s(md5sums: T.Iterable[str]) -> set[str]:
+    """Find image checksums stored in upload-history descriptions.
+
+    Upload history is sharded by the checksum of a whole sequence, so checking
+    whether images came from a previously uploaded larger sequence requires a
+    bounded scan of the records. Only requested checksums are retained, and the
+    scan stops as soon as all of them have been found.
+    """
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
+        return set()
+
+    wanted = {
+        normalized
+        for md5sum in md5sums
+        if (normalized := _normalize_md5sum(md5sum)) is not None
+    }
+    if not wanted:
+        return set()
+
+    root = Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH)
+    if not root.is_dir():
+        return set()
+
+    found: set[str] = set()
+    try:
+        history_paths = root.glob("*/*.json")
+        for path in history_paths:
+            try:
+                with path.open("r", encoding="utf-8") as fp:
+                    record = json.load(fp)
+            except (OSError, UnicodeError, json.JSONDecodeError) as ex:
+                LOG.warning("Failed to read upload history %s: %s", path, ex)
+                continue
+
+            if not isinstance(record, dict):
+                LOG.warning("Invalid upload history record %s", path)
+                continue
+
+            descs = record.get("descs")
+            if not isinstance(descs, list):
+                continue
+
+            for desc in descs:
+                if not isinstance(desc, dict):
+                    continue
+                if desc.get("filetype") != types.FileType.IMAGE.value:
+                    continue
+                md5sum = _normalize_md5sum(desc.get("md5sum"))
+                if md5sum in wanted:
+                    found.add(md5sum)
+
+            if found == wanted:
+                break
+    except OSError as ex:
+        LOG.warning("Failed to scan upload history %s: %s", root, ex)
+
+    return found
+
+
 def write_history(
     md5sum: str,
     params: JSONDict,

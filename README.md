@@ -225,6 +225,24 @@ mapillary_tools process MY_CAPTURE_DIR \
     --cutoff_time 120 \
 ```
 
+To receive a machine-readable inventory of recognized inputs and unsupported
+files without changing the image description format, specify an optional
+process report:
+
+```sh
+mapillary_tools process MY_CAPTURE_DIR \
+    --process_report_path /tmp/mapillary_process_report.json
+```
+
+The version 1 report contains `discovered_file_count`, `processed_file_count`,
+`skipped_file_count`, and `skipped_files`. Recognized files that produce a
+description-level processing error are included in `processed_file_count`.
+Unsupported entries include their filename, category, stable reason code, and
+normalized extension. Hidden/system files and common GPS or metadata sidecars
+are ignored during directory discovery, but an explicitly supplied unsupported
+file is always reported. The report is written only to the requested local path
+and contains absolute source filenames, so treat it as local capture metadata.
+
 ## Upload
 
 After processing you should get the [image description file](#image-description). Pass it to the `upload` command to upload them:
@@ -236,6 +254,27 @@ mapillary_tools upload  MY_CAPTURE_DIR \
     --user_name "my_username" \
     --organization_key "my_organization_id"
 ```
+
+## Check Upload History
+
+To check whether processed image sequences or videos were previously uploaded
+from this device, use the same import paths and description file that would be
+passed to `upload`:
+
+```sh
+mapillary_tools check_upload_history MY_CAPTURE_DIR \
+    --desc_path /tmp/mapillary_image_description.json
+```
+
+The command prints a JSON array with one entry per upload candidate. Each entry
+contains the file type, sequence UUID when applicable, sequence checksum,
+member filenames, the subset found in history as
+`already_uploaded_filenames`, and an `already_uploaded` boolean.
+`already_uploaded` is true only when every member filename is represented in
+local history. For images, this includes files that were members of a larger
+previously uploaded sequence. It reads only the local upload history: it does
+not require authentication, make network requests, upload data, or modify
+history.
 
 # Advanced Usage
 

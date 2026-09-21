@@ -6,6 +6,7 @@
 # ruff: noqa: F401
 from . import (
     authenticate,
+    check_upload_history,
     process,
     process_and_upload,
     sample_video,

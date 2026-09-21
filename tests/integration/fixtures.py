@@ -392,7 +392,7 @@ def assert_descs_exact_equal(left: list[dict], right: list[dict]):
 
 
 def run_command(params: list[str], command: str, **kwargs):
-    subprocess.run(
+    return subprocess.run(
         [*shlex.split(EXECUTABLE), "--verbose", command, *params], check=True, **kwargs
     )
 
@@ -445,6 +445,16 @@ def run_upload(params: list[str], **kwargs):
     return run_command(
         ["--dry_run", *["--user_name", USERNAME], *params], command="upload", **kwargs
     )
+
+
+def run_check_upload_history(params: list[str]):
+    result = run_command(
+        params,
+        command="check_upload_history",
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(result.stdout)
 
 
 def pytest_skip_if_not_ffmpeg_installed():
