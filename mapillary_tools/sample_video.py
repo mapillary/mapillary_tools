@@ -300,17 +300,31 @@ def _sample_single_video_by_distance(
     )
     assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
+
+    # Distance sampling needs positions to decide which frames to cut, so
+    # failing to read them is a failed sample, not something to carry on past.
+    # Warning and returning left the caller with a success exit code, an empty
+    # (or missing) sample directory and nothing to upload. sample_video()
+    # already funnels these through --skip_sample_errors for callers who do
+    # want to tolerate them.
     if isinstance(video_metadata, types.ErrorMetadata):
-        LOG.warning(str(video_metadata.error))
-        return
-    assert video_metadata.points, "expect non-empty points"
+        raise exceptions.MapillaryVideoError(
+            f"Unable to sample {video_path} by distance: {video_metadata.error}"
+        ) from video_metadata.error
+
+    if not video_metadata.points:
+        raise exceptions.MapillaryVideoError(
+            f"Unable to sample {video_path} by distance: no GPS points found"
+        )
+
     LOG.info("Found total %d GPS points", len(video_metadata.points))
 
     # find the video stream with maximum resolution
     video_stream = probe.probe_video_with_max_resolution()
     if not video_stream:
-        LOG.warning("no video streams found from ffprobe")
-        return
+        raise exceptions.MapillaryVideoError(
+            f"No video streams found in {video_path} by ffprobe"
+        )
 
     LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
