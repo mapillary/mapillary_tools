@@ -723,3 +723,74 @@ class TestSampleVideoDistanceIntegration:
         # First GPS point is at (40.0, -74.0)
         assert abs(lat - 40.0) < 0.01
         assert abs(lon - (-74.0)) < 0.01
+
+
+class TestEverySuppressibleErrorNamesTheFlag:
+    """
+    Every error raised out of the per-video body of sample_video() is
+    suppressed by --skip_sample_errors, so every one of those messages has to
+    name it. Half of them naming it is worse than none: a user who hits one of
+    the silent ones reaches for --skip_process_errors, which governs the later
+    geotagging stage and leaves the run failing with the same message.
+    """
+
+    VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+    @pytest.fixture
+    def no_start_time(self, monkeypatch):
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_start_time", lambda _self: None
+        )
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"video_sample_distance": 2}, id="by_distance"),
+            pytest.param(
+                {"video_sample_distance": -1, "video_sample_interval": 2},
+                id="by_interval",
+            ),
+        ],
+    )
+    def test_unreadable_start_time_names_the_flag(
+        self, tmpdir, setup_mock, no_start_time, kwargs
+    ):
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            sample_video.sample_video(self.VIDEO, Path(tmpdir), rerun=True, **kwargs)
+
+        assert "Unable to extract video start time" in str(excinfo.value)
+        assert "--skip_sample_errors" in str(excinfo.value)
+
+    def test_the_helper_appends_it_once(self):
+        error = sample_video._sampling_error("something went wrong")
+
+        assert str(error) == (
+            "something went wrong. To skip these errors, specify --skip_sample_errors"
+        )
+        assert isinstance(error, exceptions.MapillaryUserError)
+
+    def test_a_missing_ffmpeg_does_not_claim_to_be_skippable(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        FFmpegNotFoundError is re-raised by its own handler before the skip
+        check, so --skip_sample_errors does not suppress it and its message
+        must not offer the flag.
+        """
+
+        def boom(*args, **kwargs):
+            raise ffmpeglib.FFmpegNotFoundError("ffmpeg not found")
+
+        monkeypatch.setattr(MOCK_FFMPEG, "extract_frames_by_interval", boom)
+
+        with pytest.raises(exceptions.MapillaryFFmpegNotFoundError) as excinfo:
+            sample_video.sample_video(
+                self.VIDEO,
+                Path(tmpdir),
+                video_sample_distance=-1,
+                video_sample_interval=2,
+                rerun=True,
+                skip_sample_errors=True,
+            )
+
+        assert "--skip_sample_errors" not in str(excinfo.value)
