@@ -22,7 +22,13 @@ from . import (
     geotag_videos_from_gpx,
     geotag_videos_from_video,
 )
-from .options import InterpolationOption, SOURCE_TYPE_ALIAS, SourceOption, SourceType
+from .options import (
+    InterpolationOption,
+    SOURCE_TYPE_ALIAS,
+    SourceOption,
+    SourcePathOption,
+    SourceType,
+)
 
 
 LOG = logging.getLogger(__name__)
@@ -56,6 +62,51 @@ def parse_source_option(source: str) -> list[SourceOption]:
     sources = source.split(",")
 
     return [SourceOption(SourceType(SOURCE_TYPE_ALIAS.get(s, s))) for s in sources]
+
+
+def parse_source_options(
+    geotag_source: T.Sequence[str],
+    video_geotag_source: T.Sequence[str],
+    geotag_source_path: Path | None,
+) -> list[SourceOption]:
+    """
+    Turn the raw --geotag_source / --video_geotag_source / --geotag_source_path
+    arguments into the option list that process() consumes.
+    """
+    parsed_options: list[SourceOption] = []
+
+    if video_geotag_source and geotag_source:
+        LOG.warning(
+            "Video source options will be processed BEFORE the generic source options"
+        )
+
+    for s in video_geotag_source:
+        for video_option in parse_source_option(s):
+            video_option.filetypes = types.combine_filetype_filters(
+                video_option.filetypes, {types.FileType.VIDEO}
+            )
+            parsed_options.append(video_option)
+
+    for s in geotag_source:
+        parsed_options.extend(parse_source_option(s))
+
+    if geotag_source_path is not None:
+        for parsed_option in parsed_options:
+            if parsed_option.source_path is None:
+                parsed_option.source_path = SourcePathOption(
+                    source_path=Path(geotag_source_path)
+                )
+            else:
+                source_path_option = parsed_option.source_path
+                if source_path_option.source_path is None:
+                    source_path_option.source_path = Path(geotag_source_path)
+                else:
+                    LOG.warning(
+                        "The option --geotag_source_path is ignored for source %s",
+                        parsed_option,
+                    )
+
+    return parsed_options
 
 
 def process(

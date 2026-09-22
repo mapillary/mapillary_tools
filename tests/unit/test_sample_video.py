@@ -22,7 +22,7 @@ from mapillary_tools import (
     geo,
     sample_video,
 )
-from mapillary_tools.geotag import geotag_videos_from_video
+from mapillary_tools.geotag.options import SourceType
 from mapillary_tools.mp4 import mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
@@ -356,9 +356,9 @@ class TestDistanceSamplingFailsLoudly:
         """Every GPS read fails the way a fully filtered noisy track does."""
         error = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
         monkeypatch.setattr(
-            geotag_videos_from_video.GeotagVideosFromVideo,
-            "to_description",
-            lambda _self, paths: [
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
                 describe_error_metadata(
                     error, filename=paths[0], filetype=FileType.GOPRO
                 )
@@ -414,9 +414,9 @@ class TestDistanceSamplingFailsLoudly:
     def test_an_empty_track_is_also_an_error(self, tmpdir, setup_mock, monkeypatch):
         """Previously an assert, so it vanished under `python -O`."""
         monkeypatch.setattr(
-            geotag_videos_from_video.GeotagVideosFromVideo,
-            "to_description",
-            lambda _self, paths: [
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
                 VideoMetadata(
                     filename=paths[0], filesize=0, filetype=FileType.GOPRO, points=[]
                 )
@@ -430,9 +430,9 @@ class TestDistanceSamplingFailsLoudly:
         self, tmpdir, setup_mock, monkeypatch
     ):
         monkeypatch.setattr(
-            geotag_videos_from_video.GeotagVideosFromVideo,
-            "to_description",
-            lambda _self, paths: [
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
                 VideoMetadata(
                     filename=paths[0],
                     filesize=0,
@@ -590,11 +590,9 @@ class TestSampleVideoDistanceIntegration:
             mock_ffmpeg_class,
         )
 
-        mock_geotag_instance = mock.MagicMock()
-        mock_geotag_instance.to_description.return_value = [video_metadata]
         patches["geotag_cls"] = mock.patch(
-            "mapillary_tools.sample_video.geotag_videos_from_video.GeotagVideosFromVideo",
-            return_value=mock_geotag_instance,
+            "mapillary_tools.sample_video.factory.process",
+            return_value=[video_metadata],
         )
 
         patches["moov_parse"] = mock.patch.object(
@@ -794,3 +792,101 @@ class TestEverySuppressibleErrorNamesTheFlag:
             )
 
         assert "--skip_sample_errors" not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# Distance sampling honours --geotag_source
+# ---------------------------------------------------------------------------
+
+
+class TestGeotagSourceReachesDistanceSampling:
+    """
+    Distance sampling read the video's own telemetry directly, bypassing the
+    geotag factory, so --geotag_source was ignored: a GPX attached to rescue a
+    camera whose embedded GPS is unusable never got a chance to supply the
+    positions the sampler picks frames with.
+    """
+
+    def test_no_sources_requested_means_native_only(self):
+        """
+        Not DEFAULT_GEOTAG_SOURCE_OPTIONS: that chain continues on to
+        exiftool_runtime, whose parser cannot see every field the noise filter
+        rejects on, so it would accept tracks the native parser refuses.
+        """
+        options = sample_video._parse_geotag_options(
+            None, None, None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.NATIVE]
+
+    def test_requested_source_is_passed_through(self):
+        options = sample_video._parse_geotag_options(
+            ["gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.GPX]
+        assert options[0].source_path is not None
+        assert options[0].source_path.source_path == Path("/data/track.gpx")
+
+    def test_video_geotag_source_is_honoured_too(self):
+        options = sample_video._parse_geotag_options(
+            None, Path("/data/track.gpx"), ["gpx"], Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.GPX]
+
+    def test_sidecar_is_looked_for_beside_the_video(self):
+        """Mirrors process_geotag_properties() when no explicit path is given."""
+        options = sample_video._parse_geotag_options(
+            ["gpx"], None, None, Path("/data/v.mp4")
+        )
+
+        assert options[0].source_path is not None
+        assert options[0].source_path.source_path == Path("/data/v.mp4")
+
+    def test_chained_sources_are_preserved(self):
+        options = sample_video._parse_geotag_options(
+            ["native", "gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [
+            SourceType.NATIVE,
+            SourceType.GPX,
+        ]
+
+    def test_the_sampler_asks_the_factory_for_them(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """The options reach factory.process() rather than being dropped."""
+        seen: list = []
+        points = _make_gps_points(4, time_step=1.0)
+
+        def fake_process(paths, options):
+            seen.append(list(options))
+            return [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=1,
+                    filetype=FileType.GOPRO,
+                    points=points,
+                )
+            ]
+
+        monkeypatch.setattr(sample_video.factory, "process", fake_process)
+        # stop after the metadata is read; the rest needs real ffmpeg
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            sample_video.sample_video(
+                _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+                Path(tmpdir),
+                video_sample_distance=2,
+                rerun=True,
+                geotag_source=["gpx"],
+                geotag_source_path=Path("/data/track.gpx"),
+            )
+
+        assert len(seen) == 1
+        assert [option.source for option in seen[0]] == [SourceType.GPX]
