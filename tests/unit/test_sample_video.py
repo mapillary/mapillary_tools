@@ -379,6 +379,19 @@ class TestDistanceSamplingFailsLoudly:
         assert "GPS is too noisy" in str(excinfo.value)
         assert excinfo.value.__cause__ is unreadable_gps
 
+    def test_it_names_the_flag_that_suppresses_it(
+        self, tmpdir, setup_mock, unreadable_gps
+    ):
+        """
+        --skip_process_errors governs the later geotagging stage and does not
+        cover sampling, so the message has to name --skip_sample_errors or
+        users reach for the wrong flag.
+        """
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            self._sample(tmpdir)
+
+        assert "--skip_sample_errors" in str(excinfo.value)
+
     def test_the_exit_code_is_a_clean_one(self, tmpdir, setup_mock, unreadable_gps):
         """Not a MapillaryUserError means a traceback instead of an exit code."""
         with pytest.raises(exceptions.MapillaryUserError) as excinfo:

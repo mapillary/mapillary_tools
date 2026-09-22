@@ -22,6 +22,11 @@ from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
 
+# Sampling errors are suppressed by --skip_sample_errors, not by
+# --skip_process_errors, which governs the later geotagging stage. Say so in
+# the message: the two flags are easy to reach for the wrong one.
+_SKIP_HINT = "To skip these errors, specify --skip_sample_errors"
+
 
 def _normalize_path(
     video_import_path: Path, skip_subfolders: bool
@@ -309,12 +314,12 @@ def _sample_single_video_by_distance(
     # want to tolerate them.
     if isinstance(video_metadata, types.ErrorMetadata):
         raise exceptions.MapillaryVideoError(
-            f"Unable to sample {video_path} by distance: {video_metadata.error}"
+            f"Unable to sample {video_path} by distance: {video_metadata.error}. {_SKIP_HINT}"
         ) from video_metadata.error
 
     if not video_metadata.points:
         raise exceptions.MapillaryVideoError(
-            f"Unable to sample {video_path} by distance: no GPS points found"
+            f"Unable to sample {video_path} by distance: no GPS points found. {_SKIP_HINT}"
         )
 
     LOG.info("Found total %d GPS points", len(video_metadata.points))
@@ -323,7 +328,7 @@ def _sample_single_video_by_distance(
     video_stream = probe.probe_video_with_max_resolution()
     if not video_stream:
         raise exceptions.MapillaryVideoError(
-            f"No video streams found in {video_path} by ffprobe"
+            f"No video streams found in {video_path} by ffprobe. {_SKIP_HINT}"
         )
 
     LOG.info("Extracting video samples")
