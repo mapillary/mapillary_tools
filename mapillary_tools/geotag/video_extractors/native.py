@@ -69,11 +69,19 @@ class CAMMVideoExtractor(BaseVideoExtractor):
         if not camm_info.gps and not camm_info.mini_gps:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
+        # A track may mix type 6 and type 5 samples, so use both. No camera is
+        # known to interleave them, and it would cost the absolute timestamps
+        # of sampled frames: interpolating between the two types returns a
+        # plain geo.Point (see CAMMGPSPoint.interpolate_with), so sample_video
+        # falls back to the container start time.
+        points: list[geo.Point] = [*(camm_info.gps or []), *(camm_info.mini_gps or [])]
+        points.sort(key=lambda p: p.time)
+
         return types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=types.FileType.CAMM,
-            points=T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps),
+            points=points,
             make=camm_info.make,
             model=camm_info.model,
         )

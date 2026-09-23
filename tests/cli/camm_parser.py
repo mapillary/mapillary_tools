@@ -44,7 +44,9 @@ def _convert(path: pathlib.Path):
         track.description = "Invalid CAMM video"
         return track
 
-    points = T.cast(T.List[geo.Point], camm_info.gps or camm_info.mini_gps)
+    # A track may mix type 6 and type 5 samples, so use both
+    points: T.List[geo.Point] = [*(camm_info.gps or []), *(camm_info.mini_gps or [])]
+    points.sort(key=lambda p: p.time)
     track.segments.append(_convert_points_to_gpx_segment(points))
 
     make_model = json.dumps({"make": camm_info.make, "model": camm_info.model})
