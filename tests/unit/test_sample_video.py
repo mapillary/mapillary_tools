@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import shutil
 import typing as T
@@ -371,13 +372,14 @@ class TestDistanceSamplingFailsLoudly:
             self.VIDEO, Path(tmpdir), video_sample_distance=2, rerun=True, **kwargs
         )
 
-    def test_it_raises_instead_of_returning(self, tmpdir, setup_mock, unreadable_gps):
-        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+    def test_it_raises_instead_of_returning(
+        self, tmpdir, setup_mock, unreadable_gps, caplog
+    ):
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
             self._sample(tmpdir)
 
-        # the underlying reason has to survive into the message the user sees
-        assert "GPS is too noisy" in str(excinfo.value)
-        assert excinfo.value.__cause__ is unreadable_gps
+        # the underlying reason has to reach the user, and is logged per video
+        assert "GPS is too noisy" in caplog.text
 
     def test_it_names_the_flag_that_suppresses_it(
         self, tmpdir, setup_mock, unreadable_gps
@@ -410,6 +412,14 @@ class TestDistanceSamplingFailsLoudly:
     ):
         """The opt-out that several existing callers rely on."""
         self._sample(tmpdir, skip_sample_errors=True)
+
+    def test_the_summary_counts_it_by_its_own_type(
+        self, tmpdir, setup_mock, unreadable_gps, caplog
+    ):
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
+            self._sample(tmpdir)
+
+        assert "1 MapillaryGPSNoiseError" in caplog.text
 
     def test_an_empty_track_is_also_an_error(self, tmpdir, setup_mock, monkeypatch):
         """Previously an assert, so it vanished under `python -O`."""
@@ -725,22 +735,117 @@ class TestSampleVideoDistanceIntegration:
         assert abs(lon - (-74.0)) < 0.01
 
 
-class TestEverySuppressibleErrorNamesTheFlag:
+class TestFailuresAreReportedTogether:
     """
-    Every error raised out of the per-video body of sample_video() is
-    suppressed by --skip_sample_errors, so every one of those messages has to
-    name it. Half of them naming it is worse than none: a user who hits one of
-    the silent ones reaches for --skip_process_errors, which governs the later
-    geotagging stage and leaves the run failing with the same message.
+    A video that fails to sample does not stop the others. They are sampled,
+    the failures are summarized by type, and one error naming
+    --skip_sample_errors is raised at the end, as the process command does
+    with --skip_process_errors. Raising on the first failure left the samples
+    of the videos before it unprocessed, and which videos those were depended
+    on the order the filesystem listed them in.
     """
 
     VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
 
     @pytest.fixture
-    def no_start_time(self, monkeypatch):
+    def video_dir(self, tmp_path: Path, monkeypatch) -> Path:
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        videos = [video_dir / name for name in ["c.mp4", "a.mp4", "b.mp4"]]
+        for video in videos:
+            video.touch()
+        # Listed out of order, as a filesystem may list them
         monkeypatch.setattr(
-            ffmpeglib.Probe, "probe_video_start_time", lambda _self: None
+            sample_video.utils, "find_videos", lambda *args, **kwargs: videos
         )
+        return video_dir
+
+    @pytest.fixture
+    def attempted(self, monkeypatch) -> list[str]:
+        """
+        Sample a video by creating its sample directory, unless it is named
+        a.mp4 (no GPS) or b.mp4 (unreadable)
+        """
+        attempted: list[str] = []
+
+        def fake_sample(video_path: Path, sample_dir: Path, **kwargs) -> None:
+            attempted.append(video_path.name)
+            if video_path.name == "a.mp4":
+                raise exceptions.MapillaryVideoGPSNotFoundError("No GPS data found")
+            if video_path.name == "b.mp4":
+                raise exceptions.MapillaryVideoError("Unreadable")
+            sample_dir.mkdir(parents=True)
+
+        monkeypatch.setattr(
+            sample_video, "_sample_single_video_by_distance", fake_sample
+        )
+        return attempted
+
+    def test_every_video_is_sampled_in_order(
+        self, tmp_path: Path, video_dir: Path, attempted: list[str]
+    ):
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
+            sample_video.sample_video(video_dir, tmp_path / "output")
+
+        assert attempted == ["a.mp4", "b.mp4", "c.mp4"]
+        assert (tmp_path / "output" / "c.mp4").is_dir()
+
+    def test_one_error_names_the_flag(
+        self, tmp_path: Path, video_dir: Path, attempted: list[str]
+    ):
+        """
+        --skip_process_errors governs the later geotagging stage and does not
+        cover sampling, so the message has to name --skip_sample_errors or
+        users reach for the wrong flag.
+        """
+        with pytest.raises(exceptions.MapillaryVideoSampleError) as excinfo:
+            sample_video.sample_video(video_dir, tmp_path / "output")
+
+        assert str(excinfo.value) == (
+            "Failed to sample 2 videos. To skip these errors, specify --skip_sample_errors"
+        )
+
+    def test_the_summary_counts_failures_by_type(
+        self, tmp_path: Path, video_dir: Path, attempted: list[str], caplog
+    ):
+        caplog.set_level(logging.INFO)
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
+            sample_video.sample_video(video_dir, tmp_path / "output")
+
+        errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+        assert f"Failed to sample {video_dir / 'a.mp4'}: No GPS data found" in errors
+        assert f"Failed to sample {video_dir / 'b.mp4'}: Unreadable" in errors
+        assert "\t1 MapillaryVideoGPSNotFoundError" in errors
+        assert "\t1 MapillaryVideoError" in errors
+        assert "3 videos found" in caplog.text
+        assert "\t1 sampled" in caplog.text
+
+    def test_skip_sample_errors_downgrades_them_to_warnings(
+        self, tmp_path: Path, video_dir: Path, attempted: list[str], caplog
+    ):
+        sample_video.sample_video(
+            video_dir, tmp_path / "output", skip_sample_errors=True
+        )
+
+        assert attempted == ["a.mp4", "b.mp4", "c.mp4"]
+        assert not [r for r in caplog.records if r.levelname == "ERROR"]
+        assert "\t1 MapillaryVideoGPSNotFoundError" in caplog.text
+
+    def test_the_import_path_exists_even_if_nothing_samples(
+        self, tmp_path: Path, attempted: list[str]
+    ):
+        """
+        video_process runs the process command on the import path next, which
+        fails on a missing one: skipping every video used to end in "Import
+        file or directory not found"
+        """
+        video = tmp_path / "a.mp4"
+        video.touch()
+
+        sample_video.sample_video(video, tmp_path / "output", skip_sample_errors=True)
+
+        assert (tmp_path / "output").is_dir()
+        assert not list((tmp_path / "output").iterdir())
 
     @pytest.mark.parametrize(
         "kwargs",
@@ -752,30 +857,22 @@ class TestEverySuppressibleErrorNamesTheFlag:
             ),
         ],
     )
-    def test_unreadable_start_time_names_the_flag(
-        self, tmpdir, setup_mock, no_start_time, kwargs
+    def test_unreadable_start_time(
+        self, tmpdir, setup_mock, monkeypatch, kwargs, caplog
     ):
-        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_start_time", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
             sample_video.sample_video(self.VIDEO, Path(tmpdir), rerun=True, **kwargs)
 
-        assert "Unable to extract video start time" in str(excinfo.value)
-        assert "--skip_sample_errors" in str(excinfo.value)
+        assert "Unable to extract video start time" in caplog.text
 
-    def test_the_helper_appends_it_once(self):
-        error = sample_video._sampling_error("something went wrong")
-
-        assert str(error) == (
-            "something went wrong. To skip these errors, specify --skip_sample_errors"
-        )
-        assert isinstance(error, exceptions.MapillaryUserError)
-
-    def test_a_missing_ffmpeg_does_not_claim_to_be_skippable(
-        self, tmpdir, setup_mock, monkeypatch
-    ):
+    def test_a_missing_ffmpeg_is_still_fatal(self, tmpdir, setup_mock, monkeypatch):
         """
-        FFmpegNotFoundError is re-raised by its own handler before the skip
-        check, so --skip_sample_errors does not suppress it and its message
-        must not offer the flag.
+        FFmpegNotFoundError fails every video alike, so it is raised at once,
+        --skip_sample_errors or not, and its message must not offer the flag
         """
 
         def boom(*args, **kwargs):

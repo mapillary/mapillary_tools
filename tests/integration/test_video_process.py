@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import functools
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -86,6 +87,57 @@ def test_sample_video_by_distance_without_usable_gps(setup_data: py.path.local):
                 dir,
             ]
         )
+
+
+def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.local):
+    """
+    hero8.mp4's GPS is all noise, so it cannot be sampled by distance. That
+    fails the command, but only after max-360mode.mp4 beside it is sampled and
+    its samples processed, rather than leaving them behind unprocessed.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_dir = setup_data.join("gopro_data")
+    desc_path = Path(setup_data, "descs.json")
+
+    with pytest.raises(subprocess.CalledProcessError) as ex:
+        run_command(
+            [
+                "--video_sample_distance=6",
+                *["--desc_path", str(desc_path)],
+                str(video_dir),
+                str(video_dir.join("my_samples")),
+            ],
+            "video_process",
+            capture_output=True,
+            text=True,
+        )
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "Failed to sample 1 videos" in ex.value.stderr
+    assert "--skip_sample_errors" in ex.value.stderr
+
+    descs = json.loads(desc_path.read_text())
+    assert descs
+    for desc in descs:
+        assert "error" not in desc, desc
+        assert Path(desc["filename"]).parent.name == "max-360mode.mp4"
+
+
+def test_video_process_skips_the_only_video(setup_data: py.path.local):
+    """
+    Skipping every video leaves nothing to process, which is not an error:
+    it used to fail with "Import file or directory not found"
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            "--skip_sample_errors",
+            str(setup_data.join("gopro_data").join("hero8.mp4")),
+        ]
+    )
+    assert [] == descs
 
 
 def test_sample_video_without_video_time(setup_data: py.path.local):

@@ -40,6 +40,12 @@ class MapillaryVideoError(MapillaryUserError):
     exit_code = 7
 
 
+class MapillaryVideoSampleError(MapillaryVideoError):
+    """
+    Raised after sampling every video if any of them failed
+    """
+
+
 class MapillaryFFmpegNotFoundError(MapillaryUserError):
     exit_code = 8
 
