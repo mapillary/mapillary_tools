@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-Regression tests for the epoch of CAMM GPS timestamps.
+Tests for the epoch of CAMM GPS timestamps.
 
 The CAMM box field is called ``time_gps_epoch``, but producers disagree about
 what goes in it: Labpano cameras write GPS time (seconds since 1980-01-06),
@@ -13,27 +13,33 @@ is a ~315,964,800s (10 year) error.
 
 The invariant these tests protect: ``CAMMGPSPoint.epoch_time`` is *always*
 Unix time in memory. It is converted from GPS time once, when the CAMM track is
-parsed, and back once, when mapillary_tools writes a CAMM track for a make that
-records GPS time -- so that whatever it writes reads back to the same instants.
+parsed, and never on the way out: mapillary_tools writes Unix time whatever the
+make.
 
 Which epoch a track records is decided by the mvhd creation time of the video
-when that is conclusive, and by the make otherwise.
+when that is conclusive, and by the make otherwise. The CAMM tracks
+mapillary_tools writes carry the make and the creation time of their source,
+so for a Labpano video it is the creation time that says Unix time.
 """
 
 from __future__ import annotations
 
 import datetime
 import io
+import logging
 import pickle
+import shutil
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
-from mapillary_tools import exceptions, geo, telemetry, types, uploader
+from mapillary_tools import exceptions, exiftool_read, geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder, camm_parser
 from mapillary_tools.exiftool_read_video import ExifToolReadVideo
-from mapillary_tools.geotag.options import SourceOption, SourceType
+from mapillary_tools.exiftool_runner import ExiftoolRunner
+from mapillary_tools.geotag import factory
+from mapillary_tools.geotag.options import SourceOption, SourcePathOption, SourceType
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
 from mapillary_tools.geotag.video_extractors.native import CAMMVideoExtractor
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
@@ -155,13 +161,6 @@ class TestEpochConversion:
             telemetry.gps_epoch_to_unix(A_GPS_TIME) == A_GPS_TIME + GPS_UNIX_DELTA - 18
         )
 
-    def test_unix_to_gps_epoch_is_the_inverse(self):
-        assert telemetry.unix_to_gps_epoch(A_UNIX_TIME) == A_GPS_TIME
-        # One instant per leap second era, from before the first leap second
-        for unix_time in [400000000.5, 1000000000.5, 1500000000.5, A_UNIX_TIME]:
-            gps_time = telemetry.unix_to_gps_epoch(unix_time)
-            assert telemetry.gps_epoch_to_unix(gps_time) == unix_time
-
 
 class TestParseBoundaryNormalization:
     """The one place an epoch conversion is allowed to happen."""
@@ -232,20 +231,51 @@ class TestCreationTimeEvidence:
         assert _unix_times(_read_camm(data)) == [A_UNIX_TIME]
 
 
+class TestOneSampleDoesNotDecide:
+    """The whole track decides its epoch, not its first timestamp."""
+
+    CREATION_TIME = A_UNIX_TIME + 600
+
+    def _read_back(self, raw_times: list[float]) -> list[float]:
+        points = [
+            _camm_point(time=float(idx), epoch_time=raw_time)
+            for idx, raw_time in enumerate(raw_times)
+        ]
+        # Written as is, so the raw times are what the reader sees
+        data = _write_camm_mp4(points, "Labpano", self.CREATION_TIME)
+        return _unix_times(_read_camm(data))
+
+    def test_stray_unix_time_does_not_flip_a_gps_time_track(self):
+        raw_times = [A_UNIX_TIME] + [A_GPS_TIME + t for t in range(1, 10)]
+        unix_times = self._read_back(raw_times)
+        assert unix_times[1:] == [A_UNIX_TIME + t for t in range(1, 10)]
+
+    def test_stray_gps_time_does_not_flip_a_unix_time_track(self):
+        raw_times = [A_GPS_TIME] + [A_UNIX_TIME + t for t in range(1, 10)]
+        unix_times = self._read_back(raw_times)
+        assert unix_times[1:] == [A_UNIX_TIME + t for t in range(1, 10)]
+
+
 class TestWriteRoundTrip:
     """
     Whatever mapillary_tools writes must read back to the same Unix times.
 
-    The source make is copied into the output, so writing Unix time for a
-    Labpano video used to read back one GPS epoch later: 2026 became 2036.
+    It writes Unix time whatever the make. The source make is copied into the
+    output, so for a Labpano video it is the creation time, copied from the
+    source too, that keeps the reader from converting it one GPS epoch later:
+    2026 used to become 2036.
     """
 
-    @pytest.mark.parametrize("creation_time", [A_UNIX_TIME + 600, None])
     @pytest.mark.parametrize(
         "make", ["Labpano", "Labpano Technology Co.,Ltd", "Insta360", ""]
     )
-    def test_round_trip(self, make: str, creation_time: float | None):
-        data = _write_camm_mp4(_unix_track(), make, creation_time)
+    def test_round_trip(self, make: str):
+        data = _write_camm_mp4(_unix_track(), make, A_UNIX_TIME + 600)
+        assert _unix_times(_read_camm(data)) == UNIX_TIMES
+
+    @pytest.mark.parametrize("make", ["Insta360", ""])
+    def test_round_trip_without_creation_time(self, make: str):
+        data = _write_camm_mp4(_unix_track(), make, None)
         assert _unix_times(_read_camm(data)) == UNIX_TIMES
 
     def test_reprocessing_output_is_stable(self):
@@ -258,20 +288,11 @@ class TestWriteRoundTrip:
                 camm_info.gps or [], camm_info.make, A_UNIX_TIME + 600
             )
 
-    @pytest.mark.parametrize(
-        "make, raw_times",
-        [
-            ("Labpano", [A_GPS_TIME, A_GPS_TIME + 1]),
-            ("Insta360", UNIX_TIMES),
-        ],
-    )
-    def test_written_in_the_epoch_the_make_records(
-        self, monkeypatch, make: str, raw_times: list[float]
-    ):
-        """Labpano output carries GPS time, just like the camera's own file."""
+    @pytest.mark.parametrize("make", ["Labpano", "Insta360", ""])
+    def test_written_as_unix_time_whatever_the_make(self, monkeypatch, make: str):
         data = _write_camm_mp4(_unix_track(), make, A_UNIX_TIME + 600)
         monkeypatch.setattr(camm_parser, "_normalize_gps_epochs", lambda *_: None)
-        assert _unix_times(_read_camm(data)) == raw_times
+        assert _unix_times(_read_camm(data)) == UNIX_TIMES
 
 
 class TestMixedCAMMTypes:
@@ -346,6 +367,24 @@ class TestGPXOffset:
         video_points = [_camm_point(time=0.0, epoch_time=0.0)]
         assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 0.0
 
+    def test_video_gps_starting_late_syncs_to_video_time(self):
+        """
+        The offset is to video time 0, not to the first video GPS point, or
+        the GPX track would land early by that point's time.
+        """
+        gpx_points = _gpx_track(A_UNIX_TIME, 20)
+        # The video's GPS starts 5s into the video
+        video_points = [
+            _camm_point(time=5.0 + t, epoch_time=A_UNIX_TIME + 5 + t) for t in range(10)
+        ]
+
+        offset = GPXVideoExtractor._gpx_offset(gpx_points, video_points)
+        GPXVideoExtractor._rebase_times(gpx_points, offset=offset)
+
+        # Recorded at the same instant as the first video GPS point, so it
+        # lands at the same video time
+        assert gpx_points[5].time == 5.0
+
 
 def _gpx_track(start: float, duration: int) -> list[telemetry.CAMMGPSPoint]:
     return [
@@ -371,20 +410,26 @@ def _isoformat(unix_time: float) -> str:
     )
 
 
-class TestGPXOverlap:
+class TestGPXTimeGap:
     """
-    A GPX track that does not overlap the video must fail, not sync.
+    A GPX track that misses the video by more than a day must fail, not sync.
 
     The edit list no longer overflows on a huge offset, so this is what keeps
-    an epoch mix-up or a GPX file from another day from being uploaded.
+    an epoch mix-up or a GPX file from another day from being uploaded. A
+    smaller gap only warns, since it can be legitimate.
     """
 
     # A 10s video track starting at A_UNIX_TIME
     VIDEO = [_camm_point(time=float(t), epoch_time=A_UNIX_TIME + t) for t in range(11)]
 
-    def _check(self, gpx_points: list[telemetry.CAMMGPSPoint]) -> None:
-        offset = GPXVideoExtractor._gpx_offset(gpx_points, self.VIDEO)
-        GPXVideoExtractor._check_overlap(gpx_points, self.VIDEO, offset)
+    def _check(
+        self,
+        gpx_points: list[telemetry.CAMMGPSPoint],
+        video: T.Sequence[geo.Point] = VIDEO,
+    ) -> None:
+        extractor = GPXVideoExtractor(Path("video.mp4"), Path("track.gpx"))
+        offset = extractor._gpx_offset(gpx_points, video)
+        extractor._check_time_gap(gpx_points, video, offset)
 
     @pytest.mark.parametrize(
         "start, duration",
@@ -397,21 +442,38 @@ class TestGPXOverlap:
             (A_UNIX_TIME - 3 * 24 * 3600, 6 * 24 * 3600),
         ],
     )
-    def test_overlapping_gpx_passes(self, start: float, duration: int):
-        self._check(_gpx_track(start, duration))
+    def test_overlapping_gpx_passes_silently(self, caplog, start: float, duration: int):
+        with caplog.at_level(logging.WARNING):
+            self._check(_gpx_track(start, duration))
+        assert not caplog.records
 
     @pytest.mark.parametrize(
         "start",
         [
             # Ended a minute before the video started
             A_UNIX_TIME - 70,
-            # The next day
-            A_UNIX_TIME + 24 * 3600,
+            # Naive GPX timestamps read in a time zone 9h off
+            A_UNIX_TIME + 9 * 3600,
+            # Starts after the video's own GPS gives out
+            A_UNIX_TIME + 60,
         ],
     )
-    def test_disjoint_gpx_raises(self, start: float):
-        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
+    def test_small_gap_warns(self, caplog, start: float):
+        with caplog.at_level(logging.WARNING):
             self._check(_gpx_track(start, 10))
+        [record] = caplog.records
+        assert "video.mp4" in record.getMessage()
+        assert "track.gpx" in record.getMessage()
+
+    @pytest.mark.parametrize(
+        "start",
+        [A_UNIX_TIME + 2 * 24 * 3600, A_UNIX_TIME - 3 * 24 * 3600],
+    )
+    def test_gap_of_days_raises(self, start: float):
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._check(_gpx_track(start, 10))
+        assert "video.mp4" in str(info.value)
+        assert "track.gpx" in str(info.value)
 
     def test_epoch_mixup_raises(self):
         """Video timestamps left in GPS time sync ten years off."""
@@ -422,12 +484,12 @@ class TestGPXOverlap:
         offset = GPXVideoExtractor._gpx_offset(gpx_points, video)
         assert abs(offset - (GPS_UNIX_DELTA - 18)) < 1
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
-            GPXVideoExtractor._check_overlap(gpx_points, video, offset)
+            self._check(gpx_points, video)
 
     def test_error_survives_a_worker_process(self):
         """Videos are geotagged in a process pool, so the error gets pickled."""
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
-            self._check(_gpx_track(A_UNIX_TIME + 24 * 3600, 10))
+            self._check(_gpx_track(A_UNIX_TIME + 2 * 24 * 3600, 10))
 
         unpickled = pickle.loads(pickle.dumps(info.value))
 
@@ -447,20 +509,54 @@ class TestGPXOverlap:
         # The GPX starts ~5s before the video, whose GPS starts at video time 0
         assert -6 < points[0].time < -4
 
-    def test_extract_rejects_gpx_from_another_day(self, tmp_path: Path):
+    def _write_video_and_gpx(
+        self, tmp_path: Path, gpx_start: float
+    ) -> tuple[Path, Path]:
         video_path = tmp_path / "labpano.mp4"
         video_path.write_bytes(
             _write_camm_mp4(self.VIDEO, "Labpano", A_UNIX_TIME + 600)
         )
-        gpx_path = tmp_path / "yesterday.gpx"
-        _write_gpx(gpx_path, _gpx_track(A_UNIX_TIME - 24 * 3600, 20))
+        gpx_path = tmp_path / "other.gpx"
+        _write_gpx(gpx_path, _gpx_track(gpx_start, 20))
+        return video_path, gpx_path
 
+    def test_extract_rejects_gpx_from_days_before(self, tmp_path: Path):
+        video_path, gpx_path = self._write_video_and_gpx(
+            tmp_path, A_UNIX_TIME - 3 * 24 * 3600
+        )
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
             GPXVideoExtractor(video_path, gpx_path).extract()
 
+    def test_next_source_gets_its_turn(self, tmp_path: Path):
+        """The GPX misses the video, which says nothing about the video itself."""
+        video_path, gpx_path = self._write_video_and_gpx(
+            tmp_path, A_UNIX_TIME - 3 * 24 * 3600
+        )
+        options = [
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+            ),
+            SourceOption(SourceType.NATIVE, num_processes=0),
+        ]
 
-def _camm_exiftool_xml(make: str, meta_format: str = "camm") -> ET.ElementTree:
-    """ExifTool XML for a CAMM track, trimmed from a PanoX V2 capture."""
+        [metadata] = factory.process([video_path], options)
+
+        assert isinstance(metadata, types.VideoMetadata)
+        assert [p.time for p in metadata.points] == [p.time for p in self.VIDEO]
+
+
+def _camm_exiftool_xml(
+    make: str, meta_format: str = "camm", format_tag: str = "MetaFormat"
+) -> ET.ElementTree:
+    """
+    ExifTool XML for a CAMM track, trimmed from a PanoX V2 capture.
+
+    ExifTool reports the format of a camera's CAMM track, under a meta
+    handler, as MetaFormat, and that of the CAMM tracks mapillary_tools
+    writes, under a camm handler, as OtherFormat.
+    """
     xml = f"""<?xml version='1.0' encoding='UTF-8'?>
 <rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
 <rdf:Description rdf:about='/tmp/test.mp4'
@@ -468,7 +564,7 @@ def _camm_exiftool_xml(make: str, meta_format: str = "camm") -> ET.ElementTree:
  xmlns:Track1='http://ns.exiftool.org/QuickTime/Track1/1.0/'
  xmlns:UserData='http://ns.exiftool.org/QuickTime/UserData/1.0/'>
  <QuickTime:CreateDate>2024:01:18 10:43:57</QuickTime:CreateDate>
- <Track1:MetaFormat>{meta_format}</Track1:MetaFormat>
+ <Track1:{format_tag}>{meta_format}</Track1:{format_tag}>
  <Track1:SampleTime>0</Track1:SampleTime>
  <Track1:SampleDuration>0</Track1:SampleDuration>
  <Track1:GPSDateTime>2024:01:18 10:41:01.600768Z</Track1:GPSDateTime>
@@ -491,29 +587,63 @@ class TestExifToolAgreesWithNativeParser:
     """
     ExifTool converts CAMM GPS time by the epoch difference alone, so it
     reads 18s (the leap seconds since 1980) later than the native parser.
-    The native reading is the right one: the PanoX V2 capture this is taken
-    from lasts 193.4s and its mvhd creation time, stamped when recording ends,
-    is 10:43:57 -- 10:40:43.6 plus 193.4s, where 10:41:01.6 would overshoot it.
+    The native reading is the right one: in the PanoX V2 capture this is taken
+    from, the last GPS sample reads 0.4s before the mvhd creation time, stamped
+    when the file is finalized, where ExifTool's reading of it would be 17.6s
+    after.
     """
 
     # 2024-01-18T10:41:01.600768Z, as ExifTool renders it
     EXIFTOOL_TIME = 1705574461.600768
     NATIVE_TIME = EXIFTOOL_TIME - 18
 
-    @pytest.mark.parametrize("make", ["Labpano", "Labpano Technology Co.,Ltd"])
-    def test_gps_time_camm_track_is_leap_corrected(self, make: str):
-        track = ExifToolReadVideo(_camm_exiftool_xml(make)).extract_gps_track()
-        epoch_time = T.cast(telemetry.GPSPoint, track[0]).epoch_time
+    def _first_epoch_time(self, xml: ET.ElementTree) -> float | None:
+        track = ExifToolReadVideo(xml).extract_gps_track()
+        return T.cast(telemetry.GPSPoint, track[0]).epoch_time
+
+    @pytest.mark.parametrize(
+        "make, meta_format",
+        [
+            ("Labpano", "camm"),
+            ("Labpano Technology Co.,Ltd", "camm"),
+            ("Labpano", "CAMM"),
+            ("Labpano", " camm "),
+        ],
+    )
+    def test_gps_time_camm_track_is_leap_corrected(self, make: str, meta_format: str):
+        epoch_time = self._first_epoch_time(_camm_exiftool_xml(make, meta_format))
         assert epoch_time == pytest.approx(self.NATIVE_TIME, abs=1e-3)
 
     @pytest.mark.parametrize(
-        "make, meta_format", [("Insta360", "camm"), ("Labpano", "gpmd")]
+        "make, meta_format", [("Insta360", "camm"), ("Labpano", "gpmd"), ("", "camm")]
     )
     def test_other_tracks_are_left_alone(self, make: str, meta_format: str):
-        xml = _camm_exiftool_xml(make, meta_format=meta_format)
-        track = ExifToolReadVideo(xml).extract_gps_track()
-        epoch_time = T.cast(telemetry.GPSPoint, track[0]).epoch_time
+        epoch_time = self._first_epoch_time(_camm_exiftool_xml(make, meta_format))
         assert epoch_time == pytest.approx(self.EXIFTOOL_TIME, abs=1e-3)
+
+    def test_camm_tracks_written_by_mapillary_tools_are_left_alone(self):
+        """They hold Unix time, which ExifTool reads as is."""
+        xml = _camm_exiftool_xml("Labpano", format_tag="OtherFormat")
+        epoch_time = self._first_epoch_time(xml)
+        assert epoch_time == pytest.approx(self.EXIFTOOL_TIME, abs=1e-3)
+
+    @pytest.mark.skipif(shutil.which("exiftool") is None, reason="needs ExifTool")
+    def test_real_exiftool_reads_our_output_as_written(self, tmp_path: Path):
+        video_path = tmp_path / "labpano.mp4"
+        video_path.write_bytes(
+            _write_camm_mp4(_unix_track(), "Labpano", A_UNIX_TIME + 600)
+        )
+
+        xml = ExiftoolRunner(T.cast(str, shutil.which("exiftool"))).extract_xml(
+            [video_path]
+        )
+        [rdf] = exiftool_read.index_rdf_description_by_path_from_xml_element(
+            ET.fromstring(xml)
+        ).values()
+        track = ExifToolReadVideo(ET.ElementTree(rdf)).extract_gps_track()
+
+        epoch_times = [T.cast(telemetry.GPSPoint, p).epoch_time for p in track]
+        assert epoch_times == pytest.approx(UNIX_TIMES, abs=1e-3)
 
 
 class TestEditListOverflow:

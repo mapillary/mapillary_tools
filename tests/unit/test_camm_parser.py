@@ -802,9 +802,9 @@ def test_extract_camm_info_routes_plain_points_to_mini_gps():
 def test_camm_gps_timestamps_round_trip_as_unix():
     """process -> build CAMM -> re-read must return the input timestamps.
 
-    Without a make that records GPS time, mapillary_tools writes Unix time
-    into the CAMM type 6 time_gps_epoch field, as every released version has.
-    Makes that record GPS time are covered in test_gps_epoch.py.
+    mapillary_tools writes Unix time into the CAMM type 6 time_gps_epoch
+    field whatever the make, as every released version has. Makes that record
+    GPS time are covered in test_gps_epoch.py.
     """
     unix_times = [1655503450.5, 1655503451.5]
     points = [

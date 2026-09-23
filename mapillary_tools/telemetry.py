@@ -64,7 +64,7 @@ def gps_epoch_to_unix(gps_epoch_time: float) -> float:
     """
     Convert seconds since the GPS epoch (GPS time) to Unix time (UTC).
 
-    Only called at the CAMM parse boundary, for tracks that record GPS time.
+    Only called at the parse boundary, for producers known to record GPS time.
 
     >>> gps_epoch_to_unix(1470558405.9798455)
     1786523187.9798455
@@ -73,19 +73,6 @@ def gps_epoch_to_unix(gps_epoch_time: float) -> float:
     # ambiguous for instants within ~18s of a leap-second boundary.
     approx_unix_time = gps_epoch_time + GPS_EPOCH_UNIX_OFFSET
     return approx_unix_time - _gps_utc_offset_at(approx_unix_time)
-
-
-def unix_to_gps_epoch(unix_time: float) -> float:
-    """
-    Convert Unix time (UTC) to seconds since the GPS epoch (GPS time).
-
-    The inverse of gps_epoch_to_unix(). Only called when writing a CAMM track
-    for a camera that records GPS time.
-
-    >>> unix_to_gps_epoch(1786523187.9798455)
-    1470558405.9798455
-    """
-    return unix_time - GPS_EPOCH_UNIX_OFFSET + _gps_utc_offset_at(unix_time)
 
 
 @unique
@@ -173,11 +160,10 @@ class CAMMGPSPoint(TimestampedMeasurement, Point):
     #
     # The corresponding CAMM box field is named time_gps_epoch, but what
     # producers actually store there varies: Labpano cameras record GPS time,
-    # while Insta360 records Unix time. Whatever the producer wrote is
-    # normalized to Unix time once, when the CAMM track is parsed, and
-    # converted back only when mapillary_tools writes a CAMM track for a make
-    # that records GPS time (see camm_parser.denormalize_gps_epochs), so that
-    # everything in between can rely on a single meaning.
+    # while Insta360 and mapillary_tools itself record Unix time. Whatever the
+    # producer wrote is normalized to Unix time once, when the CAMM track is
+    # parsed (see camm_parser.extract_camm_info), so that everything
+    # downstream can rely on a single meaning.
     epoch_time: float
     gps_fix_type: int
     horizontal_accuracy: float

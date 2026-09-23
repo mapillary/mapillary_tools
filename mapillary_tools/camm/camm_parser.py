@@ -10,6 +10,7 @@ import abc
 import dataclasses
 import io
 import logging
+import statistics
 import typing as T
 from enum import Enum
 
@@ -164,10 +165,11 @@ def make_records_gps_time(make: str) -> bool:
 
 
 def _records_gps_time(
-    first_epoch_time: float, make: str, creation_time: float | None
+    epoch_time: float, make: str, creation_time: float | None
 ) -> bool:
     """
-    Decide the epoch of raw CAMM type 6 timestamps.
+    Decide the epoch of raw CAMM type 6 timestamps, given one representative
+    of them.
 
     The creation time of the video decides when it can: GPS time reads as one
     GPS epoch before it, Unix time reads close to it. The make decides only
@@ -185,7 +187,7 @@ def _records_gps_time(
     False
     """
     if creation_time:
-        gap = creation_time - first_epoch_time
+        gap = creation_time - epoch_time
         if abs(gap - telemetry.GPS_EPOCH_UNIX_OFFSET) < _CREATION_TIME_TOLERANCE:
             return True
         if abs(gap) < _CREATION_TIME_TOLERANCE:
@@ -217,49 +219,22 @@ def _normalize_gps_epochs(
     Rewrite CAMMGPSPoint.epoch_time in place so it is Unix time regardless of
     which epoch the producer used.
 
-    This is the only place CAMM GPS timestamps are read into Unix time.
-    Everything downstream treats them as Unix time, until
-    denormalize_gps_epochs() converts them back for writing.
+    This is the only place CAMM GPS timestamps change epoch. Everything
+    downstream, including the serializer, treats them as Unix time.
     """
-    first = next((p.epoch_time for p in gps if p.epoch_time > 0), None)
-    if first is None:
+    epoch_times = [p.epoch_time for p in gps if p.epoch_time > 0]
+    if not epoch_times:
         return
 
-    if not _records_gps_time(first, make, _extract_creation_time(moov)):
+    # Decide by the median rather than by any one sample, so that a stray
+    # timestamp cannot flip the epoch of the whole track
+    median_epoch_time = statistics.median(epoch_times)
+    if not _records_gps_time(median_epoch_time, make, _extract_creation_time(moov)):
         return
 
     for point in gps:
         if point.epoch_time > 0:
             point.epoch_time = telemetry.gps_epoch_to_unix(point.epoch_time)
-
-
-def denormalize_gps_epochs(
-    gps: T.Sequence[telemetry.CAMMGPSPoint], make: str
-) -> list[telemetry.CAMMGPSPoint]:
-    """
-    Return copies of the points with epoch_time converted to the epoch this
-    make records, for writing. The inverse of _normalize_gps_epochs().
-
-    The source make is copied into every CAMM track mapillary_tools writes, so
-    a Labpano video written with Unix time in its GPS track would read back
-    ten years in the future. Writing GPS time for these makes keeps our output
-    parseable, and leaves the camera's own timestamps as the camera wrote them.
-
-    Only the make is available here, and that is enough: the reader decides by
-    the creation time first, which is copied from the source, and by the make
-    otherwise, so either way it reads back what was written.
-    """
-    if not make_records_gps_time(make):
-        return list(gps)
-
-    return [
-        dataclasses.replace(
-            point, epoch_time=telemetry.unix_to_gps_epoch(point.epoch_time)
-        )
-        if point.epoch_time > 0
-        else point
-        for point in gps
-    ]
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
@@ -381,8 +356,10 @@ class GPSSampleEntry(CAMMSampleEntry):
             {
                 "type": cls.serialized_camm_type.value,
                 "data": {
-                    # Written as is. camm_builder converts to the epoch the
-                    # make records beforehand (see denormalize_gps_epochs).
+                    # Written as Unix time, whatever the make. Readers tell it
+                    # from the GPS time some cameras record by the creation
+                    # time the file carries (see _records_gps_time). Do not
+                    # convert here.
                     "time_gps_epoch": data.epoch_time,
                     "gps_fix_type": data.gps_fix_type,
                     "latitude": data.lat,

@@ -27,6 +27,11 @@ from .native import NativeVideoExtractor
 
 LOG = logging.getLogger(__name__)
 
+# A GPX track that misses the video by more than this cannot belong to it. No
+# camera clock or time zone mistake comes close, while an epoch mix-up exceeds
+# it by orders of magnitude.
+_IMPLAUSIBLE_GAP_SECONDS = 24 * 3600
+
 
 class SyncMode(enum.Enum):
     # Sync by video GPS timestamps if found, otherwise rebase
@@ -76,43 +81,54 @@ class GPXVideoExtractor(BaseVideoExtractor):
         else:
             offset = self._gpx_offset(gpx_points, native_video_metadata.points)
             if offset:
-                self._check_overlap(gpx_points, native_video_metadata.points, offset)
+                self._check_time_gap(gpx_points, native_video_metadata.points, offset)
             self._rebase_times(gpx_points, offset=offset)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
-    @classmethod
-    def _check_overlap(
-        cls,
+    def _check_time_gap(
+        self,
         gpx_points: T.Sequence[geo.Point],
         video_gps_points: T.Sequence[geo.Point],
         offset: float,
     ) -> None:
         """
-        Raise if the GPX track, once synced by offset, does not overlap the
-        video in time.
+        Check the GPX track, once synced by offset, against the video in time.
 
-        Nothing downstream can use such a sync: every point would fall outside
-        the video, and at upload the edit list would carry the whole offset.
-        That used to overflow and abort the upload. Now that the edit list
-        widens instead, this is what keeps an epoch mix-up or a GPX file from
-        another day from failing silently.
+        Silent when the two overlap. A gap only warns, because it can be
+        legitimate, as when the GPX starts after the video's own GPS gives out.
+        A gap too large for any clock or time zone mistake to explain raises:
+        the GPX cannot belong to the video, and syncing to it would put every
+        point far outside the video.
         """
         # The Unix time of video time 0, in the convention _rebase_times() uses
         video_start_time = gpx_points[0].time - offset
-        video_first = video_start_time + min(p.time for p in video_gps_points)
+        # From video time 0, since the frames start there even when the video's
+        # own GPS starts later
         video_last = video_start_time + max(p.time for p in video_gps_points)
         gpx_first = min(p.time for p in gpx_points)
         gpx_last = max(p.time for p in gpx_points)
 
-        if gpx_last < video_first or video_last < gpx_first:
+        gap = max(gpx_first - video_last, video_start_time - gpx_last)
+        if gap <= 0:
+            return
+
+        message = (
+            f"The GPX track in {self.gpx_path} ({_isoformat(gpx_first)} to {_isoformat(gpx_last)}) "
+            f"misses the video {self.video_path} ({_isoformat(video_start_time)} to {_isoformat(video_last)}) "
+            f"by {gap:.0f} seconds ({gap / 86400:.1f} days). "
+            "Check the camera clock, and the time zone of the GPX timestamps"
+        )
+
+        if gap > _IMPLAUSIBLE_GAP_SECONDS:
             raise exceptions.MapillaryOutsideGPXTrackError(
-                f"The video GPS track ({_isoformat(video_first)} to {_isoformat(video_last)}) "
-                f"does not overlap the GPX track ({_isoformat(gpx_first)} to {_isoformat(gpx_last)}) in time",
-                image_time=build_capture_time(video_first),
+                message,
+                image_time=build_capture_time(video_start_time),
                 gpx_start_time=build_capture_time(gpx_first),
                 gpx_end_time=build_capture_time(gpx_last),
             )
+
+        LOG.warning(message)
 
     @classmethod
     def _rebase_times(cls, points: T.Sequence[geo.Point], offset: float = 0.0) -> None:
@@ -153,10 +169,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         if anchor is not None:
             anchor_unix_time = T.cast(float, anchor.get_unix_time())
-            # The Unix time the first video point would have
-            video_unix_time = anchor_unix_time - (
-                anchor.time - video_gps_points[0].time
-            )
+            # The Unix time of video time 0
+            video_unix_time = anchor_unix_time - anchor.time
             offset = gpx_points[0].time - video_unix_time
 
         return offset

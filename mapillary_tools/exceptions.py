@@ -72,7 +72,9 @@ class MapillaryStationaryVideoError(MapillaryDescriptionError):
     pass
 
 
-class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
+# A geotagging error, so that the next geotag source gets its turn: a GPX track
+# that misses the capture time says nothing about the file itself
+class MapillaryOutsideGPXTrackError(MapillaryGeoTaggingError):
     def __init__(
         self, message: str, image_time: str, gpx_start_time: str, gpx_end_time: str
     ):

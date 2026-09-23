@@ -563,6 +563,9 @@ class ExifToolReadVideo:
                 )
                 if track:
                     if self._is_camm_track_in_gps_time(track_ns):
+                        LOG.debug(
+                            f"Correcting the CAMM GPS timestamps in {track_ns} by the leap seconds"
+                        )
                         for point in track:
                             if point.epoch_time is not None:
                                 point.epoch_time = _exiftool_gps_time_to_unix(
@@ -578,12 +581,21 @@ class ExifToolReadVideo:
         ExifTool converts those timestamps by the epoch difference alone, so
         they read 18s (the leap seconds since 1980) ahead of what the native
         CAMM parser returns for the same video.
+
+        Only camera originals qualify. Cameras put their CAMM track under a
+        meta handler, which ExifTool reports as MetaFormat. The CAMM tracks
+        mapillary_tools writes use a camm handler, which ExifTool reports as
+        OtherFormat, and hold Unix time, which ExifTool reads as is.
         """
         meta_format = self._extract_alternative_fields([f"{track_ns}:MetaFormat"], str)
-        if meta_format != "camm":
+        if (meta_format or "").strip().lower() != "camm":
             return False
+
         make = self.extract_make()
-        return make is not None and camm_parser.make_records_gps_time(make)
+        if not make:
+            return False
+
+        return camm_parser.make_records_gps_time(make)
 
     def _extract_alternative_fields(
         self,
