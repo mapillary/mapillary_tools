@@ -55,6 +55,21 @@ A_UNIX_TIME = 1786523187.9798455
 # Seconds between the mp4 epoch (1904-01-01) and the Unix epoch
 MP4_UNIX_DELTA = 2082844800
 
+# When the tests read tracks: two months after A_UNIX_TIME
+NOW = A_UNIX_TIME + 60 * 24 * 3600
+
+
+class _PinnedClock:
+    @staticmethod
+    def time() -> float:
+        return NOW
+
+
+@pytest.fixture
+def pinned_now(monkeypatch):
+    """Pin the clock the make fallback reads, so the tests do not expire."""
+    monkeypatch.setattr(camm_parser, "time", _PinnedClock)
+
 
 def _camm_point(time: float, epoch_time: float) -> telemetry.CAMMGPSPoint:
     return telemetry.CAMMGPSPoint(
@@ -89,12 +104,16 @@ def _gps_point(time: float, epoch_time: float | None) -> telemetry.GPSPoint:
 
 
 def _write_camm_mp4(
-    points: T.Sequence[geo.Point], make: str, creation_time: float | None
+    points: T.Sequence[geo.Point],
+    make: str,
+    creation_time: float | None,
+    duration: float = 10.0,
 ) -> bytes:
     """
     Write points as a CAMM track into an empty mp4, the way the uploader does.
 
     creation_time is the Unix time to put in mvhd, or None to leave it unset.
+    duration is the duration of the video in seconds, or 0 for unknown.
     """
     mp4_creation_time = (
         0 if creation_time is None else int(creation_time) + MP4_UNIX_DELTA
@@ -105,7 +124,7 @@ def _write_camm_mp4(
             "creation_time": mp4_creation_time,
             "modification_time": mp4_creation_time,
             "timescale": 1000,
-            "duration": 36000 * 1000,
+            "duration": int(duration * 1000),
         },
     }
     src = cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(
@@ -231,8 +250,35 @@ class TestCreationTimeEvidence:
         assert _unix_times(_read_camm(data)) == [A_UNIX_TIME]
 
 
-class TestOneSampleDoesNotDecide:
-    """The whole track decides its epoch, not its first timestamp."""
+@pytest.mark.usefixtures("pinned_now")
+class TestWithoutCreationTime:
+    """
+    Without a conclusive creation time the make decides, but GPS time must
+    not put a timestamp in the future: Unix time read as GPS time lands ten
+    years late. That keeps our output of a Labpano source without a creation
+    time from reading back as 2036, for recordings less than ten years old
+    when read.
+    """
+
+    @pytest.mark.parametrize("make", ["Labpano", "Labpano Technology Co.,Ltd"])
+    def test_unix_time_is_not_converted(self, make: str):
+        assert not camm_parser._records_gps_time(A_UNIX_TIME, make, None)
+
+    def test_gps_time_is_converted(self):
+        assert camm_parser._records_gps_time(A_GPS_TIME, "Labpano", None)
+
+    def test_labpano_original_is_converted(self):
+        data = _write_camm_mp4(
+            [_camm_point(time=0.0, epoch_time=A_GPS_TIME)], "Labpano", None
+        )
+        assert _unix_times(_read_camm(data)) == [A_UNIX_TIME]
+
+
+class TestStraySamples:
+    """
+    The whole track decides its epoch, not its first timestamp, and a
+    timestamp more than 30 days from the rest of the track is dropped.
+    """
 
     CREATION_TIME = A_UNIX_TIME + 600
 
@@ -247,13 +293,32 @@ class TestOneSampleDoesNotDecide:
 
     def test_stray_unix_time_does_not_flip_a_gps_time_track(self):
         raw_times = [A_UNIX_TIME] + [A_GPS_TIME + t for t in range(1, 10)]
-        unix_times = self._read_back(raw_times)
-        assert unix_times[1:] == [A_UNIX_TIME + t for t in range(1, 10)]
+        assert self._read_back(raw_times) == [A_UNIX_TIME + t for t in range(1, 10)]
 
     def test_stray_gps_time_does_not_flip_a_unix_time_track(self):
         raw_times = [A_GPS_TIME] + [A_UNIX_TIME + t for t in range(1, 10)]
-        unix_times = self._read_back(raw_times)
-        assert unix_times[1:] == [A_UNIX_TIME + t for t in range(1, 10)]
+        assert self._read_back(raw_times) == [A_UNIX_TIME + t for t in range(1, 10)]
+
+    def test_stray_is_dropped_wherever_it_is(self, caplog):
+        """Kept, it would sit ten years off, amid the track it interrupts."""
+        raw_times = [A_UNIX_TIME + t for t in range(10)]
+        raw_times[5] = A_GPS_TIME + 5
+
+        with caplog.at_level(logging.WARNING):
+            unix_times = self._read_back(raw_times)
+
+        assert unix_times == [A_UNIX_TIME + t for t in range(10) if t != 5]
+        [record] = caplog.records
+        assert "Dropped 1 of 10" in record.getMessage()
+
+    def test_points_without_a_timestamp_are_not_strays(self):
+        points = [_camm_point(time=0.0, epoch_time=0.0)] + [
+            _camm_point(time=float(t), epoch_time=A_GPS_TIME + t) for t in range(1, 5)
+        ]
+        camm_parser._normalize_gps_epochs(points, "Labpano")
+        assert [p.epoch_time for p in points] == [0.0] + [
+            A_UNIX_TIME + t for t in range(1, 5)
+        ]
 
 
 class TestWriteRoundTrip:
@@ -273,7 +338,10 @@ class TestWriteRoundTrip:
         data = _write_camm_mp4(_unix_track(), make, A_UNIX_TIME + 600)
         assert _unix_times(_read_camm(data)) == UNIX_TIMES
 
-    @pytest.mark.parametrize("make", ["Insta360", ""])
+    @pytest.mark.usefixtures("pinned_now")
+    @pytest.mark.parametrize(
+        "make", ["Labpano", "Labpano Technology Co.,Ltd", "Insta360", ""]
+    )
     def test_round_trip_without_creation_time(self, make: str):
         data = _write_camm_mp4(_unix_track(), make, None)
         assert _unix_times(_read_camm(data)) == UNIX_TIMES
@@ -412,70 +480,112 @@ def _isoformat(unix_time: float) -> str:
 
 class TestGPXTimeGap:
     """
-    A GPX track that misses the video by more than a day must fail, not sync.
+    A GPX track that misses the video must fail, not sync.
 
-    The edit list no longer overflows on a huge offset, so this is what keeps
-    an epoch mix-up or a GPX file from another day from being uploaded. A
-    smaller gap only warns, since it can be legitimate.
+    Positions outside a GPX track are extrapolated, so a track that misses
+    the video would give every frame a made-up position: an epoch mix-up, a
+    GPX file from another day, or naive GPX timestamps read in the wrong time
+    zone. A track that covers only part of the video warns.
     """
 
-    # A 10s video track starting at A_UNIX_TIME
+    # A 10s video track starting at A_UNIX_TIME, in a 12s video
     VIDEO = [_camm_point(time=float(t), epoch_time=A_UNIX_TIME + t) for t in range(11)]
+    VIDEO_DURATION = 12.0
 
     def _check(
         self,
         gpx_points: list[telemetry.CAMMGPSPoint],
         video: T.Sequence[geo.Point] = VIDEO,
+        duration: float | None = VIDEO_DURATION,
     ) -> None:
         extractor = GPXVideoExtractor(Path("video.mp4"), Path("track.gpx"))
         offset = extractor._gpx_offset(gpx_points, video)
-        extractor._check_time_gap(gpx_points, video, offset)
+        extractor._check_time_gap(gpx_points, video, offset, duration)
 
     @pytest.mark.parametrize(
         "start, duration",
         [
-            # Starts 30s before the video and ends during it
-            (A_UNIX_TIME - 30, 35),
-            # Starts during the video
-            (A_UNIX_TIME + 5, 60),
+            # Starts 30s before the video and ends after it
+            (A_UNIX_TIME - 30, 60),
+            # Started a second into the video, and ends with it
+            (A_UNIX_TIME + 1, 11),
             # A long recording that spans the video
             (A_UNIX_TIME - 3 * 24 * 3600, 6 * 24 * 3600),
         ],
     )
-    def test_overlapping_gpx_passes_silently(self, caplog, start: float, duration: int):
+    def test_covering_gpx_passes_silently(self, caplog, start: float, duration: int):
         with caplog.at_level(logging.WARNING):
             self._check(_gpx_track(start, duration))
         assert not caplog.records
+
+    @pytest.mark.parametrize(
+        "start, duration, uncovered",
+        [
+            # Ends 5s into the video
+            (A_UNIX_TIME - 30, 35, 7),
+            # Starts 5s into the video
+            (A_UNIX_TIME + 5, 60, 5),
+            # Starts after the video's own GPS gives out, before the video ends
+            (A_UNIX_TIME + 11, 20, 11),
+        ],
+    )
+    def test_partial_cover_warns(
+        self, caplog, start: float, duration: int, uncovered: int
+    ):
+        with caplog.at_level(logging.WARNING):
+            self._check(_gpx_track(start, duration))
+        [record] = caplog.records
+        assert "covers only part of" in record.getMessage()
+        assert f"{uncovered} seconds" in record.getMessage()
+        assert "video.mp4" in record.getMessage()
+        assert "track.gpx" in record.getMessage()
 
     @pytest.mark.parametrize(
         "start",
         [
             # Ended a minute before the video started
             A_UNIX_TIME - 70,
-            # Naive GPX timestamps read in a time zone 9h off
-            A_UNIX_TIME + 9 * 3600,
-            # Starts after the video's own GPS gives out
+            # Starts after the video ends, though within a minute of it
+            A_UNIX_TIME + 13,
+            # Naive GPX timestamps read in a time zone 2h off
+            A_UNIX_TIME + 2 * 3600,
+            # A GPX file from another day
+            A_UNIX_TIME - 3 * 24 * 3600,
+        ],
+    )
+    def test_missing_the_video_raises(self, start: float):
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._check(_gpx_track(start, 10))
+        assert "video.mp4" in str(info.value)
+        assert "track.gpx" in str(info.value)
+        assert "time zone" in str(info.value)
+
+    @pytest.mark.parametrize(
+        "start",
+        [
+            A_UNIX_TIME - 70,
+            A_UNIX_TIME + 2 * 3600,
+            # Starts after the video's own GPS gives out, which the video
+            # itself may not
             A_UNIX_TIME + 60,
         ],
     )
-    def test_small_gap_warns(self, caplog, start: float):
+    def test_without_duration_a_gap_warns(self, caplog, start: float):
         with caplog.at_level(logging.WARNING):
-            self._check(_gpx_track(start, 10))
+            self._check(_gpx_track(start, 10), duration=None)
         [record] = caplog.records
-        assert "video.mp4" in record.getMessage()
-        assert "track.gpx" in record.getMessage()
+        assert "misses" in record.getMessage()
 
     @pytest.mark.parametrize(
         "start",
         [A_UNIX_TIME + 2 * 24 * 3600, A_UNIX_TIME - 3 * 24 * 3600],
     )
-    def test_gap_of_days_raises(self, start: float):
-        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
-            self._check(_gpx_track(start, 10))
-        assert "video.mp4" in str(info.value)
-        assert "track.gpx" in str(info.value)
+    def test_without_duration_a_gap_of_days_raises(self, start: float):
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
+            self._check(_gpx_track(start, 10), duration=None)
 
-    def test_epoch_mixup_raises(self):
+    @pytest.mark.parametrize("duration", [VIDEO_DURATION, None])
+    def test_epoch_mixup_raises(self, duration: float | None):
         """Video timestamps left in GPS time sync ten years off."""
         video = [
             _camm_point(time=float(t), epoch_time=A_GPS_TIME + t) for t in range(11)
@@ -484,7 +594,7 @@ class TestGPXTimeGap:
         offset = GPXVideoExtractor._gpx_offset(gpx_points, video)
         assert abs(offset - (GPS_UNIX_DELTA - 18)) < 1
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
-            self._check(gpx_points, video)
+            self._check(gpx_points, video, duration)
 
     def test_error_survives_a_worker_process(self):
         """Videos are geotagged in a process pool, so the error gets pickled."""
@@ -496,36 +606,62 @@ class TestGPXTimeGap:
         assert str(unpickled) == str(info.value)
         assert vars(unpickled) == vars(info.value)
 
-    def test_extract_syncs_labpano_video_to_its_gpx(self, tmp_path: Path):
-        video_path = tmp_path / "labpano.mp4"
-        video_path.write_bytes(
-            _write_camm_mp4(self.VIDEO, "Labpano", A_UNIX_TIME + 600)
-        )
-        gpx_path = tmp_path / "labpano.gpx"
-        _write_gpx(gpx_path, _gpx_track(int(A_UNIX_TIME) - 5, 20))
-
-        points = GPXVideoExtractor(video_path, gpx_path).extract().points
-
-        # The GPX starts ~5s before the video, whose GPS starts at video time 0
-        assert -6 < points[0].time < -4
-
     def _write_video_and_gpx(
-        self, tmp_path: Path, gpx_start: float
+        self, tmp_path: Path, gpx_start: float, duration: float = VIDEO_DURATION
     ) -> tuple[Path, Path]:
         video_path = tmp_path / "labpano.mp4"
         video_path.write_bytes(
-            _write_camm_mp4(self.VIDEO, "Labpano", A_UNIX_TIME + 600)
+            _write_camm_mp4(self.VIDEO, "Labpano", A_UNIX_TIME + 600, duration)
         )
-        gpx_path = tmp_path / "other.gpx"
+        gpx_path = tmp_path / "labpano.gpx"
         _write_gpx(gpx_path, _gpx_track(gpx_start, 20))
         return video_path, gpx_path
 
-    def test_extract_rejects_gpx_from_days_before(self, tmp_path: Path):
-        video_path, gpx_path = self._write_video_and_gpx(
-            tmp_path, A_UNIX_TIME - 3 * 24 * 3600
-        )
+    def test_extract_syncs_labpano_video_to_its_gpx(self, tmp_path: Path, caplog):
+        video_path, gpx_path = self._write_video_and_gpx(tmp_path, A_UNIX_TIME - 5)
+
+        with caplog.at_level(logging.WARNING):
+            points = GPXVideoExtractor(video_path, gpx_path).extract().points
+
+        # The GPX starts ~5s before the video, whose GPS starts at video time 0
+        assert -6 < points[0].time < -4
+        assert not caplog.records
+
+    @pytest.mark.parametrize(
+        "gpx_start",
+        [
+            # From days before
+            A_UNIX_TIME - 3 * 24 * 3600,
+            # In a time zone 2h off
+            A_UNIX_TIME + 2 * 3600,
+        ],
+    )
+    def test_extract_rejects_gpx_that_misses_the_video(
+        self, tmp_path: Path, gpx_start: float
+    ):
+        video_path, gpx_path = self._write_video_and_gpx(tmp_path, gpx_start)
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
             GPXVideoExtractor(video_path, gpx_path).extract()
+
+    def test_extract_without_duration_only_warns_of_hours(self, tmp_path: Path, caplog):
+        video_path, gpx_path = self._write_video_and_gpx(
+            tmp_path, A_UNIX_TIME + 2 * 3600, duration=0
+        )
+        with caplog.at_level(logging.WARNING):
+            GPXVideoExtractor(video_path, gpx_path).extract()
+        [record] = caplog.records
+        assert "misses" in record.getMessage()
+
+    def test_video_duration_is_read_from_the_file(self, tmp_path: Path):
+        video_path, gpx_path = self._write_video_and_gpx(tmp_path, A_UNIX_TIME)
+        assert GPXVideoExtractor(video_path, gpx_path)._video_duration() == 12.0
+
+    @pytest.mark.parametrize("content", [b"", b"not a real mp4"])
+    def test_unreadable_duration_is_unknown(self, tmp_path: Path, content: bytes):
+        video_path = tmp_path / "video.mp4"
+        video_path.write_bytes(content)
+        extractor = GPXVideoExtractor(video_path, tmp_path / "track.gpx")
+        assert extractor._video_duration() is None
 
     def test_next_source_gets_its_turn(self, tmp_path: Path):
         """The GPX misses the video, which says nothing about the video itself."""
@@ -545,6 +681,47 @@ class TestGPXTimeGap:
 
         assert isinstance(metadata, types.VideoMetadata)
         assert [p.time for p in metadata.points] == [p.time for p in self.VIDEO]
+
+
+class TestImagesOutsideGPXTrack:
+    """
+    Images outside a GPX track fail with the same error, a geotagging error,
+    so they too fall through to the next geotag source.
+    """
+
+    # Captured 2018-06-08T20:24:11Z at 45.5169, -122.5728
+    IMAGE = Path(__file__).parent.parent / "data" / "images" / "DSC00001.JPG"
+
+    def _process(self, tmp_path: Path, sources: list[SourceType]):
+        image_path = tmp_path / self.IMAGE.name
+        shutil.copyfile(self.IMAGE, image_path)
+        # A track recorded years after the image
+        gpx_path = tmp_path / "track.gpx"
+        _write_gpx(gpx_path, _gpx_track(A_UNIX_TIME, 10))
+        options = [
+            SourceOption(
+                source,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+            )
+            if source is SourceType.GPX
+            else SourceOption(source, num_processes=0)
+            for source in sources
+        ]
+        [metadata] = factory.process([image_path], options)
+        return metadata
+
+    def test_next_source_gets_its_turn(self, tmp_path: Path):
+        metadata = self._process(tmp_path, [SourceType.GPX, SourceType.EXIF])
+
+        assert isinstance(metadata, types.ImageMetadata)
+        assert (round(metadata.lat, 4), round(metadata.lon, 4)) == (45.5169, -122.5728)
+
+    def test_gpx_as_the_only_source_fails(self, tmp_path: Path):
+        metadata = self._process(tmp_path, [SourceType.GPX])
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError)
 
 
 def _camm_exiftool_xml(

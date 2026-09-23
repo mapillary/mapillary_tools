@@ -11,6 +11,7 @@ import dataclasses
 import io
 import logging
 import statistics
+import time
 import typing as T
 from enum import Enum
 
@@ -141,12 +142,16 @@ _GPS_EPOCH_MAKES = ("labpano",)
 # Seconds between the mp4 epoch (1904-01-01) and the Unix epoch.
 _MP4_EPOCH_UNIX_OFFSET = 2082844800
 
-# How close the first GPS timestamp has to be to the mvhd creation_time, read
-# either as Unix time or as GPS time, for the creation time to decide the
-# epoch. The two readings are ten years apart, so this can be generous enough
-# to absorb local-time creation times and long recordings without ever being
-# ambiguous.
+# How close the median GPS timestamp of a track has to be to the mvhd
+# creation_time, read either as Unix time or as GPS time, for the creation time
+# to decide the epoch. The two readings are ten years apart, so this can be
+# generous enough to absorb local-time creation times and long recordings
+# without ever being ambiguous.
 _CREATION_TIME_TOLERANCE = 30 * 24 * 3600
+
+# A timestamp this far from the median of its track cannot belong to it: even
+# a time-lapse spans days, not months
+_STRAY_TOLERANCE = 30 * 24 * 3600
 
 
 def make_records_gps_time(make: str) -> bool:
@@ -174,7 +179,9 @@ def _records_gps_time(
     The creation time of the video decides when it can: GPS time reads as one
     GPS epoch before it, Unix time reads close to it. The make decides only
     when the creation time settles neither, because it is missing or
-    meaningless (a GoPro HERO7 recorded in 2022 reports 2016).
+    meaningless (a GoPro HERO7 recorded in 2022 reports 2016). Even then, a
+    timestamp that GPS time would put in the future is Unix time: that is what
+    mapillary_tools writes for a Labpano source without a creation time.
 
     >>> creation_time = 1705574637  # 2024-01-18T10:43:57Z
     >>> _records_gps_time(1389609661, "", creation_time)  # GPS time
@@ -193,7 +200,14 @@ def _records_gps_time(
         if abs(gap) < _CREATION_TIME_TOLERANCE:
             return False
 
-    return make_records_gps_time(make)
+    if not make_records_gps_time(make):
+        return False
+
+    # Read as GPS time, Unix time lands ten years late, so in the future for
+    # any recording less than ten years old
+    return (
+        telemetry.gps_epoch_to_unix(epoch_time) < time.time() + _CREATION_TIME_TOLERANCE
+    )
 
 
 def _extract_creation_time(moov: MovieBoxParser | None) -> float | None:
@@ -217,7 +231,8 @@ def _normalize_gps_epochs(
 ) -> None:
     """
     Rewrite CAMMGPSPoint.epoch_time in place so it is Unix time regardless of
-    which epoch the producer used.
+    which epoch the producer used, and drop the points whose timestamps are
+    strays.
 
     This is the only place CAMM GPS timestamps change epoch. Everything
     downstream, including the serializer, treats them as Unix time.
@@ -229,6 +244,22 @@ def _normalize_gps_epochs(
     # Decide by the median rather than by any one sample, so that a stray
     # timestamp cannot flip the epoch of the whole track
     median_epoch_time = statistics.median(epoch_times)
+
+    # A stray timestamp would still be wrong by years once converted with the
+    # track, and would corrupt the timestamps interpolated next to it
+    kept = [
+        p
+        for p in gps
+        if p.epoch_time <= 0 or abs(p.epoch_time - median_epoch_time) < _STRAY_TOLERANCE
+    ]
+    if len(kept) < len(gps):
+        LOG.warning(
+            "Dropped %d of %d CAMM GPS points whose timestamps are more than 30 days from the rest of the track",
+            len(gps) - len(kept),
+            len(gps),
+        )
+        gps[:] = kept
+
     if not _records_gps_time(median_epoch_time, make, _extract_creation_time(moov)):
         return
 

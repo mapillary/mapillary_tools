@@ -13,12 +13,15 @@ import sys
 import typing as T
 from pathlib import Path
 
+import construct as C
+
 if sys.version_info >= (3, 12):
     from typing import override
 else:
     from typing_extensions import override
 
 from ... import exceptions, geo, types, utils
+from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from ...serializer.description import build_capture_time
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
@@ -27,10 +30,16 @@ from .native import NativeVideoExtractor
 
 LOG = logging.getLogger(__name__)
 
-# A GPX track that misses the video by more than this cannot belong to it. No
-# camera clock or time zone mistake comes close, while an epoch mix-up exceeds
-# it by orders of magnitude.
+# When the duration of the video is unknown, a GPX track that misses the
+# video's GPS by more than this cannot belong to it. No camera clock or time
+# zone mistake comes close, while an epoch mix-up exceeds it by orders of
+# magnitude.
 _IMPLAUSIBLE_GAP_SECONDS = 24 * 3600
+
+# How much of the video a GPX track may leave uncovered without a warning. A
+# logger that records whole seconds once a second, started and stopped with
+# the camera, can leave a second at each end.
+_UNCOVERED_TOLERANCE_SECONDS = 2.0
 
 
 class SyncMode(enum.Enum):
@@ -81,46 +90,88 @@ class GPXVideoExtractor(BaseVideoExtractor):
         else:
             offset = self._gpx_offset(gpx_points, native_video_metadata.points)
             if offset:
-                self._check_time_gap(gpx_points, native_video_metadata.points, offset)
+                self._check_time_gap(
+                    gpx_points,
+                    native_video_metadata.points,
+                    offset,
+                    self._video_duration(),
+                )
             self._rebase_times(gpx_points, offset=offset)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
+
+    def _video_duration(self) -> float | None:
+        """
+        The duration of the video in seconds, from its mvhd box, or None if it
+        cannot be read.
+        """
+        try:
+            with self.video_path.open("rb") as fp:
+                data = sparser.parse_box_data_first(fp, [b"moov", b"mvhd"])
+            if data is None:
+                return None
+            mvhd = cparser.MovieHeaderBox.parse(data)
+        except (OSError, sparser.ParsingError, C.ConstructError) as ex:
+            LOG.debug("Failed to read the duration of %s: %s", self.video_path, ex)
+            return None
+
+        # All 1s means the duration is unknown
+        if not mvhd.timescale or mvhd.duration in (0, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF):
+            return None
+
+        return mvhd.duration / mvhd.timescale
 
     def _check_time_gap(
         self,
         gpx_points: T.Sequence[geo.Point],
         video_gps_points: T.Sequence[geo.Point],
         offset: float,
+        video_duration: float | None,
     ) -> None:
         """
         Check the GPX track, once synced by offset, against the video in time.
 
-        Silent when the two overlap. A gap only warns, because it can be
-        legitimate, as when the GPX starts after the video's own GPS gives out.
-        A gap too large for any clock or time zone mistake to explain raises:
-        the GPX cannot belong to the video, and syncing to it would put every
-        point far outside the video.
+        A GPX track that misses the video raises: positions outside the track
+        are extrapolated, so syncing to it would give every frame a made-up
+        position. A track that covers only part of the video warns, and one
+        that covers all of it is silent.
+
+        Without the duration of the video, the video is known only up to its
+        last GPS point, and a GPX that starts after it may still overlap the
+        video. Then a gap only warns, unless it is too large for any clock or
+        time zone mistake to explain.
         """
         # The Unix time of video time 0, in the convention _rebase_times() uses
         video_start_time = gpx_points[0].time - offset
         # From video time 0, since the frames start there even when the video's
         # own GPS starts later
-        video_last = video_start_time + max(p.time for p in video_gps_points)
+        video_end_time = video_start_time + max(p.time for p in video_gps_points)
+        if video_duration is not None:
+            video_end_time = max(video_end_time, video_start_time + video_duration)
         gpx_first = min(p.time for p in gpx_points)
         gpx_last = max(p.time for p in gpx_points)
 
-        gap = max(gpx_first - video_last, video_start_time - gpx_last)
+        gpx_track = f"The GPX track in {self.gpx_path} ({_isoformat(gpx_first)} to {_isoformat(gpx_last)})"
+        video = f"the video {self.video_path} ({_isoformat(video_start_time)} to {_isoformat(video_end_time)})"
+
+        gap = max(gpx_first - video_end_time, video_start_time - gpx_last)
         if gap <= 0:
+            uncovered = max(gpx_first - video_start_time, 0) + max(
+                video_end_time - gpx_last, 0
+            )
+            if uncovered > _UNCOVERED_TOLERANCE_SECONDS:
+                LOG.warning(
+                    f"{gpx_track} covers only part of {video}: {uncovered:.0f} seconds "
+                    "of the video fall outside the track, where positions are extrapolated"
+                )
             return
 
         message = (
-            f"The GPX track in {self.gpx_path} ({_isoformat(gpx_first)} to {_isoformat(gpx_last)}) "
-            f"misses the video {self.video_path} ({_isoformat(video_start_time)} to {_isoformat(video_last)}) "
-            f"by {gap:.0f} seconds ({gap / 86400:.1f} days). "
+            f"{gpx_track} misses {video} by {gap:.0f} seconds ({gap / 86400:.1f} days). "
             "Check the camera clock, and the time zone of the GPX timestamps"
         )
 
-        if gap > _IMPLAUSIBLE_GAP_SECONDS:
+        if video_duration is not None or gap > _IMPLAUSIBLE_GAP_SECONDS:
             raise exceptions.MapillaryOutsideGPXTrackError(
                 message,
                 image_time=build_capture_time(video_start_time),
