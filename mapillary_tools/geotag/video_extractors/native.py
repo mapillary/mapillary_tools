@@ -14,7 +14,15 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import blackvue_parser, exceptions, geo, telemetry, types, utils
+from ... import (
+    blackvue_parser,
+    exceptions,
+    geo,
+    novatek_parser,
+    telemetry,
+    types,
+    utils,
+)
 from ...camm import camm_parser
 from ...gpmf import gpmf_gps_filter, gpmf_parser
 from ...mp4 import construct_mp4_parser, simple_mp4_parser
@@ -105,6 +113,26 @@ class BlackVueVideoExtractor(BaseVideoExtractor):
         return video_metadata
 
 
+class NovatekVideoExtractor(BaseVideoExtractor):
+    @override
+    def extract(self) -> types.VideoMetadata:
+        with self.video_path.open("rb") as fp:
+            points = novatek_parser.extract_points(fp)
+
+        # Unsupported or empty GPS data is left to ExifTool
+        if not points:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
+
+        return types.VideoMetadata(
+            filename=self.video_path,
+            filesize=utils.get_file_size(self.video_path),
+            filetype=types.FileType.VIDEO,
+            points=T.cast(T.List[geo.Point], points),
+        )
+
+
 class NativeVideoExtractor(BaseVideoExtractor):
     def __init__(self, video_path: Path, filetypes: set[types.FileType] | None = None):
         super().__init__(video_path)
@@ -157,6 +185,13 @@ class NativeVideoExtractor(BaseVideoExtractor):
                 raise exceptions.MapillaryInvalidVideoError(
                     f"Invalid video: {ex}"
                 ) from ex
+            except exceptions.MapillaryVideoGPSNotFoundError:
+                pass
+
+        if ft is None or types.FileType.VIDEO in ft:
+            extractor = NovatekVideoExtractor(self.video_path)
+            try:
+                return extractor.extract()
             except exceptions.MapillaryVideoGPSNotFoundError:
                 pass
 
