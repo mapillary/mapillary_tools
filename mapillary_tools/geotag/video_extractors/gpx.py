@@ -89,7 +89,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._rebase_times(gpx_points)
         else:
             offset = self._gpx_offset(gpx_points, native_video_metadata.points)
-            if offset:
+            if gpx_points and native_video_metadata.points:
                 self._check_time_gap(
                     gpx_points,
                     native_video_metadata.points,
@@ -131,10 +131,12 @@ class GPXVideoExtractor(BaseVideoExtractor):
         """
         Check the GPX track, once synced by offset, against the video in time.
 
-        A GPX track that misses the video raises: positions outside the track
-        are extrapolated, so syncing to it would give every frame a made-up
-        position. A track that covers only part of the video warns, and one
-        that covers all of it is silent.
+        A GPX track that misses the video raises: it has no position for any
+        moment of the video. A track that covers only part of the video warns,
+        and one that covers all of it is silent.
+
+        When the video's GPS has no timestamps, the offset is 0 and the track
+        starts at video time 0, so only the end of the video can go uncovered.
 
         Without the duration of the video, the video is known only up to its
         last GPS point, and a GPX that starts after it may still overlap the
@@ -161,14 +163,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
             )
             if uncovered > _UNCOVERED_TOLERANCE_SECONDS:
                 LOG.warning(
-                    f"{gpx_track} covers only part of {video}: {uncovered:.0f} seconds "
-                    "of the video fall outside the track, where positions are extrapolated"
+                    f"{gpx_track} covers only part of {video}: "
+                    f"{_format_duration(uncovered)} of the video fall outside the track"
                 )
             return
 
         message = (
-            f"{gpx_track} misses {video} by {gap:.0f} seconds ({gap / 86400:.1f} days). "
-            "Check the camera clock, and the time zone of the GPX timestamps"
+            f"{gpx_track} misses {video} by {_format_duration(gap)}. Check that "
+            "the GPX file belongs to this video, then the camera clock and the "
+            "time zone of the GPX timestamps"
         )
 
         if video_duration is not None or gap > _IMPLAUSIBLE_GAP_SECONDS:
@@ -231,3 +234,26 @@ def _isoformat(unix_time: float) -> str:
     return datetime.datetime.fromtimestamp(
         unix_time, tz=datetime.timezone.utc
     ).isoformat()
+
+
+def _format_duration(seconds: float) -> str:
+    """
+    >>> _format_duration(0.089)
+    '0.089 seconds'
+    >>> _format_duration(1)
+    '1 second'
+    >>> _format_duration(13)
+    '13 seconds'
+    >>> _format_duration(90)
+    '1.5 minutes'
+    >>> _format_duration(2 * 3600)
+    '2.0 hours'
+    >>> _format_duration(3 * 86400)
+    '3.0 days'
+    """
+    for unit, size in (("days", 86400), ("hours", 3600), ("minutes", 60)):
+        if seconds >= size:
+            return f"{seconds / size:.1f} {unit}"
+    # Significant digits, so that a gap under a second does not read as 0
+    text = f"{seconds:.3g}"
+    return f"{text} second" if text == "1" else f"{text} seconds"

@@ -482,15 +482,24 @@ class TestGPXTimeGap:
     """
     A GPX track that misses the video must fail, not sync.
 
-    Positions outside a GPX track are extrapolated, so a track that misses
-    the video would give every frame a made-up position: an epoch mix-up, a
-    GPX file from another day, or naive GPX timestamps read in the wrong time
-    zone. A track that covers only part of the video warns.
+    A track that misses the video has no position for any moment of it: an
+    epoch mix-up, a GPX file from another day, or naive GPX timestamps read
+    in the wrong time zone. A track that covers only part of the video warns.
     """
 
     # A 10s video track starting at A_UNIX_TIME, in a 12s video
     VIDEO = [_camm_point(time=float(t), epoch_time=A_UNIX_TIME + t) for t in range(11)]
     VIDEO_DURATION = 12.0
+
+    # GPS without timestamps, so the GPX can only be aligned to video time 0
+    UNTIMED_VIDEO = [
+        geo.Point(time=float(t), lat=37.0, lon=14.0, alt=None, angle=None)
+        for t in range(11)
+    ]
+    # Timestamps in whole seconds, as in the GPX, so that it syncs to exactly 0
+    WHOLE_SECOND_VIDEO = [
+        _camm_point(time=float(t), epoch_time=int(A_UNIX_TIME) + t) for t in range(11)
+    ]
 
     def _check(
         self,
@@ -558,7 +567,25 @@ class TestGPXTimeGap:
             self._check(_gpx_track(start, 10))
         assert "video.mp4" in str(info.value)
         assert "track.gpx" in str(info.value)
+        assert "belongs to this video" in str(info.value)
         assert "time zone" in str(info.value)
+
+    @pytest.mark.parametrize(
+        "gap, reported",
+        [
+            # The GPX of the next clip, starting just after the video ends
+            (0.089, "by 0.089 seconds."),
+            (1, "by 1 second."),
+            (70, "by 1.2 minutes."),
+            (2 * 3600, "by 2.0 hours."),
+            (3 * 24 * 3600, "by 3.0 days."),
+        ],
+    )
+    def test_gap_is_reported_in_a_readable_unit(self, gap: float, reported: str):
+        video_end = A_UNIX_TIME + self.VIDEO_DURATION
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._check(_gpx_track(video_end + gap, 10))
+        assert reported in str(info.value)
 
     @pytest.mark.parametrize(
         "start",
@@ -651,6 +678,40 @@ class TestGPXTimeGap:
             GPXVideoExtractor(video_path, gpx_path).extract()
         [record] = caplog.records
         assert "misses" in record.getMessage()
+
+    def _extract_synced_to_video_time_0(
+        self, tmp_path: Path, video: T.Sequence[geo.Point], gpx_duration: int
+    ) -> list[geo.Point]:
+        video_path = tmp_path / "video.mp4"
+        video_path.write_bytes(
+            _write_camm_mp4(video, "Labpano", A_UNIX_TIME + 600, self.VIDEO_DURATION)
+        )
+        gpx_path = tmp_path / "track.gpx"
+        _write_gpx(gpx_path, _gpx_track(int(A_UNIX_TIME), gpx_duration))
+
+        points = GPXVideoExtractor(video_path, gpx_path).extract().points
+
+        assert points[0].time == 0.0
+        return points
+
+    @pytest.mark.parametrize("video", [UNTIMED_VIDEO, WHOLE_SECOND_VIDEO])
+    def test_extract_warns_of_partial_cover_at_video_time_0(
+        self, tmp_path: Path, caplog, video: T.Sequence[geo.Point]
+    ):
+        """An offset of 0 is a sync like any other, not a reason to skip the check."""
+        with caplog.at_level(logging.WARNING):
+            # Covers the first 6 of the video's 12 seconds
+            self._extract_synced_to_video_time_0(tmp_path, video, 6)
+        [record] = caplog.records
+        assert "6 seconds of the video fall outside the track" in record.getMessage()
+
+    @pytest.mark.parametrize("video", [UNTIMED_VIDEO, WHOLE_SECOND_VIDEO])
+    def test_extract_covering_at_video_time_0_is_silent(
+        self, tmp_path: Path, caplog, video: T.Sequence[geo.Point]
+    ):
+        with caplog.at_level(logging.WARNING):
+            self._extract_synced_to_video_time_0(tmp_path, video, 20)
+        assert not caplog.records
 
     def test_video_duration_is_read_from_the_file(self, tmp_path: Path):
         video_path, gpx_path = self._write_video_and_gpx(tmp_path, A_UNIX_TIME)
