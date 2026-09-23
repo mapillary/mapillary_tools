@@ -15,9 +15,15 @@ This parser probes the blocks in the same order and decodes only these layouts:
 - Type 3: float32 values (Viofo A129, Viofo A139, Anker Roav C1 Pro)
 - Type 15: float64 values (Vantrue N4, Rove R2-4K Pro)
 
-The decoded points match what the ExifTool fallback extracts from the same video.
-If a video contains any block that can't be decoded that way, extract_points returns
-None and the video is left to ExifTool.
+The decoded positions and GPS times match what the ExifTool fallback extracts from
+the same video. If a video contains any block that can't be decoded that way,
+extract_points returns None and the video is left to ExifTool.
+
+Point times differ from ExifTool's on purpose. The camera writes one block per second
+of video, right after the frames of that second, whether it has a fix or not (and in
+timelapse too), so the position of the block in the index is its time in the video.
+Counting from the first fix instead, as ExifTool's times do, would shift the track
+whenever the camera gets its first fix after it starts recording.
 """
 
 from __future__ import annotations
@@ -37,6 +43,9 @@ _MIN_BLOCK_SIZE = 82
 
 # Enough to probe and decode every layout
 _MAX_BLOCK_READ_SIZE = 0x1000
+
+# The last, partial second of the video may have no block
+_MAX_BLOCK_COUNT_DIFF = 1.5
 
 _FREEGPS_SIGNATURE = b"freeGPS "
 
@@ -80,22 +89,31 @@ class _UnsupportedBlockError(Exception):
 def extract_points(fp: T.BinaryIO) -> list[telemetry.GPSPoint] | None:
     """
     Return the GPS points sorted by time, or None if the video has no "gps " box,
-    no points, or any block this parser does not support.
-    Like other parsers, point time is relative to the first point,
-    and epoch_time is the Unix time.
+    no points, or anything this parser does not support.
+    Point time is the time in the video, and epoch_time is the Unix time of the fix.
     """
     try:
+        fp.seek(0)
         gps_box = sparser.parse_mp4_data_first(fp, [b"moov", b"gps "])
+        fp.seek(0)
+        mvhd = sparser.parse_mp4_data_first(fp, [b"moov", b"mvhd"])
     except sparser.ParsingError:
         return None
 
-    if gps_box is None:
+    if gps_box is None or mvhd is None:
+        return None
+
+    index = _parse_gps_box(gps_box)
+
+    # Block times assume one block per second of video
+    duration = _parse_duration(mvhd)
+    if duration is None or _MAX_BLOCK_COUNT_DIFF < abs(len(index) - duration):
         return None
 
     gps_types: set[int] = set()
     points: list[telemetry.GPSPoint] = []
 
-    for block in _read_blocks(fp, _parse_gps_box(gps_box)):
+    for position, block in _read_blocks(fp, index):
         gps_type = _probe_block(block)
         gps_types.add(gps_type)
 
@@ -118,6 +136,9 @@ def extract_points(fp: T.BinaryIO) -> list[telemetry.GPSPoint] | None:
         if point is None:
             continue
 
+        point.time = float(position)
+
+        # Without a new fix, the camera may repeat the last one
         if not points or _point_key(points[-1]) != _point_key(point):
             points.append(point)
 
@@ -129,18 +150,7 @@ def extract_points(fp: T.BinaryIO) -> list[telemetry.GPSPoint] | None:
     if not points:
         return None
 
-    points.sort(key=lambda p: p.time)
-
-    deduplicated: list[telemetry.GPSPoint] = []
-    for point in points:
-        if not deduplicated or _point_key(deduplicated[-1]) != _point_key(point):
-            deduplicated.append(point)
-
-    first_point_time = deduplicated[0].time
-    for point in deduplicated:
-        point.time = point.time - first_point_time
-
-    return deduplicated
+    return points
 
 
 def _parse_gps_box(data: bytes) -> list[tuple[int, int]]:
@@ -163,10 +173,36 @@ def _parse_gps_box(data: bytes) -> list[tuple[int, int]]:
     return [struct.unpack_from(">II", data, 8 + i * 8) for i in range(count)]
 
 
+def _parse_duration(mvhd: bytes) -> float | None:
+    """
+    Return the duration in seconds from the "mvhd" box
+
+    >>> _parse_duration(bytes.fromhex("00000000 00000000 00000000 000003e8 0000ea60"))
+    60.0
+    >>> _parse_duration(bytes.fromhex("01000000" + "00" * 16 + "000003e8 000000000000ea60"))
+    60.0
+    >>> _parse_duration(bytes.fromhex("00000000 00000000 00000000 00000000 0000ea60")) is None
+    True
+    """
+    try:
+        if mvhd[0] == 1:
+            timescale, duration = struct.unpack_from(">IQ", mvhd, 20)
+        else:
+            timescale, duration = struct.unpack_from(">II", mvhd, 12)
+    except (IndexError, struct.error):
+        return None
+    if not timescale:
+        return None
+    return duration / timescale
+
+
 def _read_blocks(
     fp: T.BinaryIO, index: list[tuple[int, int]]
-) -> T.Generator[bytes, None, None]:
-    for offset, size in index:
+) -> T.Generator[tuple[int, bytes], None, None]:
+    """
+    Yield the valid blocks with their positions in the index
+    """
+    for position, (offset, size) in enumerate(index):
         fp.seek(offset, 0)
         # The layouts can be told apart by the first bytes and a few size thresholds,
         # all smaller than _MAX_BLOCK_READ_SIZE, so reading more doesn't change the result
@@ -175,7 +211,7 @@ def _read_blocks(
             continue
         if len(block) < _MIN_BLOCK_SIZE:
             continue
-        yield block
+        yield position, block
 
 
 def _probe_block(block: bytes) -> int:
@@ -355,7 +391,8 @@ def _build_point(
         angle = _to_exiftool_number(angle)
 
     return telemetry.GPSPoint(
-        time=epoch_time,
+        # Set by extract_points from the position of the block
+        time=0.0,
         lat=lat,
         lon=lon,
         alt=None,
@@ -415,5 +452,6 @@ def _to_exiftool_number(value: float) -> float:
 
 
 def _point_key(point: telemetry.GPSPoint) -> tuple:
-    # Same as how the ExifTool extractor tells duplicate points
-    return (point.time, point.lon, point.lat, point.epoch_time, point.angle)
+    # The fix, regardless of the block it is in. The ExifTool extractor tells
+    # duplicate points the same way, as its point time is the fix time.
+    return (point.lon, point.lat, point.epoch_time, point.angle)

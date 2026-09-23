@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from mapillary_tools import exceptions, novatek_parser, telemetry, types
+from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 
 
@@ -19,9 +20,10 @@ def _box(box_type: bytes, data: bytes) -> bytes:
     return struct.pack(">I", 8 + len(data)) + box_type + data
 
 
-def _build_video(blocks: list[bytes]) -> bytes:
+def _build_video(blocks: list[bytes], duration: float | None = None) -> bytes:
     """
-    Build a video with the blocks in mdat, indexed by moov/"gps " as Novatek does
+    Build a video with the blocks in mdat, indexed by moov/"gps " as Novatek does.
+    By default the video is as long as the blocks, one per second.
     """
     ftyp = _box(b"ftyp", b"isom\x00\x00\x02\x00isomiso2mp41")
     index = b""
@@ -29,8 +31,12 @@ def _build_video(blocks: list[bytes]) -> bytes:
     for block in blocks:
         index += struct.pack(">II", offset, len(block))
         offset += len(block)
+    if duration is None:
+        duration = len(blocks)
+    mvhd = struct.pack(">4xIIII", 0, 0, 1000, int(duration * 1000)).ljust(100, b"\x00")
     gps = struct.pack(">II", 0x101, len(blocks)) + index
-    return ftyp + _box(b"mdat", b"".join(blocks)) + _box(b"moov", _box(b"gps ", gps))
+    moov = _box(b"moov", _box(b"mvhd", mvhd) + _box(b"gps ", gps))
+    return ftyp + _box(b"mdat", b"".join(blocks)) + moov
 
 
 def _freegps_block(fields: dict[int, bytes], size: int = 0x100) -> bytes:
@@ -104,7 +110,8 @@ def _extract(blocks: list[bytes]) -> list[telemetry.GPSPoint] | None:
     return novatek_parser.extract_points(io.BytesIO(_build_video(blocks)))
 
 
-# The expected points below are the same as extracted by ExifTool 13.40 from the same videos
+# The expected positions and epoch times below are the same as extracted by
+# ExifTool 13.40 from the same videos. The times are the positions of the blocks.
 def _point(time, lat, lon, angle, epoch_time) -> telemetry.GPSPoint:
     return telemetry.GPSPoint(
         time=time,
@@ -120,23 +127,57 @@ def _point(time, lat, lon, angle, epoch_time) -> telemetry.GPSPoint:
 
 
 def test_type15():
+    # In the southern and western hemispheres
     next_block = _type15_block(
-        hms=(13, 22, 31), lat=(4721.3524, b"N"), lon=(830.8082, b"E"), track=198.5
+        hms=(13, 22, 31), lat=(4721.3524, b"S"), lon=(830.8082, b"W"), track=198.5
     )
     points = _extract(
         [
+            # The camera has no fix yet when it starts recording
             NO_FIX_BLOCK,
+            _type15_block(),
             next_block,
-            # Out of order, in the southern and western hemispheres
-            _type15_block(lat=(4721.35197, b"S"), lon=(830.80859, b"W")),
-            # Duplicate
+            # The camera repeats the last fix
             next_block,
+            NO_FIX_BLOCK,
         ]
     )
     assert points == [
-        _point(0.0, -47.3558661666667, -8.5134765, 199.88, 1671024150.0),
-        _point(1.0, 47.3558733333333, 8.51347, 198.5, 1671024151.0),
+        _point(1.0, 47.3558661666667, 8.5134765, 199.88, 1671024150.0),
+        _point(2.0, -47.3558733333333, -8.51347, 198.5, 1671024151.0),
     ]
+
+
+def test_timelapse():
+    # A block per second of video, 15 seconds apart in GPS time
+    points = _extract(
+        [
+            _type15_block(hms=(13, 22, 30)),
+            _type15_block(hms=(13, 22, 45)),
+            _type15_block(hms=(13, 23, 0)),
+        ]
+    )
+    assert points is not None
+    assert [(p.time, p.epoch_time) for p in points] == [
+        (0.0, 1671024150.0),
+        (1.0, 1671024165.0),
+        (2.0, 1671024180.0),
+    ]
+
+
+def test_skipped_blocks():
+    # Skipped blocks still take their second of the video
+    points = _extract(
+        [
+            # Too small for ExifTool
+            _type15_block()[:81],
+            # Not a freeGPS block
+            b"\x00\x00\x01\x00free    " + _type15_block()[12:],
+            _type15_block(),
+        ]
+    )
+    assert points is not None
+    assert [p.time for p in points] == [2.0]
 
 
 def test_type3():
@@ -154,9 +195,9 @@ def test_type3():
     )
     assert points == [
         _point(
-            0.0, 49.3690511067708, -123.099755859375, 16.4899997711182, 1569563223.0
+            1.0, 49.3690511067708, -123.099755859375, 16.4899997711182, 1569563223.0
         ),
-        _point(1.0, 49.3692464192708, -123.099918619792, 16.5, 1569563224.0),
+        _point(2.0, 49.3692464192708, -123.099918619792, 16.5, 1569563224.0),
     ]
 
 
@@ -198,7 +239,7 @@ def test_invalid_date_skipped():
         ]
     )
     assert points is not None
-    assert [p.epoch_time for p in points] == [1671024152.0]
+    assert [(p.time, p.epoch_time) for p in points] == [(2.0, 1671024152.0)]
 
 
 @pytest.mark.parametrize(
@@ -217,10 +258,19 @@ def test_invalid_date_skipped():
         [_type15_block(), _type3_block()],
         # Invalid numbers
         [_type15_block(lat=(float("nan"), b"N"))],
+        # Truncated
+        [_type15_block()[:84]],
     ],
 )
 def test_no_points(blocks: list[bytes]):
     assert _extract(blocks) is None
+
+
+@pytest.mark.parametrize("duration", [1.0, 5.0, 0.0])
+def test_unexpected_block_count(duration: float):
+    # Not a block per second of video, so the block times are unknown
+    video = _build_video([_type15_block()] * 3, duration=duration)
+    assert novatek_parser.extract_points(io.BytesIO(video)) is None
 
 
 def test_invalid_index():
@@ -251,3 +301,21 @@ def test_native_video_extractor(tmp_path: Path):
     video_path.write_bytes(_build_video([NO_FIX_BLOCK]))
     with pytest.raises(exceptions.MapillaryVideoGPSNotFoundError):
         NativeVideoExtractor(video_path).extract()
+
+
+def test_gpx_sync(tmp_path: Path):
+    video_path = tmp_path / "novatek.mp4"
+    video_path.write_bytes(
+        _build_video([_type15_block(), _type15_block(hms=(13, 22, 31))])
+    )
+    gpx_path = tmp_path / "track.gpx"
+    gpx_path.write_text(
+        '<gpx version="1.1" creator="test"><trk><trkseg>'
+        '<trkpt lat="47.1" lon="8.1"><time>2022-12-14T13:22:20Z</time></trkpt>'
+        '<trkpt lat="47.2" lon="8.2"><time>2022-12-14T13:22:30Z</time></trkpt>'
+        '<trkpt lat="47.3" lon="8.3"><time>2022-12-14T13:22:40Z</time></trkpt>'
+        "</trkseg></trk></gpx>"
+    )
+    # The GPX track is synced by the GPS time of the first fix
+    video_metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+    assert [p.time for p in video_metadata.points] == [-10.0, 0.0, 10.0]
