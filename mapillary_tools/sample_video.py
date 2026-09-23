@@ -22,6 +22,23 @@ from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
 
+# Sampling errors are suppressed by --skip_sample_errors, not by
+# --skip_process_errors, which governs the later geotagging stage. Say so in
+# the message: the two flags are easy to reach for the wrong one.
+_SKIP_HINT = "To skip these errors, specify --skip_sample_errors"
+
+
+def _sampling_error(message: str) -> exceptions.MapillaryVideoError:
+    """
+    Build an error for a failed sample, naming the flag that skips it.
+
+    Everything raised out of the per-video body of sample_video() is
+    suppressible by --skip_sample_errors, so every one of those messages should
+    say so. Going through here rather than appending the hint at each raise
+    keeps that true of raises added later.
+    """
+    return exceptions.MapillaryVideoError(f"{message}. {_SKIP_HINT}")
+
 
 def _normalize_path(
     video_import_path: Path, skip_subfolders: bool
@@ -193,7 +210,7 @@ def _sample_single_video_by_interval(
             ffmpeg.probe_format_and_streams(video_path)
         ).probe_video_start_time()
         if start_time is None:
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Unable to extract video start time from {video_path}"
             )
 
@@ -289,7 +306,7 @@ def _sample_single_video_by_distance(
     if start_time is None:
         start_time = probe.probe_video_start_time()
         if start_time is None:
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Unable to extract video start time from {video_path}"
             )
 
@@ -300,17 +317,29 @@ def _sample_single_video_by_distance(
     )
     assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
+
+    # Distance sampling needs positions to decide which frames to cut, so
+    # failing to read them is a failed sample, not something to carry on past.
+    # Warning and returning left the caller with a success exit code, an empty
+    # (or missing) sample directory and nothing to upload. sample_video()
+    # already funnels these through --skip_sample_errors for callers who do
+    # want to tolerate them.
     if isinstance(video_metadata, types.ErrorMetadata):
-        LOG.warning(str(video_metadata.error))
-        return
-    assert video_metadata.points, "expect non-empty points"
+        raise _sampling_error(
+            f"Unable to sample {video_path} by distance: {video_metadata.error}"
+        ) from video_metadata.error
+
+    if not video_metadata.points:
+        raise _sampling_error(
+            f"Unable to sample {video_path} by distance: no GPS points found"
+        )
+
     LOG.info("Found total %d GPS points", len(video_metadata.points))
 
     # find the video stream with maximum resolution
     video_stream = probe.probe_video_with_max_resolution()
     if not video_stream:
-        LOG.warning("no video streams found from ffprobe")
-        return
+        raise _sampling_error(f"No video streams found in {video_path} by ffprobe")
 
     LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
@@ -333,7 +362,7 @@ def _sample_single_video_by_distance(
             wip_dir, video_path, selected_stream_specifiers=[str(video_stream_idx)]
         )
         if len(frame_samples) != len(sorted_sample_indices):
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
             )
         for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
@@ -341,7 +370,7 @@ def _sample_single_video_by_distance(
                 "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
             )
             if idx + 1 != frame_idx_1based:
-                raise exceptions.MapillaryVideoError(
+                raise _sampling_error(
                     f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
                 )
 

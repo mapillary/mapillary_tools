@@ -22,9 +22,10 @@ from mapillary_tools import (
     geo,
     sample_video,
 )
+from mapillary_tools.geotag import geotag_videos_from_video
 from mapillary_tools.mp4 import mp4_sample_parser
 from mapillary_tools.serializer import description
-from mapillary_tools.types import FileType, VideoMetadata
+from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
@@ -335,6 +336,120 @@ class TestSampleVideoStreamByDistance:
 
 
 # ---------------------------------------------------------------------------
+# A failed distance sample must not look like a successful one
+# ---------------------------------------------------------------------------
+
+
+class TestDistanceSamplingFailsLoudly:
+    """
+    Distance sampling used to warn and return when it could not read the GPS,
+    which left the caller a success exit code, no sample directory and nothing
+    to upload -- `video_process` went on to geotag zero files and printed an
+    empty summary. Reported for a GoPro whose embedded GPS is all noise, where
+    an attached GPX made no difference.
+    """
+
+    VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+    @pytest.fixture
+    def unreadable_gps(self, monkeypatch):
+        """Every GPS read fails the way a fully filtered noisy track does."""
+        error = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+        monkeypatch.setattr(
+            geotag_videos_from_video.GeotagVideosFromVideo,
+            "to_description",
+            lambda _self, paths: [
+                describe_error_metadata(
+                    error, filename=paths[0], filetype=FileType.GOPRO
+                )
+            ],
+        )
+        return error
+
+    def _sample(self, tmpdir: py.path.local, **kwargs):
+        return sample_video.sample_video(
+            self.VIDEO, Path(tmpdir), video_sample_distance=2, rerun=True, **kwargs
+        )
+
+    def test_it_raises_instead_of_returning(self, tmpdir, setup_mock, unreadable_gps):
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            self._sample(tmpdir)
+
+        # the underlying reason has to survive into the message the user sees
+        assert "GPS is too noisy" in str(excinfo.value)
+        assert excinfo.value.__cause__ is unreadable_gps
+
+    def test_it_names_the_flag_that_suppresses_it(
+        self, tmpdir, setup_mock, unreadable_gps
+    ):
+        """
+        --skip_process_errors governs the later geotagging stage and does not
+        cover sampling, so the message has to name --skip_sample_errors or
+        users reach for the wrong flag.
+        """
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            self._sample(tmpdir)
+
+        assert "--skip_sample_errors" in str(excinfo.value)
+
+    def test_the_exit_code_is_a_clean_one(self, tmpdir, setup_mock, unreadable_gps):
+        """Not a MapillaryUserError means a traceback instead of an exit code."""
+        with pytest.raises(exceptions.MapillaryUserError) as excinfo:
+            self._sample(tmpdir)
+
+        assert excinfo.value.exit_code == 7
+
+    def test_nothing_is_left_behind(self, tmpdir, setup_mock, unreadable_gps):
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+        assert not Path(tmpdir).joinpath(self.VIDEO.name).exists()
+
+    def test_skip_sample_errors_still_tolerates_it(
+        self, tmpdir, setup_mock, unreadable_gps
+    ):
+        """The opt-out that several existing callers rely on."""
+        self._sample(tmpdir, skip_sample_errors=True)
+
+    def test_an_empty_track_is_also_an_error(self, tmpdir, setup_mock, monkeypatch):
+        """Previously an assert, so it vanished under `python -O`."""
+        monkeypatch.setattr(
+            geotag_videos_from_video.GeotagVideosFromVideo,
+            "to_description",
+            lambda _self, paths: [
+                VideoMetadata(
+                    filename=paths[0], filesize=0, filetype=FileType.GOPRO, points=[]
+                )
+            ],
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+    def test_a_missing_video_stream_is_also_an_error(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        monkeypatch.setattr(
+            geotag_videos_from_video.GeotagVideosFromVideo,
+            "to_description",
+            lambda _self, paths: [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=0,
+                    filetype=FileType.GOPRO,
+                    points=_make_gps_points(3, time_step=1.0),
+                )
+            ],
+        )
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+
+# ---------------------------------------------------------------------------
 # sample_video() parameter validation & rerun
 # ---------------------------------------------------------------------------
 
@@ -608,3 +723,74 @@ class TestSampleVideoDistanceIntegration:
         # First GPS point is at (40.0, -74.0)
         assert abs(lat - 40.0) < 0.01
         assert abs(lon - (-74.0)) < 0.01
+
+
+class TestEverySuppressibleErrorNamesTheFlag:
+    """
+    Every error raised out of the per-video body of sample_video() is
+    suppressed by --skip_sample_errors, so every one of those messages has to
+    name it. Half of them naming it is worse than none: a user who hits one of
+    the silent ones reaches for --skip_process_errors, which governs the later
+    geotagging stage and leaves the run failing with the same message.
+    """
+
+    VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+    @pytest.fixture
+    def no_start_time(self, monkeypatch):
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_start_time", lambda _self: None
+        )
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"video_sample_distance": 2}, id="by_distance"),
+            pytest.param(
+                {"video_sample_distance": -1, "video_sample_interval": 2},
+                id="by_interval",
+            ),
+        ],
+    )
+    def test_unreadable_start_time_names_the_flag(
+        self, tmpdir, setup_mock, no_start_time, kwargs
+    ):
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            sample_video.sample_video(self.VIDEO, Path(tmpdir), rerun=True, **kwargs)
+
+        assert "Unable to extract video start time" in str(excinfo.value)
+        assert "--skip_sample_errors" in str(excinfo.value)
+
+    def test_the_helper_appends_it_once(self):
+        error = sample_video._sampling_error("something went wrong")
+
+        assert str(error) == (
+            "something went wrong. To skip these errors, specify --skip_sample_errors"
+        )
+        assert isinstance(error, exceptions.MapillaryUserError)
+
+    def test_a_missing_ffmpeg_does_not_claim_to_be_skippable(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        FFmpegNotFoundError is re-raised by its own handler before the skip
+        check, so --skip_sample_errors does not suppress it and its message
+        must not offer the flag.
+        """
+
+        def boom(*args, **kwargs):
+            raise ffmpeglib.FFmpegNotFoundError("ffmpeg not found")
+
+        monkeypatch.setattr(MOCK_FFMPEG, "extract_frames_by_interval", boom)
+
+        with pytest.raises(exceptions.MapillaryFFmpegNotFoundError) as excinfo:
+            sample_video.sample_video(
+                self.VIDEO,
+                Path(tmpdir),
+                video_sample_distance=-1,
+                video_sample_interval=2,
+                rerun=True,
+                skip_sample_errors=True,
+            )
+
+        assert "--skip_sample_errors" not in str(excinfo.value)
