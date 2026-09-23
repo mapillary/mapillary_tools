@@ -344,7 +344,7 @@ def _aggregate_gps_track_by_sample_time(
     direction_tag: str | None = None,
     ground_speed_tag: str | None = None,
     gps_fix_tag: str | None = None,
-    gps_precision_tag: str | None = None,
+    gps_precision_tags: T.Sequence[str] = (),
 ) -> list[GPSPoint]:
     track: list[GPSPoint] = []
 
@@ -352,9 +352,7 @@ def _aggregate_gps_track_by_sample_time(
     if gps_fix_tag is not None:
         expanded_gps_fix_tag = expand_tag(gps_fix_tag)
 
-    expanded_gps_precision_tag = None
-    if gps_precision_tag is not None:
-        expanded_gps_precision_tag = expand_tag(gps_precision_tag)
+    expanded_gps_precision_tags = [expand_tag(tag) for tag in gps_precision_tags]
 
     for sample_time, sample_duration, elements in sample_iterator:
         texts_by_tag = _index_text_by_tag(elements)
@@ -369,16 +367,21 @@ def _aggregate_gps_track_by_sample_time(
                     gps_fix = None
 
         gps_precision = None
-        if expanded_gps_precision_tag is not None:
+        for expanded_gps_precision_tag in expanded_gps_precision_tags:
             gps_precision_texts = texts_by_tag.get(expanded_gps_precision_tag)
             if gps_precision_texts:
                 gps_precision = _maybe_float(gps_precision_texts[0])
                 if gps_precision is not None:
-                    # GPS precision in ExifTool (i.e. horizontal positioning error) are in meters.
-                    # https://exiftool.org/forum/index.php?topic=11565.0
-                    # Here we multiply by 100 to be compatible with the GPSP
-                    # described in https://github.com/gopro/gpmf-parser
+                    # Both tags hold the dilution of precision that GPSP holds,
+                    # already divided by 100 by ExifTool, so scaling back up
+                    # recovers the raw GPMF value the native parser stores:
+                    # GPS9 reports it as GPSDOP, divided by its SCAL entry of
+                    # 100, and GPS5 as GPSP, which ExifTool renames to
+                    # GPSHPositioningError and applies ValueConv $val/100 to.
+                    # Despite that name it is not the EXIF horizontal error in
+                    # meters. https://github.com/gopro/gpmf-parser
                     gps_precision = gps_precision * 100
+                    break
 
         # Aggregate GPS points in the sample
         points = _aggregate_gps_track(
@@ -547,7 +550,14 @@ class ExifToolReadVideo:
                     direction_tag=f"{track_ns}:GPSTrack",
                     ground_speed_tag=f"{track_ns}:GPSSpeed",
                     gps_fix_tag=f"{track_ns}:GPSMeasureMode",
-                    gps_precision_tag=f"{track_ns}:GPSHPositioningError",
+                    # Which one a camera writes depends on its telemetry
+                    # format: GPS9 (GoPro MAX 2, HERO11 and newer) reports
+                    # GPSDOP, while GPS5 (HERO10 and older) reports
+                    # GPSHPositioningError. Prefer the true DOP when present.
+                    gps_precision_tags=[
+                        f"{track_ns}:GPSDOP",
+                        f"{track_ns}:GPSHPositioningError",
+                    ],
                 )
                 if track:
                     return track
