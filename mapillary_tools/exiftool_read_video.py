@@ -11,7 +11,8 @@ import logging
 import typing as T
 import xml.etree.ElementTree as ET
 
-from . import exif_read, exiftool_read, geo
+from . import exif_read, exiftool_read, geo, telemetry
+from .camm import camm_parser
 from .telemetry import GPSFix, GPSPoint
 from .utils import sanitize_serial
 
@@ -49,6 +50,17 @@ def _maybe_float(text: str | None) -> float | None:
         return float(text)
     except (ValueError, TypeError):
         return None
+
+
+def _exiftool_gps_time_to_unix(exiftool_time: float) -> float:
+    """
+    Convert a CAMM GPS timestamp as ExifTool renders it -- GPS time plus the
+    epoch difference, with no leap-second correction -- to Unix time (UTC).
+
+    >>> _exiftool_gps_time_to_unix(1705574461.6)  # 2024-01-18T10:41:01.6
+    1705574443.6
+    """
+    return telemetry.gps_epoch_to_unix(exiftool_time - telemetry.GPS_EPOCH_UNIX_OFFSET)
 
 
 def _index_text_by_tag(elements: T.Iterable[ET.Element]) -> dict[str, list[str]]:
@@ -550,8 +562,28 @@ class ExifToolReadVideo:
                     gps_precision_tag=f"{track_ns}:GPSHPositioningError",
                 )
                 if track:
+                    if self._is_camm_track_in_gps_time(track_ns):
+                        for point in track:
+                            if point.epoch_time is not None:
+                                point.epoch_time = _exiftool_gps_time_to_unix(
+                                    point.epoch_time
+                                )
                     return track
         return []
+
+    def _is_camm_track_in_gps_time(self, track_ns: str) -> bool:
+        """
+        Whether the track is CAMM from a camera that records GPS time.
+
+        ExifTool converts those timestamps by the epoch difference alone, so
+        they read 18s (the leap seconds since 1980) ahead of what the native
+        CAMM parser returns for the same video.
+        """
+        meta_format = self._extract_alternative_fields([f"{track_ns}:MetaFormat"], str)
+        if meta_format != "camm":
+            return False
+        make = self.extract_make()
+        return make is not None and camm_parser.make_records_gps_time(make)
 
     def _extract_alternative_fields(
         self,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import enum
 import logging
 import sys
@@ -18,17 +19,13 @@ else:
     from typing_extensions import override
 
 from ... import exceptions, geo, types, utils
+from ...serializer.description import build_capture_time
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
-
-# A GPX track and the video it is synced against should overlap in time. Warn
-# above a day, which no legitimate pairing needs and an epoch mix-up exceeds by
-# orders of magnitude.
-_IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 
 
 class SyncMode(enum.Enum):
@@ -78,18 +75,44 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._rebase_times(gpx_points)
         else:
             offset = self._gpx_offset(gpx_points, native_video_metadata.points)
-            if abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS:
-                LOG.warning(
-                    "Syncing %s against %s requires an offset of %.0f seconds (%.1f days). "
-                    "The GPX file probably does not belong to this video",
-                    self.video_path,
-                    self.gpx_path,
-                    offset,
-                    offset / 86400,
-                )
+            if offset:
+                self._check_overlap(gpx_points, native_video_metadata.points, offset)
             self._rebase_times(gpx_points, offset=offset)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
+
+    @classmethod
+    def _check_overlap(
+        cls,
+        gpx_points: T.Sequence[geo.Point],
+        video_gps_points: T.Sequence[geo.Point],
+        offset: float,
+    ) -> None:
+        """
+        Raise if the GPX track, once synced by offset, does not overlap the
+        video in time.
+
+        Nothing downstream can use such a sync: every point would fall outside
+        the video, and at upload the edit list would carry the whole offset.
+        That used to overflow and abort the upload. Now that the edit list
+        widens instead, this is what keeps an epoch mix-up or a GPX file from
+        another day from failing silently.
+        """
+        # The Unix time of video time 0, in the convention _rebase_times() uses
+        video_start_time = gpx_points[0].time - offset
+        video_first = video_start_time + min(p.time for p in video_gps_points)
+        video_last = video_start_time + max(p.time for p in video_gps_points)
+        gpx_first = min(p.time for p in gpx_points)
+        gpx_last = max(p.time for p in gpx_points)
+
+        if gpx_last < video_first or video_last < gpx_first:
+            raise exceptions.MapillaryOutsideGPXTrackError(
+                f"The video GPS track ({_isoformat(video_first)} to {_isoformat(video_last)}) "
+                f"does not overlap the GPX track ({_isoformat(gpx_first)} to {_isoformat(gpx_last)}) in time",
+                image_time=build_capture_time(video_first),
+                gpx_start_time=build_capture_time(gpx_first),
+                gpx_end_time=build_capture_time(gpx_last),
+            )
 
     @classmethod
     def _rebase_times(cls, points: T.Sequence[geo.Point], offset: float = 0.0) -> None:
@@ -121,13 +144,25 @@ class GPXVideoExtractor(BaseVideoExtractor):
         if not gpx_points or not video_gps_points:
             return offset
 
-        # Both sides must be Unix time here. Video GPS timestamps are stored in
-        # whatever epoch their container uses (CAMM records GPS time, GoPro
-        # records Unix time), so go through get_unix_time() rather than reading
-        # the raw attributes -- that also skips zero/invalid timestamps.
-        video_unix_time = video_gps_points[0].get_unix_time()
+        # Both sides must be Unix time here. get_unix_time() skips
+        # zero/invalid timestamps, and points that carry none at all, like
+        # CAMM type 5 points, which a track can start with.
+        anchor = next(
+            (p for p in video_gps_points if p.get_unix_time() is not None), None
+        )
 
-        if video_unix_time is not None:
+        if anchor is not None:
+            anchor_unix_time = T.cast(float, anchor.get_unix_time())
+            # The Unix time the first video point would have
+            video_unix_time = anchor_unix_time - (
+                anchor.time - video_gps_points[0].time
+            )
             offset = gpx_points[0].time - video_unix_time
 
         return offset
+
+
+def _isoformat(unix_time: float) -> str:
+    return datetime.datetime.fromtimestamp(
+        unix_time, tz=datetime.timezone.utc
+    ).isoformat()

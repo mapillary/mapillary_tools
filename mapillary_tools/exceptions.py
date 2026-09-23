@@ -81,6 +81,14 @@ class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
         self.gpx_start_time = gpx_start_time
         self.gpx_end_time = gpx_end_time
 
+    def __reduce__(self):
+        # Pickle with every argument, so that the error survives the trip back
+        # from a worker process (video geotagging raises it in one)
+        return (
+            self.__class__,
+            (self.args[0], self.image_time, self.gpx_start_time, self.gpx_end_time),
+        )
+
 
 class MapillaryDuplicationError(MapillaryDescriptionError):
     def __init__(

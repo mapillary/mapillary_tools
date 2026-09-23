@@ -255,9 +255,13 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
         creation_time = mvhd_data.get("creation_time", 0)
         modification_time = mvhd_data.get("modification_time", 0)
 
+        # Write GPS timestamps in the epoch the make records, so that the
+        # output parses back to the same Unix times
+        gps = camm_parser.denormalize_gps_epochs(camm_info.gps or [], camm_info.make)
+
         # Multiplex points for creating elst
         track: list[geo.Point] = [
-            *(camm_info.gps or []),
+            *gps,
             *(camm_info.mini_gps or []),
         ]
         track.sort(key=lambda p: p.time)
@@ -267,7 +271,7 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
 
         # Multiplex telemetry measurements
         measurements: list[camm_parser.TelemetryMeasurement] = [
-            *(camm_info.gps or []),
+            *gps,
             *(camm_info.mini_gps or []),
             *(camm_info.accl or []),
             *(camm_info.gyro or []),
