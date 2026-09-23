@@ -323,7 +323,11 @@ It is used to locate the images along the GPS tracks.
 mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
-To geotag videos with a GPX file, video start time (video creation time minus video duration) is required to locate the sample images along the GPS tracks.
+To geotag videos with a GPX file, video start time is required to locate the sample images along the GPS tracks.
+It is read from the video's own GPS track when it has one, and otherwise from the video creation time.
+Cameras disagree on whether the creation time marks the start or the end of the recording (most dashcams write the end),
+so mapillary_tools uses the camera model or a date and time in the file name to tell which, and assumes the start when neither says.
+Use `--video_start_time` to override it, in UTC, when the sample images end up one video duration off along the track.
 
 ```sh
 # Geotagging with GPX works with interval-based sampling only,

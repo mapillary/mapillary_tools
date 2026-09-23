@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import shutil
+import time
 import typing as T
 from pathlib import Path
 from unittest import mock
@@ -21,12 +23,19 @@ from mapillary_tools import (
     ffmpeg as ffmpeglib,
     geo,
     sample_video,
+    telemetry,
 )
-from mapillary_tools.mp4 import mp4_sample_parser
+from mapillary_tools.mp4 import construct_mp4_parser as cparser, mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import FileType, VideoMetadata
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
+
+# The creation time of the hello.mp4 probe fixture, which is where videos
+# without their own GPS clock get their start time from
+PROBE_START_TIME = datetime.datetime(
+    2021, 8, 10, 14, 38, 6, tzinfo=datetime.timezone.utc
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +94,7 @@ def test_sample_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
-    _validate_interval([Path(s) for s in samples], video_start_time)
+    _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
 
 
 def test_sample_single_video(tmpdir: py.path.local, setup_mock):
@@ -101,8 +109,7 @@ def test_sample_single_video(tmpdir: py.path.local, setup_mock):
         rerun=True,
     )
     samples = sample_dir.join("hello.mp4").listdir()
-    video_start_time = description.parse_capture_time("2021_08_10_14_37_05_023")
-    _validate_interval([Path(s) for s in samples], video_start_time)
+    _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
 
 
 def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
@@ -123,18 +130,336 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
+def test_sample_video_from_gps_clock(tmpdir: py.path.local, setup_mock, monkeypatch):
+    """A video's own GPS clock wins over the container's creation time."""
+    root = _PWD.joinpath("data/mock_sample_video")
+    video_dir = root.joinpath("videos")
+    sample_dir = tmpdir.mkdir("sampled_video_frames")
+
+    # A camera that stamps the creation time at the end of the recording, or in
+    # local time, still has a correct absolute clock in its telemetry
+    gps_start_time = datetime.datetime(
+        2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+    )
+    points = [
+        telemetry.GPSPoint(
+            time=float(i),
+            lat=40.0 + i * 0.001,
+            lon=-74.0,
+            alt=None,
+            angle=None,
+            epoch_time=gps_start_time.timestamp() + i,
+            fix=None,
+            precision=None,
+            ground_speed=None,
+        )
+        for i in range(3)
+    ]
+    monkeypatch.setattr(
+        sample_video,
+        "NativeVideoExtractor",
+        lambda video_path: mock.Mock(
+            extract=lambda: VideoMetadata(
+                filename=video_path,
+                filetype=FileType.BLACKVUE,
+                points=T.cast(T.List[geo.Point], points),
+            )
+        ),
+    )
+
+    sample_video.sample_video(
+        video_dir,
+        Path(sample_dir),
+        video_sample_distance=-1,
+        video_sample_interval=2,
+        rerun=True,
+    )
+
+    samples = sample_dir.join("hello.mp4").listdir()
+    _validate_interval([Path(s) for s in samples], gps_start_time)
+
+
+def test_sample_video_when_telemetry_fails(
+    tmpdir: py.path.local, setup_mock, monkeypatch, caplog
+):
+    """A telemetry parser bug must not fail sampling, which did not need it."""
+    root = _PWD.joinpath("data/mock_sample_video")
+    video_dir = root.joinpath("videos")
+    sample_dir = tmpdir.mkdir("sampled_video_frames")
+
+    def raise_type_error():
+        raise TypeError("'NoneType' object is not subscriptable")
+
+    monkeypatch.setattr(
+        sample_video,
+        "NativeVideoExtractor",
+        lambda video_path: mock.Mock(extract=raise_type_error),
+    )
+
+    with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+        sample_video.sample_video(
+            video_dir,
+            Path(sample_dir),
+            video_sample_distance=-1,
+            video_sample_interval=2,
+            rerun=True,
+        )
+
+    samples = sample_dir.join("hello.mp4").listdir()
+    _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
+    assert "Unable to read the start time of hello.mp4 from its telemetry" in (
+        caplog.text
+    )
+
+
+class TestGPSClockStartTime:
+    """Tests for _gps_clock_start_time."""
+
+    @staticmethod
+    def _gps_point(time: float, epoch_time: float | None) -> telemetry.GPSPoint:
+        return telemetry.GPSPoint(
+            time=time,
+            lat=40.0,
+            lon=-74.0,
+            alt=None,
+            angle=None,
+            epoch_time=epoch_time,
+            fix=None,
+            precision=None,
+            ground_speed=None,
+        )
+
+    def test_maps_first_timestamp_back_to_video_start(self) -> None:
+        # The first point is 2.5s into the video, so the video started 2.5s
+        # before that point was recorded
+        points = [self._gps_point(2.5, 1628599086.0)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 3, 500000, tzinfo=datetime.timezone.utc
+        )
+
+    def test_skips_points_without_a_timestamp(self) -> None:
+        points = [self._gps_point(0.0, None), self._gps_point(1.0, 1628599086.0)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 5, tzinfo=datetime.timezone.utc
+        )
+
+    def test_skips_unset_clock(self) -> None:
+        # GoPro reports 2000-01-01 until it gets its first fix
+        points = [
+            self._gps_point(0.0, 946684800.0),
+            self._gps_point(1.0, 1628599086.0),
+        ]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 5, tzinfo=datetime.timezone.utc
+        )
+
+    def test_skips_future_timestamps(self) -> None:
+        points = [
+            self._gps_point(0.0, time.time() + 7 * 24 * 3600),
+            self._gps_point(1.0, 1628599086.0),
+        ]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 5, tzinfo=datetime.timezone.utc
+        )
+
+    def test_skips_non_finite_timestamps(self) -> None:
+        points = [
+            self._gps_point(float("nan"), 1628599086.0),
+            self._gps_point(0.0, float("inf")),
+            self._gps_point(0.0, 1e300),
+            self._gps_point(1.0, 1628599086.0),
+        ]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 5, tzinfo=datetime.timezone.utc
+        )
+
+    def test_only_implausible_timestamps(self) -> None:
+        points = [self._gps_point(0.0, 946684800.0), self._gps_point(1.0, 1e300)]
+        assert sample_video._gps_clock_start_time(points) is None
+
+    def test_median_ignores_a_bad_timestamp(self) -> None:
+        epoch_times = [1628599086.0 + i for i in range(5)]
+        epoch_times[0] += 30
+        points = [self._gps_point(float(i), t) for i, t in enumerate(epoch_times)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 6, tzinfo=datetime.timezone.utc
+        )
+
+    def test_uses_the_start_of_a_timelapse(self) -> None:
+        # Each second of this timelapse spans 10 seconds of GPS time, so the
+        # offset between the two clocks grows by 9 seconds per point. Reading it
+        # at the start of the track keeps the error to a couple of points
+        # rather than half the track
+        points = [self._gps_point(float(i), 1628599086.0 + 10 * i) for i in range(1000)]
+        assert sample_video._gps_clock_start_time(points) == datetime.datetime(
+            2021, 8, 10, 12, 38, 24, tzinfo=datetime.timezone.utc
+        )
+
+    def test_no_absolute_timestamps(self) -> None:
+        assert sample_video._gps_clock_start_time(_make_gps_points(3)) is None
+
+    def test_no_points(self) -> None:
+        assert sample_video._gps_clock_start_time([]) is None
+
+
+class TestCreationTimeToStartTime:
+    """Tests for _creation_time_to_start_time."""
+
+    # A 60-second video, so the start is a minute before this if the camera
+    # stamped the end
+    CREATION_TIME = datetime.datetime(
+        2023, 3, 7, 1, 36, 34, tzinfo=datetime.timezone.utc
+    )
+    START_TIME_IF_END_STAMPED = datetime.datetime(
+        2023, 3, 7, 1, 35, 34, tzinfo=datetime.timezone.utc
+    )
+
+    @staticmethod
+    def _probe(
+        creation_time: str | None = "2023-03-07T01:36:34.000000Z",
+        duration: str | None = "60.0",
+        format_tags: dict[str, str] | None = None,
+    ) -> ffmpeglib.Probe:
+        stream: dict[str, T.Any] = {
+            "index": 0,
+            "codec_type": "video",
+            "width": 1920,
+            "height": 1080,
+            "tags": {},
+        }
+        if creation_time is not None:
+            stream["tags"]["creation_time"] = creation_time
+        if duration is not None:
+            stream["duration"] = duration
+        return ffmpeglib.Probe(
+            T.cast(
+                ffmpeglib.ProbeOutput,
+                {"streams": [stream], "format": {"tags": format_tags or {}}},
+            )
+        )
+
+    @staticmethod
+    def _video(tmp_path: Path, name: str, data: bytes = b"") -> Path:
+        video_path = tmp_path / name
+        video_path.write_bytes(data)
+        return video_path
+
+    def test_assumes_start_without_evidence(self, tmp_path: Path, caplog) -> None:
+        video_path = self._video(tmp_path, "clip.mp4")
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            start_time = sample_video._creation_time_to_start_time(
+                video_path, self._probe()
+            )
+        assert start_time == self.CREATION_TIME
+        # Tells the user how to override it if the camera stamps the end
+        assert "--video_start_time 2023_03_07_01_35_34_000" in caplog.text
+
+    def test_known_end_stamping_camera(self, tmp_path: Path) -> None:
+        video_path = self._video(tmp_path, "R0020627.MP4")
+        probe = self._probe(format_tags={"make": "RICOH", "model": "RICOH THETA X"})
+        assert (
+            sample_video._creation_time_to_start_time(video_path, probe)
+            == self.START_TIME_IF_END_STAMPED
+        )
+
+    def test_other_models_of_the_same_make(self, tmp_path: Path) -> None:
+        video_path = self._video(tmp_path, "R0010001.MP4")
+        probe = self._probe(format_tags={"make": "RICOH", "model": "RICOH THETA Z1"})
+        assert (
+            sample_video._creation_time_to_start_time(video_path, probe)
+            == self.CREATION_TIME
+        )
+
+    def test_blackvue_without_gps_fix(self, tmp_path: Path) -> None:
+        # BlackVue stamps the end. Without a fix there is no GPS clock to read
+        # the start from, but its GPS box is still there to identify it
+        box = {
+            "type": b"free",
+            "data": [
+                {"type": b"gps ", "data": b"[1678152934000]$GPRMC,,V,,,,,,,,,,N*53"}
+            ],
+        }
+        data = cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
+        video_path = self._video(tmp_path, "clip.mp4", data)
+        assert (
+            sample_video._creation_time_to_start_time(video_path, self._probe())
+            == self.START_TIME_IF_END_STAMPED
+        )
+
+    def test_file_name_matches_end(self, tmp_path: Path) -> None:
+        # Viofo names files by the start in local time (UTC+9 here), and stamps
+        # the creation time at the end. The two clocks can be seconds apart
+        for name in ["2023_0307_103534_0001F.MP4", "2023_0307_103544_0001F.MP4"]:
+            video_path = self._video(tmp_path, name)
+            assert (
+                sample_video._creation_time_to_start_time(video_path, self._probe())
+                == self.START_TIME_IF_END_STAMPED
+            )
+
+    def test_file_name_matches_end_with_naive_creation_time(
+        self, tmp_path: Path
+    ) -> None:
+        video_path = self._video(tmp_path, "2023_0307_103534_0001F.MP4")
+        probe = self._probe(creation_time="2023-03-07 01:36:34")
+        assert sample_video._creation_time_to_start_time(
+            video_path, probe
+        ) == datetime.datetime(2023, 3, 7, 1, 35, 34)
+
+    def test_file_name_matches_start(self, tmp_path: Path) -> None:
+        # Insta360 names files a few seconds after it stamps the creation time
+        for name in ["VID_20230307_103634_00_001.mp4", "VID_20230307_103644.mp4"]:
+            video_path = self._video(tmp_path, name)
+            assert (
+                sample_video._creation_time_to_start_time(video_path, self._probe())
+                == self.CREATION_TIME
+            )
+
+    def test_file_name_matches_both(self, tmp_path: Path, caplog) -> None:
+        # A 15-minute video starts and ends at times that are both a whole
+        # time zone away from the file name
+        video_path = self._video(tmp_path, "20230307_103634.mp4")
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            start_time = sample_video._creation_time_to_start_time(
+                video_path, self._probe(duration="900.0")
+            )
+        assert start_time == self.CREATION_TIME
+        assert "--video_start_time" in caplog.text
+
+    def test_file_name_matches_neither(self, tmp_path: Path) -> None:
+        for name in ["20230307_104004.mp4", "20230309_103634.mp4"]:
+            video_path = self._video(tmp_path, name)
+            assert (
+                sample_video._creation_time_to_start_time(video_path, self._probe())
+                == self.CREATION_TIME
+            )
+
+    def test_file_name_with_invalid_date(self, tmp_path: Path) -> None:
+        video_path = self._video(tmp_path, "20231399_103534.mp4")
+        assert (
+            sample_video._creation_time_to_start_time(video_path, self._probe())
+            == self.CREATION_TIME
+        )
+
+    def test_no_creation_time(self, tmp_path: Path) -> None:
+        video_path = self._video(tmp_path, "clip.mp4")
+        probe = self._probe(creation_time=None)
+        assert sample_video._creation_time_to_start_time(video_path, probe) is None
+
+    def test_no_duration(self, tmp_path: Path) -> None:
+        video_path = self._video(tmp_path, "2023_0307_103534_0001F.MP4")
+        probe = self._probe(duration=None)
+        assert (
+            sample_video._creation_time_to_start_time(video_path, probe)
+            == self.CREATION_TIME
+        )
+
+
 # ---------------------------------------------------------------------------
 # Helpers for distance-based sampling tests
 # ---------------------------------------------------------------------------
 
 MOCK_PROBE_JSON = _PWD / "data" / "mock_sample_video" / "videos" / "hello.mp4"
 TEST_EXIF_JPG = _PWD / "data" / "test_exif.jpg"
-
-# Start time derived from the hello.mp4 probe fixture:
-# creation_time "2021-08-10T14:38:06.000000Z" - duration "60.977000"
-PROBE_START_TIME = datetime.datetime(
-    2021, 8, 10, 14, 36, 55, 23000, tzinfo=datetime.timezone.utc
-)
 
 
 def _load_probe_output() -> ffmpeglib.ProbeOutput:
@@ -417,10 +742,13 @@ class TestSampleVideoDistanceIntegration:
         tmp_path: Path,
         video_path: Path,
         num_gps_points: int = 10,
+        gps_points: T.Sequence[geo.Point] | None = None,
     ) -> dict[str, T.Any]:
         """Set up all the mocks needed for _sample_single_video_by_distance."""
         probe_output = _load_probe_output()
-        gps_points = _make_gps_points(num_gps_points, time_step=1.0)
+        if gps_points is None:
+            gps_points = _make_gps_points(num_gps_points, time_step=1.0)
+        num_gps_points = len(gps_points)
 
         video_metadata = VideoMetadata(
             filename=video_path,
@@ -608,3 +936,81 @@ class TestSampleVideoDistanceIntegration:
         # First GPS point is at (40.0, -74.0)
         assert abs(lat - 40.0) < 0.01
         assert abs(lon - (-74.0)) < 0.01
+
+    def test_timestamps_from_creation_time(self, tmp_path: Path) -> None:
+        """Without a GPS clock, frames are timestamped from the creation time."""
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        video_file = video_dir / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        mocks = self._setup_mocks(tmp_path, video_file)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        assert len(frames) == 10
+        for idx, frame in enumerate(frames):
+            assert exif_read.ExifRead(frame).extract_capture_time() == (
+                PROBE_START_TIME + datetime.timedelta(seconds=idx)
+            )
+
+    def test_timestamps_from_gps_clock(self, tmp_path: Path) -> None:
+        """Frames at points with their own timestamp do not need the creation time."""
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        video_file = video_dir / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        gps_points = [
+            telemetry.GPSPoint(
+                time=p.time,
+                lat=p.lat,
+                lon=p.lon,
+                alt=p.alt,
+                angle=p.angle,
+                epoch_time=gps_start_time.timestamp() + p.time,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for p in _make_gps_points(10, time_step=1.0)
+        ]
+        mocks = self._setup_mocks(tmp_path, video_file, gps_points=gps_points)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+            mock.patch.object(
+                sample_video,
+                "_creation_time_to_start_time",
+                side_effect=AssertionError("creation time should not be read"),
+            ),
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        assert len(frames) == 10
+        for idx, frame in enumerate(frames):
+            assert exif_read.ExifRead(frame).extract_capture_time() == (
+                gps_start_time + datetime.timedelta(seconds=idx)
+            )

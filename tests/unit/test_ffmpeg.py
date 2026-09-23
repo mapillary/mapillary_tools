@@ -139,8 +139,8 @@ def test_probe_format_and_streams_ok(setup_data: py.path.local):
     probe_output = ff.probe_format_and_streams(video_path)
     probe = ffmpeg.Probe(probe_output)
 
-    start_time = probe.probe_video_start_time()
-    assert start_time is None
+    creation_time = probe.probe_video_creation_time()
+    assert creation_time is None
     max_stream = probe.probe_video_with_max_resolution()
     assert max_stream is not None
     assert max_stream["index"] == 0
@@ -156,9 +156,9 @@ def test_probe_format_and_streams_gopro_ok(setup_data: py.path.local):
     probe_output = ff.probe_format_and_streams(video_path)
     probe = ffmpeg.Probe(probe_output)
 
-    start_time = probe.probe_video_start_time()
-    assert start_time is not None
-    assert datetime.datetime.isoformat(start_time) == "2019-11-18T15:41:12.354033+00:00"
+    creation_time = probe.probe_video_creation_time()
+    assert creation_time is not None
+    assert datetime.datetime.isoformat(creation_time) == "2019-11-18T15:41:25+00:00"
     max_stream = probe.probe_video_with_max_resolution()
     assert max_stream is not None
     assert max_stream["index"] == 0
@@ -220,49 +220,96 @@ def test_ffprobe_not_exists():
         assert False, "RuntimeError not raised"
 
 
+def _probe_with_video_stream(creation_time, duration) -> ffmpeg.Probe:
+    return ffmpeg.Probe(
+        {
+            "streams": [
+                {
+                    "index": 0,
+                    "codec_type": "video",
+                    "codec_tag_string": "avc1",
+                    "width": 2880,
+                    "height": 1620,
+                    "coded_width": 2880,
+                    "coded_height": 1620,
+                    "duration": duration,
+                    "tags": {
+                        "creation_time": creation_time,
+                        "language": "und",
+                        "handler_name": "Core Media Video",
+                        "vendor_id": "[0][0][0][0]",
+                        "encoder": "H.264",
+                    },
+                }
+            ]
+        }
+    )
+
+
 def test_probe():
     def test_creation_time(expected, probe_creation_time, probe_duration):
-        probe = ffmpeg.Probe(
-            {
-                "streams": [
-                    {
-                        "index": 0,
-                        "codec_type": "video",
-                        "codec_tag_string": "avc1",
-                        "width": 2880,
-                        "height": 1620,
-                        "coded_width": 2880,
-                        "coded_height": 1620,
-                        "duration": probe_duration,
-                        "tags": {
-                            "creation_time": probe_creation_time,
-                            "language": "und",
-                            "handler_name": "Core Media Video",
-                            "vendor_id": "[0][0][0][0]",
-                            "encoder": "H.264",
-                        },
-                    }
-                ]
-            }
-        )
-        creation_time = probe.probe_video_start_time()
-        assert expected == creation_time
+        probe = _probe_with_video_stream(probe_creation_time, probe_duration)
+        assert expected == probe.probe_video_creation_time()
+        assert float(probe_duration) == probe.probe_video_duration()
 
+    # Whether the creation time marks the start or the end of the recording is
+    # up to the caller, so the duration is not subtracted from it here
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 190123, tzinfo=datetime.timezone.utc),
+        datetime.datetime(2023, 3, 7, 1, 35, 34, 123456, tzinfo=datetime.timezone.utc),
         "2023-03-07T01:35:34.123456Z",
         "4.933333",
     )
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 66667, tzinfo=datetime.timezone.utc),
+        datetime.datetime(2023, 3, 7, 1, 35, 34, tzinfo=datetime.timezone.utc),
         "2023-03-07T01:35:34.000000Z",
         "4.933333",
     )
     test_creation_time(
-        datetime.datetime(2023, 3, 7, 1, 35, 29, 66667),
+        datetime.datetime(2023, 3, 7, 1, 35, 34),
         "2023-03-07 01:35:34",
         "4.933333",
     )
+
+
+def test_probe_malformed_metadata():
+    # Treated as missing rather than raised, so that sampling can fall back
+    probe = _probe_with_video_stream("not a time", "N/A")
+    assert probe.probe_video_creation_time() is None
+    assert probe.probe_video_duration() is None
+
+    for duration in ["nan", "inf", "-1"]:
+        probe = _probe_with_video_stream("2023-03-07T01:35:34.000000Z", duration)
+        assert probe.probe_video_duration() is None
+
+
+def test_probe_falls_back_to_other_streams():
+    probe = ffmpeg.Probe(
+        {
+            "streams": [
+                {"index": 0, "codec_type": "video", "width": 1920, "height": 1080},
+                {
+                    "index": 1,
+                    "codec_type": "audio",
+                    "duration": "5.0",
+                    "tags": {"creation_time": "2023-03-07T01:35:34.000000Z"},
+                },
+            ]
+        }
+    )
+    assert probe.probe_video_creation_time() == datetime.datetime(
+        2023, 3, 7, 1, 35, 34, tzinfo=datetime.timezone.utc
+    )
+    assert probe.probe_video_duration() == 5.0
+
+
+def test_probe_format_tag():
+    probe = ffmpeg.Probe(
+        {"streams": [], "format": {"tags": {"make": "RICOH", "model": "RICOH THETA X"}}}
+    )
+    assert probe.probe_format_tag("make") == "RICOH"
+    assert probe.probe_format_tag("model") == "RICOH THETA X"
+    assert probe.probe_format_tag("firmware") is None
+    assert ffmpeg.Probe({"streams": []}).probe_format_tag("make") is None
 
 
 def _ffmpeg_with_version(version):
