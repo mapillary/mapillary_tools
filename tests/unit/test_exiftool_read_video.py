@@ -826,7 +826,8 @@ class TestAggregateGpsTrackBySampleTime:
         )
 
     def test_dop_wins_when_a_camera_reports_both(self):
-        """GPSDOP is the quantity GPSP holds; the error in meters approximates it."""
+        """Both spellings carry the quantity GPSP holds, so the order only
+        matters for a file reporting both; GPSDOP, the GPS9 one, is read first."""
         assert self._precision_from(
             {"GPSDOP": "1.85", "GPSHPositioningError": "99.99"}
         ) == pytest.approx(185.0)

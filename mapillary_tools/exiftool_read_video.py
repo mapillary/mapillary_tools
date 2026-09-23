@@ -372,12 +372,14 @@ def _aggregate_gps_track_by_sample_time(
             if gps_precision_texts:
                 gps_precision = _maybe_float(gps_precision_texts[0])
                 if gps_precision is not None:
-                    # Both tags are scaled by 100 to match the GPSP described in
-                    # https://github.com/gopro/gpmf-parser, but for different
-                    # reasons: GPSDOP is a dilution of precision, which is what
-                    # GPSP holds, while GPSHPositioningError is a horizontal
-                    # positioning error in meters and only an approximation of
-                    # it. https://exiftool.org/forum/index.php?topic=11565.0
+                    # Both tags hold the dilution of precision that GPSP holds,
+                    # already divided by 100 by ExifTool, so scaling back up
+                    # recovers the raw GPMF value the native parser stores:
+                    # GPS9 reports it as GPSDOP, divided by its SCAL entry of
+                    # 100, and GPS5 as GPSP, which ExifTool renames to
+                    # GPSHPositioningError and applies ValueConv $val/100 to.
+                    # Despite that name it is not the EXIF horizontal error in
+                    # meters. https://github.com/gopro/gpmf-parser
                     gps_precision = gps_precision * 100
                     break
 
