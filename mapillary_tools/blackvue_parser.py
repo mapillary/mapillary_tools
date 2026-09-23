@@ -51,15 +51,19 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
     if gps_data is None:
         return None
 
-    points = _parse_gps_box(gps_data)
+    points, recording_start_time = _parse_gps_box_with_start_time(gps_data)
     points.sort(key=lambda p: p.time)
 
     if points:
-        # Convert the time field to relative time to the first point
+        # Convert the time field to the video time, i.e. relative to the start
+        # of the recording. That is the first NMEA line the camera logged, not
+        # the first valid fix: until the receiver gets a fix, which can take
+        # minutes after a cold start, the camera logs lines without positions.
         # epoch_time stays as the original time in seconds
-        first_point_time = points[0].time
+        assert recording_start_time is not None
         for p in points:
-            p.time = p.time - first_point_time
+            # Rounding needed to avoid floating point precision issues
+            p.time = round(p.time - recording_start_time, 3)
 
     # Camera model
     try:
@@ -74,6 +78,22 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
         model = _extract_camera_model_from_cprt(cprt_bytes)
 
     return BlackVueInfo(model=model, gps=points)
+
+
+def is_blackvue(fp: T.BinaryIO) -> bool:
+    """
+    Tell whether a video was recorded by a BlackVue dashcam, which writes its
+    GPS log and its camera model into boxes nested in a top-level free box,
+    whether or not it ever got a GPS fix
+    """
+    for path in [[b"free", b"gps "], [b"free", b"cprt"]]:
+        fp.seek(0)
+        try:
+            if sparser.parse_mp4_data_first(fp, path) is not None:
+                return True
+        except sparser.ParsingError:
+            pass
+    return False
 
 
 def _extract_camera_model_from_cprt(cprt_bytes: bytes) -> str:
@@ -254,6 +274,29 @@ def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
     >>> list(_parse_gps_box(b"[1623057074211]$GPVTG,,T,,M,0.078,N,0.144,K,D*28[1623057075215]"))
     []
     """
+    points, _ = _parse_gps_box_with_start_time(gps_data)
+    return points
+
+
+def _parse_gps_box_with_start_time(
+    gps_data: bytes,
+) -> tuple[list[telemetry.GPSPoint], float | None]:
+    """
+    Parse the GPS points, and the time of the first NMEA line in the same
+    corrected clock, which is when the recording started
+
+    >>> _parse_gps_box_with_start_time(b"[1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61")[1]
+    1623097530.0
+    >>> points, start_time = _parse_gps_box_with_start_time(b'''
+    ... [1623057072211]$GPGGA,,,,,,0,00,99.99,,,,,,*48
+    ... [1623057073211]$GPRMC,,V,,,,,,,,,,N*53
+    ... [1623057074211]$GPGGA,202530.00,5109.0262,N,11401.8407,W,5,40,0.5,1097.36,M,-17.00,M,18,TSTR*61
+    ... ''')
+    >>> len(points), points[0].time - start_time
+    (1, 2.0)
+    >>> _parse_gps_box_with_start_time(b"")
+    ([], None)
+    """
     parsed_lines: list[tuple[float, pynmea2.NMEASentence]] = []
 
     # First pass: collect parsed_lines
@@ -263,6 +306,13 @@ def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
         parsed_lines.append((epoch_sec, message))
 
     timezone_offset = _detect_timezone_offset(parsed_lines)
+
+    if parsed_lines:
+        start_time: float | None = round(
+            min(epoch_sec for epoch_sec, _ in parsed_lines) + timezone_offset, 3
+        )
+    else:
+        start_time = None
 
     points_by_sentence_type: dict[str, list[telemetry.GPSPoint]] = {}
 
@@ -298,12 +348,12 @@ def _parse_gps_box(gps_data: bytes) -> list[telemetry.GPSPoint]:
 
     # This is the extraction order in exiftool
     if "RMC" in points_by_sentence_type:
-        return points_by_sentence_type["RMC"]
+        return points_by_sentence_type["RMC"], start_time
 
     if "GGA" in points_by_sentence_type:
-        return points_by_sentence_type["GGA"]
+        return points_by_sentence_type["GGA"], start_time
 
     if "GLL" in points_by_sentence_type:
-        return points_by_sentence_type["GLL"]
+        return points_by_sentence_type["GLL"], start_time
 
-    return []
+    return [], start_time
