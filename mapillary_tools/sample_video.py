@@ -380,6 +380,11 @@ def _sample_single_video_by_distance(
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
         video_metadata.points, video_track_parser, sample_distance
     )
+    if not sample_points_by_frame_idx:
+        # A track that covers none of the video, e.g. a GPX from another trip
+        raise exceptions.MapillaryVideoError(
+            f"No video frames found within the GPS track from {video_metadata.points[0].time:.3f}s to {video_metadata.points[-1].time:.3f}s"
+        )
     sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:

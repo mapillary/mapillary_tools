@@ -734,6 +734,35 @@ class TestSampleVideoDistanceIntegration:
         assert abs(lat - 40.0) < 0.01
         assert abs(lon - (-74.0)) < 0.01
 
+    def test_no_frame_within_the_track(self, tmp_path: Path) -> None:
+        """
+        A track that covers none of the video selects no frames, which is a
+        failed sample, not an empty sample directory and a success
+        """
+        video_file = tmp_path / "test.mp4"
+        video_file.touch()
+        sample_dir = tmp_path / "output" / "test.mp4"
+
+        mocks = self._setup_mocks(tmp_path, video_file)
+        # The frames are at 0s to 9s
+        for point in mocks["gps_points"]:
+            point.time += 100
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            with pytest.raises(
+                exceptions.MapillaryVideoError,
+                match="No video frames found within the GPS track from 100.000s to 109.000s",
+            ):
+                sample_video._sample_single_video_by_distance(
+                    video_file, sample_dir, sample_distance=0.0
+                )
+
+        assert not sample_dir.exists()
+
 
 class TestFailuresAreReportedTogether:
     """
