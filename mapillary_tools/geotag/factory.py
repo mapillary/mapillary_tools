@@ -27,6 +27,10 @@ from .options import InterpolationOption, SOURCE_TYPE_ALIAS, SourceOption, Sourc
 
 LOG = logging.getLogger(__name__)
 
+# Sources that read a GPS track from outside the video file, as opposed to
+# re-reading the telemetry embedded in it
+EXTERNAL_GPS_SOURCES = frozenset({SourceType.GPX, SourceType.NMEA})
+
 
 def parse_source_option(source: str) -> list[SourceOption]:
     """
@@ -68,10 +72,13 @@ def process(
 
     final_metadatas: list[types.MetadataOrError] = []
 
+    # Indexable, so each step can see which sources are still to come
+    option_list = list(options)
+
     # Paths (image path or video path) that will be sent to the next geotag process
     reprocessable_paths = set(paths)
 
-    for idx, option in enumerate(options):
+    for idx, option in enumerate(option_list):
         if LOG.isEnabledFor(logging.DEBUG):
             LOG.info(
                 f"==> Processing {len(reprocessable_paths)} files with source {option}..."
@@ -101,10 +108,10 @@ def process(
         else:
             video_metadata_or_errors = []
 
-        more_option = idx < len(options) - 1
+        remaining_options = option_list[idx + 1 :]
 
         for metadata in image_metadata_or_errors + video_metadata_or_errors:
-            if more_option and _is_reprocessable(metadata):
+            if remaining_options and _is_reprocessable(metadata, remaining_options):
                 # Leave what it is for the next geotag process
                 pass
             else:
@@ -118,18 +125,40 @@ def process(
     return final_metadatas
 
 
-def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
-    if isinstance(metadata, types.ErrorMetadata):
-        if isinstance(
-            metadata.error,
-            (
-                exceptions.MapillaryGeoTaggingError,
-                exceptions.MapillaryVideoGPSNotFoundError,
-                exceptions.MapillaryExiftoolNotFoundError,
-                exceptions.MapillaryExifToolXMLNotFoundError,
-            ),
-        ):
-            return True
+def _is_reprocessable(
+    metadata: types.MetadataOrError,
+    remaining_options: T.Sequence[SourceOption] = (),
+) -> bool:
+    if not isinstance(metadata, types.ErrorMetadata):
+        return False
+
+    if isinstance(
+        metadata.error,
+        (
+            exceptions.MapillaryGeoTaggingError,
+            exceptions.MapillaryVideoGPSNotFoundError,
+            exceptions.MapillaryExiftoolNotFoundError,
+            exceptions.MapillaryExifToolXMLNotFoundError,
+        ),
+    ):
+        return True
+
+    # Unusable GPS is a verdict on the data, not on the reader that happened to
+    # report it, so only a source that supplies GPS from *outside* the video can
+    # rescue the file. Handing it to another reader of the same embedded
+    # telemetry just asks a second opinion of the same bad data, and the readers
+    # do not agree: exiftool reports no DoP at all, so it silently accepts a
+    # track that the native parser rejects as noise.
+    if isinstance(
+        metadata.error,
+        (
+            exceptions.MapillaryGPXEmptyError,
+            exceptions.MapillaryGPSNoiseError,
+        ),
+    ):
+        return any(
+            option.source in EXTERNAL_GPS_SOURCES for option in remaining_options
+        )
 
     return False
 
