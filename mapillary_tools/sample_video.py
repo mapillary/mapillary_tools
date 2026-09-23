@@ -16,11 +16,29 @@ from pathlib import Path
 
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
-from .geotag import geotag_videos_from_video
+from .geotag import factory
+from .geotag.options import SourceOption, SourceType
 from .mp4 import mp4_sample_parser
 from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
+
+# Sampling errors are suppressed by --skip_sample_errors, not by
+# --skip_process_errors, which governs the later geotagging stage. Say so in
+# the message: the two flags are easy to reach for the wrong one.
+_SKIP_HINT = "To skip these errors, specify --skip_sample_errors"
+
+
+def _sampling_error(message: str) -> exceptions.MapillaryVideoError:
+    """
+    Build an error for a failed sample, naming the flag that skips it.
+
+    Everything raised out of the per-video body of sample_video() is
+    suppressible by --skip_sample_errors, so every one of those messages should
+    say so. Going through here rather than appending the hint at each raise
+    keeps that true of raises added later.
+    """
+    return exceptions.MapillaryVideoError(f"{message}. {_SKIP_HINT}")
 
 
 def _normalize_path(
@@ -49,6 +67,36 @@ def xor(a: bool, b: bool):
     return bool(a) ^ bool(b)
 
 
+def _parse_geotag_options(
+    geotag_source: list[str] | None,
+    geotag_source_path: Path | None,
+    video_geotag_source: list[str] | None,
+    video_import_path: Path,
+) -> list[SourceOption]:
+    """
+    Resolve which sources distance sampling may take its positions from.
+
+    Defaults to the video's own telemetry rather than to
+    DEFAULT_GEOTAG_SOURCE_OPTIONS: the default chain continues on to
+    exiftool_runtime, which reads the same telemetry through a parser that
+    cannot see every field the noise filter rejects on, so routing sampling
+    through it would accept tracks the native parser refuses.
+    """
+    if not geotag_source and not video_geotag_source:
+        return [SourceOption(SourceType.NATIVE)]
+
+    # Mirrors process_geotag_properties(): a sidecar is looked for next to the
+    # video when no explicit path is given
+    if geotag_source_path is None:
+        geotag_source_path = video_import_path
+
+    return factory.parse_source_options(
+        geotag_source=geotag_source or [],
+        video_geotag_source=video_geotag_source or [],
+        geotag_source_path=geotag_source_path,
+    )
+
+
 def sample_video(
     video_import_path: Path,
     import_path: Path,
@@ -60,8 +108,17 @@ def sample_video(
     video_start_time: str | None = None,
     skip_sample_errors: bool = False,
     rerun: bool = False,
+    # Absent when called from the sample_video command, which does not register
+    # the process command's arguments
+    geotag_source: list[str] | None = None,
+    geotag_source_path: Path | None = None,
+    video_geotag_source: list[str] | None = None,
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
+
+    geotag_options = _parse_geotag_options(
+        geotag_source, geotag_source_path, video_geotag_source, video_import_path
+    )
 
     if not xor(0 <= video_sample_distance, 0 < video_sample_interval):
         raise exceptions.MapillaryBadParameterError(
@@ -112,6 +169,7 @@ def sample_video(
                     sample_dir,
                     sample_distance=video_sample_distance,
                     start_time=video_start_time_dt,
+                    geotag_options=geotag_options,
                 )
             else:
                 assert 0 < video_sample_interval, (
@@ -193,7 +251,7 @@ def _sample_single_video_by_interval(
             ffmpeg.probe_format_and_streams(video_path)
         ).probe_video_start_time()
         if start_time is None:
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Unable to extract video start time from {video_path}"
             )
 
@@ -281,7 +339,11 @@ def _sample_single_video_by_distance(
     sample_dir: Path,
     sample_distance: float,
     start_time: datetime.datetime | None = None,
+    geotag_options: T.Sequence[SourceOption] | None = None,
 ) -> None:
+    if geotag_options is None:
+        geotag_options = [SourceOption(SourceType.NATIVE)]
+
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
     probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
@@ -289,28 +351,47 @@ def _sample_single_video_by_distance(
     if start_time is None:
         start_time = probe.probe_video_start_time()
         if start_time is None:
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Unable to extract video start time from {video_path}"
             )
 
     LOG.info("Extracting video metdata")
 
-    video_metadatas = geotag_videos_from_video.GeotagVideosFromVideo().to_description(
-        [video_path]
-    )
+    # Go through the factory rather than reading the video's own telemetry
+    # directly, so that --geotag_source is honoured here as well: a GPX is the
+    # documented answer for a camera whose embedded GPS is unusable, and
+    # distance sampling needs positions just as much as geotagging does.
+    video_metadatas = factory.process([video_path], geotag_options)
     assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
+
+    # Distance sampling needs positions to decide which frames to cut, so
+    # failing to read them is a failed sample, not something to carry on past.
+    # Warning and returning left the caller with a success exit code, an empty
+    # (or missing) sample directory and nothing to upload. sample_video()
+    # already funnels these through --skip_sample_errors for callers who do
+    # want to tolerate them.
     if isinstance(video_metadata, types.ErrorMetadata):
-        LOG.warning(str(video_metadata.error))
-        return
-    assert video_metadata.points, "expect non-empty points"
+        raise _sampling_error(
+            f"Unable to sample {video_path} by distance: {video_metadata.error}"
+        ) from video_metadata.error
+
+    # Only a video path was passed in, so only video metadata can come back
+    assert isinstance(video_metadata, types.VideoMetadata), (
+        f"expect VideoMetadata but got {type(video_metadata).__name__}"
+    )
+
+    if not video_metadata.points:
+        raise _sampling_error(
+            f"Unable to sample {video_path} by distance: no GPS points found"
+        )
+
     LOG.info("Found total %d GPS points", len(video_metadata.points))
 
     # find the video stream with maximum resolution
     video_stream = probe.probe_video_with_max_resolution()
     if not video_stream:
-        LOG.warning("no video streams found from ffprobe")
-        return
+        raise _sampling_error(f"No video streams found in {video_path} by ffprobe")
 
     LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
@@ -333,7 +414,7 @@ def _sample_single_video_by_distance(
             wip_dir, video_path, selected_stream_specifiers=[str(video_stream_idx)]
         )
         if len(frame_samples) != len(sorted_sample_indices):
-            raise exceptions.MapillaryVideoError(
+            raise _sampling_error(
                 f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
             )
         for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
@@ -341,7 +422,7 @@ def _sample_single_video_by_distance(
                 "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
             )
             if idx + 1 != frame_idx_1based:
-                raise exceptions.MapillaryVideoError(
+                raise _sampling_error(
                     f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
                 )
 

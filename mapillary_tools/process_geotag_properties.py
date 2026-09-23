@@ -14,11 +14,9 @@ import humanize
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, types, utils
-from .geotag.factory import parse_source_option, process
+from .geotag.factory import parse_source_options, process
 from .geotag.options import (
     InterpolationOption,
-    SourceOption,
-    SourcePathOption,
     SourceType,
 )
 from .serializer.description import (
@@ -42,47 +40,6 @@ def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> T.Sequence[
         import_paths = import_path
     import_paths = list(utils.deduplicate_paths(import_paths))
     return import_paths
-
-
-def _parse_source_options(
-    geotag_source: list[str],
-    video_geotag_source: list[str],
-    geotag_source_path: Path | None,
-) -> list[SourceOption]:
-    parsed_options: list[SourceOption] = []
-
-    if video_geotag_source and geotag_source:
-        LOG.warning(
-            "Video source options will be processed BEFORE the generic source options"
-        )
-
-    for s in video_geotag_source:
-        for video_option in parse_source_option(s):
-            video_option.filetypes = types.combine_filetype_filters(
-                video_option.filetypes, {types.FileType.VIDEO}
-            )
-            parsed_options.append(video_option)
-
-    for s in geotag_source:
-        parsed_options.extend(parse_source_option(s))
-
-    if geotag_source_path is not None:
-        for parsed_option in parsed_options:
-            if parsed_option.source_path is None:
-                parsed_option.source_path = SourcePathOption(
-                    source_path=Path(geotag_source_path)
-                )
-            else:
-                source_path_option = parsed_option.source_path
-                if source_path_option.source_path is None:
-                    source_path_option.source_path = Path(geotag_source_path)
-                else:
-                    LOG.warning(
-                        "The option --geotag_source_path is ignored for source %s",
-                        parsed_option,
-                    )
-
-    return parsed_options
 
 
 def process_geotag_properties(
@@ -115,7 +72,7 @@ def process_geotag_properties(
     if not geotag_source and not video_geotag_source:
         geotag_source = [*DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
-    options = _parse_source_options(
+    options = parse_source_options(
         geotag_source=geotag_source or [],
         video_geotag_source=video_geotag_source or [],
         geotag_source_path=geotag_source_path,

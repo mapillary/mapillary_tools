@@ -22,9 +22,10 @@ from mapillary_tools import (
     geo,
     sample_video,
 )
+from mapillary_tools.geotag.options import SourceType
 from mapillary_tools.mp4 import mp4_sample_parser
 from mapillary_tools.serializer import description
-from mapillary_tools.types import FileType, VideoMetadata
+from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
 
 _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 
@@ -335,6 +336,120 @@ class TestSampleVideoStreamByDistance:
 
 
 # ---------------------------------------------------------------------------
+# A failed distance sample must not look like a successful one
+# ---------------------------------------------------------------------------
+
+
+class TestDistanceSamplingFailsLoudly:
+    """
+    Distance sampling used to warn and return when it could not read the GPS,
+    which left the caller a success exit code, no sample directory and nothing
+    to upload -- `video_process` went on to geotag zero files and printed an
+    empty summary. Reported for a GoPro whose embedded GPS is all noise, where
+    an attached GPX made no difference.
+    """
+
+    VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+    @pytest.fixture
+    def unreadable_gps(self, monkeypatch):
+        """Every GPS read fails the way a fully filtered noisy track does."""
+        error = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+        monkeypatch.setattr(
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
+                describe_error_metadata(
+                    error, filename=paths[0], filetype=FileType.GOPRO
+                )
+            ],
+        )
+        return error
+
+    def _sample(self, tmpdir: py.path.local, **kwargs):
+        return sample_video.sample_video(
+            self.VIDEO, Path(tmpdir), video_sample_distance=2, rerun=True, **kwargs
+        )
+
+    def test_it_raises_instead_of_returning(self, tmpdir, setup_mock, unreadable_gps):
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            self._sample(tmpdir)
+
+        # the underlying reason has to survive into the message the user sees
+        assert "GPS is too noisy" in str(excinfo.value)
+        assert excinfo.value.__cause__ is unreadable_gps
+
+    def test_it_names_the_flag_that_suppresses_it(
+        self, tmpdir, setup_mock, unreadable_gps
+    ):
+        """
+        --skip_process_errors governs the later geotagging stage and does not
+        cover sampling, so the message has to name --skip_sample_errors or
+        users reach for the wrong flag.
+        """
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            self._sample(tmpdir)
+
+        assert "--skip_sample_errors" in str(excinfo.value)
+
+    def test_the_exit_code_is_a_clean_one(self, tmpdir, setup_mock, unreadable_gps):
+        """Not a MapillaryUserError means a traceback instead of an exit code."""
+        with pytest.raises(exceptions.MapillaryUserError) as excinfo:
+            self._sample(tmpdir)
+
+        assert excinfo.value.exit_code == 7
+
+    def test_nothing_is_left_behind(self, tmpdir, setup_mock, unreadable_gps):
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+        assert not Path(tmpdir).joinpath(self.VIDEO.name).exists()
+
+    def test_skip_sample_errors_still_tolerates_it(
+        self, tmpdir, setup_mock, unreadable_gps
+    ):
+        """The opt-out that several existing callers rely on."""
+        self._sample(tmpdir, skip_sample_errors=True)
+
+    def test_an_empty_track_is_also_an_error(self, tmpdir, setup_mock, monkeypatch):
+        """Previously an assert, so it vanished under `python -O`."""
+        monkeypatch.setattr(
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
+                VideoMetadata(
+                    filename=paths[0], filesize=0, filetype=FileType.GOPRO, points=[]
+                )
+            ],
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+    def test_a_missing_video_stream_is_also_an_error(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        monkeypatch.setattr(
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=0,
+                    filetype=FileType.GOPRO,
+                    points=_make_gps_points(3, time_step=1.0),
+                )
+            ],
+        )
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            self._sample(tmpdir)
+
+
+# ---------------------------------------------------------------------------
 # sample_video() parameter validation & rerun
 # ---------------------------------------------------------------------------
 
@@ -475,11 +590,9 @@ class TestSampleVideoDistanceIntegration:
             mock_ffmpeg_class,
         )
 
-        mock_geotag_instance = mock.MagicMock()
-        mock_geotag_instance.to_description.return_value = [video_metadata]
         patches["geotag_cls"] = mock.patch(
-            "mapillary_tools.sample_video.geotag_videos_from_video.GeotagVideosFromVideo",
-            return_value=mock_geotag_instance,
+            "mapillary_tools.sample_video.factory.process",
+            return_value=[video_metadata],
         )
 
         patches["moov_parse"] = mock.patch.object(
@@ -608,3 +721,172 @@ class TestSampleVideoDistanceIntegration:
         # First GPS point is at (40.0, -74.0)
         assert abs(lat - 40.0) < 0.01
         assert abs(lon - (-74.0)) < 0.01
+
+
+class TestEverySuppressibleErrorNamesTheFlag:
+    """
+    Every error raised out of the per-video body of sample_video() is
+    suppressed by --skip_sample_errors, so every one of those messages has to
+    name it. Half of them naming it is worse than none: a user who hits one of
+    the silent ones reaches for --skip_process_errors, which governs the later
+    geotagging stage and leaves the run failing with the same message.
+    """
+
+    VIDEO = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+    @pytest.fixture
+    def no_start_time(self, monkeypatch):
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_start_time", lambda _self: None
+        )
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"video_sample_distance": 2}, id="by_distance"),
+            pytest.param(
+                {"video_sample_distance": -1, "video_sample_interval": 2},
+                id="by_interval",
+            ),
+        ],
+    )
+    def test_unreadable_start_time_names_the_flag(
+        self, tmpdir, setup_mock, no_start_time, kwargs
+    ):
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            sample_video.sample_video(self.VIDEO, Path(tmpdir), rerun=True, **kwargs)
+
+        assert "Unable to extract video start time" in str(excinfo.value)
+        assert "--skip_sample_errors" in str(excinfo.value)
+
+    def test_the_helper_appends_it_once(self):
+        error = sample_video._sampling_error("something went wrong")
+
+        assert str(error) == (
+            "something went wrong. To skip these errors, specify --skip_sample_errors"
+        )
+        assert isinstance(error, exceptions.MapillaryUserError)
+
+    def test_a_missing_ffmpeg_does_not_claim_to_be_skippable(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        FFmpegNotFoundError is re-raised by its own handler before the skip
+        check, so --skip_sample_errors does not suppress it and its message
+        must not offer the flag.
+        """
+
+        def boom(*args, **kwargs):
+            raise ffmpeglib.FFmpegNotFoundError("ffmpeg not found")
+
+        monkeypatch.setattr(MOCK_FFMPEG, "extract_frames_by_interval", boom)
+
+        with pytest.raises(exceptions.MapillaryFFmpegNotFoundError) as excinfo:
+            sample_video.sample_video(
+                self.VIDEO,
+                Path(tmpdir),
+                video_sample_distance=-1,
+                video_sample_interval=2,
+                rerun=True,
+                skip_sample_errors=True,
+            )
+
+        assert "--skip_sample_errors" not in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# Distance sampling honours --geotag_source
+# ---------------------------------------------------------------------------
+
+
+class TestGeotagSourceReachesDistanceSampling:
+    """
+    Distance sampling read the video's own telemetry directly, bypassing the
+    geotag factory, so --geotag_source was ignored: a GPX attached to rescue a
+    camera whose embedded GPS is unusable never got a chance to supply the
+    positions the sampler picks frames with.
+    """
+
+    def test_no_sources_requested_means_native_only(self):
+        """
+        Not DEFAULT_GEOTAG_SOURCE_OPTIONS: that chain continues on to
+        exiftool_runtime, whose parser cannot see every field the noise filter
+        rejects on, so it would accept tracks the native parser refuses.
+        """
+        options = sample_video._parse_geotag_options(
+            None, None, None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.NATIVE]
+
+    def test_requested_source_is_passed_through(self):
+        options = sample_video._parse_geotag_options(
+            ["gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.GPX]
+        assert options[0].source_path is not None
+        assert options[0].source_path.source_path == Path("/data/track.gpx")
+
+    def test_video_geotag_source_is_honoured_too(self):
+        options = sample_video._parse_geotag_options(
+            None, Path("/data/track.gpx"), ["gpx"], Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.GPX]
+
+    def test_sidecar_is_looked_for_beside_the_video(self):
+        """Mirrors process_geotag_properties() when no explicit path is given."""
+        options = sample_video._parse_geotag_options(
+            ["gpx"], None, None, Path("/data/v.mp4")
+        )
+
+        assert options[0].source_path is not None
+        assert options[0].source_path.source_path == Path("/data/v.mp4")
+
+    def test_chained_sources_are_preserved(self):
+        options = sample_video._parse_geotag_options(
+            ["native", "gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [
+            SourceType.NATIVE,
+            SourceType.GPX,
+        ]
+
+    def test_the_sampler_asks_the_factory_for_them(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """The options reach factory.process() rather than being dropped."""
+        seen: list = []
+        points = _make_gps_points(4, time_step=1.0)
+
+        def fake_process(paths, options):
+            seen.append(list(options))
+            return [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=1,
+                    filetype=FileType.GOPRO,
+                    points=points,
+                )
+            ]
+
+        monkeypatch.setattr(sample_video.factory, "process", fake_process)
+        # stop after the metadata is read; the rest needs real ffmpeg
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            sample_video.sample_video(
+                _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+                Path(tmpdir),
+                video_sample_distance=2,
+                rerun=True,
+                geotag_source=["gpx"],
+                geotag_source_path=Path("/data/track.gpx"),
+            )
+
+        assert len(seen) == 1
+        assert [option.source for option in seen[0]] == [SourceType.GPX]
