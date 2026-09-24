@@ -66,6 +66,19 @@ class Command:
             default=False,
             required=False,
         )
+        group.add_argument(
+            "--source_frame_names",
+            help=(
+                "Rename distance-sampled JPEGs from sequential 000001, 000002, … "
+                "to 0-based source frame numbers (…_000000.jpg, …_033717.jpg). "
+                "Gaps in the numbers are skipped video time. Mapillary only "
+                "needs unique names; interval sampling stays sequential. "
+                "[default: %(default)s]"
+            ),
+            action="store_true",
+            default=constants.SOURCE_FRAME_NAMES,
+            required=False,
+        )
 
     def run(self, vars_args: dict):
         video_import_path: Path = vars_args["video_import_path"]

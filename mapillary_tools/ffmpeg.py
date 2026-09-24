@@ -280,6 +280,7 @@ class FFMPEG:
         sample_dir: Path,
         frame_indices: set[int],
         stream_specifier: int | str = "v",
+        source_frame_names: bool = False,
     ) -> None:
         """
         Extract specific frames from video by frame number using select filter.
@@ -294,14 +295,19 @@ class FFMPEG:
             stream_specifier: Stream specifier to target specific stream(s).
                               Can be an integer (stream index) or "v" (all video streams)
                               See https://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
+            source_frame_names: If true, rename sequential ``-start_number``
+                files onto 0-based source frame indices after extract.
 
         Raises:
             FFmpegNotFoundError: If ffmpeg binary is not found
             FFmpegCalledProcessError: If ffmpeg command fails
 
         Note:
-            Frame indices are 0-based but ffmpeg output files are numbered starting from 1.
-            Creates temporary filter script file on Windows to avoid command line length limits.
+            Frame indices are 0-based. FFmpeg writes sequential files
+            (``…_000001.jpg``, ``…_000002.jpg``). With
+            ``source_frame_names`` they become ``…_000000.jpg``,
+            ``…_033717.jpg``. Creates a temporary filter script file on
+            Windows to avoid command line length limits.
         """
 
         self._validate_stream_specifier(stream_specifier)
@@ -360,6 +366,41 @@ class FFMPEG:
                         os.remove(select_file.name)
                     except FileNotFoundError:
                         pass
+
+        if source_frame_names:
+            self._rename_extracted_to_source_indices(
+                sample_prefix, stream_specifier, sorted(frame_indices)
+            )
+
+    @classmethod
+    def _rename_extracted_to_source_indices(
+        cls,
+        sample_prefix: Path,
+        stream_specifier: int | str,
+        sorted_indices: list[int],
+    ) -> None:
+        """Map ffmpeg's sequential ``-start_number`` files onto source frame numbers."""
+        if not sorted_indices:
+            return
+
+        def path_for(n: int) -> Path:
+            return Path(f"{sample_prefix}_{stream_specifier}_{n:06d}{cls.FRAME_EXT}")
+
+        sources = [path_for(i) for i in range(1, len(sorted_indices) + 1)]
+        dests = [path_for(idx) for idx in sorted_indices]
+        if sources == dests:
+            return
+        missing = [src for src in sources if not src.is_file()]
+        if missing:
+            raise RuntimeError(
+                f"expected {len(sorted_indices)} extracted frames under {sample_prefix.parent}, "
+                f"missing {missing[0].name}"
+            )
+        tmps = [src.with_name(src.name + ".mlytmp") for src in sources]
+        for src, tmp in zip(sources, tmps):
+            src.rename(tmp)
+        for tmp, dst in zip(tmps, dests):
+            tmp.rename(dst)
 
     @classmethod
     def sort_selected_samples(
@@ -434,7 +475,9 @@ class FFMPEG:
         Yields:
             Tuple containing:
             - stream_specifier (str): Stream specifier (number or "v")
-            - frame_idx (int): Frame index (0-based or 1-based depending on extraction method)
+            - frame_idx (int): Number parsed from the filename (sequential
+              1-based after extract_specified_frames, or 0-based source
+              frame with ``source_frame_names``; 1-based for interval sampling)
             - sample_path (Path): Path to the frame image file
 
         Note:
