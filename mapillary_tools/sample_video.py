@@ -23,6 +23,60 @@ from .serializer.description import parse_capture_time
 LOG = logging.getLogger(__name__)
 
 
+def _parse_video_start_time(value: str) -> datetime.datetime:
+    """
+    Parse a ``--video_start_time`` value into a timezone-aware UTC datetime.
+
+    Two formats are accepted:
+
+    - The legacy proprietary format ``YYYY_MM_DD_HH_MM_SS_sss``, which is
+      always interpreted as UTC.
+    - ISO 8601, which may carry a UTC offset (e.g.
+      ``2020-12-28T12:36:36.508+01:00`` or ``...Z``). This lets users of
+      cameras that write local time (e.g. GoPro MAX, whose RTC has no
+      timezone) correct the offset. A naive ISO 8601 value (no offset) is
+      interpreted in the system's local timezone, so a wall-clock time
+      copied from such a camera lands at the right instant.
+
+    Legacy format is always UTC:
+
+    >>> _parse_video_start_time("2020_12_28_12_36_36_508").isoformat()
+    '2020-12-28T12:36:36.508000+00:00'
+
+    ISO 8601 with an explicit offset (or ``Z``) keeps that offset:
+
+    >>> _parse_video_start_time("2020-12-28T12:36:36.508+01:00").isoformat()
+    '2020-12-28T11:36:36.508000+00:00'
+    >>> _parse_video_start_time("2020-12-28T12:36:36.508Z").isoformat()
+    '2020-12-28T12:36:36.508000+00:00'
+
+    Naive ISO 8601 is interpreted in the system local timezone (the result
+    below is shown relative to local time so the doctest is tz-independent):
+
+    >>> naive = "2020-12-28T13:36:36.508"
+    >>> expected = datetime.datetime(
+    ...     2020, 12, 28, 13, 36, 36, 508000
+    ... ).astimezone(datetime.timezone.utc)
+    >>> _parse_video_start_time(naive) == expected
+    True
+
+    >>> _parse_video_start_time("not-a-timestamp")
+    Traceback (most recent call last):
+        ...
+    ValueError: Invalid isoformat string: 'not-a-timestamp'
+    """
+    try:
+        return parse_capture_time(value)
+    except ValueError:
+        pass
+
+    # datetime.fromisoformat does not accept a trailing "Z" before Python 3.11
+    dt = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # A naive value is assumed to be in the system local timezone; astimezone()
+    # treats naive datetimes as local and converts aware ones by their offset.
+    return dt.astimezone(datetime.timezone.utc)
+
+
 def _normalize_path(
     video_import_path: Path, skip_subfolders: bool
 ) -> tuple[Path, list[Path]]:
@@ -71,7 +125,7 @@ def sample_video(
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
-            video_start_time_dt = parse_capture_time(video_start_time)
+            video_start_time_dt = _parse_video_start_time(video_start_time)
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
 
