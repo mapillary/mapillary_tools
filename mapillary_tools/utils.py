@@ -6,11 +6,14 @@
 from __future__ import annotations
 
 import concurrent.futures
+import glob
 import hashlib
 import logging
 import os
 import typing as T
 from pathlib import Path
+
+from . import exceptions
 
 
 # Use "hashlib._Hash" instead of hashlib._Hash because:
@@ -128,6 +131,36 @@ def find_all_image_samples(
                 )
 
     return image_samples_by_video_path
+
+
+def expand_import_paths(
+    import_paths: T.Iterable[Path],
+    *,
+    predicate: T.Callable[[Path], bool] | None = None,
+    missing: str | None = None,
+) -> list[Path]:
+    """Keep existing files/dirs; otherwise expand each path as a glob pattern."""
+    out: list[Path] = []
+    for path in import_paths:
+        if path.is_file() or path.is_dir():
+            if predicate is None or predicate(path):
+                out.append(path)
+            continue
+        pattern = os.fspath(path)
+        matches = [
+            Path(p)
+            for p in glob.glob(pattern, recursive="**" in pattern)
+            if predicate is None or predicate(Path(p))
+        ]
+        if predicate is None:
+            matches = [p for p in matches if p.is_file() or p.is_dir()]
+        matches.sort(key=lambda p: p.name.lower())
+        if not matches:
+            raise exceptions.MapillaryFileNotFoundError(
+                missing or f"Import file or directory not found: {path}"
+            )
+        out.extend(matches)
+    return out
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
