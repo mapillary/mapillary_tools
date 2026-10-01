@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import datetime
 import logging
+import math
 import os
 import shutil
+import struct
 import time
 import typing as T
 from contextlib import contextmanager
@@ -17,6 +19,8 @@ from pathlib import Path
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import geotag_videos_from_video
+from .gpmf.gps_smoother import smooth_gps_points
+from .gpmf.gps_weigher import weighted_interpolate
 from .mp4 import mp4_sample_parser
 from .serializer.description import parse_capture_time
 
@@ -316,8 +320,22 @@ def _sample_single_video_by_distance(
     video_stream_idx = video_stream["index"]
     moov_parser = mp4_sample_parser.MovieBoxParser.parse_file(video_path)
     video_track_parser = moov_parser.extract_track_at(video_stream_idx)
+
+    # Frame-sampling path only: smooth the GoPro GPS track once (speed-gate +
+    # sigma-weighted Kalman/RTS) and use it for BOTH frame selection and per-frame
+    # positions, so sampling follows the cleaned track rather than the raw/jittery one.
+    # Falls back to the raw points if numpy is unavailable. This does NOT change the
+    # native CAMM muxing path, which still muxes video_metadata.points (see PR description).
+    if (
+        video_metadata.point_weights is not None
+        and video_metadata.point_sigma_xys is not None
+    ):
+        sampling_points = smooth_gps_points(video_metadata.points)
+    else:
+        sampling_points = video_metadata.points
+
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
-        video_metadata.points, video_track_parser, sample_distance
+        sampling_points, video_track_parser, sample_distance
     )
     sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
 
@@ -362,11 +380,35 @@ def _sample_single_video_by_distance(
                 )
             else:
                 timestamp = start_time + datetime.timedelta(seconds=interp.time)
+            lat, lon = interp.lat, interp.lon
+            accuracy: float | None = None
+
+            # Refine with weighted interpolation if weights available
+            if (
+                video_metadata.point_weights is not None
+                and video_metadata.point_sigma_xys is not None
+            ):
+                w_times = [p.time for p in sampling_points]
+                w_lats = [p.lat for p in sampling_points]
+                w_lons = [p.lon for p in sampling_points]
+                lat, lon, accuracy = weighted_interpolate(
+                    interp.time,
+                    w_times,
+                    w_lats,
+                    w_lons,
+                    video_metadata.point_weights,
+                    video_metadata.point_sigma_xys,
+                )
+
+            # Skip frames with no valid position (inf accuracy = no GPS data)
+            if accuracy is not None and math.isinf(accuracy):
+                continue
+
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_gps_datetime(timestamp)
-            exif_edit.add_lat_lon(interp.lat, interp.lon)
-            if interp.alt is not None:
+            exif_edit.add_lat_lon(lat, lon)
+            if interp.alt is not None and abs(interp.alt) < 100000:
                 exif_edit.add_altitude(interp.alt)
             if interp.angle is not None:
                 exif_edit.add_direction(interp.angle)
@@ -374,4 +416,20 @@ def _sample_single_video_by_distance(
                 exif_edit.add_make(video_metadata.make)
             if video_metadata.model:
                 exif_edit.add_model(video_metadata.model)
-            exif_edit.write()
+            if (
+                accuracy is not None
+                and not math.isinf(accuracy)
+                and not math.isnan(accuracy)
+            ):
+                exif_edit.add_gps_accuracy(accuracy)
+            try:
+                exif_edit.write()
+            except (struct.error, OverflowError, ValueError):
+                LOG.warning(
+                    "Skipping frame %s: EXIF write failed (lat=%.4f lon=%.4f alt=%s acc=%s)",
+                    sample_paths[0].name if sample_paths[0] else "?",
+                    lat,
+                    lon,
+                    interp.alt,
+                    accuracy,
+                )

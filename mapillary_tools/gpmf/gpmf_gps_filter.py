@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import math
 import typing as T
 
 from .. import constants, geo
 from ..telemetry import GPSPoint
-from . import gps_filter
+from . import gps_filter, gps_weigher
 
 """
 This module was originally used for GoPro GPS data (GPMF) filtering,
@@ -57,6 +58,53 @@ def remove_outliers(
         T.List[GPSPoint],
         gps_filter.find_majority(merged.values()),
     )
+
+
+def weight_points(
+    sequence: T.Sequence[GPSPoint],
+    uere_nominal: float = 3.0,
+) -> tuple[T.Sequence[GPSPoint], list[float], list[float]]:
+    """Compute per-sample sigma and weight without discarding any points.
+
+    Returns (points, sigma_xys, weights). Points with fix=0 get sigma=inf
+    and weight=0. Outliers detected by speed consistency get sigma=inf.
+    """
+    if not sequence:
+        return sequence, [], []
+
+    times = [p.time for p in sequence]
+    lats = [p.lat for p in sequence]
+    lons = [p.lon for p in sequence]
+    doppler_speeds = [
+        p.ground_speed if p.ground_speed is not None else 0.0 for p in sequence
+    ]
+
+    sigma_xys: list[float] = []
+    for p in sequence:
+        hdop = (p.precision / 100.0) if p.precision is not None else 10.0
+        fix_val = p.fix.value if p.fix is not None else 0
+        sigma_xy, _ = gps_weigher.compute_sample_sigma(hdop, fix_val, uere_nominal)
+        sigma_xys.append(sigma_xy)
+
+    sigma_xys = gps_weigher.apply_speed_consistency(
+        sigma_xys,
+        times,
+        lats,
+        lons,
+        doppler_speeds,
+    )
+
+    weights = [gps_weigher.sample_weight(s) for s in sigma_xys]
+
+    n_finite = sum(1 for s in sigma_xys if not math.isinf(s))
+    LOG.debug(
+        "weight_points: %d total, %d with finite sigma (%d excluded)",
+        len(sequence),
+        n_finite,
+        len(sequence) - n_finite,
+    )
+
+    return sequence, sigma_xys, weights
 
 
 def remove_noisy_points(

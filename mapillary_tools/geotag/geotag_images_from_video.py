@@ -16,6 +16,7 @@ else:
     from typing_extensions import override
 
 from .. import types, utils
+from ..gpmf import gps_smoother, gps_weigher
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 from .geotag_videos_from_video import GeotagVideosFromVideo
@@ -83,6 +84,17 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
 
             image_metadatas = geotag.to_description(image_paths)
 
+            # If weighted points available, refine positions with weighted median
+            has_weights = (
+                video_metadata.point_weights is not None
+                and video_metadata.point_sigma_xys is not None
+            )
+            if has_weights:
+                _apply_weighted_interpolation(
+                    image_metadatas,
+                    video_metadata,
+                )
+
             for metadata in image_metadatas:
                 if isinstance(metadata, types.ImageMetadata):
                     metadata.MAPDeviceMake = video_metadata.make
@@ -131,3 +143,53 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
             num_processes=self.num_processes,
         )
         return geotag.to_description(image_paths)
+
+
+def _apply_weighted_interpolation(
+    image_metadatas: list[types.ImageMetadataOrError],
+    video_metadata: types.VideoMetadata,
+) -> None:
+    """Refine image positions using weighted median interpolation.
+
+    Modifies ImageMetadata objects in-place: updates lat, lon, and sets
+    MAPGPSAccuracyMeters.
+
+    The image metadata times are in image-EXIF time (absolute), but the
+    video points are in video-relative time (0 to duration). GeotagImagesFromGPX
+    shifts video points by adding the first image's time. We apply the same
+    shift here so the query times align.
+    """
+    assert video_metadata.point_weights is not None
+    assert video_metadata.point_sigma_xys is not None
+
+    # Frame-sampling path only: smooth the GPS track (speed-gate + sigma-weighted
+    # Kalman/RTS) before interpolating image positions. Falls back to the raw points
+    # if numpy is unavailable. NOTE: this does NOT touch the native CAMM muxing path,
+    # which still muxes the unsmoothed track (see PR description).
+    points = gps_smoother.smooth_gps_points(video_metadata.points)
+    weights = video_metadata.point_weights
+    sigma_xys = video_metadata.point_sigma_xys
+
+    # Find the time shift: first image time = offset added to video-relative times
+    valid_images = [m for m in image_metadatas if isinstance(m, types.ImageMetadata)]
+    if not valid_images:
+        return
+    first_image_time = min(m.time for m in valid_images)
+
+    # Shift video point times to match image time frame
+    times = [first_image_time + p.time for p in points]
+    lats = [p.lat for p in points]
+    lons = [p.lon for p in points]
+
+    for metadata in valid_images:
+        lat, lon, accuracy = gps_weigher.weighted_interpolate(
+            metadata.time,
+            times,
+            lats,
+            lons,
+            weights,
+            sigma_xys,
+        )
+        metadata.lat = lat
+        metadata.lon = lon
+        metadata.MAPGPSAccuracyMeters = round(accuracy, 2)
