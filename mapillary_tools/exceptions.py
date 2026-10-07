@@ -56,6 +56,10 @@ class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryInvalidGPXError(MapillaryDescriptionError):
+    pass
+
+
 class MapillaryInvalidVideoError(MapillaryDescriptionError):
     pass
 

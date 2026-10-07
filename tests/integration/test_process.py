@@ -677,6 +677,31 @@ def test_process_geotag_with_gpx_pattern(setup_data: py.path.local):
     assert len(descs[0]["MAPGPSTrack"]) > 0
 
 
+def test_process_geotag_with_malformed_gpx_pattern(setup_data: py.path.local):
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    gpx_file = setup_data.join("gopro_data").join("max-360mode.gpx")
+    gpx_file.write("<gpx><broken>")
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--geotag_source",
+                json.dumps({"source": "gpx", "filetypes": ["video"]}),
+            ],
+            *["--geotag_source", "native"],
+            str(video_path),
+        ]
+    )
+
+    video_desc = next(desc for desc in descs if desc["filename"] == str(video_path))
+    assert video_desc["error"] == {
+        "type": "MapillaryInvalidGPXError",
+        "message": (
+            "max-360mode.gpx is not a valid GPX file. Replace it with a valid GPX file."
+        ),
+    }
+
+
 def test_process_video_geotag_source_with_exiftool_runtime(setup_data: py.path.local):
     pytest_skip_if_not_exiftool_installed()
 
