@@ -835,14 +835,18 @@ class TestGeotagSourceReachesDistanceSampling:
 
         assert [option.source for option in options] == [SourceType.GPX]
 
-    def test_sidecar_is_looked_for_beside_the_video(self):
-        """Mirrors process_geotag_properties() when no explicit path is given."""
+    @pytest.mark.parametrize("source", ["exiftool_xml", "gpx"])
+    def test_without_a_path_sources_get_the_video_import_path(self, source):
+        """
+        As when the frames are geotagged. That is how exiftool_xml finds the
+        XML files in the video directory; a GPX gets no sidecar lookup.
+        """
         options = sample_video._parse_geotag_options(
-            ["gpx"], None, None, Path("/data/v.mp4")
+            [source], None, None, Path("/data/videos")
         )
 
         assert options[0].source_path is not None
-        assert options[0].source_path.source_path == Path("/data/v.mp4")
+        assert options[0].source_path.source_path == Path("/data/videos")
 
     def test_chained_sources_are_preserved(self):
         options = sample_video._parse_geotag_options(

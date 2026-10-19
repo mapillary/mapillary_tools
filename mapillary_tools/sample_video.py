@@ -85,8 +85,11 @@ def _parse_geotag_options(
     if not geotag_source and not video_geotag_source:
         return [SourceOption(SourceType.NATIVE)]
 
-    # Mirrors process_geotag_properties(): a sidecar is looked for next to the
-    # video when no explicit path is given
+    # Without an explicit path, every source gets the video import path, as
+    # process_geotag_properties() gives it when geotagging the frames: that is
+    # how exiftool_xml finds the XML files in the video directory. It does not
+    # find a GPX beside the video, which the geotagging stage could not find
+    # either; a GPX needs --geotag_source_path
     if geotag_source_path is None:
         geotag_source_path = video_import_path
 
