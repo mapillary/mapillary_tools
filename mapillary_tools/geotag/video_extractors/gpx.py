@@ -63,7 +63,9 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         try:
             native_video_metadata = native_extractor.extract()
-        except exceptions.MapillaryVideoGPSNotFoundError as ex:
+        except exceptions.MapillaryVideoGPSUnusableError as ex:
+            # The GPX replaces the video's own GPS, so GPS that is missing,
+            # empty or too noisy must not reject the video
             if self.sync_mode is SyncMode.STRICT_SYNC:
                 raise ex
             self._rebase_times(gpx_points)
