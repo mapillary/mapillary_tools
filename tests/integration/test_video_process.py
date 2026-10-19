@@ -297,6 +297,55 @@ def test_video_process_by_distance_with_the_gpx_start_time(
     assert capture_times[-1] < "2025_03_14_07_00_09_000", capture_times
 
 
+def test_video_process_by_distance_with_an_untidy_gpx(setup_data: py.path.local):
+    """
+    GPX files converted from camera logs can list their tracks out of order and
+    carry tracks timestamped 1969. Merged as they were, the points were out of
+    time order, and sampling crashed with a traceback.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    def track(times):
+        return "".join(
+            f'<trkpt lat="{37.0 + i * 0.0001:.7f}" lon="-122.0"><time>{time}</time></trkpt>'
+            for i, time in times
+        )
+
+    later = [(i, f"2025-03-14T07:00:{s:02d}Z") for i, s in enumerate(range(10, 20), 10)]
+    earlier = [(i, f"2025-03-14T07:00:{s:02d}Z") for i, s in enumerate(range(0, 10))]
+    junk = [(0, "1969-12-31T15:59:59Z")] * 3
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        gpx_file = Path(dir, "untidy.gpx")
+        gpx_file.write_text(
+            '<?xml version="1.0"?>\n'
+            '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+            + "".join(
+                f"<trk><trkseg>{track(t)}</trkseg></trk>"
+                for t in [later, junk, earlier]
+            )
+            + "</gpx>\n"
+        )
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                *["--video_start_time", "2025_03_14_07_00_00_000"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_00_00_000" <= capture_times[0], capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_06_000", capture_times
+
+
 def test_sample_video_without_video_time(setup_data: py.path.local):
     pytest_skip_if_not_ffmpeg_installed()
 

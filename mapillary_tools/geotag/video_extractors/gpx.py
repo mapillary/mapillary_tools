@@ -36,6 +36,11 @@ LOG = logging.getLogger(__name__)
 # orders of magnitude.
 _IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 
+# No GPS fix can be timestamped before the GPS epoch, 1980-01-06. GPX files
+# converted from camera logs can carry earlier times, such as
+# 1969-12-31T15:59:59Z, on points that had no valid time
+_GPS_EPOCH = datetime.datetime(1980, 1, 6, tzinfo=datetime.timezone.utc).timestamp()
+
 # How much longer than a video a GPX track may last without a warning, when it
 # is assumed to start with the video. A logger that records once a second,
 # started and stopped with the camera, can run on for a second at each end.
@@ -75,7 +80,19 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 f"Found {len(gpx_tracks)} tracks in the GPX file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
             )
 
-        gpx_points: T.Sequence[geo.Point] = sum(gpx_tracks, [])
+        all_points: list[geo.Point] = sum(gpx_tracks, [])
+        gpx_points = [p for p in all_points if _GPS_EPOCH <= p.time]
+        if len(gpx_points) < len(all_points):
+            LOG.warning(
+                "Ignoring %d of the %d points in the GPX file %s, which are timestamped before 1980",
+                len(all_points) - len(gpx_points),
+                len(all_points),
+                self.gpx_path,
+            )
+
+        # The tracks need not be in time order, and interpolation needs the
+        # merged points to be
+        gpx_points.sort(key=lambda p: p.time)
 
         native_extractor = NativeVideoExtractor(self.video_path)
 
