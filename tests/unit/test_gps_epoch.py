@@ -152,6 +152,28 @@ class TestGPXOffset:
         video_points = [_camm_point(time=0.0, epoch_time=0.0)]
         assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 0.0
 
+    @pytest.mark.parametrize("video_point", [_camm_point, _gps_point])
+    def test_video_gps_starting_late_syncs_to_video_time(self, video_point):
+        """
+        The offset is to video time 0, not to the first video GPS point, or
+        the GPX track would land early by that point's time.
+        """
+        gpx_points = [
+            _camm_point(time=A_UNIX_TIME + t, epoch_time=A_UNIX_TIME + t)
+            for t in range(21)
+        ]
+        # The video's GPS starts 5s into the video
+        video_points = [
+            video_point(time=5.0 + t, epoch_time=A_UNIX_TIME + 5 + t) for t in range(10)
+        ]
+
+        offset = GPXVideoExtractor._gpx_offset(gpx_points, video_points)
+        GPXVideoExtractor._rebase_times(gpx_points, offset=offset)
+
+        # Recorded at the same instant as the first video GPS point, so it
+        # lands at the same video time
+        assert gpx_points[5].time == 5.0
+
 
 class TestEditListOverflow:
     """An oversized initial gap must not abort the upload."""
