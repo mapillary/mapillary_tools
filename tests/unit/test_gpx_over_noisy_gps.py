@@ -17,14 +17,18 @@ its points.
 
 from __future__ import annotations
 
+import typing as T
 from pathlib import Path
 
 import pytest
 
 from mapillary_tools import exceptions, types
+from mapillary_tools.geotag import factory
+from mapillary_tools.geotag.options import SourceOption, SourceType
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 from mapillary_tools.gpmf import gpmf_gps_filter, gpmf_parser
+from mapillary_tools.process_geotag_properties import DEFAULT_GEOTAG_SOURCE_OPTIONS
 from mapillary_tools.telemetry import GPSFix, GPSPoint
 
 
@@ -151,3 +155,206 @@ class TestUnusableGPSErrors:
     def test_still_description_errors(self, error_class):
         """Whatever catches them today keeps catching them."""
         assert issubclass(error_class, exceptions.MapillaryDescriptionError)
+
+
+def _run_chain(
+    monkeypatch: pytest.MonkeyPatch,
+    sources: T.Sequence[SourceType],
+    outcomes: dict[SourceType, Exception | None],
+) -> tuple[list[types.MetadataOrError], list[SourceType]]:
+    """
+    Run factory.process() on one video, with every source that geotags videos
+    replaced by a stub reporting outcomes[source]: an error, or None for
+    success. Returns the results and the sources that were asked to geotag it.
+    """
+    called: list[SourceType] = []
+
+    class StubGeotag:
+        def __init__(self, source: SourceType):
+            self.source = source
+
+        def to_description(self, paths):
+            called.append(self.source)
+            outcome = outcomes[self.source]
+            if outcome is None:
+                return [
+                    types.VideoMetadata(
+                        filename=path,
+                        filetype=types.FileType.VIDEO,
+                        points=[],
+                        make=self.source.value,
+                    )
+                    for path in paths
+                ]
+            return [
+                types.describe_error_metadata(
+                    outcome, filename=path, filetype=types.FileType.VIDEO
+                )
+                for path in paths
+            ]
+
+    def build_video_geotag(option: SourceOption):
+        # As the real builder: these sources do not geotag videos
+        if option.source in [SourceType.NMEA, SourceType.EXIF]:
+            return None
+        return StubGeotag(option.source)
+
+    monkeypatch.setattr(factory, "_build_video_geotag", build_video_geotag)
+    results = factory.process(
+        [Path("/tmp/GS018205.360")], [SourceOption(source) for source in sources]
+    )
+    return results, called
+
+
+NOISE = exceptions.MapillaryGPSNoiseError("GPS is too noisy")
+EMPTY = exceptions.MapillaryGPXEmptyError("Empty GPS data found")
+NOT_FOUND = exceptions.MapillaryVideoGPSNotFoundError("No GPS data found")
+GPX_NOT_FOUND = exceptions.MapillaryVideoGPSNotFoundError(
+    "GPX file not found for video"
+)
+
+DEFAULT_CHAIN = [SourceType(source) for source in DEFAULT_GEOTAG_SOURCE_OPTIONS]
+
+
+def _only_result(results: list[types.MetadataOrError]) -> types.MetadataOrError:
+    assert len(results) == 1, results
+    return results[0]
+
+
+class TestChainedSources:
+    """How a video moves through a chain of geotag sources."""
+
+    @pytest.mark.parametrize("rejection", [NOISE, EMPTY])
+    def test_gpx_rescues_rejected_gps(self, monkeypatch, rejection):
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.GPX],
+            {SourceType.NATIVE: rejection, SourceType.GPX: None},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.VideoMetadata)
+        assert result.make == "gpx"
+
+    @pytest.mark.parametrize("rejection", [NOISE, EMPTY])
+    def test_default_chain_keeps_the_verdict(self, monkeypatch, rejection):
+        """
+        exiftool must not get a second opinion on the track that native just
+        rejected. The exact chain `process` runs with no flags.
+        """
+        assert DEFAULT_CHAIN == [SourceType.NATIVE, SourceType.EXIFTOOL_RUNTIME]
+        results, called = _run_chain(
+            monkeypatch,
+            DEFAULT_CHAIN,
+            {SourceType.NATIVE: rejection, SourceType.EXIFTOOL_RUNTIME: None},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is rejection
+        assert called == [SourceType.NATIVE]
+
+    @pytest.mark.parametrize("rejection", [NOISE, EMPTY])
+    def test_embedded_reader_cannot_win_before_gpx(self, monkeypatch, rejection):
+        """
+        A GPX later in the chain must not let exiftool in first: it could
+        publish the embedded track instead of the GPX.
+        """
+        results, called = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.EXIFTOOL_RUNTIME, SourceType.GPX],
+            {
+                SourceType.NATIVE: rejection,
+                SourceType.EXIFTOOL_RUNTIME: None,
+                SourceType.GPX: None,
+            },
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.VideoMetadata)
+        assert result.make == "gpx"
+        assert called == [SourceType.NATIVE, SourceType.GPX]
+
+    @pytest.mark.parametrize(
+        "sources",
+        [
+            [SourceType.NATIVE, SourceType.NMEA],
+            [SourceType.NATIVE, SourceType.NMEA, SourceType.EXIFTOOL_RUNTIME],
+        ],
+    )
+    def test_source_that_skips_videos_does_not_drop_them(self, monkeypatch, sources):
+        """NMEA cannot geotag videos: the video must keep its error, not vanish."""
+        results, _ = _run_chain(
+            monkeypatch,
+            sources,
+            {SourceType.NATIVE: NOISE, SourceType.EXIFTOOL_RUNTIME: None},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is NOISE
+
+    def test_not_found_is_not_dropped_by_image_only_source(self, monkeypatch):
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.EXIF],
+            {SourceType.NATIVE: NOT_FOUND},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is NOT_FOUND
+
+    def test_missing_gpx_does_not_hide_why_gps_was_rejected(self, monkeypatch):
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.GPX],
+            {SourceType.NATIVE: NOISE, SourceType.GPX: GPX_NOT_FOUND},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is NOISE
+
+    def test_gpx_that_fails_replaces_the_rejection(self, monkeypatch):
+        """Only a fallback that finds nothing is outranked by the rejection."""
+        mismatch = exceptions.MapillaryGeoTaggingError("GPX does not match")
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.GPX],
+            {SourceType.NATIVE: NOISE, SourceType.GPX: mismatch},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is mismatch
+
+    def test_not_found_still_falls_through_to_exiftool(self, monkeypatch):
+        """Finding nothing is a verdict on the reader, so retrying is fair."""
+        results, called = _run_chain(
+            monkeypatch,
+            DEFAULT_CHAIN,
+            {SourceType.NATIVE: NOT_FOUND, SourceType.EXIFTOOL_RUNTIME: None},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.VideoMetadata)
+        assert called == DEFAULT_CHAIN
+
+    def test_last_error_is_reported(self, monkeypatch):
+        exiftool_missing = exceptions.MapillaryExiftoolNotFoundError("no exiftool")
+        results, _ = _run_chain(
+            monkeypatch,
+            DEFAULT_CHAIN,
+            {
+                SourceType.NATIVE: NOT_FOUND,
+                SourceType.EXIFTOOL_RUNTIME: exiftool_missing,
+            },
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is exiftool_missing
+
+    def test_unrelated_errors_are_final(self, monkeypatch):
+        stationary = exceptions.MapillaryStationaryVideoError("Stationary")
+        results, called = _run_chain(
+            monkeypatch,
+            [SourceType.NATIVE, SourceType.GPX],
+            {SourceType.NATIVE: stationary, SourceType.GPX: None},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is stationary
+        assert called == [SourceType.NATIVE]

@@ -27,6 +27,11 @@ from .options import InterpolationOption, SOURCE_TYPE_ALIAS, SourceOption, Sourc
 
 LOG = logging.getLogger(__name__)
 
+# Sources that read a GPS track from outside the video file, as opposed to
+# re-reading the telemetry embedded in it. (NMEA cannot geotag videos yet: it
+# skips them, and they keep the error they had)
+EXTERNAL_GPS_SOURCES = frozenset({SourceType.GPX, SourceType.NMEA})
+
 
 def parse_source_option(source: str) -> list[SourceOption]:
     """
@@ -71,18 +76,34 @@ def process(
     # Paths (image path or video path) that will be sent to the next geotag process
     reprocessable_paths = set(paths)
 
-    for idx, option in enumerate(options):
+    # The latest error of each path left for the next geotag process, reported
+    # if no later process geotags the path (or none of them handles it)
+    pending_errors: dict[Path, types.ErrorMetadata] = {}
+
+    # Videos whose own GPS was found but rejected as empty or noisy. That is a
+    # verdict on the data, not on the reader that reported it, so only a source
+    # outside the video may geotag them now. Another reader of the same
+    # telemetry (e.g. exiftool after native) can only repeat the verdict, or
+    # overturn it by reading the same bad data differently
+    rejected_gps_paths: set[Path] = set()
+
+    for option in options:
+        if option.source in EXTERNAL_GPS_SOURCES:
+            option_paths = reprocessable_paths
+        else:
+            option_paths = reprocessable_paths - rejected_gps_paths
+
         if LOG.isEnabledFor(logging.DEBUG):
             LOG.info(
-                f"==> Processing {len(reprocessable_paths)} files with source {option}..."
+                f"==> Processing {len(option_paths)} files with source {option}..."
             )
         else:
             LOG.info(
-                f"==> Processing {len(reprocessable_paths)} files with source {option.source.value}..."
+                f"==> Processing {len(option_paths)} files with source {option.source.value}..."
             )
 
         image_videos, video_paths = _filter_images_and_videos(
-            reprocessable_paths, option.filetypes
+            option_paths, option.filetypes
         )
 
         if image_videos:
@@ -101,19 +122,36 @@ def process(
         else:
             video_metadata_or_errors = []
 
-        more_option = idx < len(options) - 1
-
         for metadata in image_metadata_or_errors + video_metadata_or_errors:
-            if more_option and _is_reprocessable(metadata):
+            if isinstance(metadata, types.ErrorMetadata) and _is_reprocessable(
+                metadata
+            ):
                 # Leave what it is for the next geotag process
-                pass
+                if isinstance(
+                    metadata.error,
+                    (
+                        exceptions.MapillaryGPXEmptyError,
+                        exceptions.MapillaryGPSNoiseError,
+                    ),
+                ):
+                    rejected_gps_paths.add(metadata.filename)
+                elif metadata.filename in rejected_gps_paths and isinstance(
+                    metadata.error, exceptions.MapillaryVideoGPSUnusableError
+                ):
+                    # Why the video's own GPS was rejected says more than the
+                    # fallback finding nothing (e.g. "GPX file not found")
+                    continue
+                pending_errors[metadata.filename] = metadata
             else:
                 final_metadatas.append(metadata)
                 reprocessable_paths.remove(metadata.filename)
+                pending_errors.pop(metadata.filename, None)
 
         # Quit if no more paths to process
         if not reprocessable_paths:
             break
+
+    final_metadatas.extend(pending_errors.values())
 
     return final_metadatas
 
@@ -124,7 +162,7 @@ def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
             metadata.error,
             (
                 exceptions.MapillaryGeoTaggingError,
-                exceptions.MapillaryVideoGPSNotFoundError,
+                exceptions.MapillaryVideoGPSUnusableError,
                 exceptions.MapillaryExiftoolNotFoundError,
                 exceptions.MapillaryExifToolXMLNotFoundError,
             ),
