@@ -10,6 +10,7 @@ import abc
 import dataclasses
 import io
 import logging
+import statistics
 import typing as T
 from enum import Enum
 
@@ -131,19 +132,71 @@ def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo 
 
 
 # Makes whose CAMM type 6 samples record GPS time (seconds since 1980-01-06),
-# as the CAMM spec describes. Everything else -- Insta360, and the CAMM tracks
-# mapillary_tools writes itself -- records Unix time in the same field, so
-# converting unconditionally would push those ~10 years into the future.
-_GPS_EPOCH_MAKES = frozenset(["labpano"])
+# as the CAMM spec describes. Everything else -- Insta360, for one -- records
+# Unix time in the same field. Matched as a substring of the lowercased make,
+# because firmware reports the same vendor in more than one form.
+_GPS_EPOCH_MAKES = ("labpano",)
 
 # Seconds between the mp4 epoch (1904-01-01) and the Unix epoch.
 _MP4_EPOCH_UNIX_OFFSET = 2082844800
 
-# Tolerance for recognizing a gap as "off by exactly one GPS epoch". Checking
-# for that specific distance rather than for general implausibility matters:
-# some cameras write a meaningless mvhd creation_time (a GoPro HERO7 recorded
-# in 2022 reports 2016), so a generic bound would fire constantly.
-_GPS_EPOCH_GAP_TOLERANCE = 30 * 24 * 3600
+# How close the timestamps of a track have to be to the mvhd creation_time,
+# read either as Unix time or as GPS time, for the creation time to decide the
+# epoch. The two readings are ten years apart, so this can absorb local-time
+# creation times and long recordings without ever being ambiguous.
+_CREATION_TIME_TOLERANCE = 30 * 24 * 3600
+
+
+def _records_gps_time(
+    epoch_time: float, make: str, creation_time: float | None
+) -> bool:
+    """
+    Decide the epoch of raw CAMM type 6 timestamps, given one representative
+    of them.
+
+    The creation time of the video decides when it can: GPS time reads as one
+    GPS epoch before it, Unix time reads close to it. The CAMM tracks
+    mapillary_tools writes hold Unix time but copy the make and the creation
+    time of their source, so for a Labpano video it is the creation time that
+    tells our output from the camera original. The make decides only when the
+    creation time is missing or meaningless (a GoPro HERO7 recorded in 2022
+    reports 2016).
+
+    >>> creation_time = 1705574637  # 2024-01-18T10:43:57Z
+    >>> _records_gps_time(1389609661, "", creation_time)  # GPS time
+    True
+    >>> _records_gps_time(1705574443, "Labpano", creation_time)  # Unix time
+    False
+    >>> _records_gps_time(1389609661, "Labpano Technology Co.,Ltd", None)
+    True
+    >>> _records_gps_time(1705574443, "Insta360", None)
+    False
+    """
+    if creation_time:
+        gap = creation_time - epoch_time
+        if abs(gap - telemetry.GPS_EPOCH_UNIX_OFFSET) < _CREATION_TIME_TOLERANCE:
+            return True
+        if abs(gap) < _CREATION_TIME_TOLERANCE:
+            return False
+
+    normalized = make.strip().lower()
+    return any(m in normalized for m in _GPS_EPOCH_MAKES)
+
+
+def _extract_creation_time(moov: MovieBoxParser | None) -> float | None:
+    """Return the mvhd creation_time as Unix time, or None if unset."""
+    if moov is None:
+        return None
+
+    try:
+        creation_time = moov.extract_mvhd_boxdata().get("creation_time", 0)
+    except Exception:
+        return None
+
+    if not creation_time:
+        return None
+
+    return creation_time - _MP4_EPOCH_UNIX_OFFSET
 
 
 def _normalize_gps_epochs(
@@ -156,34 +209,19 @@ def _normalize_gps_epochs(
     This is the only place CAMM GPS timestamps change epoch. Everything
     downstream, including the serializer, treats them as Unix time.
     """
-    if not gps:
+    epoch_times = [p.epoch_time for p in gps if p.epoch_time > 0]
+    if not epoch_times:
         return
 
-    if make.strip().lower() in _GPS_EPOCH_MAKES:
-        for point in gps:
-            if point.epoch_time > 0:
-                point.epoch_time = telemetry.gps_epoch_to_unix(point.epoch_time)
-
-    first = next((p.epoch_time for p in gps if p.epoch_time > 0), None)
-    if first is None or moov is None:
+    # Decide by the median rather than by any one sample, so that a stray
+    # timestamp cannot flip the epoch of the whole track
+    median_epoch_time = statistics.median(epoch_times)
+    if not _records_gps_time(median_epoch_time, make, _extract_creation_time(moov)):
         return
 
-    try:
-        creation_time = moov.extract_mvhd_boxdata().get("creation_time", 0)
-    except Exception:
-        return
-
-    if not creation_time:
-        return
-
-    gap = abs(first - (creation_time - _MP4_EPOCH_UNIX_OFFSET))
-    if abs(gap - telemetry.GPS_EPOCH_UNIX_OFFSET) < _GPS_EPOCH_GAP_TOLERANCE:
-        LOG.warning(
-            "CAMM GPS timestamps are one GPS epoch away from the creation time "
-            "of the video. The camera (make %r) may record GPS time where Unix "
-            "time is expected, or the reverse; please report this video",
-            make,
-        )
+    for point in gps:
+        if point.epoch_time > 0:
+            point.epoch_time = telemetry.gps_epoch_to_unix(point.epoch_time)
 
 
 def extract_camera_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
@@ -305,9 +343,10 @@ class GPSSampleEntry(CAMMSampleEntry):
             {
                 "type": cls.serialized_camm_type.value,
                 "data": {
-                    # Written as Unix time, which is what every released
-                    # version of mapillary_tools has written and what readers
-                    # of our output expect. Do not convert here.
+                    # Written as Unix time, whatever the make. Readers tell it
+                    # from the GPS time some cameras record by the creation
+                    # time the file carries (see _records_gps_time). Do not
+                    # convert here.
                     "time_gps_epoch": data.epoch_time,
                     "gps_fix_type": data.gps_fix_type,
                     "latitude": data.lat,
