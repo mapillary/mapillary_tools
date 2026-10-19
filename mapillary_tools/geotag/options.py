@@ -51,6 +51,9 @@ class SourceOption:
 
     interpolation: InterpolationOption | None = None
 
+    # Set by sample_video only, and not in the JSON schema
+    video_sync: VideoSyncOption | None = None
+
     @classmethod
     def from_dict(cls, data: dict[str, T.Any]) -> SourceOption:
         validate_option(data)
@@ -141,6 +144,19 @@ class SourcePathOption:
 class InterpolationOption:
     offset_time: float = 0.0
     use_gpx_start_time: bool = False
+
+
+@dataclasses.dataclass
+class VideoSyncOption:
+    """
+    How to line up a GPX track with a video that is being sampled, so that its
+    frames are picked where the geotagging stage of video_process will place
+    them. process geotags videos without it, and places a GPX as it always has.
+    """
+
+    # Unix time of the first frame of the video (--video_start_time), to place
+    # a GPX by when the video has no GPS of its own to sync it with
+    start_time: float | None = None
 
 
 SourceOptionSchema = {

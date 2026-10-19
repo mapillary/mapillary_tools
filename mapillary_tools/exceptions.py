@@ -72,6 +72,13 @@ class MapillaryStationaryVideoError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryGPXVideoStartUnknownError(MapillaryDescriptionError):
+    """
+    Nothing says where along a GPX track a video without GPS starts, and the
+    track is too long to assume that it starts with the video.
+    """
+
+
 class MapillaryOutsideGPXTrackError(MapillaryDescriptionError):
     def __init__(
         self, message: str, image_time: str, gpx_start_time: str, gpx_end_time: str

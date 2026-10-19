@@ -29,11 +29,13 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
         self,
         source_path: options.SourcePathOption | None = None,
         num_processes: int | None = None,
+        video_sync: options.VideoSyncOption | None = None,
     ):
         super().__init__(num_processes=num_processes)
         if source_path is None:
             source_path = options.SourcePathOption(pattern="%g.gpx")
         self.source_path = source_path
+        self.video_sync = video_sync
 
     @override
     def _generate_video_extractors(
@@ -43,7 +45,11 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
         for video_path in video_paths:
             source_path = self.source_path.resolve(video_path)
             if source_path.is_file():
-                results.append(GPXVideoExtractor(video_path, source_path))
+                results.append(
+                    GPXVideoExtractor(
+                        video_path, source_path, video_sync=self.video_sync
+                    )
+                )
             else:
                 results.append(
                     types.describe_error_metadata(

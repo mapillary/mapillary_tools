@@ -14,10 +14,12 @@ import typing as T
 from contextlib import contextmanager
 from pathlib import Path
 
+import humanize
+
 from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
 from .geotag import factory
-from .geotag.options import SourceOption, SourceType
+from .geotag.options import SourceOption, SourceType, VideoSyncOption
 from .mp4 import mp4_sample_parser
 from .serializer.description import parse_capture_time
 
@@ -72,6 +74,7 @@ def _parse_geotag_options(
     geotag_source_path: Path | None,
     video_geotag_source: list[str] | None,
     video_import_path: Path,
+    video_sync: VideoSyncOption | None = None,
 ) -> list[SourceOption]:
     """
     Resolve which sources distance sampling may take its positions from.
@@ -81,7 +84,26 @@ def _parse_geotag_options(
     exiftool_runtime, which reads the same telemetry through a parser that
     cannot see every field the noise filter rejects on, so routing sampling
     through it would accept tracks the native parser refuses.
+
+    Every option carries video_sync, for a GPX source to place its track where
+    the geotagging stage will place the frames.
     """
+    options = _parse_video_sources(
+        geotag_source, geotag_source_path, video_geotag_source, video_import_path
+    )
+
+    for option in options:
+        option.video_sync = video_sync
+
+    return options
+
+
+def _parse_video_sources(
+    geotag_source: list[str] | None,
+    geotag_source_path: Path | None,
+    video_geotag_source: list[str] | None,
+    video_import_path: Path,
+) -> list[SourceOption]:
     if not geotag_source and not video_geotag_source:
         return [SourceOption(SourceType.NATIVE)]
 
@@ -133,10 +155,6 @@ def sample_video(
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
 
-    geotag_options = _parse_geotag_options(
-        geotag_source, geotag_source_path, video_geotag_source, video_import_path
-    )
-
     if not xor(0 <= video_sample_distance, 0 < video_sample_interval):
         raise exceptions.MapillaryBadParameterError(
             f"Expect either non-negative video_sample_distance or positive video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
@@ -148,6 +166,23 @@ def sample_video(
             video_start_time_dt = parse_capture_time(video_start_time)
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
+
+    # Only a start time the user gave. The one probed from the container is
+    # creation_time - duration, which is a whole video length early for cameras
+    # whose creation_time marks the start of the recording
+    video_sync = VideoSyncOption(
+        start_time=(
+            video_start_time_dt.timestamp() if video_start_time_dt is not None else None
+        ),
+    )
+
+    geotag_options = _parse_geotag_options(
+        geotag_source,
+        geotag_source_path,
+        video_geotag_source,
+        video_import_path,
+        video_sync,
+    )
 
     if rerun:
         for video_path in video_list:
@@ -351,6 +386,28 @@ def _sample_video_stream_by_distance(
     }
 
 
+def _describe_track_time_range(points: T.Sequence[geo.Point]) -> str:
+    """
+    >>> p = lambda t: geo.Point(time=t, lat=0, lon=0, alt=None, angle=None)
+    >>> _describe_track_time_range([p(-7200), p(-3600)])
+    'which ends an hour before the video starts'
+    >>> _describe_track_time_range([p(90), p(100)])
+    'which starts a minute after the video starts'
+    >>> _describe_track_time_range([p(0.01), p(0.02)])
+    'which covers 0.010 to 0.020 seconds of the video'
+    """
+    start = min(p.time for p in points)
+    end = max(p.time for p in points)
+
+    if end < 0:
+        return f"which ends {humanize.naturaldelta(-end)} before the video starts"
+
+    if 1 <= start:
+        return f"which starts {humanize.naturaldelta(start)} after the video starts"
+
+    return f"which covers {start:.3f} to {end:.3f} seconds of the video"
+
+
 def _sample_single_video_by_distance(
     video_path: Path,
     sample_dir: Path,
@@ -419,6 +476,14 @@ def _sample_single_video_by_distance(
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
         video_metadata.points, video_track_parser, sample_distance
     )
+    # A track that misses the video, such as a GPX placed by a wrong
+    # --video_start_time, selects no frames, and an empty sample directory would
+    # pass for success
+    if not sample_points_by_frame_idx:
+        raise _sampling_error(
+            f"Unable to sample {video_path} by distance: none of its frames falls within its GPS track, "
+            + _describe_track_time_range(video_metadata.points)
+        )
     sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:

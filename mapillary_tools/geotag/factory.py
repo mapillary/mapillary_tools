@@ -367,7 +367,9 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
 
     elif option.source is SourceType.GPX:
         return geotag_videos_from_gpx.GeotagVideosFromGPX(
-            source_path=option.source_path, num_processes=option.num_processes
+            source_path=option.source_path,
+            num_processes=option.num_processes,
+            video_sync=option.video_sync,
         )
 
     elif option.source is SourceType.NMEA:

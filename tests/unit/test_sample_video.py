@@ -22,7 +22,7 @@ from mapillary_tools import (
     geo,
     sample_video,
 )
-from mapillary_tools.geotag.options import SourceType
+from mapillary_tools.geotag.options import SourceType, VideoSyncOption
 from mapillary_tools.mp4 import mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
@@ -927,3 +927,113 @@ class TestSourcesThatCannotReadVideos:
         )
 
         assert [option.source for option in options] == [SourceType.NATIVE]
+
+
+class TestVideoStartTimeReachesTheGPX:
+    """
+    A GPX on a video without GPS was assumed to start with the video, and
+    --video_start_time was ignored, so every clip of a drive sampled the first
+    minutes of its GPX, and was stamped with their times.
+    """
+
+    def test_every_option_carries_it(self):
+        video_sync = VideoSyncOption(start_time=1_700_000_000.0)
+
+        for sources in [None, ["gpx"], ["exif"]]:
+            options = sample_video._parse_geotag_options(
+                sources, Path("/data/track.gpx"), None, Path("/data/v.mp4"), video_sync
+            )
+            assert all(option.video_sync is video_sync for option in options)
+
+    def test_sample_video_passes_it_on(self, tmpdir, setup_mock, monkeypatch):
+        seen: list = []
+
+        def fake_process(paths, options):
+            seen.extend(options)
+            return [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=1,
+                    filetype=FileType.VIDEO,
+                    points=_make_gps_points(4, time_step=1.0),
+                )
+            ]
+
+        monkeypatch.setattr(sample_video.factory, "process", fake_process)
+        # stop after the metadata is read; the rest needs real ffmpeg
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            sample_video.sample_video(
+                _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+                Path(tmpdir),
+                video_sample_distance=2,
+                rerun=True,
+                video_start_time="2025_03_14_07_00_30_000",
+                geotag_source=["gpx"],
+                geotag_source_path=Path("/data/track.gpx"),
+            )
+
+        expected = datetime.datetime(
+            2025, 3, 14, 7, 0, 30, tzinfo=datetime.timezone.utc
+        ).timestamp()
+        assert seen[0].video_sync is not None
+        assert seen[0].video_sync.start_time == expected
+
+    def test_without_it_the_start_time_is_left_unknown(self):
+        """
+        The start time probed from the container is creation_time - duration,
+        which is a whole video length early when creation_time marks the start.
+        """
+        options = sample_video._parse_geotag_options(
+            ["gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4"), None
+        )
+
+        assert options[0].video_sync is None
+
+
+class TestTrackThatMissesTheVideo:
+    def test_it_raises_instead_of_writing_an_empty_sample_directory(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """A GPX placed by a wrong --video_start_time selects no frames."""
+        points = _make_gps_points(4, time_step=1.0)
+        for point in points:
+            point.time -= 7200
+        monkeypatch.setattr(
+            sample_video.factory,
+            "process",
+            lambda paths, options: [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=1,
+                    filetype=FileType.VIDEO,
+                    points=points,
+                )
+            ],
+        )
+        monkeypatch.setattr(
+            ffmpeglib.Probe,
+            "probe_video_with_max_resolution",
+            lambda _self: {"index": 0},
+        )
+        monkeypatch.setattr(
+            mp4_sample_parser.MovieBoxParser, "parse_file", mock.MagicMock()
+        )
+        monkeypatch.setattr(
+            sample_video, "_sample_video_stream_by_distance", lambda *args: {}
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError) as excinfo:
+            sample_video.sample_video(
+                _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+                Path(tmpdir),
+                video_sample_distance=2,
+                rerun=True,
+            )
+
+        assert "none of its frames falls within its GPS track" in str(excinfo.value)
+        assert "before the video starts" in str(excinfo.value)
+        assert not Path(tmpdir).joinpath("hello.mp4").exists()
