@@ -15,10 +15,7 @@ from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, types, utils
 from .geotag.factory import parse_source_options, process
-from .geotag.options import (
-    InterpolationOption,
-    SourceType,
-)
+from .geotag.options import InterpolationOption, SourceType
 from .serializer.description import (
     DescriptionJSONSerializer,
     validate_and_fail_metadata,
