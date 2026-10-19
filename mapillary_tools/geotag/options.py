@@ -158,6 +158,14 @@ class VideoSyncOption:
     # a GPX by when the video has no GPS of its own to sync it with
     start_time: float | None = None
 
+    # --interpolation_offset_time: seconds the geotagging stage adds to the
+    # capture time of a frame to find its position along the GPX
+    offset_time: float = 0.0
+
+    # --interpolation_use_gpx_start_time: the geotagging stage puts the first
+    # frame at the start of the GPX
+    use_gpx_start_time: bool = False
+
 
 SourceOptionSchema = {
     "type": "object",

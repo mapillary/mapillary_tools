@@ -152,6 +152,8 @@ def sample_video(
     geotag_source: list[str] | None = None,
     geotag_source_path: Path | None = None,
     video_geotag_source: list[str] | None = None,
+    interpolation_offset_time: float = 0.0,
+    interpolation_use_gpx_start_time: bool = False,
 ) -> None:
     video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
 
@@ -174,6 +176,8 @@ def sample_video(
         start_time=(
             video_start_time_dt.timestamp() if video_start_time_dt is not None else None
         ),
+        offset_time=interpolation_offset_time,
+        use_gpx_start_time=interpolation_use_gpx_start_time,
     )
 
     geotag_options = _parse_geotag_options(

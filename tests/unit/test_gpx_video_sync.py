@@ -159,3 +159,74 @@ class TestVideoWithGPS:
         assert [p.time for p in with_start_time.points] == [
             p.time for p in synced.points
         ]
+
+
+class TestInterpolationOptions:
+    """
+    The geotagging stage of video_process applies --interpolation_offset_time
+    and --interpolation_use_gpx_start_time to the frames, so sampling applies
+    them too, or it picks frames by positions the frames do not end up at.
+    """
+
+    def test_the_offset_shifts_the_track_and_its_times(self, tmp_path):
+        """
+        The frame at video time t is at track time start + t + offset, and is
+        stamped start + t, which the geotagging stage adds the offset to.
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+        video_start = GPX_START + datetime.timedelta(seconds=30)
+
+        metadata = _extract(
+            NO_GPS_VIDEO,
+            gpx,
+            VideoSyncOption(start_time=video_start.timestamp(), offset_time=2),
+        )
+
+        # the point recorded at start + 2 is where the first frame is
+        assert metadata.points[32].time == pytest.approx(0)
+        assert metadata.points[32].get_unix_time() == pytest.approx(
+            video_start.timestamp()
+        )
+
+    def test_the_offset_applies_to_a_track_synced_by_the_video_gps(self, tmp_path):
+        gpx = _write_gpx(
+            tmp_path / "track.gpx",
+            seconds=30,
+            start=datetime.datetime(
+                2019, 11, 18, 15, 44, 40, tzinfo=datetime.timezone.utc
+            ),
+        )
+
+        synced = _extract(GPS_VIDEO, gpx, VideoSyncOption())
+        shifted = _extract(GPS_VIDEO, gpx, VideoSyncOption(offset_time=2))
+
+        assert [p.time for p in shifted.points] == pytest.approx(
+            [p.time - 2 for p in synced.points]
+        )
+
+    def test_use_gpx_start_time_starts_the_track_with_the_video(self, tmp_path):
+        """
+        Whatever the start time says, and however long the track: the user
+        has said that the two started together.
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+
+        metadata = _extract(
+            NO_GPS_VIDEO,
+            gpx,
+            VideoSyncOption(
+                start_time=(GPX_START + datetime.timedelta(seconds=30)).timestamp(),
+                use_gpx_start_time=True,
+            ),
+        )
+
+        assert metadata.points[0].time == 0
+
+    def test_process_applies_neither(self, tmp_path):
+        """process passes no VideoSyncOption, and ignores both for videos."""
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
+
+        metadata = _extract(NO_GPS_VIDEO, gpx, video_sync=None)
+
+        assert metadata.points[0].time == 0
+        assert metadata.points[0].get_unix_time() == GPX_START.timestamp()

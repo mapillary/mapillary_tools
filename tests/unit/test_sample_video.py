@@ -979,8 +979,45 @@ class TestVideoStartTimeReachesTheGPX:
         expected = datetime.datetime(
             2025, 3, 14, 7, 0, 30, tzinfo=datetime.timezone.utc
         ).timestamp()
-        assert seen[0].video_sync is not None
-        assert seen[0].video_sync.start_time == expected
+        assert seen[0].video_sync == VideoSyncOption(start_time=expected)
+
+    def test_sample_video_passes_the_interpolation_options_on(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """video_process registers them for its geotagging stage."""
+        seen: list = []
+
+        def fake_process(paths, options):
+            seen.extend(options)
+            return [
+                VideoMetadata(
+                    filename=paths[0],
+                    filesize=1,
+                    filetype=FileType.VIDEO,
+                    points=_make_gps_points(4, time_step=1.0),
+                )
+            ]
+
+        monkeypatch.setattr(sample_video.factory, "process", fake_process)
+        monkeypatch.setattr(
+            ffmpeglib.Probe, "probe_video_with_max_resolution", lambda _self: None
+        )
+
+        with pytest.raises(exceptions.MapillaryVideoError):
+            sample_video.sample_video(
+                _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+                Path(tmpdir),
+                video_sample_distance=2,
+                rerun=True,
+                geotag_source=["gpx"],
+                geotag_source_path=Path("/data/track.gpx"),
+                interpolation_offset_time=2.5,
+                interpolation_use_gpx_start_time=True,
+            )
+
+        assert seen[0].video_sync == VideoSyncOption(
+            offset_time=2.5, use_gpx_start_time=True
+        )
 
     def test_without_it_the_start_time_is_left_unknown(self):
         """

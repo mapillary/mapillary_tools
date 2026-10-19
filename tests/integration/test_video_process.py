@@ -222,6 +222,74 @@ def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
     assert "none of its frames falls within its GPS track" in ex.value.stderr
 
 
+def test_video_process_by_distance_applies_the_interpolation_offset(
+    setup_data: py.path.local,
+):
+    """
+    The geotagging stage adds --interpolation_offset_time to each frame's time.
+    Sampling ignored it, so it picked the last frames by positions within the
+    GPX that the offset then pushed past its end, and they were rejected.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    # the track ends at 07:01:33.624
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                *["--video_start_time", "2025_03_14_07_01_28_000"],
+                *["--interpolation_offset_time", "2"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_01_30_000" <= capture_times[0], capture_times
+    assert capture_times[-1] <= "2025_03_14_07_01_33_624", capture_times
+
+
+def test_video_process_by_distance_with_the_gpx_start_time(
+    setup_data: py.path.local,
+):
+    """
+    As the README describes for a GPX started 2.5 seconds before the video:
+    the frames start 2.5 seconds into the track, however long it is.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        video_path = _with_creation_time(
+            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
+        )
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                "--interpolation_use_gpx_start_time",
+                *["--interpolation_offset_time", "2.5"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert capture_times[0] == "2025_03_14_07_00_02_500", capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_09_000", capture_times
+
+
 def test_sample_video_without_video_time(setup_data: py.path.local):
     pytest_skip_if_not_ffmpeg_installed()
 

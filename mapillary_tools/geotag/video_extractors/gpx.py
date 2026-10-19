@@ -21,7 +21,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, geo, types, utils
+from ... import exceptions, geo, telemetry, types, utils
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from .. import options
 from ..utils import parse_gpx
@@ -63,6 +63,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
         self.video_sync = video_sync
+        if video_sync is not None and video_sync.use_gpx_start_time:
+            self.sync_mode = SyncMode.REBASE
 
     @override
     def extract(self) -> types.VideoMetadata:
@@ -83,6 +85,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             if self.sync_mode is SyncMode.STRICT_SYNC:
                 raise ex
             self._place_without_video_gps(gpx_points)
+            self._apply_offset_time(gpx_points)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -105,6 +108,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 )
             self._rebase_times(gpx_points, offset=offset)
 
+        self._apply_offset_time(gpx_points)
+
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
     def _place_without_video_gps(self, gpx_points: T.Sequence[geo.Point]) -> None:
@@ -125,6 +130,26 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._check_assumed_start(gpx_points)
 
         self._rebase_times(gpx_points)
+
+    def _apply_offset_time(self, gpx_points: T.Sequence[geo.Point]) -> None:
+        """
+        Shift the track back by --interpolation_offset_time, which the
+        geotagging stage adds to the capture time of a frame to find its
+        position along the GPX.
+
+        The absolute times shift with the track, so that a frame is stamped
+        with its capture time, and the geotagging stage, adding the offset back,
+        finds the position the frame was picked by.
+        """
+        if self.video_sync is None or not self.video_sync.offset_time:
+            return
+
+        offset_time = self.video_sync.offset_time
+        for p in gpx_points:
+            p.time -= offset_time
+            # parse_gpx() returns CAMMGPSPoint, with epoch_time 0 for no time
+            if isinstance(p, telemetry.CAMMGPSPoint) and 0 < p.epoch_time:
+                p.epoch_time -= offset_time
 
     def _check_assumed_start(self, gpx_points: T.Sequence[geo.Point]) -> None:
         """
@@ -151,7 +176,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             raise exceptions.MapillaryGPXVideoStartUnknownError(
                 f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
                 f"and the video only {_format_duration(video_duration)}, so the video "
-                "could start anywhere along the track. Specify --video_start_time"
+                "could start anywhere along the track. Specify --video_start_time, or "
+                "--interpolation_use_gpx_start_time if the track was started with the video"
             )
 
         if _ASSUMED_START_TOLERANCE_SECONDS < excess:
@@ -159,7 +185,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 "Assuming that the GPX track in %s starts with the video %s, although "
                 "the track lasts %s longer. If it was started first, the frames are "
                 "placed up to that much too early along it. Specify --video_start_time "
-                "to place them exactly",
+                "to place them exactly, or --interpolation_use_gpx_start_time if the "
+                "track was started with the video",
                 self.gpx_path,
                 self.video_path,
                 _format_duration(excess),
