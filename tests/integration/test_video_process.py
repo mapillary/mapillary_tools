@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import functools
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -26,6 +27,11 @@ run_video_process_for_descs = functools.partial(
 )
 
 run_sample_video = functools.partial(run_command, command="sample_video")
+
+# Not run_process_for_descs() for a run expected to fail: on Windows it would
+# remove its description file while still holding it open, and the
+# PermissionError would replace the CalledProcessError
+run_video_process = functools.partial(run_command, command="video_process")
 
 
 def test_sample_video_relpath():
@@ -119,7 +125,8 @@ def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> P
     copy = Path(dir, video.basename)
     subprocess.run(
         [
-            "ffmpeg",
+            # as pytest_skip_if_not_ffmpeg_installed() finds it
+            os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg"),
             *["-loglevel", "error", "-y", "-i", str(video)],
             *["-c", "copy", "-metadata", f"creation_time={creation_time}"],
             str(copy),
@@ -177,7 +184,7 @@ def test_video_process_by_distance_refuses_to_guess_where_the_video_starts(
             setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
         )
         with pytest.raises(subprocess.CalledProcessError) as ex:
-            run_video_process_for_descs(
+            run_video_process(
                 [
                     "--video_sample_distance=3",
                     "--geotag_source=gpx",
@@ -204,7 +211,7 @@ def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
 
     with tempfile.TemporaryDirectory() as dir:
         with pytest.raises(subprocess.CalledProcessError) as ex:
-            run_video_process_for_descs(
+            run_video_process(
                 [
                     "--video_sample_distance=3",
                     *["--video_start_time", "2025_03_14_09_00_00_000"],
