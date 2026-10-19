@@ -90,11 +90,25 @@ def _parse_geotag_options(
     if geotag_source_path is None:
         geotag_source_path = video_import_path
 
-    return factory.parse_source_options(
+    options = factory.parse_source_options(
         geotag_source=geotag_source or [],
         video_geotag_source=video_geotag_source or [],
         geotag_source_path=geotag_source_path,
     )
+
+    # exif, nmea and the legacy gopro/blackvue/camm sources have nothing to read
+    # a video with; in video_process they are there to geotag the frames. Sample
+    # by the sources that can read videos, or by the video's own GPS, as before,
+    # if none of them can
+    video_options = [option for option in options if factory.can_geotag_videos(option)]
+    if not video_options:
+        LOG.info(
+            "None of the geotag sources %s can read GPS from videos. Sampling by the GPS in the videos",
+            ",".join(option.source.value for option in options),
+        )
+        return [SourceOption(SourceType.NATIVE)]
+
+    return video_options
 
 
 def sample_video(
@@ -362,6 +376,8 @@ def _sample_single_video_by_distance(
     # documented answer for a camera whose embedded GPS is unusable, and
     # distance sampling needs positions just as much as geotagging does.
     video_metadatas = factory.process([video_path], geotag_options)
+    # Every option can read videos (see _parse_geotag_options()), so process()
+    # returns metadata for the video even if all of them fail
     assert len(video_metadatas) == 1, "expect 1 video metadata"
     video_metadata = video_metadatas[0]
 

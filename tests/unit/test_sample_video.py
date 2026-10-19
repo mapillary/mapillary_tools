@@ -890,3 +890,36 @@ class TestGeotagSourceReachesDistanceSampling:
 
         assert len(seen) == 1
         assert [option.source for option in seen[0]] == [SourceType.GPX]
+
+
+class TestSourcesThatCannotReadVideos:
+    """
+    exif, nmea and the legacy gopro/blackvue/camm sources have no video
+    extractor, so process() returned no metadata for the video and the sampler
+    failed an assert, for a video it used to sample by its own GPS.
+    """
+
+    @pytest.mark.parametrize("source", ["exif", "nmea", "gopro", "blackvue", "camm"])
+    def test_sampling_falls_back_to_the_video_gps(self, source):
+        options = sample_video._parse_geotag_options(
+            [source], Path("/data/track"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.NATIVE]
+
+    def test_they_are_dropped_from_a_chain(self):
+        options = sample_video._parse_geotag_options(
+            ["exif", "gpx"], Path("/data/track.gpx"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.GPX]
+
+    def test_a_source_limited_to_images_is_dropped(self):
+        options = sample_video._parse_geotag_options(
+            ['{"source": "gpx", "filetypes": ["image"]}'],
+            Path("/data/track.gpx"),
+            None,
+            Path("/data/v.mp4"),
+        )
+
+        assert [option.source for option in options] == [SourceType.NATIVE]

@@ -88,6 +88,32 @@ def test_sample_video_by_distance_without_usable_gps(setup_data: py.path.local):
         )
 
 
+def test_video_process_by_distance_with_an_image_only_geotag_source(
+    setup_data: py.path.local,
+):
+    """
+    exif has nothing to read a video with; it geotags the frames. The video is
+    sampled by its own GPS, as it was before --geotag_source reached sampling,
+    instead of failing an assert.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=6",
+                "--geotag_source=exif",
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
 def test_sample_video_without_video_time(setup_data: py.path.local):
     pytest_skip_if_not_ffmpeg_installed()
 

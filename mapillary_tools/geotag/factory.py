@@ -33,6 +33,8 @@ from .options import (
 
 LOG = logging.getLogger(__name__)
 
+_ALL_VIDEO_TYPES = {types.FileType.VIDEO, *types.NATIVE_VIDEO_FILETYPES}
+
 
 def parse_source_option(source: str) -> list[SourceOption]:
     """
@@ -107,6 +109,28 @@ def parse_source_options(
                     )
 
     return parsed_options
+
+
+def can_geotag_videos(option: SourceOption) -> bool:
+    """
+    Whether process() can read positions for videos from the source: it has a
+    video extractor, and its filetypes let videos through. process() returns no
+    metadata at all for a video that no source can read.
+
+    Examples:
+        >>> can_geotag_videos(SourceOption(SourceType.GPX))
+        True
+        >>> can_geotag_videos(SourceOption(SourceType.EXIF))
+        False
+        >>> can_geotag_videos(
+        ...     SourceOption(SourceType.NATIVE, filetypes={types.FileType.IMAGE})
+        ... )
+        False
+    """
+    if option.filetypes is not None and not option.filetypes & _ALL_VIDEO_TYPES:
+        return False
+
+    return _build_video_geotag(option) is not None
 
 
 def process(
@@ -192,14 +216,12 @@ def _filter_images_and_videos(
     image_paths = []
     video_paths = []
 
-    ALL_VIDEO_TYPES = {types.FileType.VIDEO, *types.NATIVE_VIDEO_FILETYPES}
-
     if filetypes is None:
         include_images = True
         include_videos = True
     else:
         include_images = types.FileType.IMAGE in filetypes
-        include_videos = bool(filetypes & ALL_VIDEO_TYPES)
+        include_videos = bool(filetypes & _ALL_VIDEO_TYPES)
 
     for path in paths:
         if utils.is_image_file(path):
