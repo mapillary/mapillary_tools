@@ -129,50 +129,48 @@ class TestPointAccessors:
         )
 
 
-class TestGPXOffset:
+class TestGPXSync:
     """A GPX recorded alongside the video must sync to ~0, not to ~10 years."""
 
     def test_camm_video_syncs_to_zero(self):
-        gpx_points = [_camm_point(time=A_UNIX_TIME, epoch_time=A_UNIX_TIME)]
         video_points = [_camm_point(time=0.0, epoch_time=A_UNIX_TIME)]
-        assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 0.0
+        clock = GPXVideoExtractor._read_video_clock(video_points)
+        assert clock is not None
+        assert clock.to_video_time(A_UNIX_TIME) == 0.0
 
     def test_gopro_video_syncs_to_zero(self):
-        gpx_points = [_camm_point(time=A_UNIX_TIME, epoch_time=A_UNIX_TIME)]
         video_points = [_gps_point(time=0.0, epoch_time=A_UNIX_TIME)]
-        assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 0.0
+        clock = GPXVideoExtractor._read_video_clock(video_points)
+        assert clock is not None
+        assert clock.to_video_time(A_UNIX_TIME) == 0.0
 
     def test_real_offset_is_preserved(self):
-        gpx_points = [_camm_point(time=A_UNIX_TIME + 30, epoch_time=A_UNIX_TIME + 30)]
         video_points = [_camm_point(time=0.0, epoch_time=A_UNIX_TIME)]
-        assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 30.0
+        clock = GPXVideoExtractor._read_video_clock(video_points)
+        assert clock is not None
+        assert clock.to_video_time(A_UNIX_TIME + 30) == 30.0
 
-    def test_missing_video_timestamp_yields_no_offset(self):
-        gpx_points = [_camm_point(time=A_UNIX_TIME, epoch_time=A_UNIX_TIME)]
+    def test_missing_video_timestamp_yields_no_clock(self):
         video_points = [_camm_point(time=0.0, epoch_time=0.0)]
-        assert GPXVideoExtractor._gpx_offset(gpx_points, video_points) == 0.0
+        assert GPXVideoExtractor._read_video_clock(video_points) is None
 
     @pytest.mark.parametrize("video_point", [_camm_point, _gps_point])
     def test_video_gps_starting_late_syncs_to_video_time(self, video_point):
         """
-        The offset is to video time 0, not to the first video GPS point, or
-        the GPX track would land early by that point's time.
+        The clock is anchored at the video time of the first video GPS point,
+        not at video time 0, or the GPX track would land early by that time.
         """
-        gpx_points = [
-            _camm_point(time=A_UNIX_TIME + t, epoch_time=A_UNIX_TIME + t)
-            for t in range(21)
-        ]
         # The video's GPS starts 5s into the video
         video_points = [
             video_point(time=5.0 + t, epoch_time=A_UNIX_TIME + 5 + t) for t in range(10)
         ]
 
-        offset = GPXVideoExtractor._gpx_offset(gpx_points, video_points)
-        GPXVideoExtractor._rebase_times(gpx_points, offset=offset)
+        clock = GPXVideoExtractor._read_video_clock(video_points)
 
         # Recorded at the same instant as the first video GPS point, so it
         # lands at the same video time
-        assert gpx_points[5].time == 5.0
+        assert clock is not None
+        assert clock.to_video_time(A_UNIX_TIME + 5) == 5.0
 
 
 class TestEditListOverflow:

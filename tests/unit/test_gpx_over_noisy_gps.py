@@ -108,6 +108,10 @@ class TestNoiseGateStillApplies:
         with pytest.raises(exceptions.MapillaryGPSNoiseError):
             NativeVideoExtractor(video_path).extract()
 
+    def test_noise_filter_is_opt_out_only(self, video_path, noisy_gopro):
+        metadata = NativeVideoExtractor(video_path, filter_noisy_points=False).extract()
+        assert len(metadata.points) == 32
+
 
 class TestGPXOverridesNoisyGPS:
     def test_gpx_is_used_instead_of_failing(self, video_path, gpx_path, noisy_gopro):
@@ -117,6 +121,77 @@ class TestGPXOverridesNoisyGPS:
             (48.170, 11.590),
             (48.171, 11.591),
         ]
+
+    def test_camera_identity_survives(self, video_path, gpx_path, noisy_gopro):
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert metadata.filetype is types.FileType.GOPRO
+        assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
+
+    def test_noisy_points_still_provide_the_sync_clock(
+        self, video_path, gpx_path, noisy_gopro
+    ):
+        """
+        The GPX starts 2s after the video's first GPS sample, so it must land at
+        t=2.0 rather than being synced from the start of the video.
+        """
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
+
+    def test_good_fixes_are_preferred_as_the_clock(
+        self, monkeypatch, video_path, gpx_path
+    ):
+        """The unfiltered clock is only a fallback for GPS rejected as noise."""
+        # The points without a fix read 1s late, and start the video
+        points = [_point(time=i, epoch_time=A_UNIX_TIME + i + 1) for i in range(3)]
+        points += [
+            _point(time=i, epoch_time=A_UNIX_TIME + i, fix=GPSFix.FIX_3D, precision=150)
+            for i in range(3, 8)
+        ]
+        _stub_gopro(monkeypatch, points)
+
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
+
+    def test_noisy_clock_days_away_is_ignored(self, monkeypatch, video_path, gpx_path):
+        """
+        Until it acquires GPS time, a GoPro stamps a placeholder date, which a
+        GPS rejected as noise may never have got past. Syncing by it would put
+        the GPX years away from the video.
+        """
+        # 2015-10-22T09:53:44Z
+        placeholder = 1445507624.0
+        points = [
+            _point(time=i * 0.1, epoch_time=placeholder + i * 0.1) for i in range(32)
+        ]
+        _stub_gopro(monkeypatch, points)
+
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == [0.0, 2.0]
+        assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
+
+    def test_good_clock_days_away_is_still_used(
+        self, monkeypatch, video_path, gpx_path
+    ):
+        """Only a clock rejected with its noisy track is second-guessed."""
+        day = 24 * 3600.0
+        points = [
+            _point(
+                time=i,
+                epoch_time=A_UNIX_TIME - 2 * day + i,
+                fix=GPSFix.FIX_3D,
+                precision=150,
+            )
+            for i in range(10)
+        ]
+        _stub_gopro(monkeypatch, points)
+
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert metadata.points[0].time == pytest.approx(2 * day + 2.0)
 
 
 class TestEmptyGPSFallsBack:
