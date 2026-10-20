@@ -33,7 +33,7 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
+from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, simple_mp4_builder
 
 
@@ -321,12 +321,12 @@ class TestTimelapse:
     # 11 seconds of video spanning 165 seconds of GPS time
     RATE = 15.0
 
-    def _extract(self, tmp_path, gpx_start: float, gpx_seconds: float):
+    def _extract(self, tmp_path, gpx_start: float, gpx_seconds: float, **kwargs):
         video_path = _write_camm_mp4(
             tmp_path / "timelapse.mp4", _video_track(self.RATE), duration=11.0
         )
         gpx_path = _write_gpx(tmp_path / "track.gpx", gpx_start, gpx_seconds)
-        return GPXVideoExtractor(video_path, gpx_path).extract()
+        return GPXVideoExtractor(video_path, gpx_path, **kwargs).extract()
 
     def test_gpx_of_the_whole_recording_is_silent(self, tmp_path, caplog):
         """At 1x, the track would run on 154 seconds past the video's end."""
@@ -348,6 +348,19 @@ class TestTimelapse:
         with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
             self._extract(tmp_path, recording_end + 3600, 60)
         assert "by 1.0 hours." in str(info.value)
+
+    def test_gpx_start_time_keeps_the_rate(self, tmp_path, caplog):
+        """
+        --interpolation_use_gpx_start_time starts the track with the video,
+        whatever the clock says, and the clock still sets its pace
+        """
+        with caplog.at_level(logging.WARNING):
+            metadata = self._extract(
+                tmp_path, A_UNIX_TIME + 3600, 11 * self.RATE, sync_mode=SyncMode.REBASE
+            )
+        assert not _warnings(caplog)
+        assert metadata.points[0].time == 0
+        assert metadata.points[-1].time == pytest.approx(11.0, abs=1e-3)
 
 
 class TestVideoWithoutGPSClock:

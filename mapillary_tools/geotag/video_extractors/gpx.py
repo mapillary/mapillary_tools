@@ -157,11 +157,16 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 points=gpx_points,
             )
 
-        clock: VideoClock | None = None
-        if self.sync_mode is not SyncMode.REBASE:
-            clock = self._read_video_clock(native_video_metadata.points)
+        clock = self._read_video_clock(native_video_metadata.points)
 
-        if clock is not None and gpx_points:
+        if clock is not None and gpx_points and self.sync_mode is SyncMode.REBASE:
+            # The GPX is placed to start with the video, and runs on at the rate
+            # of the video's GPS clock, which in a timelapse packs several GPS
+            # seconds into each second of video
+            clock = VideoClock(
+                video_time=0.0, unix_time=gpx_points[0].time, rate=clock.rate
+            )
+        elif clock is not None and gpx_points:
             offset = gpx_points[0].time - clock.to_unix_time(0)
             if abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS:
                 if noisy and self.sync_mode is SyncMode.SYNC:
@@ -193,8 +198,13 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 p.time = clock.to_video_time(p.time)
 
         self._apply_offset_time(gpx_points, rate=1.0 if clock is None else clock.rate)
+        # Started with the video, the track is checked against it as one that
+        # no clock placed: the clock gave it only its pace
         self._check_coverage(
-            gpx_points, gpx_unix_times, native_video_metadata.points, clock
+            gpx_points,
+            gpx_unix_times,
+            native_video_metadata.points,
+            None if self.sync_mode is SyncMode.REBASE else clock,
         )
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
