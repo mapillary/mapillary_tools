@@ -207,7 +207,10 @@ def test_video_process_by_distance_refuses_to_guess_where_the_video_starts(
 def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
     setup_data: py.path.local,
 ):
-    """No frame falls within the track: the command fails, instead of passing with no frames."""
+    """
+    The track ends two hours before the video starts: the command fails, saying
+    so, instead of passing with no frames.
+    """
     pytest_skip_if_not_ffmpeg_installed()
 
     video_path = setup_data.join("videos").join("sample-5s.mp4")
@@ -231,7 +234,8 @@ def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
         assert not list(Path(dir, "samples").rglob("*.jpg"))
 
     assert 7 == ex.value.returncode, ex.value.stderr
-    assert "none of its frames falls within its GPS track" in ex.value.stderr
+    assert "MapillaryOutsideGPXTrackError" in ex.value.stderr
+    assert "misses the video" in ex.value.stderr
 
 
 def test_video_process_by_distance_applies_the_interpolation_offset(

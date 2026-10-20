@@ -30,8 +30,12 @@ _DATA = Path(__file__).resolve().parent.parent.joinpath("data")
 
 # No GPS of its own, and 5.76 seconds long
 NO_GPS_VIDEO = _DATA.joinpath("videos", "sample-5s.mp4")
-# GPS of its own, recorded from 2019-11-18T15:44:47Z
+# GPS of its own, recorded from 2019-11-18T23:44:42.59Z to 23:44:54.64Z
 GPS_VIDEO = _DATA.joinpath("gopro_data", "max-360mode.mp4")
+# Shortly before the GPS track of GPS_VIDEO starts
+_GPS_VIDEO_START = datetime.datetime(
+    2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc
+)
 
 GPX_START = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -147,9 +151,7 @@ class TestVideoWithGPS:
         gpx = _write_gpx(
             tmp_path / "track.gpx",
             seconds=30,
-            start=datetime.datetime(
-                2019, 11, 18, 15, 44, 40, tzinfo=datetime.timezone.utc
-            ),
+            start=_GPS_VIDEO_START,
         )
         far_off = GPX_START.timestamp()
 
@@ -192,9 +194,7 @@ class TestInterpolationOptions:
         gpx = _write_gpx(
             tmp_path / "track.gpx",
             seconds=30,
-            start=datetime.datetime(
-                2019, 11, 18, 15, 44, 40, tzinfo=datetime.timezone.utc
-            ),
+            start=_GPS_VIDEO_START,
         )
 
         synced = _extract(GPS_VIDEO, gpx, VideoSyncOption())
