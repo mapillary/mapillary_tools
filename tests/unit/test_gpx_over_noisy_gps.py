@@ -24,16 +24,24 @@ import pytest
 
 from mapillary_tools import exceptions, types
 from mapillary_tools.geotag import factory
-from mapillary_tools.geotag.options import SourceOption, SourceType
+from mapillary_tools.geotag.options import SourceOption, SourceType, VideoSyncOption
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 from mapillary_tools.gpmf import gpmf_gps_filter, gpmf_parser
+from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.process_geotag_properties import DEFAULT_GEOTAG_SOURCE_OPTIONS
 from mapillary_tools.telemetry import GPSFix, GPSPoint
 
 
 # 2026-09-11T15:39:41Z
 A_UNIX_TIME = 1789141181.0
+
+# 2015-10-22T09:53:44Z, a placeholder date GoPro stamps until it acquires GPS
+# time
+PLACEHOLDER_UNIX_TIME = 1445507624.0
+
+# Seconds between the mp4 epoch (1904-01-01) and the Unix epoch
+MP4_UNIX_DELTA = 2082844800
 
 
 def _gpx_xml(*times: str) -> str:
@@ -83,6 +91,31 @@ def gpx_path(tmp_path: Path) -> Path:
     path = tmp_path / "GS018205.360.gpx"
     path.write_text(_gpx_xml("2026-09-11T15:39:43Z", "2026-09-11T15:39:45Z"))
     return path
+
+
+def _write_mvhd(video_path: Path, creation_time: float, duration: float = 3.2):
+    """
+    Make the video an mp4 with only an mvhd box, which is all of it that is
+    read when the GPMF parser is stubbed out.
+    """
+    mp4_time = int(creation_time) + MP4_UNIX_DELTA
+    mvhd: cparser.BoxDict = {
+        "type": b"mvhd",
+        "data": {
+            "creation_time": mp4_time,
+            "modification_time": mp4_time,
+            "timescale": 1000,
+            "duration": int(duration * 1000),
+        },
+    }
+    video_path.write_bytes(
+        cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(
+            [
+                {"type": b"ftyp", "data": b"test"},
+                {"type": b"moov", "data": [mvhd]},
+            ]
+        )
+    )
 
 
 def _stub_gopro(monkeypatch: pytest.MonkeyPatch, points: list[GPSPoint]):
@@ -161,10 +194,9 @@ class TestGPXOverridesNoisyGPS:
         GPS rejected as noise may never have got past. Syncing by it would put
         the GPX years away from the video.
         """
-        # 2015-10-22T09:53:44Z
-        placeholder = 1445507624.0
         points = [
-            _point(time=i * 0.1, epoch_time=placeholder + i * 0.1) for i in range(32)
+            _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
+            for i in range(32)
         ]
         _stub_gopro(monkeypatch, points)
 
@@ -172,6 +204,53 @@ class TestGPXOverridesNoisyGPS:
 
         assert [p.time for p in metadata.points] == [0.0, 2.0]
         assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
+
+    def test_noisy_clock_far_from_creation_time_is_ignored(
+        self, monkeypatch, video_path, gpx_path
+    ):
+        """A noisy clock days away from the creation time is ignored too."""
+        _write_mvhd(video_path, creation_time=A_UNIX_TIME)
+        points = [
+            _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
+            for i in range(32)
+        ]
+        _stub_gopro(monkeypatch, points)
+
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == [0.0, 2.0]
+
+    @pytest.mark.parametrize("video_sync", [None, VideoSyncOption()])
+    def test_noisy_clock_at_creation_time_rejects_a_gpx_days_away(
+        self, video_path, tmp_path, noisy_gopro, video_sync
+    ):
+        """
+        A noisy clock that agrees with the creation time of the video is real,
+        so a GPX days away from it misses the video, as for good GPS.
+        """
+        # In local time, 8 hours behind UTC, as GoPro writes it
+        _write_mvhd(video_path, creation_time=A_UNIX_TIME - 8 * 3600)
+        gpx_path = tmp_path / "another_day.gpx"
+        gpx_path.write_text(_gpx_xml("2026-09-09T15:39:43Z", "2026-09-09T15:39:45Z"))
+
+        extractor = GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync)
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
+            extractor.extract()
+
+    def test_noisy_clock_syncs_despite_a_meaningless_creation_time(
+        self, video_path, gpx_path, noisy_gopro
+    ):
+        """
+        A GoPro HERO10 recorded in 2022 reports 2016-01-01 as its creation
+        time, so a noisy clock that disagrees with it but agrees with the GPX is
+        still real.
+        """
+        # 2016-01-01T01:44:00Z
+        _write_mvhd(video_path, creation_time=1451612640)
+
+        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
 
     def test_good_clock_days_away_rejects_the_gpx(
         self, monkeypatch, video_path, gpx_path
