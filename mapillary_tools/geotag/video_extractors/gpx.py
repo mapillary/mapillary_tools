@@ -138,6 +138,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         video_unix_time = video_gps_points[0].get_unix_time()
 
         if video_unix_time is not None:
-            offset = gpx_points[0].time - video_unix_time
+            # Sync to video time 0, not to the first video GPS point, which can
+            # come later (GoPro drops noisy fixes at the start of a recording)
+            offset = gpx_points[0].time - (video_unix_time - video_gps_points[0].time)
 
         return offset
