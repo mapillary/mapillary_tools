@@ -25,30 +25,14 @@ from .serializer.description import parse_capture_time
 
 LOG = logging.getLogger(__name__)
 
-# Sampling errors are suppressed by --skip_sample_errors, not by
-# --skip_process_errors, which governs the later geotagging stage. Say so in
-# the message: the two flags are easy to reach for the wrong one.
-_SKIP_HINT = "To skip these errors, specify --skip_sample_errors"
-
-
-def _sampling_error(message: str) -> exceptions.MapillaryVideoError:
-    """
-    Build an error for a failed sample, naming the flag that skips it.
-
-    Everything raised out of the per-video body of sample_video() is
-    suppressible by --skip_sample_errors, so every one of those messages should
-    say so. Going through here rather than appending the hint at each raise
-    keeps that true of raises added later.
-    """
-    return exceptions.MapillaryVideoError(f"{message}. {_SKIP_HINT}")
-
 
 def _normalize_path(
     video_import_path: Path, skip_subfolders: bool
 ) -> tuple[Path, list[Path]]:
     if video_import_path.is_dir():
-        video_list = utils.find_videos(
-            [video_import_path], skip_subfolders=skip_subfolders
+        # Sorted so that videos are sampled and reported in a stable order
+        video_list = sorted(
+            utils.find_videos([video_import_path], skip_subfolders=skip_subfolders)
         )
         video_dir = video_import_path.resolve()
         LOG.debug("Found %d videos in %s", len(video_list), video_dir)
@@ -205,6 +189,15 @@ def sample_video(
             elif sample_dir.is_file():
                 os.remove(sample_dir)
 
+    if video_list:
+        # Created even if no video samples, so that the process command that
+        # follows in video_process finds an empty import path rather than none
+        os.makedirs(import_path, exist_ok=True)
+
+    num_sampled = 0
+    num_already_sampled = 0
+    failures: list[tuple[Path, Exception]] = []
+
     for video_path in video_list:
         # need to resolve video_path because video_dir might be absolute
         sample_dir = Path(import_path).joinpath(
@@ -216,6 +209,7 @@ def sample_video(
                 video_path.name,
                 sample_dir,
             )
+            num_already_sampled += 1
             continue
 
         try:
@@ -243,15 +237,56 @@ def sample_video(
             raise exceptions.MapillaryFFmpegNotFoundError(str(ex)) from ex
 
         except Exception as ex:
-            if skip_sample_errors:
-                LOG.warning(
-                    "Skipping the error sampling %s: %s",
-                    video_path,
-                    str(ex),
-                    exc_info=LOG.isEnabledFor(logging.DEBUG),
-                )
-            else:
-                raise
+            # Carry on with the other videos, as the process command does with
+            # the other files, and fail after the summary. Log the reason now,
+            # because unlike process, sampling writes no description file
+            (LOG.warning if skip_sample_errors else LOG.error)(
+                "Failed to sample %s: %s",
+                video_path,
+                str(ex),
+                exc_info=LOG.isEnabledFor(logging.DEBUG),
+            )
+            failures.append((video_path, ex))
+
+        else:
+            num_sampled += 1
+
+    _show_stats(
+        len(video_list),
+        num_sampled=num_sampled,
+        num_already_sampled=num_already_sampled,
+        failures=failures,
+        skip_sample_errors=skip_sample_errors,
+    )
+
+
+def _show_stats(
+    num_videos: int,
+    num_sampled: int,
+    num_already_sampled: int,
+    failures: T.Sequence[tuple[Path, Exception]],
+    skip_sample_errors: bool,
+) -> None:
+    LOG.info("==> Sample summary")
+    LOG.info("%d videos found", num_videos)
+    if num_sampled:
+        LOG.info("\t%d sampled", num_sampled)
+    if num_already_sampled:
+        LOG.info("\t%d already sampled", num_already_sampled)
+
+    failures_by_type: dict[type[Exception], int] = {}
+    for _, ex in failures:
+        failures_by_type[type(ex)] = failures_by_type.get(type(ex), 0) + 1
+
+    for error_type, count in failures_by_type.items():
+        (LOG.warning if skip_sample_errors else LOG.error)(
+            "\t%d %s", count, error_type.__name__
+        )
+
+    if failures and not skip_sample_errors:
+        raise exceptions.MapillaryVideoSampleError(
+            f"Failed to sample {len(failures)} videos. To skip these errors, specify --skip_sample_errors"
+        )
 
 
 @contextmanager
@@ -307,7 +342,7 @@ def _sample_single_video_by_interval(
             ffmpeg.probe_format_and_streams(video_path)
         ).probe_video_start_time()
         if start_time is None:
-            raise _sampling_error(
+            raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
             )
 
@@ -429,7 +464,7 @@ def _sample_single_video_by_distance(
     if start_time is None:
         start_time = probe.probe_video_start_time()
         if start_time is None:
-            raise _sampling_error(
+            raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
             )
 
@@ -448,13 +483,10 @@ def _sample_single_video_by_distance(
     # Distance sampling needs positions to decide which frames to cut, so
     # failing to read them is a failed sample, not something to carry on past.
     # Warning and returning left the caller with a success exit code, an empty
-    # (or missing) sample directory and nothing to upload. sample_video()
-    # already funnels these through --skip_sample_errors for callers who do
-    # want to tolerate them.
+    # (or missing) sample directory and nothing to upload. Raised as is, so
+    # that the sample summary counts it by its own type
     if isinstance(video_metadata, types.ErrorMetadata):
-        raise _sampling_error(
-            f"Unable to sample {video_path} by distance: {video_metadata.error}"
-        ) from video_metadata.error
+        raise video_metadata.error
 
     # Only a video path was passed in, so only video metadata can come back
     assert isinstance(video_metadata, types.VideoMetadata), (
@@ -462,16 +494,16 @@ def _sample_single_video_by_distance(
     )
 
     if not video_metadata.points:
-        raise _sampling_error(
-            f"Unable to sample {video_path} by distance: no GPS points found"
-        )
+        raise exceptions.MapillaryVideoGPSNotFoundError("No GPS points found")
 
     LOG.info("Found total %d GPS points", len(video_metadata.points))
 
     # find the video stream with maximum resolution
     video_stream = probe.probe_video_with_max_resolution()
     if not video_stream:
-        raise _sampling_error(f"No video streams found in {video_path} by ffprobe")
+        raise exceptions.MapillaryVideoError(
+            f"No video streams found in {video_path} by ffprobe"
+        )
 
     LOG.info("Extracting video samples")
     video_stream_idx = video_stream["index"]
@@ -480,12 +512,12 @@ def _sample_single_video_by_distance(
     sample_points_by_frame_idx = _sample_video_stream_by_distance(
         video_metadata.points, video_track_parser, sample_distance
     )
-    # A track that misses the video, such as a GPX placed by a wrong
-    # --video_start_time, selects no frames, and an empty sample directory would
-    # pass for success
+    # A track that misses the video, such as a GPX from another trip or one
+    # placed by a wrong --video_start_time, selects no frames, and an empty
+    # sample directory would pass for success
     if not sample_points_by_frame_idx:
-        raise _sampling_error(
-            f"Unable to sample {video_path} by distance: none of its frames falls within its GPS track, "
+        raise exceptions.MapillaryVideoError(
+            "none of its frames falls within its GPS track, "
             + _describe_track_time_range(video_metadata.points)
         )
     sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
@@ -502,7 +534,7 @@ def _sample_single_video_by_distance(
             wip_dir, video_path, selected_stream_specifiers=[str(video_stream_idx)]
         )
         if len(frame_samples) != len(sorted_sample_indices):
-            raise _sampling_error(
+            raise exceptions.MapillaryVideoError(
                 f"Expect {len(sorted_sample_indices)} samples but extracted {len(frame_samples)} samples"
             )
         for idx, (frame_idx_1based, sample_paths) in enumerate(frame_samples):
@@ -510,7 +542,7 @@ def _sample_single_video_by_distance(
                 "Expect 1 sample path at {frame_idx_1based} but got {sample_paths}"
             )
             if idx + 1 != frame_idx_1based:
-                raise _sampling_error(
+                raise exceptions.MapillaryVideoError(
                     f"Expect {sample_paths[0]} to be {idx + 1}th sample but got {frame_idx_1based}"
                 )
 
