@@ -46,6 +46,16 @@ def test_interpolate_empty_list():
         assert False, "should raise ValueError"
 
 
+def test_interpolator_names_the_unsorted_times():
+    points = [Point(time=t, lat=1, lon=1, alt=None, angle=None) for t in [2, 1]]
+    try:
+        geo.Interpolator([points])
+    except ValueError as ex:
+        assert str(ex) == "Expect points to be sorted by time, but got 2 then 1"
+    else:
+        assert False, "should raise ValueError"
+
+
 def test_interpolate():
     points = [
         Point(lon=1, lat=1, time=1, alt=1, angle=None),
