@@ -6,6 +6,7 @@
 import functools
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -272,18 +273,34 @@ def test_video_process_by_distance_applies_the_interpolation_offset(
     assert capture_times[-1] <= "2025_03_14_07_01_33_624", capture_times
 
 
+def _gpx_until(gpx_file: py.path.local, until: str, path: Path) -> Path:
+    """Copy the GPX file without its points recorded after **until**"""
+    text = gpx_file.read_text("utf-8")
+    trkpts = re.findall(r"<trkpt\b.*?</trkpt>", text, flags=re.DOTALL)
+    for trkpt in trkpts:
+        [time] = re.findall(r"<time>(.*?)</time>", trkpt)
+        if until < time:
+            text = text.replace(trkpt, "")
+    path.write_text(text, "utf-8")
+    return path
+
+
 def test_video_process_by_distance_with_the_gpx_start_time(
     setup_data: py.path.local,
 ):
     """
     As the README describes for a GPX started 2.5 seconds before the video:
-    the frames start 2.5 seconds into the track, however long it is.
+    the frames start 2.5 seconds into the track.
     """
     pytest_skip_if_not_ffmpeg_installed()
 
-    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-
     with tempfile.TemporaryDirectory() as dir:
+        # Stopped about when the 5.76s video ended
+        gpx_file = _gpx_until(
+            setup_data.join("gpx").join("sf_30km_h.gpx"),
+            "2025-03-14T07:00:10",
+            Path(dir, "track.gpx"),
+        )
         video_path = _with_creation_time(
             setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
         )
@@ -304,6 +321,39 @@ def test_video_process_by_distance_with_the_gpx_start_time(
     capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
     assert capture_times[0] == "2025_03_14_07_00_02_500", capture_times
     assert capture_times[-1] < "2025_03_14_07_00_09_000", capture_times
+
+
+def test_video_process_with_the_gpx_start_time_refuses_a_far_longer_gpx(
+    setup_data: py.path.local,
+):
+    """
+    A GPX running on for 1.5 minutes after a 5.76s video was not recorded for
+    it alone, or the video is a timelapse: the error says what to specify.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        video_path = _with_creation_time(
+            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
+        )
+        with pytest.raises(subprocess.CalledProcessError) as excinfo:
+            run_video_process(
+                [
+                    "--video_sample_distance=3",
+                    "--interpolation_use_gpx_start_time",
+                    "--geotag_source=gpx",
+                    *["--geotag_source_path", str(gpx_file)],
+                    str(video_path),
+                    str(Path(dir, "samples")),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+    assert "--video_duration_ratio" in excinfo.value.stderr
+    assert "--video_start_time" in excinfo.value.stderr
 
 
 def test_video_process_by_distance_with_an_untidy_gpx(setup_data: py.path.local):

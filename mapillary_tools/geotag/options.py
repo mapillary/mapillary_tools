@@ -166,6 +166,10 @@ class VideoSyncOption:
     # frame at the start of the GPX
     use_gpx_start_time: bool = False
 
+    # --video_duration_ratio: GPS seconds per second of a video without a GPS
+    # clock of its own to tell, such as a timelapse
+    duration_ratio: float = 1.0
+
 
 SourceOptionSchema = {
     "type": "object",

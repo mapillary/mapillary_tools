@@ -34,7 +34,7 @@ class Command:
         )
         group.add_argument(
             "--video_duration_ratio",
-            help="[DEPRECATED since v0.10.0] Real time video duration ratio of the under or oversampled video duration. [default: %(default)s]",
+            help="Seconds of real time per second of video, for videos without a GPS clock of their own to tell, such as 60 for a timelapse that took a frame every 2 seconds and plays at 30 frames per second. A timelapse needs it to be synced to a GPX track. The GPS clock of a video, if it has one, wins. [default: %(default)s]",
             type=float,
             default=constants.VIDEO_DURATION_RATIO,
             required=False,
