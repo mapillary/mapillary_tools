@@ -46,10 +46,11 @@ def test_parse_points():
     box = {"type": b"free", "data": [{"type": b"gps ", "data": gps_data}]}
     data = cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
     info = blackvue_parser.extract_blackvue_info(io.BytesIO(data))
+    # Times are relative to the earliest line (1623057129253), not the first RMC
     assert info == blackvue_parser.BlackVueInfo(
         gps=[
             telemetry.GPSPoint(
-                time=0.0,
+                time=0.003,
                 lat=38.88615816666667,
                 lon=-76.992434,
                 alt=None,
@@ -60,7 +61,7 @@ def test_parse_points():
                 ground_speed=None,
             ),
             telemetry.GPSPoint(
-                time=3.0,
+                time=3.003,
                 lat=38.88615816666667,
                 lon=-76.992434,
                 alt=None,
@@ -74,6 +75,50 @@ def test_parse_points():
         make="BlackVue",
         model="",
     )
+
+
+def test_parse_points_relative_to_recording_start():
+    # After a cold start the receiver can take a minute to get its first fix.
+    # Until then the camera logs lines without a position, so the first fix
+    # here is 40 seconds into the video, not at its start
+    gps_data = b"""
+[1623057089253]$GPRMC,,V,,,,,,,,,,N*53
+
+[1623057109253]$GPGGA,,,,,,0,00,99.99,,,,,,*48
+
+[1623057129256]$GPRMC,201205.00,A,3853.16949,N,07659.54604,W,5.849,284.43,070621,,,D*76
+
+[1623057132256]$GPRMC,201208.00,A,3853.16949,N,07659.54604,W,5.849,284.43,070621,,,D*7B
+    """
+
+    box = {"type": b"free", "data": [{"type": b"gps ", "data": gps_data}]}
+    data = cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
+    info = blackvue_parser.extract_blackvue_info(io.BytesIO(data))
+    assert info is not None
+    assert [p.time for p in info.gps] == [40.003, 43.003]
+    assert [p.epoch_time for p in info.gps] == [1623096725, 1623096728]
+
+
+def _build_free_box(child_type: bytes, child_data: bytes) -> bytes:
+    box = {"type": b"free", "data": [{"type": child_type, "data": child_data}]}
+    return cparser.Box32ConstructBuilder({b"free": {}}).Box.build(box)
+
+
+def test_is_blackvue():
+    # Without a fix the GPS log has no positions, but it is still there
+    no_fix = _build_free_box(b"gps ", b"[1623057089253]$GPRMC,,V,,,,,,,,,,N*53")
+    assert blackvue_parser.is_blackvue(io.BytesIO(no_fix))
+
+    cprt = _build_free_box(b"cprt", b" Pittasoft Co., Ltd.;;DR900S-1CH;")
+    assert blackvue_parser.is_blackvue(io.BytesIO(cprt))
+
+    ftyp = cparser.Box32ConstructBuilder({}).Box.build(
+        {"type": b"ftyp", "data": b"isom\x00\x00\x02\x00isomiso2avc1mp41"}
+    )
+    assert not blackvue_parser.is_blackvue(io.BytesIO(ftyp))
+    assert not blackvue_parser.is_blackvue(io.BytesIO(_build_free_box(b"abcd", b"")))
+    assert not blackvue_parser.is_blackvue(io.BytesIO(b""))
+    assert not blackvue_parser.is_blackvue(io.BytesIO(b"\xff" * 64))
 
 
 def test_gpspoint_gga():

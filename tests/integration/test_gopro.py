@@ -31,12 +31,16 @@ TEST_ENVS = {
     "MAPILLARY_TOOLS_GOPRO_GPS_PRECISION": "10000000",
     "MAPILLARY_TOOLS_MAX_CAPTURE_SPEED_KMH": "2000000",  # km/h
 }
+# The capture times come from the GPMF GPS clock (the median of the first fixes
+# puts the start at 2019-11-18T23:42:08.539Z), not from the container's creation
+# time. This camera writes the creation time in local time, so reading the start
+# time from there would timestamp every sample 8 hours off.
 EXPECTED_DESCS: T.List[T.Any] = [
     {
         "filename": "hero8.mp4/hero8_v_000001.jpg",
         "filetype": "image",
         "MAPAltitude": 9540.24,
-        "MAPCaptureTime": "2019_11_18_15_41_12_354",
+        "MAPCaptureTime": "2019_11_18_23_42_08_539",
         "MAPCompassHeading": {
             "TrueHeading": 123.93587938690177,
             "MagneticHeading": 123.93587938690177,
@@ -51,7 +55,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "filename": "hero8.mp4/hero8_v_000002.jpg",
         "filetype": "image",
         "MAPAltitude": 7112.573717404068,
-        "MAPCaptureTime": "2019_11_18_15_41_14_354",
+        "MAPCaptureTime": "2019_11_18_23_42_10_539",
         "MAPCompassHeading": {
             "TrueHeading": 140.8665026186285,
             "MagneticHeading": 140.8665026186285,
@@ -66,7 +70,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "filename": "hero8.mp4/hero8_v_000003.jpg",
         "filetype": "image",
         "MAPAltitude": 7463.642846094319,
-        "MAPCaptureTime": "2019_11_18_15_41_16_354",
+        "MAPCaptureTime": "2019_11_18_23_42_12_539",
         "MAPCompassHeading": {
             "TrueHeading": 138.44255851085705,
             "MagneticHeading": 138.44255851085705,
@@ -81,7 +85,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "filename": "hero8.mp4/hero8_v_000004.jpg",
         "filetype": "image",
         "MAPAltitude": 6909.8168472111465,
-        "MAPCaptureTime": "2019_11_18_15_41_18_354",
+        "MAPCaptureTime": "2019_11_18_23_42_14_539",
         "MAPCompassHeading": {
             "TrueHeading": 142.23462669862568,
             "MagneticHeading": 142.23462669862568,
@@ -96,7 +100,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "filename": "hero8.mp4/hero8_v_000005.jpg",
         "filetype": "image",
         "MAPAltitude": 7212.594480737465,
-        "MAPCaptureTime": "2019_11_18_15_41_20_354",
+        "MAPCaptureTime": "2019_11_18_23_42_16_539",
         "MAPCompassHeading": {
             "TrueHeading": 164.70819093235514,
             "MagneticHeading": 164.70819093235514,
@@ -111,7 +115,7 @@ EXPECTED_DESCS: T.List[T.Any] = [
         "filename": "hero8.mp4/hero8_v_000006.jpg",
         "filetype": "image",
         "MAPAltitude": 7274.361994963208,
-        "MAPCaptureTime": "2019_11_18_15_41_22_354",
+        "MAPCaptureTime": "2019_11_18_23_42_18_539",
         "MAPCompassHeading": {
             "TrueHeading": 139.71549328876722,
             "MagneticHeading": 139.71549328876722,
