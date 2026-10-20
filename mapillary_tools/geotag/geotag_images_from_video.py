@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import sys
 import typing as T
@@ -15,10 +16,11 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import types, utils
+from .. import geo, types, utils
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 from .geotag_videos_from_video import GeotagVideosFromVideo
+from .video_extractors.gpx import GPXVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
@@ -74,7 +76,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
             )
 
             geotag = GeotagImagesFromGPX(
-                video_metadata.points,
+                self._on_capture_timeline(video_metadata.points),
                 use_gpx_start_time=False,
                 use_image_start_time=True,
                 offset_time=self.offset_time,
@@ -97,6 +99,21 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         assert len(final_image_metadatas) <= len(image_paths)
 
         return final_image_metadatas
+
+    @classmethod
+    def _on_capture_timeline(
+        cls, points: T.Sequence[geo.Point]
+    ) -> T.Sequence[geo.Point]:
+        """
+        Time the video's GPS points in GPS seconds from the start of the video,
+        like the samples, which are stamped with their capture times. Each
+        second of a timelapse spans as many as its GPS clock runs faster.
+        """
+        clock = GPXVideoExtractor._read_video_clock(points)
+        if clock is None or clock.rate == 1.0:
+            return points
+
+        return [dataclasses.replace(p, time=p.time * clock.rate) for p in points]
 
 
 class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
