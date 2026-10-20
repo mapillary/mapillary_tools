@@ -688,7 +688,9 @@ def test_process_video_geotag_source_with_gpx_outside_video(
     assert len(descs) == 1
     assert descs[0]["error"]["type"] == "MapillaryOutsideGPXTrackError"
     assert descs[0]["error"]["vars"] == {
-        "image_time": "2019_11_18_23_44_42_590",
+        # Its first GPS timestamp is 23:44:42.590, a second before the rest
+        # place the start of the video
+        "image_time": "2019_11_18_23_44_43_613",
         "gpx_start_time": "2025_03_14_07_00_00_000",
         "gpx_end_time": "2025_03_14_07_01_33_624",
     }

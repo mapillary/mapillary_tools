@@ -110,6 +110,23 @@ class TestVideoClock:
     def test_one_jump_does_not_make_a_timelapse(self, pairs):
         assert _read(pairs).rate == 1.0
 
+    @pytest.mark.parametrize("rate", [1.0, 30.0])
+    def test_a_first_timestamp_off_the_rest_does_not_anchor_the_clock(self, rate):
+        """The first GPS block of a GoPro timelapse can be stamped 3s early."""
+        pairs = [(0, A_UNIX_TIME - 3)] + [
+            (i / rate, A_UNIX_TIME + i) for i in range(1, 60)
+        ]
+        clock = _read(pairs)
+        assert clock.rate == pytest.approx(rate, rel=0.05)
+        assert clock.to_unix_time(0) == pytest.approx(A_UNIX_TIME, abs=0.2)
+
+    def test_a_placeholder_date_does_not_anchor_the_clock(self):
+        """GoPro stamps a placeholder date until it acquires GPS time."""
+        pairs = [(i, PLACEHOLDER_UNIX_TIME + i) for i in range(5)] + [
+            (i, A_UNIX_TIME + i) for i in range(5, 15)
+        ]
+        assert _read(pairs).to_unix_time(0) == A_UNIX_TIME
+
     def test_no_timestamps(self):
         points = [
             geo.Point(time=i, lat=1, lon=1, alt=None, angle=None) for i in range(3)
