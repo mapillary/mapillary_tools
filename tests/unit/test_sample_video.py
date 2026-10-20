@@ -135,6 +135,40 @@ def test_sample_video_with_start_time(tmpdir: py.path.local, setup_mock):
     _validate_interval([Path(s) for s in samples], video_start_time)
 
 
+def test_sample_the_video_stream_with_the_highest_resolution(
+    tmpdir: py.path.local, setup_mock
+):
+    """
+    By interval as by distance: ffmpeg would number the frames of two streams
+    in one sequence, and they would be stamped as if twice as late.
+    """
+    root = _PWD.joinpath("data/mock_sample_video")
+    probe = json.loads(root.joinpath("videos", "hello.mp4").read_text())
+    [video_stream] = [s for s in probe["streams"] if s["codec_type"] == "video"]
+    probe["streams"].append({**video_stream, "index": 2, "width": 5760})
+    video_dir = Path(tmpdir.mkdir("videos"))
+    video_dir.joinpath("hello.mp4").write_text(json.dumps(probe))
+    sample_dir = tmpdir.mkdir("sampled_video_frames")
+
+    sample_video.sample_video(
+        video_dir,
+        Path(sample_dir),
+        video_sample_distance=-1,
+        video_sample_interval=2,
+        rerun=True,
+    )
+
+    samples = sorted(Path(s) for s in sample_dir.join("hello.mp4").listdir())
+    assert len(samples), "expect samples but got none"
+    for idx, sample in enumerate(samples):
+        assert sample.name == f"hello_2_{idx + 1:06d}.jpg"
+        assert exif_read.ExifRead(
+            sample
+        ).extract_capture_time() == PROBE_START_TIME + datetime.timedelta(
+            seconds=2 * idx
+        )
+
+
 def test_sample_video_from_gps_clock(tmpdir: py.path.local, setup_mock, monkeypatch):
     """A video's own GPS clock wins over the container's creation time."""
     root = _PWD.joinpath("data/mock_sample_video")
