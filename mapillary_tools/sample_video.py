@@ -430,8 +430,8 @@ def _describe_track_time_range(points: T.Sequence[geo.Point]) -> str:
     >>> p = lambda t: geo.Point(time=t, lat=0, lon=0, alt=None, angle=None)
     >>> _describe_track_time_range([p(-7200), p(-3600)])
     'which ends an hour before the video starts'
-    >>> _describe_track_time_range([p(90), p(100)])
-    'which starts a minute after the video starts'
+    >>> _describe_track_time_range([p(600), p(700)])
+    'which starts 10 minutes after the video starts'
     >>> _describe_track_time_range([p(0.01), p(0.02)])
     'which covers 0.010 to 0.020 seconds of the video'
     """

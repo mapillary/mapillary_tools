@@ -275,7 +275,7 @@ def _video_duration(video_path: Path) -> float | None:
 
 def _format_duration(seconds: float) -> str:
     """
-    >>> _format_duration(5.76)
+    >>> _format_duration(5)
     '5 seconds'
     >>> _format_duration(43474)
     '12 hours'

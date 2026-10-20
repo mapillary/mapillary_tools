@@ -753,7 +753,8 @@ class TestSampleVideoDistanceIntegration:
         ):
             with pytest.raises(
                 exceptions.MapillaryVideoError,
-                match="none of its frames falls within its GPS track, which starts a minute after the video starts",
+                # how humanize words the time varies between its versions
+                match="none of its frames falls within its GPS track, which starts .+ after the video starts",
             ):
                 sample_video._sample_single_video_by_distance(
                     video_file, sample_dir, sample_distance=0.0
