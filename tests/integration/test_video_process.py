@@ -18,7 +18,10 @@ from .fixtures import (
     pytest_skip_if_not_ffmpeg_installed,
     run_command,
     run_process_for_descs,
+    setup_config,
     setup_data,
+    setup_upload,
+    USERNAME,
 )
 
 
@@ -138,6 +141,43 @@ def test_video_process_skips_the_only_video(setup_data: py.path.local):
         ]
     )
     assert [] == descs
+
+
+def test_video_process_and_upload_uploads_nothing_if_a_video_fails(
+    setup_data: py.path.local, setup_config, setup_upload
+):
+    """
+    hero8.mp4 cannot be sampled by distance. The command fails without
+    uploading max-360mode.mp4 beside it either, and says so, because the last
+    thing it logs before failing is that its sample images are ready.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_dir = setup_data.join("gopro_data")
+    upload_args = ["--dry_run", *["--user_name", USERNAME], "--video_sample_distance=6"]
+
+    with pytest.raises(subprocess.CalledProcessError) as ex:
+        run_command(
+            [*upload_args, str(video_dir), str(setup_data.join("samples"))],
+            command="video_process_and_upload",
+            capture_output=True,
+            text=True,
+        )
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "Nothing was uploaded" in ex.value.stderr
+    assert "--skip_sample_errors" in ex.value.stderr
+    assert not setup_upload.listdir()
+
+    run_command(
+        [
+            *upload_args,
+            "--skip_sample_errors",
+            str(video_dir),
+            str(setup_data.join("samples_skipped")),
+        ],
+        command="video_process_and_upload",
+    )
+    assert setup_upload.listdir()
 
 
 def test_sample_video_without_video_time(setup_data: py.path.local):
