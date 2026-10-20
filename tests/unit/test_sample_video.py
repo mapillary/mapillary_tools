@@ -25,7 +25,11 @@ from mapillary_tools import (
     sample_video,
     telemetry,
 )
-from mapillary_tools.geotag.options import SourceType, VideoSyncOption
+from mapillary_tools.geotag.options import (
+    InterpolationOption,
+    SourceType,
+    VideoSyncOption,
+)
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
@@ -421,9 +425,14 @@ class TestGPXStartTimeByInterval:
     def test_a_track_that_ends_with_the_video_at_the_ratio_passes(self, tmp_path):
         """The video spans 57.6s of GPS time at 10 seconds per second."""
         gpx = self._write_gpx(tmp_path / "track.gpx", seconds=57)
-        video_sync = VideoSyncOption(use_gpx_start_time=True, duration_ratio=10)
+        video_sync = VideoSyncOption(duration_ratio=10)
         options = sample_video._parse_geotag_options(
-            ["gpx"], gpx, None, tmp_path, video_sync
+            ["gpx"],
+            gpx,
+            None,
+            tmp_path,
+            video_sync,
+            InterpolationOption(use_gpx_start_time=True),
         )
 
         sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
@@ -462,9 +471,14 @@ class TestGPXStartTimeByInterval:
             ),
         )
         gpx = self._write_gpx(tmp_path / "track.gpx", seconds=60)
-        video_sync = VideoSyncOption(use_gpx_start_time=True)
+        video_sync = VideoSyncOption()
         options = sample_video._parse_geotag_options(
-            ["gpx"], gpx, None, tmp_path, video_sync
+            ["gpx"],
+            gpx,
+            None,
+            tmp_path,
+            video_sync,
+            InterpolationOption(use_gpx_start_time=True),
         )
 
         sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
@@ -1925,9 +1939,22 @@ class TestVideoStartTimeReachesTheGPX:
                 interpolation_use_gpx_start_time=True,
             )
 
-        assert seen[0].video_sync == VideoSyncOption(
+        assert seen[0].interpolation == InterpolationOption(
             offset_time=2.5, use_gpx_start_time=True
         )
+
+    def test_the_interpolation_options_of_a_source_win(self):
+        """As they do when the geotagging stage geotags the frames."""
+        options = sample_video._parse_geotag_options(
+            ['{"source": "gpx", "interpolation_offset_time": 1}'],
+            Path("/data/track.gpx"),
+            None,
+            Path("/data/v.mp4"),
+            VideoSyncOption(),
+            InterpolationOption(offset_time=2.5),
+        )
+
+        assert options[0].interpolation == InterpolationOption(offset_time=1)
 
     def test_without_it_the_start_time_is_left_unknown(self):
         """

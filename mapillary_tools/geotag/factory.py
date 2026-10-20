@@ -463,6 +463,7 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
             source_path=option.source_path,
             num_processes=option.num_processes,
             video_sync=option.video_sync,
+            interpolation=option.interpolation,
         )
 
     elif option.source is SourceType.NMEA:

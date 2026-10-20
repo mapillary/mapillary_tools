@@ -149,7 +149,7 @@ class Command:
         )
         group_geotagging.add_argument(
             "--interpolation_use_gpx_start_time",
-            help=f"If supplied, the first image will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}.",
+            help=f"If supplied, the first image, or the start of a video, will use the first GPX point time for interpolation, which means the image location will be interpolated to the first GPX point too. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}.",
             action="store_true",
             required=False,
         )
@@ -157,7 +157,7 @@ class Command:
             "--interpolation_offset_time",
             default=0.0,
             type=float,
-            help=f"Time offset, in seconds, that will be added for GPX interpolation, which affects image locations. Note that it is applied after --interpolation_use_gpx_start_time. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}. [default %(default)s]",
+            help=f"Time offset, in seconds, that will be added for GPX interpolation, which affects image and video locations. Note that it is applied after --interpolation_use_gpx_start_time. Only works for geotagging from {', '.join(geotag_gpx_based_sources)}. [default %(default)s]",
             required=False,
         )
         group_geotagging.add_argument(

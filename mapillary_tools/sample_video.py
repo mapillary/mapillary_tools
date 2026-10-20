@@ -30,7 +30,13 @@ from . import (
 from .exif_write import ExifEdit
 from .geotag import factory
 from .geotag.geotag_images_from_video import GPSTimeline
-from .geotag.options import SourceOption, SourcePathOption, SourceType, VideoSyncOption
+from .geotag.options import (
+    InterpolationOption,
+    SourceOption,
+    SourcePathOption,
+    SourceType,
+    VideoSyncOption,
+)
 from .geotag.video_extractors.gpx import GPXVideoExtractor
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .mp4 import mp4_sample_parser
@@ -72,6 +78,7 @@ def _parse_geotag_options(
     video_geotag_source: list[str] | None,
     video_import_path: Path,
     video_sync: VideoSyncOption | None = None,
+    interpolation: InterpolationOption | None = None,
 ) -> list[SourceOption]:
     """
     Resolve which sources distance sampling may take its positions from.
@@ -82,8 +89,9 @@ def _parse_geotag_options(
     cannot see every field the noise filter rejects on, so routing sampling
     through it would accept tracks the native parser refuses.
 
-    Every option carries video_sync, for a GPX source to place its track where
-    the geotagging stage will place the frames.
+    Every option carries video_sync and the interpolation options, for a GPX
+    source to place its track where the geotagging stage will place the frames.
+    As there, the interpolation options of a source override the global ones.
     """
     options = _parse_video_sources(
         geotag_source, geotag_source_path, video_geotag_source, video_import_path
@@ -91,6 +99,8 @@ def _parse_geotag_options(
 
     for option in options:
         option.video_sync = video_sync
+        if option.interpolation is None:
+            option.interpolation = interpolation
 
     return options
 
@@ -185,8 +195,6 @@ def sample_video(
         start_time=(
             video_start_time_dt.timestamp() if video_start_time_dt is not None else None
         ),
-        offset_time=interpolation_offset_time,
-        use_gpx_start_time=interpolation_use_gpx_start_time,
         duration_ratio=video_duration_ratio,
     )
 
@@ -196,6 +204,10 @@ def sample_video(
         video_geotag_source,
         video_import_path,
         video_sync,
+        InterpolationOption(
+            offset_time=interpolation_offset_time,
+            use_gpx_start_time=interpolation_use_gpx_start_time,
+        ),
     )
 
     if rerun:
@@ -610,10 +622,17 @@ def _check_gpx_start_by_interval(
     for option in geotag_options:
         if option.source is not SourceType.GPX or option.source_path is None:
             continue
+        if option.interpolation is None or not option.interpolation.use_gpx_start_time:
+            continue
         gpx_path = option.source_path.resolve(video_path)
         if not gpx_path.is_file():
             continue
-        extractor = GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync)
+        extractor = GPXVideoExtractor(
+            video_path,
+            gpx_path,
+            video_sync=video_sync,
+            interpolation=option.interpolation,
+        )
         if _gpx_sync_reads_a_clock(extractor):
             continue
         gpx_points = extractor._read_gpx_points()
@@ -691,7 +710,7 @@ def _sample_single_video_by_interval(
             # times the video's track to place the samples along it
             timeline = GPSTimeline.read(telemetry_points, clock_rate)
 
-    if clock_rate is None and video_sync is not None and video_sync.use_gpx_start_time:
+    if clock_rate is None and video_sync is not None:
         _check_gpx_start_by_interval(video_path, geotag_options, video_sync)
 
     probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))

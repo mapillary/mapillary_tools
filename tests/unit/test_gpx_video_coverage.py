@@ -28,6 +28,7 @@ from mapillary_tools import exceptions, geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import (
+    InterpolationOption,
     SourceOption,
     SourcePathOption,
     SourceType,
@@ -164,7 +165,7 @@ class TestVideoWithGPSClock:
         gpx_seconds: float,
         video_track: T.Sequence[geo.Point] | None = None,
         duration: float = VIDEO_DURATION,
-        video_sync: VideoSyncOption | None = None,
+        interpolation: InterpolationOption | None = None,
     ) -> types.VideoMetadata:
         video_path = _write_camm_mp4(
             tmp_path / "video.mp4",
@@ -172,7 +173,9 @@ class TestVideoWithGPSClock:
             duration,
         )
         gpx_path = _write_gpx(tmp_path / "track.gpx", gpx_start, gpx_seconds)
-        return GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync).extract()
+        return GPXVideoExtractor(
+            video_path, gpx_path, interpolation=interpolation
+        ).extract()
 
     @pytest.mark.parametrize(
         "start, seconds",
@@ -291,15 +294,15 @@ class TestVideoWithGPSClock:
 
     def test_the_interpolation_offset_is_part_of_the_placement(self, tmp_path, caplog):
         """
-        The geotagging stage looks the frames up 5s later along the track, so
-        a track that covers the video exactly leaves its last 5s uncovered.
+        The frames are looked up 5s later along the track, so a track that
+        covers the video exactly leaves its last 5s uncovered.
         """
         with caplog.at_level(logging.WARNING):
             self._extract(
                 tmp_path,
                 A_UNIX_TIME,
                 VIDEO_DURATION,
-                video_sync=VideoSyncOption(offset_time=5),
+                interpolation=InterpolationOption(offset_time=5),
             )
         [warning] = _warnings(caplog)
         assert "5 seconds of the video fall outside the track" in warning

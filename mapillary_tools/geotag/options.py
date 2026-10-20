@@ -151,20 +151,13 @@ class VideoSyncOption:
     """
     How to line up a GPX track with a video that is being sampled, so that its
     frames are picked where the geotagging stage of video_process will place
-    them. process geotags videos without it, and places a GPX as it always has.
+    them. The interpolation options, which process applies to videos as well,
+    are in SourceOption.interpolation.
     """
 
     # Unix time of the first frame of the video (--video_start_time), to place
     # a GPX by when the video has no GPS of its own to sync it with
     start_time: float | None = None
-
-    # --interpolation_offset_time: seconds the geotagging stage adds to the
-    # capture time of a frame to find its position along the GPX
-    offset_time: float = 0.0
-
-    # --interpolation_use_gpx_start_time: the geotagging stage puts the first
-    # frame at the start of the GPX
-    use_gpx_start_time: bool = False
 
     # --video_duration_ratio: GPS seconds per second of a video without a GPS
     # clock of its own to tell, such as a timelapse

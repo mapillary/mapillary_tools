@@ -105,16 +105,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_path: Path,
         sync_mode: SyncMode = SyncMode.SYNC,
         video_sync: options.VideoSyncOption | None = None,
+        interpolation: options.InterpolationOption | None = None,
         clip_to_video: bool = False,
     ):
         self.video_path = video_path
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
         self.video_sync = video_sync
+        self.interpolation = interpolation
         # Clip the track to the video when a clock gives its pace along the
         # video (see _clip_to_video)
         self.clip_to_video = clip_to_video
-        if video_sync is not None and video_sync.use_gpx_start_time:
+        if interpolation is not None and interpolation.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
 
     @override
@@ -314,23 +316,29 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self, gpx_points: T.Sequence[geo.Point], rate: float = 1.0
     ) -> None:
         """
-        Shift the track back by --interpolation_offset_time, which the
-        geotagging stage adds to the capture time of a frame to find its
-        position along the GPX. The offset is in GPS seconds, of which a
-        timelapse packs **rate** into each second of video.
+        Shift the track back by --interpolation_offset_time, which is added to
+        the capture time of a frame to find its position along the GPX. The
+        offset is in GPS seconds, of which a timelapse packs **rate** into each
+        second of video.
 
-        The absolute times shift with the track, so that a frame is stamped
-        with its capture time, and the geotagging stage, adding the offset back,
+        The absolute times stay those of the GPX, just as an image geotagged
+        with the offset takes the time of its position along the GPX. When
+        sampling, they shift with the track, so that a frame is stamped with
+        its capture time, and the geotagging stage, adding the offset back,
         finds the position the frame was picked by.
         """
-        if self.video_sync is None or not self.video_sync.offset_time:
+        if self.interpolation is None or not self.interpolation.offset_time:
             return
 
-        offset_time = self.video_sync.offset_time
+        offset_time = self.interpolation.offset_time
         for p in gpx_points:
             p.time -= offset_time / rate
             # parse_gpx() returns CAMMGPSPoint, with epoch_time 0 for no time
-            if isinstance(p, telemetry.CAMMGPSPoint) and 0 < p.epoch_time:
+            if (
+                self.video_sync is not None
+                and isinstance(p, telemetry.CAMMGPSPoint)
+                and 0 < p.epoch_time
+            ):
                 p.epoch_time -= offset_time
 
     def _check_coverage(
