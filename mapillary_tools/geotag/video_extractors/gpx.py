@@ -12,6 +12,8 @@ import sys
 import typing as T
 from pathlib import Path
 
+import gpxpy
+
 if sys.version_info >= (3, 12):
     from typing import override
 else:
@@ -50,7 +52,13 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
     @override
     def extract(self) -> types.VideoMetadata:
-        gpx_tracks = parse_gpx(self.gpx_path)
+        try:
+            gpx_tracks = parse_gpx(self.gpx_path)
+        except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
+            raise exceptions.MapillaryInvalidGPXError(
+                f"{self.gpx_path.name} is not a valid GPX file. "
+                "Replace it with a valid GPX file."
+            ) from ex
 
         if 1 < len(gpx_tracks):
             LOG.warning(
