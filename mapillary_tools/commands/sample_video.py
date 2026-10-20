@@ -61,7 +61,7 @@ class Command:
         )
         group.add_argument(
             "--skip_sample_errors",
-            help="Skip errors from the video sampling.",
+            help="Skip the videos that fail to sample. Otherwise the command fails after sampling the other videos.",
             action="store_true",
             default=False,
             required=False,

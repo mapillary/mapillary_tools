@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import functools
+import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,7 +18,10 @@ from .fixtures import (
     pytest_skip_if_not_ffmpeg_installed,
     run_command,
     run_process_for_descs,
+    setup_config,
     setup_data,
+    setup_upload,
+    USERNAME,
 )
 
 
@@ -31,19 +35,149 @@ run_sample_video = functools.partial(run_command, command="sample_video")
 def test_sample_video_relpath():
     pytest_skip_if_not_ffmpeg_installed()
 
+    # hero8.mp4's embedded GPS is filtered out entirely as noise, so it cannot
+    # be sampled by distance. This test is about relative paths, not about that,
+    # hence --skip_sample_errors.
     with tempfile.TemporaryDirectory() as dir:
-        run_sample_video(["--rerun", "tests/data/gopro_data/hero8.mp4", str(dir)])
+        run_sample_video(
+            [
+                "--rerun",
+                "--skip_sample_errors",
+                "tests/data/gopro_data/hero8.mp4",
+                str(dir),
+            ]
+        )
 
     with tempfile.TemporaryDirectory() as dir:
         run_sample_video(
             [
                 "--rerun",
+                "--skip_sample_errors",
                 "--video_start_time",
                 "2021_10_10_10_10_10_123",
                 "tests/data",
                 str(dir),
             ]
         )
+
+
+def test_sample_video_by_distance_without_usable_gps(setup_data: py.path.local):
+    """
+    A video whose GPS cannot be read is not silently sampled into nothing.
+
+    hero8.mp4 has 32 embedded GPS points and remove_noisy_points() drops all of
+    them, so distance sampling has no positions to choose frames with. It used
+    to log a warning, write no frames and still exit 0, which left the caller a
+    success code and an empty import directory.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("gopro_data").join("hero8.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_sample_video(["--video_sample_distance=6", "--rerun", video_path, dir])
+        assert 7 == ex.value.returncode, ex.value.stderr
+        assert not list(Path(dir).iterdir())
+
+    with tempfile.TemporaryDirectory() as dir:
+        run_sample_video(
+            [
+                "--video_sample_distance=6",
+                "--skip_sample_errors",
+                "--rerun",
+                video_path,
+                dir,
+            ]
+        )
+
+
+def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.local):
+    """
+    hero8.mp4's GPS is all noise, so it cannot be sampled by distance. That
+    fails the command, but only after max-360mode.mp4 beside it is sampled and
+    its samples processed, rather than leaving them behind unprocessed.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_dir = setup_data.join("gopro_data")
+    desc_path = Path(setup_data, "descs.json")
+
+    with pytest.raises(subprocess.CalledProcessError) as ex:
+        run_command(
+            [
+                "--video_sample_distance=6",
+                *["--desc_path", str(desc_path)],
+                str(video_dir),
+                str(video_dir.join("my_samples")),
+            ],
+            "video_process",
+            capture_output=True,
+            text=True,
+        )
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "Failed to sample 1 videos" in ex.value.stderr
+    assert "--skip_sample_errors" in ex.value.stderr
+
+    descs = json.loads(desc_path.read_text())
+    assert descs
+    for desc in descs:
+        assert "error" not in desc, desc
+        assert Path(desc["filename"]).parent.name == "max-360mode.mp4"
+
+
+def test_video_process_skips_the_only_video(setup_data: py.path.local):
+    """
+    Skipping every video leaves nothing to process, which is not an error:
+    it used to fail with "Import file or directory not found"
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            "--skip_sample_errors",
+            str(setup_data.join("gopro_data").join("hero8.mp4")),
+        ]
+    )
+    assert [] == descs
+
+
+def test_video_process_and_upload_uploads_nothing_if_a_video_fails(
+    setup_data: py.path.local, setup_config, setup_upload
+):
+    """
+    hero8.mp4 cannot be sampled by distance. The command fails without
+    uploading max-360mode.mp4 beside it either, and says so, because the last
+    thing it logs before failing is that its sample images are ready.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_dir = setup_data.join("gopro_data")
+    upload_args = ["--dry_run", *["--user_name", USERNAME], "--video_sample_distance=6"]
+
+    with pytest.raises(subprocess.CalledProcessError) as ex:
+        run_command(
+            [*upload_args, str(video_dir), str(setup_data.join("samples"))],
+            command="video_process_and_upload",
+            capture_output=True,
+            text=True,
+        )
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "Nothing was uploaded" in ex.value.stderr
+    assert "--skip_sample_errors" in ex.value.stderr
+    assert not setup_upload.listdir()
+
+    run_command(
+        [
+            *upload_args,
+            "--skip_sample_errors",
+            str(video_dir),
+            str(setup_data.join("samples_skipped")),
+        ],
+        command="video_process_and_upload",
+    )
+    assert setup_upload.listdir()
 
 
 def test_sample_video_without_video_time(setup_data: py.path.local):
@@ -143,6 +277,9 @@ def test_video_process_sample_with_multiple_distances(setup_data: py.path.local)
             [
                 "--video_sample_distance",
                 str(distance),
+                # gopro_data also holds hero8.mp4, whose GPS is all noise and so
+                # cannot be distance-sampled; this test is about max-360mode.mp4
+                "--skip_sample_errors",
                 "--rerun",
                 str(video_dir),
                 str(video_dir.join("my_samples")),
@@ -167,6 +304,8 @@ def test_video_process_sample_with_distance(setup_data: py.path.local):
         descs = run_video_process_for_descs(
             [
                 *options,
+                # see test_video_process_sample_with_multiple_distances
+                "--skip_sample_errors",
                 str(video_dir),
                 str(video_dir.join("my_samples")),
             ]

@@ -303,6 +303,16 @@ mapillary_tools sample_video MY_VIDEO_DIR MY_SAMPLES --video_sample_distance 5
 mapillary_tools process MY_SAMPLES
 ```
 
+If a video can not be sampled, for example because it has no GPS track to locate the frames along,
+mapillary_tools still samples the other videos and processes their sample images, then exits with an error.
+To skip such videos instead, specify `--skip_sample_errors`. It covers sampling only: errors from processing
+the sample images are skipped with `--skip_process_errors`.
+
+```sh
+# Sample and process the videos that can be sampled, and skip the others
+mapillary_tools video_process MY_VIDEO_DIR MY_SAMPLES --skip_sample_errors
+```
+
 To process and upload the sample images consecutively, run:
 
 ```sh

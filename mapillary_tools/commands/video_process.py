@@ -3,8 +3,11 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+from __future__ import annotations
+
 import logging
 
+from .. import exceptions
 from ..types import FileType
 from .process import Command as ProcessCommand
 from .sample_video import Command as SampleCommand
@@ -22,7 +25,14 @@ class Command:
         ProcessCommand().add_basic_arguments(parser)
 
     def run(self, args: dict):
-        SampleCommand().run(args)
+        sample_error: exceptions.MapillaryVideoSampleError | None = None
+        try:
+            SampleCommand().run(args)
+        except exceptions.MapillaryVideoSampleError as ex:
+            # Like the process command, which writes out the files it did
+            # process before failing: process the frames of the videos that
+            # did sample rather than leave them behind, then fail
+            sample_error = ex
 
         option = "filetypes"
         if args[option] != {FileType.IMAGE}:
@@ -34,3 +44,6 @@ class Command:
             args[option] = {FileType.IMAGE}
 
         ProcessCommand().run(args)
+
+        if sample_error is not None:
+            raise sample_error
