@@ -5,6 +5,7 @@
 
 import functools
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -30,6 +31,11 @@ run_video_process_for_descs = functools.partial(
 )
 
 run_sample_video = functools.partial(run_command, command="sample_video")
+
+# Not run_process_for_descs() for a run expected to fail: on Windows it would
+# remove its description file while still holding it open, and the
+# PermissionError would replace the CalledProcessError
+run_video_process = functools.partial(run_command, command="video_process")
 
 
 def test_sample_video_relpath():
@@ -90,6 +96,259 @@ def test_sample_video_by_distance_without_usable_gps(setup_data: py.path.local):
                 dir,
             ]
         )
+
+
+def test_video_process_by_distance_with_an_image_only_geotag_source(
+    setup_data: py.path.local,
+):
+    """
+    exif has nothing to read a video with; it geotags the frames. The video is
+    sampled by its own GPS, as it was before --geotag_source reached sampling,
+    instead of failing an assert.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=6",
+                "--geotag_source=exif",
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
+def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:
+    """A copy of the video whose container records the creation time."""
+    copy = Path(dir, video.basename)
+    subprocess.run(
+        [
+            # as pytest_skip_if_not_ffmpeg_installed() finds it
+            os.getenv("MAPILLARY_TOOLS_FFMPEG_PATH", "ffmpeg"),
+            *["-loglevel", "error", "-y", "-i", str(video)],
+            *["-c", "copy", "-metadata", f"creation_time={creation_time}"],
+            str(copy),
+        ],
+        check=True,
+    )
+    return copy
+
+
+def test_video_process_by_distance_places_a_gpx_by_the_video_start_time(
+    setup_data: py.path.local,
+):
+    """
+    The video has no GPS of its own. The GPX was placed as if it started with
+    the video, so the frames were picked from, and stamped with, its first
+    seconds, whatever --video_start_time said.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                *["--video_start_time", "2025_03_14_07_00_30_000"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_00_30_000" <= capture_times[0], capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_36_000", capture_times
+
+
+def test_video_process_by_distance_refuses_to_guess_where_the_video_starts(
+    setup_data: py.path.local,
+):
+    """
+    Without --video_start_time, a GPX far longer than the video could start
+    anywhere along it, so assuming that it starts with the video is a guess.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        video_path = _with_creation_time(
+            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
+        )
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_video_process(
+                [
+                    "--video_sample_distance=3",
+                    "--geotag_source=gpx",
+                    *["--geotag_source_path", str(gpx_file)],
+                    str(video_path),
+                    str(Path(dir, "samples")),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "specify --video_start_time" in ex.value.stderr.lower(), ex.value.stderr
+
+
+def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
+    setup_data: py.path.local,
+):
+    """No frame falls within the track: the command fails, instead of passing with no frames."""
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_video_process(
+                [
+                    "--video_sample_distance=3",
+                    *["--video_start_time", "2025_03_14_09_00_00_000"],
+                    "--geotag_source=gpx",
+                    *["--geotag_source_path", str(gpx_file)],
+                    str(video_path),
+                    str(Path(dir, "samples")),
+                ],
+                capture_output=True,
+                text=True,
+            )
+        # sampling creates the sample directory up front, but writes no frames
+        assert not list(Path(dir, "samples").rglob("*.jpg"))
+
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "none of its frames falls within its GPS track" in ex.value.stderr
+
+
+def test_video_process_by_distance_applies_the_interpolation_offset(
+    setup_data: py.path.local,
+):
+    """
+    The geotagging stage adds --interpolation_offset_time to each frame's time.
+    Sampling ignored it, so it picked the last frames by positions within the
+    GPX that the offset then pushed past its end, and they were rejected.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    # the track ends at 07:01:33.624
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                *["--video_start_time", "2025_03_14_07_01_28_000"],
+                *["--interpolation_offset_time", "2"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_01_30_000" <= capture_times[0], capture_times
+    assert capture_times[-1] <= "2025_03_14_07_01_33_624", capture_times
+
+
+def test_video_process_by_distance_with_the_gpx_start_time(
+    setup_data: py.path.local,
+):
+    """
+    As the README describes for a GPX started 2.5 seconds before the video:
+    the frames start 2.5 seconds into the track, however long it is.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        video_path = _with_creation_time(
+            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
+        )
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                "--interpolation_use_gpx_start_time",
+                *["--interpolation_offset_time", "2.5"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert capture_times[0] == "2025_03_14_07_00_02_500", capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_09_000", capture_times
+
+
+def test_video_process_by_distance_with_an_untidy_gpx(setup_data: py.path.local):
+    """
+    GPX files converted from camera logs can list their tracks out of order and
+    carry tracks timestamped 1969. Merged as they were, the points were out of
+    time order, and sampling crashed with a traceback.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    def track(times):
+        return "".join(
+            f'<trkpt lat="{37.0 + i * 0.0001:.7f}" lon="-122.0"><time>{time}</time></trkpt>'
+            for i, time in times
+        )
+
+    later = [(i, f"2025-03-14T07:00:{s:02d}Z") for i, s in enumerate(range(10, 20), 10)]
+    earlier = [(i, f"2025-03-14T07:00:{s:02d}Z") for i, s in enumerate(range(0, 10))]
+    junk = [(0, "1969-12-31T15:59:59Z")] * 3
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        gpx_file = Path(dir, "untidy.gpx")
+        gpx_file.write_text(
+            '<?xml version="1.0"?>\n'
+            '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+            + "".join(
+                f"<trk><trkseg>{track(t)}</trkseg></trk>"
+                for t in [later, junk, earlier]
+            )
+            + "</gpx>\n"
+        )
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=3",
+                *["--video_start_time", "2025_03_14_07_00_00_000"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_00_00_000" <= capture_times[0], capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_06_000", capture_times
 
 
 def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.local):

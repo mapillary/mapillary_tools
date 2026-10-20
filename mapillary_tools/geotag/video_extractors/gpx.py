@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import enum
 import logging
 import statistics
@@ -13,14 +14,18 @@ import sys
 import typing as T
 from pathlib import Path
 
+import construct as C
 import gpxpy
+import humanize
 
 if sys.version_info >= (3, 12):
     from typing import override
 else:
     from typing_extensions import override
 
-from ... import exceptions, geo, types, utils
+from ... import exceptions, geo, telemetry, types, utils
+from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
+from .. import options
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
@@ -37,6 +42,16 @@ _IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 # Normal videos stay well below it, although over a few seconds of GPS
 # timestamped once per block the estimate can be 20% off
 _MIN_TIMELAPSE_RATE = 1.5
+
+# No GPS fix can be timestamped before the GPS epoch, 1980-01-06. GPX files
+# converted from camera logs can carry earlier times, such as
+# 1969-12-31T15:59:59Z, on points that had no valid time
+_GPS_EPOCH = datetime.datetime(1980, 1, 6, tzinfo=datetime.timezone.utc).timestamp()
+
+# How much longer than a video a GPX track may last without a warning, when it
+# is assumed to start with the video. A logger that records once a second,
+# started and stopped with the camera, can run on for a second at each end.
+_ASSUMED_START_TOLERANCE_SECONDS = 2.0
 
 
 class SyncMode(enum.Enum):
@@ -77,11 +92,18 @@ class VideoClock:
 
 class GPXVideoExtractor(BaseVideoExtractor):
     def __init__(
-        self, video_path: Path, gpx_path: Path, sync_mode: SyncMode = SyncMode.SYNC
+        self,
+        video_path: Path,
+        gpx_path: Path,
+        sync_mode: SyncMode = SyncMode.SYNC,
+        video_sync: options.VideoSyncOption | None = None,
     ):
         self.video_path = video_path
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
+        self.video_sync = video_sync
+        if video_sync is not None and video_sync.use_gpx_start_time:
+            self.sync_mode = SyncMode.REBASE
 
     @override
     def extract(self) -> types.VideoMetadata:
@@ -98,7 +120,19 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 f"Found {len(gpx_tracks)} tracks in the GPX file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
             )
 
-        gpx_points: T.Sequence[geo.Point] = sum(gpx_tracks, [])
+        all_points: list[geo.Point] = sum(gpx_tracks, [])
+        gpx_points = [p for p in all_points if _GPS_EPOCH <= p.time]
+        if len(gpx_points) < len(all_points):
+            LOG.warning(
+                "Ignoring %d of the %d points in the GPX file %s, which are timestamped before 1980",
+                len(all_points) - len(gpx_points),
+                len(all_points),
+                self.gpx_path,
+            )
+
+        # The tracks need not be in time order, and interpolation needs the
+        # merged points to be
+        gpx_points.sort(key=lambda p: p.time)
 
         try:
             native_video_metadata, noisy = self._extract_native_video_metadata()
@@ -107,7 +141,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             # empty or too noisy must not reject the video
             if self.sync_mode is SyncMode.STRICT_SYNC:
                 raise ex
-            self._rebase_times(gpx_points)
+            self._place_without_video_gps(gpx_points)
+            self._apply_offset_time(gpx_points)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -146,7 +181,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
                     )
 
         if clock is None:
-            self._rebase_times(gpx_points)
+            # Its GPS has no clock to sync with, as if it had no GPS
+            self._place_without_video_gps(gpx_points)
         else:
             if clock.rate != 1.0:
                 LOG.info(
@@ -158,7 +194,92 @@ class GPXVideoExtractor(BaseVideoExtractor):
             for p in gpx_points:
                 p.time = clock.to_video_time(p.time)
 
+        self._apply_offset_time(gpx_points, rate=1.0 if clock is None else clock.rate)
+
         return dataclasses.replace(native_video_metadata, points=gpx_points)
+
+    def _place_without_video_gps(self, gpx_points: T.Sequence[geo.Point]) -> None:
+        """
+        Place the GPX track on the timeline of a video that has no GPS to sync
+        it with: by the start time of the video, when sampling was given one,
+        and otherwise by assuming that the track starts with the video.
+        """
+        if not gpx_points:
+            return
+
+        if self.sync_mode is SyncMode.SYNC and self.video_sync is not None:
+            if self.video_sync.start_time is not None:
+                self._rebase_times(
+                    gpx_points, offset=gpx_points[0].time - self.video_sync.start_time
+                )
+                return
+            self._check_assumed_start(gpx_points)
+
+        self._rebase_times(gpx_points)
+
+    def _apply_offset_time(
+        self, gpx_points: T.Sequence[geo.Point], rate: float = 1.0
+    ) -> None:
+        """
+        Shift the track back by --interpolation_offset_time, which the
+        geotagging stage adds to the capture time of a frame to find its
+        position along the GPX. The offset is in GPS seconds, of which a
+        timelapse packs **rate** into each second of video.
+
+        The absolute times shift with the track, so that a frame is stamped
+        with its capture time, and the geotagging stage, adding the offset back,
+        finds the position the frame was picked by.
+        """
+        if self.video_sync is None or not self.video_sync.offset_time:
+            return
+
+        offset_time = self.video_sync.offset_time
+        for p in gpx_points:
+            p.time -= offset_time / rate
+            # parse_gpx() returns CAMMGPSPoint, with epoch_time 0 for no time
+            if isinstance(p, telemetry.CAMMGPSPoint) and 0 < p.epoch_time:
+                p.epoch_time -= offset_time
+
+    def _check_assumed_start(self, gpx_points: T.Sequence[geo.Point]) -> None:
+        """
+        Check that the GPX track can have started with the video, as it is
+        assumed to when nothing says when the video starts.
+
+        A track that runs on for longer than the whole video was not recorded
+        for the video alone, and the video could start anywhere along it: raise.
+        One that runs on for less may have been started a little before the
+        video, which puts every frame up to that much too early along it: warn.
+        """
+        video_duration = _video_duration(self.video_path)
+        if video_duration is None:
+            LOG.debug(
+                "Unable to read the duration of %s to check the GPX track against",
+                self.video_path,
+            )
+            return
+
+        gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
+        excess = gpx_duration - video_duration
+
+        if video_duration < excess:
+            raise exceptions.MapillaryGPXVideoStartUnknownError(
+                f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+                f"and the video only {_format_duration(video_duration)}, so the video "
+                "could start anywhere along the track. Specify --video_start_time, or "
+                "--interpolation_use_gpx_start_time if the track was started with the video"
+            )
+
+        if _ASSUMED_START_TOLERANCE_SECONDS < excess:
+            LOG.warning(
+                "Assuming that the GPX track in %s starts with the video %s, although "
+                "the track lasts %s longer. If it was started first, the frames are "
+                "placed up to that much too early along it. Specify --video_start_time "
+                "to place them exactly, or --interpolation_use_gpx_start_time if the "
+                "track was started with the video",
+                self.gpx_path,
+                self.video_path,
+                _format_duration(excess),
+            )
 
     def _extract_native_video_metadata(self) -> tuple[types.VideoMetadata, bool]:
         """
@@ -277,3 +398,35 @@ class GPXVideoExtractor(BaseVideoExtractor):
             if v1 < v2
         ]
         return statistics.median(steps) if steps else None
+
+
+def _video_duration(video_path: Path) -> float | None:
+    """
+    The duration of the video in seconds, from its mvhd box, or None if it
+    cannot be read.
+    """
+    try:
+        with video_path.open("rb") as fp:
+            data = sparser.parse_box_data_first(fp, [b"moov", b"mvhd"])
+        if data is None:
+            return None
+        mvhd = cparser.MovieHeaderBox.parse(data)
+    except (OSError, sparser.ParsingError, C.ConstructError) as ex:
+        LOG.debug("Failed to read the duration of %s: %s", video_path, ex)
+        return None
+
+    # All 1s means the duration is unknown
+    if not mvhd.timescale or mvhd.duration in (0, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF):
+        return None
+
+    return mvhd.duration / mvhd.timescale
+
+
+def _format_duration(seconds: float) -> str:
+    """
+    >>> _format_duration(5)
+    '5 seconds'
+    >>> _format_duration(43474)
+    '12 hours'
+    """
+    return humanize.naturaldelta(datetime.timedelta(seconds=seconds))
