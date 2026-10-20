@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import math
 import os
 import re
 import subprocess
@@ -55,8 +56,13 @@ class Stream(T.TypedDict):
     nb_frames: str
 
 
-class ProbeOutput(T.TypedDict):
+class Format(T.TypedDict, total=False):
+    tags: dict[str, str]
+
+
+class ProbeOutput(T.TypedDict, total=False):
     streams: list[Stream]
+    format: Format
 
 
 class FFmpegNotFoundError(Exception):
@@ -605,39 +611,63 @@ class Probe:
         """
         self.probe_output = probe_output
 
-    def probe_video_start_time(self) -> datetime.datetime | None:
+    def probe_video_creation_time(self) -> datetime.datetime | None:
         """
-        Determine the start time of the video by analyzing stream metadata.
+        Read the creation time the camera stamped into the stream metadata.
 
-        Searches for a creation time in video streams first, then falls back to
-        other stream types.
+        Searches video streams first, then falls back to other stream types.
+        Whether the creation time marks the start or the end of the recording
+        depends on the camera (see sample_video._creation_time_to_start_time).
 
         Returns:
-            Video start time as datetime object, or None if cannot be determined
+            Creation time as datetime object, or None if cannot be determined
 
         Note:
             Prioritizes video streams with highest resolution when multiple exist.
         """
-        streams = self.probe_output.get("streams", [])
+        for stream in self._iterate_streams_by_priority():
+            creation_time = self.extract_stream_creation_time(stream)
+            if creation_time is not None:
+                return creation_time
 
-        # Search start time from video streams
+        return None
+
+    def probe_video_duration(self) -> float | None:
+        """
+        Read the duration of the video in seconds from the stream metadata.
+
+        Searches the streams in the same order as probe_video_creation_time.
+
+        Returns:
+            Duration in seconds, or None if cannot be determined
+        """
+        for stream in self._iterate_streams_by_priority():
+            duration = self.extract_stream_duration(stream)
+            if duration is not None:
+                return duration
+
+        return None
+
+    def probe_format_tag(self, key: str) -> str | None:
+        """
+        Read a tag of the container, such as "make" or "model".
+
+        Returns:
+            The tag value, or None if the container does not have the tag
+        """
+        return self.probe_output.get("format", {}).get("tags", {}).get(key)
+
+    def _iterate_streams_by_priority(self) -> T.Generator[Stream, None, None]:
+        # Video streams by resolution, from the highest, then the other streams
         video_streams = self.probe_video_streams()
         video_streams.sort(
             key=lambda s: s.get("width", 0) * s.get("height", 0), reverse=True
         )
-        for stream in video_streams:
-            start_time = self.extract_stream_start_time(stream)
-            if start_time is not None:
-                return start_time
+        yield from video_streams
 
-        # Search start time from the other streams
-        for stream in streams:
+        for stream in self.probe_output.get("streams", []):
             if stream.get("codec_type") != "video":
-                start_time = self.extract_stream_start_time(stream)
-                if start_time is not None:
-                    return start_time
-
-        return None
+                yield stream
 
     def probe_video_streams(self) -> list[Stream]:
         """
@@ -670,25 +700,15 @@ class Probe:
         return video_streams[0]
 
     @classmethod
-    def extract_stream_start_time(cls, stream: Stream) -> datetime.datetime | None:
+    def extract_stream_creation_time(cls, stream: Stream) -> datetime.datetime | None:
         """
-        Read the start time of a specific stream from its creation time.
-
-        ISO/IEC 14496-12 defines creation_time as the creation time of the
-        presentation, which for a recording is the moment it started, and that
-        is what cameras and ffmpeg write. We used to subtract the duration from
-        it, a workaround for BlackVue dashcams that really do stamp the time the
-        recording ended. That workaround put every other camera's video one full
-        duration into the past, so sampled frames landed that far back along the
-        GPS track. Cameras that stamp the end time embed GPS with absolute
-        timestamps, so callers sync against that clock instead (see
-        sample_video._extract_video_start_time).
+        Read the creation time of a specific stream.
 
         Args:
             stream: Stream dictionary containing metadata including tags
 
         Returns:
-            Stream start time as datetime object, or None if the creation time is missing
+            Creation time as datetime object, or None if it is missing or malformed
 
         Note:
             Handles multiple datetime formats including ISO format and custom patterns.
@@ -700,6 +720,34 @@ class Probe:
         try:
             return datetime.datetime.fromisoformat(creation_time_str)
         except ValueError:
+            pass
+        try:
             return datetime.datetime.strptime(
                 creation_time_str, "%Y-%m-%dT%H:%M:%S.%f%z"
             )
+        except ValueError:
+            LOG.warning("Ignoring malformed video creation time: %s", creation_time_str)
+            return None
+
+    @classmethod
+    def extract_stream_duration(cls, stream: Stream) -> float | None:
+        """
+        Read the duration of a specific stream in seconds.
+
+        Args:
+            stream: Stream dictionary containing metadata
+
+        Returns:
+            Duration in seconds, or None if it is missing or malformed
+        """
+        duration_str = stream.get("duration")
+        LOG.debug("Extracted video duration: %s", duration_str)
+        if duration_str is None:
+            return None
+        try:
+            duration = float(duration_str)
+        except ValueError:
+            return None
+        if not math.isfinite(duration) or duration < 0:
+            return None
+        return duration
