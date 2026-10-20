@@ -24,7 +24,7 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
+from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
 
 _DATA = Path(__file__).resolve().parent.parent.joinpath("data")
 
@@ -294,3 +294,58 @@ class TestUntidyGPX:
 
         assert metadata.points[0].time == 0
         assert metadata.points[0].get_unix_time() == GPX_START.timestamp()
+
+
+class TestVideoGPSWithoutAClock:
+    """
+    A video whose GPS has no usable clock, such as GPS rejected as noise with a
+    placeholder date, has nothing to sync a GPX with, as if it had no GPS.
+    """
+
+    def test_the_track_is_placed_by_the_video_start_time(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            GPXVideoExtractor,
+            "_read_video_clock",
+            classmethod(lambda cls, points: None),
+        )
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+        video_start = GPX_START + datetime.timedelta(seconds=30)
+
+        metadata = _extract(
+            GPS_VIDEO, gpx, VideoSyncOption(start_time=video_start.timestamp())
+        )
+
+        assert metadata.points[30].time == pytest.approx(0)
+
+
+class TestTimelapseOffset:
+    def test_the_offset_is_in_gps_seconds(self, tmp_path, monkeypatch):
+        """
+        A timelapse packs rate GPS seconds into each video second, so an offset
+        of 2 GPS seconds moves the track by 2 / rate seconds of video.
+        """
+        start = datetime.datetime(
+            2019, 11, 18, 15, 44, 40, tzinfo=datetime.timezone.utc
+        )
+        monkeypatch.setattr(
+            GPXVideoExtractor,
+            "_read_video_clock",
+            classmethod(
+                lambda cls, points: VideoClock(
+                    video_time=0.0, unix_time=start.timestamp(), rate=10.0
+                )
+            ),
+        )
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=30, start=start)
+
+        synced = _extract(GPS_VIDEO, gpx, VideoSyncOption())
+        shifted = _extract(GPS_VIDEO, gpx, VideoSyncOption(offset_time=2))
+
+        assert [p.time for p in shifted.points] == pytest.approx(
+            [p.time - 0.2 for p in synced.points]
+        )
+        # and the frames are stamped 2 GPS seconds back, for the geotagging
+        # stage to add them again
+        assert [p.get_unix_time() for p in shifted.points] == pytest.approx(
+            [p.get_unix_time() - 2 for p in synced.points]
+        )

@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 import xml.etree.ElementTree as ET
 
 import pytest
+from mapillary_tools import constants
 from mapillary_tools.exiftool_read_video import (
     _aggregate_gps_track,
     _aggregate_gps_track_by_sample_time,
@@ -20,6 +22,7 @@ from mapillary_tools.exiftool_read_video import (
     ExifToolReadVideo,
     expand_tag,
 )
+from mapillary_tools.gpmf.gpmf_gps_filter import remove_noisy_points
 from mapillary_tools.telemetry import GPSFix, GPSPoint
 
 
@@ -117,6 +120,36 @@ GOPRO_XML = """\
  <Track1:GPSTrack>168.23</Track1:GPSTrack>
  <Track1:GPSMeasureMode>3</Track1:GPSMeasureMode>
  <Track1:GPSHPositioningError>2.15</Track1:GPSHPositioningError>
+</rdf:Description>
+</rdf:RDF>
+"""
+
+# GPS9 telemetry (GoPro MAX 2, HERO11+): GPSDOP in place of
+# GPSHPositioningError. DoP values are from a real MAX 2 clip.
+GPS9_XML = """\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.360'
+ xmlns:Track1='http://ns.exiftool.org/QuickTime/Track1/1.0/'
+ xmlns:GoPro='http://ns.exiftool.org/QuickTime/GoPro/1.0/'>
+ <GoPro:Make>GoPro</GoPro:Make>
+ <GoPro:Model>GoPro Max 2</GoPro:Model>
+ <Track1:SampleTime>0</Track1:SampleTime>
+ <Track1:SampleDuration>1.001</Track1:SampleDuration>
+ <Track1:GPSLatitude>47.359832</Track1:GPSLatitude>
+ <Track1:GPSLongitude>8.522706</Track1:GPSLongitude>
+ <Track1:GPSAltitude>414.9</Track1:GPSAltitude>
+ <Track1:GPSDateTime>2026:07:31 00:25:23.200Z</Track1:GPSDateTime>
+ <Track1:GPSMeasureMode>3</Track1:GPSMeasureMode>
+ <Track1:GPSDOP>1.85</Track1:GPSDOP>
+ <Track1:SampleTime>1.001</Track1:SampleTime>
+ <Track1:SampleDuration>1.001</Track1:SampleDuration>
+ <Track1:GPSLatitude>47.359810</Track1:GPSLatitude>
+ <Track1:GPSLongitude>8.522680</Track1:GPSLongitude>
+ <Track1:GPSAltitude>415.2</Track1:GPSAltitude>
+ <Track1:GPSDateTime>2026:07:31 00:25:24.200Z</Track1:GPSDateTime>
+ <Track1:GPSMeasureMode>3</Track1:GPSMeasureMode>
+ <Track1:GPSDOP>2.07</Track1:GPSDOP>
 </rdf:Description>
 </rdf:RDF>
 """
@@ -785,10 +818,116 @@ class TestAggregateGpsTrackBySampleTime:
             sample_iterator,
             lon_tag=f"{track_ns}:GPSLongitude",
             lat_tag=f"{track_ns}:GPSLatitude",
-            gps_precision_tag=f"{track_ns}:GPSHPositioningError",
+            gps_precision_tags=[f"{track_ns}:GPSHPositioningError"],
         )
         assert len(track) == 1
         assert track[0].precision == pytest.approx(219.0)
+
+    def _precision_from(self, tags: dict[str, str]) -> float | None:
+        """Read precision from a sample carrying the given DoP-ish tags."""
+        track_ns = "Track1"
+        elements = [
+            _make_element(f"{track_ns}:GPSLongitude", "8.0"),
+            _make_element(f"{track_ns}:GPSLatitude", "47.0"),
+            *(_make_element(f"{track_ns}:{tag}", value) for tag, value in tags.items()),
+        ]
+        track = _aggregate_gps_track_by_sample_time(
+            [(0.0, 1.0, elements)],
+            lon_tag=f"{track_ns}:GPSLongitude",
+            lat_tag=f"{track_ns}:GPSLatitude",
+            gps_precision_tags=[
+                f"{track_ns}:GPSDOP",
+                f"{track_ns}:GPSHPositioningError",
+            ],
+        )
+        assert len(track) == 1
+        return track[0].precision
+
+    def test_gps9_cameras_report_dop_instead(self):
+        """
+        GPS9 telemetry (GoPro MAX 2, HERO11+) reports GPSDOP and no
+        GPSHPositioningError, so reading only the latter loses precision
+        entirely and the noise filter silently keeps a track it should drop.
+        """
+        assert self._precision_from({"GPSDOP": "1.85"}) == pytest.approx(185.0)
+
+    def test_gps5_cameras_still_work(self):
+        """HERO10 and older report only GPSHPositioningError."""
+        assert self._precision_from({"GPSHPositioningError": "99.99"}) == pytest.approx(
+            9999.0
+        )
+
+    def test_dop_wins_when_a_camera_reports_both(self):
+        """Both spellings carry the quantity GPSP holds, so the order only
+        matters for a file reporting both; GPSDOP, the GPS9 one, is read first."""
+        assert self._precision_from(
+            {"GPSDOP": "1.85", "GPSHPositioningError": "99.99"}
+        ) == pytest.approx(185.0)
+
+    def test_no_precision_tags_at_all(self):
+        assert self._precision_from({}) is None
+
+    def _track_from(self, tags: dict[str, str]) -> list[GPSPoint]:
+        """
+        Build a two-sample track carrying the given DoP-ish tags.
+
+        Two points keep remove_outliers() a no-op -- it returns early below
+        two distances -- so the DoP gate is what the assertions measure.
+        """
+        track_ns = "Track1"
+        sample_iterator = [
+            (
+                float(idx),
+                1.0,
+                [
+                    _make_element(f"{track_ns}:GPSLongitude", f"{8.0 + idx * 0.0001}"),
+                    _make_element(f"{track_ns}:GPSLatitude", f"{47.0 + idx * 0.0001}"),
+                    *(
+                        _make_element(f"{track_ns}:{tag}", value)
+                        for tag, value in tags.items()
+                    ),
+                ],
+            )
+            for idx in range(2)
+        ]
+        return list(
+            _aggregate_gps_track_by_sample_time(
+                sample_iterator,
+                lon_tag=f"{track_ns}:GPSLongitude",
+                lat_tag=f"{track_ns}:GPSLatitude",
+                gps_precision_tags=[
+                    f"{track_ns}:GPSDOP",
+                    f"{track_ns}:GPSHPositioningError",
+                ],
+            )
+        )
+
+    def test_a_noisy_gps9_track_is_now_filtered(self):
+        """
+        The reported failure: a MAX 2 whose DoP is far over the limit was
+        accepted by the exiftool reader while the native parser rejected it.
+
+        Reading GPSDOP is only worth anything if the noise filter then drops
+        the track, so assert that end rather than the parsed number alone.
+        """
+        noisy = self._track_from({"GPSDOP": "21.39"})
+        assert [p.precision for p in noisy] == [
+            pytest.approx(2139.0),
+            pytest.approx(2139.0),
+        ]
+        assert list(remove_noisy_points(noisy)) == []
+
+        # Leaving the tag unread is what the filter saw before this change:
+        # no precision to test, so the same noisy track survives
+        unread = [dataclasses.replace(p, precision=None) for p in noisy]
+        assert len(remove_noisy_points(unread)) == 2
+
+    def test_a_clean_gps9_track_survives_the_filter(self):
+        """A healthy MAX 2 DoP is far under the limit and must not be dropped."""
+        clean = self._track_from({"GPSDOP": "1.85"})
+        assert clean[0].precision == pytest.approx(185.0)
+        assert clean[0].precision < constants.GOPRO_MAX_DOP100
+        assert len(remove_noisy_points(clean)) == 2
 
     def test_multiple_points_per_sample_get_interpolated_time(self):
         """Multiple GPS points within a single sample get evenly spaced times."""
@@ -1169,6 +1308,22 @@ class TestExtractGpsTrack:
         assert len(track) == 2
         assert track[0].lat == pytest.approx(47.359832)
         assert track[0].lon == pytest.approx(8.522706)
+
+    def test_gps9_track_carries_dop_through_extract(self):
+        """
+        The tag list extract_gps_track() asks for has to include GPSDOP.
+
+        The other DoP tests drive _aggregate_gps_track_by_sample_time()
+        with their own tag list, so dropping GPSDOP from the reader would
+        leave them all green. This one goes through the real entry point,
+        and the DoP it returns is what remove_noisy_points() gates on.
+        """
+        reader = ExifToolReadVideo(_etree_from_xml(GPS9_XML))
+        track = reader.extract_gps_track()
+        assert [p.precision for p in track] == [
+            pytest.approx(185.0),
+            pytest.approx(207.0),
+        ]
 
     def test_empty_gps_track(self):
         """When no GPS data is present, returns empty list."""

@@ -58,7 +58,18 @@ class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
 
-class MapillaryVideoGPSNotFoundError(MapillaryDescriptionError):
+class MapillaryVideoGPSUnusableError(MapillaryDescriptionError):
+    """
+    The video has no GPS track that can be used: none at all, an empty one, or
+    one too noisy to trust. Catch this rather than any one of its subclasses
+    """
+
+
+class MapillaryVideoGPSNotFoundError(MapillaryVideoGPSUnusableError):
+    pass
+
+
+class MapillaryInvalidGPXError(MapillaryDescriptionError):
     pass
 
 
@@ -66,11 +77,11 @@ class MapillaryInvalidVideoError(MapillaryDescriptionError):
     pass
 
 
-class MapillaryGPXEmptyError(MapillaryDescriptionError):
+class MapillaryGPXEmptyError(MapillaryVideoGPSUnusableError):
     pass
 
 
-class MapillaryGPSNoiseError(MapillaryDescriptionError):
+class MapillaryGPSNoiseError(MapillaryVideoGPSUnusableError):
     pass
 
 

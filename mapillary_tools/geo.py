@@ -263,7 +263,7 @@ class Interpolator(T.Generic[PointLike]):
             for left, right in pairwise(track):
                 if not (left.time <= right.time):
                     raise ValueError(
-                        "Expect points to be sorted by time, but got {left.time} then {right.time}"
+                        f"Expect points to be sorted by time, but got {left.time} then {right.time}"
                     )
 
         self.tracks.sort(key=lambda track: track[0].time)
