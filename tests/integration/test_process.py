@@ -9,6 +9,7 @@ import os
 import subprocess
 from pathlib import Path
 
+import gpxpy
 import py.path
 import pytest
 
@@ -623,11 +624,32 @@ def test_process_video_geotag_source_gpx_not_found(setup_data: py.path.local):
     assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
 
 
+# The GPS track of gopro_data/max-360mode.mp4 starts at 2019-11-18T23:44:42.59Z
+_GOPRO_MAX_GPS_START = datetime.datetime(
+    2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc
+)
+
+
+def _copy_gpx_shifted_to(
+    src: py.path.local, dst: py.path.local, start: datetime.datetime
+) -> None:
+    """Copy a GPX file with its times shifted to begin at start."""
+    with open(src) as fp:
+        gpx = gpxpy.parse(fp)
+    start_time = gpx.get_time_bounds().start_time
+    assert start_time is not None
+    gpx.adjust_time(start - start_time)
+    dst.write(gpx.to_xml())
+
+
 def test_process_video_geotag_source_with_gopro_gpx_specified(
     setup_data: py.path.local,
 ):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
-    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    gpx_file = setup_data.join("gpx").join("max-360mode.gpx")
+    _copy_gpx_shifted_to(
+        setup_data.join("gpx").join("sf_30km_h.gpx"), gpx_file, _GOPRO_MAX_GPS_START
+    )
 
     descs = run_process_for_descs(
         [
@@ -643,6 +665,33 @@ def test_process_video_geotag_source_with_gopro_gpx_specified(
     assert descs[0]["MAPDeviceMake"] == "GoPro"
     assert descs[0]["MAPDeviceModel"] == "GoPro Max"
     assert len(descs[0]["MAPGPSTrack"]) > 0
+
+
+def test_process_video_geotag_source_with_gpx_outside_video(
+    setup_data: py.path.local,
+):
+    """A GPX file recorded at another time than the video must not sync."""
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    # Recorded in 2025, five years after the video
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                json.dumps({"source": "gpx", "source_path": str(gpx_file)}),
+            ],
+            str(video_path),
+        ]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["error"]["type"] == "MapillaryOutsideGPXTrackError"
+    assert descs[0]["error"]["vars"] == {
+        "image_time": "2019_11_18_23_44_42_590",
+        "gpx_start_time": "2025_03_14_07_00_00_000",
+        "gpx_end_time": "2025_03_14_07_01_33_624",
+    }
 
 
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
@@ -661,8 +710,11 @@ def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
 
 def test_process_geotag_with_gpx_pattern(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
-    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
-    gpx_file.copy(setup_data.join("gopro_data").join("max-360mode.gpx"))
+    _copy_gpx_shifted_to(
+        setup_data.join("gpx").join("sf_30km_h.gpx"),
+        setup_data.join("gopro_data").join("max-360mode.gpx"),
+        _GOPRO_MAX_GPS_START,
+    )
 
     descs = run_process_for_descs(
         [

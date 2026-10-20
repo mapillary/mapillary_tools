@@ -16,7 +16,6 @@ from pathlib import Path
 
 import construct as C
 import gpxpy
-import humanize
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -25,6 +24,7 @@ else:
 
 from ... import exceptions, geo, telemetry, types, utils
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
+from ...serializer.description import build_capture_time
 from .. import options
 from ..utils import parse_gpx
 from .base import BaseVideoExtractor
@@ -33,9 +33,9 @@ from .native import NativeVideoExtractor
 
 LOG = logging.getLogger(__name__)
 
-# A GPX track and the video it is synced against should overlap in time. Warn
-# above a day, which no legitimate pairing needs and an epoch mix-up exceeds by
-# orders of magnitude.
+# No camera clock or time zone mistake puts a GPX track and the video it
+# belongs to more than a day apart, while an epoch mix-up exceeds it by orders
+# of magnitude.
 _IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 
 # A GPS clock that runs this much faster than the video clock is a timelapse.
@@ -48,10 +48,11 @@ _MIN_TIMELAPSE_RATE = 1.5
 # 1969-12-31T15:59:59Z, on points that had no valid time
 _GPS_EPOCH = datetime.datetime(1980, 1, 6, tzinfo=datetime.timezone.utc).timestamp()
 
-# How much longer than a video a GPX track may last without a warning, when it
-# is assumed to start with the video. A logger that records once a second,
-# started and stopped with the camera, can run on for a second at each end.
-_ASSUMED_START_TOLERANCE_SECONDS = 2.0
+# How far a GPX track may run past either end of a video, when it is assumed
+# to start with the video, or fall short of them, without a warning. A logger
+# that records once a second, started and stopped with the camera, can be a
+# second off at each end.
+_LOGGER_TOLERANCE_SECONDS = 2.0
 
 
 class SyncMode(enum.Enum):
@@ -133,6 +134,11 @@ class GPXVideoExtractor(BaseVideoExtractor):
         # The tracks need not be in time order, and interpolation needs the
         # merged points to be
         gpx_points.sort(key=lambda p: p.time)
+        # The first and last Unix time of the track, before it is placed on
+        # the timeline of the video
+        gpx_unix_times = (
+            (gpx_points[0].time, gpx_points[-1].time) if gpx_points else None
+        )
 
         try:
             native_video_metadata, noisy = self._extract_native_video_metadata()
@@ -141,8 +147,9 @@ class GPXVideoExtractor(BaseVideoExtractor):
             # empty or too noisy must not reject the video
             if self.sync_mode is SyncMode.STRICT_SYNC:
                 raise ex
-            self._place_without_video_gps(gpx_points)
+            start_clock = self._place_without_video_gps(gpx_points)
             self._apply_offset_time(gpx_points)
+            self._check_coverage(gpx_points, gpx_unix_times, [], start_clock)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -170,19 +177,10 @@ class GPXVideoExtractor(BaseVideoExtractor):
                         self.gpx_path,
                     )
                     clock = None
-                else:
-                    LOG.warning(
-                        "Syncing %s against %s requires an offset of %.0f seconds (%.1f days). "
-                        "The GPX file probably does not belong to this video",
-                        self.video_path,
-                        self.gpx_path,
-                        offset,
-                        offset / 86400,
-                    )
 
         if clock is None:
             # Its GPS has no clock to sync with, as if it had no GPS
-            self._place_without_video_gps(gpx_points)
+            clock = self._place_without_video_gps(gpx_points)
         else:
             if clock.rate != 1.0:
                 LOG.info(
@@ -195,27 +193,36 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 p.time = clock.to_video_time(p.time)
 
         self._apply_offset_time(gpx_points, rate=1.0 if clock is None else clock.rate)
+        self._check_coverage(
+            gpx_points, gpx_unix_times, native_video_metadata.points, clock
+        )
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
-    def _place_without_video_gps(self, gpx_points: T.Sequence[geo.Point]) -> None:
+    def _place_without_video_gps(
+        self, gpx_points: T.Sequence[geo.Point]
+    ) -> VideoClock | None:
         """
         Place the GPX track on the timeline of a video that has no GPS to sync
         it with: by the start time of the video, when sampling was given one,
         and otherwise by assuming that the track starts with the video.
+
+        Return the clock of the video the track was placed by: the start time,
+        or None if the track was assumed to start with the video.
         """
         if not gpx_points:
-            return
+            return None
 
         if self.sync_mode is SyncMode.SYNC and self.video_sync is not None:
             if self.video_sync.start_time is not None:
                 self._rebase_times(
                     gpx_points, offset=gpx_points[0].time - self.video_sync.start_time
                 )
-                return
+                return VideoClock(video_time=0.0, unix_time=self.video_sync.start_time)
             self._check_assumed_start(gpx_points)
 
         self._rebase_times(gpx_points)
+        return None
 
     def _apply_offset_time(
         self, gpx_points: T.Sequence[geo.Point], rate: float = 1.0
@@ -239,6 +246,78 @@ class GPXVideoExtractor(BaseVideoExtractor):
             # parse_gpx() returns CAMMGPSPoint, with epoch_time 0 for no time
             if isinstance(p, telemetry.CAMMGPSPoint) and 0 < p.epoch_time:
                 p.epoch_time -= offset_time
+
+    def _check_coverage(
+        self,
+        gpx_points: T.Sequence[geo.Point],
+        gpx_unix_times: tuple[float, float] | None,
+        video_gps_points: T.Sequence[geo.Point],
+        clock: VideoClock | None,
+    ) -> None:
+        """
+        Check the GPX track, as placed on the timeline of the video, against
+        the video, from video time 0 to its mvhd duration.
+
+        A track that misses the video has no position for any moment of it, so
+        it raises when the clock it was placed by says so. A track that covers
+        only part of the video warns, and one that covers all of it is silent.
+
+        Without the duration of the video, the video is known only up to its
+        last GPS point, and a track that starts after it may still overlap the
+        video. Then a gap only warns, unless it is too large for any clock or
+        time zone mistake to explain. A track assumed to start with the video
+        has no clock to say that it misses the video, so it only warns.
+        """
+        if not gpx_points or gpx_unix_times is None:
+            return
+
+        video_duration = _video_duration(self.video_path)
+        video_end = max((p.time for p in video_gps_points), default=0.0)
+        if video_duration is not None:
+            video_end = max(video_end, video_duration)
+        if video_end <= 0:
+            return
+
+        # GPS seconds per video second
+        rate = 1.0 if clock is None else clock.rate
+        gpx_first = min(p.time for p in gpx_points)
+        gpx_last = max(p.time for p in gpx_points)
+
+        gpx_track = f"The GPX track in {self.gpx_path} ({_isoformat(gpx_unix_times[0])} to {_isoformat(gpx_unix_times[1])})"
+        if clock is None:
+            video = f"the video {self.video_path}"
+        else:
+            video = f"the video {self.video_path} ({_isoformat(clock.to_unix_time(0))} to {_isoformat(clock.to_unix_time(video_end))})"
+
+        # In GPS seconds, which is where clock and time zone mistakes are made
+        gap = max(gpx_first - video_end, -gpx_last) * rate
+        if gap <= 0:
+            # In video seconds
+            uncovered = max(gpx_first, 0.0) + max(video_end - gpx_last, 0.0)
+            if _LOGGER_TOLERANCE_SECONDS < uncovered * rate:
+                LOG.warning(
+                    f"{gpx_track} covers only part of {video}: "
+                    f"{_format_duration(uncovered)} of the video fall outside the track"
+                )
+            return
+
+        message = (
+            f"{gpx_track} misses {video} by {_format_duration(gap)}. Check that "
+            "the GPX file belongs to this video, then the camera clock and the "
+            "time zone of the GPX timestamps"
+        )
+
+        if clock is not None and (
+            video_duration is not None or _IMPLAUSIBLE_OFFSET_SECONDS < gap
+        ):
+            raise exceptions.MapillaryOutsideGPXTrackError(
+                message,
+                image_time=build_capture_time(clock.to_unix_time(0)),
+                gpx_start_time=build_capture_time(gpx_unix_times[0]),
+                gpx_end_time=build_capture_time(gpx_unix_times[1]),
+            )
+
+        LOG.warning(message)
 
     def _check_assumed_start(self, gpx_points: T.Sequence[geo.Point]) -> None:
         """
@@ -269,7 +348,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 "--interpolation_use_gpx_start_time if the track was started with the video"
             )
 
-        if _ASSUMED_START_TOLERANCE_SECONDS < excess:
+        if _LOGGER_TOLERANCE_SECONDS < excess:
             LOG.warning(
                 "Assuming that the GPX track in %s starts with the video %s, although "
                 "the track lasts %s longer. If it was started first, the frames are "
@@ -424,9 +503,33 @@ def _video_duration(video_path: Path) -> float | None:
 
 def _format_duration(seconds: float) -> str:
     """
-    >>> _format_duration(5)
+    Format a duration in the largest unit it fills, rounded rather than
+    truncated, since timestamps often fall a hair short of a whole unit
+
+    >>> _format_duration(0.089)
+    '0.089 seconds'
+    >>> _format_duration(1)
+    '1 second'
+    >>> _format_duration(4.9991)
     '5 seconds'
+    >>> _format_duration(90)
+    '1.5 minutes'
+    >>> _format_duration(7199.999)
+    '2.0 hours'
     >>> _format_duration(43474)
-    '12 hours'
+    '12.1 hours'
+    >>> _format_duration(3 * 86400 - 0.001)
+    '3.0 days'
     """
-    return humanize.naturaldelta(datetime.timedelta(seconds=seconds))
+    for unit, size in (("days", 86400), ("hours", 3600), ("minutes", 60)):
+        if seconds >= size:
+            return f"{seconds / size:.1f} {unit}"
+    # Significant digits, so that a gap under a second does not read as 0
+    text = f"{seconds:.3g}"
+    return f"{text} second" if text == "1" else f"{text} seconds"
+
+
+def _isoformat(unix_time: float) -> str:
+    return datetime.datetime.fromtimestamp(
+        unix_time, tz=datetime.timezone.utc
+    ).isoformat()

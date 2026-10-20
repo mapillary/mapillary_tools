@@ -173,10 +173,13 @@ class TestGPXOverridesNoisyGPS:
         assert [p.time for p in metadata.points] == [0.0, 2.0]
         assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
 
-    def test_good_clock_days_away_is_still_used(
+    def test_good_clock_days_away_rejects_the_gpx(
         self, monkeypatch, video_path, gpx_path
     ):
-        """Only a clock rejected with its noisy track is second-guessed."""
+        """
+        Only a clock rejected with its noisy track is second-guessed. A good
+        clock days away from the GPX says the GPX misses the video.
+        """
         day = 24 * 3600.0
         points = [
             _point(
@@ -189,9 +192,8 @@ class TestGPXOverridesNoisyGPS:
         ]
         _stub_gopro(monkeypatch, points)
 
-        metadata = GPXVideoExtractor(video_path, gpx_path).extract()
-
-        assert metadata.points[0].time == pytest.approx(2 * day + 2.0)
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
+            GPXVideoExtractor(video_path, gpx_path).extract()
 
 
 class TestEmptyGPSFallsBack:

@@ -162,6 +162,10 @@ def process(
     # overturn it by reading the same bad data differently
     rejected_gps_paths: set[Path] = set()
 
+    # Paths whose GPX track missed them, with the source that rejected them, to
+    # warn about if a later source geotags them instead
+    gpx_rejections: dict[Path, tuple[SourceOption, types.ErrorMetadata]] = {}
+
     for option in options:
         if option.source in EXTERNAL_GPS_SOURCES:
             option_paths = reprocessable_paths
@@ -197,11 +201,17 @@ def process(
         else:
             video_metadata_or_errors = []
 
+        rescued: list[
+            tuple[types.MetadataOrError, SourceOption, types.ErrorMetadata]
+        ] = []
+
         for metadata in image_metadata_or_errors + video_metadata_or_errors:
             if isinstance(metadata, types.ErrorMetadata) and _is_reprocessable(
                 metadata
             ):
                 # Leave what it is for the next geotag process
+                if isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError):
+                    gpx_rejections[metadata.filename] = (option, metadata)
                 if isinstance(
                     metadata.error,
                     (
@@ -221,6 +231,13 @@ def process(
                 final_metadatas.append(metadata)
                 reprocessable_paths.remove(metadata.filename)
                 pending_errors.pop(metadata.filename, None)
+                rejection = gpx_rejections.pop(metadata.filename, None)
+                if rejection is not None and not isinstance(
+                    metadata, types.ErrorMetadata
+                ):
+                    rescued.append((metadata, *rejection))
+
+        _warn_geotagged_despite_gpx(rescued, option)
 
         # Quit if no more paths to process
         if not reprocessable_paths:
@@ -229,6 +246,44 @@ def process(
     final_metadatas.extend(pending_errors.values())
 
     return final_metadatas
+
+
+def _warn_geotagged_despite_gpx(
+    rescued: T.Sequence[
+        tuple[types.MetadataOrError, SourceOption, types.ErrorMetadata]
+    ],
+    option: SourceOption,
+) -> None:
+    """
+    Warn about the files whose GPX track missed them, but which the source
+    **option** geotagged instead, so that a GPX that does not belong to them
+    does not go unnoticed: one warning per video, and one per GPX source for
+    images, of which a GPX can miss many.
+    """
+    images_by_gpx_option: dict[int, tuple[SourceOption, list[Path]]] = {}
+
+    for metadata, gpx_option, rejection in rescued:
+        if isinstance(metadata, types.VideoMetadata):
+            LOG.warning(
+                f"{rejection.error}. Geotagged it from the {option.source.value} source instead"
+            )
+        else:
+            images_by_gpx_option.setdefault(id(gpx_option), (gpx_option, []))[1].append(
+                metadata.filename
+            )
+
+    for gpx_option, image_paths in images_by_gpx_option.values():
+        gpx_path = gpx_option.source_path and gpx_option.source_path.source_path
+        gpx_track = f"the GPX track in {gpx_path}" if gpx_path else "the GPX track"
+        if len(image_paths) == 1:
+            images, them = "1 image falls", "it"
+        else:
+            images, them = f"{len(image_paths)} images fall", "them"
+        LOG.warning(
+            f"{images} outside {gpx_track}. "
+            f"Geotagged {them} from the {option.source.value} source instead"
+        )
+        LOG.debug("Images outside %s: %s", gpx_track, [p.name for p in image_paths])
 
 
 def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
