@@ -111,7 +111,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
         self.video_sync = video_sync
-        # Clip the track to the video when a clock placed it (see _clip_to_video)
+        # Clip the track to the video when a clock gives its pace along the
+        # video (see _clip_to_video)
         self.clip_to_video = clip_to_video
         if video_sync is not None and video_sync.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
@@ -249,13 +250,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
     def _clip_to_video(self, gpx_points: list[geo.Point]) -> list[geo.Point]:
         """
-        Clip a GPX track that a clock placed on the timeline of the video to
-        the video. Its points outside the video are the positions of none of
-        its frames, and a GPX of a longer trip can run on for long after it.
+        Clip a GPX track to the video when a clock gives its pace along the
+        video, so that where the video ends along it is known: the GPS clock
+        of the video, which places the track too unless
+        --interpolation_use_gpx_start_time starts it with the video, or the
+        --video_start_time of sampling. Its points outside the video are the
+        positions of none of its frames, and a GPX of a longer trip can run on
+        for long after it.
 
-        A track that is only assumed to start with the video is left as it is:
-        it may be that of a timelapse, which runs on past the end of the video
-        at the pace of the GPS clock rather than that of the video.
+        A track that is only assumed to start with a video without a GPS clock
+        is left as it is: it may be that of a timelapse, which runs on past
+        the end of the video at the pace of the GPS clock rather than that of
+        the video.
         """
         return _clip_track(gpx_points, _video_duration(self.video_path))
 

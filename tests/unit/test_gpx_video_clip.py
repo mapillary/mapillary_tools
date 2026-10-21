@@ -4,9 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-A GPX track that a clock placed on the timeline of a video is clipped to the
-video, with a point interpolated at either end, when it geotags the video.
-One that is only assumed to start with the video is not.
+A GPX track whose pace along a video a clock gives is clipped to the video,
+with a point interpolated at either end, when it geotags the video. One that
+is only assumed to start with a video without a GPS clock is not.
 """
 
 from __future__ import annotations
@@ -109,6 +109,22 @@ class TestClockPlacedTrack:
         assert times[0] == 0
         assert times[-1] == pytest.approx(NO_GPS_VIDEO_DURATION, abs=1e-3)
 
+    def test_started_with_the_video_is_clipped(self, tmp_path):
+        """
+        --interpolation_use_gpx_start_time places the track, and the GPS clock
+        gives its pace
+        """
+        metadata = GPXVideoExtractor(
+            GPS_VIDEO,
+            self._gpx(tmp_path),
+            sync_mode=SyncMode.REBASE,
+            clip_to_video=True,
+        ).extract()
+
+        times = _times(metadata)
+        assert times[:-1] == [float(t) for t in range(13)]
+        assert times[-1] == pytest.approx(GPS_VIDEO_DURATION)
+
     def test_the_gpx_source_clips_it(self, tmp_path):
         [metadata] = factory.process(
             [GPS_VIDEO],
@@ -137,14 +153,5 @@ class TestTrackAssumedToStartWithTheVideo:
         gpx = _write_gpx(tmp_path / "track.gpx", start.timestamp(), 60)
 
         metadata = GPXVideoExtractor(NO_GPS_VIDEO, gpx, clip_to_video=True).extract()
-
-        assert _times(metadata) == [float(t) for t in range(61)]
-
-    def test_said_to_by_gpx_start_time_is_not_clipped(self, tmp_path):
-        gpx = _write_gpx(tmp_path / "track.gpx", _gps_video_start() - 12.5, 60)
-
-        metadata = GPXVideoExtractor(
-            GPS_VIDEO, gpx, sync_mode=SyncMode.REBASE, clip_to_video=True
-        ).extract()
 
         assert _times(metadata) == [float(t) for t in range(61)]
