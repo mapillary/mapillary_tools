@@ -883,6 +883,15 @@ def _sample_single_video_by_distance(
         )
     sorted_sample_indices = sorted(sample_points_by_frame_idx.keys())
 
+    # The GPS timestamps of the track, which frames are stamped within
+    track_unix_times = [
+        unix_time
+        for unix_time in (p.get_unix_time() for p in video_metadata.points)
+        if unix_time is not None
+    ]
+    first_unix_time = min(track_unix_times, default=None)
+    last_unix_time = max(track_unix_times, default=None)
+
     # Frames at points with an absolute timestamp are timestamped from it
     # below, so only the others need the start time
     if start_time is None and any(
@@ -933,6 +942,12 @@ def _sample_single_video_by_distance(
             # Try to use the GPS timestamp if available (for timelapse videos)
             gps_unix_time = interp.get_unix_time()
             if gps_unix_time is not None:
+                assert first_unix_time is not None and last_unix_time is not None
+                # Frames up to 1 ms of video past either end of the track are
+                # kept, and their timestamps extrapolated. In a timelapse, 1 ms
+                # of video spans several ms of GPS time, and the geotagging
+                # stage allows a frame only 1 ms past the end of a GPX track
+                gps_unix_time = min(max(gps_unix_time, first_unix_time), last_unix_time)
                 timestamp = datetime.datetime.fromtimestamp(
                     gps_unix_time, tz=datetime.timezone.utc
                 )
