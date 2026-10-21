@@ -225,9 +225,9 @@ class TestSampleTimelapseByInterval:
         2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
     )
 
-    @pytest.fixture
-    def timelapse_telemetry(self, monkeypatch):
-        # One point per second of video, recorded 10 seconds apart
+    @classmethod
+    def _mock_telemetry(cls, monkeypatch, gps_seconds: T.Callable[[int], float]):
+        # One point per second of video, at gps_seconds(i) from GPS_START_TIME
         points = [
             telemetry.GPSPoint(
                 time=float(i),
@@ -235,7 +235,7 @@ class TestSampleTimelapseByInterval:
                 lon=-74.0,
                 alt=None,
                 angle=None,
-                epoch_time=self.GPS_START_TIME.timestamp() + 10 * i,
+                epoch_time=cls.GPS_START_TIME.timestamp() + gps_seconds(i),
                 fix=None,
                 precision=None,
                 ground_speed=None,
@@ -253,6 +253,11 @@ class TestSampleTimelapseByInterval:
                 )
             ),
         )
+
+    @pytest.fixture
+    def timelapse_telemetry(self, monkeypatch):
+        # Recorded 10 seconds apart
+        self._mock_telemetry(monkeypatch, lambda i: 10 * i)
 
     def _sample(self, tmpdir: py.path.local, **kwargs) -> list[Path]:
         root = _PWD.joinpath("data/mock_sample_video")
@@ -274,6 +279,27 @@ class TestSampleTimelapseByInterval:
             self._sample(tmpdir), self.GPS_START_TIME, seconds_per_sample=20
         )
         assert "--video_duration_ratio" not in caplog.text
+
+    def test_capture_times_follow_the_gps_timestamps(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        Not one rate: the GPS clock of a timelapse drifts from it, and distance
+        samples are stamped from the timestamps. The geotagging stage places
+        both kinds of samples along a track timed by them
+        """
+        self._mock_telemetry(monkeypatch, lambda i: 10 * i + 0.1 * i * i)
+
+        samples = sorted(self._sample(tmpdir))
+
+        assert len(samples) > 2
+        for idx, sample in enumerate(samples):
+            video_time = 2 * idx
+            assert exif_read.ExifRead(
+                sample
+            ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
+                seconds=10 * video_time + 0.1 * video_time * video_time
+            )
 
     def test_from_the_given_start_time(self, tmpdir, setup_mock, timelapse_telemetry):
         video_start_time = "2020_08_10_14_37_05_023"
@@ -391,12 +417,6 @@ class TestGPSClockStartTime:
         points = [self._gps_point(float(i), 1628599086.0 + 10 * i) for i in range(1000)]
         assert sample_video._gps_clock_start_time(points) == datetime.datetime(
             2021, 8, 10, 12, 38, 24, tzinfo=datetime.timezone.utc
-        )
-
-    def test_maps_a_timelapse_back_at_its_rate(self) -> None:
-        points = [self._gps_point(float(i), 1628599086.0 + 10 * i) for i in range(1000)]
-        assert sample_video._gps_clock_start_time(points, rate=10) == datetime.datetime(
-            2021, 8, 10, 12, 38, 6, tzinfo=datetime.timezone.utc
         )
 
     def test_no_absolute_timestamps(self) -> None:

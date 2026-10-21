@@ -21,8 +21,10 @@ _PWD = Path(os.path.dirname(os.path.abspath(__file__)))
 START_TIME = datetime.datetime(2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc)
 
 
-def _video_metadata(video_path: Path, rate: float) -> types.VideoMetadata:
-    # One point per second of video, recorded **rate** seconds apart
+def _video_metadata(
+    video_path: Path, gps_seconds: T.Sequence[float]
+) -> types.VideoMetadata:
+    # One point per second of video, at gps_seconds[i] from START_TIME
     points = [
         telemetry.GPSPoint(
             time=float(i),
@@ -30,12 +32,12 @@ def _video_metadata(video_path: Path, rate: float) -> types.VideoMetadata:
             lon=-74.0,
             alt=None,
             angle=None,
-            epoch_time=START_TIME.timestamp() + rate * i,
+            epoch_time=START_TIME.timestamp() + seconds,
             fix=None,
             precision=None,
             ground_speed=None,
         )
-        for i in range(10)
+        for i, seconds in enumerate(gps_seconds)
     ]
     return types.VideoMetadata(
         filename=video_path,
@@ -70,7 +72,7 @@ def test_samples_are_placed_by_their_capture_times(tmp_path: Path, rate: float):
     ]
 
     metadatas = GeotagImagesFromVideo(
-        [_video_metadata(video_path, rate)], num_processes=0
+        [_video_metadata(video_path, [rate * i for i in range(10)])], num_processes=0
     ).to_description(samples)
 
     lat_by_name = {}
@@ -80,4 +82,45 @@ def test_samples_are_placed_by_their_capture_times(tmp_path: Path, rate: float):
     assert lat_by_name == {
         sample.name: pytest.approx(40.0 + 2 * k * 0.0001)
         for k, sample in enumerate(samples)
+    }
+
+
+def test_timelapse_samples_are_placed_by_the_gps_timestamps(tmp_path: Path):
+    """
+    Distance samples are stamped with the GPS time of their video time. A
+    GoPro MAX timelapse can stamp its first point seconds early, and its clock
+    keeps no one rate, so timed at one rate the track placed the samples off,
+    and the last ones past its end.
+    """
+    video_path = tmp_path / "hello.mp4"
+    sample_dir = tmp_path / "samples" / "hello.mp4"
+    sample_dir.mkdir(parents=True)
+
+    # 10x, but the first timestamp 3 seconds early and the clock speeding up
+    gps_seconds = [0.0] + [3 + 10 * i + 0.1 * i * i for i in range(1, 10)]
+
+    def stamped(video_time: float) -> datetime.datetime:
+        i = int(video_time)
+        seconds = gps_seconds[i]
+        if i + 1 < len(gps_seconds):
+            seconds += (gps_seconds[i + 1] - gps_seconds[i]) * (video_time - i)
+        return START_TIME + datetime.timedelta(seconds=seconds)
+
+    video_times = [0.0, 0.5, 2.0, 4.5, 8.0, 9.0]
+    samples = [
+        _sample(sample_dir, k + 1, stamped(video_time))
+        for k, video_time in enumerate(video_times)
+    ]
+
+    metadatas = GeotagImagesFromVideo(
+        [_video_metadata(video_path, gps_seconds)], num_processes=0
+    ).to_description(samples)
+
+    lat_by_name = {}
+    for metadata in metadatas:
+        assert isinstance(metadata, types.ImageMetadata), metadata
+        lat_by_name[metadata.filename.name] = metadata.lat
+    assert lat_by_name == {
+        sample.name: pytest.approx(40.0 + video_time * 0.0001)
+        for sample, video_time in zip(samples, video_times)
     }

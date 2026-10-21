@@ -29,6 +29,7 @@ from . import (
 )
 from .exif_write import ExifEdit
 from .geotag import factory
+from .geotag.geotag_images_from_video import GPSTimeline
 from .geotag.options import SourceOption, SourceType, VideoSyncOption
 from .geotag.video_extractors.gpx import GPXVideoExtractor
 from .geotag.video_extractors.native import NativeVideoExtractor
@@ -381,15 +382,14 @@ _FILENAME_TIME_TOLERANCE_SECONDS = 15
 
 
 def _gps_clock_start_time(
-    points: T.Sequence[geo.Point], rate: float = 1.0
+    points: T.Sequence[geo.Point],
 ) -> datetime.datetime | None:
     """
     Map the absolute GPS timestamps at the start of a track back to the video's time 0.
 
-    Point times are relative to the start of the video, so subtracting one, in
-    GPS seconds, from its own absolute timestamp gives the wall clock at which
-    the video started. Each second of video spans **rate** GPS seconds, more
-    than 1 in a timelapse. Timestamps outside the plausible range are skipped.
+    Point times are relative to the start of the video, so subtracting one from
+    its own absolute timestamp gives the wall clock at which the video started.
+    Timestamps outside the plausible range are skipped.
     """
     max_start_time = time.time() + _MAX_FUTURE_START_TIME_SECONDS
 
@@ -398,7 +398,7 @@ def _gps_clock_start_time(
         unix_time = point.get_unix_time()
         if unix_time is None:
             continue
-        start_time = unix_time - point.time * rate
+        start_time = unix_time - point.time
         # Written as a negated range check so that NaN is skipped too
         if not (_MIN_PLAUSIBLE_START_TIME <= start_time <= max_start_time):
             continue
@@ -565,7 +565,6 @@ def _extract_video_start_time(
     video_path: Path,
     probe: ffmpeglib.Probe,
     telemetry_points: T.Sequence[geo.Point],
-    rate: float,
 ) -> datetime.datetime | None:
     """
     Determine the wall clock time at which a video started recording.
@@ -576,7 +575,7 @@ def _extract_video_start_time(
     back to the creation time when there is no telemetry to sync against, which
     is the case for the plain MP4s that get geotagged from a GPX.
     """
-    start_time = _gps_clock_start_time(telemetry_points, rate)
+    start_time = _gps_clock_start_time(telemetry_points)
     if start_time is not None:
         return start_time
 
@@ -595,9 +594,11 @@ def _sample_single_video_by_interval(
     telemetry_points = _read_telemetry(video_path)
 
     # Frames are stamped with their capture times, which a timelapse packs
-    # several seconds of into each second of video: as many as the video's own
-    # GPS clock says, and for a video without one, --video_duration_ratio
+    # several seconds of into each second of video: as the video's own GPS
+    # timestamps tell, and for a video without a GPS clock, at
+    # --video_duration_ratio
     clock_rate = _telemetry_clock_rate(video_path, telemetry_points)
+    timeline: GPSTimeline | None = None
     if clock_rate is None:
         rate = duration_ratio
     else:
@@ -609,14 +610,22 @@ def _sample_single_video_by_interval(
                 video_path.name,
                 clock_rate,
             )
+        if clock_rate != 1.0:
+            # As distance samples are stamped, and as the geotagging stage
+            # times the video's track to place the samples along it
+            timeline = GPSTimeline.read(telemetry_points, clock_rate)
 
     if start_time is None:
-        start_time = _extract_video_start_time(
-            video_path,
-            ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path)),
-            telemetry_points,
-            rate,
-        )
+        if timeline is not None:
+            start_time = datetime.datetime.fromtimestamp(
+                timeline.to_unix_time(0.0), tz=datetime.timezone.utc
+            )
+        else:
+            start_time = _extract_video_start_time(
+                video_path,
+                ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path)),
+                telemetry_points,
+            )
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
@@ -630,7 +639,11 @@ def _sample_single_video_by_interval(
             if sample_paths[0] is None:
                 continue
             # extract_frames() produces 1-based frame indices so we need to subtract 1 here
-            seconds = (frame_idx_1based - 1) * sample_interval * rate
+            video_time = (frame_idx_1based - 1) * sample_interval
+            if timeline is None:
+                seconds = video_time * rate
+            else:
+                seconds = timeline.to_unix_time(video_time) - timeline.to_unix_time(0.0)
             timestamp = start_time + datetime.timedelta(seconds=seconds)
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
