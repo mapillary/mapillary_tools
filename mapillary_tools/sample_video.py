@@ -30,7 +30,7 @@ from . import (
 from .exif_write import ExifEdit
 from .geotag import factory
 from .geotag.geotag_images_from_video import GPSTimeline
-from .geotag.options import SourceOption, SourceType, VideoSyncOption
+from .geotag.options import SourceOption, SourcePathOption, SourceType, VideoSyncOption
 from .geotag.video_extractors.gpx import GPXVideoExtractor
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .mp4 import mp4_sample_parser
@@ -104,19 +104,23 @@ def _parse_video_sources(
     if not geotag_source and not video_geotag_source:
         return [SourceOption(SourceType.NATIVE)]
 
-    # Without an explicit path, every source gets the video import path, as
-    # process_geotag_properties() gives it when geotagging the frames: that is
-    # how exiftool_xml finds the XML files in the video directory. It does not
-    # find a GPX beside the video, which the geotagging stage could not find
-    # either; a GPX needs --geotag_source_path
-    if geotag_source_path is None:
-        geotag_source_path = video_import_path
-
     options = factory.parse_source_options(
         geotag_source=geotag_source or [],
         video_geotag_source=video_geotag_source or [],
         geotag_source_path=geotag_source_path,
     )
+
+    # Without an explicit path, every source gets the video import path, as
+    # process_geotag_properties() gives it when geotagging the frames: that is
+    # how exiftool_xml finds the XML files in the video directory. It does not
+    # find a GPX beside the video, which the geotagging stage could not find
+    # either; a GPX needs --geotag_source_path. A source's own pattern is kept:
+    # it is resolved against each video here, and the import path would
+    # override it (with the video itself, when the import path is a video)
+    if geotag_source_path is None:
+        for option in options:
+            if option.source_path is None:
+                option.source_path = SourcePathOption(source_path=video_import_path)
 
     # exif, nmea and the legacy gopro/blackvue/camm sources have nothing to read
     # a video with; in video_process they are there to geotag the frames. Sample
