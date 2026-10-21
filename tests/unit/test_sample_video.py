@@ -394,6 +394,47 @@ class TestGPXStartTimeByInterval:
 
         sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
 
+    def test_gps_rejected_as_noise_still_has_a_clock(self, tmp_path, monkeypatch):
+        """
+        Interval sampling reads no telemetry from GPS rejected as noise, but
+        GPX sync reads its clock, and syncs the GPX at that clock's pace, as
+        for any video with a GPS clock
+        """
+        # A 12x timelapse clock
+        points = [
+            telemetry.GPSPoint(
+                time=i * 0.1,
+                lat=37.0,
+                lon=-122.0,
+                alt=None,
+                angle=None,
+                epoch_time=1741935600.0 + i * 1.2,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for i in range(30)
+        ]
+        monkeypatch.setattr(
+            sample_video.GPXVideoExtractor,
+            "_extract_native_video_metadata",
+            lambda _self: (
+                VideoMetadata(
+                    filename=self.VIDEO,
+                    filetype=FileType.GOPRO,
+                    points=T.cast(T.List[geo.Point], points),
+                ),
+                True,
+            ),
+        )
+        gpx = self._write_gpx(tmp_path / "track.gpx", seconds=60)
+        video_sync = VideoSyncOption(use_gpx_start_time=True)
+        options = sample_video._parse_geotag_options(
+            ["gpx"], gpx, None, tmp_path, video_sync
+        )
+
+        sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
+
 
 class TestGPSClockStartTime:
     """Tests for _gps_clock_start_time."""

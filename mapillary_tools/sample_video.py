@@ -610,9 +610,28 @@ def _check_gpx_start_by_interval(
         if not gpx_path.is_file():
             continue
         extractor = GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync)
+        if _gpx_sync_reads_a_clock(extractor):
+            continue
         gpx_points = extractor._read_gpx_points()
         if gpx_points:
             extractor._check_given_start(gpx_points, video_sync.duration_ratio)
+
+
+def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
+    """
+    Whether GPX sync, in distance sampling and process, reads a GPS clock from
+    the video. It reads one from GPS rejected as noise too, which interval
+    sampling has no telemetry from, and syncs the GPX at that clock's pace
+    """
+    try:
+        native_video_metadata, _ = extractor._extract_native_video_metadata()
+    except exceptions.MapillaryVideoGPSUnusableError:
+        return False
+    except Exception:
+        # Telemetry that fails to parse is warned about by _read_telemetry(),
+        # and must not stop the video from being sampled
+        return False
+    return extractor._read_video_clock(native_video_metadata.points) is not None
 
 
 def _sample_single_video_by_interval(
