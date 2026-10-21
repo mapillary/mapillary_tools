@@ -752,6 +752,14 @@ def test_process_video_from_gpx_with_interpolation_options(
     shifted = video_time_of_recorded("--interpolation_offset_time=2")
     assert shifted == pytest.approx(synced - 2000, abs=1)
 
+    # an offset that moves the track off the video fails it, as it does a
+    # track placed by the clock of the video
+    error = describe(
+        "--interpolation_use_gpx_start_time", "--interpolation_offset_time=60"
+    )["error"]
+    assert error["type"] == "MapillaryOutsideGPXTrackError"
+    assert "by 40 seconds, as --interpolation_offset_time 60 " in error["message"]
+
 
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
