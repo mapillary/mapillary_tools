@@ -295,6 +295,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._check_assumed_start(gpx_points, ratio)
         elif self.sync_mode is SyncMode.REBASE and self.video_sync is not None:
             self._check_given_start(gpx_points, ratio)
+        elif self.sync_mode is SyncMode.SYNC:
+            self._warn_of_a_long_track(gpx_points)
 
         self._rebase_times(gpx_points, rate=ratio)
         return None
@@ -536,6 +538,29 @@ class GPXVideoExtractor(BaseVideoExtractor):
             return False
         gap = abs(clock.to_unix_time(0) - creation_time)
         return gap <= _IMPLAUSIBLE_OFFSET_SECONDS
+
+    def _warn_of_a_long_track(self, gpx_points: T.Sequence[geo.Point]) -> None:
+        """
+        Warn, in process, of a GPX track assumed to start with the video that
+        runs on for longer than the whole video, which sampling refuses (see
+        _check_assumed_start): the video could start anywhere along it. Only
+        warn, since the track of a timelapse without a GPS clock of its own
+        runs on past the end of the video too.
+        """
+        video_duration = _video_duration(self.video_path)
+        if video_duration is None:
+            return
+
+        gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
+        if 2 * video_duration < gpx_duration:
+            LOG.warning(
+                f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+                f"and the video {self.video_path} only {_format_duration(video_duration)}, "
+                "so the video could start anywhere along the track, and is assumed to "
+                "start with it. Unless the video is a timelapse of the whole track, "
+                "trim the GPX to the video, or sample the video with video_process "
+                "and --video_start_time"
+            )
 
     def _extract_native_video_metadata(self) -> tuple[types.VideoMetadata, bool]:
         """

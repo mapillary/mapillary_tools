@@ -242,7 +242,7 @@ class TestVideoWithoutGPS:
             metadata = GPXVideoExtractor(NO_GPS_VIDEO, gpx, sync_mode).extract()
 
         assert metadata.points[0].time == 0
-        assert "timelapse" not in caplog.text
+        assert "--video_duration_ratio" not in caplog.text
 
     def test_the_refusal_is_not_handed_on_to_the_next_source(self, tmp_path):
         """
