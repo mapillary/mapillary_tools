@@ -164,3 +164,37 @@ def test_samples_are_placed_by_their_own_video(tmp_path: Path):
         "world_hello_v_000002.jpg": pytest.approx(50.0002),
     }
     assert len(metadatas) == len(samples)
+
+
+def test_samples_are_placed_along_a_clock_that_gains(tmp_path: Path):
+    """
+    Interval samples are stamped along the GPS timestamps of the video. A
+    clock that gains on the video, half a second every 4 seconds, is not a
+    timelapse, and its track timed by the video placed the samples ahead
+    """
+    video_path = tmp_path / "hello.mp4"
+    sample_dir = tmp_path / "samples" / "hello.mp4"
+    sample_dir.mkdir(parents=True)
+
+    gps_seconds = [i + 0.5 * (i // 4) for i in range(10)]
+    samples = [
+        _sample(
+            sample_dir,
+            k + 1,
+            START_TIME + datetime.timedelta(seconds=gps_seconds[2 * k]),
+        )
+        for k in range(5)
+    ]
+
+    metadatas = GeotagImagesFromVideo(
+        [_video_metadata(video_path, gps_seconds)], num_processes=0
+    ).to_description(samples)
+
+    lat_by_name = {}
+    for metadata in metadatas:
+        assert isinstance(metadata, types.ImageMetadata), metadata
+        lat_by_name[metadata.filename.name] = metadata.lat
+    assert lat_by_name == {
+        sample.name: pytest.approx(40.0 + 2 * k * 0.0001)
+        for k, sample in enumerate(samples)
+    }
