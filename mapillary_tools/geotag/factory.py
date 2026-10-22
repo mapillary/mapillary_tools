@@ -10,6 +10,8 @@ import logging
 import typing as T
 from pathlib import Path
 
+import jsonschema
+
 from .. import exceptions, types, utils
 from . import (
     base,
@@ -50,6 +52,9 @@ def parse_source_option(source: str) -> list[SourceOption]:
         "gpx,exif" -> [SourceOption(SourceType.GPX), SourceOption(SourceType.EXIF)]
         "exif,gpx" -> [SourceOption(SourceType.EXIF), SourceOption(SourceType.GPX)]
         '{"source": "gpx"}' -> [SourceOption(SourceType.GPX)]
+
+    Raise MapillaryBadParameterError for an unknown source type, and for a
+    JSON object that does not match SourceOptionSchema.
     """
 
     try:
@@ -64,11 +69,27 @@ def parse_source_option(source: str) -> list[SourceOption]:
     except json.JSONDecodeError:
         pass
     else:
-        return [SourceOption.from_dict(payload)]
+        try:
+            return [SourceOption.from_dict(payload)]
+        except jsonschema.ValidationError as ex:
+            raise exceptions.MapillaryBadParameterError(
+                f"Invalid geotag source {source}: {ex.message}"
+            ) from ex
 
     sources = source.split(",")
 
-    return [SourceOption(SourceType(SOURCE_TYPE_ALIAS.get(s, s))) for s in sources]
+    return [SourceOption(_parse_source_type(s)) for s in sources]
+
+
+def _parse_source_type(source: str) -> SourceType:
+    try:
+        return SourceType(SOURCE_TYPE_ALIAS.get(source, source))
+    except ValueError:
+        raise exceptions.MapillaryBadParameterError(
+            f"Invalid geotag source {source!r}. Supported source types: "
+            f"{', '.join(s.value for s in SourceType)} "
+            f"(aliases: {', '.join(SOURCE_TYPE_ALIAS)})"
+        ) from None
 
 
 def parse_source_options(
