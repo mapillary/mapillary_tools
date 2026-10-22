@@ -31,6 +31,7 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
+from mapillary_tools.geotag.video_extractors import gpx as gpx_extractor
 from mapillary_tools.mp4 import construct_mp4_parser as cparser, mp4_sample_parser
 from mapillary_tools.serializer import description
 from mapillary_tools.types import describe_error_metadata, FileType, VideoMetadata
@@ -488,6 +489,27 @@ class TestSampleNoisyTimelapseByInterval:
                 interpolation_use_gpx_start_time=True,
             ),
             gpx_start,
+            seconds_per_sample=20,
+        )
+
+    def test_started_with_the_gpx_at_time_0(self, tmpdir, setup_mock, monkeypatch):
+        """
+        ffmpeg cuts the first interval sample at time 0, whatever the
+        composition time of the first frame, at which distance sampling starts
+        the track
+        """
+        monkeypatch.setattr(gpx_extractor, "_first_frame_time", lambda path: 0.5)
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
+
+        _validate_interval(
+            self._sample(
+                tmpdir,
+                geotag_source=["gpx"],
+                geotag_source_path=gpx,
+                interpolation_use_gpx_start_time=True,
+            ),
+            self.GPS_START_TIME,
             seconds_per_sample=20,
         )
 

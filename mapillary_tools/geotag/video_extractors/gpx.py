@@ -162,6 +162,10 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 self.gpx_path,
                 self.file_format,
             )
+        if clock is not None and gpx_points and self.sync_mode is SyncMode.REBASE:
+            # Distance sampling reads the frames by their composition times:
+            # start the track at that of the first frame
+            clock = dataclasses.replace(clock, video_time=self._gpx_start_video_time())
 
         if clock is None:
             # Its GPS has no clock to sync with, as if it had no GPS
@@ -298,11 +302,29 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._check_assumed_start(gpx_points, ratio)
         elif self.sync_mode is SyncMode.REBASE and self.video_sync is not None:
             self._check_given_start(gpx_points, ratio)
+            self._rebase_times(
+                gpx_points, offset=self._gpx_start_video_time(), rate=ratio
+            )
+            return None
         elif self.sync_mode is SyncMode.SYNC:
             self._warn_of_a_long_track(gpx_points)
 
         self._rebase_times(gpx_points, rate=ratio)
         return None
+
+    def _gpx_start_video_time(self) -> float:
+        """
+        The video time that --interpolation_use_gpx_start_time starts the GPX
+        track at. The geotagging stage of video_process puts the start of the
+        track at the first sample, which is the first frame, so distance
+        sampling starts the track at the first frame too: by its composition
+        time, which distance sampling reads the frames by, and which is not 0
+        in a video with B-frames. In process, the track starts at 0 as before,
+        and so it does in interval sampling, which ffmpeg cuts from time 0.
+        """
+        if self.video_sync is None:
+            return 0.0
+        return _first_frame_time(self.video_path)
 
     def _duration_ratio(self) -> float:
         """
@@ -635,7 +657,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         The clock to place the GPX track by along the video, from the GPS
         clock of the video (None if it has none), whose GPS was rejected as
         noise if **noisy**. Return None if the track is to be placed as for a
-        video without a GPS clock.
+        video without a GPS clock. --interpolation_use_gpx_start_time starts
+        the track at video time 0.
         """
         if clock is None or not gpx_points:
             return clock
@@ -942,6 +965,41 @@ def _video_duration(video_path: Path) -> float | None:
         return None
 
     return mvhd.duration / mvhd.timescale
+
+
+def _first_frame_time(video_path: Path) -> float:
+    """
+    The composition time of the first frame of the video stream with the
+    highest resolution, which distance sampling samples by, or 0 if it cannot
+    be read
+    """
+    try:
+        moov = MovieBoxParser.parse_file(video_path)
+        video_tracks = [
+            track for track in moov.extract_tracks() if track.is_video_track()
+        ]
+        if not video_tracks:
+            return 0.0
+        # As ffprobe picks the stream to sample: the first of the largest
+        track = max(
+            video_tracks,
+            key=lambda track: (
+                track.extract_tkhd_boxdata()["width"]
+                * track.extract_tkhd_boxdata()["height"]
+            ),
+        )
+        return min(
+            (sample.exact_composition_time for sample in track.extract_samples()),
+            default=0.0,
+        )
+    except (
+        OSError,
+        sparser.ParsingError,
+        cparser.BoxNotFoundError,
+        C.ConstructError,
+    ) as ex:
+        LOG.debug("Failed to read the first frame time of %s: %s", video_path, ex)
+        return 0.0
 
 
 def _video_creation_time(video_path: Path) -> float | None:
