@@ -165,9 +165,13 @@ def process(
     # Collection: ABC for sized iterable container classes
     paths: T.Iterable[Path],
     options: T.Collection[SourceOption],
+    # --filetypes, which the filetypes of every option are limited to already
+    filetypes: set[types.FileType] | None = None,
 ) -> list[types.MetadataOrError]:
     if not options:
         raise ValueError("No geotag options provided")
+
+    video_types = _video_types_asked_for(filetypes)
 
     final_metadatas: list[types.MetadataOrError] = []
 
@@ -236,7 +240,20 @@ def process(
         ] = []
 
         for metadata in image_metadata_or_errors + video_metadata_or_errors:
-            if isinstance(metadata, types.ErrorMetadata) and _is_reprocessable(
+            if video_types is not None and _is_of_other_type(
+                metadata, option, video_types
+            ):
+                # Its type, known only once it is read, is not one asked for:
+                # leave it out, as the files of other kinds
+                LOG.debug(
+                    "Skipping %s, which is not of the file types %s",
+                    metadata.filename,
+                    filetypes,
+                )
+                reprocessable_paths.remove(metadata.filename)
+                pending_errors.pop(metadata.filename, None)
+                gpx_rejections.pop(metadata.filename, None)
+            elif isinstance(metadata, types.ErrorMetadata) and _is_reprocessable(
                 metadata
             ):
                 # Leave what it is for the next geotag process
@@ -274,11 +291,14 @@ def process(
             break
 
     final_metadatas.extend(pending_errors.values())
-    final_metadatas.extend(
-        _describe_unread_video(path, sources)
-        for path, sources in unread_videos.items()
-        if path in reprocessable_paths and path not in pending_errors
-    )
+    # Limited to some types of video, a video that no source read may not be
+    # of any of them, and is left out as the videos found to be of other types
+    if video_types is None:
+        final_metadatas.extend(
+            _describe_unread_video(path, sources)
+            for path, sources in unread_videos.items()
+            if path in reprocessable_paths and path not in pending_errors
+        )
 
     return final_metadatas
 
@@ -342,6 +362,81 @@ def _warn_geotagged_despite_gpx(
             f"Geotagged {them} from the {option.source.value} source instead"
         )
         LOG.debug("Images outside %s: %s", gpx_track, [p.name for p in image_paths])
+
+
+def _video_types_asked_for(
+    filetypes: set[types.FileType] | None,
+) -> set[types.FileType] | None:
+    """
+    The types of video that --filetypes limits processing to, or None if it
+    lets videos of every type through
+
+    >>> _video_types_asked_for({types.FileType.IMAGE, types.FileType.GOPRO})
+    {<FileType.GOPRO: 'gopro'>}
+    >>> _video_types_asked_for({types.FileType.GOPRO, types.FileType.VIDEO}) is None
+    True
+    >>> _video_types_asked_for(None) is None
+    True
+    """
+    if filetypes is None or types.FileType.VIDEO in filetypes:
+        return None
+    return filetypes & types.NATIVE_VIDEO_FILETYPES
+
+
+def _is_of_other_type(
+    metadata: types.MetadataOrError,
+    option: SourceOption,
+    video_types: set[types.FileType],
+) -> bool:
+    """
+    Whether the source **option** found a video to be of none of the types
+    **video_types** asked for, which _filter_images_and_videos() cannot tell by
+    its name: it read the video as another type, or it is the native reader,
+    which tries only the readers of the types it is given, and finds no GPS
+    data only in a video that none of them recognizes. A generic video is of a
+    type that is not known, and is kept.
+
+    >>> gopro = {types.FileType.GOPRO}
+    >>> video = types.VideoMetadata(Path("v.mp4"), types.FileType.VIDEO, points=[])
+    >>> _is_of_other_type(video, SourceOption(SourceType.GPX), gopro)
+    False
+    >>> blackvue = types.VideoMetadata(Path("v.mp4"), types.FileType.BLACKVUE, points=[])
+    >>> _is_of_other_type(blackvue, SourceOption(SourceType.EXIFTOOL_RUNTIME), gopro)
+    True
+    >>> not_found = types.describe_error_metadata(
+    ...     exceptions.MapillaryVideoGPSNotFoundError("No GPS data found from the video"),
+    ...     Path("v.mp4"),
+    ...     filetype=types.FileType.VIDEO,
+    ... )
+    >>> _is_of_other_type(not_found, SourceOption(SourceType.NATIVE, filetypes=gopro), gopro)
+    True
+
+    Limited further by its own filetypes, a source found only that the video is
+    of none of those, and leaves it to the next source:
+
+    >>> _is_of_other_type(
+    ...     not_found,
+    ...     SourceOption(SourceType.NATIVE, filetypes=gopro),
+    ...     {types.FileType.GOPRO, types.FileType.BLACKVUE},
+    ... )
+    False
+    """
+    if isinstance(metadata, types.VideoMetadata):
+        return (
+            metadata.filetype in types.NATIVE_VIDEO_FILETYPES
+            and metadata.filetype not in video_types
+        )
+
+    if isinstance(metadata, types.ErrorMetadata):
+        return (
+            option.source is SourceType.NATIVE
+            and isinstance(metadata.error, exceptions.MapillaryVideoGPSNotFoundError)
+            and option.filetypes is not None
+            and types.FileType.VIDEO not in option.filetypes
+            and video_types <= option.filetypes
+        )
+
+    return False
 
 
 def _is_reprocessable(metadata: types.MetadataOrError) -> bool:
