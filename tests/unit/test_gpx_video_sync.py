@@ -25,16 +25,21 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
+from mapillary_tools.geotag.video_extractors import gpx as gpx_extractor
 from mapillary_tools.geotag.video_extractors.gpx import (
     GPXVideoExtractor,
     SyncMode,
     VideoClock,
 )
+from mapillary_tools.mp4 import construct_mp4_parser as cparser
+from mapillary_tools.mp4.mp4_sample_parser import TrackBoxParser
 
 _DATA = Path(__file__).resolve().parent.parent.joinpath("data")
 
 # No GPS of its own, and 5.76 seconds long
 NO_GPS_VIDEO = _DATA.joinpath("videos", "sample-5s.mp4")
+# The composition time of its first frame, which B-frames delay
+NO_GPS_VIDEO_FIRST_FRAME = 1 / 15
 # GPS of its own, recorded from 2019-11-18T23:44:42.59Z to 23:44:54.64Z
 GPS_VIDEO = _DATA.joinpath("gopro_data", "max-360mode.mp4")
 # Shortly before the GPS track of GPS_VIDEO starts
@@ -237,8 +242,10 @@ class TestVideoWithoutGPS:
                 video_sync=VideoSyncOption(duration_ratio=10),
             ).extract()
 
-        assert metadata.points[0].time == 0
-        assert metadata.points[-1].time == pytest.approx(5.7)
+        # --interpolation_use_gpx_start_time starts it at the first frame
+        start = 0 if sync_mode is SyncMode.SYNC else NO_GPS_VIDEO_FIRST_FRAME
+        assert metadata.points[0].time == pytest.approx(start)
+        assert metadata.points[-1].time == pytest.approx(start + 5.7)
         assert not caplog.text
 
     def test_a_track_too_long_even_at_the_duration_ratio_is_refused(self, tmp_path):
@@ -408,7 +415,85 @@ class TestInterpolationOptions:
             InterpolationOption(use_gpx_start_time=True),
         )
 
+        assert metadata.points[0].time == pytest.approx(NO_GPS_VIDEO_FIRST_FRAME)
+
+
+class TestGPXStartAtTheFirstFrame:
+    """
+    With --interpolation_use_gpx_start_time, the geotagging stage of
+    video_process puts the start of the GPX track at the first sample, which
+    is the first frame, so sampling starts the track there too. B-frames delay
+    the composition time of the first frame, and sampling picked each frame by
+    the position of the frame shown that much earlier.
+    """
+
+    def test_sampling_starts_the_track_at_the_first_frame(self, tmp_path):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
+
+        metadata = _extract(
+            NO_GPS_VIDEO,
+            gpx,
+            VideoSyncOption(),
+            InterpolationOption(use_gpx_start_time=True),
+        )
+
+        assert metadata.points[0].time == pytest.approx(NO_GPS_VIDEO_FIRST_FRAME)
+        # where the frame is stamped from, and the geotagging stage places it
+        assert metadata.points[0].get_unix_time() == GPX_START.timestamp()
+
+    def test_the_offset_moves_it_from_there(self, tmp_path):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
+
+        metadata = _extract(
+            NO_GPS_VIDEO,
+            gpx,
+            VideoSyncOption(),
+            InterpolationOption(use_gpx_start_time=True, offset_time=2.5),
+        )
+
+        assert metadata.points[0].time == pytest.approx(NO_GPS_VIDEO_FIRST_FRAME - 2.5)
+
+    def test_at_the_pace_of_the_gps_clock_too(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(gpx_extractor, "_first_frame_time", lambda video_path: 0.5)
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=20, start=_GPS_VIDEO_START)
+
+        metadata = _extract(
+            GPS_VIDEO,
+            gpx,
+            VideoSyncOption(),
+            InterpolationOption(use_gpx_start_time=True),
+        )
+
+        assert metadata.points[0].time == 0.5
+        assert metadata.points[0].get_unix_time() == _GPS_VIDEO_START.timestamp()
+
+    def test_process_starts_the_track_at_time_0(self, tmp_path):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
+
+        metadata = _extract(
+            NO_GPS_VIDEO, gpx, None, InterpolationOption(use_gpx_start_time=True)
+        )
+
         assert metadata.points[0].time == 0
+
+    def test_the_first_frame_time(self, tmp_path):
+        assert gpx_extractor._first_frame_time(NO_GPS_VIDEO) == pytest.approx(
+            NO_GPS_VIDEO_FIRST_FRAME
+        )
+        assert gpx_extractor._first_frame_time(GPS_VIDEO) == 0
+        not_a_video = tmp_path / "not_a_video.mp4"
+        not_a_video.write_bytes(b"not a video")
+        assert gpx_extractor._first_frame_time(not_a_video) == 0
+
+    def test_a_track_missing_a_box_starts_at_time_0(self, monkeypatch):
+        """Such as a trak without a tkhd box, which is malformed"""
+
+        def missing_box(_track):
+            raise cparser.BoxNotFoundError("tkhd not found")
+
+        monkeypatch.setattr(TrackBoxParser, "extract_tkhd_boxdata", missing_box)
+
+        assert gpx_extractor._first_frame_time(NO_GPS_VIDEO) == 0
 
 
 class TestProcessInterpolationOptions:
@@ -558,7 +643,7 @@ class TestUntidyGPX:
             InterpolationOption(use_gpx_start_time=True),
         )
 
-        assert metadata.points[0].time == 0
+        assert metadata.points[0].time == pytest.approx(NO_GPS_VIDEO_FIRST_FRAME)
         assert metadata.points[0].get_unix_time() == GPX_START.timestamp()
 
 
