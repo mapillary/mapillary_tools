@@ -122,7 +122,12 @@ def _filter_outliers(
         return points
 
     max_speed = gps_filter.upper_whisker(ground_speeds)
-    merged = gps_filter.dbscan(subseqs, gps_filter.speed_le(max_speed))
+    merged = gps_filter.dbscan(
+        subseqs,
+        gps_filter.either(
+            gps_filter.distance_le(max_distance), gps_filter.speed_le(max_speed)
+        ),
+    )
 
     return T.cast(
         T.List[telemetry.GPSPoint],

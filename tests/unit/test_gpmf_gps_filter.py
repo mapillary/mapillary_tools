@@ -99,6 +99,20 @@ class TestDistanceGt:
         assert decider(p1, p2) is True
 
 
+class TestDistanceLe:
+    def test_close_points(self):
+        decider = gps_filter.distance_le(100000)
+        p1 = _make_point(0.0, 48.0, 11.0)
+        p2 = _make_point(1.0, 48.001, 11.001)
+        assert decider(p1, p2) is True
+
+    def test_far_points(self):
+        decider = gps_filter.distance_le(100)
+        p1 = _make_point(0.0, 0.0, 0.0)
+        p2 = _make_point(1.0, 1.0, 1.0)
+        assert decider(p1, p2) is False
+
+
 class TestSpeedLe:
     def test_slow_speed_true(self):
         decider = gps_filter.speed_le(1000)
@@ -226,3 +240,28 @@ class TestRemoveOutliers:
         assert len(result) < len(cluster) + 1
         # The cluster points should survive
         assert len(result) >= len(cluster)
+
+    def test_sample_off_the_track_keeps_both_sides(self):
+        """
+        A single sample far off a slow track splits it in two. The pieces on
+        either side of it are as close as consecutive points, but the jitter
+        between them, over the fraction of a second the sample lasts, reads
+        faster than the ground speeds: both sides must still be kept.
+        """
+        # A walk at 0.5 m/s, sampled every 0.2s, which GPS jitter moves by 1m
+        # right after the off-track sample
+        walk = [
+            _make_gps_point(
+                i * 0.2,
+                48.0 + i * 0.0000009 + (0.00001 if 16 <= i else 0.0),
+                11.0,
+                ground_speed=0.5,
+            )
+            for i in range(41)
+        ]
+        off_track = _make_gps_point(15 * 0.2, 0.000001, 2.363944, ground_speed=0.5)
+        points = walk[:15] + [off_track] + walk[16:]
+
+        result = remove_outliers(points)
+
+        assert list(result) == walk[:15] + walk[16:]

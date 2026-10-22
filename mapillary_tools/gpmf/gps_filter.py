@@ -80,6 +80,18 @@ def distance_gt(
     return _split_or_not
 
 
+def distance_le(
+    max_distance: float,
+) -> Decider:
+    """Return a callable that checks if two points are no farther apart than the given distance."""
+
+    def _f(p1, p2):
+        distance = geo.gps_distance((p1.lat, p1.lon), (p2.lat, p2.lon))
+        return distance <= max_distance
+
+    return _f
+
+
 def speed_le(max_speed: float) -> Decider:
     """Return a callable that checks if the speed between two points are slower than the given speed."""
 
@@ -96,6 +108,16 @@ def both(
 ) -> Decider:
     def _f(p1, p2):
         return s1(p1, p2) and s2(p1, p2)
+
+    return _f
+
+
+def either(
+    s1: Decider,
+    s2: Decider,
+) -> Decider:
+    def _f(p1, p2):
+        return s1(p1, p2) or s2(p1, p2)
 
     return _f
 
