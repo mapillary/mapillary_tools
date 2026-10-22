@@ -1435,6 +1435,58 @@ class TestSampleVideoDistanceIntegration:
                 gps_start_time + datetime.timedelta(seconds=idx)
             )
 
+    def test_timelapse_frames_past_the_end_are_stamped_within_the_track(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        The last frame is 0.5 ms of video past the end of the track, which a
+        30x timelapse stretches to 15 ms of GPS time. Stamped there, it would
+        fall outside the GPX in the geotagging stage, which allows 1 ms.
+        """
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        video_file = video_dir / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        gps_points = [
+            telemetry.GPSPoint(
+                time=time,
+                lat=40.0 + time * 0.001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=gps_start_time.timestamp() + 30 * time,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for time in [*range(9), 8.9995]
+        ]
+        mocks = self._setup_mocks(tmp_path, video_file, gps_points=gps_points)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        capture_times = [
+            exif_read.ExifRead(frame).extract_capture_time() for frame in frames
+        ]
+        assert capture_times == [
+            gps_start_time + datetime.timedelta(seconds=30 * idx) for idx in range(9)
+        ] + [gps_start_time + datetime.timedelta(seconds=269.985)]
+
 
 class TestFailuresAreReportedTogether:
     """
