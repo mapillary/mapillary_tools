@@ -125,6 +125,32 @@ def test_video_process_by_distance_with_an_image_only_geotag_source(
     assert all("error" not in desc for desc in descs), descs
 
 
+def test_video_process_by_distance_with_a_video_geotag_source_only(
+    setup_data: py.path.local,
+):
+    """
+    --video_geotag_source applies to the video. The frames, which are images,
+    are geotagged by the default sources, as without it. They were geotagged by
+    none, and the description file came out empty.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=6",
+                "--video_geotag_source=native",
+                str(video_path),
+                dir,
+            ]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
 def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:
     """A copy of the video whose container records the creation time."""
     copy = Path(dir, video.basename)
