@@ -3,10 +3,16 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+import logging
+import multiprocessing
+import os
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import py.path
+import pytest
 from mapillary_tools import utils
 
 
@@ -124,6 +130,59 @@ def test_filter_all(tmpdir: py.path.local):
             or {"foo/world.mp4", "foo/world.MP4", "foo/world.ts"} == actual
             or {"foo/world.mp4", "foo/world.ts"} == actual
         )
+
+
+class TestConfigureLogger:
+    def test_adds_one_handler(self):
+        logger = logging.getLogger("mapillary_tools_test_configure_logger")
+        try:
+            utils.configure_logger(logger, level=logging.WARNING)
+            utils.configure_logger(logger, level=logging.DEBUG)
+
+            assert len(logger.handlers) == 1
+            assert logger.level == logging.DEBUG
+        finally:
+            logger.handlers.clear()
+
+    @pytest.mark.skipif(
+        "fork" not in multiprocessing.get_all_start_methods(),
+        reason="fork is not available",
+    )
+    def test_forked_worker_logs_once(self, tmp_path: Path):
+        """A forked worker inherits the handler that the parent configured."""
+        script = tmp_path / "log_in_worker.py"
+        script.write_text(
+            textwrap.dedent(
+                """
+                import logging
+                import multiprocessing
+
+                from mapillary_tools import utils
+
+                LOG = logging.getLogger("mapillary_tools.test")
+
+                def work(i):
+                    LOG.warning("warning from worker %d", i)
+                    return i
+
+                if __name__ == "__main__":
+                    multiprocessing.set_start_method("fork")
+                    utils.configure_logger(logging.getLogger(utils.get_app_name()))
+                    list(utils.mp_map_maybe(work, [1], num_processes=1))
+                """
+            )
+        )
+
+        result = subprocess.run(
+            [sys.executable, str(script)],
+            capture_output=True,
+            text=True,
+            check=True,
+            # The tree under test, not an installed mapillary_tools
+            env={**os.environ, "PYTHONPATH": str(Path(utils.__file__).parent.parent)},
+        )
+
+        assert result.stderr.count("warning from worker 1") == 1
 
 
 class TestSanitizeSerial:

@@ -260,6 +260,11 @@ def configure_logger(
 
     logger.setLevel(level)
 
+    # A worker process that is forked inherits the handler of its parent,
+    # and a second one would print each of its messages twice
+    if logger.handlers:
+        return logger
+
     formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03d - %(levelname)-7s - %(message)s",
         datefmt="%H:%M:%S",
