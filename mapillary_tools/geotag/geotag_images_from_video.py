@@ -146,7 +146,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 num_processes=self.num_processes,
             )
 
-            image_metadatas = geotag.to_description(image_paths)
+            image_metadatas = geotag.to_description(sample_paths)
 
             for metadata in image_metadatas:
                 if isinstance(metadata, types.ImageMetadata):

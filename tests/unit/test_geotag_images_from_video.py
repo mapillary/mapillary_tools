@@ -124,3 +124,43 @@ def test_timelapse_samples_are_placed_by_the_gps_timestamps(tmp_path: Path):
         sample.name: pytest.approx(40.0 + video_time * 0.0001)
         for sample, video_time in zip(samples, video_times)
     }
+
+
+def test_samples_are_placed_by_their_own_video(tmp_path: Path):
+    """
+    Each video placed the samples of every video, so that with two videos,
+    the samples of each came out twice, once outside the other's track
+    """
+    videos = {}
+    samples = []
+    for name, lat in [("hello", 40.0), ("world", 50.0)]:
+        video_path = tmp_path / f"{name}.mp4"
+        sample_dir = tmp_path / "samples" / video_path.name
+        sample_dir.mkdir(parents=True)
+        metadata = _video_metadata(video_path, [float(i) for i in range(10)])
+        for p in metadata.points:
+            p.lat += lat - 40.0
+        videos[name] = metadata
+        for k in range(2):
+            sample_path = _sample(
+                sample_dir, k + 1, START_TIME + datetime.timedelta(seconds=2 * k)
+            )
+            samples.append(
+                sample_path.rename(sample_dir / f"{name}_{sample_path.name}")
+            )
+
+    metadatas = GeotagImagesFromVideo(
+        list(videos.values()), num_processes=0
+    ).to_description(samples)
+
+    lat_by_name = {}
+    for metadata in metadatas:
+        assert isinstance(metadata, types.ImageMetadata), metadata
+        lat_by_name[metadata.filename.name] = metadata.lat
+    assert lat_by_name == {
+        "hello_hello_v_000001.jpg": pytest.approx(40.0),
+        "hello_hello_v_000002.jpg": pytest.approx(40.0002),
+        "world_hello_v_000001.jpg": pytest.approx(50.0),
+        "world_hello_v_000002.jpg": pytest.approx(50.0002),
+    }
+    assert len(metadatas) == len(samples)
