@@ -151,39 +151,17 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 points=gpx_points,
             )
 
-        clock = self._read_video_clock(native_video_metadata.points)
-
-        if clock is not None and gpx_points and self.sync_mode is SyncMode.REBASE:
-            # The GPX is placed to start with the video, and runs on at the rate
-            # of the video's GPS clock, which in a timelapse packs several GPS
-            # seconds into each second of video
-            clock = VideoClock(
-                video_time=0.0, unix_time=gpx_points[0].time, rate=clock.rate
+        video_clock = self._read_video_clock(native_video_metadata.points)
+        clock = self._sync_clock(video_clock, gpx_points, noisy)
+        if video_clock is not None and clock is None:
+            LOG.warning(
+                "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
+                "Syncing the %s from the start of the video instead",
+                self.video_path,
+                abs(gpx_points[0].time - video_clock.to_unix_time(0)) / 86400,
+                self.gpx_path,
+                self.file_format,
             )
-        elif clock is not None and gpx_points:
-            offset = gpx_points[0].time - clock.to_unix_time(0)
-            if abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS:
-                # GPS rejected as noise may not have GPS time yet: GoPro
-                # stamps a placeholder date until it acquires it. That GPS is
-                # what the GPX replaces, so do not let a placeholder clock
-                # place the GPX days away from the video. A clock that agrees
-                # with the creation time of the video is no placeholder: it
-                # places the GPX as for any video with GPS, and a GPX days
-                # away from it misses the video
-                if (
-                    noisy
-                    and self.sync_mode is SyncMode.SYNC
-                    and not self._clock_matches_creation_time(clock)
-                ):
-                    LOG.warning(
-                        "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
-                        "Syncing the %s from the start of the video instead",
-                        self.video_path,
-                        abs(offset) / 86400,
-                        self.gpx_path,
-                        self.file_format,
-                    )
-                    clock = None
 
         if clock is None:
             # Its GPS has no clock to sync with, as if it had no GPS
@@ -625,6 +603,46 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
         return video_duration * ratio, gpx_duration
+
+    def _sync_clock(
+        self,
+        clock: VideoClock | None,
+        gpx_points: T.Sequence[geo.Point],
+        noisy: bool,
+    ) -> VideoClock | None:
+        """
+        The clock to place the GPX track by along the video, from the GPS
+        clock of the video (None if it has none), whose GPS was rejected as
+        noise if **noisy**. Return None if the track is to be placed as for a
+        video without a GPS clock.
+        """
+        if clock is None or not gpx_points:
+            return clock
+
+        if self.sync_mode is SyncMode.REBASE:
+            # The GPX is placed to start with the video, and runs on at the rate
+            # of the video's GPS clock, which in a timelapse packs several GPS
+            # seconds into each second of video
+            return VideoClock(
+                video_time=0.0, unix_time=gpx_points[0].time, rate=clock.rate
+            )
+
+        # GPS rejected as noise may not have GPS time yet: GoPro stamps a
+        # placeholder date until it acquires it. That GPS is what the GPX
+        # replaces, so do not let a placeholder clock place the GPX days away
+        # from the video. A clock that agrees with the creation time of the
+        # video is no placeholder: it places the GPX as for any video with GPS,
+        # and a GPX days away from it misses the video
+        offset = gpx_points[0].time - clock.to_unix_time(0)
+        if (
+            abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS
+            and noisy
+            and self.sync_mode is SyncMode.SYNC
+            and not self._clock_matches_creation_time(clock)
+        ):
+            return None
+
+        return clock
 
     def _clock_matches_creation_time(self, clock: VideoClock) -> bool:
         """

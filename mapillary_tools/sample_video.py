@@ -37,7 +37,7 @@ from .geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from .geotag.video_extractors.gpx import GPXVideoExtractor
+from .geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .geotag.video_extractors.nmea import NMEAVideoExtractor
 from .mp4 import mp4_sample_parser
@@ -679,6 +679,44 @@ def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
     return extractor._read_video_clock(native_video_metadata.points) is not None
 
 
+def _gpx_sync_clock(
+    video_path: Path, geotag_options: T.Sequence[SourceOption]
+) -> VideoClock | None:
+    """
+    The clock that GPX sync, in distance sampling and process, places the
+    track of the first GPX (or NMEA) source by along a video whose GPS was
+    rejected as noise, which interval sampling has no telemetry from. None if
+    it places the track as for a video without a GPS clock.
+    """
+    for option in geotag_options:
+        extractor_class = _TRACK_FILE_EXTRACTORS.get(option.source)
+        if extractor_class is None or option.source_path is None:
+            continue
+        gpx_path = option.source_path.resolve(video_path)
+        if not gpx_path.is_file():
+            continue
+        extractor = extractor_class(
+            video_path,
+            gpx_path,
+            video_sync=option.video_sync,
+            interpolation=option.interpolation,
+        )
+        try:
+            native_video_metadata, noisy = extractor._extract_native_video_metadata()
+            gpx_points = extractor._read_gpx_points()
+        except Exception as ex:
+            # The geotagging stage reports what keeps it from reading the
+            # GPS of the video or the GPX
+            LOG.debug("No GPX sync clock for %s: %s", video_path.name, ex)
+            return None
+        if not noisy:
+            return None
+        video_clock = extractor._read_video_clock(native_video_metadata.points)
+        return extractor._sync_clock(video_clock, gpx_points, noisy)
+
+    return None
+
+
 def _interval_stream_specifier(probe: ffmpeglib.Probe) -> str:
     """
     The video stream to sample by interval: the one with the highest
@@ -715,6 +753,14 @@ def _sample_single_video_by_interval(
     # timestamps tell, and for a video without a GPS clock, at
     # --video_duration_ratio
     clock_rate = _telemetry_clock_rate(video_path, telemetry_points)
+    # GPS rejected as noise gives no telemetry, but GPX sync reads its clock,
+    # and the frames are stamped by it, where GPX sync places them along the
+    # GPX, so that the geotagging stage finds them there
+    gpx_clock: VideoClock | None = None
+    if clock_rate is None:
+        gpx_clock = _gpx_sync_clock(video_path, geotag_options)
+        if gpx_clock is not None:
+            clock_rate = gpx_clock.rate
     timeline: GPSTimeline | None = None
     if clock_rate is None:
         rate = duration_ratio
@@ -727,7 +773,7 @@ def _sample_single_video_by_interval(
                 video_path.name,
                 clock_rate,
             )
-        if clock_rate != 1.0:
+        if clock_rate != 1.0 and gpx_clock is None:
             # As distance samples are stamped, and as the geotagging stage
             # times the video's track to place the samples along it
             timeline = GPSTimeline.read(telemetry_points, clock_rate)
@@ -741,6 +787,10 @@ def _sample_single_video_by_interval(
         if timeline is not None:
             start_time = datetime.datetime.fromtimestamp(
                 timeline.to_unix_time(0.0), tz=datetime.timezone.utc
+            )
+        elif gpx_clock is not None:
+            start_time = datetime.datetime.fromtimestamp(
+                gpx_clock.to_unix_time(0.0), tz=datetime.timezone.utc
             )
         else:
             start_time = _extract_video_start_time(video_path, probe, telemetry_points)
