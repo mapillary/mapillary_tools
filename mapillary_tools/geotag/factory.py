@@ -140,8 +140,8 @@ def parse_source_options(
 def can_geotag_videos(option: SourceOption) -> bool:
     """
     Whether process() can read positions for videos from the source: it has a
-    video extractor, and its filetypes let videos through. process() returns no
-    metadata at all for a video that no source can read.
+    video extractor, and its filetypes let videos through. process() fails a
+    video that no source can read.
 
     Examples:
         >>> can_geotag_videos(SourceOption(SourceType.GPX))
@@ -187,6 +187,10 @@ def process(
     # warn about if a later source geotags them instead
     gpx_rejections: dict[Path, tuple[SourceOption, types.ErrorMetadata]] = {}
 
+    # Videos let through to sources that cannot geotag videos (e.g. exif), with
+    # those sources, to report if no other source geotags them or fails to
+    unread_videos: dict[Path, list[SourceType]] = {}
+
     for option in options:
         if option.source in EXTERNAL_GPS_SOURCES:
             option_paths = reprocessable_paths
@@ -216,6 +220,9 @@ def process(
 
         if video_paths:
             video_geotag = _build_video_geotag(option)
+            if video_geotag is None:
+                for path in video_paths:
+                    unread_videos.setdefault(path, []).append(option.source)
             video_metadata_or_errors = (
                 video_geotag.to_description(video_paths) if video_geotag else []
             )
@@ -265,8 +272,36 @@ def process(
             break
 
     final_metadatas.extend(pending_errors.values())
+    final_metadatas.extend(
+        _describe_unread_video(path, sources)
+        for path, sources in unread_videos.items()
+        if path in reprocessable_paths and path not in pending_errors
+    )
 
     return final_metadatas
+
+
+def _describe_unread_video(
+    video_path: Path, sources: T.Sequence[SourceType]
+) -> types.ErrorMetadata:
+    """
+    Describe a video that only sources that cannot geotag videos were given,
+    rather than leave it out of the results as if it had not been there
+
+    >>> _describe_unread_video(Path("v.mp4"), [SourceType.EXIF]).error
+    MapillaryVideoGPSNotFoundError('The geotag source exif cannot geotag videos')
+    >>> _describe_unread_video(Path("v.mp4"), [SourceType.EXIF, SourceType.GOPRO]).error
+    MapillaryVideoGPSNotFoundError('The geotag sources exif, gopro cannot geotag videos')
+    """
+    names = ", ".join(dict.fromkeys(source.value for source in sources))
+    plural = "s" if len(set(sources)) > 1 else ""
+    return types.describe_error_metadata(
+        exceptions.MapillaryVideoGPSNotFoundError(
+            f"The geotag source{plural} {names} cannot geotag videos"
+        ),
+        video_path,
+        filetype=types.FileType.VIDEO,
+    )
 
 
 def _warn_geotagged_despite_gpx(
