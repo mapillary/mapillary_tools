@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import time
 import typing as T
 from pathlib import Path
@@ -1742,6 +1743,33 @@ class TestSampleVideoDistanceIntegration:
         assert capture_times == [
             gps_start_time + datetime.timedelta(seconds=30 * idx) for idx in range(9)
         ] + [gps_start_time + datetime.timedelta(seconds=269.985)]
+
+
+class TestProbeVideo:
+    """ffprobe fails on a video that has no moov box, such as one cut short"""
+
+    VIDEO = _PWD.parent.joinpath("data/videos/sample-5s.mp4")
+
+    class FailingFFMPEG(ffmpeglib.FFMPEG):
+        def probe_format_and_streams(self, video_path: Path) -> ffmpeglib.ProbeOutput:
+            raise ffmpeglib.FFmpegCalledProcessError(
+                subprocess.CalledProcessError(1, ["ffprobe", str(video_path)])
+            )
+
+    def test_a_video_without_a_moov_box_is_invalid(self, tmp_path: Path):
+        video_path = tmp_path / "truncated.mp4"
+        # Its moov box follows the media data
+        video_path.write_bytes(self.VIDEO.read_bytes()[:100_000])
+
+        with pytest.raises(exceptions.MapillaryInvalidVideoError) as excinfo:
+            sample_video._probe_video(self.FailingFFMPEG(), video_path)
+
+        # As process reports it
+        assert str(excinfo.value) == "Invalid video: unable find box at path [b'moov']"
+
+    def test_any_other_failure_is_raised_as_it_is(self):
+        with pytest.raises(ffmpeglib.FFmpegCalledProcessError):
+            sample_video._probe_video(self.FailingFFMPEG(), self.VIDEO)
 
 
 class TestFailuresAreReportedTogether:
