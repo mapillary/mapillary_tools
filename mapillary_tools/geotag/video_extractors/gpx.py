@@ -571,10 +571,6 @@ class GPXVideoExtractor(BaseVideoExtractor):
         if not pairs:
             return None
 
-        # Anchored at its own video time, which is not 0 when the video's GPS
-        # starts late (e.g. GoPro drops noisy fixes at the start of a recording)
-        video_time, unix_time = pairs[0]
-
         rate = cls._estimate_clock_rate(pairs)
         # One timestamp far off (e.g. a placeholder date before GPS time is
         # acquired) can pull the least-squares slope far off, so a timelapse
@@ -582,15 +578,24 @@ class GPXVideoExtractor(BaseVideoExtractor):
         # too coarse to measure the rate, but not to tell a timelapse from a
         # normal video
         step_rate = cls._median_step_rate(pairs)
-        if (
+        if not (
             rate is not None
             and _MIN_TIMELAPSE_RATE < rate
             and step_rate is not None
             and _MIN_TIMELAPSE_RATE < step_rate
         ):
-            return VideoClock(video_time=video_time, unix_time=unix_time, rate=rate)
+            rate = 1.0
 
-        return VideoClock(video_time=video_time, unix_time=unix_time)
+        # Anchored at its own video time, which is not 0 when the video's GPS
+        # starts late (e.g. GoPro drops noisy fixes at the start of a recording),
+        # and at the median of all its timestamps mapped back to that time, not
+        # at the first alone: that can be seconds off the rest (the first GPS
+        # block of a GoPro timelapse, a stale first fix), and some GPS clocks
+        # wander by a second or so against the video
+        video_time = pairs[0][0]
+        unix_time = statistics.median(u - (v - video_time) * rate for v, u in pairs)
+
+        return VideoClock(video_time=video_time, unix_time=unix_time, rate=rate)
 
     @classmethod
     def _estimate_clock_rate(
