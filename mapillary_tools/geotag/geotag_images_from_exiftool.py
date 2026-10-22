@@ -125,6 +125,10 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
     def geotag_samples(
         self, image_paths: T.Sequence[Path]
     ) -> list[types.ImageMetadataOrError]:
+        sample_metadata_or_errors = self._geotag_samples_by_pattern(image_paths)
+        named_paths = set(metadata.filename for metadata in sample_metadata_or_errors)
+        image_paths = [path for path in image_paths if path not in named_paths]
+
         # Find all video paths in self.xml_path
         rdf_by_path = GeotagVideosFromExifToolXML.find_rdf_by_path(
             self.source_path, image_paths
@@ -133,11 +137,45 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
             [Path(canonical_path) for canonical_path in rdf_by_path.keys()],
             skip_subfolders=True,
         )
+
+        return sample_metadata_or_errors + self._geotag_samples_of(
+            image_paths, video_paths, self.source_path
+        )
+
+    def _geotag_samples_by_pattern(
+        self, image_paths: T.Sequence[Path]
+    ) -> list[types.ImageMetadataOrError]:
+        """
+        Geotag the samples of the videos whose XML the pattern names. A pattern
+        names the XML of a video after the video, not after its samples: in
+        video_process, given the video import path (a video or a directory of
+        videos) as the source path, resolve it against the videos that the
+        samples were taken from, found there. The source path would override
+        the pattern otherwise, and read the video import path as the XML.
+        """
+        if self.source_path.pattern is None or self.source_path.source_path is None:
+            return []
+
+        pattern = options.SourcePathOption(pattern=self.source_path.pattern)
+        video_paths = [
+            video_path
+            for video_path in utils.find_videos([self.source_path.source_path])
+            if pattern.resolve(video_path).is_file()
+        ]
+
+        return self._geotag_samples_of(image_paths, video_paths, pattern)
+
+    def _geotag_samples_of(
+        self,
+        image_paths: T.Sequence[Path],
+        video_paths: T.Sequence[Path],
+        source_path: options.SourcePathOption,
+    ) -> list[types.ImageMetadataOrError]:
         # Find all video paths that have sample images
         samples_by_video = utils.find_all_image_samples(image_paths, video_paths)
 
         video_metadata_or_errors = GeotagVideosFromExifToolXML(
-            self.source_path, num_processes=self.num_processes
+            source_path, num_processes=self.num_processes
         ).to_description(list(samples_by_video.keys()))
         sample_paths = sum(samples_by_video.values(), [])
         sample_metadata_or_errors = GeotagImagesFromVideo(
