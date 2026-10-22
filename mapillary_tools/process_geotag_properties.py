@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, types, utils
 from .geotag.factory import parse_source_options, process
-from .geotag.options import InterpolationOption, SourceType
+from .geotag.options import InterpolationOption, SourceOption, SourceType
 from .serializer.description import (
     DescriptionJSONSerializer,
     validate_and_fail_metadata,
@@ -74,6 +74,15 @@ def process_geotag_properties(
         video_geotag_source=video_geotag_source or [],
         geotag_source_path=geotag_source_path,
     )
+
+    # --video_geotag_source applies to videos only. Without --geotag_source,
+    # images (such as the frames that video_process samples) are geotagged by
+    # the default sources, as they are when neither option is given
+    if not geotag_source:
+        options.extend(
+            SourceOption(SourceType(source), filetypes={types.FileType.IMAGE})
+            for source in DEFAULT_GEOTAG_SOURCE_OPTIONS
+        )
 
     for option in options:
         option.filetypes = types.combine_filetype_filters(option.filetypes, filetypes)

@@ -443,7 +443,8 @@ possible to specify its location by setting the environment variable `MAPILLARY_
 * Pattern are case-sensitive or not depending on the filesystem - in Windows, `%g.gpx` will match both `basename.gpx`
 and `basename.GPX`, in MacOs, Linux or other Unix systems no.
 * If both `--video_geotag_source` and `--geotag_source` are specified, `--video_geotag_source` will apply to video files
-and `--geotag_source` to image files.
+and `--geotag_source` to image files. If only `--video_geotag_source` is specified, image files (including the frames
+that `video_process` samples) are geotagged by the default sources.
 
 ### Examples
 
