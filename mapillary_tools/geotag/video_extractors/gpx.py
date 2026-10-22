@@ -23,7 +23,9 @@ else:
     from typing_extensions import override
 
 from ... import exceptions, geo, telemetry, types, utils
+from ...camm import camm_parser
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
+from ...mp4.mp4_sample_parser import MovieBoxParser
 from ...serializer.description import build_capture_time
 from .. import options
 from ..utils import parse_gpx
@@ -149,11 +151,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
         elif clock is not None and gpx_points:
             offset = gpx_points[0].time - clock.to_unix_time(0)
             if abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS:
-                if noisy and self.sync_mode is SyncMode.SYNC:
-                    # GPS rejected as noise may not have GPS time yet: GoPro
-                    # stamps a placeholder date until it acquires it. That GPS
-                    # is what the GPX replaces, so do not let its clock place
-                    # the GPX days away from the video
+                # GPS rejected as noise may not have GPS time yet: GoPro
+                # stamps a placeholder date until it acquires it. That GPS is
+                # what the GPX replaces, so do not let a placeholder clock
+                # place the GPX days away from the video. A clock that agrees
+                # with the creation time of the video is no placeholder: it
+                # places the GPX as for any video with GPS, and a GPX days
+                # away from it misses the video
+                if (
+                    noisy
+                    and self.sync_mode is SyncMode.SYNC
+                    and not self._clock_matches_creation_time(clock)
+                ):
                     LOG.warning(
                         "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
                         "Syncing the GPX from the start of the video instead",
@@ -485,6 +494,23 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
         return video_duration * ratio, gpx_duration
 
+    def _clock_matches_creation_time(self, clock: VideoClock) -> bool:
+        """
+        Whether the GPS clock of the video starts within a day of the mvhd
+        creation time of the video, or False if that cannot be read.
+
+        A day absorbs any time zone the creation time is written in (GoPro
+        writes local time), and whether it marks the start or the end of the
+        recording. Some cameras write a creation time that means nothing (a
+        GoPro HERO10 recorded in 2022 reports 2016-01-01), so a clock that does
+        not match it may still be real.
+        """
+        creation_time = _video_creation_time(self.video_path)
+        if creation_time is None:
+            return False
+        gap = abs(clock.to_unix_time(0) - creation_time)
+        return gap <= _IMPLAUSIBLE_OFFSET_SECONDS
+
     def _extract_native_video_metadata(self) -> tuple[types.VideoMetadata, bool]:
         """
         Extract the video metadata, and whether its GPS was rejected as noise
@@ -627,6 +653,19 @@ def _video_duration(video_path: Path) -> float | None:
         return None
 
     return mvhd.duration / mvhd.timescale
+
+
+def _video_creation_time(video_path: Path) -> float | None:
+    """
+    The creation time of the video as Unix time, from its mvhd box, or None if
+    it is unset or cannot be read.
+    """
+    try:
+        moov = MovieBoxParser.parse_file(video_path)
+    except (OSError, sparser.ParsingError, C.ConstructError) as ex:
+        LOG.debug("Failed to read the creation time of %s: %s", video_path, ex)
+        return None
+    return camm_parser._extract_creation_time(moov)
 
 
 def _format_duration(seconds: float) -> str:
