@@ -453,7 +453,12 @@ class TestProcessInterpolationOptions:
         )
 
         assert isinstance(metadata, types.VideoMetadata)
-        assert metadata.points[0].time == pytest.approx(-2)
+        # process clips the track at the start of the video, which the offset
+        # puts 2 seconds along it
+        assert metadata.points[0].time == 0
+        assert metadata.points[0].get_unix_time() == pytest.approx(
+            GPX_START.timestamp() + 2
+        )
 
 
 def _write_gpx_tracks(path: Path, tracks: list[list[str]]) -> Path:

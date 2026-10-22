@@ -6,7 +6,8 @@
 """
 A GPX track whose pace along a video a clock gives is clipped to the video,
 with a point interpolated at either end, when it geotags the video. One that
-is only assumed to start with a video without a GPS clock is not.
+is only placed at the start of a video without a GPS clock is clipped at the
+start of the video only.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import pytest
 from mapillary_tools import types
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import (
+    InterpolationOption,
     SourceOption,
     SourcePathOption,
     SourceType,
@@ -145,13 +147,62 @@ class TestClockPlacedTrack:
 class TestTrackAssumedToStartWithTheVideo:
     """
     Without a clock to say where the video ends along the track, a track that
-    runs on past it may be that of a timelapse, at the pace of the GPS clock
+    runs on past it may be that of a timelapse, at the pace of the GPS clock.
+    It is clipped only at the start of the video, which
+    --interpolation_offset_time can move it past.
     """
 
+    START = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
+
     def test_without_gps_is_not_clipped(self, tmp_path):
-        start = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
-        gpx = _write_gpx(tmp_path / "track.gpx", start.timestamp(), 60)
+        gpx = _write_gpx(tmp_path / "track.gpx", self.START.timestamp(), 60)
 
         metadata = GPXVideoExtractor(NO_GPS_VIDEO, gpx, clip_to_video=True).extract()
 
         assert _times(metadata) == [float(t) for t in range(61)]
+
+    def test_moved_by_the_offset_starts_at_the_video(self, tmp_path):
+        """
+        The first frames take their position from a point interpolated at the
+        start of the video, which the offset puts 2.5 seconds along the track
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", self.START.timestamp(), 60)
+
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO,
+            gpx,
+            interpolation=InterpolationOption(offset_time=2.5),
+            clip_to_video=True,
+        ).extract()
+
+        times = _times(metadata)
+        assert times == [0.0] + [t - 2.5 for t in range(3, 61)]
+        first = metadata.points[0]
+        assert first.lat == pytest.approx(37.0 + 2.5 * 10 / 111_320, abs=1e-7)
+        assert first.get_unix_time() == pytest.approx(self.START.timestamp() + 2.5)
+
+    def test_started_with_the_video_by_the_option_starts_at_the_video(self, tmp_path):
+        """--interpolation_use_gpx_start_time places it as well, without a pace"""
+        gpx = _write_gpx(tmp_path / "track.gpx", self.START.timestamp(), 60)
+
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO,
+            gpx,
+            interpolation=InterpolationOption(offset_time=2.5, use_gpx_start_time=True),
+            clip_to_video=True,
+        ).extract()
+
+        assert _times(metadata) == [0.0] + [t - 2.5 for t in range(3, 61)]
+
+    def test_moved_by_the_offset_is_left_as_it_is_for_sampling(self, tmp_path):
+        """Sampling reads its track only within the video"""
+        gpx = _write_gpx(tmp_path / "track.gpx", self.START.timestamp(), 5)
+
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO,
+            gpx,
+            video_sync=VideoSyncOption(),
+            interpolation=InterpolationOption(offset_time=2.5),
+        ).extract()
+
+        assert _times(metadata) == [t - 2.5 for t in range(6)]
