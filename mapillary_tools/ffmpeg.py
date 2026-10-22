@@ -54,6 +54,7 @@ class Stream(T.TypedDict):
     r_frame_rate: str
     avg_frame_rate: str
     nb_frames: str
+    sample_aspect_ratio: str
 
 
 class Format(T.TypedDict, total=False):
@@ -199,6 +200,7 @@ class FFMPEG:
         sample_dir: Path,
         sample_interval: float,
         stream_specifier: int | str = "v",
+        sample_aspect_ratio: str | None = None,
     ) -> None:
         """
         Extract frames from video at regular time intervals using fps filter.
@@ -210,6 +212,8 @@ class FFMPEG:
             stream_specifier: Stream specifier to target specific stream(s).
                               Can be an integer (stream index) or "v" (all video streams)
                               See https://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
+            sample_aspect_ratio: The sample aspect ratio of the stream, as ffprobe
+                                 reports it (e.g. "4:3"). See _scale_to_square_pixels
 
         Raises:
             FFmpegNotFoundError: If ffmpeg binary is not found
@@ -229,7 +233,15 @@ class FFMPEG:
             # Select stream
             *stream_selector,
             # Filter videos
-            *["-vf", f"fps=1/{sample_interval}"],
+            *[
+                "-vf",
+                ",".join(
+                    [
+                        f"fps=1/{sample_interval}",
+                        *self._scale_to_square_pixels(sample_aspect_ratio),
+                    ]
+                ),
+            ],
             # Video quality level (or the alias -q:v)
             # -q:v=1 is the best quality but larger image sizes
             # see https://stackoverflow.com/a/10234065
@@ -286,6 +298,7 @@ class FFMPEG:
         sample_dir: Path,
         frame_indices: set[int],
         stream_specifier: int | str = "v",
+        sample_aspect_ratio: str | None = None,
     ) -> None:
         """
         Extract specific frames from video by frame number using select filter.
@@ -300,6 +313,8 @@ class FFMPEG:
             stream_specifier: Stream specifier to target specific stream(s).
                               Can be an integer (stream index) or "v" (all video streams)
                               See https://ffmpeg.org/ffmpeg.html#Stream-specifiers-1
+            sample_aspect_ratio: The sample aspect ratio of the stream, as ffprobe
+                                 reports it (e.g. "4:3"). See _scale_to_square_pixels
 
         Raises:
             FFmpegNotFoundError: If ffmpeg binary is not found
@@ -333,7 +348,14 @@ class FFMPEG:
         # https://devblogs.microsoft.com/oldnewthing/20031210-00/?p=41553
         with tempfile.NamedTemporaryFile(mode="w+", delete=delete) as select_file:
             try:
-                select_file.write(f"select={eqs}")
+                select_file.write(
+                    ",".join(
+                        [
+                            f"select={eqs}",
+                            *self._scale_to_square_pixels(sample_aspect_ratio),
+                        ]
+                    )
+                )
                 select_file.flush()
                 # If not close, error "The process cannot access the file because it is being used by another process"
                 if not delete:
@@ -462,6 +484,48 @@ class FFMPEG:
             if result is not None:
                 stream_specifier, frame_idx = result
                 yield (stream_specifier, frame_idx, sample_path)
+
+    @classmethod
+    def _scale_to_square_pixels(cls, sample_aspect_ratio: str | None) -> list[str]:
+        """
+        The filters that scale the frames of a stream with non-square pixels
+        to square ones, so that they are written at the aspect ratio the
+        video is displayed at. A JPEG keeps only a density hint for the
+        pixel shape, which most viewers ignore. The frames are stretched
+        along one side, never shrunk along the other, so no detail is lost.
+
+        Frames of a stream with square pixels, or whose pixel shape is
+        unknown ("0:1" or not reported), are written as they are decoded.
+
+        Examples:
+            >>> FFMPEG._scale_to_square_pixels("4:3")
+            ['scale=w=if(gt(sar\\\\,1)\\\\,round(iw*sar/2)*2\\\\,iw):h=if(lt(sar\\\\,1)\\\\,round(ih/sar/2)*2\\\\,ih)', 'setsar=1']
+            >>> FFMPEG._scale_to_square_pixels("1:1")
+            []
+            >>> FFMPEG._scale_to_square_pixels("0:1")
+            []
+            >>> FFMPEG._scale_to_square_pixels(None)
+            []
+        """
+        if not sample_aspect_ratio:
+            return []
+
+        try:
+            num, den = (int(x) for x in sample_aspect_ratio.split(":"))
+        except ValueError:
+            return []
+
+        if num <= 0 or den <= 0 or num == den:
+            return []
+
+        # sar is that of the frames as decoded, which ffmpeg may have rotated
+        # since the stream was probed. The stretched side is rounded to an
+        # even size, as 4:2:0 chroma subsampling halves it
+        return [
+            "scale=w=if(gt(sar\\,1)\\,round(iw*sar/2)*2\\,iw)"
+            ":h=if(lt(sar\\,1)\\,round(ih/sar/2)*2\\,ih)",
+            "setsar=1",
+        ]
 
     def _read_filter_from_file_args(self, filter_path: str) -> list[str]:
         """

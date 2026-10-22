@@ -3,6 +3,8 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+from __future__ import annotations
+
 import datetime
 import subprocess
 from pathlib import Path
@@ -405,3 +407,122 @@ def test_ffmpeg_extract_specified_frames_legacy_options_ok(setup_data: py.path.l
 
     # Both spellings must select the same frames byte for byte
     assert digests[0] == digests[1]
+
+
+@pytest.mark.parametrize(
+    "sar, size",
+    [
+        # Pixels wider than tall widen the frames to the displayed width
+        ("4/3", (320, 180)),
+        # Pixels taller than wide heighten them to the displayed height
+        ("3/4", (240, 240)),
+        # Square pixels leave them as they are
+        ("1/1", (240, 180)),
+    ],
+)
+def test_ffmpeg_extract_frames_with_square_pixels(
+    setup_data: py.path.local, sar: str, size: tuple[int, int]
+):
+    """Frames of an anamorphic video are written at its displayed aspect ratio."""
+    pytest_skip_if_not_ffmpeg_installed()
+
+    ff = ffmpeg.FFMPEG()
+
+    video_path = Path(setup_data.join("videos/anamorphic.mp4"))
+    ff.run_ffmpeg_non_interactive(
+        [
+            *["-hide_banner", "-loglevel", "error"],
+            *["-i", str(setup_data.join("videos/sample-5s.mp4"))],
+            "-an",
+            *["-vf", f"scale=240:180,setsar={sar}"],
+            *["-c:v", "mpeg4"],
+            str(video_path),
+        ]
+    )
+    video_stream = ffmpeg.Probe(
+        ff.probe_format_and_streams(video_path)
+    ).probe_video_with_max_resolution()
+    assert video_stream is not None
+    sample_aspect_ratio = video_stream["sample_aspect_ratio"]
+    assert sample_aspect_ratio == sar.replace("/", ":")
+
+    by_interval = Path(setup_data.join("videos/by_interval"))
+    by_interval.mkdir()
+    ff.extract_frames_by_interval(
+        video_path,
+        by_interval,
+        sample_interval=2,
+        sample_aspect_ratio=sample_aspect_ratio,
+    )
+
+    by_index = Path(setup_data.join("videos/by_index"))
+    by_index.mkdir()
+    ff.extract_specified_frames(
+        video_path,
+        by_index,
+        frame_indices={2, 9},
+        sample_aspect_ratio=sample_aspect_ratio,
+    )
+
+    for sample_dir, count in [(by_interval, 3), (by_index, 2)]:
+        results = list(ff.sort_selected_samples(sample_dir, video_path))
+        assert len(results) == count
+        for _, [frame_path] in results:
+            assert frame_path is not None
+            [frame] = ff.probe_format_and_streams(frame_path)["streams"]
+            assert (frame["width"], frame["height"]) == size
+
+
+@pytest.mark.parametrize("sample_aspect_ratio", [None, "1:1", "0:1", "N/A"])
+def test_frames_of_square_or_unknown_pixels_are_not_scaled(
+    monkeypatch, tmp_path: Path, sample_aspect_ratio: str | None
+):
+    """Frames with square pixels, or a pixel shape ffprobe cannot tell, are extracted as before."""
+    ff = _ffmpeg_with_version((8, 0))
+    filters: list[str] = []
+
+    def capture(cmd: list[str]) -> None:
+        if "-vf" in cmd:
+            filters.append(cmd[cmd.index("-vf") + 1])
+        else:
+            filters.append(Path(cmd[cmd.index("-/filter:v") + 1]).read_text())
+
+    monkeypatch.setattr(ff, "run_ffmpeg_non_interactive", capture)
+
+    video_path = tmp_path / "video.mp4"
+    ff.extract_frames_by_interval(
+        video_path, tmp_path, 2, sample_aspect_ratio=sample_aspect_ratio
+    )
+    ff.extract_specified_frames(
+        video_path, tmp_path, {2, 9}, sample_aspect_ratio=sample_aspect_ratio
+    )
+
+    assert filters == [
+        "fps=1/2",
+        f"select={ffmpeg.FFMPEG.generate_binary_search([2, 9])}",
+    ]
+
+
+def test_frames_of_non_square_pixels_are_scaled(monkeypatch, tmp_path: Path):
+    ff = _ffmpeg_with_version((8, 0))
+    filters: list[str] = []
+
+    def capture(cmd: list[str]) -> None:
+        if "-vf" in cmd:
+            filters.append(cmd[cmd.index("-vf") + 1])
+        else:
+            filters.append(Path(cmd[cmd.index("-/filter:v") + 1]).read_text())
+
+    monkeypatch.setattr(ff, "run_ffmpeg_non_interactive", capture)
+
+    video_path = tmp_path / "video.mp4"
+    ff.extract_frames_by_interval(video_path, tmp_path, 2, sample_aspect_ratio="4:3")
+    ff.extract_specified_frames(video_path, tmp_path, {2, 9}, sample_aspect_ratio="4:3")
+
+    scale = ",".join(ffmpeg.FFMPEG._scale_to_square_pixels("4:3"))
+    assert scale.startswith("scale=")
+    assert scale.endswith(",setsar=1")
+    assert filters == [
+        f"fps=1/2,{scale}",
+        f"select={ffmpeg.FFMPEG.generate_binary_search([2, 9])},{scale}",
+    ]
