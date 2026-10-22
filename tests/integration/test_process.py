@@ -617,17 +617,50 @@ def test_process_videos_with_an_image_only_geotag_source(setup_data: py.path.loc
 def test_process_unsupported_filetypes(setup_data: py.path.local):
     video_dir = setup_data.join("gopro_data")
     for filetypes in ["blackvue"]:
+        # GoPro videos, which are not processed, as images are not
         descs = run_process_for_descs(
             ["--filetypes", filetypes, "--geotag_source=native", str(video_dir)]
         )
-        assert 2 == len(descs)
-        assert 2 == len(find_desc_errors(descs))
+        assert 0 == len(descs)
 
     for filetypes in ["image"]:
         descs = run_process_for_descs(
             ["--filetypes", filetypes, "--geotag_source=native", str(video_dir)]
         )
         assert 0 == len(descs)
+
+
+def test_process_filetypes_of_videos(setup_data: py.path.local):
+    """
+    The type of a video is known only once it is read. ExifTool, which the
+    default sources fall back to, processed the videos of other types anyway
+    """
+    videos = [
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+        str(setup_data.join("videos").join("sample-5s.mp4")),
+    ]
+    descs = run_process_for_descs(["--filetypes=gopro", *videos])
+    assert [(Path(d["filename"]).name, d["filetype"]) for d in descs] == [
+        ("max-360mode.mp4", "gopro")
+    ]
+    assert "error" not in descs[0]
+
+    assert [] == run_process_for_descs(["--filetypes=blackvue", *videos])
+
+    # Limited by its own filetypes, a source leaves the video to the next
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                '{"source": "native", "filetypes": ["blackvue"]}',
+            ],
+            *["--video_geotag_source", "native"],
+            videos[0],
+        ]
+    )
+    assert [(Path(d["filename"]).name, d["filetype"]) for d in descs] == [
+        ("max-360mode.mp4", "gopro")
+    ]
 
 
 def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.local):
